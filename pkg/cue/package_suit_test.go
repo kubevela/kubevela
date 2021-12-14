@@ -50,7 +50,7 @@ import (
 )
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
-	It("check that all built-in k8s resource are registered", func() {
+	PIt("check that all built-in k8s resource are registered", func() {
 		var localSchemeBuilder = runtime.SchemeBuilder{
 			admissionregistrationv1.AddToScheme,
 			appsv1.AddToScheme,
@@ -95,7 +95,7 @@ var _ = Describe("Package discovery resources for definition from K8s APIServer"
 		}
 	})
 
-	It("discovery built-in k8s resource with kube prefix", func() {
+	PIt("discovery built-in k8s resource with kube prefix", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
@@ -388,7 +388,7 @@ output: {
 
 	})
 
-	It("discovery built-in k8s resource with third-party path", func() {
+	PIt("discovery built-in k8s resource with third-party path", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
