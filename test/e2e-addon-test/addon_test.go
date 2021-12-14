@@ -121,10 +121,10 @@ var _ = Describe("Addon tests", func() {
 			},
 			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
 	})
-	
+
 	It("Addon observability is successfully enabled", func() {
 		By("Install Addon Observability")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable observability grafana-domain=abc.com").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable observability grafana-domain=abc.com disk-size=20Gi").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))

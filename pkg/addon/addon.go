@@ -126,7 +126,9 @@ const (
                 - name: grafana
                   type: helm
                   traits:
-                    domain: {{.Domain}}
+                    - type: pure-ingress
+                      properties:
+                        domain: {{.Domain}}
           {{ end }}
         {{ end }}`
 )
@@ -482,9 +484,6 @@ func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, confi
 	}
 	app.Name = Convert2AppName(addon.Name)
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
-	if app.Spec.Workflow == nil {
-		app.Spec.Workflow = &v1beta1.Workflow{}
-	}
 	for _, namespace := range addon.NeedNamespace {
 		comp := common2.ApplicationComponent{
 			Type:       "raw",
