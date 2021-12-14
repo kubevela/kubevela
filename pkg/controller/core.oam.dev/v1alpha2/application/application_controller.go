@@ -122,7 +122,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	endReconcile, result, err := r.handleFinalizers(logCtx, app, handler)
 	if err != nil {
-		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
+		if app.GetDeletionTimestamp() == nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
+		}
+		return result, err
 	}
 	if endReconcile {
 		return result, nil
@@ -207,17 +210,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 		case common.WorkflowStateTerminated:
 			logCtx.Info("Workflow return state=Terminated")
-			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
+			if err := r.doWorkflowFinish(app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
 		case common.WorkflowStateExecuting:
 			logCtx.Info("Workflow return state=Executing")
 			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
-			return reconcile.Result{RequeueAfter: time.Duration(int(wf.GetBackoffWaitTime() * float64(time.Millisecond) * 1000))}, err
+			return reconcile.Result{RequeueAfter: wf.GetBackoffWaitTime()}, err
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
-			if err := r.doWorkflowFinish(logCtx, app, wf); err != nil {
+			if err := r.doWorkflowFinish(app, wf); err != nil {
 				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
@@ -433,11 +436,10 @@ func (r *Reconciler) updateStatusWithRetryOnConflict(ctx context.Context, app *v
 	})
 }
 
-func (r *Reconciler) doWorkflowFinish(ctx monitorContext.Context, app *v1beta1.Application, wf workflow.Workflow) error {
+func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
 	if err := wf.Trace(); err != nil {
 		return errors.WithMessage(err, "record workflow state")
 	}
-	wf.Cleanup(ctx)
 	app.Status.Workflow.Finished = true
 	return nil
 }
@@ -500,12 +502,21 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
 			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
-				new := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
-				old := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+				new, ok := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+				if !ok {
+					return true
+				}
+				old, ok := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+				if !ok {
+					return true
+				}
 				if old.Status.Workflow != nil && new.Status.Workflow != nil {
 					// ignore the changes in workflow status
 					new.Status.Workflow.Steps = old.Status.Workflow.Steps
 					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
+					new.Status.Workflow.Message = old.Status.Workflow.Message
+					new.Status.Workflow.LastExecuteTime = old.Status.Workflow.LastExecuteTime
+					new.Status.Workflow.NextExecuteTime = old.Status.Workflow.NextExecuteTime
 					new.Status.AppliedResources = old.Status.AppliedResources
 					new.Status.Services = old.Status.Services
 					new.ManagedFields = old.ManagedFields

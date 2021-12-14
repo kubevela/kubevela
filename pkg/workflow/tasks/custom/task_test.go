@@ -244,7 +244,7 @@ close({
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		case "failed-after-retries":
 			newCtx := newWorkflowContextForTest(t)
-			for i := 0; i < 20; i++ {
+			for i := 0; i < MaxErrorTimes; i++ {
 				status, operation, err = run.Run(newCtx, &types.TaskRunOptions{})
 				r.NoError(err)
 				r.Equal(operation.Waiting, true)

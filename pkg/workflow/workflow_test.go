@@ -177,7 +177,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
-			Message:     "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)",
+			Message:     MessageFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -221,7 +221,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeDAG,
-			Message:     "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)",
+			Message:     MessageFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
 				Name:  "s1",
@@ -253,32 +253,38 @@ var _ = Describe("Test Workflow", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Test get backoff time")
-		for i := 0; i < 6; i++ {
-			_, err = wf.ExecuteSteps(ctx, revision, runners)
-			Expect(err).ToNot(HaveOccurred())
-
-			interval := wf.GetBackoffWaitTime()
-			Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
-		}
-
 		for i := 0; i < 5; i++ {
 			_, err = wf.ExecuteSteps(ctx, revision, runners)
 			Expect(err).ToNot(HaveOccurred())
+			wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+			Expect(err).ToNot(HaveOccurred())
+			interval := getBackoffWaitTime(wfCtx)
+			Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
+		}
 
-			interval := wf.GetBackoffWaitTime()
-			Expect(interval).Should(BeEquivalentTo(0.05 * math.Pow(2, float64(i+6))))
+		for i := 0; i < 9; i++ {
+			_, err = wf.ExecuteSteps(ctx, revision, runners)
+			Expect(err).ToNot(HaveOccurred())
+			wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+			Expect(err).ToNot(HaveOccurred())
+			interval := getBackoffWaitTime(wfCtx)
+			Expect(interval).Should(BeEquivalentTo(int(0.05 * math.Pow(2, float64(i+5)))))
 		}
 
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		interval := wf.GetBackoffWaitTime()
+		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		interval := getBackoffWaitTime(wfCtx)
 		Expect(interval).Should(BeEquivalentTo(maxWorkflowBackoffWaitTime))
 
 		By("Test get backoff time after clean")
 		wf.Cleanup(ctx)
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		interval = wf.GetBackoffWaitTime()
+		wfCtx, err = wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		interval = getBackoffWaitTime(wfCtx)
 		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 	})
 
@@ -700,6 +706,8 @@ func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
 
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
 	wfStatus.StartTime = metav1.Time{}
+	wfStatus.LastExecuteTime = metav1.Time{}
+	wfStatus.NextExecuteTime = metav1.Time{}
 	for index := range wfStatus.Steps {
 		wfStatus.Steps[index].FirstExecuteTime = metav1.Time{}
 		wfStatus.Steps[index].LastExecuteTime = metav1.Time{}

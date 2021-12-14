@@ -301,7 +301,7 @@ func newCliForTest(t *testing.T, wfCm *corev1.ConfigMap) *test.MockClient {
 					r.NoError(err)
 					*o = cm
 					return nil
-				case GenerateStoreName("app-v1"):
+				case generateStoreName("app-v1"):
 					if wfCm != nil {
 						*o = *wfCm
 						return nil

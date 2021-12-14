@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,12 +46,12 @@ const (
 	// minWorkflowBackoffWaitTime is the min time to wait before reconcile workflow again
 	minWorkflowBackoffWaitTime = 1
 	// maxWorkflowBackoffWaitTime is the max time to wait before reconcile workflow again
-	maxWorkflowBackoffWaitTime = 60
+	maxWorkflowBackoffWaitTime = 600
 	// backoffTimeCoefficient is the coefficient of time to wait before reconcile workflow again
 	backoffTimeCoefficient = 0.05
 
 	// MessageFailedAfterRetries is the message of failed after retries
-	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit(20 times)"
+	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit(10 times)"
 	// MessageInitializingWorkflow is the message of initializing workflow
 	MessageInitializingWorkflow = "Initializing workflow"
 )
@@ -144,6 +143,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateExecuting, err
 	}
 	w.wfCtx = wfCtx
+	w.checkDuplicateID(ctx)
 
 	e := &engine{
 		status:     wfStatus,
@@ -161,6 +161,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 	e.checkWorkflowStatusMessage(wfStatus)
 	if wfStatus.Terminated {
+		w.Cleanup(ctx)
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
@@ -168,6 +169,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateSuspended, nil
 	}
 	if w.allDone(taskRunners) {
+		w.Cleanup(ctx)
 		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -185,15 +187,8 @@ func (w *workflow) Trace() error {
 }
 
 func (w *workflow) Cleanup(ctx monitorContext.Context) {
-	ctxName := wfContext.GenerateStoreName(w.app.Name)
-	ctxCM := &corev1.ConfigMap{}
-	if err := w.cli.Get(ctx, client.ObjectKey{
-		Namespace: w.app.Namespace,
-		Name:      ctxName,
-	}, ctxCM); err != nil {
-		ctx.Error(err, "failed to get workflow context", "application", w.app.Name, "config map", ctxName)
-		return
-	}
+	w.app.Status.Workflow.NextExecuteTime.Time = time.Time{}
+	ctxCM := w.wfCtx.GetStore()
 
 	for k := range ctxCM.Data {
 		if strings.HasPrefix(k, wfTypes.ContextPrefixFailedTimes) || strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
@@ -202,41 +197,21 @@ func (w *workflow) Cleanup(ctx monitorContext.Context) {
 	}
 
 	if err := w.cli.Update(ctx, ctxCM); err != nil {
-		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", ctxName)
+		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", ctxCM.Name)
 	}
 
 }
 
-func (w *workflow) GetBackoffWaitTime() float64 {
-	ctxCM := w.wfCtx.GetStore()
-
-	// the default value of min times reaches the max workflow backoff wait time
-	minTimes := 12
-	found := false
-	for k, v := range ctxCM.Data {
-		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
-			found = true
-			times, err := strconv.Atoi(v)
-			if err != nil {
-				times = 0
-			}
-			if times < minTimes {
-				minTimes = times
-			}
-		}
+func (w *workflow) GetBackoffWaitTime() time.Duration {
+	nextTime := w.app.Status.Workflow.NextExecuteTime.Time
+	if nextTime.IsZero() {
+		return time.Second
 	}
-	if !found {
-		return minWorkflowBackoffWaitTime
+	if nextTime.After(time.Now()) {
+		return time.Until(nextTime)
 	}
 
-	interval := math.Pow(2, float64(minTimes)) * backoffTimeCoefficient
-	if interval < minWorkflowBackoffWaitTime {
-		return minWorkflowBackoffWaitTime
-	}
-	if interval > maxWorkflowBackoffWaitTime {
-		return maxWorkflowBackoffWaitTime
-	}
-	return interval
+	return time.Second
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -295,6 +270,54 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
+func (w *workflow) checkDuplicateID(ctx monitorContext.Context) {
+	if len(w.app.Status.Workflow.Steps) > 0 {
+		return
+	}
+	ctxCM := w.wfCtx.GetStore()
+	found := false
+	for k := range ctxCM.Data {
+		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
+			found = true
+		}
+	}
+	if found {
+		w.Cleanup(ctx)
+	}
+}
+
+func getBackoffWaitTime(wfCtx wfContext.Context) int {
+	ctxCM := wfCtx.GetStore()
+	// the default value of min times reaches the max workflow backoff wait time
+	minTimes := 15
+	found := false
+	for k, v := range ctxCM.Data {
+		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
+			found = true
+			times, err := strconv.Atoi(v)
+			if err != nil {
+				times = 0
+			}
+			if times < minTimes {
+				minTimes = times
+			}
+		}
+	}
+	if !found {
+		return minWorkflowBackoffWaitTime
+	}
+
+	interval := math.Pow(2, float64(minTimes)) * backoffTimeCoefficient
+	if interval < minWorkflowBackoffWaitTime {
+		return minWorkflowBackoffWaitTime
+	}
+	if interval > maxWorkflowBackoffWaitTime {
+		return maxWorkflowBackoffWaitTime
+	}
+	fmt.Println("=====================", interval, int(interval))
+	return int(interval)
+}
+
 func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
 	var (
 		todoTasks    []wfTypes.TaskRunner
@@ -345,11 +368,17 @@ func (e *engine) runAsDAG(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRun
 }
 
 func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) error {
+	var err error
 	if e.dagMode {
-		return e.runAsDAG(wfCtx, taskRunners)
+		err = e.runAsDAG(wfCtx, taskRunners)
+	} else {
+		err = e.steps(wfCtx, e.todoByIndex(taskRunners))
 	}
-
-	return e.steps(wfCtx, e.todoByIndex(taskRunners))
+	interval := getBackoffWaitTime(wfCtx)
+	if e.app.Status.Workflow != nil {
+		e.app.Status.Workflow.NextExecuteTime.Time = e.app.Status.Workflow.LastExecuteTime.Time.Add(time.Duration(interval) * time.Second)
+	}
+	return err
 }
 
 func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
@@ -447,6 +476,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 		conditionUpdated bool
 		now              = metav1.NewTime(time.Now())
 	)
+	e.app.Status.Workflow.LastExecuteTime = now
 	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {

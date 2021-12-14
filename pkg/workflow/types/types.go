@@ -85,4 +85,6 @@ const (
 	ContextPrefixFailedTimes = "failed_times"
 	// ContextPrefixBackoffTimes is the prefix that refer to the backoff times in workflow context config map.
 	ContextPrefixBackoffTimes = "backoff_times"
+	// ContextKeyApplicationResourceVersion is the key that refer to the application resource version in workflow context config map.
+	ContextKeyApplicationResourceVersion = "resource_version"
 )

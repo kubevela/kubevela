@@ -16,6 +16,8 @@ limitations under the License.
 package workflow
 
 import (
+	"time"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -35,5 +37,5 @@ type Workflow interface {
 	Cleanup(ctx monitorContext.Context)
 
 	// GetBackoffWaitTime returns the wait time for next retry.
-	GetBackoffWaitTime() float64
+	GetBackoffWaitTime() time.Duration
 }

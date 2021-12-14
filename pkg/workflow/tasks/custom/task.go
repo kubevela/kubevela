@@ -53,8 +53,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
-
-	maxErrorTimes = 20
+	// MaxErrorTimes is the max times of the workflow progress condition which is Failed.
+	MaxErrorTimes = 10
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -285,7 +285,7 @@ func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 
 func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
 	times := ctx.IncreaseModifiableCountValue(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
-	if times >= maxErrorTimes {
+	if times >= MaxErrorTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true
 	}

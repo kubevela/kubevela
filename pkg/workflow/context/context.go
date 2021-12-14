@@ -317,7 +317,7 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 		ctx   = context.Background()
 		store corev1.ConfigMap
 	)
-	store.Name = GenerateStoreName(app)
+	store.Name = generateStoreName(app)
 	store.Namespace = ns
 	store.SetOwnerReferences([]metav1.OwnerReference{
 		{
@@ -357,7 +357,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	var store corev1.ConfigMap
 	if err := cli.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
-		Name:      GenerateStoreName(app),
+		Name:      generateStoreName(app),
 	}, &store); err != nil {
 		return nil, err
 	}
@@ -371,7 +371,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	return ctx, nil
 }
 
-// GenerateStoreName generates the config map name of workflow context.
-func GenerateStoreName(app string) string {
+// generateStoreName generates the config map name of workflow context.
+func generateStoreName(app string) string {
 	return fmt.Sprintf("workflow-%s-context", app)
 }
