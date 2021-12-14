@@ -374,7 +374,7 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 		err = e.steps(wfCtx, e.todoByIndex(taskRunners))
 	}
 	interval := getBackoffWaitTime(wfCtx)
-	if e.app.Status.Workflow != nil {
+	if e.app.Status.Workflow != nil && e.app.Status.Workflow.LastExecuteTime != nil && !e.app.Status.Workflow.LastExecuteTime.Time.IsZero() {
 		e.app.Status.Workflow.NextExecuteTime = &metav1.Time{Time: e.app.Status.Workflow.LastExecuteTime.Time.Add(time.Duration(interval) * time.Second)}
 	}
 	return err

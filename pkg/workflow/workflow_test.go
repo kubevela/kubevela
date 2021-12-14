@@ -706,8 +706,8 @@ func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
 
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
 	wfStatus.StartTime = metav1.Time{}
-	wfStatus.LastExecuteTime = &metav1.Time{}
-	wfStatus.NextExecuteTime = &metav1.Time{}
+	wfStatus.LastExecuteTime = nil
+	wfStatus.NextExecuteTime = nil
 	for index := range wfStatus.Steps {
 		wfStatus.Steps[index].FirstExecuteTime = metav1.Time{}
 		wfStatus.Steps[index].LastExecuteTime = metav1.Time{}

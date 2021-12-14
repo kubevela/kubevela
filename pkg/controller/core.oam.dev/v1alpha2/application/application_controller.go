@@ -510,6 +510,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if !ok {
 					return true
 				}
+				// if the generation is changed, return true to let the controller handle it
+				if old.Generation != old.Generation {
+					return true
+				}
+
 				// ignore the changes in workflow status
 				if old.Status.Workflow != nil && new.Status.Workflow != nil {
 					// only workflow execution will change the status.workflow
