@@ -511,7 +511,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return true
 				}
 				// if the generation is changed, return true to let the controller handle it
-				if old.Generation != old.Generation {
+				if old.Generation != new.Generation {
 					return true
 				}
 
