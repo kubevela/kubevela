@@ -901,16 +901,10 @@ spec:
                     type: object
                   finished:
                     type: boolean
-                  lastExecuteTime:
-                    format: date-time
-                    type: string
                   message:
                     type: string
                   mode:
                     description: WorkflowMode describes the mode of workflow
-                    type: string
-                  nextExecuteTime:
-                    format: date-time
                     type: string
                   startTime:
                     format: date-time
@@ -2000,16 +1994,10 @@ spec:
                     type: object
                   finished:
                     type: boolean
-                  lastExecuteTime:
-                    format: date-time
-                    type: string
                   message:
                     type: string
                   mode:
                     description: WorkflowMode describes the mode of workflow
-                    type: string
-                  nextExecuteTime:
-                    format: date-time
                     type: string
                   startTime:
                     format: date-time

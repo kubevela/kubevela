@@ -26,7 +26,6 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -404,36 +403,34 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) patchStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		status := app.Status.DeepCopy()
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
-			return errors.WithMessage(err, "failed to get application while patching status")
-		}
-		app.Status = *status
-		err := r.Status().Patch(ctx, app, client.Merge)
-		if err != nil {
-			return errors.WithMessage(err, "failed to re-patch status")
-		}
-		return nil
-	})
+
+	status := app.Status.DeepCopy()
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
+		return errors.WithMessage(err, "failed to get application while patching status")
+	}
+	app.Status = *status
+	err := r.Status().Patch(ctx, app, client.Merge)
+	if err != nil {
+		return errors.WithMessage(err, "failed to re-patch status")
+	}
+	return nil
 }
 
 // Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
 func (r *Reconciler) updateStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		status := app.Status.DeepCopy()
-		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
-			return errors.WithMessage(err, "failed to get application while patching status")
-		}
-		app.Status = *status
-		err := r.Status().Update(ctx, app)
-		if err != nil {
-			return errors.WithMessage(err, "failed to re-patch status")
-		}
-		return nil
-	})
+
+	status := app.Status.DeepCopy()
+	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
+		return errors.WithMessage(err, "failed to get application while patching status")
+	}
+	app.Status = *status
+	err := r.Status().Update(ctx, app)
+	if err != nil {
+		return errors.WithMessage(err, "failed to re-patch status")
+	}
+	return nil
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
@@ -522,8 +519,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					new.Status.Workflow.Steps = old.Status.Workflow.Steps
 					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
 					new.Status.Workflow.Message = old.Status.Workflow.Message
-					new.Status.Workflow.LastExecuteTime = old.Status.Workflow.LastExecuteTime
-					new.Status.Workflow.NextExecuteTime = old.Status.Workflow.NextExecuteTime
 
 					// appliedResources and Services will be changed during the execution of workflow
 					// once the resources is added, the managed fields will also be changed

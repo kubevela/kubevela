@@ -279,7 +279,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(interval).Should(BeEquivalentTo(maxWorkflowBackoffWaitTime))
 
 		By("Test get backoff time after clean")
-		wf.Cleanup(ctx)
+		wf.CleanupCountersInContext(ctx)
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err = wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
@@ -706,8 +706,6 @@ func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
 
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
 	wfStatus.StartTime = metav1.Time{}
-	wfStatus.LastExecuteTime = nil
-	wfStatus.NextExecuteTime = nil
 	for index := range wfStatus.Steps {
 		wfStatus.Steps[index].FirstExecuteTime = metav1.Time{}
 		wfStatus.Steps[index].LastExecuteTime = metav1.Time{}

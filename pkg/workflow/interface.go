@@ -33,8 +33,8 @@ type Workflow interface {
 	// Trace record workflow state in controllerRevision.
 	Trace() error
 
-	// Cleanup cleans up the temporary data in workflow context.
-	Cleanup(ctx monitorContext.Context)
+	// CleanupCountersInContext cleans up the temporary counters in workflow context.
+	CleanupCountersInContext(ctx monitorContext.Context)
 
 	// GetBackoffWaitTime returns the wait time for next retry.
 	GetBackoffWaitTime() time.Duration
