@@ -131,11 +131,11 @@ func (pd *PackageDiscover) ListPackageKinds() map[string][]VersionKind {
 // RefreshKubePackagesFromCluster will use K8s client to load/refresh all K8s open API as a reference kube package using in template
 func (pd *PackageDiscover) RefreshKubePackagesFromCluster() error {
 	return nil
-	//body, err := pd.client.Get().AbsPath("/openapi/v2").Do(context.Background()).Raw()
-	//if err != nil {
-	//	return err
-	//}
-	//return pd.addKubeCUEPackagesFromCluster(string(body))
+	// body, err := pd.client.Get().AbsPath("/openapi/v2").Do(context.Background()).Raw()
+	// if err != nil {
+	//	 return err
+	// }
+	// return pd.addKubeCUEPackagesFromCluster(string(body))
 }
 
 // Exist checks if the GVK exists in the built-in packages
