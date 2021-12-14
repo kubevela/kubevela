@@ -36,6 +36,9 @@ rm -r kubevela-core-api/apis/*
 echo "clear kubevela-core-api pkg/oam"
 rm -r kubevela-core-api/pkg/oam/*
 
+echo "clear kubevela-core-api pkg/utils/errors"
+rm -rf kubevela-core-api/pkg/utils/errors/*
+
 echo "clear kubevela-core-api pkg/generated/client"
 if [[ -d "kubevela-core-api/pkg/generated/client/" ]]
 then
@@ -49,6 +52,10 @@ cp -R kubevela/apis/* kubevela-core-api/apis/
 
 echo "update kubevela-core-api pkg/oam"
 cp -R kubevela/pkg/oam/* kubevela-core-api/pkg/oam/
+
+echo "update kubevela-core-api pkg/utils/errors"
+mkdir -p kubevela-core-api/pkg/utils/errors
+cp -R kubevela/pkg/utils/errors/* kubevela-core-api/pkg/utils/errors/
 
 echo "update kubevela-core-api pkg/generated/client"
 cp -R kubevela/pkg/generated/client/* kubevela-core-api/pkg/generated/client/
