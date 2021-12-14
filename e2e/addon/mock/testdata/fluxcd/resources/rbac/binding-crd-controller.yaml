@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: flux-system
+  name: crd-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cr-crd-controller
+subjects:
+  - kind: ServiceAccount
+    name: sa-kustomize-controller
+    namespace: flux-system
+  - kind: ServiceAccount
+    name: sa-helm-controller
+    namespace: flux-system
+  - kind: ServiceAccount
+    name: sa-source-controller
+    namespace: flux-system
+  - kind: ServiceAccount
+    name: sa-notification-controller
+    namespace: flux-system

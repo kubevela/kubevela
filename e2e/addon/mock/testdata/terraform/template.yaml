@@ -1,0 +1,30 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: terraform
+  namespace: vela-system
+spec:
+  workflow:
+    steps:
+      - name: apply-ns
+        type: apply-component
+        properties:
+          component: ns-terraform-system
+      - name: apply-resources
+        type: apply-remaining
+  components:
+    - name: ns-terraform-system
+      type: raw
+      properties:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: terraform-system
+    - name: terraform-controller
+      type: helm
+      properties:
+        repoType: helm
+        url: https://charts.kubevela.net/addons
+        chart: terraform-controller
+        version: 0.2.11
+
