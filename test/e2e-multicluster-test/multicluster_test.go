@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/utils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -53,7 +54,7 @@ func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
 func initializeContextAndNamespace() (hubCtx context.Context, workerCtx context.Context, namespace string) {
 	hubCtx, workerCtx = initializeContext()
 	// initialize test namespace
-	namespace = fmt.Sprintf("test-%d", time.Now().UnixNano())
+	namespace = "test-mc-" + utils.RandomString(4)
 	ns := &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: namespace}}
 	Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
 	Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())

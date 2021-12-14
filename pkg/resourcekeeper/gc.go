@@ -18,17 +18,23 @@ package resourcekeeper
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	version "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	version2 "github.com/oam-dev/kubevela/version"
 )
 
 // GCOption option for gc
@@ -43,6 +49,7 @@ type gcConfig struct {
 	disableSweep               bool
 	disableFinalize            bool
 	disableComponentRevisionGC bool
+	disableLegacyGC            bool
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -109,6 +116,12 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (fin
 	if !cfg.disableComponentRevisionGC {
 		if err = gc.GarbageCollectComponentRevisionResourceTracker(ctx); err != nil {
 			return false, waiting, errors.Wrapf(err, "failed to garbage collect component revisions in unused components")
+		}
+	}
+	// Garbage Collect Legacy ResourceTrackers
+	if !cfg.disableLegacyGC {
+		if err = gc.GarbageCollectLegacyResourceTrackers(ctx); err != nil {
+			return false, waiting, errors.Wrapf(err, "failed to garbage collect legacy resource trackers")
 		}
 	}
 	return finished, waiting, nil
@@ -270,6 +283,71 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 	}
 	if err := h.Client.Update(ctx, h._crRT); err != nil {
 		return errors.Wrapf(err, "failed to update controllerrevision RT %s", h._crRT.Name)
+	}
+	return nil
+}
+
+const velaVersionNumberToUpgradeResourceTracker = "v1.2.0"
+
+func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) error {
+	// skip legacy gc if application is not handled by new version rt
+	if h.app.GetDeletionTimestamp() == nil && h.resourceKeeper._currentRT == nil {
+		return nil
+	}
+	// check app version
+	velaVersionToUpgradeResourceTracker, _ := version.NewVersion(velaVersionNumberToUpgradeResourceTracker)
+	var currentVersionNumber string
+	if annotations := h.app.GetAnnotations(); annotations != nil && annotations[oam.AnnotationKubeVelaVersion] != "" {
+		currentVersionNumber = annotations[oam.AnnotationKubeVelaVersion]
+	}
+	if currentVersionNumber == "UNKNOWN" {
+		return nil
+	}
+	currentVersion, err := version.NewVersion(currentVersionNumber)
+	if err == nil && velaVersionToUpgradeResourceTracker.LessThanOrEqual(currentVersion) {
+		return nil
+	}
+	// remove legacy ResourceTrackers
+	clusters := map[string]bool{multicluster.ClusterLocalName: true}
+	for _, rsc := range h.app.Status.AppliedResources {
+		if rsc.Cluster != "" {
+			clusters[rsc.Cluster] = true
+		}
+	}
+	for _, policy := range h.app.Spec.Policies {
+		if policy.Type == v1alpha1.EnvBindingPolicyType {
+			spec := &v1alpha1.EnvBindingSpec{}
+			if err = json.Unmarshal(policy.Properties.Raw, &spec); err == nil {
+				for _, env := range spec.Envs {
+					if env.Placement.ClusterSelector != nil && env.Placement.ClusterSelector.Name != "" {
+						clusters[env.Placement.ClusterSelector.Name] = true
+					}
+				}
+			}
+		}
+	}
+	for cluster := range clusters {
+		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
+		rts := &unstructured.UnstructuredList{}
+		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTracker"))
+		if err = h.Client.List(_ctx, rts, client.MatchingLabels(map[string]string{
+			oam.LabelAppName:      h.app.Name,
+			oam.LabelAppNamespace: h.app.Namespace,
+		})); err != nil {
+			return errors.Wrapf(err, "failed to list resource trackers for app %s/%s in cluster %s", h.app.Namespace, h.app.Name, cluster)
+		}
+		for _, rt := range rts.Items {
+			if s, exists, _ := unstructured.NestedString(rt.Object, "spec", "type"); !exists || s == "" {
+				if err = h.Client.Delete(_ctx, rt.DeepCopy()); err != nil {
+					return errors.Wrapf(err, "failed to delete legacy resource tracker %s for app %s/%s in cluster %s", rt.GetName(), h.app.Namespace, h.app.Name, cluster)
+				}
+			}
+		}
+	}
+	// upgrade app version
+	v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
+	if err = h.Client.Update(ctx, h.app); err != nil {
+		return errors.Wrapf(err, "failed to upgrade app %s/%s", h.app.Namespace, h.app.Name)
 	}
 	return nil
 }
