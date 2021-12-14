@@ -330,8 +330,8 @@ type WorkflowStatus struct {
 	AppRevision     string       `json:"appRevision,omitempty"`
 	Mode            WorkflowMode `json:"mode"`
 	Message         string       `json:"message,omitempty"`
-	NextExecuteTime metav1.Time  `json:"nextExecuteTime,omitempty"`
-	LastExecuteTime metav1.Time  `json:"lastExecuteTime,omitempty"`
+	NextExecuteTime *metav1.Time `json:"nextExecuteTime,omitempty"`
+	LastExecuteTime *metav1.Time `json:"lastExecuteTime,omitempty"`
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`

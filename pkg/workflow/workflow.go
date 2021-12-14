@@ -187,7 +187,7 @@ func (w *workflow) Trace() error {
 }
 
 func (w *workflow) Cleanup(ctx monitorContext.Context) {
-	w.app.Status.Workflow.NextExecuteTime.Time = time.Time{}
+	w.app.Status.Workflow.NextExecuteTime = nil
 	ctxCM := w.wfCtx.GetStore()
 
 	for k := range ctxCM.Data {
@@ -203,12 +203,12 @@ func (w *workflow) Cleanup(ctx monitorContext.Context) {
 }
 
 func (w *workflow) GetBackoffWaitTime() time.Duration {
-	nextTime := w.app.Status.Workflow.NextExecuteTime.Time
-	if nextTime.IsZero() {
+	nextTime := w.app.Status.Workflow.NextExecuteTime
+	if nextTime == nil || nextTime.IsZero() {
 		return time.Second
 	}
 	if nextTime.After(time.Now()) {
-		return time.Until(nextTime)
+		return time.Until(nextTime.Time)
 	}
 
 	return time.Second
@@ -314,7 +314,6 @@ func getBackoffWaitTime(wfCtx wfContext.Context) int {
 	if interval > maxWorkflowBackoffWaitTime {
 		return maxWorkflowBackoffWaitTime
 	}
-	fmt.Println("=====================", interval, int(interval))
 	return int(interval)
 }
 
@@ -376,7 +375,7 @@ func (e *engine) run(wfCtx wfContext.Context, taskRunners []wfTypes.TaskRunner) 
 	}
 	interval := getBackoffWaitTime(wfCtx)
 	if e.app.Status.Workflow != nil {
-		e.app.Status.Workflow.NextExecuteTime.Time = e.app.Status.Workflow.LastExecuteTime.Time.Add(time.Duration(interval) * time.Second)
+		e.app.Status.Workflow.NextExecuteTime = &metav1.Time{Time: e.app.Status.Workflow.LastExecuteTime.Time.Add(time.Duration(interval) * time.Second)}
 	}
 	return err
 }
@@ -476,7 +475,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 		conditionUpdated bool
 		now              = metav1.NewTime(time.Now())
 	)
-	e.app.Status.Workflow.LastExecuteTime = now
+	e.app.Status.Workflow.LastExecuteTime = &now
 	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
