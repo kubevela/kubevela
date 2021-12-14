@@ -140,8 +140,11 @@ func (wf *WorkflowContext) IncreaseModifiableCountValue(paths ...string) int {
 
 // DeleteModifiableValue delete modifiable data in workflow context.
 func (wf *WorkflowContext) DeleteModifiableValue(paths ...string) {
-	delete(wf.store.Data, strings.Join(paths, "."))
-	wf.modified = true
+	key := strings.Join(paths, ".")
+	if _, ok := wf.store.Data[key]; ok {
+		delete(wf.store.Data, strings.Join(paths, "."))
+		wf.modified = true
+	}
 }
 
 // MakeParameter make 'value' with interface{}

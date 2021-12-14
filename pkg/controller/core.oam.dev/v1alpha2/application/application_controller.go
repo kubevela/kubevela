@@ -510,16 +510,23 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if !ok {
 					return true
 				}
+				// ignore the changes in workflow status
 				if old.Status.Workflow != nil && new.Status.Workflow != nil {
-					// ignore the changes in workflow status
+					// only workflow execution will change the status.workflow
+					// let workflow backoff to requeue the event
 					new.Status.Workflow.Steps = old.Status.Workflow.Steps
 					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
 					new.Status.Workflow.Message = old.Status.Workflow.Message
 					new.Status.Workflow.LastExecuteTime = old.Status.Workflow.LastExecuteTime
 					new.Status.Workflow.NextExecuteTime = old.Status.Workflow.NextExecuteTime
+
+					// appliedResources and Services will be changed during the execution of workflow
+					// once the resources is added, the managed fields will also be changed
 					new.Status.AppliedResources = old.Status.AppliedResources
 					new.Status.Services = old.Status.Services
 					new.ManagedFields = old.ManagedFields
+					// the resource version will be changed if the object is changed
+					// ignore this change and let reflect.DeepEqual to compare the rest of the object
 					new.ResourceVersion = old.ResourceVersion
 				}
 				return !reflect.DeepEqual(old, new)
