@@ -75,6 +75,14 @@ func (option DisableGCComponentRevisionOption) ApplyToGCConfig(cfg *gcConfig) {
 	cfg.disableComponentRevisionGC = true
 }
 
+// DisableLegacyGCOption disable garbage collect legacy resourcetrackers
+type DisableLegacyGCOption struct{}
+
+// ApplyToGCConfig apply change to gc config
+func (option DisableLegacyGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.disableLegacyGC = true
+}
+
 // GarbageCollectStrategyOption apply garbage collect strategy to resourcetracker recording
 type GarbageCollectStrategyOption v1alpha1.GarbageCollectStrategy
 

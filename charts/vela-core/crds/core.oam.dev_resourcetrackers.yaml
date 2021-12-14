@@ -19,7 +19,20 @@ spec:
     singular: resourcetracker
   scope: Cluster
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: TYPE
+      type: string
+    - jsonPath: .metadata.labels['app\.oam\.dev\/name']
+      name: APP
+      type: string
+    - jsonPath: .metadata.labels['app\.oam\.dev\/namespace']
+      name: APP-NS
+      type: string
+    - jsonPath: .spec.applicationGeneration
+      name: APP-GEN
+      type: number
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: An ResourceTracker represents a tracker for track cross namespace

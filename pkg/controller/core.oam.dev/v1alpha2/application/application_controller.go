@@ -70,12 +70,8 @@ const (
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
 
-	legacyResourceTrackerFinalizer = "resourceTracker.finalizer.core.oam.dev"
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
-	// legacyOnlyRevisionFinalizer is to delete all resource trackers of app revisions which may be used
-	// out of the domain of app controller, e.g., AppRollout controller.
-	legacyOnlyRevisionFinalizer = "app.oam.dev/only-revision-finalizer"
 )
 
 // Reconciler reconciles an Application object
@@ -115,7 +111,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logCtx.AddTag("resource_version", app.ResourceVersion)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
-	metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
+	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
+		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
+	}
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
 	if err != nil {
@@ -300,7 +298,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
 	var options []resourcekeeper.GCOption
 	if !gcOutdated {
-		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{})
+		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
 	}
 	finished, waiting, err := handler.resourceKeeper.GarbageCollect(logCtx, options...)
 	if err != nil {
@@ -332,31 +330,19 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
-		if meta.FinalizerExists(app, legacyResourceTrackerFinalizer) {
-			// TODO(roywang) legacyResourceTrackerFinalizer will be deprecated in the future
-			// this is for backward compatibility
-			rt := &v1beta1.ResourceTracker{}
-			rt.SetName(fmt.Sprintf("%s-%s", app.Namespace, app.Name))
-			if err := r.Client.Delete(ctx, rt); err != nil && !kerrors.IsNotFound(err) {
-				ctx.Error(err, "Failed to delete legacy resource tracker", "name", rt.Name)
-				return true, ctrl.Result{}, errors.WithMessage(err, "cannot remove finalizer")
-			}
-			meta.RemoveFinalizer(app, legacyResourceTrackerFinalizer)
-			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
-		}
-		if meta.FinalizerExists(app, resourceTrackerFinalizer) || meta.FinalizerExists(app, legacyOnlyRevisionFinalizer) {
+		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return true, ctrl.Result{}, err
 			}
+			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
+			if err != nil {
+				return true, result, err
+			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-				// legacyOnlyRevisionFinalizer will be deprecated in the future
-				// this is for backward compatibility
-				meta.RemoveFinalizer(app, legacyOnlyRevisionFinalizer)
 				return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 			}
-			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
 			return true, result, err
 		}
 	}

@@ -41,6 +41,10 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // An ResourceTracker represents a tracker for track cross namespace resources
+// +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.type`
+// +kubebuilder:printcolumn:name="APP",type=string,JSONPath=`.metadata.labels['app\.oam\.dev\/name']`
+// +kubebuilder:printcolumn:name="APP-NS",type=string,JSONPath=`.metadata.labels['app\.oam\.dev\/namespace']`
+// +kubebuilder:printcolumn:name="APP-GEN",type=number,JSONPath=`.spec.applicationGeneration`
 // +kubebuilder:resource:scope=Cluster,categories={oam},shortName=rt
 type ResourceTracker struct {
 	metav1.TypeMeta   `json:",inline"`

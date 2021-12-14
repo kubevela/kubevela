@@ -78,9 +78,11 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 30*time.Second).Should(Succeed())
 
 		By("test apply-once policy")
-		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-		app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(`{"enable":true}`)}
-		Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(`{"enable":true}`)}
+			g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
