@@ -110,7 +110,7 @@ func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*Addon, error) {
 	}
 	var l sync.Mutex
 	for _, subItem := range items {
-		if subItem.GetType() != "dir" {
+		if subItem.GetType() != "dir" || !IsAddon(r, subItem) {
 			continue
 		}
 		wg.Add(1)
@@ -145,6 +145,15 @@ forLoop:
 		return addons, compactErrors("error(s) happen when reading from registry: ", errs)
 	}
 	return addons, nil
+}
+
+func IsAddon(r AsyncReader, item Item) bool {
+	metaItem := OssItem{path: path.Join(item.GetPath(), MetadataFileName), name: MetadataFileName, tp: FileType}
+	content, _, err := r.Read(r.RelativePath(metaItem))
+	if err != nil {
+		return false
+	}
+	return len(content) > 0
 }
 
 func compactErrors(message string, errs []error) error {

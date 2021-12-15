@@ -225,7 +225,8 @@ type ossReader struct {
 
 // OssItem is Item implement for OSS
 type OssItem struct {
-	tp   string
+	tp string
+	// path is relative to bucket.endpoint/path
 	path string
 	name string
 }
@@ -291,40 +292,59 @@ func (o *ossReader) Read(readPath string) (content string, subItem []Item, err e
 		if !strings.HasSuffix(readPath, "/") && readPath != "" {
 			return o.Read(readPath + "/")
 		}
-		items := convert2OssItem(list.Files, actualPath)
+		items := o.convert2OssItem(list.Files, actualPath)
 		return "", items, nil
 	}
 
 	return "", nil, errors.Wrap(err, "read oss fail")
 }
 
-func convert2OssItem(files []File, nowPath string) []Item {
+// convert2OssItem convert OSS list result to Item
+func (o ossReader) convert2OssItem(files []File, nowPath string) []Item {
 	const slash = "/"
-	var items []Item
+	// calculate relativePath to path relative to bucket
+	var relativePath = nowPath
+	if o.path != "" {
+		relativePath = strings.TrimPrefix(relativePath, o.path)
+		relativePath = strings.TrimPrefix(relativePath, "/")
+	}
+	var items []OssItem
 	ps := strings.Split(path.Clean(nowPath), slash)
-	pathExist := map[string]bool{}
+	pathExistCount := map[string]int{}
 	for _, f := range files {
 		fPath := strings.Split(path.Clean(f.Name), slash)
+		// if nowPath is empty, ps would be ["."]
 		if ps[0] != "." {
 			fPath = fPath[len(ps):]
 		}
-		name := fPath[0]
-		if _, exist := pathExist[name]; exist {
+		if len(fPath) == 0 {
 			continue
 		}
-		pathExist[name] = true
+		name := fPath[0]
+		pathExistCount[name] += 1
+		if count := pathExistCount[name]; count > 1 {
+			continue
+		}
 		item := OssItem{
-			path: f.Name,
-			name: fPath[0],
+			path: path.Join(relativePath, name),
+			name: name,
 			tp:   FileType,
 		}
 		if len(fPath) > 1 {
-			item.path = path.Join(nowPath, item.name)
 			item.tp = DirType
 		}
 		items = append(items, item)
 	}
-	return items
+	// check if item is directory
+	var res []Item
+	for _, item := range items {
+		if pathExistCount[item.GetName()] > 1 {
+			item.tp = DirType
+		}
+		res = append(res, item)
+	}
+
+	return res
 }
 
 func (o *ossReader) RelativePath(item Item) string {
@@ -340,6 +360,7 @@ func (o *ossReader) WithNewAddonAndMutex() AsyncReader {
 		},
 		bucketEndPoint: o.bucketEndPoint,
 		client:         o.client,
+		path:           o.path,
 	}
 }
 

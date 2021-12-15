@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"strings"
 	"testing"
 
 	"gotest.tools/assert"
@@ -43,4 +44,67 @@ func TestPathWithParent(t *testing.T) {
 		res := pathWithParent(tc.readPath, tc.parentPath)
 		assert.Equal(t, res, tc.actualReadPath)
 	}
+}
+
+func TestConvert2OssItem(t *testing.T) {
+	reader, err := NewAsyncReader("ep-beijing.com", "bucket", "sub-addons", "", ossType)
+	assert.NilError(t, err)
+	o, ok := reader.(*ossReader)
+	assert.Equal(t, ok, true)
+	var testFiles = []File{
+		{
+			Name: "sub-addons/fluxcd",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/helm-release.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/resources/configmap.yaml",
+			Size: 100,
+		},
+	}
+	var expectItemCase = map[string][]Item{
+		"sub-addons": {
+			OssItem{
+				tp:   DirType,
+				path: "fluxcd",
+				name: "fluxcd",
+			},
+			OssItem{
+				tp:   DirType,
+				path: "example",
+				name: "example",
+			},
+		},
+		"sub-addons/fluxcd": {
+			OssItem{
+				tp:   DirType,
+				path: "fluxcd/definitions",
+				name: "definitions",
+			},
+		}}
+
+	for nowPath, expectItems := range expectItemCase {
+		var readFile []File
+		for _, testFile := range testFiles {
+			if strings.HasPrefix(testFile.Name, nowPath) {
+				readFile = append(readFile, testFile)
+			}
+		}
+		items := o.convert2OssItem(readFile, nowPath)
+		assert.Equal(t, len(items), len(expectItems))
+		for i, item := range items {
+			ei := expectItems[i]
+			assert.Equal(t, item.GetPath(), ei.GetPath())
+			assert.Equal(t, item.GetName(), ei.GetName())
+			assert.Equal(t, item.GetType(), ei.GetType())
+		}
+	}
+
 }
