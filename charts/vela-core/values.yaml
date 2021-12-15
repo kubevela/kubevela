@@ -107,7 +107,7 @@ dependCheckWait: 30s
 OAMSpecVer: "v0.3"
 
 multicluster:
-  enabled: false
+  enabled: true
   clusterGateway:
     replicaCount: 1
     port: 9443
