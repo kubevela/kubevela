@@ -270,7 +270,7 @@ func statusAddon(name string) error {
 	}
 	fmt.Printf("addon %s status is %s \n", name, status)
 	if status == statusEnabling {
-		fmt.Printf("please check addon related application: namespace: %s name: %s", types.DefaultKubeVelaNS, pkgaddon.Convert2AppName(name))
+		fmt.Printf("this addon is still enabling, please run \"vela status %s -n vela-system \" to check the status of the addon related app", pkgaddon.Convert2AppName(name))
 	}
 	return nil
 }
