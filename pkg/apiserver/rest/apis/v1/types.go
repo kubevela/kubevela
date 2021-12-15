@@ -483,6 +483,7 @@ type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
+	Namespace   string `json:"namespace" optional:"true"`
 }
 
 // ListDefinitionResponse list definition response model

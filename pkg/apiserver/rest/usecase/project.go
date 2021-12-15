@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -34,6 +35,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
+
+// ProjectNamespace mark the usage of the namespace.
+const ProjectNamespace = "project"
 
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
@@ -101,19 +105,41 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		Alias:       req.Alias,
 		Namespace:   fmt.Sprintf("project-%s", req.Name),
 	}
-
+	if req.Namespace != "" {
+		new.Namespace = req.Namespace
+	}
 	// create namespace at first
 	if err := p.kubeClient.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: new.Namespace,
 			Labels: map[string]string{
 				oam.LabelProjectNamesapce: new.Name,
+				oam.LabelUsageNamespace:   ProjectNamespace,
 			},
 		},
 		Spec: corev1.NamespaceSpec{},
 	}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return nil, err
+		}
+		if apierrors.IsAlreadyExists(err) {
+			var namespace corev1.Namespace
+			if err := p.kubeClient.Get(ctx, k8stypes.NamespacedName{Name: new.Namespace}, &namespace); err != nil {
+				return nil, bcode.ErrProjectNamespaceFail
+			}
+			if _, exist := namespace.Labels[oam.LabelProjectNamesapce]; !exist {
+				if namespace.Labels == nil {
+					namespace.Labels = make(map[string]string)
+				}
+				namespace.Labels[oam.LabelProjectNamesapce] = new.Name
+				namespace.Labels[oam.LabelUsageNamespace] = ProjectNamespace
+				if err := p.kubeClient.Update(ctx, &namespace); err != nil {
+					log.Logger.Errorf("update namespace label failure %s", err.Error())
+					return nil, bcode.ErrProjectNamespaceFail
+				}
+			} else {
+				return nil, bcode.ErrProjectNamespaceIsExist
+			}
 		}
 	}
 
