@@ -83,14 +83,16 @@ func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	return c
 }
 
-func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, clusterName string) (*model.Cluster, error) {
-	cluster := &model.Cluster{
-		Name: clusterName,
-	}
-	if err := c.ds.Get(ctx, cluster); err != nil {
+func _getClusterFromDataStore(ctx context.Context, ds datastore.DataStore, clusterName string) (*model.Cluster, error) {
+	cluster := &model.Cluster{Name: clusterName}
+	if err := ds.Get(ctx, cluster); err != nil {
 		return nil, err
 	}
 	return cluster, nil
+}
+
+func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, clusterName string) (*model.Cluster, error) {
+	return _getClusterFromDataStore(ctx, c.ds, clusterName)
 }
 
 func (c *clusterUsecaseImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {

@@ -53,6 +53,7 @@ var _ = Describe("Test delivery target usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
+		Expect(deliveryTargetUsecase.ds.Add(context.TODO(), &model.Cluster{Name: "cluster-dev", Alias: "dev-alias"})).Should(Succeed())
 	})
 
 	It("Test GetDeliveryTarget function", func() {
@@ -63,8 +64,9 @@ var _ = Describe("Test delivery target usecase functions", func() {
 	})
 
 	It("Test ListDeliveryTargets function", func() {
-		_, err := deliveryTargetUsecase.ListDeliveryTargets(context.TODO(), 1, 1, "")
+		resp, err := deliveryTargetUsecase.ListDeliveryTargets(context.TODO(), 1, 1, "")
 		Expect(err).Should(BeNil())
+		Expect(resp.Targets[0].ClusterAlias).Should(Equal("dev-alias"))
 	})
 
 	It("Test DetailDeliveryTarget function", func() {
