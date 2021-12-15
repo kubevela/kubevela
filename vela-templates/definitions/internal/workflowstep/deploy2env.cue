@@ -10,9 +10,10 @@ import (
 }
 template: {
 	app: op.#ApplyEnvBindApp & {
-		env:    parameter.env
-		policy: parameter.policy
-		app:    context.name
+		env:      parameter.env
+		policy:   parameter.policy
+		parallel: parameter.parallel
+		app:      context.name
 		// context.namespace indicates the namespace of the app
 		namespace: context.namespace
 	}
@@ -22,5 +23,7 @@ template: {
 		policy: *"" | string
 		// +usage=Declare the name of the env in policy
 		env: string
+		// +usage=components are applied in parallel
+		parallel: *false | bool
 	}
 }
