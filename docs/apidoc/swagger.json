@@ -3480,9 +3480,9 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"rollingState",
-				"upgradedReplicas",
 				"batchRollingState",
+				"upgradedReplicas",
+				"rollingState",
 				"currentBatch",
 				"upgradedReadyReplicas",
 				"lastTargetAppRevision"
@@ -3977,8 +3977,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -4061,8 +4061,8 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"version",
 				"status",
@@ -4593,14 +4593,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"triggerType",
-				"createTime",
 				"version",
 				"status",
 				"reason",
 				"deployUser",
 				"note",
-				"envName"
+				"envName",
+				"triggerType",
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5536,10 +5536,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
 				"version",
 				"description",
 				"icon",
+				"invisible",
 				"name",
 				"schema",
 				"uiSchema",
@@ -5607,13 +5607,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"icon",
 				"name",
 				"alias",
 				"project",
 				"description",
 				"createTime",
 				"updateTime",
-				"icon",
 				"policies",
 				"envBindings",
 				"status",
@@ -5677,17 +5677,17 @@
 			"required": [
 				"model",
 				"alias",
-				"description",
-				"labels",
-				"kubeConfigSecret",
-				"dashboardURL",
-				"kubeConfig",
-				"name",
 				"icon",
 				"status",
+				"apiServerURL",
+				"dashboardURL",
+				"kubeConfigSecret",
+				"name",
+				"description",
+				"labels",
 				"reason",
 				"provider",
-				"apiServerURL",
+				"kubeConfig",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5740,13 +5740,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
-				"alias",
-				"type",
+				"creator",
+				"name",
 				"createTime",
 				"appPrimaryKey",
-				"creator",
-				"name"
+				"updateTime",
+				"alias",
+				"type"
 			],
 			"properties": {
 				"alias": {
@@ -5841,10 +5841,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
-				"name",
-				"project",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name",
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -5884,13 +5884,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"properties",
-				"createTime",
-				"updateTime",
 				"name",
 				"type",
 				"description",
-				"creator"
+				"creator",
+				"properties",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5920,15 +5920,15 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"updateTime",
+				"version",
+				"reason",
+				"triggerType",
 				"workflowName",
 				"createTime",
-				"updateTime",
 				"appPrimaryKey",
 				"status",
 				"deployUser",
-				"triggerType",
-				"version",
-				"reason",
 				"note",
 				"envName"
 			],
@@ -6035,14 +6035,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
-				"description",
-				"enable",
-				"updateTime",
-				"alias",
 				"default",
-				"envName",
-				"createTime"
+				"createTime",
+				"updateTime",
+				"name",
+				"alias",
+				"enable",
+				"description",
+				"envName"
 			],
 			"properties": {
 				"alias": {
@@ -6154,7 +6154,7 @@
 				"deliveryTargets": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.NameAlias"
+						"$ref": "#/definitions/v1.EnvBindingTarget"
 					}
 				},
 				"description": {
@@ -6172,6 +6172,23 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.EnvBindingTarget": {
+			"required": [
+				"name",
+				"alias"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"name": {
+					"type": "string"
 				}
 			}
 		},
