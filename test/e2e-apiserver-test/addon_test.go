@@ -52,7 +52,7 @@ var _ = Describe("Test addon rest api", func() {
 	createReq := apis.CreateAddonRegistryRequest{
 		Name: "test-addon-registry-1",
 		Oss: &addon.OSSAddonSource{
-			EndPoint: "https://oss-cn-hangzhou.aliyuncs.com",
+			Endpoint: "https://oss-cn-hangzhou.aliyuncs.com",
 			Bucket:   "kubevela-addons",
 		},
 	}
@@ -67,7 +67,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		defer createRes.Body.Close()
 
-		var rmeta apis.AddonRegistryMeta
+		var rmeta apis.AddonRegistry
 		err := json.NewDecoder(createRes.Body).Decode(&rmeta)
 		Expect(err).Should(BeNil())
 		Expect(rmeta.Name).Should(Equal(createReq.Name))

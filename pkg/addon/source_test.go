@@ -17,9 +17,10 @@ limitations under the License.
 package addon
 
 import (
+	"fmt"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPathWithParent(t *testing.T) {
@@ -43,4 +44,102 @@ func TestPathWithParent(t *testing.T) {
 		res := pathWithParent(tc.readPath, tc.parentPath)
 		assert.Equal(t, res, tc.actualReadPath)
 	}
+}
+
+func TestConvert2OssItem(t *testing.T) {
+	subPath := "sub-addons"
+	reader, err := NewAsyncReader("ep-beijing.com", "bucket", subPath, "", ossType)
+
+	assert.NoError(t, err)
+
+	o, ok := reader.(*ossReader)
+	assert.Equal(t, ok, true)
+	var testFiles = []File{
+		{
+			Name: "sub-addons/fluxcd",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/metadata.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/helm-release.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/resources/configmap.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/metadata.yaml",
+			Size: 100,
+		},
+	}
+	var expectItemCase = []SourceMeta{
+		{
+			Name: "fluxcd",
+			Items: []Item{
+				&OSSItem{
+					tp:   DirType,
+					path: "fluxcd",
+					name: "fluxcd",
+				},
+				&OSSItem{
+					tp:   DirType,
+					path: "example",
+					name: "example",
+				},
+			},
+		},
+		{
+			Name: "example",
+			Items: []Item{
+				&OSSItem{
+					tp:   DirType,
+					path: "fluxcd",
+					name: "fluxcd",
+				},
+				&OSSItem{
+					tp:   DirType,
+					path: "example",
+					name: "example",
+				},
+			},
+		},
+	}
+	addonMetas := o.convertOSSFiles2Addons(testFiles, subPath)
+	assert.Equal(t, expectItemCase, addonMetas)
+
+}
+
+func TestAliyunOSS(t *testing.T) {
+
+	var source Source = &OSSAddonSource{
+		Endpoint: "https://addons.kubevela.net",
+		Bucket:   "",
+		Path:     "",
+	}
+	addons, err := source.ListRegistryMeta()
+	if err != nil {
+		t.Error(err)
+	}
+
+	for _, d := range addons {
+		ui, err := source.GetUIMeta(&d, UIMetaOptions)
+		if err != nil {
+			t.Error(err)
+		}
+
+		pk, err := source.GetInstallPackage(&d, ui)
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Println(pk.Name, "XXXXXX", pk.CUETemplates, "YYYYYYYY", pk.YAMLTemplates)
+	}
+
 }

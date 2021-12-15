@@ -23,15 +23,25 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 )
 
-// Addon contains all information represent an addon
-type Addon struct {
+// UIData contains all information represent an addon for UI
+type UIData struct {
 	Meta
 
 	APISchema *openapi3.Schema     `json:"schema"`
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
 
-	// More details about the addon, e.g. README
-	Detail         string               `json:"detail,omitempty"`
+	// Detail is README.md in an addon
+	Detail string `json:"detail,omitempty"`
+
+	Definitions    []ElementFile `json:"definitions"`
+	CUEDefinitions []ElementFile `json:"cue_definitions"`
+	Parameters     string        `json:"parameters"`
+}
+
+// InstallPackage contains all necessary files that can be installed for an addon
+type InstallPackage struct {
+	Meta
+
 	Definitions    []ElementFile        `json:"definitions"`
 	CUEDefinitions []ElementFile        `json:"cue_definitions"`
 	Parameters     string               `json:"parameters"`
@@ -57,8 +67,8 @@ type Meta struct {
 
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
-	ControlPlane   bool `json:"control_plane"`
-	RuntimeCluster bool `json:"runtime_cluster"`
+	ControlPlane   bool `json:"controlPlane"`
+	RuntimeCluster bool `json:"runtimeCluster"`
 }
 
 // Dependency defines the other addons it depends on

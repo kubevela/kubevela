@@ -27,10 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/client-go/rest"
-
-	"github.com/oam-dev/kubevela/pkg/definition"
-
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
@@ -41,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -50,6 +47,7 @@ import (
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -64,7 +62,7 @@ const (
 	// MetadataFileName is the addon meatadata.yaml file name
 	MetadataFileName string = "metadata.yaml"
 
-	// TemplateFileName is the addon template.yaml dir name
+	// TemplateFileName is the addon template.yaml file name
 	TemplateFileName string = "template.yaml"
 
 	// ResourcesDirName is the addon resources/ dir name
@@ -77,6 +75,9 @@ const (
 	DefSchemaName string = "schemas"
 )
 
+// ParameterFileName is the addon resources/parameter.cue file name
+var ParameterFileName = filepath.Join("resources", "parameter.cue")
+
 // ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
 	GetDetail     bool
@@ -88,36 +89,47 @@ type ListOptions struct {
 }
 
 var (
-	// GetLevelOptions used when get or list addons
-	GetLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
+	// UIMetaOptions get Addon metadata for UI display
+	UIMetaOptions = ListOptions{GetDetail: true, GetDefinition: true, GetParameter: true}
 
-	// EnableLevelOptions used when enable addon
-	EnableLevelOptions = ListOptions{GetDetail: true, GetDefinition: true, GetResource: true, GetTemplate: true, GetParameter: true, GetDefSchema: true}
+	// CLIMetaOptions get Addon metadata for CLI display
+	CLIMetaOptions = ListOptions{}
 )
 
-// GetAddonsFromReader list addons from AsyncReader
-func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*Addon, error) {
-	var addons []*Addon
+// Pattern indicates the addon framework file pattern, all files should match at least one of the pattern.
+type Pattern struct {
+	IsDir bool
+	Value string
+}
+
+// Patterns is the file pattern that the addon should be in
+var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName}, {Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}}
+
+// GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid
+func GetPatternFromItem(it Item, rootPath string) string {
+	for _, p := range Patterns {
+		if strings.HasPrefix(it.GetPath(), filepath.Join(rootPath, p.Value)) {
+			return p.Value
+		}
+	}
+	return ""
+}
+
+// GetAddonUIMetaFromReader list addons from AsyncReader
+func GetAddonUIMetaFromReader(r AsyncReader, registryMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
+	var addons []*UIData
 	var err error
 	var wg sync.WaitGroup
 	var errs []error
 	errCh := make(chan error)
 	waitCh := make(chan struct{})
 
-	_, items, err := r.Read(".")
-	if err != nil {
-		return nil, err
-	}
 	var l sync.Mutex
-	for _, subItem := range items {
-		if subItem.GetType() != "dir" {
-			continue
-		}
+	for _, subItem := range registryMeta {
 		wg.Add(1)
-		go func(item Item) {
+		go func(addonMeta SourceMeta) {
 			defer wg.Done()
-			ar := r.WithNewAddonAndMutex()
-			addonRes, err := GetSingleAddonFromReader(ar, ar.RelativePath(item), opt)
+			addonRes, err := GetUIMetaFromReader(r, &addonMeta, opt)
 			if err != nil {
 				errCh <- err
 				return
@@ -157,224 +169,164 @@ func compactErrors(message string, errs []error) error {
 
 }
 
-// GetSingleAddonFromReader read single addon from Reader
-func GetSingleAddonFromReader(r AsyncReader, addonName string, opt ListOptions) (*Addon, error) {
-	var wg sync.WaitGroup
-	var errs []error
-	waitCh := make(chan struct{})
-	readOption := map[string]struct {
-		jumpConds bool
-		read      func(wg *sync.WaitGroup, reader AsyncReader, path string)
+// GetUIMetaFromReader read ui metadata of addon from Reader, used to be displayed in UI
+func GetUIMetaFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UIData, error) {
+	addonContentsReader := map[string]struct {
+		skip bool
+		read func(a *UIData, reader AsyncReader, readPath string) error
 	}{
 		ReadmeFileName:     {!opt.GetDetail, readReadme},
-		TemplateFileName:   {!opt.GetTemplate, readTemplate},
 		MetadataFileName:   {false, readMetadata},
-		DefinitionsDirName: {!opt.GetDefinition, readDefinitions},
-		ResourcesDirName:   {!opt.GetResource && !opt.GetParameter, readResources},
-		DefSchemaName:      {!opt.GetDefSchema, readDefSchemas},
+		DefinitionsDirName: {!opt.GetDefinition, readDefFile},
+		ParameterFileName:  {!opt.GetParameter, readParamFile},
 	}
-
-	_, items, err := r.Read(addonName)
-	if err != nil {
-		return nil, errors.Wrap(err, "fail to read")
-	}
-	for _, item := range items {
-		itemName := strings.ToLower(item.GetName())
-		switch itemName {
-		case ReadmeFileName, MetadataFileName, DefinitionsDirName, ResourcesDirName, TemplateFileName, DefSchemaName:
-			readMethod := readOption[itemName]
-			if readMethod.jumpConds {
-				break
+	ptItems := meta.ToPatternItems()
+	var addon = &UIData{}
+	for contentType, method := range addonContentsReader {
+		if method.skip {
+			continue
+		}
+		items := ptItems[contentType]
+		for _, it := range items {
+			err := method.read(addon, r, r.RelativePath(it))
+			if err != nil {
+				return nil, fmt.Errorf("fail to read addon %s file %s: %w", meta.Name, r.RelativePath(it), err)
 			}
-
-			wg.Add(1)
-			go readMethod.read(&wg, r, r.RelativePath(item))
-		}
-	}
-	go func() {
-		wg.Wait()
-		close(waitCh)
-	}()
-
-forLoop:
-	for {
-		select {
-		case <-waitCh:
-			break forLoop
-		case err = <-r.ErrCh():
-			errs = append(errs, err)
 		}
 	}
 
-	if opt.GetParameter && r.Addon().Parameters != "" {
-		err = genAddonAPISchema(r.Addon())
+	if opt.GetParameter && addon.Parameters != "" {
+		err := genAddonAPISchema(addon)
 		if err != nil {
-			errs = append(errs, err)
+			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
+		}
+	}
+	return addon, nil
+}
+
+// GetInstallPackageFromReader get install package of addon from Reader, this is used to enable an addon
+func GetInstallPackageFromReader(r AsyncReader, registryMeta *SourceMeta, uiMeta *UIData) (*InstallPackage, error) {
+	addonContentsReader := map[string]func(a *InstallPackage, reader AsyncReader, readPath string) error{
+		TemplateFileName: readTemplate,
+		ResourcesDirName: readResFile,
+		DefSchemaName:    readDefSchemaFile,
+	}
+	ptItems := registryMeta.ToPatternItems()
+
+	// Read the installed data from UI metadata object to reduce network payload
+	var addon = &InstallPackage{
+		Meta:           uiMeta.Meta,
+		Definitions:    uiMeta.Definitions,
+		CUEDefinitions: uiMeta.CUEDefinitions,
+		Parameters:     uiMeta.Parameters,
+	}
+
+	for contentType, method := range addonContentsReader {
+		items := ptItems[contentType]
+		for _, it := range items {
+			err := method(addon, r, r.RelativePath(it))
+			if err != nil {
+				return nil, fmt.Errorf("fail to read addon %s file %s: %w", registryMeta.Name, r.RelativePath(it), err)
+			}
 		}
 	}
 
-	if len(errs) != 0 {
-		return r.Addon(), compactErrors(fmt.Sprintf("error(s) happen when reading addon %s: ", addonName), errs)
-	}
-
-	return r.Addon(), nil
+	return addon, nil
 }
 
-// appendFile will add ElementFile to a slice, lock to avoid goroutine race
-func appendFile(lock *sync.Mutex, slice *[]ElementFile, file ElementFile) {
-	lock.Lock()
-	*slice = append(*slice, file)
-	lock.Unlock()
-}
-
-func readTemplate(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	data, _, err := reader.Read(readPath)
+func readTemplate(a *InstallPackage, reader AsyncReader, readPath string) error {
+	data, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
 	dec := k8syaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	reader.Addon().AppTemplate = &v1beta1.Application{}
-	_, _, err = dec.Decode([]byte(data), nil, reader.Addon().AppTemplate)
+	a.AppTemplate = &v1beta1.Application{}
+
+	// try to check it's a valid app template
+	_, _, err = dec.Decode([]byte(data), nil, a.AppTemplate)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
+	return nil
 }
 
-func readResources(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	_, items, err := reader.Read(readPath)
+// readParamFile read single resource/parameter.cue file
+func readParamFile(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
-	for _, item := range items {
-		switch item.GetType() {
-		case "file":
-			wg.Add(1)
-			go readResFile(wg, reader, reader.RelativePath(item))
-		case "dir":
-			wg.Add(1)
-			go readResources(wg, reader, reader.RelativePath(item))
-
-		}
-	}
-}
-
-func readDefSchemas(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	_, items, err := reader.Read(readPath)
-	if err != nil {
-		reader.SendErr(err)
-		return
-	}
-	for _, item := range items {
-		switch item.GetType() {
-		case "file":
-			wg.Add(1)
-			go readDefSchemaFile(wg, reader, reader.RelativePath(item))
-		case "dir":
-			wg.Add(1)
-			go readDefSchemas(wg, reader, reader.RelativePath(item))
-		}
-	}
+	a.Parameters = b
+	return nil
 }
 
 // readResFile read single resource file
-func readResFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
+func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	filename := path.Base(readPath)
-	defer wg.Done()
-	b, _, err := reader.Read(readPath)
+	b, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
 
 	if filename == "parameter.cue" {
-		reader.Addon().Parameters = b
-		return
+		return nil
 	}
 	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
-		appendFile(reader.Mutex(), &reader.Addon().CUETemplates, file)
+		a.CUETemplates = append(a.CUETemplates, file)
 	default:
-		appendFile(reader.Mutex(), &reader.Addon().YAMLTemplates, file)
+		a.YAMLTemplates = append(a.YAMLTemplates, file)
 	}
+	return nil
 }
 
 // readDefSchemaFile read single file of definition schema
-func readDefSchemaFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	b, _, err := reader.Read(readPath)
+func readDefSchemaFile(a *InstallPackage, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
-	reader.Addon().DefSchemas = append(reader.Addon().DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
-}
-
-func readDefinitions(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	_, items, err := reader.Read(readPath)
-	if err != nil {
-		reader.SendErr(err)
-		return
-	}
-	for _, item := range items {
-		switch item.GetType() {
-		case "file":
-			wg.Add(1)
-			go readDefFile(wg, reader, reader.RelativePath(item))
-		case "dir":
-			wg.Add(1)
-			go readDefinitions(wg, reader, reader.RelativePath(item))
-		}
-	}
+	a.DefSchemas = append(a.DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
+	return nil
 }
 
 // readDefFile read single definition file
-func readDefFile(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	b, _, err := reader.Read(readPath)
+func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
 	filename := path.Base(readPath)
 	file := ElementFile{Data: b, Name: path.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
-		appendFile(reader.Mutex(), &reader.Addon().CUEDefinitions, file)
+		a.CUEDefinitions = append(a.CUEDefinitions, file)
 	default:
-		appendFile(reader.Mutex(), &reader.Addon().Definitions, file)
+		a.Definitions = append(a.Definitions, file)
 	}
+	return nil
 }
 
-func readMetadata(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	b, _, err := reader.Read(readPath)
+func readMetadata(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
-	err = yaml.Unmarshal([]byte(b), &reader.Addon().Meta)
+	err = yaml.Unmarshal([]byte(b), &a.Meta)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
+	return nil
 }
 
-func readReadme(wg *sync.WaitGroup, reader AsyncReader, readPath string) {
-	defer wg.Done()
-	content, _, err := reader.Read(readPath)
+func readReadme(a *UIData, reader AsyncReader, readPath string) error {
+	content, err := reader.ReadFile(readPath)
 	if err != nil {
-		reader.SendErr(err)
-		return
+		return err
 	}
-	reader.Addon().Detail = content
+	a.Detail = content
+	return nil
 }
 
 func createGitHelper(content *utils.Content, token string) *gitHelper {
@@ -400,7 +352,7 @@ func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []
 	return file, items, nil
 }
 
-func genAddonAPISchema(addonRes *Addon) error {
+func genAddonAPISchema(addonRes *UIData) error {
 	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
 	if err != nil {
 		return err
@@ -424,7 +376,7 @@ func genAddonAPISchema(addonRes *Addon) error {
 }
 
 // RenderApp render a K8s application
-func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
+func RenderApp(addon *InstallPackage, config *rest.Config, args map[string]interface{}) (*v1beta1.Application, error) {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
@@ -530,7 +482,7 @@ func RenderApp(addon *Addon, config *rest.Config, args map[string]interface{}) (
 }
 
 // RenderDefinitions render definition objects if needed
-func RenderDefinitions(addon *Addon, config *rest.Config) ([]*unstructured.Unstructured, error) {
+func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructured.Unstructured, error) {
 	defObjs := make([]*unstructured.Unstructured, 0)
 
 	if isDeployToRuntimeOnly(addon) {
@@ -556,7 +508,7 @@ func RenderDefinitions(addon *Addon, config *rest.Config) ([]*unstructured.Unstr
 }
 
 // RenderDefinitionSchema will render definitions' schema in addons.
-func RenderDefinitionSchema(addon *Addon) ([]*unstructured.Unstructured, error) {
+func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
 
 	if isDeployToRuntimeOnly(addon) {
@@ -570,7 +522,7 @@ func RenderDefinitionSchema(addon *Addon) ([]*unstructured.Unstructured, error) 
 	}
 	return schemaConfigmaps, nil
 }
-func isDeployToRuntimeOnly(addon *Addon) bool {
+func isDeployToRuntimeOnly(addon *InstallPackage) bool {
 	if addon.DeployTo == nil {
 		return false
 	}
@@ -671,7 +623,7 @@ func Convert2AppName(name string) string {
 }
 
 // RenderArgsSecret render addon enable argument to secret
-func RenderArgsSecret(addon *Addon, args map[string]interface{}) *unstructured.Unstructured {
+func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstructured.Unstructured {
 	data := make(map[string]string)
 	for k, v := range args {
 		switch v := v.(type) {
@@ -702,44 +654,81 @@ func Convert2SecName(name string) string {
 	return addonSecPrefix + name
 }
 
-// Handler helps addon enable, dependency-check, dispatch resources
-type Handler struct {
-	ctx    context.Context
-	addon  *Addon
-	config *rest.Config
-	cli    client.Client
-	apply  apply.Applicator
-	source Source
-	args   map[string]interface{}
+// Installer helps addon enable, dependency-check, dispatch resources
+type Installer struct {
+	ctx          context.Context
+	config       *rest.Config
+	cli          client.Client
+	apply        apply.Applicator
+	r            *Registry
+	registryMeta map[string]SourceMeta
+	args         map[string]interface{}
+	cache        *Cache
 }
 
-func newAddonHandler(ctx context.Context, addon *Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) Handler {
-	return Handler{
+// NewAddonInstaller will create an installer for addon
+func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
+	return Installer{
 		ctx:    ctx,
-		addon:  addon,
 		config: config,
 		cli:    cli,
 		apply:  apply,
-		source: source,
+		r:      r,
 		args:   args,
+		cache:  cache,
 	}
 }
 
-func (h *Handler) enableAddon() error {
+func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
-	if err = h.checkDependencies(); err != nil {
+	if h.registryMeta == nil {
+		if err = h.loadRegistryMeta(); err != nil {
+			return err
+		}
+	}
+	if err = h.installDependency(addon); err != nil {
 		return err
 	}
-	if err = h.dispatchAddonResource(); err != nil {
+	if err = h.dispatchAddonResource(addon); err != nil {
 		return err
 	}
 	return nil
 }
 
-// checkDependencies checks if addon's dependent addons is enabled
-func (h *Handler) checkDependencies() error {
+func (h *Installer) loadRegistryMeta() error {
+	var err error
+	h.registryMeta, err = h.cache.ListRegistryMeta(h.r)
+	return err
+}
+
+func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
+	var err error
+	if h.registryMeta == nil {
+		if err = h.loadRegistryMeta(); err != nil {
+			return nil, err
+		}
+	}
+	meta, ok := h.registryMeta[name]
+	if !ok {
+		return nil, errors.Wrapf(err, "fail to find the dependency addon %s", name)
+	}
+	var uiMeta *UIData
+	uiMeta, err = h.cache.GetAddonUIData(*h.r, h.r.Name, name)
+	if err != nil {
+		return nil, err
+	}
+	// enable this addon if it's invisible
+	installPackage, err := SourceOf(*h.r).GetInstallPackage(&meta, uiMeta)
+	if err != nil {
+		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
+	}
+	return installPackage, nil
+}
+
+// installDependency checks if addon's dependency and install it
+func (h *Installer) installDependency(addon *InstallPackage) error {
 	var app v1beta1.Application
-	for _, dep := range h.addon.Dependencies {
+	for _, dep := range addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
 			Name:      Convert2AppName(dep.Name),
@@ -750,33 +739,31 @@ func (h *Handler) checkDependencies() error {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		// enable this addon if it's invisible
-		depAddon, err := h.source.GetAddon(dep.Name, EnableLevelOptions)
+		depAddon, err := h.loadInstallPackage(dep.Name)
 		if err != nil {
-			return errors.Wrap(err, "fail to find dependent addon in source repository")
+			return err
 		}
 		depHandler := *h
-		depHandler.addon = depAddon
 		depHandler.args = nil
-		if err = depHandler.enableAddon(); err != nil {
+		if err = depHandler.enableAddon(depAddon); err != nil {
 			return errors.Wrap(err, "fail to dispatch dependent addon resource")
 		}
 	}
 	return nil
 }
 
-func (h *Handler) dispatchAddonResource() error {
-	app, err := RenderApp(h.addon, h.config, h.args)
+func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
+	app, err := RenderApp(addon, h.config, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
 
-	defs, err := RenderDefinitions(h.addon, h.config)
+	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
 	}
 
-	schemas, err := RenderDefinitionSchema(h.addon)
+	schemas, err := RenderDefinitionSchema(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
@@ -803,7 +790,7 @@ func (h *Handler) dispatchAddonResource() error {
 	}
 
 	if h.args != nil && len(h.args) > 0 {
-		sec := RenderArgsSecret(h.addon, h.args)
+		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
 		err = h.apply.Apply(h.ctx, sec)
 		if err != nil {

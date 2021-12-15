@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 var paths = []string{
@@ -89,32 +89,43 @@ func TestGetAddon(t *testing.T) {
 	defer server.Close()
 
 	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	assert.NoError(t, err)
 
-	assert.NilError(t, err)
+	registryMeta, err := reader.ListAddonMeta(".")
+	assert.NoError(t, err)
 
 	testAddonName := "example"
-	assert.NilError(t, err)
-	addon, err := GetSingleAddonFromReader(reader, testAddonName, EnableLevelOptions)
-	assert.NilError(t, err)
+	var testAddonMeta SourceMeta
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	addon, err := GetUIMetaFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
 	assert.Equal(t, addon.Name, testAddonName)
-	assert.Assert(t, addon.Parameters != "")
-	assert.Assert(t, len(addon.Definitions) > 0)
+	assert.True(t, addon.Parameters != "")
+	assert.True(t, len(addon.Definitions) > 0)
 
-	addons, err := GetAddonsFromReader(reader, EnableLevelOptions)
-	assert.Assert(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
+	addons, err := GetAddonUIMetaFromReader(reader, registryMeta, UIMetaOptions)
+	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
 	assert.Equal(t, len(addons), 3)
 
 	// test listing from OSS will act like listing from directory
-	_, items, err := reader.Read("terraform")
-	assert.NilError(t, err)
+	items, err := reader.ListAddonMeta("terraform")
+	assert.NoError(t, err)
 	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
-	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
+	for _, v := range items {
+		assert.Equal(t, v.Items[0].GetPath(), "terraform/metadata.yaml")
+	}
 }
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
 	app, err := RenderApp(&addon, nil, map[string]interface{}{})
-	assert.NilError(t, err, "render app fail")
+	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 }
 
@@ -125,21 +136,21 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 		RuntimeCluster: true,
 	}
 	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, len(defs), 1)
 	def := defs[0]
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
 	app, err := RenderApp(&addonDeployToRuntime, nil, map[string]interface{}{})
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	steps := app.Spec.Workflow.Steps
-	assert.Check(t, len(steps) >= 2)
+	assert.True(t, len(steps) >= 2)
 	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
 
-var baseAddon = Addon{
+var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
