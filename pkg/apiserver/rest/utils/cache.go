@@ -27,6 +27,10 @@ type MemoryCache struct {
 
 // NewMemoryCache new memory cache instance
 func NewMemoryCache(data interface{}, cacheDuration time.Duration) *MemoryCache {
+	// prevent the cache to be broken, provide a minimal cache duration
+	if cacheDuration < 30*time.Second {
+		cacheDuration = 30 * time.Second
+	}
 	return &MemoryCache{data: data, cacheDuration: cacheDuration, startTime: time.Now()}
 }
 

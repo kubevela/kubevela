@@ -27,21 +27,21 @@ import (
 )
 
 // NewAddonWebService returns addon web service
-func NewAddonWebService(u usecase.AddonUsecase) WebService {
+func NewAddonWebService(u usecase.AddonHandler) WebService {
 	return &addonWebService{
-		addonUsecase: u,
+		handler: u,
 	}
 }
 
 // NewEnabledAddonWebService returns enabled addon web service
-func NewEnabledAddonWebService(u usecase.AddonUsecase) WebService {
+func NewEnabledAddonWebService(u usecase.AddonHandler) WebService {
 	return &enabledAddonWebService{
 		addonUsecase: u,
 	}
 }
 
 type addonWebService struct {
-	addonUsecase usecase.AddonUsecase
+	handler usecase.AddonHandler
 }
 
 func (s *addonWebService) GetWebService() *restful.WebService {
@@ -116,8 +116,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 }
 
 func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response) {
-	detailAddons, err := s.addonUsecase.ListAddons(req.Request.Context(), req.QueryParameter("registry"), req.QueryParameter("query"))
-	if err != nil {
+	detailAddons, err := s.handler.ListAddons(req.Request.Context(), req.QueryParameter("registry"), req.QueryParameter("query"))
+	if len(detailAddons) == 0 && err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -128,7 +128,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		addons = append(addons, &d.Meta)
 	}
 
-	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons})
+	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons, Message: err.Error()})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -137,7 +137,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	addon, err := s.addonUsecase.GetAddon(req.Request.Context(), name, req.QueryParameter("registry"))
+	addon, err := s.handler.GetAddon(req.Request.Context(), name, req.QueryParameter("registry"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -168,7 +168,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 	}
 
 	name := req.PathParameter("name")
-	err = s.addonUsecase.EnableAddon(req.Request.Context(), name, createReq)
+	err = s.handler.EnableAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -179,7 +179,7 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	err := s.addonUsecase.DisableAddon(req.Request.Context(), name)
+	err := s.handler.DisableAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -189,7 +189,7 @@ func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Respon
 
 func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	status, err := s.addonUsecase.StatusAddon(req.Request.Context(), name)
+	status, err := s.handler.StatusAddon(req.Request.Context(), name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -219,7 +219,7 @@ func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Respons
 	}
 
 	name := req.PathParameter("name")
-	err = s.addonUsecase.UpdateAddon(req.Request.Context(), name, createReq)
+	err = s.handler.UpdateAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -229,7 +229,7 @@ func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Respons
 }
 
 type enabledAddonWebService struct {
-	addonUsecase usecase.AddonUsecase
+	addonUsecase usecase.AddonHandler
 }
 
 func (s *enabledAddonWebService) GetWebService() *restful.WebService {

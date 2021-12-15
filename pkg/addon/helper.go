@@ -43,9 +43,13 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, addon *Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) error {
-	h := newAddonHandler(ctx, addon, cli, apply, config, source, args)
-	err := h.enableAddon()
+func EnableAddon(ctx context.Context, name string, cli client.Client, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
+	h := NewAddonInstaller(ctx, cli, apply, config, &r, args, cache)
+	pkg, err := h.loadInstallPackage(name)
+	if err != nil {
+		return err
+	}
+	err = h.enableAddon(pkg)
 	if err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -105,26 +105,37 @@ func TestGetAddon(t *testing.T) {
 	defer server.Close()
 
 	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	assert.NoError(t, err)
 
-	assert.NilError(t, err)
+	registryMeta, err := reader.ListAddonMeta(".")
+	assert.NoError(t, err)
 
 	testAddonName := "example"
-	assert.NilError(t, err)
-	addon, err := GetSingleAddonFromReader(reader, testAddonName, EnableLevelOptions)
-	assert.NilError(t, err)
+	var testAddonMeta SourceMeta
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	addon, err := GetUIMetaFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
 	assert.Equal(t, addon.Name, testAddonName)
-	assert.Assert(t, addon.Parameters != "")
-	assert.Assert(t, len(addon.Definitions) > 0)
+	assert.True(t, addon.Parameters != "")
+	assert.True(t, len(addon.Definitions) > 0)
 
-	addons, err := GetAddonsFromReader(reader, EnableLevelOptions)
-	assert.Assert(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
+	addons, err := GetAddonUIMetaFromReader(reader, registryMeta, UIMetaOptions)
+	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
 	assert.Equal(t, len(addons), 3)
 
 	// test listing from OSS will act like listing from directory
-	_, items, err := reader.Read("terraform")
-	assert.NilError(t, err)
+	items, err := reader.ListAddonMeta("terraform")
+	assert.NoError(t, err)
 	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
-	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
+	for _, v := range items {
+		assert.Equal(t, v.Items[0].GetPath(), "terraform/metadata.yaml")
+	}
 }
 
 func TestRender(t *testing.T) {
@@ -224,8 +235,8 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, nil, &addon, nil, map[string]interface{}{})
-	assert.NilError(t, err, "render app fail")
+	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 }
 
@@ -236,16 +247,16 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 		RuntimeCluster: true,
 	}
 	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, len(defs), 1)
 	def := defs[0]
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, nil, &addonDeployToRuntime, nil, map[string]interface{}{})
-	assert.NilError(t, err)
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err)
 	steps := app.Spec.Workflow.Steps
-	assert.Check(t, len(steps) >= 2)
+	assert.True(t, len(steps) >= 2)
 	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
@@ -306,12 +317,12 @@ func TestGetAddonStatus(t *testing.T) {
 
 	for _, s := range cases {
 		addonStatus, err := GetAddonStatus(context.Background(), &cli, s.name)
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
 }
 
-var baseAddon = Addon{
+var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
@@ -358,13 +369,13 @@ template: {
 func TestRenderApp4Observability(t *testing.T) {
 	k8sClient := fake.NewClientBuilder().Build()
 	testcases := []struct {
-		addon       Addon
+		addon       InstallPackage
 		args        map[string]interface{}
 		application string
 		err         error
 	}{
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -374,7 +385,7 @@ func TestRenderApp4Observability(t *testing.T) {
 			err:         ErrorNoDomain,
 		},
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -387,11 +398,11 @@ func TestRenderApp4Observability(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.application, string(data))
 			}
 		})
@@ -414,16 +425,16 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 		},
 	}
 	err := k8sClient.Create(ctx, secret1)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	testcases := []struct {
-		addon       Addon
+		addon       InstallPackage
 		args        map[string]interface{}
 		application string
 		err         error
 	}{
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -436,11 +447,11 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.application, string(data))
 			}
 		})

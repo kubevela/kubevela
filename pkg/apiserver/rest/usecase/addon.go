@@ -22,14 +22,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
-
-	"k8s.io/client-go/rest"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -45,13 +44,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-// AddonUsecase addon usecase
-type AddonUsecase interface {
-	GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistryMeta, error)
-	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
+// AddonHandler handle CRUD and installation of addons
+type AddonHandler interface {
+	GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistry, error)
+	CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistry, error)
 	DeleteAddonRegistry(ctx context.Context, name string) error
-	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error)
-	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error)
+	UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistry, error)
+	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error)
 	ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
@@ -61,8 +60,8 @@ type AddonUsecase interface {
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
 
-// AddonImpl2AddonRes convert pkgaddon.Addon to the type apiserver need
-func AddonImpl2AddonRes(impl *pkgaddon.Addon) (*apis.DetailAddonResponse, error) {
+// AddonImpl2AddonRes convert pkgaddon.UIData to the type apiserver need
+func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error) {
 	var defs []*apis.AddonDefinition
 	for _, def := range impl.Definitions {
 		obj := &unstructured.Unstructured{}
@@ -87,7 +86,7 @@ func AddonImpl2AddonRes(impl *pkgaddon.Addon) (*apis.DetailAddonResponse, error)
 }
 
 // NewAddonUsecase returns an addon usecase
-func NewAddonUsecase() AddonUsecase {
+func NewAddonUsecase() AddonHandler {
 	config, err := clients.GetKubeConfig()
 	if err != nil {
 		panic(err)
@@ -96,38 +95,43 @@ func NewAddonUsecase() AddonUsecase {
 	if err != nil {
 		panic(err)
 	}
-	return &addonUsecaseImpl{
-		addonRegistryCache: make(map[string]*restutils.MemoryCache),
-		addonRegistryDS:    pkgaddon.NewRegistryDataStore(kubecli),
+	ds := pkgaddon.NewRegistryDataStore(kubecli)
+	cache := pkgaddon.NewCache(ds)
+
+	// TODO(@wonderflow): it's better to add a close channel here, but it should be fine as it's only invoke once in APIServer.
+	go cache.DiscoverAndRefreshLoop()
+
+	return &defaultAddonHandler{
+		addonRegistryCache: cache,
+		addonRegistryDS:    ds,
 		kubeClient:         kubecli,
 		config:             config,
 		apply:              apply.NewAPIApplicator(kubecli),
+		mutex:              new(sync.RWMutex),
 	}
 }
 
-type addonUsecaseImpl struct {
-	addonRegistryCache map[string]*restutils.MemoryCache
+type defaultAddonHandler struct {
+	addonRegistryCache *pkgaddon.Cache
 	addonRegistryDS    pkgaddon.RegistryDataStore
 	kubeClient         client.Client
 	config             *rest.Config
 	apply              apply.Applicator
+
+	mutex *sync.RWMutex
 }
 
 // GetAddon will get addon information
-func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
-	var addon *pkgaddon.Addon
+func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
+	var addon *pkgaddon.UIData
 	var err error
-	var exist bool
-
 	if registry == "" {
-		registries, err := u.ListAddonRegistries(ctx)
+		registries, err := u.addonRegistryDS.ListRegistries(ctx)
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range registries {
-			if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-				addon, err = SourceOf(*r).GetAddon(name, pkgaddon.GetLevelOptions)
-			}
+			addon, err = u.addonRegistryCache.GetAddonUIData(r, r.Name, name)
 			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
 			}
@@ -135,12 +139,12 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 				break
 			}
 		}
-	} else if addon, exist = u.tryGetAddonFromCache(registry, name); !exist {
-		addonRegistry, err := u.GetAddonRegistry(ctx, registry)
+	} else {
+		addonRegistry, err := u.addonRegistryDS.GetRegistry(ctx, registry)
 		if err != nil {
 			return nil, err
 		}
-		addon, err = SourceOf(*addonRegistry).GetAddon(name, pkgaddon.GetLevelOptions)
+		addon, err = u.addonRegistryCache.GetAddonUIData(addonRegistry, registry, name)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -157,7 +161,7 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 	return a, nil
 }
 
-func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
+func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
 
 	status, err := pkgaddon.GetAddonStatus(ctx, u.kubeClient, name)
 	if err != nil {
@@ -196,34 +200,23 @@ func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	return &res, nil
 }
 
-func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
-	var addons []*pkgaddon.Addon
-	var listAddons []*pkgaddon.Addon
-	rs, err := u.ListAddonRegistries(ctx)
+func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error) {
+	var addons []*pkgaddon.UIData
+	rs, err := u.addonRegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	var gatherErr restutils.GatherErr
 
 	for _, r := range rs {
 		if registry != "" && r.Name != registry {
 			continue
 		}
-		if u.isRegistryCacheUpToDate(r.Name) {
-			listAddons = u.getRegistryCache(r.Name)
-		} else {
-			listAddons, err = SourceOf(*r).ListAddons(pkgaddon.GetLevelOptions)
-			if err != nil {
-				log.Logger.Errorf("fail to get addons from registry %s, %v", r.Name, err)
-				continue
-			}
-			// if list addons, details will be retrieved later
-			go func() {
-				addonDetails, err := SourceOf(*r).ListAddons(pkgaddon.EnableLevelOptions)
-				if err != nil {
-					return
-				}
-				u.putRegistryCache(r.Name, addonDetails)
-			}()
+		listAddons, err := u.addonRegistryCache.GetAddonsFromRegistry(r)
+		if err != nil {
+			gatherErr = append(gatherErr, err)
+			continue
 		}
 		addons = mergeAddons(addons, listAddons)
 	}
@@ -235,7 +228,7 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 	}
 
 	if query != "" {
-		var filtered []*pkgaddon.Addon
+		var filtered []*pkgaddon.UIData
 		for i, addon := range addons {
 			if strings.Contains(addon.Name, query) || strings.Contains(addon.Description, query) {
 				filtered = append(filtered, addons[i])
@@ -252,23 +245,23 @@ func (u *addonUsecaseImpl) ListAddons(ctx context.Context, registry, query strin
 		addon.UISchema = renderDefaultUISchema(addon.APISchema)
 	}
 
-	var addonReses []*apis.DetailAddonResponse
+	var addonResources []*apis.DetailAddonResponse
 	for _, a := range addons {
 		addonRes, err := AddonImpl2AddonRes(a)
 		if err != nil {
 			log.Logger.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
 			continue
 		}
-		addonReses = append(addonReses, addonRes)
+		addonResources = append(addonResources, addonRes)
 	}
-	return addonReses, nil
+	return addonResources, gatherErr
 }
 
-func (u *addonUsecaseImpl) DeleteAddonRegistry(ctx context.Context, name string) error {
+func (u *defaultAddonHandler) DeleteAddonRegistry(ctx context.Context, name string) error {
 	return u.addonRegistryDS.DeleteRegistry(ctx, name)
 }
 
-func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.CreateAddonRegistryRequest) (*apis.AddonRegistry, error) {
 	r := addonRegistryModelFromCreateAddonRegistryRequest(req)
 
 	err := u.addonRegistryDS.AddRegistry(ctx, r)
@@ -276,26 +269,26 @@ func (u *addonUsecaseImpl) CreateAddonRegistry(ctx context.Context, req apis.Cre
 		return nil, err
 	}
 
-	return &apis.AddonRegistryMeta{
+	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
 		OSS:  r.Oss,
 	}, nil
 }
 
-func (u *addonUsecaseImpl) GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistryMeta, error) {
+func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistry, error) {
 	r, err := u.addonRegistryDS.GetRegistry(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	return &apis.AddonRegistryMeta{
+	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
 		OSS:  r.Oss,
 	}, nil
 }
 
-func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistryMeta, error) {
+func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistry, error) {
 	r, err := u.addonRegistryDS.GetRegistry(ctx, name)
 	if err != nil {
 		return nil, bcode.ErrAddonRegistryNotExist
@@ -307,16 +300,16 @@ func (u addonUsecaseImpl) UpdateAddonRegistry(ctx context.Context, name string, 
 		return nil, err
 	}
 
-	return &apis.AddonRegistryMeta{
+	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
 		OSS:  r.Oss,
 	}, nil
 }
 
-func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistryMeta, error) {
+func (u *defaultAddonHandler) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error) {
 
-	var list []*apis.AddonRegistryMeta
+	var list []*apis.AddonRegistry
 	registries, err := u.addonRegistryDS.ListRegistries(ctx)
 	if err != nil {
 		// the storage configmap still not exist, don't return error add registry will create the configmap
@@ -335,68 +328,27 @@ func (u *addonUsecaseImpl) ListAddonRegistries(ctx context.Context) ([]*apis.Add
 	return list, nil
 }
 
-func (u *addonUsecaseImpl) tryGetAddonFromCache(registry, addonName string) (*pkgaddon.Addon, bool) {
-	if u.isRegistryCacheUpToDate(registry) {
-		addons := u.getRegistryCache(registry)
-		for _, a := range addons {
-			if a.Name == addonName {
-				return a, true
-			}
-		}
-	}
-	return nil, false
-}
-
-func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
-	var addon *pkgaddon.Addon
+func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
 	var err error
-	registries, err := u.ListAddonRegistries(ctx)
+	registries, err := u.addonRegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return err
 	}
 	for _, r := range registries {
-		var exist bool
-		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-			addon, err = SourceOf(*r).GetAddon(name, pkgaddon.EnableLevelOptions)
+		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		if err == nil {
+			return nil
 		}
 
 		if err != nil {
 			// one registry return error, should not break other registry func
 			continue
 		}
-
-		// cannot find this addon in the registry
-		if addon == nil || len(addon.Name) == 0 {
-			continue
-		}
-
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, u.config, SourceOf(*r), args.Args)
-		if err != nil {
-			log.Logger.Errorf("err when enable addon: %v", err)
-			return bcode.ErrAddonApply
-		}
-		return nil
 	}
 	return bcode.ErrAddonNotExist
 }
 
-func (u *addonUsecaseImpl) getRegistryCache(name string) []*pkgaddon.Addon {
-	return u.addonRegistryCache[name].GetData().([]*pkgaddon.Addon)
-}
-
-func (u *addonUsecaseImpl) putRegistryCache(name string, addons []*pkgaddon.Addon) {
-	u.addonRegistryCache[name] = restutils.NewMemoryCache(addons, time.Minute*10)
-}
-
-func (u *addonUsecaseImpl) isRegistryCacheUpToDate(name string) bool {
-	d, ok := u.addonRegistryCache[name]
-	if !ok {
-		return false
-	}
-	return !d.IsExpired()
-}
-
-func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error {
+func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string) error {
 	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name)
 	if err != nil {
 		log.Logger.Errorf("delete application fail: %s", err.Error())
@@ -405,7 +357,7 @@ func (u *addonUsecaseImpl) DisableAddon(ctx context.Context, name string) error 
 	return nil
 }
 
-func (u *addonUsecaseImpl) ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error) {
+func (u *defaultAddonHandler) ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error) {
 	apps := &v1beta1.ApplicationList{}
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
 		return nil, err
@@ -425,7 +377,7 @@ func (u *addonUsecaseImpl) ListEnabledAddon(ctx context.Context) ([]*apis.AddonS
 	return response, nil
 }
 
-func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
+func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error {
 
 	var app v1beta1.Application
 	// check addon application whether exist
@@ -437,30 +389,19 @@ func (u *addonUsecaseImpl) UpdateAddon(ctx context.Context, name string, args ap
 		return err
 	}
 
-	var addon *pkgaddon.Addon
-	registries, err := u.ListAddonRegistries(ctx)
+	registries, err := u.addonRegistryDS.ListRegistries(ctx)
 	if err != nil {
 		return err
 	}
 
 	for _, r := range registries {
-		var exist bool
-		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
-			addon, err = SourceOf(*r).GetAddon(name, pkgaddon.EnableLevelOptions)
+		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		if err == nil {
+			return nil
 		}
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return bcode.WrapGithubRateLimitErr(err)
 		}
-		if addon == nil {
-			continue
-		}
-
-		err = pkgaddon.EnableAddon(ctx, addon, u.kubeClient, u.apply, u.config, SourceOf(*r), args.Args)
-		if err != nil {
-			log.Logger.Errorf("err when enable addon: %v", err)
-			return bcode.ErrAddonApply
-		}
-		return nil
 	}
 	return bcode.ErrAddonNotExist
 }
@@ -473,7 +414,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	}
 }
 
-func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
+func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
@@ -483,22 +424,13 @@ func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
 	return a1
 }
 
-func hasAddon(addons []*pkgaddon.Addon, name string) bool {
+func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true
 		}
 	}
 	return false
-}
-
-// ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistryMeta
-func ConvertAddonRegistryModel2AddonRegistryMeta(r pkgaddon.Registry) apis.AddonRegistryMeta {
-	return apis.AddonRegistryMeta{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.Oss,
-	}
 }
 
 func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase {
@@ -510,10 +442,11 @@ func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase
 	}
 }
 
-// SourceOf returns actual Source in registry meta
-func SourceOf(meta apis.AddonRegistryMeta) pkgaddon.Source {
-	if meta.OSS != nil {
-		return meta.OSS
+// ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistry
+func ConvertAddonRegistryModel2AddonRegistryMeta(r pkgaddon.Registry) apis.AddonRegistry {
+	return apis.AddonRegistry{
+		Name: r.Name,
+		Git:  r.Git,
+		OSS:  r.Oss,
 	}
-	return meta.Git
 }

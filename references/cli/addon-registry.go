@@ -172,7 +172,7 @@ func listAddonRegistry(ctx context.Context) error {
 		var repoType, repoURL string
 		if registry.Oss != nil {
 			repoType = "Oss"
-			u, err := url.Parse(registry.Oss.EndPoint)
+			u, err := url.Parse(registry.Oss.Endpoint)
 			if err != nil {
 				continue
 			}
@@ -203,7 +203,7 @@ func getAddonRegistry(ctx context.Context, name string) error {
 	table := uitable.New()
 	if registry.Oss != nil {
 		table.AddRow("NAME", "ENDPOINT", "BUCKET")
-		table.AddRow(registry.Name, registry.Oss.EndPoint, registry.Oss.Bucket)
+		table.AddRow(registry.Name, registry.Oss.Endpoint, registry.Oss.Bucket)
 	} else {
 		table.AddRow("NAME", "URL", "PATH")
 		table.AddRow(registry.Name, registry.Git.URL, registry.Git.Path)
@@ -270,7 +270,7 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		if endpoint == "" {
 			return nil, errors.New("oss type registry must set --ossEndpoint")
 		}
-		r.Oss.EndPoint = endpoint
+		r.Oss.Endpoint = endpoint
 		bucket, err := cmd.Flags().GetString(addonOssBucket)
 		if err != nil {
 			return nil, err
