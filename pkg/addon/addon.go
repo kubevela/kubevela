@@ -110,7 +110,7 @@ func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*Addon, error) {
 	}
 	var l sync.Mutex
 	for _, subItem := range items {
-		if subItem.GetType() != "dir" || !IsAddon(r, subItem) {
+		if !IsAddon(r, subItem) {
 			continue
 		}
 		wg.Add(1)
@@ -147,7 +147,11 @@ forLoop:
 	return addons, nil
 }
 
+// IsAddon judges if an item is an addon directory
 func IsAddon(r AsyncReader, item Item) bool {
+	if item.GetType() != DirType {
+		return false
+	}
 	metaItem := OssItem{path: path.Join(item.GetPath(), MetadataFileName), name: MetadataFileName, tp: FileType}
 	content, _, err := r.Read(r.RelativePath(metaItem))
 	if err != nil {

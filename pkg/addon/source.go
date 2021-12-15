@@ -321,7 +321,7 @@ func (o ossReader) convert2OssItem(files []File, nowPath string) []Item {
 			continue
 		}
 		name := fPath[0]
-		pathExistCount[name] += 1
+		pathExistCount[name]++
 		if count := pathExistCount[name]; count > 1 {
 			continue
 		}
