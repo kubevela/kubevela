@@ -184,5 +184,16 @@ func (dt *deliveryTargetUsecaseImpl) convertFromDeliveryTargetModel(ctx context.
 	if project != nil {
 		targetBase.Project = convertProjectModel2Base(project)
 	}
+
+	if targetBase.Cluster != nil && targetBase.Cluster.ClusterName != "" {
+		cluster, err := _getClusterFromDataStore(ctx, dt.ds, deliveryTarget.Cluster.ClusterName)
+		if err != nil {
+			log.Logger.Errorf("query cluster info failure %s", err.Error())
+		}
+		if cluster != nil {
+			targetBase.ClusterAlias = cluster.Alias
+		}
+	}
+
 	return targetBase
 }

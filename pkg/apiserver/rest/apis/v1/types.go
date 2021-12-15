@@ -744,15 +744,16 @@ type ListTargetResponse struct {
 
 // DeliveryTargetBase deliveryTarget base model
 type DeliveryTargetBase struct {
-	Name        string                 `json:"name"`
-	Project     *ProjectBase           `json:"project"`
-	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
-	Variable    map[string]interface{} `json:"variable,omitempty"`
-	CreateTime  time.Time              `json:"createTime"`
-	UpdateTime  time.Time              `json:"updateTime"`
-	AppNum      int64                  `json:"appNum,omitempty"`
+	Name         string                 `json:"name"`
+	Project      *ProjectBase           `json:"project"`
+	Alias        string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Description  string                 `json:"description,omitempty" optional:"true"`
+	Cluster      *ClusterTarget         `json:"cluster,omitempty"`
+	ClusterAlias string                 `json:"clusterAlias,omitempty"`
+	Variable     map[string]interface{} `json:"variable,omitempty"`
+	CreateTime   time.Time              `json:"createTime"`
+	UpdateTime   time.Time              `json:"updateTime"`
+	AppNum       int64                  `json:"appNum,omitempty"`
 }
 
 // ApplicationRevisionBase application revision base spec
