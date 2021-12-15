@@ -19,6 +19,7 @@ package cloudprovider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	cs20151215 "github.com/alibabacloud-go/cs-20151215/v2/client"
@@ -77,13 +78,16 @@ func (provider *AliyunCloudProvider) decodeClusterLabels(tags []*cs20151215.Tag)
 
 func (provider *AliyunCloudProvider) decodeClusterURL(masterURL string) (url struct {
 	APIServerEndpoint         string `json:"api_server_endpoint"`
-	DashboardEndpoint         string `json:"dashboardEndpoint"`
 	IntranetAPIServerEndpoint string `json:"intranet_api_server_endpoint"`
 }) {
 	if err := json.Unmarshal([]byte(masterURL), &url); err != nil {
 		klog.Info("failed to unmarshal masterUrl %s", masterURL)
 	}
 	return
+}
+
+func (provider *AliyunCloudProvider) getDashboardURL(clusterID string) string {
+	return fmt.Sprintf("https://cs.console.aliyun.com/#/k8s/cluster/%s/v2/info/overview", clusterID)
 }
 
 // ListCloudClusters list clusters with page info, return clusters, total count and error
@@ -111,7 +115,7 @@ func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize 
 			Labels:       labels,
 			Status:       *cluster.State,
 			APIServerURL: url.APIServerEndpoint,
-			DashBoardURL: url.DashboardEndpoint,
+			DashBoardURL: provider.getDashboardURL(*cluster.ClusterId),
 		})
 	}
 	return clusters, int(*resp.Body.PageInfo.TotalCount), nil
@@ -148,7 +152,7 @@ func (provider *AliyunCloudProvider) GetClusterInfo(clusterID string) (*CloudClu
 		Labels:       labels,
 		Status:       *cluster.State,
 		APIServerURL: url.APIServerEndpoint,
-		DashBoardURL: url.DashboardEndpoint,
+		DashBoardURL: provider.getDashboardURL(*cluster.ClusterId),
 	}, nil
 }
 
