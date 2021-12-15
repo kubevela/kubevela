@@ -269,8 +269,8 @@ spec:
     cue:
       template: |
         output: {
-          metadata: kind: "Foo"
-          metadata: apiVersion: "example.com/v1"
+          kind: "Foo"
+          apiVersion: "example.com/v1"
           spec: key: parameter.key1
           status: key: parameter.key2
         }
