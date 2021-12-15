@@ -755,10 +755,6 @@ func (h *Handler) checkDependencies() error {
 		if err != nil {
 			return errors.Wrap(err, "fail to find dependent addon in source repository")
 		}
-		if !depAddon.Invisible {
-			return fmt.Errorf("dependent addon %s cannot be enabled automatically", depAddon.Name)
-		}
-		// invisible addon SHOULD be enabled without argument
 		depHandler := *h
 		depHandler.addon = depAddon
 		depHandler.args = nil
