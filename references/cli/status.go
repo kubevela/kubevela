@@ -129,8 +129,11 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Namespace:", namespace)
 	table.AddRow("  Created at:", app.CreationTimestamp.String())
+	table.AddRow("  Status:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
 	cmd.Printf("%s\n\n", table.String())
-
+	if err := printWorkflowStatus(c, ioStreams, appName, namespace); err != nil {
+		return err
+	}
 	cmd.Printf("Services:\n\n")
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
@@ -151,6 +154,29 @@ func getComponentType(app *v1beta1.Application, name string) string {
 		}
 	}
 	return "webservice"
+}
+
+func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
+	remoteApp, err := loadRemoteApplication(c, namespace, appName)
+	if err != nil {
+		return err
+	}
+	workflowStatus := remoteApp.Status.Workflow
+	ioStreams.Info("Workflow:\n")
+	ioStreams.Infof("  mode: %s\n", workflowStatus.Mode)
+	ioStreams.Infof("  finished: %t\n", workflowStatus.Finished)
+	ioStreams.Infof("  Suspend: %t\n", workflowStatus.Suspend)
+	ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
+	ioStreams.Info("  Steps")
+	for _, step := range workflowStatus.Steps {
+		ioStreams.Infof("  - id:%s\n", step.ID)
+		ioStreams.Infof("    name:%s\n", step.Name)
+		ioStreams.Infof("    type:%s\n", step.Type)
+		ioStreams.Infof("    phase:%s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
+		ioStreams.Infof("    message:%s\n", step.Message)
+	}
+	ioStreams.Infof("\n")
+	return nil
 }
 
 func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
@@ -250,6 +276,24 @@ func TrackDeployStatus(c common.Args, appName string, namespace string) (CompSta
 
 func getHealthStatusColor(s bool) *color.Color {
 	if s {
+		return green
+	}
+	return yellow
+}
+
+func getWfStepColor(phase commontypes.WorkflowStepPhase) *color.Color {
+	switch phase {
+	case commontypes.WorkflowStepPhaseSucceeded:
+		return green
+	case commontypes.WorkflowStepPhaseFailed:
+		return red
+	default:
+		return yellow
+	}
+}
+
+func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
+	if appPhase == commontypes.ApplicationRunning {
 		return green
 	}
 	return yellow
