@@ -259,7 +259,7 @@ func TestGetStore(t *testing.T) {
 	r.Equal(store.Name, "workflow-app-v1-context")
 }
 
-func TestModifiableValue(t *testing.T) {
+func TestMutableValue(t *testing.T) {
 	cli := newCliForTest(t, nil)
 	r := require.New(t)
 
@@ -268,21 +268,21 @@ func TestModifiableValue(t *testing.T) {
 	err = wfCtx.Commit()
 	r.NoError(err)
 
-	wfCtx.SetModifiableValue("value", "test", "key")
-	v := wfCtx.GetModifiableValue("test", "key")
+	wfCtx.SetMutableValue("value", "test", "key")
+	v := wfCtx.GetMutableValue("test", "key")
 	r.Equal(v, "value")
 
-	wfCtx.DeleteModifiableValue("test", "key")
-	v = wfCtx.GetModifiableValue("test", "key")
+	wfCtx.DeleteMutableValue("test", "key")
+	v = wfCtx.GetMutableValue("test", "key")
 	r.Equal(v, "")
 
-	wfCtx.SetModifiableValue("value", "test", "key")
-	count := wfCtx.IncreaseModifiableCountValue("test", "key")
+	wfCtx.SetMutableValue("value", "test", "key")
+	count := wfCtx.IncreaseMutableCountValue("test", "key")
 	r.Equal(count, 0)
-	count = wfCtx.IncreaseModifiableCountValue("notfound", "key")
+	count = wfCtx.IncreaseMutableCountValue("notfound", "key")
 	r.Equal(count, 0)
-	wfCtx.SetModifiableValue("10", "number", "key")
-	count = wfCtx.IncreaseModifiableCountValue("number", "key")
+	wfCtx.SetMutableValue("10", "number", "key")
+	count = wfCtx.IncreaseMutableCountValue("number", "key")
 	r.Equal(count, 11)
 }
 

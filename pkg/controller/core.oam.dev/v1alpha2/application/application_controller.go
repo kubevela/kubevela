@@ -184,7 +184,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "[handle workflow]")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRendering)
 		}
 		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
@@ -210,7 +210,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateTerminated:
 			logCtx.Info("Workflow return state=Terminated")
 			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeConditionWithRetry(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
+				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
 		case common.WorkflowStateExecuting:
@@ -220,7 +220,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case common.WorkflowStateSucceeded:
 			logCtx.Info("Workflow return state=Succeeded")
 			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
+				return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 			}
 			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
@@ -238,7 +238,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err != nil {
 			logCtx.Error(err, "Failed to render components")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
 		}
 		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
@@ -248,7 +248,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := handler.HandleComponentsRevision(logCtx, comps); err != nil {
 			logCtx.Error(err, "Failed to handle components revision")
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return r.endWithNegativeConditionWithRetry(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
 		}
 		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
 	}
@@ -312,7 +312,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
 		r.Recorder.Event(handler.app, event.Warning(velatypes.ReasonFailedGC, err))
-		return r.endWithNegativeConditionWithRetry(logCtx, handler.app, condition.ReconcileError(err), phase)
+		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
 	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers")
@@ -321,13 +321,13 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return ctrl.Result{RequeueAfter: baseGCBackoffWaitTime}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
+		return ctrl.Result{RequeueAfter: baseGCBackoffWaitTime}, r.patchStatus(logCtx, handler.app, phase)
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
 	if phase == common.ApplicationRendering {
-		return ctrl.Result{}, r.updateStatusWithRetryOnConflict(logCtx, handler.app, common.ApplicationRunningWorkflow)
+		return ctrl.Result{}, r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)
 	}
-	return ctrl.Result{}, r.patchStatusWithRetryOnConflict(logCtx, handler.app, phase)
+	return ctrl.Result{}, r.patchStatus(logCtx, handler.app, phase)
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
@@ -372,25 +372,12 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 	return false, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) _endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase, retry bool) (ctrl.Result, error) {
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
-	handler := r.patchStatus
-	if retry {
-		handler = r.patchStatusWithRetryOnConflict
-	}
-	if err := handler(ctx, app, phase); err != nil {
+	if err := r.patchStatus(ctx, app, phase); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update application status")
 	}
 	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
-}
-
-func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
-	return r._endWithNegativeCondition(ctx, app, condition, phase, false)
-}
-
-// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
-func (r *Reconciler) endWithNegativeConditionWithRetry(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
-	return r._endWithNegativeCondition(ctx, app, condition, phase, true)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
@@ -399,38 +386,10 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 	return r.Status().Patch(ctx, app, client.Merge)
 }
 
-// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
-func (r *Reconciler) patchStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
+func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-
-	status := app.Status.DeepCopy()
-	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
-		return errors.WithMessage(err, "failed to get application while patching status")
-	}
-	app.Status = *status
-	err := r.Status().Patch(ctx, app, client.Merge)
-	if err != nil {
-		return errors.WithMessage(err, "failed to re-patch status")
-	}
-	return nil
-}
-
-// Note: Only operations that must override the status should use this function, it should only focus on workflow operations by now.
-func (r *Reconciler) updateStatusWithRetryOnConflict(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
-	app.Status.Phase = phase
-	updateObservedGeneration(app)
-
-	status := app.Status.DeepCopy()
-	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(app), app); err != nil {
-		return errors.WithMessage(err, "failed to get application while patching status")
-	}
-	app.Status = *status
-	err := r.Status().Update(ctx, app)
-	if err != nil {
-		return errors.WithMessage(err, "failed to re-patch status")
-	}
-	return nil
+	return r.Status().Update(ctx, app)
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {

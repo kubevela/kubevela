@@ -284,7 +284,7 @@ func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 }
 
 func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
-	times := ctx.IncreaseModifiableCountValue(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
+	times := ctx.IncreaseMutableCountValue(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
 	if times >= MaxErrorTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true

@@ -110,36 +110,36 @@ func (wf *WorkflowContext) GetStore() *corev1.ConfigMap {
 	return wf.store
 }
 
-// GetModifiableValue get modifiable data from workflow context.
-func (wf *WorkflowContext) GetModifiableValue(paths ...string) string {
+// GetMutableValue get mutable data from workflow context.
+func (wf *WorkflowContext) GetMutableValue(paths ...string) string {
 	return wf.store.Data[strings.Join(paths, ".")]
 }
 
-// SetModifiableValue set modifiable data in workflow context config map.
-func (wf *WorkflowContext) SetModifiableValue(data string, paths ...string) {
+// SetMutableValue set mutable data in workflow context config map.
+func (wf *WorkflowContext) SetMutableValue(data string, paths ...string) {
 	wf.store.Data[strings.Join(paths, ".")] = data
 	wf.modified = true
 }
 
-// IncreaseModifiableCountValue increase modifiable count in workflow context.
-func (wf *WorkflowContext) IncreaseModifiableCountValue(paths ...string) int {
-	c := wf.GetModifiableValue(paths...)
+// IncreaseMutableCountValue increase mutable count in workflow context.
+func (wf *WorkflowContext) IncreaseMutableCountValue(paths ...string) int {
+	c := wf.GetMutableValue(paths...)
 	if c == "" {
-		wf.SetModifiableValue("0", paths...)
+		wf.SetMutableValue("0", paths...)
 		return 0
 	}
 	count, err := strconv.Atoi(c)
 	if err != nil {
-		wf.SetModifiableValue("0", paths...)
+		wf.SetMutableValue("0", paths...)
 		return 0
 	}
 	count++
-	wf.SetModifiableValue(strconv.Itoa(count), paths...)
+	wf.SetMutableValue(strconv.Itoa(count), paths...)
 	return count
 }
 
-// DeleteModifiableValue delete modifiable data in workflow context.
-func (wf *WorkflowContext) DeleteModifiableValue(paths ...string) {
+// DeleteMutableValue delete mutable data in workflow context.
+func (wf *WorkflowContext) DeleteMutableValue(paths ...string) {
 	key := strings.Join(paths, ".")
 	if _, ok := wf.store.Data[key]; ok {
 		delete(wf.store.Data, strings.Join(paths, "."))

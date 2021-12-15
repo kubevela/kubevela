@@ -205,7 +205,7 @@ func (w *workflow) CleanupCountersInContext(ctx monitorContext.Context) {
 }
 
 func (w *workflow) GetBackoffWaitTime() time.Duration {
-	nextTime := w.wfCtx.GetModifiableValue(wfTypes.ContextKeyNextExecuteTime)
+	nextTime := w.wfCtx.GetMutableValue(wfTypes.ContextKeyNextExecuteTime)
 	if nextTime == "" {
 		return time.Second
 	}
@@ -326,7 +326,7 @@ func getBackoffWaitTime(wfCtx wfContext.Context) int {
 
 func (e *engine) setNextExecuteTime() {
 	interval := getBackoffWaitTime(e.wfCtx)
-	lastExecuteTime := e.wfCtx.GetModifiableValue(wfTypes.ContextKeyLastExecuteTime)
+	lastExecuteTime := e.wfCtx.GetMutableValue(wfTypes.ContextKeyLastExecuteTime)
 	if lastExecuteTime == "" {
 		e.monitorCtx.Error(fmt.Errorf("failed to get last execute time"), "application", e.app.Name)
 	}
@@ -337,7 +337,7 @@ func (e *engine) setNextExecuteTime() {
 	}
 
 	next := last + int64(interval)
-	e.wfCtx.SetModifiableValue(strconv.FormatInt(next, 10), wfTypes.ContextKeyNextExecuteTime)
+	e.wfCtx.SetMutableValue(strconv.FormatInt(next, 10), wfTypes.ContextKeyNextExecuteTime)
 	if err := e.wfCtx.Commit(); err != nil {
 		e.monitorCtx.Error(err, "failed to commit next execute time", "nextExecuteTime", next)
 	}
@@ -368,7 +368,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 			}
 			todoTasks = append(todoTasks, tRunner)
 		} else {
-			wfCtx.DeleteModifiableValue(wfTypes.ContextPrefixBackoffTimes, stepID)
+			wfCtx.DeleteMutableValue(wfTypes.ContextPrefixBackoffTimes, stepID)
 		}
 	}
 	if done {
@@ -453,7 +453,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
 		e.waiting = e.waiting || operation.Waiting
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			wfCtx.IncreaseModifiableCountValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			wfCtx.IncreaseMutableCountValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
 			if err := wfCtx.Commit(); err != nil {
 				return errors.WithMessage(err, "commit workflow context")
 			}
@@ -463,7 +463,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 			e.checkFailedAfterRetries()
 			return nil
 		}
-		wfCtx.DeleteModifiableValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		wfCtx.DeleteMutableValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
 		if err := wfCtx.Commit(); err != nil {
 			return errors.WithMessage(err, "commit workflow context")
 		}
@@ -503,7 +503,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 		now              = metav1.NewTime(time.Now())
 	)
 
-	e.wfCtx.SetModifiableValue(strconv.FormatInt(now.Unix(), 10), wfTypes.ContextKeyLastExecuteTime)
+	e.wfCtx.SetMutableValue(strconv.FormatInt(now.Unix(), 10), wfTypes.ContextKeyLastExecuteTime)
 	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
