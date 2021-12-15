@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -49,7 +51,7 @@ const (
 // WorkflowContext is workflow context.
 type WorkflowContext struct {
 	cli        client.Client
-	store      corev1.ConfigMap
+	store      *corev1.ConfigMap
 	components map[string]*ComponentManifest
 	vars       *value.Value
 	modified   bool
@@ -103,6 +105,48 @@ func (wf *WorkflowContext) SetVar(v *value.Value, paths ...string) error {
 	return nil
 }
 
+// GetStore get configmap of workflow context.
+func (wf *WorkflowContext) GetStore() *corev1.ConfigMap {
+	return wf.store
+}
+
+// GetMutableValue get mutable data from workflow context.
+func (wf *WorkflowContext) GetMutableValue(paths ...string) string {
+	return wf.store.Data[strings.Join(paths, ".")]
+}
+
+// SetMutableValue set mutable data in workflow context config map.
+func (wf *WorkflowContext) SetMutableValue(data string, paths ...string) {
+	wf.store.Data[strings.Join(paths, ".")] = data
+	wf.modified = true
+}
+
+// IncreaseMutableCountValue increase mutable count in workflow context.
+func (wf *WorkflowContext) IncreaseMutableCountValue(paths ...string) int {
+	c := wf.GetMutableValue(paths...)
+	if c == "" {
+		wf.SetMutableValue("0", paths...)
+		return 0
+	}
+	count, err := strconv.Atoi(c)
+	if err != nil {
+		wf.SetMutableValue("0", paths...)
+		return 0
+	}
+	count++
+	wf.SetMutableValue(strconv.Itoa(count), paths...)
+	return count
+}
+
+// DeleteMutableValue delete mutable data in workflow context.
+func (wf *WorkflowContext) DeleteMutableValue(paths ...string) {
+	key := strings.Join(paths, ".")
+	if _, ok := wf.store.Data[key]; ok {
+		delete(wf.store.Data, strings.Join(paths, "."))
+		wf.modified = true
+	}
+}
+
 // MakeParameter make 'value' with interface{}
 func (wf *WorkflowContext) MakeParameter(parameter interface{}) (*value.Value, error) {
 	var s = "{}"
@@ -145,18 +189,19 @@ func (wf *WorkflowContext) writeToStore() error {
 		jsonObject[name] = s
 	}
 
-	wf.store.Data = map[string]string{
-		ConfigMapKeyComponents: string(util.MustJSONMarshal(jsonObject)),
-		ConfigMapKeyVars:       varStr,
+	if wf.store.Data == nil {
+		wf.store.Data = make(map[string]string)
 	}
+	wf.store.Data[ConfigMapKeyComponents] = string(util.MustJSONMarshal(jsonObject))
+	wf.store.Data[ConfigMapKeyVars] = varStr
 	return nil
 }
 
 func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
-	if err := wf.cli.Update(ctx, &wf.store); err != nil {
+	if err := wf.cli.Update(ctx, wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
-			return wf.cli.Create(ctx, &wf.store)
+			return wf.cli.Create(ctx, wf.store)
 		}
 		return err
 	}
@@ -300,7 +345,7 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 	}
 	wfCtx := &WorkflowContext{
 		cli:        cli,
-		store:      store,
+		store:      &store,
 		components: map[string]*ComponentManifest{},
 		modified:   true,
 	}
@@ -321,7 +366,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	}
 	ctx := &WorkflowContext{
 		cli:   cli,
-		store: store,
+		store: &store,
 	}
 	if err := ctx.LoadFromConfigMap(store); err != nil {
 		return nil, err
@@ -329,6 +374,7 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	return ctx, nil
 }
 
+// generateStoreName generates the config map name of workflow context.
 func generateStoreName(app string) string {
 	return fmt.Sprintf("workflow-%s-context", app)
 }

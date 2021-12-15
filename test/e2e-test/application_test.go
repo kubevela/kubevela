@@ -251,4 +251,25 @@ var _ = Describe("Application Normal tests", func() {
 		secondApp.Name = "second-app"
 		Expect(k8sClient.Create(ctx, &secondApp)).ShouldNot(BeNil())
 	})
+
+	It("Test app failed after retries", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app10.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("check application status")
+		testApp := new(v1beta1.Application)
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, testApp)
+			if err != nil {
+				return err
+			}
+			if testApp.Status.Phase != oamcomm.ApplicationWorkflowSuspending {
+				return fmt.Errorf("error application status wants %s, actually %s", oamcomm.ApplicationWorkflowSuspending, testApp.Status.Phase)
+			}
+			return nil
+		}, 60*time.Second).Should(BeNil())
+	})
 })

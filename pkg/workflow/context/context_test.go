@@ -22,8 +22,8 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
-	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,16 +34,17 @@ import (
 
 func TestComponent(t *testing.T) {
 	wfCtx := newContextForTest(t)
+	r := require.New(t)
 
 	_, err := wfCtx.GetComponent("expected-not-found")
-	assert.Equal(t, err != nil, true)
+	r.Equal(err.Error(), "component expected-not-found not found in application")
 	cmf, err := wfCtx.GetComponent("server")
-	assert.NilError(t, err)
+	r.NoError(err)
 	components := wfCtx.GetComponents()
 	_, ok := components["server"]
-	assert.Equal(t, ok, true)
+	r.Equal(ok, true)
 
-	assert.Equal(t, cmf.Workload.String(), `apiVersion: "v1"
+	r.Equal(cmf.Workload.String(), `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
 	labels: {
@@ -66,8 +67,8 @@ spec: {
 	}, ...]
 }
 `)
-	assert.Equal(t, len(cmf.Auxiliaries), 1)
-	assert.Equal(t, cmf.Auxiliaries[0].String(), `apiVersion: "v1"
+	r.Equal(len(cmf.Auxiliaries), 1)
+	r.Equal(cmf.Auxiliaries[0].String(), `apiVersion: "v1"
 kind:       "Service"
 metadata: {
 	name: "my-service"
@@ -89,13 +90,13 @@ spec: containers: [{
 // +patchKey=name
 env:[{name: "ClusterIP",value: "1.1.1.1"}]}]
 `, nil, "")
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = wfCtx.PatchComponent("server", pv)
-	assert.NilError(t, err)
+	r.NoError(err)
 
 	cmf, err = wfCtx.GetComponent("server")
-	assert.NilError(t, err)
-	assert.Equal(t, cmf.Workload.String(), `apiVersion: "v1"
+	r.NoError(err)
+	r.Equal(cmf.Workload.String(), `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
 	labels: {
@@ -124,15 +125,15 @@ spec: {
 `)
 
 	err = wfCtx.writeToStore()
-	assert.NilError(t, err)
+	r.NoError(err)
 	expected, err := yaml.Marshal(wfCtx.components)
-	assert.NilError(t, err)
+	r.NoError(err)
 
-	err = wfCtx.LoadFromConfigMap(wfCtx.store)
-	assert.NilError(t, err)
+	err = wfCtx.LoadFromConfigMap(*wfCtx.store)
+	r.NoError(err)
 	componentsYaml, err := yaml.Marshal(wfCtx.components)
-	assert.NilError(t, err)
-	assert.Equal(t, string(expected), string(componentsYaml))
+	r.NoError(err)
+	r.Equal(string(expected), string(componentsYaml))
 }
 
 func TestVars(t *testing.T) {
@@ -167,49 +168,53 @@ result: 101
 		},
 	}
 	for _, tCase := range testCases {
+		r := require.New(t)
 		val, err := value.NewValue(tCase.variable, nil, "")
-		assert.NilError(t, err)
+		r.NoError(err)
 		input, err := val.LookupValue("input")
-		assert.NilError(t, err)
+		r.NoError(err)
 		err = wfCtx.SetVar(input, tCase.paths...)
-		assert.NilError(t, err)
+		r.NoError(err)
 		result, err := wfCtx.GetVar(tCase.paths...)
-		assert.NilError(t, err)
+		r.NoError(err)
 		rStr, err := result.String()
-		assert.NilError(t, err)
-		assert.Equal(t, rStr, tCase.expected)
+		r.NoError(err)
+		r.Equal(rStr, tCase.expected)
 	}
 
+	r := require.New(t)
 	param, err := wfCtx.MakeParameter(map[string]interface{}{
 		"name": "foo",
 	})
-	assert.NilError(t, err)
+	r.NoError(err)
 	mark, err := wfCtx.GetVar("football")
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = param.FillObject(mark)
-	assert.NilError(t, err)
+	r.NoError(err)
 	rStr, err := param.String()
-	assert.NilError(t, err)
-	assert.Equal(t, rStr, `name:   "foo"
+	r.NoError(err)
+	r.Equal(rStr, `name:   "foo"
 score:  100
 result: 101
 `)
 
-	conflictV, _ := value.NewValue(`score: 101`, nil, "")
+	conflictV, err := value.NewValue(`score: 101`, nil, "")
+	r.NoError(err)
 	err = wfCtx.SetVar(conflictV, "football")
-	assert.Equal(t, err != nil, true)
+	r.Equal(err.Error(), "football.result: conflicting values 100 and 101")
 }
 
 func TestRefObj(t *testing.T) {
 
 	wfCtx := new(WorkflowContext)
-	wfCtx.store = corev1.ConfigMap{}
+	wfCtx.store = &corev1.ConfigMap{}
 	wfCtx.store.APIVersion = "v1"
 	wfCtx.store.Kind = "ConfigMap"
 	wfCtx.store.Name = "app-v1"
 
 	ref := wfCtx.StoreRef()
-	assert.Equal(t, *ref, corev1.ObjectReference{
+	r := require.New(t)
+	r.Equal(*ref, corev1.ObjectReference{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
 		Name:       "app-v1",
@@ -217,8 +222,73 @@ func TestRefObj(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	var wfCm *corev1.ConfigMap
-	cli := &test.MockClient{
+	cli := newCliForTest(t, nil)
+	r := require.New(t)
+
+	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	err = wfCtx.Commit()
+	r.NoError(err)
+
+	wfCtx, err = LoadContext(cli, "default", "app-v1")
+	r.NoError(err)
+	err = wfCtx.Commit()
+	r.NoError(err)
+
+	cli = newCliForTest(t, nil)
+	_, err = LoadContext(cli, "default", "app-v1")
+	r.Equal(err.Error(), `configMap "workflow-app-v1-context" not found`)
+
+	wfCtx, err = NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	r.Equal(len(wfCtx.GetComponents()), 0)
+	_, err = wfCtx.GetComponent("server")
+	r.Equal(err.Error(), "component server not found in application")
+}
+
+func TestGetStore(t *testing.T) {
+	cli := newCliForTest(t, nil)
+	r := require.New(t)
+
+	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	err = wfCtx.Commit()
+	r.NoError(err)
+
+	store := wfCtx.GetStore()
+	r.Equal(store.Name, "workflow-app-v1-context")
+}
+
+func TestMutableValue(t *testing.T) {
+	cli := newCliForTest(t, nil)
+	r := require.New(t)
+
+	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	err = wfCtx.Commit()
+	r.NoError(err)
+
+	wfCtx.SetMutableValue("value", "test", "key")
+	v := wfCtx.GetMutableValue("test", "key")
+	r.Equal(v, "value")
+
+	wfCtx.DeleteMutableValue("test", "key")
+	v = wfCtx.GetMutableValue("test", "key")
+	r.Equal(v, "")
+
+	wfCtx.SetMutableValue("value", "test", "key")
+	count := wfCtx.IncreaseMutableCountValue("test", "key")
+	r.Equal(count, 0)
+	count = wfCtx.IncreaseMutableCountValue("notfound", "key")
+	r.Equal(count, 0)
+	wfCtx.SetMutableValue("10", "number", "key")
+	count = wfCtx.IncreaseMutableCountValue("number", "key")
+	r.Equal(count, 11)
+}
+
+func newCliForTest(t *testing.T, wfCm *corev1.ConfigMap) *test.MockClient {
+	r := require.New(t)
+	return &test.MockClient{
 		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 			o, ok := obj.(*corev1.ConfigMap)
 			if ok {
@@ -226,9 +296,9 @@ func TestContext(t *testing.T) {
 				case "app-v1":
 					var cm corev1.ConfigMap
 					testCaseJson, err := yamlUtil.YAMLToJSON([]byte(testCaseYaml))
-					assert.NilError(t, err)
+					r.NoError(err)
 					err = json.Unmarshal(testCaseJson, &cm)
-					assert.NilError(t, err)
+					r.NoError(err)
 					*o = cm
 					return nil
 				case generateStoreName("app-v1"):
@@ -258,38 +328,21 @@ func TestContext(t *testing.T) {
 			return nil
 		},
 	}
-
-	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
-	assert.NilError(t, err)
-	err = wfCtx.Commit()
-	assert.NilError(t, err)
-
-	wfCtx, err = LoadContext(cli, "default", "app-v1")
-	assert.NilError(t, err)
-	err = wfCtx.Commit()
-	assert.NilError(t, err)
-
-	wfCm = nil
-	_, err = LoadContext(cli, "default", "app-v1")
-	assert.Equal(t, err != nil, true)
-
-	wfCtx, err = NewContext(cli, "default", "app-v1", "testuid")
-	assert.NilError(t, err)
-	assert.Equal(t, len(wfCtx.GetComponents()), 0)
-	_, err = wfCtx.GetComponent("server")
-	assert.Equal(t, err != nil, true)
 }
 
 func newContextForTest(t *testing.T) *WorkflowContext {
+	r := require.New(t)
 	var cm corev1.ConfigMap
 	testCaseJson, err := yamlUtil.YAMLToJSON([]byte(testCaseYaml))
-	assert.NilError(t, err)
+	r.NoError(err)
 	err = json.Unmarshal(testCaseJson, &cm)
-	assert.NilError(t, err)
+	r.NoError(err)
 
-	wfCtx := new(WorkflowContext)
+	wfCtx := &WorkflowContext{
+		store: &cm,
+	}
 	err = wfCtx.LoadFromConfigMap(cm)
-	assert.NilError(t, err)
+	r.NoError(err)
 	return wfCtx
 }
 

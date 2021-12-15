@@ -71,6 +71,29 @@ func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
 	return c.vars.Error()
 }
 
+// GetStore get configmap of workflow context.
+func (c ViewContext) GetStore() *corev1.ConfigMap {
+	return nil
+}
+
+// GetMutableValue get mutable data from workflow context.
+func (c ViewContext) GetMutableValue(paths ...string) string {
+	return ""
+}
+
+// SetMutableValue set mutable data in workflow context config map.
+func (c ViewContext) SetMutableValue(data string, paths ...string) {
+}
+
+// IncreaseMutableCountValue increase mutable count in workflow context.
+func (c ViewContext) IncreaseMutableCountValue(paths ...string) int {
+	return 0
+}
+
+// DeleteMutableValue delete mutable data in workflow context.
+func (c ViewContext) DeleteMutableValue(paths ...string) {
+}
+
 // Commit the workflow context and persist it's content.
 func (c ViewContext) Commit() error {
 	return errors.New("not support func Commit")

@@ -22,9 +22,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/stretchr/testify/require"
@@ -183,8 +185,8 @@ close({
 			Name: "input-err",
 			Type: "ok",
 			Properties: &runtime.RawExtension{Raw: []byte(`
-{"score": {"y": 101}}
-`)},
+		{"score": {"y": 101}}
+		`)},
 			Inputs: common.StepInputs{{
 				From:         "score",
 				ParameterKey: "score",
@@ -222,20 +224,40 @@ close({
 			Name: "err",
 			Type: "error",
 		},
+		{
+			Name: "failed-after-retries",
+			Type: "error",
+		},
 	}
 	for _, step := range steps {
 		gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 		r.NoError(err)
 		run, err := gen(step, &types.GeneratorOptions{})
 		r.NoError(err)
-		status, _, err := run.Run(wfCtx, &types.TaskRunOptions{})
+		status, operation, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		switch step.Name {
 		case "input":
-			r.Equal(err != nil, true)
-		case "ouput", "output-var-conflict":
+			r.Equal(err.Error(), "do preStartHook: get input from [podIP]: var(path=podIP) not exist")
+		case "output", "output-var-conflict":
 			r.Equal(status.Reason, StatusReasonOutput)
+			r.Equal(operation.Waiting, true)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+		case "failed-after-retries":
+			newCtx := newWorkflowContextForTest(t)
+			for i := 0; i < MaxErrorTimes; i++ {
+				status, operation, err = run.Run(newCtx, &types.TaskRunOptions{})
+				r.NoError(err)
+				r.Equal(operation.Waiting, true)
+				r.Equal(operation.FailedAfterRetries, false)
+				r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			}
+			status, operation, err = run.Run(newCtx, &types.TaskRunOptions{})
+			r.NoError(err)
+			r.Equal(operation.Waiting, false)
+			r.Equal(operation.FailedAfterRetries, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		default:
+			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		}
 	}
@@ -441,13 +463,25 @@ func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	err = json.Unmarshal(testCaseJson, &cm)
 	r.NoError(err)
 
-	wfCtx := new(wfContext.WorkflowContext)
-	err = wfCtx.LoadFromConfigMap(cm)
+	cli := &test.MockClient{
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			o, ok := obj.(*corev1.ConfigMap)
+			if ok {
+				*o = cm
+			}
+			return nil
+		},
+		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			return nil
+		},
+	}
+	wfCtx, err := wfContext.NewContext(cli, "default", "app-v1", "testuid")
 	r.NoError(err)
 	v, _ := value.NewValue(`name: "app"`, nil, "")
 	r.NoError(wfCtx.SetVar(v, types.ContextKeyMetadata))
 	return wfCtx
 }
+
 func mockLoadTemplate(_ context.Context, name string) (string, error) {
 	templ := `
 parameter: {}

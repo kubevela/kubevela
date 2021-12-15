@@ -134,6 +134,7 @@ var _ = Describe("Test Workflow", func() {
 		// first try to add finalizer
 		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
 		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
+		tryReconcile(reconciler, appWithPolicy.Name, appWithPolicy.Namespace)
 
 		deploy := &appsv1.Deployment{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -186,6 +187,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.Create(ctx, appWithWorkflow.DeepCopy())).Should(BeNil())
 
 		// first try to add finalizer
+		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 		tryReconcile(reconciler, appWithWorkflow.Name, appWithWorkflow.Namespace)
 
@@ -245,6 +247,7 @@ var _ = Describe("Test Workflow", func() {
 		// first try to add finalizer
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 
 		appObj := &oamcore.Application{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -295,6 +298,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(k8sClient.Create(ctx, suspendApp)).Should(BeNil())
 
 		// first try to add finalizer
+		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
 

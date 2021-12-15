@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: failed-app
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        cmd:
+          - ./podinfo
+          - stress-cpu=1

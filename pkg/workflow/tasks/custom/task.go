@@ -22,10 +22,6 @@ import (
 	"fmt"
 	"strings"
 
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
-
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
-
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 
@@ -35,7 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -55,6 +53,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
+	// MaxErrorTimes is the max times of the workflow progress condition which is Failed.
+	MaxErrorTimes = 10
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -160,6 +160,11 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				tracer.Commit(string(exec.status().Phase))
 			}()
 
+			if exec.operation().FailedAfterRetries {
+				tracer.Info("failed after retries, skip this step")
+				return exec.status(), exec.operation(), nil
+			}
+
 			if t.runOptionsProcess != nil {
 				t.runOptionsProcess(options)
 			}
@@ -177,7 +182,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			if err := paramsValue.Error(); err != nil {
-				exec.err(err, StatusReasonParameter)
+				exec.err(ctx, err, StatusReasonParameter)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -192,7 +197,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID)
 			if err != nil {
-				exec.err(err, StatusReasonRendering)
+				exec.err(ctx, err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -203,13 +208,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				tracer.Error(err, "do steps")
-				exec.err(err, StatusReasonExecute)
+				exec.err(ctx, err, StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
 			}
 
 			for _, hook := range options.PostStopHooks {
 				if err := hook(ctx, taskv, wfStep, exec.status().Phase); err != nil {
-					exec.err(err, StatusReasonOutput)
+					exec.err(ctx, err, StatusReasonOutput)
 					return exec.status(), exec.operation(), nil
 				}
 			}
@@ -237,10 +242,11 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string) (
 type executor struct {
 	handlers providers.Providers
 
-	wfStatus   common.WorkflowStepStatus
-	suspend    bool
-	terminated bool
-	wait       bool
+	wfStatus           common.WorkflowStepStatus
+	suspend            bool
+	terminated         bool
+	failedAfterRetries bool
+	wait               bool
 
 	tracer monitorContext.Context
 }
@@ -269,16 +275,28 @@ func (exec *executor) Wait(message string) {
 	exec.wfStatus.Message = message
 }
 
-func (exec *executor) err(err error, reason string) {
+func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
+	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
 	exec.wfStatus.Message = err.Error()
 	exec.wfStatus.Reason = reason
+	exec.checkErrorTimes(ctx)
+}
+
+func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
+	times := ctx.IncreaseMutableCountValue(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
+	if times >= MaxErrorTimes {
+		exec.wait = false
+		exec.failedAfterRetries = true
+	}
 }
 
 func (exec *executor) operation() *wfTypes.Operation {
 	return &wfTypes.Operation{
-		Suspend:    exec.suspend,
-		Terminated: exec.terminated,
+		Suspend:            exec.suspend,
+		Terminated:         exec.terminated,
+		Waiting:            exec.wait,
+		FailedAfterRetries: exec.failedAfterRetries,
 	}
 }
 

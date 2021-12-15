@@ -201,6 +201,8 @@ const (
 type WorkflowState string
 
 const (
+	// WorkflowStateInitializing means the workflow is in initial state
+	WorkflowStateInitializing WorkflowState = "initializing"
 	// WorkflowStateTerminated means workflow is terminated manually, and it won't be started unless the spec changed.
 	WorkflowStateTerminated WorkflowState = "terminated"
 	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
@@ -327,6 +329,7 @@ type PolicyStatus struct {
 type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`
 	Mode        WorkflowMode `json:"mode"`
+	Message     string       `json:"message,omitempty"`
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
@@ -351,7 +354,7 @@ type WorkflowStepPhase string
 const (
 	// WorkflowStepPhaseSucceeded will make the controller run the next step.
 	WorkflowStepPhaseSucceeded WorkflowStepPhase = "succeeded"
-	// WorkflowStepPhaseFailed will make the controller stop the workflow and report error in `message`.
+	// WorkflowStepPhaseFailed will report error in `message`.
 	WorkflowStepPhaseFailed WorkflowStepPhase = "failed"
 	// WorkflowStepPhaseStopped will make the controller stop the workflow.
 	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
