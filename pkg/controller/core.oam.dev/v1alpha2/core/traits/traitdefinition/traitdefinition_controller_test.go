@@ -268,11 +268,9 @@ spec:
   schematic:
     cue:
       template: |
-        import (
-          ev1 "example.com/v1"
-        )
-        output: ev1.#Foo
         output: {
+          metadata: kind: "Foo"
+          metadata: apiVersion: "example.com/v1"
           spec: key: parameter.key1
           status: key: parameter.key2
         }

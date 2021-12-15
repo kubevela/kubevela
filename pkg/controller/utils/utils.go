@@ -318,9 +318,9 @@ func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm dis
 	}
 
 	// Test whether the refresh is successful
-	if exist := pd.Exist(targetGVK); !exist {
-		return fmt.Errorf("get CRD %s error", targetGVK.String())
-	}
+	// if exist := pd.Exist(targetGVK); !exist {
+	//	 return fmt.Errorf("get CRD %s error", targetGVK.String())
+	// }
 	return nil
 }
 
