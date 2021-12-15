@@ -74,6 +74,9 @@ const (
 
 	// LabelProject Namesapce records the project name of namespace
 	LabelProjectNamesapce = "namespace.oam.dev/project"
+
+	// LabelUsageNamespace mark the usage of the namespace.
+	LabelUsageNamespace = "usage.oam.dev"
 )
 
 const (

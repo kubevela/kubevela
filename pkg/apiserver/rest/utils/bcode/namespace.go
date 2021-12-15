@@ -21,3 +21,9 @@ var ErrProjectIsExist = NewBcode(400, 30001, "project name is exist")
 
 // ErrProjectIsNotExist project is not exist
 var ErrProjectIsNotExist = NewBcode(404, 30002, "project is not exist")
+
+// ErrProjectNamespaceFail project bind namespace failure
+var ErrProjectNamespaceFail = NewBcode(400, 30003, "project bind namespace failure")
+
+// ErrProjectNamespaceIsExist the namespace belongs to the other project
+var ErrProjectNamespaceIsExist = NewBcode(400, 30004, "the namespace belongs to the other project")
