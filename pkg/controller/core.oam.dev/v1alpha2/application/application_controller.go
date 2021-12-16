@@ -22,6 +22,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,10 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/pkg/errors"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -49,6 +48,7 @@ import (
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -128,7 +128,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
 	if err != nil {
-		logCtx.Error(err, "Failed to parse application")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
 	}
@@ -156,7 +155,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully apply application revision")
 
-	externalPolicies, err := appFile.PrepareWorkflowAndPolicy()
+	externalPolicies, err := appFile.PrepareWorkflowAndPolicy(logCtx)
 	if err != nil {
 		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -258,6 +257,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
+	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
+		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("application").Observe(v)
+	}))
+	defer subCtx.Commit("finish gc resourceTrackers")
+
 	var options []resourcekeeper.GCOption
 	if !gcOutdated {
 		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
@@ -318,12 +322,20 @@ func (r *Reconciler) result(err error) *reconcileResult {
 func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) (bool, ctrl.Result, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
+				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "add").Observe(v)
+			}))
+			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
-			ctx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
+			subCtx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
 			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 		}
 	} else {
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
+				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
+			}))
+			defer subCtx.Commit("finish remove finalizers")
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return r.result(err).end(true)

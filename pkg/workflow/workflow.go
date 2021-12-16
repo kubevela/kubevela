@@ -440,7 +440,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
 			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
 				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
-					metrics.StepDurationSummary.WithLabelValues(e.app.Namespace+"/"+e.app.Name, e.status.AppRevision, stepStatus.Name, stepStatus.Type).Observe(v)
+					metrics.StepDurationHistogram.WithLabelValues("application", stepStatus.Type).Observe(v)
 				}))
 			},
 		})
