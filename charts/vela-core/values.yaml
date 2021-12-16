@@ -113,7 +113,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.1.6
+      tag: v1.1.7
       pullPolicy: Always
     resources:
       limits:
