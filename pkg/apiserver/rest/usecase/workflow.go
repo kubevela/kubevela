@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -94,7 +95,7 @@ func (w *workflowUsecaseImpl) DeleteWorkflow(ctx context.Context, app *model.App
 	}
 	records, err := w.ds.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
-		log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
+		log.Logger.Errorf("list workflow %s record failure %s", utils2.Sanitize(workflow.PrimaryKey()), err.Error())
 	}
 	for _, record := range records {
 		if err := w.ds.Delete(ctx, record); err != nil {
@@ -189,7 +190,7 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		log.Logger.Infof("create workflow %s for app %s", req.Name, app.PrimaryKey())
+		log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(req.Name), app.PrimaryKey())
 		if err := w.ds.Add(ctx, workflow); err != nil {
 			return nil, err
 		}
