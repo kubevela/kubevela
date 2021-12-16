@@ -364,10 +364,14 @@ func (u *addonUsecaseImpl) EnableAddon(ctx context.Context, name string, args ap
 		if addon, exist = u.tryGetAddonFromCache(r.Name, name); !exist {
 			addon, err = SourceOf(*r).GetAddon(name, pkgaddon.EnableLevelOptions)
 		}
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-			return bcode.WrapGithubRateLimitErr(err)
+
+		if err != nil {
+			// one registry return error, should not break other registry func
+			continue
 		}
-		if addon == nil {
+
+		// cannot find this addon in the registry
+		if addon == nil || len(addon.Name) == 0 {
 			continue
 		}
 

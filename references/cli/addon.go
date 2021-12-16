@@ -54,9 +54,12 @@ const (
 	AddonTerraformProviderNameArgument = "providerName"
 )
 
-var statusUninstalled = "uninstalled"
-var statusEnabled = "enabled"
-var statusEnabling = "enabling"
+const (
+	statusUninstalled = "uninstalled"
+	statusEnabled     = "enabled"
+	statusEnabling    = "enabling"
+)
+
 var clt client.Client
 var clientArgs common.Args
 
@@ -232,10 +235,13 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 			source = registry.Git
 		}
 		addon, err = source.GetAddon(name, pkgaddon.EnableLevelOptions)
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-			return err
+
+		if err != nil {
+			continue
 		}
-		if addon == nil {
+
+		// cannot find this addon in the registry
+		if addon == nil || addon.Name == "" {
 			continue
 		}
 		err = pkgaddon.EnableAddon(ctx, addon, k8sClient, apply.NewAPIApplicator(k8sClient), config, source, args)
@@ -264,7 +270,7 @@ func statusAddon(name string) error {
 	}
 	fmt.Printf("addon %s status is %s \n", name, status)
 	if status == statusEnabling {
-		fmt.Printf("please check addon related application: namespace: %s name: %s", types.DefaultKubeVelaNS, pkgaddon.Convert2AppName(name))
+		fmt.Printf("this addon is still enabling, please run \"vela status %s -n vela-system \" to check the status of the addon related app", pkgaddon.Convert2AppName(name))
 	}
 	return nil
 }
