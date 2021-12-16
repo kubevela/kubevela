@@ -1,8 +1,9 @@
 #ApplyComponent: {
-	#provider: "oam"
-	#do:       "component-apply"
-	cluster:   *"" | string
-	env:       *"" | string
+	#provider:   "oam"
+	#do:         "component-apply"
+	cluster:     *"" | string
+	env:         *"" | string
+	waitHealthy: *true | bool
 	value: {...}
 	patch?: {...}
 	...

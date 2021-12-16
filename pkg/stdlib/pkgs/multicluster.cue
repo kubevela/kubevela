@@ -141,6 +141,33 @@
 	}
 }
 
+#ApplyComponentsToEnv: #Steps & {
+	inputs: {
+		decisions: [...#PlacementDecision]
+		components: [...#Component]
+		env:         string
+		waitHealthy: bool
+	} @step(1)
+
+	outputs: #Steps & {
+		for decision in inputs.decisions {
+			for key, comp in inputs.components {
+				"\(decision.cluster)-\(decision.namespace)-\(key)": #ApplyComponent & {
+					value: comp
+					if decision.cluster != _|_ {
+						cluster: decision.cluster
+					}
+					if decision.namespace != _|_ {
+						namespace: decision.namespace
+					}
+					waitHealthy: inputs.waitHealthy
+					env:         inputs.env
+				} @step(1)
+			}
+		}
+	} @step(2)
+}
+
 #ApplyEnvBindApp: {
 	#do: "steps"
 
@@ -148,6 +175,7 @@
 	policy:    string
 	app:       string
 	namespace: string
+	parallel:  bool
 
 	env_:    env
 	policy_: policy
@@ -158,21 +186,24 @@
 		}
 	} @step(1)
 
-	apply: #Steps & {
-		for decision in prepare.outputs.decisions {
-			for key, comp in prepare.outputs.components {
-				"\(decision.cluster)-\(decision.namespace)-\(key)": #ApplyComponent & {
-					value: comp
-					if decision.cluster != _|_ {
-						cluster: decision.cluster
-					}
-					if decision.namespace != _|_ {
-						namespace: decision.namespace
-					}
-					env: env_
-				} @step(2)
-			}
+	apply: #ApplyComponentsToEnv & {
+		inputs: {
+			decisions:   prepare.outputs.decisions
+			components:  prepare.outputs.components
+			env:         env_
+			waitHealthy: !parallel
 		}
+	} @step(2)
+
+	if parallel {
+		wait: #ApplyComponentsToEnv & {
+			inputs: {
+				decisions:   prepare.outputs.decisions
+				components:  prepare.outputs.components
+				env:         env_
+				waitHealthy: true
+			}
+		} @step(3)
 	}
 }
 

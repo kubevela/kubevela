@@ -106,7 +106,12 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 		}
 	}
 
-	if !healthy {
+	waitHealthy, err := v.GetBool("waitHealthy")
+	if err != nil {
+		waitHealthy = true
+	}
+
+	if waitHealthy && !healthy {
 		act.Wait("wait healthy")
 	}
 
