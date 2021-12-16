@@ -75,7 +75,7 @@ var _ = Describe("Test application containing helm module", func() {
 					},
 				}),
 				Repository: *util.Object2RawExtension(map[string]interface{}{
-					"url": "http://oam.dev/catalog/",
+					"url": "https://charts.kubevela.net/example/",
 				}),
 			},
 		}
@@ -275,7 +275,7 @@ var _ = Describe("Test application containing helm module", func() {
 					},
 				}),
 				Repository: *util.Object2RawExtension(map[string]interface{}{
-					"url": "http://oam.dev/catalog/",
+					"url": "https://charts.kubevela.net/example/",
 				}),
 			},
 		}
@@ -330,7 +330,7 @@ var _ = Describe("Test application containing helm module", func() {
 					},
 				}),
 				Repository: *util.Object2RawExtension(map[string]interface{}{
-					"url": "http://oam.dev/catalog/",
+					"url": "https://charts.kubevela.net/example/",
 				}),
 			},
 		}

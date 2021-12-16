@@ -53,7 +53,7 @@ func TestGenerateSchemaFromValues(t *testing.T) {
 }
 
 func TestGetChartValuesJSONSchema(t *testing.T) {
-	testHelm := testData("podinfo", "5.1.4", "http://oam.dev/catalog", "testSecret")
+	testHelm := testData("podinfo", "5.1.4", "https://charts.kubevela.net/example", "testSecret")
 	wantSchema, err := os.ReadFile("./testdata/podinfo.values.schema.json")
 	if err != nil {
 		t.Error(err, "cannot load expected data")

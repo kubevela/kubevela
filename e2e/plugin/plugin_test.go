@@ -415,7 +415,7 @@ spec:
             chart: "podinfo"
             version: "5.1.4"
       repository:
-        url: "http://oam.dev/catalog/"
+        url: "https://charts.kubevela.net/example/"
 `
 
 var componentDefWithKube = `
