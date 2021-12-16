@@ -131,6 +131,21 @@ const (
                         domain: {{.Domain}}
           {{ end }}
         {{ end }}`
+
+	// ObservabilityWorkflowStepsTag is the workflow steps Tag for observability addon
+	ObservabilityWorkflowStepsTag = `steps:`
+
+	// ObservabilityWorkflow4EnvBindingTmpl is the workflow for env-binding settings for observability addon
+	ObservabilityWorkflow4EnvBindingTmpl = `
+{{ with .Envs}}
+  {{ range . }}
+  - name: {{ .Cluster }}
+    type: deploy2env
+    properties:
+      policy: grafana-domain
+      env: {{ .Cluster }}
+  {{ end }}
+{{ end }}`
 )
 
 // GetAddonsFromReader list addons from AsyncReader
@@ -536,6 +551,20 @@ func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, confi
 			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
 		}
 		app.Spec.Policies = policies
+
+		app.Spec.Workflow = &v1beta1.Workflow{
+			Steps: []v1beta1.WorkflowStep{{
+				Name: "deploy-control-plane",
+				Type: "apply-application",
+			}},
+		}
+
+		workflowSteps, err := prepareWorkflow4Observability(ctx, k8sClient, domain)
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to prepare the workflow for Add-on Observability")
+		}
+		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, workflowSteps...)
+
 	default:
 		for _, def := range addon.Definitions {
 			comp, err := renderRawComponent(def)
@@ -645,7 +674,7 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client,
 		return nil, err
 	}
 
-	envProperties, err := renderEnvBinding4Observability(clusters)
+	envProperties, err := render(clusters, ObservabilityEnvBindingEnvTmpl)
 	if err != nil {
 		return nil, err
 	}
@@ -670,19 +699,44 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client,
 	return policies, nil
 }
 
-func renderEnvBinding4Observability(envs []ObservabilityEnvironment) (string, error) {
+func prepareWorkflow4Observability(ctx context.Context, k8sClient client.Client, domain string) ([]v1beta1.WorkflowStep, error) {
+	clusters, err := allocateDomainForAddon(ctx, k8sClient, domain)
+	if err != nil {
+		return nil, err
+	}
+
+	envBindingWorkflow, err := render(clusters, ObservabilityWorkflow4EnvBindingTmpl)
+	if err != nil {
+		return nil, err
+	}
+
+	var workflow v1beta1.Workflow
+	envs := fmt.Sprintf("%s\n%s", ObservabilityWorkflowStepsTag, envBindingWorkflow)
+	envJSON, err := yaml.YAMLToJSON([]byte(envs))
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(envJSON, &workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	return workflow.Steps, nil
+}
+
+func render(envs []ObservabilityEnvironment, tmpl string) (string, error) {
 	todos := ObservabilityEnvBindingValues{
 		Envs: envs,
 	}
 
-	t := template.Must(template.New("grafana").Parse(ObservabilityEnvBindingEnvTmpl))
-	var envProperties bytes.Buffer
-	err := t.Execute(&envProperties, todos)
+	t := template.Must(template.New("grafana").Parse(tmpl))
+	var rendered bytes.Buffer
+	err := t.Execute(&rendered, todos)
 	if err != nil {
 		return "", err
 	}
 
-	return envProperties.String(), nil
+	return rendered.String(), nil
 }
 
 func isDeployToRuntimeOnly(addon *Addon) bool {

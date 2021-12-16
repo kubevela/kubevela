@@ -117,6 +117,7 @@ func TestGetAddon(t *testing.T) {
 func TestRenderEnvBinding4Observability(t *testing.T) {
 	testcases := []struct {
 		envs   []ObservabilityEnvironment
+		tmpl   string
 		expect string
 		err    error
 	}{
@@ -131,6 +132,7 @@ func TestRenderEnvBinding4Observability(t *testing.T) {
 					Domain:  "b.com",
 				},
 			},
+			tmpl: ObservabilityEnvBindingEnvTmpl,
 			expect: `
         
           
@@ -143,7 +145,9 @@ func TestRenderEnvBinding4Observability(t *testing.T) {
                 - name: grafana
                   type: helm
                   traits:
-                    domain: a.com
+                    - type: pure-ingress
+                      properties:
+                        domain: a.com
           
           - name: c2
             placement:
@@ -154,17 +158,51 @@ func TestRenderEnvBinding4Observability(t *testing.T) {
                 - name: grafana
                   type: helm
                   traits:
-                    domain: b.com
+                    - type: pure-ingress
+                      properties:
+                        domain: b.com
           
         `,
+
+			err: nil,
+		},
+		{
+			envs: []ObservabilityEnvironment{
+				{
+					Cluster: "c1",
+					Domain:  "a.com",
+				},
+				{
+					Cluster: "c2",
+					Domain:  "b.com",
+				},
+			},
+			tmpl: ObservabilityWorkflow4EnvBindingTmpl,
+			expect: `
+
+  
+  - name: c1
+    type: deploy2env
+    properties:
+      policy: grafana-domain
+      env: c1
+  
+  - name: c2
+    type: deploy2env
+    properties:
+      policy: grafana-domain
+      env: c2
+  
+`,
+
 			err: nil,
 		},
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			env, err := renderEnvBinding4Observability(tc.envs)
+			rendered, err := render(tc.envs, tc.tmpl)
 			assert.Equal(t, tc.err, err)
-			assert.Equal(t, tc.expect, env)
+			assert.Equal(t, tc.expect, rendered)
 		})
 	}
 }
