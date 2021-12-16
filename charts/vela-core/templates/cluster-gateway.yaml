@@ -67,6 +67,11 @@ spec:
       tolerations:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
 {{ end }}
 {{ end }}
 ---
