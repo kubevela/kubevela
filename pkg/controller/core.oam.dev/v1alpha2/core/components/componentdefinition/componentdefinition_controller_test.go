@@ -338,7 +338,7 @@ spec:
 						},
 					}),
 					Repository: *util.Object2RawExtension(map[string]interface{}{
-						"url": "http://oam.dev/catalog/",
+						"url": "https://charts.kubevela.net/example/",
 					}),
 				},
 			}

@@ -112,7 +112,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 								},
 							}),
 							Repository: *util.Object2RawExtension(map[string]interface{}{
-								"url": "http://oam.dev/catalog/",
+								"url": "https://charts.kubevela.net/example/",
 							}),
 						},
 					},
@@ -191,7 +191,7 @@ var _ = Describe("Test Helm schematic appfile", func() {
 							"namespace": "default",
 						},
 						"spec": map[string]interface{}{
-							"url": "http://oam.dev/catalog/",
+							"url": "https://charts.kubevela.net/example/",
 						},
 					},
 				},
