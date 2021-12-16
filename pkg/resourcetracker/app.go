@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,6 +101,7 @@ func CreateComponentRevisionResourceTracker(ctx context.Context, cli client.Clie
 
 // ListApplicationResourceTrackers list resource trackers for application with all historyRTs sorted by version number
 func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
+	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
 	rts := v1beta1.ResourceTrackerList{}
 	if err = cli.List(ctx, &rts, client.MatchingLabels{
 		oam.LabelAppName:      app.Name,

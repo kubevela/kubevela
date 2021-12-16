@@ -85,7 +85,7 @@ func (t *traceContext) Commit(msg string) {
 	msg = fmt.Sprintf("[Finished]: %s(%s)", t.id, msg)
 	duration := time.Since(t.beginTimestamp)
 	for _, export := range t.exporters {
-		export(t, duration.Microseconds())
+		export(t, duration.Seconds())
 	}
 	if t.logLevel == 0 {
 		klog.InfoSDepth(1, msg, t.getTagsWith("duration", duration.String())...)
@@ -163,11 +163,11 @@ func copySlice(in []interface{}) []interface{} {
 }
 
 // Exporter export context info.
-type Exporter func(t *traceContext, duration int64)
+type Exporter func(t *traceContext, duration float64)
 
 // DurationMetric export context duration metric.
 func DurationMetric(h func(v float64)) Exporter {
-	return func(t *traceContext, duration int64) {
-		h(float64(duration / 1000))
+	return func(t *traceContext, duration float64) {
+		h(duration)
 	}
 }

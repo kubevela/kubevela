@@ -45,6 +45,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
@@ -176,7 +178,14 @@ type Handler interface {
 }
 
 // PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy() ([]*unstructured.Unstructured, error) {
+func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructured.Unstructured, error) {
+	if ctx, ok := ctx.(monitorContext.Context); ok {
+		subCtx := ctx.Fork("prepare-workflow-and-policy", monitorContext.DurationMetric(func(v float64) {
+			metrics.PrepareWorkflowAndPolicyDurationHistogram.WithLabelValues("application").Observe(v)
+		}))
+		defer subCtx.Commit("finish prepare workflow and policy")
+	}
+
 	var externalPolicies []*unstructured.Unstructured
 	var err error
 
