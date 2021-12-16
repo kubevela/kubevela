@@ -5,7 +5,9 @@ import (
 "export2config": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Export data to config map for your workflow steps"
 }
 template: {

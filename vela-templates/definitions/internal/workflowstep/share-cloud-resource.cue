@@ -5,9 +5,7 @@ import (
 "share-cloud-resource": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Sync secrets created by terraform component to runtime clusters so that runtime clusters can share the created cloud resource."
 }
 template: {
@@ -22,7 +20,6 @@ template: {
 	}
 
 	parameter: {
-		env: string
 		// +usage=Declare the location to bind
 		placements: [...{
 			namespace?: string
