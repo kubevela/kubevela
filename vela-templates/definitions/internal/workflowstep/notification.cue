@@ -19,7 +19,7 @@ template: {
 					content: string
 				}
 				// +usage=msgType can be text, link, mardown, actionCard, feedCard
-				msgtype: string
+				msgtype: *"text" | "link" | "markdown" | "actionCard" | "feedCard"
 				link?:   *null | {
 					text?:       string
 					title?:      string
