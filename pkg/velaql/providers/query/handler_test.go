@@ -19,6 +19,7 @@ package query
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,8 +27,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -63,6 +67,126 @@ var _ = Describe("Test Query Provider", func() {
 	})
 
 	Context("Test ListResourcesInApp", func() {
+		It("Test list latest resources created by application", func() {
+			namespace := "test"
+			ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+			Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
+
+			app := v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Annotations: map[string]string{
+						"oam.dev/kubevela-version": "v1.2.0-beta.2",
+					},
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "web",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]string{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "expose",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"ports": []int{8000},
+							}),
+						}},
+					}},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+			oldApp := new(v1beta1.Application)
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), oldApp)).Should(BeNil())
+			oldApp.Status.LatestRevision = &common.Revision{
+				Revision: 1,
+			}
+			oldApp.Status.AppliedResources = []common.ClusterObjectReference{{
+				Cluster: "",
+				Creator: "workflow",
+				ObjectReference: corev1.ObjectReference{
+					APIVersion: "v1",
+					Kind:       "Service",
+					Namespace:  namespace,
+					Name:       "web",
+				},
+			}, {
+				Cluster: "",
+				Creator: "workflow",
+				ObjectReference: corev1.ObjectReference{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Namespace:  namespace,
+					Name:       "web",
+				},
+			}}
+			Eventually(func() error {
+				err := k8sClient.Status().Update(ctx, oldApp)
+				if err != nil {
+					return err
+				}
+				return nil
+			}, 300*time.Microsecond, 3*time.Second).Should(BeNil())
+
+			appDeploy := baseDeploy.DeepCopy()
+			appDeploy.SetName("web")
+			appDeploy.SetNamespace(namespace)
+			appDeploy.SetLabels(map[string]string{
+				oam.LabelAppComponent: "web",
+				oam.LabelAppRevision:  "test-v1",
+			})
+			Expect(k8sClient.Create(ctx, appDeploy)).Should(BeNil())
+
+			appService := baseService.DeepCopy()
+			appService.SetName("web")
+			appService.SetNamespace(namespace)
+			appService.SetLabels(map[string]string{
+				oam.LabelAppComponent: "web",
+				oam.LabelAppRevision:  "test-v1",
+			})
+			Expect(k8sClient.Create(ctx, appService)).Should(BeNil())
+
+			prd := provider{cli: k8sClient}
+			opt := `app: {
+				name: "test"
+				namespace: "test"
+				filter: {
+					cluster: "",
+					clusterNamespace: "test",
+					components: ["web"]
+				}
+			}`
+			v, err := value.NewValue(opt, nil, "")
+			Expect(err).Should(BeNil())
+			Expect(prd.ListResourcesInApp(nil, v, nil)).Should(BeNil())
+
+			appResList := new(AppResourcesList)
+			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
+
+			Expect(len(appResList.List)).Should(Equal(2))
+
+			Expect(appResList.List[0].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(appResList.List[1].Object.GroupVersionKind()).Should(Equal(oldApp.Status.AppliedResources[1].GroupVersionKind()))
+
+			updateApp := new(v1beta1.Application)
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), updateApp)).Should(BeNil())
+
+			updateApp.ObjectMeta.Annotations = map[string]string{
+				"oam.dev/kubevela-version": "master",
+			}
+			Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
+			newValue, err := value.NewValue(opt, nil, "")
+			Expect(err).Should(BeNil())
+			Expect(prd.ListResourcesInApp(nil, newValue, nil)).Should(BeNil())
+			newAppResList := new(AppResourcesList)
+			Expect(v.UnmarshalTo(newAppResList)).Should(BeNil())
+			Expect(len(newAppResList.List)).Should(Equal(2))
+			Expect(newAppResList.List[0].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[0].GroupVersionKind()))
+			Expect(newAppResList.List[1].Object.GroupVersionKind()).Should(Equal(updateApp.Status.AppliedResources[1].GroupVersionKind()))
+		})
+
 		It("Test list resource with incomplete parameter", func() {
 			optWithoutApp := ""
 			prd := provider{cli: k8sClient}
