@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ErrServer an unexpected mistake.
@@ -88,7 +89,7 @@ func ReturnError(req *restful.Request, res *restful.Response, err error) {
 		return
 	}
 
-	log.Logger.Errorf("Business exceptions, error message: %s, path:%s method:%s", err.Error(), req.Request.URL, req.Request.Method)
+	log.Logger.Errorf("Business exceptions, error message: %s, path:%s method:%s", err.Error(), utils.Sanitize(req.Request.URL.String()), req.Request.Method)
 	if err := res.WriteHeaderAndEntity(500, Bcode{HTTPCode: 500, BusinessCode: 500, Message: err.Error()}); err != nil {
 		log.Logger.Error("write entity failure %s", err.Error())
 	}

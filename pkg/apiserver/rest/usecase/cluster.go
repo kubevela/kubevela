@@ -97,25 +97,25 @@ func (c *clusterUsecaseImpl) getClusterFromDataStore(ctx context.Context, cluste
 
 func (c *clusterUsecaseImpl) rollbackAddedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.ds.Delete(ctx, cluster); e != nil {
-		log.Logger.Errorf("failed to rollback added cluster %s in data store: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback added cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterUsecaseImpl) rollbackDeletedClusterInDataStore(ctx context.Context, cluster *model.Cluster) {
 	if e := c.ds.Add(ctx, cluster); e != nil {
-		log.Logger.Errorf("failed to rollback deleted cluster %s in data store: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback deleted cluster %s in data store: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterUsecaseImpl) rollbackJoinedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if e := multicluster.DetachCluster(ctx, c.k8sClient, cluster.Name); e != nil {
-		log.Logger.Errorf("failed to rollback joined cluster %s in kubevela: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback joined cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 
 func (c *clusterUsecaseImpl) rollbackDetachedKubeCluster(ctx context.Context, cluster *model.Cluster) {
 	if _, e := joinClusterByKubeConfigString(ctx, c.k8sClient, cluster.Name, cluster.KubeConfig); e != nil {
-		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", cluster.Name, e.Error())
+		log.Logger.Errorf("failed to rollback detached cluster %s in kubevela: %s", utils.Sanitize(cluster.Name), e.Error())
 	}
 }
 

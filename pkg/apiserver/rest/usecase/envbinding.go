@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -443,7 +444,7 @@ func (e *envBindingUsecaseImpl) genEnvWorkflowSteps(ctx context.Context, env *mo
 		if step.Properties != nil {
 			properties, err := model.NewJSONStruct(step.Properties)
 			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", app.Name, step.Name, err.Error())
+				log.Logger.Errorf("workflow %s step %s properties is invalid %s", utils2.Sanitize(app.Name), utils2.Sanitize(step.Name), err.Error())
 				continue
 			}
 			propertyStr = properties.JSON()

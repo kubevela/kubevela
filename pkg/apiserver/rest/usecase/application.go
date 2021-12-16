@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -409,7 +410,7 @@ func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, a
 		}
 		componentModels = append(componentModels, &componentModel)
 	}
-	log.Logger.Infof("batch add %d components for app %s", len(componentModels), app.PrimaryKey())
+	log.Logger.Infof("batch add %d components for app %s", len(componentModels), utils2.Sanitize(app.PrimaryKey()))
 	return c.ds.BatchAdd(ctx, componentModels)
 }
 
@@ -998,7 +999,7 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationComponetExist
 		}
-		log.Logger.Warnf("add component for app %s failure %s", app.PrimaryKey(), err.Error())
+		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
 	return converComponentModelToBase(&componentModel), nil
