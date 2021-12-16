@@ -5818,20 +5818,40 @@ data:
                   +usage=The release name\n\treleaseName?: string\n\t// +usage=Chart values\n\tvalues?:
                   #nestedmap\n}\n\n#nestedmap: {\n\t...\n}\n"
             status:
-              customStatus: "repoMessage:    string\nreleaseMessage: string\nif context.output.status
-                == _|_ {\n\trepoMessage:    \"Fetching repository\"\n\treleaseMessage:
-                \"Wating repository ready\"\n}\nif context.output.status != _|_ {\n\trepoStatus:
-                context.output.status\n\tif repoStatus.conditions[0][\"type\"] != \"Ready\"
-                {\n\t\trepoMessage: \"Fetch repository fail\"\n\t}\n\tif repoStatus.conditions[0][\"type\"]
-                == \"Ready\" {\n\t\trepoMessage: \"Fetch repository successfully\"\n\t}\n\n\tif
-                context.outputs.release.status == _|_ {\n\t\treleaseMessage: \"Creating
-                helm release\"\n\t}\n\tif context.outputs.release.status != _|_ {\n\t\tif
-                context.outputs.release.status.conditions[0][\"message\"] == \"Release
-                reconciliation succeeded\" {\n\t\t\treleaseMessage: \"Create helm release
-                successfully\"\n\t\t}\n\t\tif context.outputs.release.status.conditions[0][\"message\"]
-                != \"Release reconciliation succeeded\" {\n\t\t\treleaseMessage: \"Create
-                helm release fail, message: \" + context.outputs.release.status.conditions[0][\"message\"]\n\t\t}\n\t}\n\n}\nmessage:
-                repoMessage + \", \" + releaseMessage"
+              customStatus: |-
+                repoMessage:    string
+                releaseMessage: string
+                if context.output.status == _|_ {
+                        repoMessage:    "Fetching repository"
+                        releaseMessage: "Wating repository ready"
+                }
+                if context.output.status != _|_ {
+                        repoStatus: context.output.status
+                        if repoStatus.conditions[0]["type"] != "Ready" {
+                                repoMessage: "Fetch repository fail"
+                        }
+                        if repoStatus.conditions[0]["type"] == "Ready" {
+                                repoMessage: "Fetch repository successfully"
+                        }
+
+                        if context.outputs.release.status == _|_ {
+                                releaseMessage: "Creating helm release"
+                        }
+                        if context.outputs.release.status != _|_ {
+                                if context.outputs.release.status.conditions[0]["message"] == "Release reconciliation succeeded" {
+                                        releaseMessage: "Create helm release successfully"
+                                }
+                                if context.outputs.release.status.conditions[0]["message"] != "Release reconciliation succeeded" {
+                                        if len(context.outputs.release.status.conditions) == 1 {
+                                                releaseMessage: "Create helm release fail, message: " + context.outputs.release.status.conditions[0]["message"]
+                                        }
+                                        if len(context.outputs.release.status.conditions) > 1 {
+                                                releaseMessage: "Create helm release fail, message: " + context.outputs.release.status.conditions[0]["message"] + ", " + context.outputs.release.status.conditions[1]["message"]
+                                        }
+                                }
+                        }
+                }
+                message: repoMessage + ", " + releaseMessage
               healthPolicy: 'isHealth: len(context.outputs.release.status.conditions)
                 != 0 && context.outputs.release.status.conditions[0]["status"]=="True"'
             workload:
