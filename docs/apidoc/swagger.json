@@ -2278,7 +2278,7 @@
 				}
 			}
 		},
-		"/api/v1/clusters/cloud-clusters/{provider}": {
+		"/api/v1/clusters/cloud_clusters/{provider}": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -2338,7 +2338,7 @@
 				}
 			}
 		},
-		"/api/v1/clusters/cloud-clusters/{provider}/connect": {
+		"/api/v1/clusters/cloud_clusters/{provider}/connect": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -2384,7 +2384,7 @@
 				}
 			}
 		},
-		"/api/v1/clusters/cloud-clusters/{provider}/create": {
+		"/api/v1/clusters/cloud_clusters/{provider}/create": {
 			"post": {
 				"consumes": [
 					"application/xml",
@@ -2430,7 +2430,7 @@
 				}
 			}
 		},
-		"/api/v1/clusters/cloud-clusters/{provider}/creation": {
+		"/api/v1/clusters/cloud_clusters/{provider}/creation": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2468,7 +2468,7 @@
 				}
 			}
 		},
-		"/api/v1/clusters/cloud-clusters/{provider}/creation/{cloudClusterName}": {
+		"/api/v1/clusters/cloud_clusters/{provider}/creation/{cloudClusterName}": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -2860,7 +2860,7 @@
 				}
 			}
 		},
-		"/api/v1/policydefinitions": {
+		"/api/v1/policy_definitions": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3193,7 +3193,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"oam-application"
+					"oam_application"
 				],
 				"summary": "get the specified oam application in the specified namespace",
 				"operationId": "getApplication",
@@ -3231,7 +3231,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"oam-application"
+					"oam_application"
 				],
 				"summary": "create or update oam application in the specified namespace",
 				"operationId": "createOrUpdateApplication",
@@ -3275,7 +3275,7 @@
 					"application/xml"
 				],
 				"tags": [
-					"oam-application"
+					"oam_application"
 				],
 				"summary": "create or update oam application in the specified namespace",
 				"operationId": "deleteApplication",
@@ -3480,11 +3480,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"upgradedReadyReplicas",
 				"rollingState",
+				"upgradedReplicas",
 				"batchRollingState",
 				"currentBatch",
-				"upgradedReplicas",
+				"upgradedReadyReplicas",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -3810,6 +3810,9 @@
 				"finished": {
 					"type": "boolean"
 				},
+				"message": {
+					"type": "string"
+				},
 				"mode": {
 					"type": "string"
 				},
@@ -3974,8 +3977,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -4590,14 +4593,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"deployUser",
-				"note",
-				"envName",
 				"triggerType",
 				"createTime",
 				"version",
 				"status",
-				"reason"
+				"reason",
+				"deployUser",
+				"note",
+				"envName"
 			],
 			"properties": {
 				"createTime": {
@@ -5506,6 +5509,9 @@
 				"cluster": {
 					"$ref": "#/definitions/v1.ClusterTarget"
 				},
+				"clusterAlias": {
+					"type": "string"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -5601,13 +5607,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"icon",
 				"name",
 				"alias",
 				"project",
 				"description",
+				"createTime",
+				"updateTime",
+				"icon",
 				"policies",
 				"envBindings",
 				"status",
@@ -5669,19 +5675,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"model",
+				"alias",
 				"description",
+				"labels",
+				"kubeConfigSecret",
+				"dashboardURL",
+				"kubeConfig",
+				"name",
 				"icon",
 				"status",
 				"reason",
 				"provider",
-				"kubeConfig",
-				"kubeConfigSecret",
-				"model",
-				"name",
-				"alias",
-				"labels",
 				"apiServerURL",
-				"dashboardURL",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5734,13 +5740,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"name",
-				"alias",
-				"creator",
-				"createTime",
 				"updateTime",
-				"type"
+				"alias",
+				"type",
+				"createTime",
+				"appPrimaryKey",
+				"creator",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5835,10 +5841,10 @@
 		},
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
+				"name",
 				"project",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -5850,6 +5856,9 @@
 				},
 				"cluster": {
 					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"clusterAlias": {
+					"type": "string"
 				},
 				"createTime": {
 					"type": "string",
@@ -5875,13 +5884,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"properties",
+				"createTime",
+				"updateTime",
 				"name",
 				"type",
 				"description",
-				"creator",
-				"properties",
-				"createTime",
-				"updateTime"
+				"creator"
 			],
 			"properties": {
 				"createTime": {
@@ -5911,17 +5920,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"status",
-				"triggerType",
+				"workflowName",
 				"createTime",
+				"updateTime",
+				"appPrimaryKey",
+				"status",
+				"deployUser",
+				"triggerType",
 				"version",
 				"reason",
-				"deployUser",
 				"note",
-				"workflowName",
-				"envName",
-				"updateTime",
-				"appPrimaryKey"
+				"envName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5969,12 +5978,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"status",
+				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
-				"status",
-				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -6027,13 +6036,13 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"name",
-				"alias",
 				"description",
-				"default",
-				"createTime",
-				"updateTime",
 				"enable",
-				"envName"
+				"updateTime",
+				"alias",
+				"default",
+				"envName",
+				"createTime"
 			],
 			"properties": {
 				"alias": {

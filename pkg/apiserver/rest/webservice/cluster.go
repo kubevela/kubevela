@@ -98,7 +98,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.CreateClusterNamespaceResponse{}))
 
-	ws.Route(ws.POST("/cloud-clusters/{provider}").To(c.listCloudClusters).
+	ws.Route(ws.POST("/cloud_clusters/{provider}").To(c.listCloudClusters).
 		Doc("list cloud clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
@@ -109,7 +109,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListCloudClusterResponse{}))
 
-	ws.Route(ws.POST("/cloud-clusters/{provider}/connect").To(c.connectCloudCluster).
+	ws.Route(ws.POST("/cloud_clusters/{provider}/connect").To(c.connectCloudCluster).
 		Doc("create cluster from cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
@@ -118,7 +118,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
 
-	ws.Route(ws.POST("/cloud-clusters/{provider}/create").To(c.createCloudCluster).
+	ws.Route(ws.POST("/cloud_clusters/{provider}/create").To(c.createCloudCluster).
 		Doc("create cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string").Required(true)).
@@ -127,7 +127,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.CreateCloudClusterResponse{}))
 
-	ws.Route(ws.GET("/cloud-clusters/{provider}/creation/{cloudClusterName}").To(c.getCloudClusterCreationStatus).
+	ws.Route(ws.GET("/cloud_clusters/{provider}/creation/{cloudClusterName}").To(c.getCloudClusterCreationStatus).
 		Doc("check cloud cluster create status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
@@ -136,7 +136,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.CreateCloudClusterResponse{}))
 
-	ws.Route(ws.GET("/cloud-clusters/{provider}/creation").To(c.listCloudClusterCreation).
+	ws.Route(ws.GET("/cloud_clusters/{provider}/creation").To(c.listCloudClusterCreation).
 		Doc("list cloud cluster creation").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
@@ -144,7 +144,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListCloudClusterCreationResponse{}))
 
-	ws.Route(ws.DELETE("/cloud-clusters/{provider}/creation/{cloudClusterName}").To(c.deleteCloudClusterCreation).
+	ws.Route(ws.DELETE("/cloud_clusters/{provider}/creation/{cloudClusterName}").To(c.deleteCloudClusterCreation).
 		Doc("delete cloud cluster creation").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
