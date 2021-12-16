@@ -44,7 +44,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for oam application manage")
 
-	tags := []string{"oam-application"}
+	tags := []string{"oam_application"}
 
 	ws.Route(ws.GET("/namespaces/{namespace}/applications/{appname}").To(c.getApplication).
 		Doc("get the specified oam application in the specified namespace").

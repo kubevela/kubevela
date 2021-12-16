@@ -22,6 +22,10 @@
 
   - Command-line flags should use dashes, not underscores
 
+  - API
+    - According to RFC3986, URLs are "case sensitive". KubeVela uses snake_case for API URLs.
+      - e.g.: `POST /v1/cloud_clusters`
+
   - Naming
     - Please consider package name when selecting an interface name, and avoid
       redundancy.
