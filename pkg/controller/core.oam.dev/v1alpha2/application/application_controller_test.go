@@ -1280,7 +1280,7 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 	})
 
-	It("app-import-pkg will create workload by imported kube package", func() {
+	PIt("app-import-pkg will create workload by imported kube package", func() {
 
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
