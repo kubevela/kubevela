@@ -158,28 +158,23 @@ func (u *addonUsecaseImpl) GetAddon(ctx context.Context, name string, registry s
 }
 
 func (u *addonUsecaseImpl) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
-	var app v1beta1.Application
-	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
-		Namespace: types.DefaultKubeVelaNS,
-		Name:      pkgaddon.Convert2AppName(name),
-	}, &app)
+
+	status, err := pkgaddon.GetAddonStatus(ctx, u.kubeClient, name)
 	if err != nil {
-		if errors2.IsNotFound(err) {
-			return &apis.AddonStatusResponse{
-				Phase:            apis.AddonPhaseDisabled,
-				EnablingProgress: nil,
-			}, nil
-		}
 		return nil, bcode.ErrGetAddonApplication
 	}
 
-	res := apis.AddonStatusResponse{
-		Name:             name,
-		Phase:            convertAppStateToAddonPhase(app.Status.Phase),
-		EnablingProgress: nil,
+	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
+		return &apis.AddonStatusResponse{
+			Phase: apis.AddonPhase(status.AddonPhase),
+		}, nil
 	}
 
-	res.AppStatus = app.Status
+	res := apis.AddonStatusResponse{
+		Name:      name,
+		Phase:     apis.AddonPhase(status.AddonPhase),
+		AppStatus: *status.AppStatus,
+	}
 
 	if res.Phase != apis.AddonPhaseEnabled {
 		return &res, nil

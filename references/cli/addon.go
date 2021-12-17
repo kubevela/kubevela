@@ -28,7 +28,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -55,9 +54,7 @@ const (
 )
 
 const (
-	statusUninstalled = "uninstalled"
-	statusEnabled     = "enabled"
-	statusEnabling    = "enabling"
+	statusEnabling = "enabling"
 )
 
 var clt client.Client
@@ -264,12 +261,12 @@ func disableAddon(name string) error {
 }
 
 func statusAddon(name string) error {
-	status, err := fetchAddonStatus(context.Background(), clt, name)
+	status, err := pkgaddon.GetAddonStatus(context.Background(), clt, name)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("addon %s status is %s \n", name, status)
-	if status == statusEnabling {
+	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
+	if status.AddonPhase == statusEnabling {
 		fmt.Printf("this addon is still enabling, please run \"vela status %s -n vela-system \" to check the status of the addon related app", pkgaddon.Convert2AppName(name))
 	}
 	return nil
@@ -307,11 +304,11 @@ func listAddons(ctx context.Context, registry string) error {
 	table.AddRow("NAME", "DESCRIPTION", "STATUS")
 
 	for _, addon := range addons {
-		status, err := fetchAddonStatus(ctx, clt, addon.Name)
+		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
 			return err
 		}
-		table.AddRow(addon.Name, addon.Description, status)
+		table.AddRow(addon.Name, addon.Description, status.AddonPhase)
 	}
 	fmt.Println(table.String())
 	return nil
@@ -350,23 +347,6 @@ func waitApplicationRunning(addonName string) error {
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy
 func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
-}
-
-func fetchAddonStatus(ctx context.Context, client client.Client, name string) (string, error) {
-
-	addonApp := &v1beta1.Application{}
-	if err := client.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: pkgaddon.Convert2AppName(name)}, addonApp); err != nil {
-		if kerrors.IsNotFound(err) {
-			return statusUninstalled, nil
-		}
-		return "", err
-	}
-
-	if addonApp.Status.Phase == common2.ApplicationRunning {
-		return statusEnabled, nil
-	}
-
-	return statusEnabling, nil
 }
 
 func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {

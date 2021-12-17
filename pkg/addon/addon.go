@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -501,7 +502,6 @@ func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, confi
 			},
 		}
 	}
-	app.Name = Convert2AppName(addon.Name)
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
 	for _, namespace := range addon.NeedNamespace {
 		comp := common2.ApplicationComponent{
@@ -906,6 +906,11 @@ func (h *Handler) enableAddon() error {
 	if err = h.dispatchAddonResource(); err != nil {
 		return err
 	}
+	// we shouldn't put continue func into dispatchAddonResource, because the re-apply app maybe already update app and
+	// the suspend will set with false automatically
+	if err := h.continueIfSuspend(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -943,6 +948,12 @@ func (h *Handler) dispatchAddonResource() error {
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
+
+	appName, err := determineAddonAppName(h.ctx, h.cli, h.addon.Name)
+	if err != nil {
+		return err
+	}
+	app.Name = appName
 
 	defs, err := RenderDefinitions(h.addon, h.config)
 	if err != nil {
@@ -986,7 +997,51 @@ func (h *Handler) dispatchAddonResource() error {
 	return nil
 }
 
+func (h *Handler) continueIfSuspend() error {
+	app, err := FetchAddonRelatedApp(h.ctx, h.cli, h.addon.Name)
+	if err != nil {
+		return err
+	}
+	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
+		mergePatch := client.MergeFrom(app.DeepCopy())
+		app.Status.Workflow.Suspend = false
+		if err := h.cli.Status().Patch(h.ctx, app, mergePatch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {
 	child.SetOwnerReferences(append(child.GetOwnerReferences(),
 		*metav1.NewControllerRef(app, v1beta1.ApplicationKindVersionKind)))
+}
+
+// determine app name, if app is already exist, use the application name
+func determineAddonAppName(ctx context.Context, cli client.Client, addonName string) (string, error) {
+	app, err := FetchAddonRelatedApp(ctx, cli, addonName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return "", err
+		}
+		// if the app still not exist, use addon-{addonName}
+		return Convert2AppName(addonName), nil
+	}
+	return app.Name, nil
+}
+
+// FetchAddonRelatedApp will fetch the addon related app, this func will use NamespacedName(vela-system, addon-addonName) to get app
+// if not find will try to get 1.1 legacy addon related app by using NamespacedName(vela-system, `addonName`)
+func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName string) (*v1beta1.Application, error) {
+	app := &v1beta1.Application{}
+	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: Convert2AppName(addonName)}, app); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		// for 1.1 addon app compatibility code
+		if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: addonName}, app); err != nil {
+			return nil, err
+		}
+	}
+	return app, nil
 }

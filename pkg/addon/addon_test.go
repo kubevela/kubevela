@@ -27,7 +27,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -240,6 +248,67 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Check(t, len(steps) >= 2)
 	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
+}
+
+func TestGetAddonStatus(t *testing.T) {
+	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		switch key.Name {
+		case "addon-disabled", "disabled":
+			return errors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
+		case "addon-suspend":
+			o := obj.(*v1beta1.Application)
+			app := &v1beta1.Application{}
+			app.Status.Workflow = &common.WorkflowStatus{Suspend: true}
+			*o = *app
+		case "addon-enabled":
+			o := obj.(*v1beta1.Application)
+			app := &v1beta1.Application{}
+			app.Status.Phase = common.ApplicationRunning
+			*o = *app
+		case "addon-disabling":
+			o := obj.(*v1beta1.Application)
+			app := &v1beta1.Application{}
+			app.Status.Phase = common.ApplicationDeleting
+			*o = *app
+		default:
+			o := obj.(*v1beta1.Application)
+			app := &v1beta1.Application{}
+			app.Status.Phase = common.ApplicationRendering
+			*o = *app
+		}
+		return nil
+	})
+
+	cli := test.MockClient{
+		MockGet: getFunc,
+	}
+
+	cases := []struct {
+		name         string
+		expectStatus string
+	}{
+		{
+			name: "disabled", expectStatus: "disabled",
+		},
+		{
+			name: "suspend", expectStatus: "suspend",
+		},
+		{
+			name: "enabled", expectStatus: "enabled",
+		},
+		{
+			name: "disabling", expectStatus: "disabling",
+		},
+		{
+			name: "enabling", expectStatus: "enabling",
+		},
+	}
+
+	for _, s := range cases {
+		addonStatus, err := GetAddonStatus(context.Background(), &cli, s.name)
+		assert.NilError(t, err)
+		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
+	}
 }
 
 var baseAddon = Addon{

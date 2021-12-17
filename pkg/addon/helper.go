@@ -19,13 +19,27 @@ package addon
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+)
+
+const (
+	// disabled indicates the addon is disabled
+	disabled = "disabled"
+	// enabled indicates the addon is enabled
+	enabled = "enabled"
+	// enabling indicates the addon is enabling
+	enabling = "enabling"
+	// disabling indicates the addon related app is deleting
+	disabling = "disabling"
+	// suspend indicates the addon related app is suspend
+	suspend = "suspend"
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
@@ -40,16 +54,41 @@ func EnableAddon(ctx context.Context, addon *Addon, cli client.Client, apply app
 
 // DisableAddon will disable addon from cluster.
 func DisableAddon(ctx context.Context, cli client.Client, name string) error {
-	app := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      Convert2AppName(name),
-			Namespace: types.DefaultKubeVelaNS,
-		},
-	}
-	err := cli.Delete(ctx, app)
+	app, err := FetchAddonRelatedApp(ctx, cli, name)
+	// if app not exist, report error
 	if err != nil {
 		return err
 	}
+	if err := cli.Delete(ctx, app); err != nil {
+		return err
+	}
 	return nil
+}
+
+// GetAddonStatus is genrall func for cli and apiServer get addon status
+func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
+	app, err := FetchAddonRelatedApp(ctx, cli, name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return Status{AddonPhase: disabled, AppStatus: nil}, nil
+		}
+		return Status{}, err
+	}
+	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
+		return Status{AddonPhase: suspend, AppStatus: &app.Status}, nil
+	}
+	switch app.Status.Phase {
+	case commontypes.ApplicationRunning:
+		return Status{AddonPhase: enabled, AppStatus: &app.Status}, nil
+	case commontypes.ApplicationDeleting:
+		return Status{AddonPhase: disabling, AppStatus: &app.Status}, nil
+	default:
+		return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+	}
+}
+
+// Status contain addon phase and related app status
+type Status struct {
+	AddonPhase string
+	AppStatus  *commontypes.AppStatus
 }
