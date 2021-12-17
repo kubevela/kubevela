@@ -902,7 +902,7 @@ func (h *Handler) enableAddon(ctx context.Context, k8sClient client.Client) erro
 	if err = h.checkDependencies(ctx, k8sClient); err != nil {
 		return err
 	}
-	if err = h.dispatchAddonResource(ctx, k8sClient); err != nil {
+	if err = h.dispatchAddonResource(); err != nil {
 		return err
 	}
 	return nil
@@ -937,8 +937,8 @@ func (h *Handler) checkDependencies(ctx context.Context, k8sClient client.Client
 	return nil
 }
 
-func (h *Handler) dispatchAddonResource(ctx context.Context, k8sClient client.Client) error {
-	app, err := RenderApp(ctx, k8sClient, h.addon, h.config, h.args)
+func (h *Handler) dispatchAddonResource() error {
+	app, err := RenderApp(h.ctx, h.cli, h.addon, h.config, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
