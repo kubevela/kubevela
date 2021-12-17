@@ -31,7 +31,7 @@ import (
 // EnableAddon will enable addon with dependency check, source is where addon from.
 func EnableAddon(ctx context.Context, addon *Addon, cli client.Client, apply apply.Applicator, config *rest.Config, source Source, args map[string]interface{}) error {
 	h := newAddonHandler(ctx, addon, cli, apply, config, source, args)
-	err := h.enableAddon(ctx, cli)
+	err := h.enableAddon()
 	if err != nil {
 		return err
 	}

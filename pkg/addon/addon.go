@@ -898,9 +898,9 @@ func newAddonHandler(ctx context.Context, addon *Addon, cli client.Client, apply
 	}
 }
 
-func (h *Handler) enableAddon(ctx context.Context, k8sClient client.Client) error {
+func (h *Handler) enableAddon() error {
 	var err error
-	if err = h.checkDependencies(ctx, k8sClient); err != nil {
+	if err = h.checkDependencies(h.ctx, h.cli); err != nil {
 		return err
 	}
 	if err = h.dispatchAddonResource(); err != nil {
@@ -931,7 +931,7 @@ func (h *Handler) checkDependencies(ctx context.Context, k8sClient client.Client
 		depHandler := *h
 		depHandler.addon = depAddon
 		depHandler.args = nil
-		if err = depHandler.enableAddon(ctx, k8sClient); err != nil {
+		if err = depHandler.enableAddon(); err != nil {
 			return errors.Wrap(err, "fail to dispatch dependent addon resource")
 		}
 	}
