@@ -899,7 +899,7 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 		return nil, err
 	}
 	// enable this addon if it's invisible
-	installPackage, err := SourceOf(*h.r).GetInstallPackage(&meta, uiMeta)
+	installPackage, err := h.r.Source().GetInstallPackage(&meta, uiMeta)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 	}

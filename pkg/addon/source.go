@@ -70,7 +70,7 @@ type SourceMeta struct {
 	Items []Item
 }
 
-// ToPatternItems will filter and classify addon data
+// ToPatternItems will filter and classify addon data, data will be classified by pattern it meets
 func (r *SourceMeta) ToPatternItems() map[string][]Item {
 	var p = make(map[string][]Item)
 	for _, it := range r.Items {
@@ -87,8 +87,8 @@ func (r *SourceMeta) ToPatternItems() map[string][]Item {
 
 // AsyncReader helps async read files of addon
 type AsyncReader interface {
-	// ListAddonMeta will return directory contain addon metadata only
-	ListAddonMeta(path string) (addonCandidates map[string]SourceMeta, err error)
+	// ListAddonMeta will return directory tree contain addon metadata only
+	ListAddonMeta() (addonCandidates map[string]SourceMeta, err error)
 
 	// ReadFile should accept relative path to github repo/path or OSS bucket, and report the file content
 	ReadFile(path string) (content string, err error)
@@ -158,10 +158,10 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }
 
-// SourceOf returns actual Source in registry meta
-func SourceOf(meta Registry) Source {
-	if meta.Oss != nil {
-		return meta.Oss
+// Source returns actual Source in registry meta
+func (meta Registry) Source() Source {
+	if meta.OSS != nil {
+		return meta.OSS
 	}
 	return meta.Git
 }

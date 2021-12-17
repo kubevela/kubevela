@@ -10,6 +10,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
+var _ AsyncReader = &gitReader{}
+
 // gitHelper helps get addon's file by git
 type gitHelper struct {
 	Client *github.Client
@@ -21,8 +23,8 @@ type gitReader struct {
 }
 
 // ListAddonMeta relative path to repoURL/basePath
-func (g *gitReader) ListAddonMeta(relativePath string) (subItems map[string]SourceMeta, err error) {
-	_, dirs, err := g.h.readRepo(relativePath)
+func (g *gitReader) ListAddonMeta() (subItems map[string]SourceMeta, err error) {
+	_, dirs, err := g.h.readRepo("")
 	if err != nil {
 		return
 	}
@@ -70,7 +72,7 @@ func (git *GitAddonSource) ListRegistryMeta() (map[string]SourceMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.ListAddonMeta(".")
+	return r.ListAddonMeta()
 }
 
 // ListUIData list addons' info from GitAddonSource

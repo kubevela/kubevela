@@ -273,8 +273,8 @@ func listAddons(ctx context.Context, registry string) error {
 		}
 
 		var source pkgaddon.Source
-		if r.Oss != nil {
-			source = r.Oss
+		if r.OSS != nil {
+			source = r.OSS
 		} else {
 			source = r.Git
 		}

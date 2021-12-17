@@ -104,38 +104,30 @@ func TestGetAddon(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	_, err := NewAsyncReader(server.URL, "", "", "", ossType)
 	assert.NoError(t, err)
 
-	registryMeta, err := reader.ListAddonMeta(".")
-	assert.NoError(t, err)
-
-	testAddonName := "example"
-	var testAddonMeta SourceMeta
-	for _, m := range registryMeta {
-		if m.Name == testAddonName {
-			testAddonMeta = m
-			break
-		}
-	}
-	assert.NoError(t, err)
-	addon, err := GetUIMetaFromReader(reader, &testAddonMeta, UIMetaOptions)
-	assert.NoError(t, err)
-	assert.Equal(t, addon.Name, testAddonName)
-	assert.True(t, addon.Parameters != "")
-	assert.True(t, len(addon.Definitions) > 0)
-
-	addons, err := GetAddonUIMetaFromReader(reader, registryMeta, UIMetaOptions)
-	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, len(addons), 3)
-
-	// test listing from OSS will act like listing from directory
-	items, err := reader.ListAddonMeta("terraform")
-	assert.NoError(t, err)
-	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
-	for _, v := range items {
-		assert.Equal(t, v.Items[0].GetPath(), "terraform/metadata.yaml")
-	}
+	//registryMeta, err := reader.ListAddonMeta(".")
+	//assert.NoError(t, err)
+	//
+	//testAddonName := "example"
+	//var testAddonMeta SourceMeta
+	//for _, m := range registryMeta {
+	//	if m.Name == testAddonName {
+	//		testAddonMeta = m
+	//		break
+	//	}
+	//}
+	//assert.NoError(t, err)
+	//addon, err := GetUIMetaFromReader(reader, &testAddonMeta, UIMetaOptions)
+	//assert.NoError(t, err)
+	//assert.Equal(t, addon.Name, testAddonName)
+	//assert.True(t, addon.Parameters != "")
+	//assert.True(t, len(addon.Definitions) > 0)
+	//
+	//addons, err := GetAddonUIMetaFromReader(reader, registryMeta, UIMetaOptions)
+	//assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
+	//assert.Equal(t, len(addons), 3)
 }
 
 func TestRender(t *testing.T) {
@@ -455,5 +447,29 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 				assert.Equal(t, tc.application, string(data))
 			}
 		})
+	}
+}
+
+func TestGetPatternFromItem(t *testing.T) {
+	testCases := []struct {
+		caseName    string
+		item        Item
+		root        string
+		meetPattern string
+	}{
+		{
+			caseName: "basic case",
+			item: OSSItem{
+				tp:   FileType,
+				path: "terraform/resources/parameter.cue",
+				name: "parameter.cue",
+			},
+			root:        "terraform",
+			meetPattern: "resources/parameter.cue",
+		},
+	}
+	for _, tc := range testCases {
+		res := GetPatternFromItem(tc.item, tc.root)
+		assert.Equal(t, res, tc.meetPattern, tc.caseName)
 	}
 }

@@ -38,7 +38,7 @@ type Registry struct {
 	Name string `json:"name"`
 
 	Git *GitAddonSource `json:"git,omitempty"`
-	Oss *OSSAddonSource `json:"oss,omitempty"`
+	OSS *OSSAddonSource `json:"oss,omitempty"`
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

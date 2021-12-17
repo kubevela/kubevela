@@ -272,7 +272,7 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
-		OSS:  r.Oss,
+		OSS:  r.OSS,
 	}, nil
 }
 
@@ -284,7 +284,7 @@ func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string)
 	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
-		OSS:  r.Oss,
+		OSS:  r.OSS,
 	}, nil
 }
 
@@ -294,7 +294,7 @@ func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name strin
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
 	r.Git = req.Git
-	r.Oss = req.Oss
+	r.OSS = req.Oss
 	err = u.addonRegistryDS.UpdateRegistry(ctx, r)
 	if err != nil {
 		return nil, err
@@ -303,7 +303,7 @@ func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name strin
 	return &apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
-		OSS:  r.Oss,
+		OSS:  r.OSS,
 	}, nil
 }
 
@@ -410,7 +410,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 	return pkgaddon.Registry{
 		Name: req.Name,
 		Git:  req.Git,
-		Oss:  req.Oss,
+		OSS:  req.Oss,
 	}
 }
 
@@ -447,6 +447,6 @@ func ConvertAddonRegistryModel2AddonRegistryMeta(r pkgaddon.Registry) apis.Addon
 	return apis.AddonRegistry{
 		Name: r.Name,
 		Git:  r.Git,
-		OSS:  r.Oss,
+		OSS:  r.OSS,
 	}
 }

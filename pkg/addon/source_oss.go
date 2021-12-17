@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var _ AsyncReader = &ossReader{}
+
 // ListBucketResult describe a file list from OSS
 type ListBucketResult struct {
 	Files []File `xml:"Contents"`
@@ -54,9 +56,9 @@ func (i OSSItem) GetName() string {
 	return i.name
 }
 
-// ReadFile read file content from OSS bucket
+// ReadFile read file content from OSS bucket, path is relative to oss bucket and sub-path in reader
 func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
-	resp, err := o.client.R().Get(fmt.Sprintf(singleOSSFileTmpl, o.bucketEndPoint, relativePath))
+	resp, err := o.client.R().Get(fmt.Sprintf(singleOSSFileTmpl, o.bucketEndPoint, path.Join(o.path, relativePath)))
 	if err != nil {
 		return "", err
 	}
@@ -64,14 +66,10 @@ func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
 }
 
 // ListAddonMeta list object from OSS and convert it to UIData metadata
-func (o *ossReader) ListAddonMeta(readPath string) (subItem map[string]SourceMeta, err error) {
-	if readPath == "." {
-		readPath = ""
-	}
-	bucketPath := pathWithParent(readPath, o.path)
-	resp, err := o.client.R().Get(fmt.Sprintf(listOSSFileTmpl, o.bucketEndPoint, bucketPath))
+func (o *ossReader) ListAddonMeta() (subItem map[string]SourceMeta, err error) {
+	resp, err := o.client.R().Get(fmt.Sprintf(listOSSFileTmpl, o.bucketEndPoint, o.path))
 	if err != nil {
-		return nil, errors.Wrapf(err, "read path %s fail", bucketPath)
+		return nil, errors.Wrapf(err, "read path %s fail", o.path)
 	}
 
 	list := ListBucketResult{}
@@ -90,14 +88,14 @@ func (o *ossReader) ListAddonMeta(readPath string) (subItem map[string]SourceMet
 
 	// This is a dir
 	if err == nil {
-		addons := o.convertOSSFiles2Addons(list.Files, bucketPath)
+		addons := o.convertOSSFiles2Addons(list.Files, o.path)
 		return addons, nil
 	}
 
 	return nil, errors.Wrap(err, "fail to read from OSS")
 }
 
-// convert2OSSItem convert OSS list result to Item
+// convertOSSFiles2Addons convert OSS list result to map of addon meta information
 func (o ossReader) convertOSSFiles2Addons(files []File, bucketPath string) map[string]SourceMeta {
 	const slash = "/"
 	// calculate relativePath to path relative to bucket
@@ -165,7 +163,7 @@ func (o *OSSAddonSource) ListRegistryMeta() (map[string]SourceMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	return reader.ListAddonMeta(".")
+	return reader.ListAddonMeta()
 }
 
 // ListUIData from OSSAddonSource

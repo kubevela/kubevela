@@ -57,7 +57,7 @@ func (u *Cache) DiscoverAndRefreshLoop() {
 func (u *Cache) ListRegistryMeta(r *Registry) (map[string]SourceMeta, error) {
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
-		return SourceOf(*r).ListRegistryMeta()
+		return r.Source().ListRegistryMeta()
 	}
 	return registryMeta, nil
 }
@@ -69,7 +69,7 @@ func (u *Cache) GetAddonUIData(r Registry, registry, addonName string) (*UIData,
 		return addon, nil
 	}
 	var err error
-	source := SourceOf(r)
+	source := r.Source()
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
 		registryMeta, err = source.ListRegistryMeta()
@@ -101,7 +101,7 @@ func (u *Cache) GetAddonsFromRegistry(r Registry) ([]*UIData, error) {
 	if listAddons != nil {
 		return listAddons, nil
 	}
-	source := SourceOf(r)
+	source := r.Source()
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
 		registryMeta, err = source.ListRegistryMeta()
@@ -201,7 +201,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 	u.putAddonRegistry2Cache(registries)
 
 	for _, r := range registries {
-		source := SourceOf(r)
+		source := r.Source()
 		registryMeta, err := source.ListRegistryMeta()
 		if err != nil {
 			log.Logger.Errorf("fail to list registry %s metadata,  %v", r.Name, err)
