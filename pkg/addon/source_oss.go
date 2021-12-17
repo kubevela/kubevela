@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -69,68 +70,71 @@ func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
 func (o *ossReader) ListAddonMeta() (subItem map[string]SourceMeta, err error) {
 	resp, err := o.client.R().Get(fmt.Sprintf(listOSSFileTmpl, o.bucketEndPoint, o.path))
 	if err != nil {
-		return nil, errors.Wrapf(err, "read path %s fail", o.path)
+		return nil, errors.Wrapf(err, "fail to read path %s", o.path)
 	}
 
 	list := ListBucketResult{}
 	err = xml.Unmarshal(resp.Body(), &list)
-	if err != nil && err.Error() != EOFError {
+	if err != nil {
 		return nil, err
 	}
-	var actualFiles []File
-	for _, f := range list.Files {
-		if f.Size > 0 {
-			actualFiles = append(actualFiles, f)
-		}
-	}
-	list.Files = actualFiles
-	list.Count = len(actualFiles)
-
-	// This is a dir
-	if err == nil {
-		addons := o.convertOSSFiles2Addons(list.Files, o.path)
-		return addons, nil
-	}
-
-	return nil, errors.Wrap(err, "fail to read from OSS")
+	list = filterEmptyObj(list)
+	addons := o.convertOSSFiles2Addons(list.Files)
+	return addons, nil
 }
 
 // convertOSSFiles2Addons convert OSS list result to map of addon meta information
-func (o ossReader) convertOSSFiles2Addons(files []File, bucketPath string) map[string]SourceMeta {
-	const slash = "/"
-	// calculate relativePath to path relative to bucket
-	var relativePath = bucketPath
-	if o.path != "" {
-		relativePath = strings.TrimPrefix(relativePath, o.path)
-		relativePath = strings.TrimPrefix(relativePath, "/")
-	}
-	var addonmetas = make(map[string]SourceMeta)
-	var pathBuckets = make(map[string][]Item)
+func (o ossReader) convertOSSFiles2Addons(files []File) map[string]SourceMeta {
+	addonMetas := make(map[string]SourceMeta)
+	pathBuckets := make(map[string][]Item)
+	fPaths := make(map[string][]string)
+	actualFiles := make([]File, 0)
+	// first traversal to confirm addon and initialize addonMetas
 	for _, f := range files {
-		fPath := strings.Split(path.Clean(f.Name), slash)
-		if len(fPath) < 2 {
+		fPath := trimAndSplitPath(f.Name, o.path)
+		if len(fPath) < 2 || f.Size == 0 {
+			// this is a file or directory in root, remove it
 			continue
 		}
+		fPaths[f.Name] = fPath
+		actualFiles = append(actualFiles, f)
 		var addonName = fPath[0]
 		if len(fPath) == 2 && fPath[1] == MetadataFileName {
-			// This is the real addon
-			addonmetas[addonName] = SourceMeta{Name: addonName}
+			addonMetas[addonName] = SourceMeta{Name: addonName}
+			pathBuckets[addonName] = make([]Item, 0)
 		}
+	}
+	for _, f := range actualFiles {
+		fPath := fPaths[f.Name]
+		addonName := fPath[0]
 		pathList := pathBuckets[addonName]
 		pathList = append(pathList, &OSSItem{
-			path: path.Join(bucketPath, f.Name),
-			tp:   f.Type,
-			name: f.Name,
+			path: path.Join(fPath...),
+			tp:   FileType,
+			name: fPath[len(fPath)-1],
 		})
 		pathBuckets[addonName] = pathList
 	}
 	var addonList = make(map[string]SourceMeta)
-	for k, v := range addonmetas {
+	for k, v := range addonMetas {
+		items := pathBuckets[k]
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].GetPath() < items[j].GetPath()
+		})
 		v.Items = pathBuckets[k]
 		addonList[k] = v
 	}
-
 	return addonList
+}
+
+func trimAndSplitPath(absPath string, path2Bucket string) []string {
+	const slash = "/"
+	var p = absPath
+	if path2Bucket != "" {
+		p = strings.TrimPrefix(p, path2Bucket)
+		p = strings.TrimPrefix(p, "/")
+	}
+	return strings.Split(p, slash)
 }
 
 func (o *ossReader) RelativePath(item Item) string {
@@ -182,4 +186,17 @@ func (o *OSSAddonSource) GetInstallPackage(meta *SourceMeta, uiMeta *UIData) (*I
 		return nil, err
 	}
 	return GetInstallPackageFromReader(reader, meta, uiMeta)
+}
+
+func filterEmptyObj(list ListBucketResult) ListBucketResult {
+	var actualFiles []File
+	for _, f := range list.Files {
+		if f.Size > 0 {
+			actualFiles = append(actualFiles, f)
+		}
+	}
+	return ListBucketResult{
+		Files: actualFiles,
+		Count: len(actualFiles),
+	}
 }

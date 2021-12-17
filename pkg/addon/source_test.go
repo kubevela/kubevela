@@ -80,39 +80,39 @@ func TestConvert2OssItem(t *testing.T) {
 			Size: 100,
 		},
 	}
-	var expectItemCase = []SourceMeta{
-		{
+	var expectItemCase = map[string]SourceMeta{
+		"fluxcd": {
 			Name: "fluxcd",
 			Items: []Item{
 				&OSSItem{
-					tp:   DirType,
-					path: "fluxcd",
-					name: "fluxcd",
+					tp:   FileType,
+					path: "fluxcd/definitions/helm-release.yaml",
+					name: "helm-release.yaml",
 				},
 				&OSSItem{
-					tp:   DirType,
-					path: "example",
-					name: "example",
+					tp:   FileType,
+					path: "fluxcd/metadata.yaml",
+					name: "metadata.yaml",
 				},
 			},
 		},
-		{
+		"example": {
 			Name: "example",
 			Items: []Item{
 				&OSSItem{
-					tp:   DirType,
-					path: "fluxcd",
-					name: "fluxcd",
+					tp:   FileType,
+					path: "example/metadata.yaml",
+					name: "metadata.yaml",
 				},
 				&OSSItem{
-					tp:   DirType,
-					path: "example",
-					name: "example",
+					tp:   FileType,
+					path: "example/resources/configmap.yaml",
+					name: "configmap.yaml",
 				},
 			},
 		},
 	}
-	addonMetas := o.convertOSSFiles2Addons(testFiles, subPath)
+	addonMetas := o.convertOSSFiles2Addons(testFiles)
 	assert.Equal(t, expectItemCase, addonMetas)
 
 }
