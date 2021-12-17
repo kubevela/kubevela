@@ -190,7 +190,7 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(req.Name), app.PrimaryKey())
+		log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(req.Name), utils2.Sanitize(app.PrimaryKey()))
 		if err := w.ds.Add(ctx, workflow); err != nil {
 			return nil, err
 		}
