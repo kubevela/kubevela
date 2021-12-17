@@ -29,6 +29,7 @@ template: {
 			}
 			stringData: parameter.data
 		}
+		cluster: parameter.cluster
 	}
 	parameter: {
 		// +usage=Specify the name of the secret
@@ -39,5 +40,7 @@ template: {
 		type?: string
 		// +usage=Specify the data of secret
 		data: {}
+		// +usage=Specify the cluster of the config map
+		cluster: *"" | string
 	}
 }

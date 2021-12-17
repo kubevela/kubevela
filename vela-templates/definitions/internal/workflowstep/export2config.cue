@@ -26,6 +26,7 @@ template: {
 			}
 			data: parameter.data
 		}
+		cluster: parameter.cluster
 	}
 	parameter: {
 		// +usage=Specify the name of the config map
@@ -34,5 +35,7 @@ template: {
 		namespace?: string
 		// +usage=Specify the data of config map
 		data: {}
+		// +usage=Specify the cluster of the config map
+		cluster: *"" | string
 	}
 }
