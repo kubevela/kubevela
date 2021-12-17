@@ -19,6 +19,7 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	version "github.com/hashicorp/go-version"
@@ -300,9 +301,6 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 	if annotations := h.app.GetAnnotations(); annotations != nil && annotations[oam.AnnotationKubeVelaVersion] != "" {
 		currentVersionNumber = annotations[oam.AnnotationKubeVelaVersion]
 	}
-	if currentVersionNumber == "UNKNOWN" {
-		return nil
-	}
 	currentVersion, err := version.NewVersion(currentVersionNumber)
 	if err == nil && velaVersionToUpgradeResourceTracker.LessThanOrEqual(currentVersion) {
 		return nil
@@ -334,6 +332,9 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 			oam.LabelAppName:      h.app.Name,
 			oam.LabelAppNamespace: h.app.Namespace,
 		})); err != nil {
+			if strings.Contains(err.Error(), "could not find the requested resource") {
+				continue
+			}
 			return errors.Wrapf(err, "failed to list resource trackers for app %s/%s in cluster %s", h.app.Namespace, h.app.Name, cluster)
 		}
 		for _, rt := range rts.Items {
@@ -345,7 +346,11 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 		}
 	}
 	// upgrade app version
-	v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
+	if _, err = version.NewVersion(version2.VelaVersion); err != nil {
+		v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, velaVersionNumberToUpgradeResourceTracker)
+	} else {
+		v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
+	}
 	if err = h.Client.Update(ctx, h.app); err != nil {
 		return errors.Wrapf(err, "failed to upgrade app %s/%s", h.app.Namespace, h.app.Name)
 	}

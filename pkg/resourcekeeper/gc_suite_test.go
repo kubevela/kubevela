@@ -19,11 +19,13 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	v13 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,9 +56,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 	})
 
 	It("Test gcHandler garbage collect legacy RT", func() {
-		if version.VelaVersion == "UNKNOWN" {
-			version.VelaVersion = velaVersionNumberToUpgradeResourceTracker
-		}
+		version.VelaVersion = velaVersionNumberToUpgradeResourceTracker
 		ctx := context.Background()
 		cli := multicluster.NewFakeClient(testClient)
 		cli.AddCluster("worker", workerClient)
@@ -127,13 +127,21 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		checkRTExists(ctx, rt2.GetName(), true)
 		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker"), rt3.GetName(), false)
 		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker-2"), rt4.GetName(), false)
-
 		Expect(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]).Should(Equal("v1.2.0"))
-		Expect(cli.Create(ctx, rt5)).Should(Succeed())
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		checkRTExists(ctx, rt5.GetName(), true)
 
-		meta.AddAnnotations(app, map[string]string{oam.AnnotationKubeVelaVersion: "UNKNOWN"})
+		crd := &v13.CustomResourceDefinition{}
+		Expect(workerClient.Get(ctx, types.NamespacedName{Name: "resourcetrackers.core.oam.dev"}, crd)).Should(Succeed())
+		Expect(workerClient.Delete(ctx, crd)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(workerClient.List(ctx, &v1beta1.ResourceTrackerList{})).ShouldNot(Succeed())
+		}, 10*time.Second).Should(Succeed())
+		v12.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, "master")
+		version.VelaVersion = "master"
+		Expect(cli.Update(ctx, app)).Should(Succeed())
+		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
+		Expect(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]).Should(Equal("v1.2.0"))
+
+		Expect(cli.Create(ctx, rt5)).Should(Succeed())
 		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
 		checkRTExists(ctx, rt5.GetName(), true)
 	})
