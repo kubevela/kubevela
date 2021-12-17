@@ -1007,12 +1007,14 @@ func (c *applicationUsecaseImpl) AddComponent(ctx context.Context, app *model.Ap
 
 func (c *applicationUsecaseImpl) initCreateDefaultTrait(component *model.ApplicationComponent) {
 	replicationTrait := model.ApplicationTrait{
-		Alias:       "Replication",
+		Alias:       "Set Replicas",
 		Type:        "scaler",
-		Description: "Adjust the number of application replication.",
+		Description: "Adjust the number of application instance.",
 		Properties: &model.JSONStruct{
 			"replicas": 1,
 		},
+		CreateTime: time.Now(),
+		UpdateTime: time.Now(),
 	}
 	var initTraits = []model.ApplicationTrait{}
 	if component.Type == "webservice" && len(component.Traits) == 0 {
