@@ -1,0 +1,52 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: init-secret-with-http
+  namespace: default
+spec:
+  components:
+  - name: my-server
+    type: webservice
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+    traits:
+    - type: service-binding
+      properties:
+        envMappings:
+          MY_ENV:
+            secret: secret1
+          MY_ENV2:
+            secret: secret2
+            key: test
+
+  workflow:
+    steps:
+      - name: webhook
+        type: webhook
+        outputs: 
+          - name: mysecret
+            valueFrom: webhook.http.response.body
+        properties:
+          url:
+            value: <url>
+          data:
+            value: "test"
+      - name: export2secret
+        type: export2secret
+        inputs:
+          - from: mysecret
+            parameterKey: data.secret1
+        properties:
+          secretName: secret1
+      - name: export2secret2
+        type: export2secret
+        inputs:
+          - from: mysecret
+            parameterKey: data.test
+        properties:
+          secretName: secret2
+      - name: apply-component
+        type: apply-component
+        properties:
+          component: my-server

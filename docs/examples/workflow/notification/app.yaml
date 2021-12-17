@@ -19,7 +19,7 @@ spec:
   workflow:
     steps:
       - name: notification
-        type: webhook-notification
+        type: notification
         properties:
           dingding:
             # directly specify the webhook url
