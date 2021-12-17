@@ -37,6 +37,7 @@ func NewCache(ds RegistryDataStore) *Cache {
 	return &Cache{
 		uiData:       make(map[string][]*UIData),
 		registryMeta: make(map[string]map[string]SourceMeta),
+		registry:     make(map[string]Registry),
 		mutex:        new(sync.RWMutex),
 		ds:           ds,
 	}
@@ -53,11 +54,11 @@ func (u *Cache) DiscoverAndRefreshLoop() {
 	}
 }
 
-// ListRegistryMeta will list metadata from registry, if cache not found, it will find from source
-func (u *Cache) ListRegistryMeta(r *Registry) (map[string]SourceMeta, error) {
+// ListAddonMeta will list metadata from registry, if cache not found, it will find from source
+func (u *Cache) ListAddonMeta(r *Registry) (map[string]SourceMeta, error) {
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
-		return r.Source().ListRegistryMeta()
+		return r.Source().ListAddonMeta()
 	}
 	return registryMeta, nil
 }
@@ -72,7 +73,7 @@ func (u *Cache) GetAddonUIData(r Registry, registry, addonName string) (*UIData,
 	source := r.Source()
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
-		registryMeta, err = source.ListRegistryMeta()
+		registryMeta, err = source.ListAddonMeta()
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +105,7 @@ func (u *Cache) GetAddonsFromRegistry(r Registry) ([]*UIData, error) {
 	source := r.Source()
 	registryMeta := u.getCachedRegistryMeta(r.Name)
 	if registryMeta == nil {
-		registryMeta, err = source.ListRegistryMeta()
+		registryMeta, err = source.ListAddonMeta()
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +203,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 
 	for _, r := range registries {
 		source := r.Source()
-		registryMeta, err := source.ListRegistryMeta()
+		registryMeta, err := source.ListAddonMeta()
 		if err != nil {
 			log.Logger.Errorf("fail to list registry %s metadata,  %v", r.Name, err)
 			continue

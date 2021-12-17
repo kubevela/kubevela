@@ -878,7 +878,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 
 func (h *Installer) loadRegistryMeta() error {
 	var err error
-	h.registryMeta, err = h.cache.ListRegistryMeta(h.r)
+	h.registryMeta, err = h.cache.ListAddonMeta(h.r)
 	return err
 }
 

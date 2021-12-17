@@ -45,7 +45,7 @@ const (
 type Source interface {
 	GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData, error)
 	GetInstallPackage(meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error)
-	ListRegistryMeta() (map[string]SourceMeta, error)
+	ListAddonMeta() (map[string]SourceMeta, error)
 	ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error)
 }
 

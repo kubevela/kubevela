@@ -143,7 +143,7 @@ func (o *ossReader) RelativePath(item Item) string {
 
 // OSSAddonSource is UIData source from alibaba cloud OSS style source
 type OSSAddonSource struct {
-	Endpoint string `json:"endpoint" validate:"required"`
+	Endpoint string `json:"end_point" validate:"required"`
 	Bucket   string `json:"bucket"`
 	Path     string `json:"path"`
 }
@@ -161,8 +161,8 @@ func (o *OSSAddonSource) GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData, 
 	return addon, nil
 }
 
-// ListRegistryMeta will list registry add meta for cache
-func (o *OSSAddonSource) ListRegistryMeta() (map[string]SourceMeta, error) {
+// ListAddonMeta will list registry add meta for cache
+func (o *OSSAddonSource) ListAddonMeta() (map[string]SourceMeta, error) {
 	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
 	if err != nil {
 		return nil, err

@@ -66,8 +66,8 @@ func (git *GitAddonSource) GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData
 	return addon, nil
 }
 
-// ListRegistryMeta will list registry add meta for cache
-func (git *GitAddonSource) ListRegistryMeta() (map[string]SourceMeta, error) {
+// ListAddonMeta will list registry add meta for cache
+func (git *GitAddonSource) ListAddonMeta() (map[string]SourceMeta, error) {
 	r, err := NewAsyncReader(git.URL, "", git.Path, git.Token, gitType)
 	if err != nil {
 		return nil, err

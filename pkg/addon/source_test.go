@@ -124,7 +124,7 @@ func TestAliyunOSS(t *testing.T) {
 		Bucket:   "",
 		Path:     "",
 	}
-	addons, err := source.ListRegistryMeta()
+	addons, err := source.ListAddonMeta()
 	if err != nil {
 		t.Error(err)
 	}
