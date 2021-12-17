@@ -27,7 +27,10 @@ import (
 	"strings"
 	"testing"
 
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"gotest.tools/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -188,12 +191,14 @@ func TestRender(t *testing.T) {
     properties:
       policy: domain
       env: c1
+      parallel: true
   
   - name: c2
     type: deploy2env
     properties:
       policy: domain
       env: c2
+      parallel: true
   
 `,
 
@@ -309,6 +314,55 @@ func TestRenderApp4Observability(t *testing.T) {
 				"domain": "a.com",
 			},
 			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"}]}},"status":{}}`,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			assert.Equal(t, tc.err, err)
+			if app != nil {
+				data, err := json.Marshal(app)
+				assert.NilError(t, err)
+				assert.Equal(t, tc.application, string(data))
+			}
+		})
+	}
+}
+
+// TestRenderApp4ObservabilityWithEnvBinding tests the case of RenderApp for Addon Observability with some Kubernetes data
+func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	ctx := context.Background()
+	secret1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-secret",
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+			},
+		},
+		Data: map[string][]byte{
+			"test-key": []byte("test-value"),
+		},
+	}
+	err := k8sClient.Create(ctx, secret1)
+	assert.NilError(t, err)
+
+	testcases := []struct {
+		addon       Addon
+		args        map[string]interface{}
+		application string
+		err         error
+	}{
+		{
+			addon: Addon{
+				Meta: Meta{
+					Name: "observability",
+				},
+			},
+			args: map[string]interface{}{
+				"domain": "a.com",
+			},
+			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":[{"name":"test-secret","patch":{"components":[{"name":"grafana","traits":[{"properties":{"domain":"test-secret.a.com"},"type":"pure-ingress"}],"type":"helm"}]},"placement":{"clusterSelector":{"name":"test-secret"}}}]}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"},{"name":"test-secret","type":"deploy2env","properties":{"env":"test-secret","parallel":true,"policy":"domain"}}]}},"status":{}}`,
 		},
 	}
 	for _, tc := range testcases {

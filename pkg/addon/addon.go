@@ -144,6 +144,7 @@ const (
     properties:
       policy: domain
       env: {{ .Cluster }}
+      parallel: true
   {{ end }}
 {{ end }}`
 )
