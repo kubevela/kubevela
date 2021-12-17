@@ -900,7 +900,7 @@ func newAddonHandler(ctx context.Context, addon *Addon, cli client.Client, apply
 
 func (h *Handler) enableAddon() error {
 	var err error
-	if err = h.checkDependencies(h.ctx, h.cli); err != nil {
+	if err = h.checkDependencies(); err != nil {
 		return err
 	}
 	if err = h.dispatchAddonResource(); err != nil {
@@ -910,7 +910,7 @@ func (h *Handler) enableAddon() error {
 }
 
 // checkDependencies checks if addon's dependent addons is enabled
-func (h *Handler) checkDependencies(ctx context.Context, k8sClient client.Client) error {
+func (h *Handler) checkDependencies() error {
 	var app v1beta1.Application
 	for _, dep := range h.addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
