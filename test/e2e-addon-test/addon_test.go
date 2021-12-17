@@ -86,9 +86,9 @@ var _ = Describe("Addon tests", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 	})
 
-	It("Addons Terraform is successfully enables and Terraform application works", func() {
+	It("Addon Terraform is successfully enabled and Terraform application works", func() {
 		By("Install Addon Terraform")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba  ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
@@ -120,5 +120,16 @@ var _ = Describe("Addon tests", func() {
 				return errors.New("expect 1 service")
 			},
 			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
+	})
+
+	PIt("Addon observability is successfully enabled", func() {
+		By("Install Addon Observability")
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable observability domain=abc.com disk-size=20Gi").Output()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			fmt.Println("exit code error:", string(ee.Stderr))
+		}
+		Expect(err).Should(BeNil())
+		Expect(string(output)).Should(ContainSubstring("Successfully enable addon:"))
 	})
 })

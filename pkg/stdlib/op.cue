@@ -33,6 +33,21 @@ import (
 	} @step(2)
 }
 
+// This operator will dispatch all the components in parallel when applying an application.
+// Currently it works for Addon Observability to speed up the installation. It can also works for other applications, which
+// needs to skip health check for components.
+#ApplyApplicationInParallel: #Steps & {
+	load:       oam.#LoadComponetsInOrder @step(1)
+	components: #Steps & {
+		for name, c in load.value {
+			"\(name)": oam.#ApplyComponent & {
+				value:       c
+				waitHealthy: false
+			}
+		}
+	} @step(2)
+}
+
 #ApplyComponent: oam.#ApplyComponent
 
 #RenderComponent: oam.#RenderComponent
