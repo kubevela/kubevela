@@ -18,6 +18,7 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,7 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var paths = []string{
@@ -114,7 +116,7 @@ func TestGetAddon(t *testing.T) {
 	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
 }
 
-func TestRenderEnvBinding4Observability(t *testing.T) {
+func TestRender(t *testing.T) {
 	testcases := []struct {
 		envs   []ObservabilityEnvironment
 		tmpl   string
@@ -184,13 +186,13 @@ func TestRenderEnvBinding4Observability(t *testing.T) {
   - name: c1
     type: deploy2env
     properties:
-      policy: grafana-domain
+      policy: domain
       env: c1
   
   - name: c2
     type: deploy2env
     properties:
-      policy: grafana-domain
+      policy: domain
       env: c2
   
 `,
@@ -278,3 +280,46 @@ template: {
 	parameter: [string]: string
 }
 `
+
+func TestRenderApp4Observability(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	testcases := []struct {
+		addon       Addon
+		args        map[string]interface{}
+		application string
+		err         error
+	}{
+		{
+			addon: Addon{
+				Meta: Meta{
+					Name: "observability",
+				},
+			},
+			args:        map[string]interface{}{},
+			application: "",
+			err:         ErrorNoDomain,
+		},
+		{
+			addon: Addon{
+				Meta: Meta{
+					Name: "observability",
+				},
+			},
+			args: map[string]interface{}{
+				"domain": "a.com",
+			},
+			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"ApplyApplicationInParallel"}]}},"status":{}}`,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			assert.Equal(t, tc.err, err)
+			if app != nil {
+				data, err := json.Marshal(app)
+				assert.NilError(t, err)
+				assert.Equal(t, tc.application, string(data))
+			}
+		})
+	}
+}

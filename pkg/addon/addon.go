@@ -142,11 +142,14 @@ const (
   - name: {{ .Cluster }}
     type: deploy2env
     properties:
-      policy: grafana-domain
+      policy: domain
       env: {{ .Cluster }}
   {{ end }}
 {{ end }}`
 )
+
+// ErrorNoDomain is the error when no domain is found
+var ErrorNoDomain = errors.New("domain is not set")
 
 // GetAddonsFromReader list addons from AsyncReader
 func GetAddonsFromReader(r AsyncReader, opt ListOptions) ([]*Addon, error) {
@@ -541,9 +544,9 @@ func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, confi
 				Type: "deploy2runtime",
 			})
 	case addon.Name == "observability":
-		arg, ok := args["grafana-domain"]
+		arg, ok := args["domain"]
 		if !ok {
-			return nil, errors.New("grafana-domain is not set")
+			return nil, ErrorNoDomain
 		}
 		domain := arg.(string)
 		policies, err := preparePolicies4Observability(ctx, k8sClient, domain)
@@ -555,7 +558,7 @@ func RenderApp(ctx context.Context, k8sClient client.Client, addon *Addon, confi
 		app.Spec.Workflow = &v1beta1.Workflow{
 			Steps: []v1beta1.WorkflowStep{{
 				Name: "deploy-control-plane",
-				Type: "apply-application",
+				Type: "apply-application-in-parallel",
 			}},
 		}
 
@@ -691,7 +694,7 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client,
 	}
 
 	policies := []v1beta1.AppPolicy{{
-		Name:       "grafana-domain",
+		Name:       "domain",
 		Type:       "env-binding",
 		Properties: &properties,
 	}}
