@@ -131,6 +131,46 @@ spec:
         }
 ```
 
+### Stability mechanism
+
+#### Backoff Time
+
+Sometimes a workflow step can take a long time, so we need a backoff time for workflow reconciliation.
+
+If the status of workflow step is `waiting` or `failed`, the workflow will be reconciled after a backoff time like below:
+
+```
+int(0.05 * 2^(n-1))
+```
+
+Based on the above formula, we will take `1s` and `600s` as our min and max time.
+
+For example, if the workflow is `waiting`, the first ten reconciliation will be like:
+
+| Times | 2^(n-1) | 0.05*2^(n-1) | Requeue After(s) |
+| ------ | ------ | ------ | ------ |
+| 1 | 1 | 0.05 | 1 |
+| 2 | 2 | 0.1 | 1 |
+| 3 | 4 | 0.2 | 1 |
+| 4 | 8 | 0.4 | 1 |
+| 5 | 16 | 0.8 | 1 |
+| 6 | 32 | 1.6 | 1 |
+| 7 | 64 | 3.2 | 3 |
+| 8 | 128 | 6.4 | 6 |
+| 9 | 256 | 12.8 | 12 |
+| 10 | 512 | 25.6 | 25 |
+| ... | ... | ... | ... |
+
+#### Failed Workflow Steps
+
+If the workflow step is `failed`, it means that there may be some error in the workflow step, like some cue errors.
+
+> Note that if the workflow step is unhealthy, the workflow step will be marked as `wait` but not `failed` and it will wait for healthy.
+
+For this case, we will retry the workflow step 10 times, and if the workflow step is still `failed`, we will suspend this workflow, and it's message will be `The workflow suspends automatically because the failed times of steps have reached the limit(10 times)`.
+
+After the workflow is suspended, we can change the workflow step to make it work, and then use `vela workflow resume <workflow-name>` to resume it.
+
 ## Implementation
 
 In this section we will discuss the implementation details for supporting policies and workflow tasks.
