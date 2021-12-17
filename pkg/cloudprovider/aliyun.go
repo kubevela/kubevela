@@ -71,7 +71,9 @@ func (provider *AliyunCloudProvider) IsInvalidKey(err error) bool {
 func (provider *AliyunCloudProvider) decodeClusterLabels(tags []*cs20151215.Tag) map[string]string {
 	labels := map[string]string{}
 	for _, tag := range tags {
-		labels[*tag.Key] = *tag.Value
+		if tag != nil {
+			labels[getString(tag.Key)] = getString(tag.Value)
+		}
 	}
 	return labels
 }
@@ -90,6 +92,13 @@ func (provider *AliyunCloudProvider) getDashboardURL(clusterID string) string {
 	return fmt.Sprintf("https://cs.console.aliyun.com/#/k8s/cluster/%s/v2/info/overview", clusterID)
 }
 
+func getString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // ListCloudClusters list clusters with page info, return clusters, total count and error
 func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize int) ([]*CloudCluster, int, error) {
 	describeClustersV1Request := &cs20151215.DescribeClustersV1Request{
@@ -102,20 +111,23 @@ func (provider *AliyunCloudProvider) ListCloudClusters(pageNumber int, pageSize 
 	}
 	var clusters []*CloudCluster
 	for _, cluster := range resp.Body.Clusters {
+		if cluster == nil {
+			continue
+		}
 		labels := provider.decodeClusterLabels(cluster.Tags)
-		url := provider.decodeClusterURL(*cluster.MasterUrl)
+		url := provider.decodeClusterURL(getString(cluster.MasterUrl))
 		clusters = append(clusters, &CloudCluster{
-			ID:           *cluster.ClusterId,
-			Name:         *cluster.Name,
-			Type:         *cluster.ClusterType,
-			Zone:         *cluster.ZoneId,
-			ZoneID:       *cluster.ZoneId,
-			RegionID:     *cluster.RegionId,
-			VpcID:        *cluster.VpcId,
+			ID:           getString(cluster.ClusterId),
+			Name:         getString(cluster.Name),
+			Type:         getString(cluster.ClusterType),
+			Zone:         getString(cluster.ZoneId),
+			ZoneID:       getString(cluster.ZoneId),
+			RegionID:     getString(cluster.RegionId),
+			VpcID:        getString(cluster.VpcId),
 			Labels:       labels,
-			Status:       *cluster.State,
+			Status:       getString(cluster.State),
 			APIServerURL: url.APIServerEndpoint,
-			DashBoardURL: provider.getDashboardURL(*cluster.ClusterId),
+			DashBoardURL: provider.getDashboardURL(getString(cluster.ClusterId)),
 		})
 	}
 	return clusters, int(*resp.Body.PageInfo.TotalCount), nil
