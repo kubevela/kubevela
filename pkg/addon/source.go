@@ -43,10 +43,10 @@ const (
 
 // Source is where to get addons
 type Source interface {
-	GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData, error)
+	GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error)
+	ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error)
 	GetInstallPackage(meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error)
 	ListAddonMeta() (map[string]SourceMeta, error)
-	ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error)
 }
 
 // GitAddonSource defines the information about the Git as addon source

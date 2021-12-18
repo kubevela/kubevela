@@ -130,7 +130,7 @@ func TestAliyunOSS(t *testing.T) {
 	}
 
 	for _, d := range addons {
-		ui, err := source.GetUIMeta(&d, UIMetaOptions)
+		ui, err := source.GetUIData(&d, UIMetaOptions)
 		if err != nil {
 			t.Error(err)
 		}

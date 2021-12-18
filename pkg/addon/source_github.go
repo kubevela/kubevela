@@ -53,8 +53,8 @@ func (g *gitReader) RelativePath(item Item) string {
 	return path.Join(absPath[len(base):]...)
 }
 
-// GetUIMeta get an addon info from GitAddonSource, can be used for get or enable
-func (git *GitAddonSource) GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData, error) {
+// GetUIData get an addon info from GitAddonSource, can be used for get or enable
+func (git *GitAddonSource) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
 	reader, err := NewAsyncReader(git.URL, "", git.Path, git.Token, gitType)
 	if err != nil {
 		return nil, err

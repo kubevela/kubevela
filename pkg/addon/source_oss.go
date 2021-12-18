@@ -148,8 +148,8 @@ type OSSAddonSource struct {
 	Path     string `json:"path"`
 }
 
-// GetUIMeta from OSS Addon data Source
-func (o *OSSAddonSource) GetUIMeta(meta *SourceMeta, opt ListOptions) (*UIData, error) {
+// GetUIData from OSS Addon data Source
+func (o *OSSAddonSource) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
 	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
 	if err != nil {
 		return nil, err

@@ -340,8 +340,8 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 			return nil
 		}
 
-		if err != nil {
-			// one registry return error, should not break other registry func
+		if err != nil && errors.As(err, &pkgaddon.ErrNotExist) {
+			// one registry return addon not exist error, should not break other registry func
 			continue
 		}
 	}

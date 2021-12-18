@@ -70,19 +70,15 @@ func (u *Cache) GetAddonUIData(r Registry, registry, addonName string) (*UIData,
 		return addon, nil
 	}
 	var err error
-	source := r.Source()
-	registryMeta := u.getCachedRegistryMeta(r.Name)
-	if registryMeta == nil {
-		registryMeta, err = source.ListAddonMeta()
-		if err != nil {
-			return nil, err
-		}
+	registryMeta, err := u.ListAddonMeta(&r)
+	if err != nil {
+		return nil, err
 	}
 	meta, ok := registryMeta[addonName]
 	if !ok {
 		return nil, ErrNotExist
 	}
-	return source.GetUIMeta(&meta, UIMetaOptions)
+	return r.Source().GetUIData(&meta, UIMetaOptions)
 }
 
 func (u *Cache) getAddonFromCache(registry, addonName string) *UIData {
@@ -103,12 +99,9 @@ func (u *Cache) GetAddonsFromRegistry(r Registry) ([]*UIData, error) {
 		return listAddons, nil
 	}
 	source := r.Source()
-	registryMeta := u.getCachedRegistryMeta(r.Name)
-	if registryMeta == nil {
-		registryMeta, err = source.ListAddonMeta()
-		if err != nil {
-			return nil, err
-		}
+	registryMeta, err := u.ListAddonMeta(&r)
+	if err != nil {
+		return nil, err
 	}
 	listAddons, err = source.ListUIData(registryMeta, UIMetaOptions)
 	if err != nil {
