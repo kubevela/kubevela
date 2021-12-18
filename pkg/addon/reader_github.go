@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -24,15 +25,43 @@ type gitReader struct {
 
 // ListAddonMeta relative path to repoURL/basePath
 func (g *gitReader) ListAddonMeta() (subItems map[string]SourceMeta, err error) {
-	_, dirs, err := g.h.readRepo("")
+	_, items, err := g.h.readRepo("")
 	if err != nil {
 		return
 	}
-	var items []Item
-	for _, d := range dirs {
-		items = append(items, d)
+	for _, item := range items {
+		// single addon
+		addonName := path.Base(item.GetPath())
+		addonMeta, err := g.listAddonMeta(item.GetPath())
+		if err != nil {
+			return nil, errors.Wrapf(err, "fail to get addon meta of %s", addonName)
+		}
+		subItems[addonName] = SourceMeta{Name: addonName, Items: addonMeta}
 	}
-	return map[string]SourceMeta{"TODO": {Name: "TODO", Items: items}}, nil
+	return
+}
+
+func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
+	_, items, err := g.h.readRepo(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Item, 0)
+	for _, item := range items {
+		switch item.GetType() {
+		case FileType:
+			res = append(res, item)
+		case DirType:
+			subItems, err := g.listAddonMeta(item.GetPath())
+			if err != nil {
+				return nil, err
+			}
+			for _, i := range subItems {
+				res = append(res, i)
+			}
+		}
+	}
+	return res, nil
 }
 
 // ReadFile read file content from github

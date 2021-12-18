@@ -119,7 +119,7 @@ func TestGetAddon(t *testing.T) {
 	//	}
 	//}
 	//assert.NoError(t, err)
-	//addon, err := GetUIMetaFromReader(reader, &testAddonMeta, UIMetaOptions)
+	//addon, err := GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
 	//assert.NoError(t, err)
 	//assert.Equal(t, addon.Name, testAddonName)
 	//assert.True(t, addon.Parameters != "")

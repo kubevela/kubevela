@@ -93,7 +93,7 @@ type AsyncReader interface {
 	// ReadFile should accept relative path to github repo/path or OSS bucket, and report the file content
 	ReadFile(path string) (content string, err error)
 
-	// RelativePath return a relative path to GitHub repo/path or OSS bucket
+	// RelativePath return a relative path to GitHub repo/path or OSS bucket/path
 	RelativePath(item Item) string
 }
 
@@ -174,7 +174,7 @@ func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) 
 	if err != nil {
 		return nil, err
 	}
-	addon, err := GetUIMetaFromReader(reader, meta, opt)
+	addon, err := GetUIDataFromReader(reader, meta, opt)
 	if err != nil {
 		return nil, err
 	}

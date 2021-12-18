@@ -189,7 +189,7 @@ func GetAddonUIMetaFromReader(r AsyncReader, registryMeta map[string]SourceMeta,
 		wg.Add(1)
 		go func(addonMeta SourceMeta) {
 			defer wg.Done()
-			addonRes, err := GetUIMetaFromReader(r, &addonMeta, opt)
+			addonRes, err := GetUIDataFromReader(r, &addonMeta, opt)
 			if err != nil {
 				errCh <- err
 				return
@@ -229,8 +229,8 @@ func compactErrors(message string, errs []error) error {
 
 }
 
-// GetUIMetaFromReader read ui metadata of addon from Reader, used to be displayed in UI
-func GetUIMetaFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UIData, error) {
+// GetUIDataFromReader read ui metadata of addon from Reader, used to be displayed in UI
+func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UIData, error) {
 	addonContentsReader := map[string]struct {
 		skip bool
 		read func(a *UIData, reader AsyncReader, readPath string) error
