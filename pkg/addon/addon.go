@@ -19,10 +19,17 @@ package addon
 import (
 	"bytes"
 	"context"
-	"cuelang.org/go/cue"
-	cueyaml "cuelang.org/go/encoding/yaml"
 	"encoding/json"
 	"fmt"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"cuelang.org/go/cue"
+	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
@@ -51,13 +58,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"path"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
 	"text/template"
-	"time"
 )
 
 const (
@@ -856,11 +857,6 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Appli
 
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
-	if h.registryMeta == nil {
-		if err = h.loadRegistryMeta(); err != nil {
-			return err
-		}
-	}
 	h.addon = addon
 	if err = h.installDependency(addon); err != nil {
 		return err
@@ -876,22 +872,15 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	return nil
 }
 
-func (h *Installer) loadRegistryMeta() error {
-	var err error
-	h.registryMeta, err = h.cache.ListAddonMeta(h.r)
-	return err
-}
-
 func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
-	var err error
-	if h.registryMeta == nil {
-		if err = h.loadRegistryMeta(); err != nil {
-			return nil, err
-		}
+	metas, err := h.getAddonMeta()
+	if err != nil {
+		return nil, errors.Wrap(err, "fail to get addon meta")
 	}
-	meta, ok := h.registryMeta[name]
+
+	meta, ok := metas[name]
 	if !ok {
-		return nil, errors.Wrapf(err, "fail to find the dependency addon %s", name)
+		return nil, errors.Wrapf(err, "fail to find the addon meta of %s", name)
 	}
 	var uiMeta *UIData
 	uiMeta, err = h.cache.GetAddonUIData(*h.r, h.r.Name, name)
@@ -904,6 +893,16 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 	}
 	return installPackage, nil
+}
+
+func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
+	var err error
+	if h.registryMeta == nil {
+		if h.registryMeta, err = h.cache.ListAddonMeta(h.r); err != nil {
+			return nil, err
+		}
+	}
+	return h.registryMeta, nil
 }
 
 // installDependency checks if addon's dependency and install it
@@ -957,6 +956,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	err = h.apply.Apply(h.ctx, app)
 	if err != nil {
+		klog.Errorf("fail to create application: %v", err)
 		return errors.Wrap(err, "fail to create application")
 	}
 

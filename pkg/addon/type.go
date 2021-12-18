@@ -67,8 +67,9 @@ type Meta struct {
 
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
-	ControlPlane   bool `json:"controlPlane"`
-	RuntimeCluster bool `json:"runtimeCluster"`
+	// TODO(qiaozp) how to change this field's json tag and keep compatibility
+	ControlPlane   bool `json:"control_plane"`
+	RuntimeCluster bool `json:"runtime_cluster"`
 }
 
 // Dependency defines the other addons it depends on

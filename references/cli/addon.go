@@ -278,7 +278,7 @@ func listAddons(ctx context.Context, registry string) error {
 		} else {
 			source = r.Git
 		}
-		meta, err := source.ListRegistryMeta()
+		meta, err := source.ListAddonMeta()
 		if err != nil {
 			continue
 		}
