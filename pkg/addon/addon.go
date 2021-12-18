@@ -701,7 +701,7 @@ func isDeployToRuntimeOnly(addon *InstallPackage) bool {
 	if addon.DeployTo == nil {
 		return false
 	}
-	return addon.DeployTo.RuntimeCluster
+	return addon.DeployTo.RuntimeCluster || addon.DeployTo.LegacyRuntimeCluster
 }
 
 func renderObject(elem ElementFile) (*unstructured.Unstructured, error) {
@@ -888,7 +888,7 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 		return nil, err
 	}
 	// enable this addon if it's invisible
-	installPackage, err := h.r.Source().GetInstallPackage(&meta, uiMeta)
+	installPackage, err := h.r.GetInstallPackage(&meta, uiMeta)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 	}

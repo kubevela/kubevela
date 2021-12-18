@@ -41,7 +41,7 @@ const (
 	listOSSFileTmpl   = "%s?max-keys=1000&prefix=%s"
 )
 
-// Source is where to get addons
+// Source is where to get addons, Registry implement this interface
 type Source interface {
 	GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error)
 	ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error)
@@ -158,10 +158,49 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }
 
-// Source returns actual Source in registry meta
-func (meta Registry) Source() Source {
-	if meta.OSS != nil {
-		return meta.OSS
+func (r Registry) BuildReader() (AsyncReader, error) {
+	if r.OSS != nil {
+		o := r.OSS
+		return NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
+	} else if r.Git != nil {
+		g := r.Git
+		return NewAsyncReader(g.URL, "", g.Path, g.Token, gitType)
 	}
-	return meta.Git
+	return nil, errors.New("registry don't have enough info to build a reader")
+
+}
+func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
+	reader, err := r.BuildReader()
+	if err != nil {
+		return nil, err
+	}
+	addon, err := GetUIMetaFromReader(reader, meta, opt)
+	if err != nil {
+		return nil, err
+	}
+	return addon, nil
+}
+
+func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
+	reader, err := r.BuildReader()
+	if err != nil {
+		return nil, err
+	}
+	return GetAddonUIMetaFromReader(reader, registryAddonMeta, opt)
+}
+
+func (r Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
+	reader, err := r.BuildReader()
+	if err != nil {
+		return nil, err
+	}
+	return GetInstallPackageFromReader(reader, meta, uiData)
+}
+
+func (r Registry) ListAddonMeta() (map[string]SourceMeta, error) {
+	reader, err := r.BuildReader()
+	if err != nil {
+		return nil, err
+	}
+	return reader.ListAddonMeta()
 }

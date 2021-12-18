@@ -119,10 +119,12 @@ func TestConvert2OssItem(t *testing.T) {
 
 func TestAliyunOSS(t *testing.T) {
 
-	var source Source = &OSSAddonSource{
-		Endpoint: "https://addons.kubevela.net",
-		Bucket:   "",
-		Path:     "",
+	var source Source = &Registry{
+		OSS: &OSSAddonSource{
+			Endpoint: "https://addons.kubevela.net",
+			Bucket:   "",
+			Path:     "",
+		},
 	}
 	addons, err := source.ListAddonMeta()
 	if err != nil {

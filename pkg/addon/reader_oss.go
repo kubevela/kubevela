@@ -148,46 +148,6 @@ type OSSAddonSource struct {
 	Path     string `json:"path"`
 }
 
-// GetUIData from OSS Addon data Source
-func (o *OSSAddonSource) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
-	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
-	if err != nil {
-		return nil, err
-	}
-	addon, err := GetUIMetaFromReader(reader, meta, opt)
-	if err != nil {
-		return nil, err
-	}
-	return addon, nil
-}
-
-// ListAddonMeta will list registry add meta for cache
-func (o *OSSAddonSource) ListAddonMeta() (map[string]SourceMeta, error) {
-	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
-	if err != nil {
-		return nil, err
-	}
-	return reader.ListAddonMeta()
-}
-
-// ListUIData from OSSAddonSource
-func (o *OSSAddonSource) ListUIData(registryMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
-	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
-	if err != nil {
-		return nil, err
-	}
-	return GetAddonUIMetaFromReader(reader, registryMeta, opt)
-}
-
-// GetInstallPackage will get install package for addon from OSS
-func (o *OSSAddonSource) GetInstallPackage(meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error) {
-	reader, err := NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
-	if err != nil {
-		return nil, err
-	}
-	return GetInstallPackageFromReader(reader, meta, uiMeta)
-}
-
 func filterEmptyObj(list ListBucketResult) ListBucketResult {
 	var actualFiles []File
 	for _, f := range list.Files {
