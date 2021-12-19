@@ -158,6 +158,7 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }
 
+// BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
 func (r Registry) BuildReader() (AsyncReader, error) {
 	if r.OSS != nil {
 		o := r.OSS
@@ -169,6 +170,8 @@ func (r Registry) BuildReader() (AsyncReader, error) {
 	return nil, errors.New("registry don't have enough info to build a reader")
 
 }
+
+// GetUIData get UIData of an addon
 func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
@@ -181,6 +184,7 @@ func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) 
 	return addon, nil
 }
 
+// ListUIData list UI data from addon registry
 func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
@@ -189,6 +193,7 @@ func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOp
 	return GetAddonUIMetaFromReader(reader, registryAddonMeta, opt)
 }
 
+// GetInstallPackage get install package which is all needed to enable an addon from addon registry
 func (r Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
@@ -197,6 +202,7 @@ func (r Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallP
 	return GetInstallPackageFromReader(reader, meta, uiData)
 }
 
+// ListAddonMeta list addon file meta(path and name) from a registry
 func (r Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 	reader, err := r.BuildReader()
 	if err != nil {

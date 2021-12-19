@@ -57,9 +57,7 @@ func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
 			if err != nil {
 				return nil, err
 			}
-			for _, i := range subItems {
-				res = append(res, i)
-			}
+			res = append(res, subItems...)
 		}
 	}
 	return res, nil

@@ -272,17 +272,11 @@ func listAddons(ctx context.Context, registry string) error {
 			continue
 		}
 
-		var source pkgaddon.Source
-		if r.OSS != nil {
-			source = r.OSS
-		} else {
-			source = r.Git
-		}
-		meta, err := source.ListAddonMeta()
+		meta, err := r.ListAddonMeta()
 		if err != nil {
 			continue
 		}
-		addList, err := source.ListUIData(meta, pkgaddon.CLIMetaOptions)
+		addList, err := r.ListUIData(meta, pkgaddon.CLIMetaOptions)
 		if err != nil {
 			continue
 		}
