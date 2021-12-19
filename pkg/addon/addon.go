@@ -165,10 +165,12 @@ type Pattern struct {
 // Patterns is the file pattern that the addon should be in
 var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName}, {Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}}
 
-// GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid
-func GetPatternFromItem(it Item, rootPath string) string {
+// GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
+// AsyncReader is needed to calculate relative path
+func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
+	relativePath := r.RelativePath(it)
 	for _, p := range Patterns {
-		if strings.HasPrefix(it.GetPath(), filepath.Join(rootPath, p.Value)) {
+		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
 			return p.Value
 		}
 	}
@@ -240,7 +242,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		DefinitionsDirName: {!opt.GetDefinition, readDefFile},
 		ParameterFileName:  {!opt.GetParameter, readParamFile},
 	}
-	ptItems := meta.ToPatternItems()
+	ptItems := ClassifyItemByPattern(meta, r)
 	var addon = &UIData{}
 	for contentType, method := range addonContentsReader {
 		if method.skip {
@@ -265,13 +267,13 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 }
 
 // GetInstallPackageFromReader get install package of addon from Reader, this is used to enable an addon
-func GetInstallPackageFromReader(r AsyncReader, registryMeta *SourceMeta, uiMeta *UIData) (*InstallPackage, error) {
+func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error) {
 	addonContentsReader := map[string]func(a *InstallPackage, reader AsyncReader, readPath string) error{
 		TemplateFileName: readTemplate,
 		ResourcesDirName: readResFile,
 		DefSchemaName:    readDefSchemaFile,
 	}
-	ptItems := registryMeta.ToPatternItems()
+	ptItems := ClassifyItemByPattern(meta, r)
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
@@ -286,7 +288,7 @@ func GetInstallPackageFromReader(r AsyncReader, registryMeta *SourceMeta, uiMeta
 		for _, it := range items {
 			err := method(addon, r, r.RelativePath(it))
 			if err != nil {
-				return nil, fmt.Errorf("fail to read addon %s file %s: %w", registryMeta.Name, r.RelativePath(it), err)
+				return nil, fmt.Errorf("fail to read addon %s file %s: %w", meta.Name, r.RelativePath(it), err)
 			}
 		}
 	}
@@ -395,7 +397,7 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	}
 	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 10
+	tc.Timeout = time.Second * 20
 	cli := github.NewClient(tc)
 	return &gitHelper{
 		Client: cli,
@@ -405,7 +407,9 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	fmt.Printf("%s read start, read path %s\n", time.Now(), relativePath)
 	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, path.Join(h.Meta.Path, relativePath), nil)
+	fmt.Printf("%s read end, read path %s\n", time.Now(), relativePath)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}

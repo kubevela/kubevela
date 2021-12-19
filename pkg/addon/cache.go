@@ -14,7 +14,7 @@ import (
 // 2. UIData: Read file content that including README.md and other necessary things being used in UI apiserver
 // 3. InstallPackage: All file content that used to be installation
 
-// Cache package only cache for 1 and 2, we don't cache InstallPackage and it only read for real installation
+// Cache package only cache for 1 and 2, we don't cache InstallPackage, and it only read for real installation
 type Cache struct {
 
 	// uiData caches all the decoded UIData addons

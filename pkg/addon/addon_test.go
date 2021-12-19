@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"github.com/google/go-github/v32/github"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -451,14 +452,22 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 }
 
 func TestGetPatternFromItem(t *testing.T) {
+	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "some-sub-path", "", ossType)
+	assert.NoError(t, err)
+	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "addons", "", gitType)
+	assert.NoError(t, err)
+	gitItemName := "parameter.cue"
+	gitItemType := FileType
+	gitItemPath := "addons/terraform/resources/parameter.cue"
 	testCases := []struct {
 		caseName    string
 		item        Item
 		root        string
 		meetPattern string
+		r           AsyncReader
 	}{
 		{
-			caseName: "basic case",
+			caseName: "OSS case",
 			item: OSSItem{
 				tp:   FileType,
 				path: "terraform/resources/parameter.cue",
@@ -466,10 +475,18 @@ func TestGetPatternFromItem(t *testing.T) {
 			},
 			root:        "terraform",
 			meetPattern: "resources/parameter.cue",
+			r:           ossR,
+		},
+		{
+			caseName:    "git case",
+			item:        &github.RepositoryContent{Name: &gitItemName, Type: &gitItemType, Path: &gitItemPath},
+			root:        "terraform",
+			meetPattern: "resources/parameter.cue",
+			r:           gitR,
 		},
 	}
 	for _, tc := range testCases {
-		res := GetPatternFromItem(tc.item, tc.root)
+		res := GetPatternFromItem(tc.item, tc.r, tc.root)
 		assert.Equal(t, res, tc.meetPattern, tc.caseName)
 	}
 }

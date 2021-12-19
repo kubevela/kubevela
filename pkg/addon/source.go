@@ -70,11 +70,11 @@ type SourceMeta struct {
 	Items []Item
 }
 
-// ToPatternItems will filter and classify addon data, data will be classified by pattern it meets
-func (r *SourceMeta) ToPatternItems() map[string][]Item {
+// ClassifyItemByPattern will filter and classify addon data, data will be classified by pattern it meets
+func ClassifyItemByPattern(meta *SourceMeta, r AsyncReader) map[string][]Item {
 	var p = make(map[string][]Item)
-	for _, it := range r.Items {
-		pt := GetPatternFromItem(it, r.Name)
+	for _, it := range meta.Items {
+		pt := GetPatternFromItem(it, r, meta.Name)
 		if pt == "" {
 			continue
 		}

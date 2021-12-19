@@ -24,21 +24,22 @@ type gitReader struct {
 }
 
 // ListAddonMeta relative path to repoURL/basePath
-func (g *gitReader) ListAddonMeta() (subItems map[string]SourceMeta, err error) {
+func (g *gitReader) ListAddonMeta() (map[string]SourceMeta, error) {
+	subItems := make(map[string]SourceMeta)
 	_, items, err := g.h.readRepo("")
 	if err != nil {
-		return
+		return nil, err
 	}
 	for _, item := range items {
 		// single addon
 		addonName := path.Base(item.GetPath())
-		addonMeta, err := g.listAddonMeta(item.GetPath())
+		addonMeta, err := g.listAddonMeta(g.RelativePath(item))
 		if err != nil {
 			return nil, errors.Wrapf(err, "fail to get addon meta of %s", addonName)
 		}
 		subItems[addonName] = SourceMeta{Name: addonName, Items: addonMeta}
 	}
-	return
+	return subItems, nil
 }
 
 func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
@@ -52,7 +53,7 @@ func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
 		case FileType:
 			res = append(res, item)
 		case DirType:
-			subItems, err := g.listAddonMeta(item.GetPath())
+			subItems, err := g.listAddonMeta(g.RelativePath(item))
 			if err != nil {
 				return nil, err
 			}
