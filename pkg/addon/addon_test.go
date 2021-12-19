@@ -100,34 +100,41 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 
 var ctx = context.Background()
 
-func TestGetAddon(t *testing.T) {
+func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	_, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
 	assert.NoError(t, err)
 
-	//registryMeta, err := reader.ListAddonMeta(".")
-	//assert.NoError(t, err)
-	//
-	//testAddonName := "example"
-	//var testAddonMeta SourceMeta
-	//for _, m := range registryMeta {
-	//	if m.Name == testAddonName {
-	//		testAddonMeta = m
-	//		break
-	//	}
-	//}
-	//assert.NoError(t, err)
-	//addon, err := GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
-	//assert.NoError(t, err)
-	//assert.Equal(t, addon.Name, testAddonName)
-	//assert.True(t, addon.Parameters != "")
-	//assert.True(t, len(addon.Definitions) > 0)
-	//
-	//addons, err := GetAddonUIMetaFromReader(reader, registryMeta, UIMetaOptions)
-	//assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	//assert.Equal(t, len(addons), 3)
+	registryMeta, err := reader.ListAddonMeta()
+	assert.NoError(t, err)
+
+	testAddonName := "example"
+	var testAddonMeta SourceMeta
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err := GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+	assert.True(t, len(uiData.Definitions) > 0)
+
+	// test get ui data
+	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, UIMetaOptions)
+	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
+	assert.Equal(t, len(uiDataList), 3)
+
+	// test get install package
+	installPkg, err := GetInstallPackageFromReader(reader, &testAddonMeta, uiData)
+	assert.NoError(t, err)
+	assert.True(t, installPkg != nil)
+	assert.Equal(t, len(installPkg.CUETemplates), 1)
 }
 
 func TestRender(t *testing.T) {

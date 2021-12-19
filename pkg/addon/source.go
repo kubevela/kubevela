@@ -45,7 +45,7 @@ const (
 type Source interface {
 	GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error)
 	ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error)
-	GetInstallPackage(meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error)
+	GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallPackage, error)
 	ListAddonMeta() (map[string]SourceMeta, error)
 }
 
@@ -190,7 +190,7 @@ func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOp
 	if err != nil {
 		return nil, err
 	}
-	return GetAddonUIMetaFromReader(reader, registryAddonMeta, opt)
+	return ListAddonUIDataFromReader(reader, registryAddonMeta, opt)
 }
 
 // GetInstallPackage get install package which is all needed to enable an addon from addon registry

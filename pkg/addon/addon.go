@@ -177,8 +177,8 @@ func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 	return ""
 }
 
-// GetAddonUIMetaFromReader list addons from AsyncReader
-func GetAddonUIMetaFromReader(r AsyncReader, registryMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
+// ListAddonUIDataFromReader list addons from AsyncReader
+func ListAddonUIDataFromReader(r AsyncReader, registryMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
 	var addons []*UIData
 	var err error
 	var wg sync.WaitGroup
@@ -267,7 +267,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 }
 
 // GetInstallPackageFromReader get install package of addon from Reader, this is used to enable an addon
-func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiMeta *UIData) (*InstallPackage, error) {
+func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
 	addonContentsReader := map[string]func(a *InstallPackage, reader AsyncReader, readPath string) error{
 		TemplateFileName: readTemplate,
 		ResourcesDirName: readResFile,
@@ -277,10 +277,10 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiMeta *UIData
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
-		Meta:           uiMeta.Meta,
-		Definitions:    uiMeta.Definitions,
-		CUEDefinitions: uiMeta.CUEDefinitions,
-		Parameters:     uiMeta.Parameters,
+		Meta:           uiData.Meta,
+		Definitions:    uiData.Definitions,
+		CUEDefinitions: uiData.CUEDefinitions,
+		Parameters:     uiData.Parameters,
 	}
 
 	for contentType, method := range addonContentsReader {
@@ -886,13 +886,13 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 	if !ok {
 		return nil, errors.Wrapf(err, "fail to find the addon meta of %s", name)
 	}
-	var uiMeta *UIData
-	uiMeta, err = h.cache.GetAddonUIData(*h.r, h.r.Name, name)
+	var uiData *UIData
+	uiData, err = h.cache.GetAddonUIData(*h.r, h.r.Name, name)
 	if err != nil {
 		return nil, err
 	}
 	// enable this addon if it's invisible
-	installPackage, err := h.r.GetInstallPackage(&meta, uiMeta)
+	installPackage, err := h.r.GetInstallPackage(&meta, uiData)
 	if err != nil {
 		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 	}
