@@ -83,10 +83,10 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(lres.Addons).ShouldNot(BeZero())
 
 		By("get addon detail")
-		detailRes := get("/api/v1/addon/terraform-alibaba")
+		detailRes := get("/api/v1/addons/terraform-alibaba")
 		defer detailRes.Body.Close()
 
-		var dres apis.DetailAddonResponse
+		var dres *apis.DetailAddonResponse
 		err = json.NewDecoder(detailRes.Body).Decode(&dres)
 		Expect(err).Should(BeNil())
 		Expect(dres.Meta).ShouldNot(BeNil())

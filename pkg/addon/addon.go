@@ -407,9 +407,7 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	fmt.Printf("%s read start, read path %s\n", time.Now(), relativePath)
 	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, path.Join(h.Meta.Path, relativePath), nil)
-	fmt.Printf("%s read end, read path %s\n", time.Now(), relativePath)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}
