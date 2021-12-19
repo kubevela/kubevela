@@ -131,7 +131,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 			return nil, err
 		}
 		for _, r := range registries {
-			addon, err = u.addonRegistryCache.GetAddonUIData(r, r.Name, name)
+			addon, err = u.addonRegistryCache.GetUIData(r, name)
 			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
 			}
@@ -144,7 +144,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 		if err != nil {
 			return nil, err
 		}
-		addon, err = u.addonRegistryCache.GetAddonUIData(addonRegistry, registry, name)
+		addon, err = u.addonRegistryCache.GetUIData(addonRegistry, name)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -213,7 +213,7 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		if registry != "" && r.Name != registry {
 			continue
 		}
-		listAddons, err := u.addonRegistryCache.GetAddonsFromRegistry(r)
+		listAddons, err := u.addonRegistryCache.ListUIData(r)
 		if err != nil {
 			gatherErr = append(gatherErr, err)
 			continue

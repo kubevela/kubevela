@@ -133,8 +133,12 @@ func TestGetAddonData(t *testing.T) {
 	// test get install package
 	installPkg, err := GetInstallPackageFromReader(reader, &testAddonMeta, uiData)
 	assert.NoError(t, err)
-	assert.True(t, installPkg != nil)
+	assert.NotNilf(t, installPkg, "should get install package")
 	assert.Equal(t, len(installPkg.CUETemplates), 1)
+}
+
+func TestGetUIData(t *testing.T) {
+
 }
 
 func TestRender(t *testing.T) {

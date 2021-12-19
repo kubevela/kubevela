@@ -81,6 +81,17 @@ var _ = Describe("Test addon rest api", func() {
 		err = json.NewDecoder(listRes.Body).Decode(&lres)
 		Expect(err).Should(BeNil())
 		Expect(lres.Addons).ShouldNot(BeZero())
+
+		By("get addon detail")
+		detailRes := get("/api/v1/addon/terraform-alibaba")
+		defer detailRes.Body.Close()
+
+		var dres apis.DetailAddonResponse
+		err = json.NewDecoder(detailRes.Body).Decode(&dres)
+		Expect(err).Should(BeNil())
+		Expect(dres.Meta).ShouldNot(BeNil())
+		Expect(dres.UISchema).ShouldNot(BeEmpty())
+		Expect(dres.APISchema).ShouldNot(BeEmpty())
 	})
 
 	PIt("should enable and disable an addon", func() {

@@ -887,7 +887,7 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 		return nil, errors.Wrapf(err, "fail to find the addon meta of %s", name)
 	}
 	var uiData *UIData
-	uiData, err = h.cache.GetAddonUIData(*h.r, h.r.Name, name)
+	uiData, err = h.cache.GetUIData(*h.r, name)
 	if err != nil {
 		return nil, err
 	}
@@ -902,7 +902,7 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 	var err error
 	if h.registryMeta == nil {
-		if h.registryMeta, err = h.cache.ListAddonMeta(h.r); err != nil {
+		if h.registryMeta, err = h.cache.ListAddonMeta(*h.r); err != nil {
 			return nil, err
 		}
 	}

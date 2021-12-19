@@ -71,22 +71,22 @@ func (u *Cache) DiscoverAndRefreshLoop() {
 }
 
 // ListAddonMeta will list metadata from registry, if cache not found, it will find from source
-func (u *Cache) ListAddonMeta(r *Registry) (map[string]SourceMeta, error) {
-	registryMeta := u.getCachedRegistryMeta(r.Name)
+func (u *Cache) ListAddonMeta(r Registry) (map[string]SourceMeta, error) {
+	registryMeta := u.getCachedAddonMeta(r.Name)
 	if registryMeta == nil {
 		return r.ListAddonMeta()
 	}
 	return registryMeta, nil
 }
 
-// GetAddonUIData get addon data for UI display from cache, if cache not found, it will find from source
-func (u *Cache) GetAddonUIData(r Registry, registry, addonName string) (*UIData, error) {
-	addon := u.getAddonFromCache(registry, addonName)
+// GetUIData get addon data for UI display from cache, if cache not found, it will find from source
+func (u *Cache) GetUIData(r Registry, addonName string) (*UIData, error) {
+	addon := u.getCachedUIData(r.Name, addonName)
 	if addon != nil {
 		return addon, nil
 	}
 	var err error
-	registryMeta, err := u.ListAddonMeta(&r)
+	registryMeta, err := u.ListAddonMeta(r)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +97,27 @@ func (u *Cache) GetAddonUIData(r Registry, registry, addonName string) (*UIData,
 	return r.GetUIData(&meta, UIMetaOptions)
 }
 
-func (u *Cache) getAddonFromCache(registry, addonName string) *UIData {
-	addons := u.getCachedUIDataFromRegistry(registry)
+// ListUIData will always list UIData from cache first, if not exist, read from source.
+func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
+	var err error
+	listAddons := u.listCachedUIData(r.Name)
+	if listAddons != nil {
+		return listAddons, nil
+	}
+	addonMeta, err := u.ListAddonMeta(r)
+	if err != nil {
+		return nil, err
+	}
+	listAddons, err = r.ListUIData(addonMeta, UIMetaOptions)
+	if err != nil {
+		return nil, fmt.Errorf("fail to get addons from registry %s, %w", r.Name, err)
+	}
+	u.putAddonUIData2Cache(r.Name, listAddons)
+	return listAddons, nil
+}
+
+func (u *Cache) getCachedUIData(registry, addonName string) *UIData {
+	addons := u.listCachedUIData(registry)
 	for _, a := range addons {
 		if a.Name == addonName {
 			return a
@@ -107,27 +126,8 @@ func (u *Cache) getAddonFromCache(registry, addonName string) *UIData {
 	return nil
 }
 
-// GetAddonsFromRegistry will always get addons from cache first, if not exist, read from source.
-func (u *Cache) GetAddonsFromRegistry(r Registry) ([]*UIData, error) {
-	var err error
-	listAddons := u.getCachedUIDataFromRegistry(r.Name)
-	if listAddons != nil {
-		return listAddons, nil
-	}
-	registryMeta, err := u.ListAddonMeta(&r)
-	if err != nil {
-		return nil, err
-	}
-	listAddons, err = r.ListUIData(registryMeta, UIMetaOptions)
-	if err != nil {
-		return nil, fmt.Errorf("fail to get addons from registry %s, %w", r.Name, err)
-	}
-	u.putAddonUIMeta2Cache(r.Name, listAddons)
-	return listAddons, nil
-}
-
-// getCachedUIDataFromRegistry will get cached addons from specified registry in cache
-func (u *Cache) getCachedUIDataFromRegistry(name string) []*UIData {
+// listCachedUIData will get cached addons from specified registry in cache
+func (u *Cache) listCachedUIData(name string) []*UIData {
 	if u == nil {
 		return nil
 	}
@@ -140,8 +140,8 @@ func (u *Cache) getCachedUIDataFromRegistry(name string) []*UIData {
 	return d
 }
 
-// getCachedRegistryMeta will get cached registry meta from specified registry in cache
-func (u *Cache) getCachedRegistryMeta(name string) map[string]SourceMeta {
+// getCachedAddonMeta will get cached registry meta from specified registry in cache
+func (u *Cache) getCachedAddonMeta(name string) map[string]SourceMeta {
 	if u == nil {
 		return nil
 	}
@@ -154,7 +154,7 @@ func (u *Cache) getCachedRegistryMeta(name string) map[string]SourceMeta {
 	return d
 }
 
-func (u *Cache) putAddonUIMeta2Cache(name string, addons []*UIData) {
+func (u *Cache) putAddonUIData2Cache(name string, addons []*UIData) {
 	if u == nil {
 		return
 	}
@@ -164,7 +164,7 @@ func (u *Cache) putAddonUIMeta2Cache(name string, addons []*UIData) {
 	u.uiData[name] = addons
 }
 
-func (u *Cache) putAddonRegistryMeta2Cache(name string, addonMeta map[string]SourceMeta) {
+func (u *Cache) putAddonMeta2Cache(name string, addonMeta map[string]SourceMeta) {
 	if u == nil {
 		return
 	}
@@ -174,7 +174,7 @@ func (u *Cache) putAddonRegistryMeta2Cache(name string, addonMeta map[string]Sou
 	u.registryMeta[name] = addonMeta
 }
 
-func (u *Cache) putAddonRegistry2Cache(registry []Registry) {
+func (u *Cache) putRegistry2Cache(registry []Registry) {
 	if u == nil {
 		return
 	}
@@ -207,7 +207,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 		log.Logger.Errorf("fail to get registry %v", err)
 		return
 	}
-	u.putAddonRegistry2Cache(registries)
+	u.putRegistry2Cache(registries)
 
 	for _, r := range registries {
 		registryMeta, err := r.ListAddonMeta()
@@ -215,12 +215,12 @@ func (u *Cache) discoverAndRefreshRegistry() {
 			log.Logger.Errorf("fail to list registry %s metadata,  %v", r.Name, err)
 			continue
 		}
-		u.putAddonRegistryMeta2Cache(r.Name, registryMeta)
+		u.putAddonMeta2Cache(r.Name, registryMeta)
 		uiData, err := r.ListUIData(registryMeta, UIMetaOptions)
 		if err != nil {
 			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
 			continue
 		}
-		u.putAddonUIMeta2Cache(r.Name, uiData)
+		u.putAddonUIData2Cache(r.Name, uiData)
 	}
 }
