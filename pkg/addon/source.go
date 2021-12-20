@@ -159,11 +159,12 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 }
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
-func (r Registry) BuildReader() (AsyncReader, error) {
+func (r *Registry) BuildReader() (AsyncReader, error) {
 	if r.OSS != nil {
 		o := r.OSS
 		return NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
-	} else if r.Git != nil {
+	}
+	if r.Git != nil {
 		g := r.Git
 		return NewAsyncReader(g.URL, "", g.Path, g.Token, gitType)
 	}
@@ -172,7 +173,7 @@ func (r Registry) BuildReader() (AsyncReader, error) {
 }
 
 // GetUIData get UIData of an addon
-func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
+func (r *Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
 		return nil, err
@@ -185,7 +186,7 @@ func (r Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error) 
 }
 
 // ListUIData list UI data from addon registry
-func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
+func (r *Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
 		return nil, err
@@ -194,7 +195,7 @@ func (r Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListOp
 }
 
 // GetInstallPackage get install package which is all needed to enable an addon from addon registry
-func (r Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
+func (r *Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
 		return nil, err
@@ -203,7 +204,7 @@ func (r Registry) GetInstallPackage(meta *SourceMeta, uiData *UIData) (*InstallP
 }
 
 // ListAddonMeta list addon file meta(path and name) from a registry
-func (r Registry) ListAddonMeta() (map[string]SourceMeta, error) {
+func (r *Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
 		return nil, err

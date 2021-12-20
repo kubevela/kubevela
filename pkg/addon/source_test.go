@@ -17,7 +17,6 @@ limitations under the License.
 package addon
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,34 +113,5 @@ func TestConvert2OssItem(t *testing.T) {
 	}
 	addonMetas := o.convertOSSFiles2Addons(testFiles)
 	assert.Equal(t, expectItemCase, addonMetas)
-
-}
-
-func TestAliyunOSS(t *testing.T) {
-
-	var source Source = &Registry{
-		OSS: &OSSAddonSource{
-			Endpoint: "https://addons.kubevela.net",
-			Bucket:   "",
-			Path:     "",
-		},
-	}
-	addons, err := source.ListAddonMeta()
-	if err != nil {
-		t.Error(err)
-	}
-
-	for _, d := range addons {
-		ui, err := source.GetUIData(&d, UIMetaOptions)
-		if err != nil {
-			t.Error(err)
-		}
-
-		pk, err := source.GetInstallPackage(&d, ui)
-		if err != nil {
-			t.Error(err)
-		}
-		fmt.Println(pk.Name, "XXXXXX", pk.CUETemplates, "YYYYYYYY", pk.YAMLTemplates)
-	}
 
 }
