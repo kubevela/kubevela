@@ -100,13 +100,7 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 
 var ctx = context.Background()
 
-func TestGetAddonData(t *testing.T) {
-	server := httptest.NewServer(ossHandler)
-	defer server.Close()
-
-	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
-	assert.NoError(t, err)
-
+func testReaderFunc(t *testing.T, reader AsyncReader) {
 	registryMeta, err := reader.ListAddonMeta()
 	assert.NoError(t, err)
 
@@ -135,6 +129,15 @@ func TestGetAddonData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, installPkg, "should get install package")
 	assert.Equal(t, len(installPkg.CUETemplates), 1)
+}
+
+func TestGetAddonData(t *testing.T) {
+	server := httptest.NewServer(ossHandler)
+	defer server.Close()
+
+	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	assert.NoError(t, err)
+	testReaderFunc(t, reader)
 }
 
 func TestRender(t *testing.T) {

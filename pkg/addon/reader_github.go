@@ -93,6 +93,9 @@ func (g *gitReader) ReadFile(relativePath string) (content string, err error) {
 
 func (g *gitReader) RelativePath(item Item) string {
 	absPath := strings.Split(item.GetPath(), "/")
+	if g.h.Meta.Path == "" {
+		return path.Join(absPath...)
+	}
 	base := strings.Split(g.h.Meta.Path, "/")
 	return path.Join(absPath[len(base):]...)
 }
