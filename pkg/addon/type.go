@@ -34,7 +34,7 @@ type UIData struct {
 	Detail string `json:"detail,omitempty"`
 
 	Definitions    []ElementFile `json:"definitions"`
-	CUEDefinitions []ElementFile `json:"cue_definitions"`
+	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
 	Parameters     string        `json:"parameters"`
 }
 
@@ -43,12 +43,12 @@ type InstallPackage struct {
 	Meta
 
 	Definitions    []ElementFile        `json:"definitions"`
-	CUEDefinitions []ElementFile        `json:"cue_definitions"`
+	CUEDefinitions []ElementFile        `json:"CUEDefinitions"`
 	Parameters     string               `json:"parameters"`
-	CUETemplates   []ElementFile        `json:"cue_templates"`
-	YAMLTemplates  []ElementFile        `json:"yaml_templates,omitempty"`
+	CUETemplates   []ElementFile        `json:"CUETemplates"`
+	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
 	DefSchemas     []ElementFile        `json:"def_schemas,omitempty"`
-	AppTemplate    *v1beta1.Application `json:"app_template"`
+	AppTemplate    *v1beta1.Application `json:"appTemplate"`
 }
 
 // Meta defines the format for a single addon
