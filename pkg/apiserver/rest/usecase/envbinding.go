@@ -357,11 +357,20 @@ func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvB
 		dt := dte.(*model.DeliveryTarget)
 		dtMap[dt.Name] = dt
 	}
-	var targets []apisv1.NameAlias
+	var targets []apisv1.EnvBindingTarget
 	for _, targetName := range envBinding.TargetNames {
 		dt := dtMap[targetName]
 		if dt != nil {
-			targets = append(targets, apisv1.NameAlias{Name: dt.Name, Alias: dt.Alias})
+			ebt := apisv1.EnvBindingTarget{
+				NameAlias: apisv1.NameAlias{Name: dt.Name, Alias: dt.Alias},
+			}
+			if dt.Cluster != nil {
+				ebt.Cluster = &apisv1.ClusterTarget{
+					ClusterName: dt.Cluster.ClusterName,
+					Namespace:   dt.Cluster.Namespace,
+				}
+			}
+			targets = append(targets, ebt)
 		}
 	}
 	ebb := &apisv1.EnvBindingBase{
