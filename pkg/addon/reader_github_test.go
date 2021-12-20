@@ -3,15 +3,17 @@ package addon
 import (
 	"embed"
 	"encoding/json"
-	"github.com/google/go-github/v32/github"
-	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/google/go-github/v32/github"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -91,12 +93,6 @@ func TestGitHubReader(t *testing.T) {
 	assert.NoError(t, err)
 
 	testReaderFunc(t, r)
-}
-
-var gitHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
-	content := &github.RepositoryContent{Type: String("file"), Name: String("LICENSE"), Size: Int(20678), Encoding: String("base64"), Path: String("LICENSE")}
-	res, _ := json.Marshal(content)
-	rw.Write(res)
 }
 
 // Int is a helper routine that allocates a new int value

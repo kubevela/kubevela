@@ -332,7 +332,6 @@ func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
-
 func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
