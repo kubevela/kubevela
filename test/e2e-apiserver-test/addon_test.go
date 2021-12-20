@@ -90,8 +90,8 @@ var _ = Describe("Test addon rest api", func() {
 		err = json.NewDecoder(detailRes.Body).Decode(&dres)
 		Expect(err).Should(BeNil())
 		Expect(dres.Meta).ShouldNot(BeNil())
-		Expect(dres.UISchema).ShouldNot(BeEmpty())
-		Expect(dres.APISchema).ShouldNot(BeEmpty())
+		Expect(dres.UISchema).ShouldNot(BeNil())
+		Expect(dres.APISchema).ShouldNot(BeNil())
 	})
 
 	PIt("should enable and disable an addon", func() {
