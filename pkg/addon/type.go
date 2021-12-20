@@ -67,8 +67,7 @@ type Meta struct {
 
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
-	// These two field keep the compatible for older case
-	LegacyControlPlane   bool `json:"control_plane"`
+	// This field keep the compatible for older case
 	LegacyRuntimeCluster bool `json:"runtime_cluster"`
 	ControlPlane         bool `json:"controlPlane"`
 	RuntimeCluster       bool `json:"runtimeCluster"`

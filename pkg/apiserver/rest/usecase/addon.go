@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -86,7 +87,7 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 }
 
 // NewAddonUsecase returns an addon usecase
-func NewAddonUsecase() AddonHandler {
+func NewAddonUsecase(cacheTime time.Duration) AddonHandler {
 	config, err := clients.GetKubeConfig()
 	if err != nil {
 		panic(err)
@@ -99,7 +100,7 @@ func NewAddonUsecase() AddonHandler {
 	cache := pkgaddon.NewCache(ds)
 
 	// TODO(@wonderflow): it's better to add a close channel here, but it should be fine as it's only invoke once in APIServer.
-	go cache.DiscoverAndRefreshLoop()
+	go cache.DiscoverAndRefreshLoop(cacheTime)
 
 	return &defaultAddonHandler{
 		addonRegistryCache: cache,

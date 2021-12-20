@@ -60,8 +60,8 @@ func NewCache(ds RegistryDataStore) *Cache {
 }
 
 // DiscoverAndRefreshLoop will run a loop to automatically discovery and refresh addons from registry
-func (u *Cache) DiscoverAndRefreshLoop() {
-	ticker := time.NewTicker(10 * time.Minute)
+func (u *Cache) DiscoverAndRefreshLoop(cacheTime time.Duration) {
+	ticker := time.NewTicker(cacheTime)
 	defer ticker.Stop()
 
 	// This is infinite loop, we can receive a channel for close
