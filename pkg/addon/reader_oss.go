@@ -82,8 +82,8 @@ func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
 	return string(resp.Body()), nil
 }
 
-// ListAddonMeta list object from OSS and convert it to UIData metadata
-func (o *ossReader) ListAddonMeta() (subItem map[string]SourceMeta, err error) {
+// ListAddonMeta list object from OSS and convert it to metadata
+func (o *ossReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	resp, err := o.client.R().Get(fmt.Sprintf(listOSSFileTmpl, o.bucketEndPoint, o.path))
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to read path %s", o.path)
@@ -120,10 +120,15 @@ func (o ossReader) convertOSSFiles2Addons(files []File) map[string]SourceMeta {
 			pathBuckets[addonName] = make([]Item, 0)
 		}
 	}
+	// second sort all addon file item by name
 	for _, f := range actualFiles {
 		fPath := fPaths[f.Name]
 		addonName := fPath[0]
-		pathList := pathBuckets[addonName]
+		pathList, ok := pathBuckets[addonName]
+		// this path doesn't belong to an addon
+		if !ok {
+			continue
+		}
 		pathList = append(pathList, &OSSItem{
 			path: path.Join(fPath...),
 			tp:   FileType,
