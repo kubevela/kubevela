@@ -245,8 +245,8 @@ func TestRenderApp(t *testing.T) {
 func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	addonDeployToRuntime := baseAddon
 	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
-		ControlPlane:   true,
-		RuntimeCluster: true,
+		DisableControlPlane: false,
+		RuntimeCluster:      true,
 	}
 	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
 	assert.NoError(t, err)

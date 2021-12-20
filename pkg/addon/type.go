@@ -69,7 +69,7 @@ type Meta struct {
 type DeployTo struct {
 	// This field keep the compatible for older case
 	LegacyRuntimeCluster bool `json:"runtime_cluster"`
-	ControlPlane         bool `json:"controlPlane"`
+	DisableControlPlane  bool `json:"disableControlPlane"`
 	RuntimeCluster       bool `json:"runtimeCluster"`
 }
 
