@@ -53,6 +53,10 @@ const (
 	AddonPhaseEnabled AddonPhase = "enabled"
 	// AddonPhaseEnabling indicates the addon is enabling
 	AddonPhaseEnabling AddonPhase = "enabling"
+	// AddonPhaseDisabling indicates the addon is enabling
+	AddonPhaseDisabling AddonPhase = "disabling"
+	// AddonPhaseSuspend indicates the addon is suspend
+	AddonPhaseSuspend AddonPhase = "suspend"
 )
 
 // EmptyResponse empty response, it will used for delete api
