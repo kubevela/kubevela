@@ -13,7 +13,9 @@ template: {
 
 	parameter: {
 		dingding?: {
+			// +usage=Specify the the dingding url, you can either sepcify it in value or use secretRef
 			url: value | secretRef
+			// +useage=Specify the message that you want to sent
 			message: {
 				text?: *null | {
 					content: string
@@ -58,7 +60,9 @@ template: {
 		}
 
 		slack?: {
+			// +usage=Specify the the slack url, you can either sepcify it in value or use secretRef
 			url: value | secretRef
+			// +useage=Specify the message that you want to sent
 			message: {
 				text:         string
 				blocks?:      *null | [...block]
@@ -72,17 +76,27 @@ template: {
 		}
 
 		email?: {
+			// +usage=Specify the email info that you want to send from
 			from: {
-				address:  string
-				alias?:   string
+				// +usage=Specify the email address that you want to send from
+				address: string
+				// +usage=The alias is the email alias to show after sending the email
+				alias?: string
+				// +usage=Specify the password of the email, you can either sepcify it in value or use secretRef
 				password: value | secretRef
-				host:     string
-				port:     *587 | int
+				// +usage=Specify the host of your email
+				host: string
+				// +usage=Specify the port of the email host, default to 587
+				port: *587 | int
 			}
+			// +usage=Specify the email address that you want to send to
 			to: [...string]
+			// +usage=Specify the content of the email
 			content: {
+				// +usage=Specify the subject of the email
 				subject: string
-				body:    string
+				// +usage=Specify the context body of the email
+				body: string
 			}
 		}
 	}
@@ -138,8 +152,10 @@ template: {
 	}
 
 	secretRef: {
+		// +usage=name is the name of the secret
 		name: string
-		key:  string
+		// +usage=key is the key in the secret
+		key: string
 	}
 
 	value: string

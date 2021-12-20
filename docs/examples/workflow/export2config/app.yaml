@@ -20,7 +20,7 @@ spec:
         properties:
           component: express-server
       - name: export-config
-        type: export-config
+        type: export2config
         inputs:
           - from: status
             parameterKey: data.serverstatus
