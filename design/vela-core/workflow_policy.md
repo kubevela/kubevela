@@ -52,10 +52,6 @@ spec:
   # - should mark "finish" phase in status.conditions.
   workflow:
 
-    # suspend can manually stop the workflow and resume. it will also allow suspend policy for workflow.
-    suspend:
-      manual: true
-
     steps:
 
     # blue-green rollout
@@ -63,6 +59,9 @@ spec:
       stage: post-render # stage could be pre/post-render. Default is post-render.
       properties:
         partition: "50%"
+
+    # suspend can manually stop the workflow and resume. it will also allow suspend policy for workflow.
+    - type: suspend
 
     # traffic shift
     - type: traffic-shift
@@ -275,6 +274,7 @@ Here are the steps in Task Manager:
   - continue: continue to run the next action.
   - wait: makes the workflow manager to retry later.
   - break: makes the workflow manager to stop the entire workflow.
+  - failedAfterRetries: if there are no other running steps, makes the workflow manager to suspend the workflow.
 
 - Task Manager will change status as needed based on the returned TaskStatus, e.g. change to wait. 
 
@@ -457,11 +457,13 @@ Each workflow task has similar interactions with Task Manager as follows:
 
 - The Task Manager will apply the workflow object with annotation `app.oam.dev/workflow-context`. This annotation will pass in the context marshalled in json defined as the following:
   ```go
-  type WorkflowContext struct {
-    AppName string
-    AppRevisionName string
-    StepIndex int
-  }
+    type WorkflowContext struct {
+    	cli        client.Client
+    	store      *corev1.ConfigMap
+    	components map[string]*ComponentManifest
+    	vars       *value.Value
+    	modified   bool
+    }
   ```
 
 - The workflow object's status condition should turn to be `True` status and `Succeeded` reason, and `observedGeneration` to match the resource's generation per se.
