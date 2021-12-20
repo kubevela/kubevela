@@ -1,8 +1,0 @@
-apiVersion: operator.open-cluster-management.io/v1
-kind: ClusterManager
-metadata:
-  name: cluster-manager-hub
-spec:
-  registrationImagePullSpec: quay.io/open-cluster-management/registration:v0.5.0
-  workImagePullSpec: quay.io/open-cluster-management/work:v0.5.0
-  placementImagePullSpec: quay.io/open-cluster-management/placement:v0.5.0

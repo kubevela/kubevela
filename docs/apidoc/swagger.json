@@ -3484,11 +3484,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"currentBatch",
-				"upgradedReplicas",
-				"rollingState",
 				"batchRollingState",
 				"upgradedReadyReplicas",
+				"rollingState",
+				"currentBatch",
+				"upgradedReplicas",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -4597,14 +4597,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
-				"status",
 				"reason",
 				"deployUser",
 				"note",
 				"envName",
 				"triggerType",
-				"createTime"
+				"createTime",
+				"version",
+				"status"
 			],
 			"properties": {
 				"createTime": {
@@ -5118,8 +5118,8 @@
 		},
 		"v1.CreateApplicationEnvRequest": {
 			"required": [
-				"name",
-				"targetNames"
+				"targetNames",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -5540,11 +5540,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
-				"version",
-				"icon",
 				"invisible",
 				"description",
+				"icon",
+				"name",
+				"version",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5611,13 +5611,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
-				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
+				"alias",
+				"project",
 				"policies",
 				"envBindings",
 				"status",
@@ -5679,19 +5679,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"model",
-				"name",
-				"alias",
-				"reason",
-				"apiServerURL",
-				"dashboardURL",
-				"kubeConfigSecret",
 				"description",
 				"icon",
 				"labels",
-				"status",
 				"provider",
+				"dashboardURL",
 				"kubeConfig",
+				"model",
+				"alias",
+				"status",
+				"reason",
+				"apiServerURL",
+				"kubeConfigSecret",
+				"name",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5744,13 +5744,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"type",
-				"updateTime",
-				"creator",
 				"createTime",
+				"updateTime",
+				"type",
+				"creator",
+				"name",
 				"alias",
-				"name"
+				"appPrimaryKey"
 			],
 			"properties": {
 				"alias": {
@@ -5846,8 +5846,8 @@
 		"v1.DetailDeliveryTargetResponse": {
 			"required": [
 				"name",
-				"createTime",
 				"project",
+				"createTime",
 				"updateTime"
 			],
 			"properties": {
@@ -5888,13 +5888,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime",
-				"updateTime"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5924,17 +5924,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"triggerType",
+				"updateTime",
+				"version",
+				"deployUser",
 				"workflowName",
+				"createTime",
 				"appPrimaryKey",
 				"status",
 				"reason",
-				"deployUser",
 				"note",
-				"envName",
-				"createTime",
-				"updateTime",
-				"version"
+				"triggerType",
+				"envName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5982,12 +5982,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
+				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
-				"name",
-				"namespace",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -6041,12 +6041,12 @@
 			"required": [
 				"name",
 				"alias",
-				"enable",
-				"createTime",
-				"updateTime",
 				"description",
 				"default",
-				"envName"
+				"envName",
+				"createTime",
+				"enable",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -6158,7 +6158,7 @@
 				"deliveryTargets": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.NameAlias"
+						"$ref": "#/definitions/v1.EnvBindingTarget"
 					}
 				},
 				"description": {
@@ -6176,6 +6176,23 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.EnvBindingTarget": {
+			"required": [
+				"name",
+				"alias"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"name": {
+					"type": "string"
 				}
 			}
 		},

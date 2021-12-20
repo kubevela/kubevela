@@ -346,13 +346,19 @@ type EnvBinding struct {
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 }
 
+// EnvBindingTarget the target struct in the envbinding base struct
+type EnvBindingTarget struct {
+	NameAlias
+	Cluster *ClusterTarget `json:"cluster,omitempty"`
+}
+
 // EnvBindingBase application env binding
 type EnvBindingBase struct {
 	Name              string             `json:"name" validate:"checkname"`
 	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
 	Description       string             `json:"description,omitempty" optional:"true"`
 	TargetNames       []string           `json:"targetNames"`
-	Targets           []NameAlias        `json:"deliveryTargets,omitempty"`
+	Targets           []EnvBindingTarget `json:"deliveryTargets,omitempty"`
 	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
 	CreateTime        time.Time          `json:"createTime"`
 	UpdateTime        time.Time          `json:"updateTime"`
