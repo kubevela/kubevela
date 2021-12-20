@@ -18,14 +18,17 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -89,6 +92,57 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	default:
 		return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
 	}
+}
+
+// GetObservabilityAccessibilityInfo will get the accessibility info of addon in local cluster and multiple clusters
+func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
+	domains, err := allocateDomainForAddon(ctx, k8sClient, domain)
+	if err != nil {
+		return nil, err
+	}
+
+	obj := new(unstructured.Unstructured)
+	obj.SetKind("Ingress")
+	obj.SetAPIVersion("networking.k8s.io/v1")
+	key := client.ObjectKeyFromObject(obj)
+	key.Namespace = types.DefaultKubeVelaNS
+	key.Name = ObservabilityAddonEndpointComponent
+	for i, d := range domains {
+		if err != nil {
+			return nil, err
+		}
+		readCtx := multicluster.ContextWithClusterName(ctx, d.Cluster)
+		if err := k8sClient.Get(readCtx, key, obj); err != nil {
+			return nil, err
+		}
+		var ingress networkingv1.Ingress
+		data, err := obj.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(data, &ingress); err != nil {
+			return nil, err
+		}
+		if ingress.Status.LoadBalancer.Ingress != nil && len(ingress.Status.LoadBalancer.Ingress) == 1 {
+			domains[i].LoadBalancerIP = ingress.Status.LoadBalancer.Ingress[0].IP
+		}
+	}
+	// set domain for the cluster if there is no child clusters
+	if len(domains) == 0 {
+		var ingress networkingv1.Ingress
+		if err := k8sClient.Get(ctx, client.ObjectKey{Name: ObservabilityAddonEndpointComponent, Namespace: types.DefaultKubeVelaNS}, &ingress); err != nil {
+			return nil, err
+		}
+		if ingress.Status.LoadBalancer.Ingress != nil && len(ingress.Status.LoadBalancer.Ingress) == 1 {
+			domains = []ObservabilityEnvironment{
+				{
+					Domain:         domain,
+					LoadBalancerIP: ingress.Status.LoadBalancer.Ingress[0].IP,
+				},
+			}
+		}
+	}
+	return domains, nil
 }
 
 // Status contain addon phase and related app status

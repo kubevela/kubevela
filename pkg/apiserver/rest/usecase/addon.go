@@ -163,7 +163,6 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 }
 
 func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
-
 	status, err := pkgaddon.GetAddonStatus(ctx, u.kubeClient, name)
 	if err != nil {
 		return nil, bcode.ErrGetAddonApplication
@@ -196,7 +195,35 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		for k, v := range sec.Data {
 			res.Args[k] = string(v)
 		}
+	}
 
+	if name == pkgaddon.ObservabilityAddon {
+		res.Args = make(map[string]string, len(sec.Data))
+		for k, v := range sec.Data {
+			res.Args[k] = string(v)
+		}
+
+		var domain string
+		if v, ok := sec.Data[pkgaddon.ObservabilityAddonDomainArg]; ok {
+			domain = string(v)
+		}
+		observability, err := pkgaddon.GetObservabilityAccessibilityInfo(ctx, u.kubeClient, domain)
+		if err != nil {
+			return nil, err
+		}
+		var cluster = make(map[string]map[string]interface{})
+		for _, o := range observability {
+			var access = fmt.Sprintf("No loadBalancer found, visiting by using 'vela port-forward %s", pkgaddon.ObservabilityAddon)
+			if o.LoadBalancerIP != "" {
+				access = fmt.Sprintf("Visiting URL: %s, IP: %s", o.Domain, o.LoadBalancerIP)
+			}
+			cluster[o.Cluster] = map[string]interface{}{
+				"domain":         o.Domain,
+				"LoadBalancerIP": o.LoadBalancerIP,
+				"Access":         access,
+			}
+		}
+		res.Clusters = cluster
 	}
 	return &res, nil
 }
