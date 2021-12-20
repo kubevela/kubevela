@@ -5,7 +5,6 @@ go 1.16
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
-	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.3.0
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
