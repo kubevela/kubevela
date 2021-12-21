@@ -19,7 +19,11 @@ package addon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
+	"k8s.io/klog/v2"
+
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -81,11 +85,45 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 		}
 		return Status{}, err
 	}
+
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
 		return Status{AddonPhase: suspend, AppStatus: &app.Status}, nil
 	}
 	switch app.Status.Phase {
 	case commontypes.ApplicationRunning:
+		if name == ObservabilityAddon {
+			var (
+				clusters = make(map[string]map[string]interface{})
+				sec      v1.Secret
+				domain   string
+			)
+			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec); err != nil {
+				klog.ErrorS(err, "failed to get observability secret")
+				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+			}
+
+			if v, ok := sec.Data[ObservabilityAddonDomainArg]; ok {
+				domain = string(v)
+			}
+			observability, err := GetObservabilityAccessibilityInfo(ctx, cli, domain)
+			if err != nil {
+				klog.ErrorS(err, "failed to get observability accessibility info")
+				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+			}
+
+			for _, o := range observability {
+				var access = fmt.Sprintf("No loadBalancer found, visiting by using 'vela port-forward %s", ObservabilityAddon)
+				if o.LoadBalancerIP != "" {
+					access = fmt.Sprintf("Visiting URL: %s, IP: %s", o.Domain, o.LoadBalancerIP)
+				}
+				clusters[o.Cluster] = map[string]interface{}{
+					"domain":         o.Domain,
+					"LoadBalancerIP": o.LoadBalancerIP,
+					"Access":         access,
+				}
+			}
+			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
+		}
 		return Status{AddonPhase: enabled, AppStatus: &app.Status}, nil
 	case commontypes.ApplicationDeleting:
 		return Status{AddonPhase: disabling, AppStatus: &app.Status}, nil
@@ -149,4 +187,6 @@ func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Cli
 type Status struct {
 	AddonPhase string
 	AppStatus  *commontypes.AppStatus
+	// the status of multiple clusters
+	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
 }

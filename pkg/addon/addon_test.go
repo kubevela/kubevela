@@ -32,14 +32,17 @@ import (
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var paths = []string{
@@ -322,6 +325,79 @@ func TestGetAddonStatus(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
+}
+
+func TestGetAddonStatus4Observability(t *testing.T) {
+	ctx := context.Background()
+
+	addonApplication := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "observability",
+			Namespace: types.DefaultKubeVelaNS,
+		},
+		Status: common.AppStatus{
+			Phase: common.ApplicationRunning,
+		},
+	}
+
+	addonSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      Convert2SecName(ObservabilityAddon),
+			Namespace: types.DefaultKubeVelaNS,
+		},
+		Data: map[string][]byte{
+			"domain": []byte("abc.com"),
+		},
+	}
+
+	addonIngress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      ObservabilityAddonEndpointComponent,
+		},
+		Status: networkingv1.IngressStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						IP: "1.2.3.4",
+					},
+				},
+			},
+		},
+	}
+
+	clusterSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-secret",
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+			},
+		},
+		Data: map[string][]byte{
+			"test-key": []byte("test-value"),
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1beta1.AddToScheme(scheme))
+	assert.NoError(t, corev1.AddToScheme(scheme))
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApplication, addonSecret).Build()
+	addonStatus, err := GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
+	assert.NoError(t, err)
+	assert.Equal(t, addonStatus.AddonPhase, enabling)
+
+	// Addon is not installed in multiple clusters
+	assert.NoError(t, networkingv1.AddToScheme(scheme))
+	k8sClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApplication, addonSecret, addonIngress).Build()
+	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
+	assert.NoError(t, err)
+	assert.Equal(t, addonStatus.AddonPhase, enabled)
+
+	// Addon is installed in multiple clusters
+	assert.NoError(t, k8sClient.Create(ctx, clusterSecret))
+	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
+	assert.NoError(t, err)
+	assert.Equal(t, addonStatus.AddonPhase, enabled)
 }
 
 var baseAddon = InstallPackage{
