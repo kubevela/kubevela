@@ -7,11 +7,12 @@ import (
 #ConditionalWait: {
 	#do:      "wait"
 	continue: bool
+	message?: string
 }
 
 #Break: {
-	#do:     "break"
-	message: string
+	#do:      "break"
+	message?: string
 }
 
 #Apply: kube.#Apply

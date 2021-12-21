@@ -187,24 +187,29 @@ func TestProvider_Wait(t *testing.T) {
 	act := &mockAction{}
 	v, err := value.NewValue(`
 continue: 100!=100
+message: "test log"
 `, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, true)
+	assert.Equal(t, act.msg, "test log")
 
 	act = &mockAction{}
 	v, err = value.NewValue(`
 continue: 100==100
+message: "not invalid"
 `, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.wait, false)
+	assert.Equal(t, act.msg, "")
 
 	act = &mockAction{}
 	v, err = value.NewValue(`
 continue: bool
+message: string
 `, nil, "")
 	assert.NilError(t, err)
 	err = p.Wait(wfCtx, v, act)
@@ -226,6 +231,16 @@ func TestProvider_Break(t *testing.T) {
 	err := p.Break(wfCtx, nil, act)
 	assert.NilError(t, err)
 	assert.Equal(t, act.terminate, true)
+
+	act = &mockAction{}
+	v, err := value.NewValue(`
+message: "terminate"
+`, nil, "")
+	assert.NilError(t, err)
+	err = p.Break(wfCtx, v, act)
+	assert.NilError(t, err)
+	assert.Equal(t, act.terminate, true)
+	assert.Equal(t, act.msg, "terminate")
 }
 
 type mockAction struct {
