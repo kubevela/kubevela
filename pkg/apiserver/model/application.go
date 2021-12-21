@@ -30,12 +30,13 @@ func init() {
 // Application application delivery model
 type Application struct {
 	BaseModel
-	Name        string            `json:"name"`
-	Alias       string            `json:"alias"`
-	Project     string            `json:"project"`
-	Description string            `json:"description"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	Name         string            `json:"name"`
+	Alias        string            `json:"alias"`
+	Project      string            `json:"project"`
+	Description  string            `json:"description"`
+	Icon         string            `json:"icon"`
+	Labels       map[string]string `json:"labels,omitempty"`
+	WebhookToken string            `json:"webhookToken"`
 }
 
 // TableName return custom table name

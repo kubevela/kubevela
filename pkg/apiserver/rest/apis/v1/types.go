@@ -19,12 +19,11 @@ package v1
 import (
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/addon"
-
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
@@ -296,14 +295,15 @@ type EnvBindingList []*EnvBinding
 
 // ApplicationBase application base model
 type ApplicationBase struct {
-	Name        string            `json:"name"`
-	Alias       string            `json:"alias"`
-	Project     *ProjectBase      `json:"project"`
-	Description string            `json:"description"`
-	CreateTime  time.Time         `json:"createTime"`
-	UpdateTime  time.Time         `json:"updateTime"`
-	Icon        string            `json:"icon"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	Name         string            `json:"name"`
+	Alias        string            `json:"alias"`
+	Project      *ProjectBase      `json:"project"`
+	Description  string            `json:"description"`
+	CreateTime   time.Time         `json:"createTime"`
+	UpdateTime   time.Time         `json:"updateTime"`
+	Icon         string            `json:"icon"`
+	Labels       map[string]string `json:"labels,omitempty"`
+	WebhookToken string            `json:"webhookToken"`
 }
 
 // ApplicationStatusResponse application status response body
@@ -687,13 +687,22 @@ type ListWorkflowRecordsResponse struct {
 	Total   int64            `json:"total"`
 }
 
+const (
+	// TriggerTypeWeb means trigger by web
+	TriggerTypeWeb string = "web"
+	// TriggerTypeAPI means trigger by api
+	TriggerTypeAPI string = "api"
+	// TriggerTypeWebhook means trigger by webhook
+	TriggerTypeWebhook string = "webhook"
+)
+
 // DetailWorkflowRecordResponse get workflow record detail
 type DetailWorkflowRecordResponse struct {
 	WorkflowRecord
 	DeployTime time.Time `json:"deployTime"`
 	DeployUser string    `json:"deployUser"`
 	Note       string    `json:"note"`
-	// TriggerType the event trigger source, Web or API
+	// TriggerType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
 }
 
@@ -714,8 +723,8 @@ type ApplicationDeployRequest struct {
 	WorkflowName string `json:"workflowName"`
 	// User note message, optional
 	Note string `json:"note"`
-	// TriggerType the event trigger source, Web or API
-	TriggerType string `json:"triggerType" validate:"oneof=web api"`
+	// TriggerType the event trigger source, Web or API or Webhook
+	TriggerType string `json:"triggerType" validate:"oneof=web api webhook"`
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
 }
@@ -824,7 +833,7 @@ type ApplicationRevisionBase struct {
 	DeployUser string    `json:"deployUser"`
 	Note       string    `json:"note"`
 	EnvName    string    `json:"envName"`
-	// SourceType the event trigger source, Web or API
+	// SourceType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
 }
 

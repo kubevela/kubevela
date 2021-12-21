@@ -103,6 +103,19 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
+
+	ws.Route(ws.GET("/{name}/webhook/{token}").To(c.handleApplicationWebhook).
+		Doc("handle application webhook request").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("name", "token of the webhook").DataType("string")).
+		Param(ws.QueryParameter("image", "the new image that needs to be updated").DataType("string")).
+		Param(ws.QueryParameter("workflow", "the binding workflow name").DataType("string")).
+		Returns(200, "", apis.ApplicationDeployResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationDeployResponse{}))
+
 	ws.Route(ws.GET("/{name}/statistics").To(c.applicationStatistics).
 		Doc("detail one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -756,6 +769,19 @@ func (c *applicationWebService) updateApplication(req *restful.Request, res *res
 		return
 	}
 	base, err := c.applicationUsecase.UpdateApplication(req.Request.Context(), app, updateReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) handleApplicationWebhook(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	base, err := c.applicationUsecase.HandleApplicationWebhook(req.Request.Context(), app, req.PathParameter("token"), req.QueryParameter("image"), req.QueryParameter("workflow"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

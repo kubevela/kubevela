@@ -143,6 +143,23 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
 
+	It("Test HandleApplicationWebhook function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app")
+		Expect(err).Should(BeNil())
+
+		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, "invalid-token", "", "")
+		Expect(err).Should(Equal(bcode.ErrInvalidWebhookToken))
+
+		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, appModel.WebhookToken, "", "")
+		Expect(err).Should(Equal(bcode.ErrInvalidWebhookImage))
+
+		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, appModel.WebhookToken, "test-image", "")
+		Expect(err).Should(BeNil())
+		comp, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
+		Expect(err).Should(BeNil())
+		Expect((*comp.Properties)["image"]).Should(Equal("test-image"))
+	})
+
 	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
@@ -326,7 +343,7 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test ListRevisions function", func() {
 		for i := 0; i < 3; i++ {
 			appModel := &model.ApplicationRevision{
-				AppPrimaryKey: "test-app",
+				AppPrimaryKey: "test-app-sadasd",
 				Version:       fmt.Sprintf("%d", i),
 				EnvName:       fmt.Sprintf("env-%d", i),
 				Status:        model.RevisionStatusRunning,
@@ -337,15 +354,15 @@ var _ = Describe("Test application usecase function", func() {
 			err := workflowUsecase.createTestApplicationRevision(context.TODO(), appModel)
 			Expect(err).Should(BeNil())
 		}
-		revisions, err := appUsecase.ListRevisions(context.TODO(), "test-app", "", "", 0, 10)
+		revisions, err := appUsecase.ListRevisions(context.TODO(), "test-app-sadasd", "", "", 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(revisions.Total).Should(Equal(int64(3)))
 
-		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app", "env-0", "", 0, 10)
+		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app-sadasd", "env-0", "", 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(revisions.Total).Should(Equal(int64(1)))
 
-		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app", "", "terminated", 0, 10)
+		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app-sadasd", "", "terminated", 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(revisions.Total).Should(Equal(int64(1)))
 
