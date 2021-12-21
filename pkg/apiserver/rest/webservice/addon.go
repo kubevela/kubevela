@@ -128,7 +128,11 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		addons = append(addons, &d.Meta)
 	}
 
-	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons, Message: err.Error()})
+	var message string
+	if err != nil {
+		message = err.Error()
+	}
+	err = res.WriteEntity(apis.ListAddonResponse{Addons: addons, Message: message})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
