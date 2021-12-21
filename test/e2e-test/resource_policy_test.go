@@ -67,11 +67,16 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 
 		By("test state-keep")
 		deploy := &v13.Deployment{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
-		deploy.Spec.Replicas = pointer.Int32(0)
-		Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
-		app.Status.SetConditions(condition.Condition{Type: "StateKeep", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
-		Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
+			deploy.Spec.Replicas = pointer.Int32(0)
+			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Status.SetConditions(condition.Condition{Type: "StateKeep", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
+			g.Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(1)))
@@ -88,11 +93,16 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
-		deploy.Spec.Replicas = pointer.Int32(0)
-		Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
-		app.Status.SetConditions(condition.Condition{Type: "ApplyOnce", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
-		Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world"}, deploy)).Should(Succeed())
+			deploy.Spec.Replicas = pointer.Int32(0)
+			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Status.SetConditions(condition.Condition{Type: "ApplyOnce", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
+			g.Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		time.Sleep(30 * time.Second)
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 		Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(0)))
@@ -111,9 +121,11 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 30*time.Second).Should(Succeed())
 
 		By("upgrade to v2 (same component)")
-		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-		app.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"port":[8001]}`)}
-		Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"port":[8001]}`)}
+			g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
@@ -133,9 +145,11 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 30*time.Second).Should(Succeed())
 
 		By("upgrade to v4 (new component)")
-		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-		app.Spec.Components[0].Name = "hello-world-latest"
-		Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Spec.Components[0].Name = "hello-world-latest"
+			g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
@@ -166,9 +180,11 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		deploy := &v13.Deployment{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "hello-world-latest"}, deploy)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, deploy)).Should(Succeed())
-		Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-		app.Status.SetConditions(condition.Condition{Type: "GC", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
-		Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Status.SetConditions(condition.Condition{Type: "GC", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
+			g.Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			err := k8sClient.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s-%s-v4", app.Name, namespace)}, rt)
 			g.Expect(errors.IsNotFound(err)).Should(BeTrue())
