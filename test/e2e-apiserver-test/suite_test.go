@@ -60,6 +60,7 @@ var _ = BeforeSuite(func() {
 			Type:     "kubeapi",
 			Database: "kubevela",
 		},
+		AddonCacheTime: 10 * time.Minute,
 	}
 	cfg.LeaderConfig.ID = uuid.New().String()
 	cfg.LeaderConfig.LockName = "apiserver-lock"

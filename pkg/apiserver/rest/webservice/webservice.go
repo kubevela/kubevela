@@ -18,6 +18,7 @@ package webservice
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/emicklei/go-restful/v3"
 
@@ -57,7 +58,7 @@ func returns500(b *restful.RouteBuilder) {
 
 // Init init all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
-func Init(ds datastore.DataStore) {
+func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
 	workflowUsecase := usecase.NewWorkflowUsecase(ds)
 	projectUsecase := usecase.NewProjectUsecase(ds)
@@ -65,7 +66,7 @@ func Init(ds datastore.DataStore) {
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
-	addonUsecase := usecase.NewAddonUsecase()
+	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase, projectUsecase)
 	RegistWebService(NewClusterWebService(clusterUsecase))

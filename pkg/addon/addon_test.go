@@ -28,18 +28,18 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/google/go-github/v32/github"
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
-	"gotest.tools/assert"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var paths = []string{
@@ -100,31 +100,44 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 
 var ctx = context.Background()
 
-func TestGetAddon(t *testing.T) {
+func testReaderFunc(t *testing.T, reader AsyncReader) {
+	registryMeta, err := reader.ListAddonMeta()
+	assert.NoError(t, err)
+
+	testAddonName := "example"
+	var testAddonMeta SourceMeta
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err := GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+	assert.True(t, len(uiData.Definitions) > 0)
+
+	// test get ui data
+	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, UIMetaOptions)
+	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
+	assert.Equal(t, len(uiDataList), 3)
+
+	// test get install package
+	installPkg, err := GetInstallPackageFromReader(reader, &testAddonMeta, uiData)
+	assert.NoError(t, err)
+	assert.NotNil(t, installPkg, "should get install package")
+	assert.Equal(t, len(installPkg.CUETemplates), 1)
+}
+
+func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
 	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
-
-	assert.NilError(t, err)
-
-	testAddonName := "example"
-	assert.NilError(t, err)
-	addon, err := GetSingleAddonFromReader(reader, testAddonName, EnableLevelOptions)
-	assert.NilError(t, err)
-	assert.Equal(t, addon.Name, testAddonName)
-	assert.Assert(t, addon.Parameters != "")
-	assert.Assert(t, len(addon.Definitions) > 0)
-
-	addons, err := GetAddonsFromReader(reader, EnableLevelOptions)
-	assert.Assert(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, len(addons), 3)
-
-	// test listing from OSS will act like listing from directory
-	_, items, err := reader.Read("terraform")
-	assert.NilError(t, err)
-	assert.Equal(t, len(items), 1, "should list items only from terraform/ without terraform-alibaba/")
-	assert.Equal(t, items[0].GetPath(), "terraform/metadata.yaml")
+	assert.NoError(t, err)
+	testReaderFunc(t, reader)
 }
 
 func TestRender(t *testing.T) {
@@ -224,28 +237,28 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, nil, &addon, nil, map[string]interface{}{})
-	assert.NilError(t, err, "render app fail")
+	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 }
 
 func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	addonDeployToRuntime := baseAddon
 	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
-		ControlPlane:   true,
-		RuntimeCluster: true,
+		DisableControlPlane: false,
+		RuntimeCluster:      true,
 	}
 	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, len(defs), 1)
 	def := defs[0]
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, nil, &addonDeployToRuntime, nil, map[string]interface{}{})
-	assert.NilError(t, err)
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err)
 	steps := app.Spec.Workflow.Steps
-	assert.Check(t, len(steps) >= 2)
+	assert.True(t, len(steps) >= 2)
 	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
@@ -306,12 +319,12 @@ func TestGetAddonStatus(t *testing.T) {
 
 	for _, s := range cases {
 		addonStatus, err := GetAddonStatus(context.Background(), &cli, s.name)
-		assert.NilError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
 }
 
-var baseAddon = Addon{
+var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
@@ -358,13 +371,13 @@ template: {
 func TestRenderApp4Observability(t *testing.T) {
 	k8sClient := fake.NewClientBuilder().Build()
 	testcases := []struct {
-		addon       Addon
+		addon       InstallPackage
 		args        map[string]interface{}
 		application string
 		err         error
 	}{
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -374,7 +387,7 @@ func TestRenderApp4Observability(t *testing.T) {
 			err:         ErrorNoDomain,
 		},
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -387,11 +400,11 @@ func TestRenderApp4Observability(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.application, string(data))
 			}
 		})
@@ -414,16 +427,16 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 		},
 	}
 	err := k8sClient.Create(ctx, secret1)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	testcases := []struct {
-		addon       Addon
+		addon       InstallPackage
 		args        map[string]interface{}
 		application string
 		err         error
 	}{
 		{
-			addon: Addon{
+			addon: InstallPackage{
 				Meta: Meta{
 					Name: "observability",
 				},
@@ -436,13 +449,53 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, k8sClient, &tc.addon, nil, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
-				assert.NilError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, tc.application, string(data))
 			}
 		})
+	}
+}
+
+func TestGetPatternFromItem(t *testing.T) {
+	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "some-sub-path", "", ossType)
+	assert.NoError(t, err)
+	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "addons", "", gitType)
+	assert.NoError(t, err)
+	gitItemName := "parameter.cue"
+	gitItemType := FileType
+	gitItemPath := "addons/terraform/resources/parameter.cue"
+	testCases := []struct {
+		caseName    string
+		item        Item
+		root        string
+		meetPattern string
+		r           AsyncReader
+	}{
+		{
+			caseName: "OSS case",
+			item: OSSItem{
+				tp:   FileType,
+				path: "terraform/resources/parameter.cue",
+				name: "parameter.cue",
+			},
+			root:        "terraform",
+			meetPattern: "resources/parameter.cue",
+			r:           ossR,
+		},
+		{
+			caseName:    "git case",
+			item:        &github.RepositoryContent{Name: &gitItemName, Type: &gitItemType, Path: &gitItemPath},
+			root:        "terraform",
+			meetPattern: "resources/parameter.cue",
+			r:           gitR,
+		},
+	}
+	for _, tc := range testCases {
+		res := GetPatternFromItem(tc.item, tc.r, tc.root)
+		assert.Equal(t, res, tc.meetPattern, tc.caseName)
 	}
 }

@@ -81,8 +81,8 @@ type UpdateAddonRegistryRequest struct {
 	Oss *addon.OSSAddonSource `json:"oss,omitempty"`
 }
 
-// AddonRegistryMeta defines the format for a single addon registry
-type AddonRegistryMeta struct {
+// AddonRegistry defines the format for a single addon registry
+type AddonRegistry struct {
 	Name string                `json:"name" validate:"required"`
 	Git  *addon.GitAddonSource `json:"git,omitempty"`
 	OSS  *addon.OSSAddonSource `json:"oss,omitempty"`
@@ -90,7 +90,7 @@ type AddonRegistryMeta struct {
 
 // ListAddonRegistryResponse list addon registry
 type ListAddonRegistryResponse struct {
-	Registrys []*AddonRegistryMeta `json:"registrys"`
+	Registries []*AddonRegistry `json:"registries"`
 }
 
 // EnableAddonRequest defines the format for enable addon request
@@ -102,6 +102,9 @@ type EnableAddonRequest struct {
 // ListAddonResponse defines the format for addon list response
 type ListAddonResponse struct {
 	Addons []*addon.Meta `json:"addons"`
+
+	// Message demonstrate the error info if exists
+	Message string `json:"message,omitempty"`
 }
 
 // ListEnabledAddonResponse defines the format for enabled addon list response

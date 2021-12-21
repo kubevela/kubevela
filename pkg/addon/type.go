@@ -23,22 +23,32 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 )
 
-// Addon contains all information represent an addon
-type Addon struct {
+// UIData contains all information represent an addon for UI
+type UIData struct {
 	Meta
 
 	APISchema *openapi3.Schema     `json:"schema"`
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
 
-	// More details about the addon, e.g. README
-	Detail         string               `json:"detail,omitempty"`
+	// Detail is README.md in an addon
+	Detail string `json:"detail,omitempty"`
+
+	Definitions    []ElementFile `json:"definitions"`
+	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
+	Parameters     string        `json:"parameters"`
+}
+
+// InstallPackage contains all necessary files that can be installed for an addon
+type InstallPackage struct {
+	Meta
+
 	Definitions    []ElementFile        `json:"definitions"`
-	CUEDefinitions []ElementFile        `json:"cue_definitions"`
+	CUEDefinitions []ElementFile        `json:"CUEDefinitions"`
 	Parameters     string               `json:"parameters"`
-	CUETemplates   []ElementFile        `json:"cue_templates"`
-	YAMLTemplates  []ElementFile        `json:"yaml_templates,omitempty"`
+	CUETemplates   []ElementFile        `json:"CUETemplates"`
+	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
 	DefSchemas     []ElementFile        `json:"def_schemas,omitempty"`
-	AppTemplate    *v1beta1.Application `json:"app_template"`
+	AppTemplate    *v1beta1.Application `json:"appTemplate"`
 }
 
 // Meta defines the format for a single addon
@@ -57,8 +67,10 @@ type Meta struct {
 
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
-	ControlPlane   bool `json:"control_plane"`
-	RuntimeCluster bool `json:"runtime_cluster"`
+	// This field keep the compatible for older case
+	LegacyRuntimeCluster bool `json:"runtime_cluster"`
+	DisableControlPlane  bool `json:"disableControlPlane"`
+	RuntimeCluster       bool `json:"runtimeCluster"`
 }
 
 // Dependency defines the other addons it depends on

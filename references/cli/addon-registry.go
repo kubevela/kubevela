@@ -170,19 +170,19 @@ func listAddonRegistry(ctx context.Context) error {
 	table.AddRow("Name", "Type", "URL")
 	for _, registry := range registries {
 		var repoType, repoURL string
-		if registry.Oss != nil {
+		if registry.OSS != nil {
 			repoType = "Oss"
-			u, err := url.Parse(registry.Oss.EndPoint)
+			u, err := url.Parse(registry.OSS.Endpoint)
 			if err != nil {
 				continue
 			}
-			if registry.Oss.Bucket == "" {
+			if registry.OSS.Bucket == "" {
 				repoURL = u.String()
 			} else {
 				if u.Scheme == "" {
 					u.Scheme = "https"
 				}
-				repoURL = fmt.Sprintf("%s://%s.%s", u.Scheme, registry.Oss.Bucket, u.Host)
+				repoURL = fmt.Sprintf("%s://%s.%s", u.Scheme, registry.OSS.Bucket, u.Host)
 			}
 		} else {
 			repoType = "Git"
@@ -201,9 +201,9 @@ func getAddonRegistry(ctx context.Context, name string) error {
 		return err
 	}
 	table := uitable.New()
-	if registry.Oss != nil {
+	if registry.OSS != nil {
 		table.AddRow("NAME", "ENDPOINT", "BUCKET")
-		table.AddRow(registry.Name, registry.Oss.EndPoint, registry.Oss.Bucket)
+		table.AddRow(registry.Name, registry.OSS.Endpoint, registry.OSS.Bucket)
 	} else {
 		table.AddRow("NAME", "URL", "PATH")
 		table.AddRow(registry.Name, registry.Git.URL, registry.Git.Path)
@@ -262,7 +262,7 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 
 	switch registryType {
 	case addonOssType:
-		r.Oss = &pkgaddon.OSSAddonSource{}
+		r.OSS = &pkgaddon.OSSAddonSource{}
 		endpoint, err := cmd.Flags().GetString(addonOssEndpoint)
 		if err != nil {
 			return nil, err
@@ -270,12 +270,12 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		if endpoint == "" {
 			return nil, errors.New("oss type registry must set --ossEndpoint")
 		}
-		r.Oss.EndPoint = endpoint
+		r.OSS.Endpoint = endpoint
 		bucket, err := cmd.Flags().GetString(addonOssBucket)
 		if err != nil {
 			return nil, err
 		}
-		r.Oss.Bucket = bucket
+		r.OSS.Bucket = bucket
 	case addonGitType:
 		r.Git = &pkgaddon.GitAddonSource{}
 		gitURL, err := cmd.Flags().GetString(addonGitURL)

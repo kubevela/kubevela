@@ -54,6 +54,9 @@ type Config struct {
 
 	// LeaderConfig for leader election
 	LeaderConfig leaderConfig
+
+	// AddonCacheTime is how long between two cache operations
+	AddonCacheTime time.Duration
 }
 
 type leaderConfig struct {
@@ -170,7 +173,7 @@ func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
 
 // RegisterServices register web service
 func (s *restServer) RegisterServices() restfulspec.Config {
-	webservice.Init(s.dataStore)
+	webservice.Init(s.dataStore, s.cfg.AddonCacheTime)
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */

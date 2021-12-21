@@ -216,7 +216,6 @@ func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Config, name string, args map[string]interface{}) error {
-	var addon *pkgaddon.Addon
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
 	registries, err := registryDS.ListRegistries(ctx)
@@ -225,27 +224,14 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 	}
 
 	for _, registry := range registries {
-		var source pkgaddon.Source
-		if registry.Oss != nil {
-			source = registry.Oss
-		} else {
-			source = registry.Git
-		}
-		addon, err = source.GetAddon(name, pkgaddon.EnableLevelOptions)
-
-		if err != nil {
+		err = pkgaddon.EnableAddon(ctx, name, k8sClient, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
-
-		// cannot find this addon in the registry
-		if addon == nil || addon.Name == "" {
-			continue
-		}
-		err = pkgaddon.EnableAddon(ctx, addon, k8sClient, apply.NewAPIApplicator(k8sClient), config, source, args)
 		if err != nil {
 			return err
 		}
-		if err := waitApplicationRunning(addon.Name); err != nil {
+		if err = waitApplicationRunning(name); err != nil {
 			return err
 		}
 		return nil
@@ -273,11 +259,10 @@ func statusAddon(name string) error {
 }
 
 func listAddons(ctx context.Context, registry string) error {
-	var addons []*pkgaddon.Addon
+	var addons []*pkgaddon.UIData
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(clt)
 	registries, err := registryDS.ListRegistries(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -287,13 +272,11 @@ func listAddons(ctx context.Context, registry string) error {
 			continue
 		}
 
-		var source pkgaddon.Source
-		if r.Oss != nil {
-			source = r.Oss
-		} else {
-			source = r.Git
+		meta, err := r.ListAddonMeta()
+		if err != nil {
+			continue
 		}
-		addList, err := source.ListAddons(pkgaddon.GetLevelOptions)
+		addList, err := r.ListUIData(meta, pkgaddon.CLIMetaOptions)
 		if err != nil {
 			continue
 		}
@@ -349,7 +332,7 @@ func TransAddonName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
-func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
+func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
 	for _, item := range a2 {
 		if hasAddon(a1, item.Name) {
 			continue
@@ -359,7 +342,7 @@ func mergeAddons(a1, a2 []*pkgaddon.Addon) []*pkgaddon.Addon {
 	return a1
 }
 
-func hasAddon(addons []*pkgaddon.Addon, name string) bool {
+func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true

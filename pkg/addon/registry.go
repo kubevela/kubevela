@@ -21,16 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velatypes "github.com/oam-dev/kubevela/apis/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const registryConfigMapName = "vela-addon-registry"
@@ -41,7 +38,7 @@ type Registry struct {
 	Name string `json:"name"`
 
 	Git *GitAddonSource `json:"git,omitempty"`
-	Oss *OSSAddonSource `json:"oss,omitempty"`
+	OSS *OSSAddonSource `json:"oss,omitempty"`
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

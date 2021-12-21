@@ -68,7 +68,7 @@ var _ = Describe("Addon test", func() {
 				return fmt.Errorf("app haven't not suspend")
 			}
 
-			h := Handler{ctx: ctx, cli: k8sClient, addon: &Addon{Meta: Meta{Name: "test-app"}}}
+			h := Installer{ctx: ctx, cli: k8sClient, addon: &InstallPackage{Meta: Meta{Name: "test-app"}}}
 			if err := h.continueIfSuspend(); err != nil {
 				return err
 			}

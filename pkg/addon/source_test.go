@@ -19,7 +19,7 @@ package addon
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPathWithParent(t *testing.T) {
@@ -43,4 +43,75 @@ func TestPathWithParent(t *testing.T) {
 		res := pathWithParent(tc.readPath, tc.parentPath)
 		assert.Equal(t, res, tc.actualReadPath)
 	}
+}
+
+func TestConvert2OssItem(t *testing.T) {
+	subPath := "sub-addons"
+	reader, err := NewAsyncReader("ep-beijing.com", "bucket", subPath, "", ossType)
+
+	assert.NoError(t, err)
+
+	o, ok := reader.(*ossReader)
+	assert.Equal(t, ok, true)
+	var testFiles = []File{
+		{
+			Name: "sub-addons/fluxcd",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/metadata.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/helm-release.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/resources/configmap.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/metadata.yaml",
+			Size: 100,
+		},
+	}
+	var expectItemCase = map[string]SourceMeta{
+		"fluxcd": {
+			Name: "fluxcd",
+			Items: []Item{
+				&OSSItem{
+					tp:   FileType,
+					path: "fluxcd/definitions/helm-release.yaml",
+					name: "helm-release.yaml",
+				},
+				&OSSItem{
+					tp:   FileType,
+					path: "fluxcd/metadata.yaml",
+					name: "metadata.yaml",
+				},
+			},
+		},
+		"example": {
+			Name: "example",
+			Items: []Item{
+				&OSSItem{
+					tp:   FileType,
+					path: "example/metadata.yaml",
+					name: "metadata.yaml",
+				},
+				&OSSItem{
+					tp:   FileType,
+					path: "example/resources/configmap.yaml",
+					name: "configmap.yaml",
+				},
+			},
+		},
+	}
+	addonMetas := o.convertOSSFiles2Addons(testFiles)
+	assert.Equal(t, expectItemCase, addonMetas)
+
 }

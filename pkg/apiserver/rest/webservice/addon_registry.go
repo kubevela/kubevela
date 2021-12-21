@@ -26,14 +26,14 @@ import (
 )
 
 // NewAddonRegistryWebService returns addon registry web service
-func NewAddonRegistryWebService(u usecase.AddonUsecase) WebService {
+func NewAddonRegistryWebService(u usecase.AddonHandler) WebService {
 	return &addonRegistryWebService{
 		addonUsecase: u,
 	}
 }
 
 type addonRegistryWebService struct {
-	addonUsecase usecase.AddonUsecase
+	addonUsecase usecase.AddonHandler
 }
 
 func (s *addonRegistryWebService) GetWebService() *restful.WebService {
@@ -50,9 +50,9 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("create an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateAddonRegistryRequest{}).
-		Returns(200, "", apis.AddonRegistryMeta{}).
+		Returns(200, "", apis.AddonRegistry{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.AddonRegistryMeta{}))
+		Writes(apis.AddonRegistry{}))
 
 	ws.Route(ws.GET("/").To(s.listAddonRegistry).
 		Doc("list all addon registry").
@@ -66,18 +66,18 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("delete an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
-		Returns(200, "", apis.AddonRegistryMeta{}).
+		Returns(200, "", apis.AddonRegistry{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.AddonRegistryMeta{}))
+		Writes(apis.AddonRegistry{}))
 
 	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
 		Doc("update an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateAddonRegistryRequest{}).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
-		Returns(200, "", apis.AddonRegistryMeta{}).
+		Returns(200, "", apis.AddonRegistry{}).
 		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.AddonRegistryMeta{}))
+		Writes(apis.AddonRegistry{}))
 
 	return ws
 }
@@ -132,7 +132,7 @@ func (s *addonRegistryWebService) listAddonRegistry(req *restful.Request, res *r
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registrys: registries}); err != nil {
+	if err := res.WriteEntity(apis.ListAddonRegistryResponse{Registries: registries}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
