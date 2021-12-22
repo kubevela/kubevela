@@ -21,10 +21,6 @@ import (
 	"errors"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -34,6 +30,8 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	util "github.com/oam-dev/kubevela/pkg/utils"
+	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // ProjectNamespace mark the usage of the namespace.
@@ -99,61 +97,38 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		return nil, bcode.ErrProjectIsExist
 	}
 
-	new := &model.Project{
+	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
 		Namespace:   fmt.Sprintf("project-%s", req.Name),
 	}
 	if req.Namespace != "" {
-		new.Namespace = req.Namespace
+		newProject.Namespace = req.Namespace
 	}
 	// create namespace at first
-	if err := p.kubeClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: new.Namespace,
-			Labels: map[string]string{
-				oam.LabelProjectNamesapce: new.Name,
-				oam.LabelUsageNamespace:   ProjectNamespace,
-			},
-		},
-		Spec: corev1.NamespaceSpec{},
-	}); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return nil, err
+	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newProject.Namespace, map[string]string{
+		oam.LabelProjectNamesapce: newProject.Name,
+		oam.LabelUsageNamespace:   ProjectNamespace,
+	}, nil)
+	if err != nil {
+		if velaerr.IsLabelConflict(err) {
+			return nil, bcode.ErrProjectNamespaceIsExist
 		}
-		if apierrors.IsAlreadyExists(err) {
-			var namespace corev1.Namespace
-			if err := p.kubeClient.Get(ctx, k8stypes.NamespacedName{Name: new.Namespace}, &namespace); err != nil {
-				return nil, bcode.ErrProjectNamespaceFail
-			}
-			if _, exist := namespace.Labels[oam.LabelProjectNamesapce]; !exist {
-				if namespace.Labels == nil {
-					namespace.Labels = make(map[string]string)
-				}
-				namespace.Labels[oam.LabelProjectNamesapce] = new.Name
-				namespace.Labels[oam.LabelUsageNamespace] = ProjectNamespace
-				if err := p.kubeClient.Update(ctx, &namespace); err != nil {
-					log.Logger.Errorf("update namespace label failure %s", err.Error())
-					return nil, bcode.ErrProjectNamespaceFail
-				}
-			} else {
-				return nil, bcode.ErrProjectNamespaceIsExist
-			}
-		}
+		log.Logger.Errorf("update namespace label failure %s", err.Error())
+		return nil, bcode.ErrProjectNamespaceFail
 	}
-
-	if err := p.ds.Add(ctx, new); err != nil {
+	if err := p.ds.Add(ctx, newProject); err != nil {
 		return nil, err
 	}
 
 	return &apisv1.ProjectBase{
-		Name:        new.Name,
-		Alias:       new.Alias,
-		Namespace:   new.Namespace,
-		Description: new.Description,
-		CreateTime:  new.CreateTime,
-		UpdateTime:  new.UpdateTime,
+		Name:        newProject.Name,
+		Alias:       newProject.Alias,
+		Namespace:   newProject.Namespace,
+		Description: newProject.Description,
+		CreateTime:  newProject.CreateTime,
+		UpdateTime:  newProject.UpdateTime,
 	}, nil
 }
 

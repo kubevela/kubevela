@@ -39,10 +39,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // AddonHandler handle CRUD and installation of addons
@@ -208,7 +208,7 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		return nil, err
 	}
 
-	var gatherErr restutils.GatherErr
+	var gatherErr velaerr.ErrorList
 
 	for _, r := range rs {
 		if registry != "" && r.Name != registry {
@@ -255,7 +255,7 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		}
 		addonResources = append(addonResources, addonRes)
 	}
-	if gatherErr.Error() != "" {
+	if gatherErr.HasError() {
 		return addonResources, gatherErr
 	}
 	return addonResources, nil
