@@ -132,7 +132,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	}
 }
 
-// GetObservabilityAccessibilityInfo will get the accessibility info of addon in local cluster and multiple clusters
+// GetObservabilityAccessibilityInfo will get the accessibility info of an addon from local and children clusters
 func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
 	domains, err := allocateDomainForAddon(ctx, k8sClient, domain)
 	if err != nil {
