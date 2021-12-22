@@ -429,6 +429,9 @@ func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
 }
 
 func hasAddon(addons []*pkgaddon.UIData, name string) bool {
+	if name == "" {
+		return true
+	}
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true
