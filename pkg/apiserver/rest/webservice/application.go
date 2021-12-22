@@ -506,7 +506,6 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
 		Project:    req.QueryParameter("project"),
-		Env:        req.QueryParameter("env"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),
 	})

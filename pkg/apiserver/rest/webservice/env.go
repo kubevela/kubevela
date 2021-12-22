@@ -27,13 +27,13 @@ import (
 )
 
 type envWebService struct {
-	envUsecase usecase.EnvUsecase
-	appUsecase usecase.ApplicationUsecase
+	envUsecase        usecase.EnvUsecase
+	envbindingUsecase usecase.EnvBindingUsecase
 }
 
 // NewEnvWebService new env webservice
-func NewEnvWebService(envUsecase usecase.EnvUsecase) WebService {
-	return &envWebService{envUsecase: envUsecase}
+func NewEnvWebService(envUsecase usecase.EnvUsecase, envBinding usecase.EnvBindingUsecase) WebService {
+	return &envWebService{envUsecase: envUsecase, envbindingUsecase: envBinding}
 }
 
 func (n *envWebService) GetWebService() *restful.WebService {
@@ -92,17 +92,9 @@ func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
 	envname := req.PathParameter("name")
 
 	ctx := req.Request.Context()
-	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicatioOptions{Env: envname})
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	if len(lists) > 0 {
-		bcode.ReturnError(req, res, bcode.ErrDeleteEnvButAppExist)
-		return
-	}
 
-	err = n.envUsecase.DeleteEnv(ctx, envname)
+	// TODO(wonderflow): prevent env being deleted if still has app inside
+	err := n.envUsecase.DeleteEnv(ctx, envname)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
