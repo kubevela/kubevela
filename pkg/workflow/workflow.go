@@ -198,8 +198,8 @@ func (w *workflow) CleanupCountersInContext(ctx monitorContext.Context) {
 		}
 	}
 
-	if err := w.cli.Update(ctx, ctxCM); err != nil {
-		ctx.Error(err, "failed to update workflow context", "application", w.app.Name, "config map", ctxCM.Name)
+	if err := w.wfCtx.Commit(); err != nil {
+		ctx.Error(err, "failed to commit workflow context", "application", w.app.Name, "config map", ctxCM.Name)
 	}
 
 }
