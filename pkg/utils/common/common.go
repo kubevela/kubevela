@@ -60,6 +60,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 )
@@ -67,6 +68,13 @@ import (
 var (
 	// Scheme defines the default KubeVela schema
 	Scheme = k8sruntime.NewScheme()
+)
+
+const (
+	// AddonObservabilityApplication is the application name for Addon Observability
+	AddonObservabilityApplication = "addon-observability"
+	// AddonObservabilityGrafanaSvc is grafana service name for Addon Observability
+	AddonObservabilityGrafanaSvc = "grafana"
 )
 
 func init() {
@@ -280,7 +288,8 @@ func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterOb
 }
 
 var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
-var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Service")
+var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment",
+	"StatefulSet", "CloneSet", "Job", "Service", "HelmRelease")
 
 func filterResource(inputs []common.ClusterObjectReference, filters ...clusterObjectReferenceFilter) (outputs []common.ClusterObjectReference) {
 	for _, item := range inputs {
@@ -304,6 +313,9 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 		return nil, fmt.Errorf("no resources in the application deployed yet")
 	}
 	resources = filterResource(resources, filters...)
+	if app.Name == AddonObservabilityApplication {
+		resources = filterClusterObjectRefFromAddonObservability(resources)
+	}
 	// filter locations
 	if len(resources) == 0 {
 		return nil, fmt.Errorf("no supported resources detected in deployed resources")
@@ -362,6 +374,19 @@ func AskToChooseOneNamespace(c client.Client) (string, error) {
 		}
 	}
 	return selectedRsc, nil
+}
+
+func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
+	var observabilityResources []common.ClusterObjectReference
+	for _, res := range resources {
+		if res.Namespace == types.DefaultKubeVelaNS && res.Name == AddonObservabilityGrafanaSvc {
+			res.Kind = "Service"
+			res.APIVersion = "v1"
+			observabilityResources = append(observabilityResources, res)
+		}
+	}
+	resources = observabilityResources
+	return resources
 }
 
 // AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
