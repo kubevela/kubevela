@@ -71,7 +71,6 @@ type ApplicationUsecase interface {
 	PublishApplicationTemplate(ctx context.Context, app *model.Application) (*apisv1.ApplicationTemplateBase, error)
 	CreateApplication(context.Context, apisv1.CreateApplicationRequest) (*apisv1.ApplicationBase, error)
 	UpdateApplication(context.Context, *model.Application, apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error)
-	HandleApplicationWebhook(ctx context.Context, app *model.Application, token, image, workflow string) (*apisv1.ApplicationDeployResponse, error)
 	DeleteApplication(ctx context.Context, app *model.Application) error
 	Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error)
 	GetApplicationComponent(ctx context.Context, app *model.Application, componentName string) (*model.ApplicationComponent, error)
@@ -326,7 +325,16 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	}
 
 	// generate webhook token
-	application.WebhookToken = genWebhookToken()
+	webhook := &model.ApplicationWebhook{
+		AppPrimaryKey: application.PrimaryKey(),
+		Token:         genWebhookToken(),
+	}
+	err = c.ds.Add(ctx, webhook)
+	if err != nil {
+		log.Logger.Errorf("failed to create webhook, %s", err.Error())
+		return nil, err
+	}
+	application.WebhookToken = webhook.Token
 
 	// check project
 	project, err := c.projectUsecase.GetProject(ctx, req.Project)
@@ -406,43 +414,6 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 		return nil, err
 	}
 	return c.converAppModelToBase(ctx, app), nil
-}
-
-func (c *applicationUsecaseImpl) HandleApplicationWebhook(ctx context.Context, app *model.Application, token, image, workflow string) (*apisv1.ApplicationDeployResponse, error) {
-	if app.WebhookToken != token {
-		fmt.Println(app, token)
-		return nil, bcode.ErrInvalidWebhookToken
-	}
-	if image == "" {
-		return nil, bcode.ErrInvalidWebhookImage
-	}
-	component := model.ApplicationComponent{
-		AppPrimaryKey: app.PrimaryKey(),
-	}
-	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, component := range components {
-		ac := component.(*model.ApplicationComponent)
-		if ac.Properties == nil {
-			ac.Properties = &model.JSONStruct{
-				"image": image,
-			}
-		} else {
-			(*ac.Properties)["image"] = image
-		}
-		if err := c.ds.Put(ctx, component); err != nil {
-			return nil, err
-		}
-	}
-
-	return c.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
-		WorkflowName: workflow,
-		Note:         "triggered by webhook",
-		TriggerType:  apisv1.TriggerTypeWebhook,
-		Force:        true,
-	})
 }
 
 func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.Application, components []common.ApplicationComponent) error {
@@ -694,6 +665,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 		EnvName:      workflow.EnvName,
+		GitInfo:      req.GitInfo,
 	}
 
 	if err := c.ds.Add(ctx, appRevision); err != nil {
@@ -1390,7 +1362,7 @@ func genPolicyEnvName(targetName string) string {
 
 func genWebhookToken() string {
 	rand.Seed(time.Now().UnixNano())
-	runes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	runes := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 	b := make([]rune, defaultTokenLen)
 	for i := range b {

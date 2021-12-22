@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{})
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationWebhook{})
 }
 
 // Application application delivery model
@@ -212,6 +212,18 @@ type ApplicationRevision struct {
 	WorkflowName string `json:"workflowName"`
 	// EnvName is the env name of this application revision
 	EnvName string `json:"envName"`
+	// GitInfo is the git info of this application revision
+	GitInfo *GitInfo `json:"gitInfo,omitempty"`
+}
+
+// GitInfo is the git info for webhook request
+type GitInfo struct {
+	// Commit is the commit hash
+	Commit string `json:"commit,omitempty"`
+	// Branch is the branch name
+	Branch string `json:"branch,omitempty"`
+	// User is the user name
+	User string `json:"user,omitempty"`
 }
 
 // TableName return custom table name
@@ -247,6 +259,32 @@ func (a *ApplicationRevision) Index() map[string]string {
 	}
 	if a.EnvName != "" {
 		index["envName"] = a.EnvName
+	}
+	return index
+}
+
+// ApplicationWebhook is the model for webhook request
+type ApplicationWebhook struct {
+	BaseModel
+	AppPrimaryKey string `json:"appPrimaryKey"`
+	Token         string `json:"token"`
+}
+
+// TableName return custom table name
+func (w *ApplicationWebhook) TableName() string {
+	return tableNamePrefix + "webhook"
+}
+
+// PrimaryKey return custom primary key
+func (w *ApplicationWebhook) PrimaryKey() string {
+	return w.Token
+}
+
+// Index return custom index
+func (w *ApplicationWebhook) Index() map[string]string {
+	index := make(map[string]string)
+	if w.Token != "" {
+		index["token"] = w.Token
 	}
 	return index
 }

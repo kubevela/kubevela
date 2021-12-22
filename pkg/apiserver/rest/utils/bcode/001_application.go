@@ -82,5 +82,5 @@ var ErrApplicationEnvRefusedDelete = NewBcode(400, 10020, "The application envbi
 // ErrInvalidWebhookToken means the webhook token is invalid
 var ErrInvalidWebhookToken = NewBcode(400, 10021, "Invalid webhook token")
 
-// ErrInvalidWebhookImage means the webhook image is invalid
-var ErrInvalidWebhookImage = NewBcode(400, 10022, "Invalid webhook image")
+// ErrWebhookTokenExist means the webhook token is exist
+var ErrWebhookTokenExist = NewBcode(500, 10022, "webhook token is exist")

@@ -143,23 +143,6 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
 
-	It("Test HandleApplicationWebhook function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app")
-		Expect(err).Should(BeNil())
-
-		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, "invalid-token", "", "")
-		Expect(err).Should(Equal(bcode.ErrInvalidWebhookToken))
-
-		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, appModel.WebhookToken, "", "")
-		Expect(err).Should(Equal(bcode.ErrInvalidWebhookImage))
-
-		_, err = appUsecase.HandleApplicationWebhook(context.TODO(), appModel, appModel.WebhookToken, "test-image", "")
-		Expect(err).Should(BeNil())
-		comp, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
-		Expect(err).Should(BeNil())
-		Expect((*comp.Properties)["image"]).Should(Equal("test-image"))
-	})
-
 	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())

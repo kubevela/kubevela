@@ -320,7 +320,7 @@ type ApplicationStatisticsResponse struct {
 	WorkflowCount int64 `json:"workflowCount"`
 }
 
-// CreateApplicationRequest create application  request body
+// CreateApplicationRequest create application request body
 type CreateApplicationRequest struct {
 	Name        string                  `json:"name" validate:"checkname"`
 	Alias       string                  `json:"alias" validate:"checkalias" optional:"true"`
@@ -332,12 +332,19 @@ type CreateApplicationRequest struct {
 	Component   *CreateComponentRequest `json:"component"`
 }
 
-// UpdateApplicationRequest update application  base config
+// UpdateApplicationRequest update application base config
 type UpdateApplicationRequest struct {
 	Alias       string            `json:"alias" validate:"checkalias" optional:"true"`
 	Description string            `json:"description" optional:"true"`
 	Icon        string            `json:"icon" optional:"true"`
 	Labels      map[string]string `json:"labels,omitempty"`
+}
+
+// HandleApplicationWebhookRequest handles application webhook request
+type HandleApplicationWebhookRequest struct {
+	Workflow            string                       `json:"workflow,omitempty"`
+	ComponentProperties map[string]*model.JSONStruct `json:"componentProperties,omitempty"`
+	GitInfo             *model.GitInfo               `json:"gitInfo,omitempty"`
 }
 
 // EnvBinding application env binding
@@ -727,6 +734,8 @@ type ApplicationDeployRequest struct {
 	TriggerType string `json:"triggerType" validate:"oneof=web api webhook"`
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
+	// GitInfo is the source git info of this deploy
+	GitInfo *model.GitInfo `json:"gitInfo,omitempty"`
 }
 
 // ApplicationDeployResponse application deploy response body
