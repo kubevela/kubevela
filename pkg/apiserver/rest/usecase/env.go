@@ -37,7 +37,7 @@ import (
 // EnvUsecase defines the API of Env.
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
-	ListEnvs(ctx context.Context) ([]*apisv1.Env, error)
+	ListEnvs(ctx context.Context, page, pageSize int) ([]*apisv1.Env, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 	UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
@@ -101,17 +101,40 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 	return nil
 }
 
-// ListEnvs list envs
-func (p *envUsecaseImpl) ListEnvs(ctx context.Context) ([]*apisv1.Env, error) {
-	var env = model.Env{}
-	entities, err := p.ds.List(ctx, &env, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+func listTarget(ctx context.Context, ds datastore.DataStore) ([]*model.Target, error) {
+	Target := model.Target{}
+	Targets, err := ds.List(ctx, &Target, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
+	var respTargets []*model.Target
+
+	for _, raw := range Targets {
+		target, ok := raw.(*model.Target)
+		if ok {
+			respTargets = append(respTargets, target)
+		}
+	}
+	return respTargets, nil
+}
+
+// ListEnvs list envs
+func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int) ([]*apisv1.Env, error) {
+	var env = model.Env{}
+	entities, err := p.ds.List(ctx, &env, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	if err != nil {
+		return nil, err
+	}
+
+	Targets, err := listTarget(ctx, p.ds)
+	if err != nil {
+		return nil, err
+	}
+
 	var envs []*apisv1.Env
 	for _, entity := range entities {
 		apienv := entity.(*model.Env)
-		envs = append(envs, convertEnvModel2Base(apienv))
+		envs = append(envs, convertEnvModel2Base(apienv, Targets))
 	}
 	return envs, nil
 }
@@ -141,8 +164,14 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequ
 	if err := p.ds.Put(ctx, env); err != nil {
 		return nil, err
 	}
-	resp := apisv1.Env(*env)
-	return &resp, nil
+
+	Targets, err := listTarget(ctx, p.ds)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := convertEnvModel2Base(env, Targets)
+	return resp, nil
 }
 
 // CreateEnv create an env for request
@@ -182,11 +211,34 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 	if err := p.ds.Add(ctx, newEnv); err != nil {
 		return nil, err
 	}
-	resp := apisv1.Env(*newEnv)
-	return &resp, nil
+	Targets, err := listTarget(ctx, p.ds)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := convertEnvModel2Base(env, Targets)
+	return resp, nil
 }
 
-func convertEnvModel2Base(project *model.Env) *apisv1.Env {
-	data := apisv1.Env(*project)
+func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {
+	data := apisv1.Env{
+		Name:        env.Name,
+		Alias:       env.Alias,
+		Description: env.Description,
+		Project:     env.Project,
+		Namespace:   env.Namespace,
+		CreateTime:  env.CreateTime,
+		UpdateTime:  env.UpdateTime,
+	}
+	for _, dt := range env.Targets {
+		for _, tg := range targets {
+			if dt == tg.Name {
+				data.Targets = append(data.Targets, apisv1.NameAlias{
+					Name:  dt,
+					Alias: tg.Alias,
+				})
+			}
+		}
+	}
 	return &data
 }

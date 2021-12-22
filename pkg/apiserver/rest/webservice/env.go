@@ -23,6 +23,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -76,7 +77,12 @@ func (n *envWebService) GetWebService() *restful.WebService {
 }
 
 func (n *envWebService) list(req *restful.Request, res *restful.Response) {
-	envs, err := n.envUsecase.ListEnvs(req.Request.Context())
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	envs, err := n.envUsecase.ListEnvs(req.Request.Context(), page, pageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

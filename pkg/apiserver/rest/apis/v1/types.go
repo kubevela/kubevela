@@ -488,7 +488,23 @@ type CreateProjectRequest struct {
 }
 
 // Env models the data of env in API
-type Env model.Env
+type Env struct {
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description,omitempty"  optional:"true"`
+
+	// Project defines the project this Env belongs to
+	Project string `json:"project"`
+	// Namespace defines the K8s namespace of the Env in control plane
+	Namespace string `json:"namespace"`
+
+	// Targets defines the name of delivery target that belongs to this env
+	// In one project, a delivery target can only belong to one env.
+	Targets []NameAlias `json:"targets,omitempty"  optional:"true"`
+
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
 
 // ListEnvResponse response the while env list
 type ListEnvResponse struct {

@@ -27,9 +27,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-// ProjectNamespace mark the usage of the namespace.
-const ProjectNamespace = "project"
-
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
