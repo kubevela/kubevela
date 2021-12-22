@@ -19,19 +19,12 @@ package usecase
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	util "github.com/oam-dev/kubevela/pkg/utils"
-	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // ProjectNamespace mark the usage of the namespace.
@@ -45,17 +38,12 @@ type ProjectUsecase interface {
 }
 
 type projectUsecaseImpl struct {
-	ds         datastore.DataStore
-	kubeClient client.Client
+	ds datastore.DataStore
 }
 
 // NewProjectUsecase new project usecase
 func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
-	kubecli, err := clients.GetKubeClient()
-	if err != nil {
-		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
-	}
-	return &projectUsecaseImpl{kubeClient: kubecli, ds: ds}
+	return &projectUsecaseImpl{ds: ds}
 }
 
 // GetProject get project
@@ -101,25 +89,8 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
-		Namespace:   fmt.Sprintf("project-%s", req.Name),
 	}
-	if req.Namespace != "" {
-		newProject.Namespace = req.Namespace
-	}
-	// create namespace at first
-	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newProject.Namespace,
-		util.MergeOverrideLabels(map[string]string{
-			oam.LabelUsageNamespace: ProjectNamespace,
-		}), util.MergeNoConflictLabels(map[string]string{
-			oam.LabelProjectNamesapce: newProject.Name,
-		}))
-	if err != nil {
-		if velaerr.IsLabelConflict(err) {
-			return nil, bcode.ErrProjectNamespaceIsExist
-		}
-		log.Logger.Errorf("update namespace label failure %s", err.Error())
-		return nil, bcode.ErrProjectNamespaceFail
-	}
+
 	if err := p.ds.Add(ctx, newProject); err != nil {
 		return nil, err
 	}
@@ -128,7 +99,6 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		Name:        newProject.Name,
 		Alias:       newProject.Alias,
 		Description: newProject.Description,
-		Namespace:   newProject.Namespace,
 		CreateTime:  newProject.CreateTime,
 		UpdateTime:  newProject.UpdateTime,
 	}, nil
@@ -137,7 +107,6 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 func convertProjectModel2Base(project *model.Project) *apisv1.ProjectBase {
 	return &apisv1.ProjectBase{
 		Name:        project.Name,
-		Namespace:   project.Namespace,
 		Description: project.Description,
 		Alias:       project.Alias,
 		CreateTime:  project.CreateTime,

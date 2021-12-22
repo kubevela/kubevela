@@ -19,8 +19,8 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -45,49 +45,60 @@ import (
 
 var _ = Describe("Test application usecase function", func() {
 	var (
-		appUsecase            *applicationUsecaseImpl
-		workflowUsecase       *workflowUsecaseImpl
-		envBindingUsecase     *envBindingUsecaseImpl
-		deliveryTargetUsecase *deliveryTargetUsecaseImpl
-		definitionUsecase     *definitionUsecaseImpl
-		projectUsecase        *projectUsecaseImpl
-		testProject           = "app-project"
+		appUsecase        *applicationUsecaseImpl
+		workflowUsecase   *workflowUsecaseImpl
+		envUsecase        *envUsecaseImpl
+		envBindingUsecase *envBindingUsecaseImpl
+		targetUsecase     *targetUsecaseImpl
+		definitionUsecase *definitionUsecaseImpl
+		projectUsecase    *projectUsecaseImpl
+		testProject       = "app-project"
+		testApp           = "test-app"
+		defaultTarget     = "default"
 	)
 
 	BeforeEach(func() {
-		workflowUsecase = &workflowUsecaseImpl{ds: ds}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
-		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds}
-		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
+		targetUsecase = &targetUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds}
 		appUsecase = &applicationUsecaseImpl{
-			ds:                    ds,
-			workflowUsecase:       workflowUsecase,
-			apply:                 apply.NewAPIApplicator(k8sClient),
-			kubeClient:            k8sClient,
-			envBindingUsecase:     envBindingUsecase,
-			definitionUsecase:     definitionUsecase,
-			deliveryTargetUsecase: deliveryTargetUsecase,
-			projectUsecase:        projectUsecase,
+			ds:                ds,
+			workflowUsecase:   workflowUsecase,
+			apply:             apply.NewAPIApplicator(k8sClient),
+			kubeClient:        k8sClient,
+			envBindingUsecase: envBindingUsecase,
+			envUsecase:        envUsecase,
+			definitionUsecase: definitionUsecase,
+			targetUsecase:     targetUsecase,
+			projectUsecase:    projectUsecase,
 		}
+
 	})
 
 	It("Test CreateApplication function", func() {
 		By("test sample create")
-		_, err := projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		_, err := targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget})
+		Expect(err).Should(BeNil())
+
+		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
+
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Targets: []string{defaultTarget}})
+		Expect(err).Should(BeNil())
+
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Targets: []string{defaultTarget}})
 		Expect(err).Should(BeNil())
 		req := v1.CreateApplicationRequest{
-			Name:        "test-app",
+			Name:        testApp,
 			Project:     testProject,
 			Description: "this is a test app",
 			EnvBinding: []*v1.EnvBinding{{
-				Name:        "dev",
-				Description: "dev env",
-				TargetNames: []string{"dev-target"},
+				Name: "app-dev",
 			}, {
-				Name:        "test",
-				Description: "test env",
-				TargetNames: []string{"test-target"},
+				Name: "app-test",
 			}},
 			Component: &v1.CreateComponentRequest{
 				Name:          "component-name",
@@ -97,85 +108,6 @@ var _ = Describe("Test application usecase function", func() {
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
-		detail, err := appUsecase.DetailComponent(context.TODO(), &model.Application{Name: "test-app", Project: testProject}, "component-name")
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(detail.Traits), 1)).Should(BeEmpty())
-
-		_, err = appUsecase.CreateApplication(context.TODO(), req)
-		equal := cmp.Equal(err, bcode.ErrApplicationExist, cmpopts.EquateErrors())
-		Expect(equal).Should(BeTrue())
-
-		By("test with oam yaml config create")
-		bs, err := ioutil.ReadFile("./testdata/example-app.yaml")
-		Expect(err).Should(Succeed())
-		req = v1.CreateApplicationRequest{
-			Name:        "test-app-sadasd",
-			Project:     testProject,
-			Description: "this is a test app",
-			Icon:        "",
-			Labels:      map[string]string{"test": "true"},
-			YamlConfig:  string(bs),
-		}
-		base, err = appUsecase.CreateApplication(context.TODO(), req)
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
-
-		req = v1.CreateApplicationRequest{
-			Name:        "test-app-sadasd2",
-			Project:     testProject,
-			Description: "this is a test app",
-			Icon:        "",
-			Labels:      map[string]string{"test": "true"},
-			YamlConfig:  "asdasdasdasd",
-		}
-		base, err = appUsecase.CreateApplication(context.TODO(), req)
-		equal = cmp.Equal(err, bcode.ErrApplicationConfig, cmpopts.EquateErrors())
-		Expect(equal).Should(BeTrue())
-		Expect(base).Should(BeNil())
-
-		bs, err = ioutil.ReadFile("./testdata/example-app-error.yaml")
-		Expect(err).Should(Succeed())
-		req = v1.CreateApplicationRequest{
-			Name:        "test-app-sadasd3",
-			Project:     testProject,
-			Description: "this is a test app",
-			Icon:        "",
-			Labels:      map[string]string{"test": "true"},
-			YamlConfig:  string(bs),
-		}
-		_, err = appUsecase.CreateApplication(context.TODO(), req)
-		equal = cmp.Equal(err, bcode.ErrInvalidProperties, cmpopts.EquateErrors())
-		Expect(equal).Should(BeTrue())
-
-		By("Test create app with env binding")
-		req = v1.CreateApplicationRequest{
-			Name:        "test-app-sadasd4",
-			Project:     testProject,
-			Description: "this is a test app",
-			Icon:        "",
-			Labels:      map[string]string{"test": "true"},
-			EnvBinding: []*v1.EnvBinding{
-				{
-					Name:        "dev",
-					Alias:       "Chinese Word",
-					Description: "This is a dev env",
-					TargetNames: []string{"dev-target"},
-				},
-				{
-					Name:        "prod",
-					Description: "This is a prod env",
-					TargetNames: []string{"prod-target"},
-				},
-			},
-		}
-		appBase, err := appUsecase.CreateApplication(context.TODO(), req)
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appBase.Name, "test-app-sadasd4")).Should(BeEmpty())
-
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd4")
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-
 	})
 
 	It("Test ListApplications function", func() {
@@ -186,89 +118,62 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test ListApplications and filter by targetName function", func() {
 		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
 			Project:    testProject,
-			TargetName: "dev-target"})
+			TargetName: defaultTarget})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(list), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(list), 1)).Should(BeEmpty())
 	})
 
 	It("Test DetailApplication function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		detail, err := appUsecase.DetailApplication(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(2))).Should(BeEmpty())
+		Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(1))).Should(BeEmpty())
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
 
 	It("Test ListComponents function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
 		components, err := appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 2)).Should(BeEmpty())
-		Expect(cmp.Diff(components[0].ComponentType, "worker")).Should(BeEmpty())
-		Expect(components[1].UpdateTime).ShouldNot(BeNil())
-
-		components, err = appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{
-			EnvName: "test",
-		})
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 2)).Should(BeEmpty())
-		Expect(cmp.Diff(components[0].Name, "data-worker")).Should(BeEmpty())
-
-		components, err = appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{
-			EnvName: "staging",
-		})
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 2)).Should(BeEmpty())
-		Expect(cmp.Diff(components[0].Name, "data-worker")).Should(BeEmpty())
-	})
-
-	It("Test DetailComponent function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-
-		detail, err := appUsecase.DetailComponent(context.TODO(), appModel, "hello-world-server")
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(detail.Traits), 1)).Should(BeEmpty())
-		Expect(cmp.Diff(detail.Type, "webservice")).Should(BeEmpty())
-		Expect(cmp.Diff(strings.Contains((*detail.Properties)["image"].(string), "crccheck/hello-world"), true)).Should(BeEmpty())
+		Expect(cmp.Diff(len(components), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(components[0].ComponentType, "webservice")).Should(BeEmpty())
 	})
 
 	It("Test AddComponent function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
+
 		base, err := appUsecase.AddComponent(context.TODO(), appModel, v1.CreateComponentRequest{
 			Name:          "test2",
 			Description:   "this is a test2 component",
 			Labels:        map[string]string{},
 			ComponentType: "worker",
 			Properties:    `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
-			DependsOn:     []string{"data-worker"},
+			DependsOn:     []string{"component-name"},
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.ComponentType, "worker")).Should(BeEmpty())
 	})
 
 	It("Test DetailComponent function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		detailResponse, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(detailResponse.DependsOn[0], "data-worker")).Should(BeEmpty())
+		Expect(cmp.Diff(detailResponse.DependsOn[0], "component-name")).Should(BeEmpty())
 		Expect(detailResponse.Properties).ShouldNot(BeNil())
 		Expect(cmp.Diff((*detailResponse.Properties)["image"], "busybox")).Should(BeEmpty())
 	})
 
 	It("Test AddPolicy function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		_, err = appUsecase.AddPolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
@@ -289,7 +194,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListPolicies function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 
@@ -299,7 +204,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test DetailPolicy function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		detail, err := appUsecase.DetailPolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
@@ -309,7 +214,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test UpdatePolicy function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		base, err := appUsecase.UpdatePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName, v1.UpdatePolicyRequest{
@@ -321,7 +226,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect((*base.Properties)["envs"]).Should(BeEmpty())
 	})
 	It("Test DeletePolicy function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		err = appUsecase.DeletePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
@@ -329,7 +234,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test add application trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		alias := "alias"
 		description := "description"
@@ -351,7 +256,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test add application a dup trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		_, err = appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
 			Type:       "Ingress",
@@ -361,7 +266,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test update application trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		alias := "newAlias"
 		description := "newDescription"
@@ -382,7 +287,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test update a not exist", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		_, err = appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress-1-20", v1.UpdateApplicationTraitRequest{
 			Properties: `{"domain":"www.test1.com"}`,
@@ -391,7 +296,7 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test delete an exist trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		err = appUsecase.DeleteApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress")
 		Expect(err).Should(BeNil())
@@ -402,24 +307,11 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test DeleteComponent function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		err = appUsecase.DeleteComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
-	})
-
-	It("Test DeleteApplication function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-sadasd")
-		Expect(err).Should(BeNil())
-		err = appUsecase.DeleteApplication(context.TODO(), appModel)
-		Expect(err).Should(BeNil())
-		components, err := appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{})
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(components), 0)).Should(BeEmpty())
-		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
 	})
 
 	It("Test ListRevisions function", func() {
@@ -467,19 +359,13 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ApplicationEnvRecycle function", func() {
-		req := v1.CreateApplicationRequest{
-			Name:        "app-env-recycle" + "-dev",
-			Project:     testProject,
-			Description: "this is a test app with env",
-		}
-		base, err := appUsecase.CreateApplication(context.TODO(), req)
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
-
+		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
+		Expect(err).Should(BeNil())
 		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
-			Name:      "app-env-recycle",
-			Namespace: "project-" + testProject,
-		}, &model.EnvBinding{Name: "dev"})
+			Name: testApp,
+		}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
 	})
 
@@ -540,11 +426,13 @@ var _ = Describe("Test application usecase function", func() {
 		}
 		err = k8sClient.Create(context.TODO(), definition)
 		Expect(err).Should(BeNil())
-		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.Application{
-			Namespace: "prod",
-		}, &model.EnvBinding{
-			TargetNames: []string{"prod"},
-		}, &model.DeliveryTarget{
+		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.EnvBinding{
+			Name: "prod",
+		}, &model.Env{
+			EnvBase: model.EnvBase{
+				Name: "prod",
+			},
+		}, &model.Target{
 			Name: "prod",
 			Variable: map[string]interface{}{
 				"region":       "hangzhou",
@@ -561,13 +449,27 @@ var _ = Describe("Test application usecase function", func() {
 		err = k8sClient.Delete(context.TODO(), definition)
 		Expect(err).Should(BeNil())
 	})
+
+	It("Test DeleteApplication function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		time.Sleep(time.Second * 3)
+		err = appUsecase.DeleteApplication(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		components, err := appUsecase.ListComponents(context.TODO(), appModel, v1.ListApplicationComponentOptions{})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(components), 0)).Should(BeEmpty())
+		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
+	})
 })
 
 func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
 	testapp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      convertAppName(appName, envName),
-			Namespace: "default",
+			Name:      appName,
+			Namespace: envName,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion:  revisionVersion,
 				oam.AnnotationWorkflowName:   wfName,

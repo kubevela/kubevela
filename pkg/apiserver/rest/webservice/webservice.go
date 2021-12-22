@@ -60,21 +60,21 @@ func returns500(b *restful.RouteBuilder) {
 // It can be implemented using the idea of dependency injection.
 func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
-	workflowUsecase := usecase.NewWorkflowUsecase(ds)
-	projectUsecase := usecase.NewProjectUsecase(ds)
 	envUsecase := usecase.NewEnvUsecase(ds)
-	deliveryTargetUsecase := usecase.NewDeliveryTargetUsecase(ds, projectUsecase)
+	workflowUsecase := usecase.NewWorkflowUsecase(ds, envUsecase)
+	projectUsecase := usecase.NewProjectUsecase(ds)
+	targetUsecase := usecase.NewTargetUsecase(ds, projectUsecase)
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
-	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
-	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase, projectUsecase)
+	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase, envUsecase)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
 
 	// Application
+	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
 	RegistWebService(NewProjectWebService(projectUsecase))
 	RegistWebService(NewEnvWebService(envUsecase))
-	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
 
 	// Extension
 	RegistWebService(NewDefinitionWebservice(definitionUsecase))
@@ -83,10 +83,9 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegistWebService(NewAddonRegistryWebService(addonUsecase))
 
 	// Resources
-	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase, applicationUsecase))
 	RegistWebService(NewClusterWebService(clusterUsecase))
-
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})
+	RegistWebService(NewTargetWebService(targetUsecase, applicationUsecase))
 	RegistWebService(NewVelaQLWebService(velaQLUsecase))
 }

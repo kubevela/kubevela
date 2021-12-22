@@ -16,11 +16,11 @@ limitations under the License.
 
 package bcode
 
-// ErrDeliveryTargetExist deliveryTarget is exist
-var ErrDeliveryTargetExist = NewBcode(400, 80001, "deliveryTarget is exist")
+// ErrTargetExist Target is exist
+var ErrTargetExist = NewBcode(400, 80001, "target is exist")
 
-// ErrDeliveryTargetNotExist deliveryTarget is not exist
-var ErrDeliveryTargetNotExist = NewBcode(404, 80002, "deliveryTarget is not exist")
+// ErrTargetNotExist Target is not exist
+var ErrTargetNotExist = NewBcode(404, 80002, "target is not exist")
 
-// ErrDeliveryTargetInUseCantDeleted deliveryTarget being used
-var ErrDeliveryTargetInUseCantDeleted = NewBcode(404, 80003, "deliveryTarget in use, can't be deleted")
+// ErrTargetInUseCantDeleted Target being used
+var ErrTargetInUseCantDeleted = NewBcode(404, 80003, "target in use, can't be deleted")

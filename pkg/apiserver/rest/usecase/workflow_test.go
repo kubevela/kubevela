@@ -44,19 +44,26 @@ var _ = Describe("Test workflow usecase functions", func() {
 		workflowUsecase *workflowUsecaseImpl
 		appUsecase      *applicationUsecaseImpl
 		projectUsecase  *projectUsecaseImpl
+		envUsecase      *envUsecaseImpl
 		testProject     = "workflow-project"
 	)
 	BeforeEach(func() {
-		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, apply: apply.NewAPIApplicator(k8sClient)}
-		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{ds: ds}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase = &workflowUsecaseImpl{
+			ds:         ds,
+			kubeClient: k8sClient,
+			apply:      apply.NewAPIApplicator(k8sClient),
+			envUsecase: envUsecase}
 		appUsecase = &applicationUsecaseImpl{ds: ds, kubeClient: k8sClient,
 			apply:          apply.NewAPIApplicator(k8sClient),
 			projectUsecase: projectUsecase,
+			envUsecase:     envUsecase,
 			envBindingUsecase: &envBindingUsecaseImpl{
 				ds:              ds,
 				workflowUsecase: workflowUsecase,
+				envUsecase:      envUsecase,
 			}}
-
 	})
 	It("Test CreateWorkflow function", func() {
 		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
@@ -66,9 +73,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Project:     testProject,
 			Description: "this is a test app",
 			EnvBinding: []*apisv1.EnvBinding{{
-				Name:        "dev",
-				Description: "dev env",
-				TargetNames: []string{"dev-target"},
+				Name: "dev",
 			}},
 		}
 		_, err = appUsecase.CreateApplication(context.TODO(), reqApp)
@@ -80,8 +85,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}
 
 		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
@@ -93,8 +97,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}
 
 		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req2)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req2.Description)).Should(BeEmpty())
@@ -117,8 +120,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Default: &defaultW,
 		}
 		base, err = workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
@@ -126,8 +128,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 	It("Test GetApplicationDefaultWorkflow function", func() {
 		workflow, err := workflowUsecase.GetApplicationDefaultWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		})
 		Expect(err).Should(BeNil())
 		Expect(workflow).ShouldNot(BeNil())
@@ -142,16 +143,14 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
 		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
 		for i := 0; i < 3; i++ {
 			app.Annotations[oam.AnnotationPublishVersion] = fmt.Sprintf("list-workflow-name-%d", i)
 			app.Status.Workflow.AppRevision = fmt.Sprintf("list-workflow-name-%d", i)
 			err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-				Name:      appName,
-				Namespace: "default",
+				Name: appName,
 			}, app, workflow)
 			Expect(err).Should(BeNil())
 		}
@@ -172,13 +171,11 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Status.Workflow.AppRevision = "test-workflow-2-123"
 		app.Annotations[oam.AnnotationDeployVersion] = "1234"
 		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
@@ -214,13 +211,11 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Status.Workflow.AppRevision = "test-workflow-2-233"
 		app.Annotations[oam.AnnotationDeployVersion] = "4321"
 		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
@@ -246,8 +241,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
 		By("check the record")
@@ -270,8 +264,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Status.Workflow.AppRevision = "test-workflow-2-111"
 		app.Annotations[oam.AnnotationDeployVersion] = "1111"
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
@@ -290,7 +283,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		cr := &appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "record-app-workflow-dev-test-workflow-2-111",
+				Name:      "record-app-workflow-test-workflow-2-111",
 				Namespace: "default",
 				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-2-111"},
 			},
@@ -324,12 +317,11 @@ var _ = Describe("Test workflow usecase functions", func() {
 			})
 		}
 
-		app, err := createTestSuspendApp(ctx, "record-app", "dev", "revision-123", "test-workflow", "test-record-3", workflowUsecase.kubeClient)
+		app, err := createTestSuspendApp(ctx, "record-app", "default", "revision-123", "test-workflow", "test-record-3", workflowUsecase.kubeClient)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.CreateWorkflowRecord(ctx, &model.Application{
-			Name:      "record-app",
-			Namespace: "default",
+			Name: "record-app",
 		}, app, &model.Workflow{Name: "test-workflow"})
 		Expect(err).Should(BeNil())
 
@@ -346,6 +338,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 	It("Test ResumeRecord function", func() {
 		ctx := context.TODO()
 
+		_, err := envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "resume"})
+		Expect(err).Should(BeNil())
 		ResumeWorkflow := "resume-workflow"
 		req := apisv1.CreateWorkflowRequest{
 			Name:        ResumeWorkflow,
@@ -354,8 +348,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}
 
 		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
@@ -364,8 +357,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, &model.Workflow{Name: ResumeWorkflow})
 		Expect(err).Should(BeNil())
 
@@ -377,8 +369,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.ResumeRecord(ctx, &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, &model.Workflow{Name: ResumeWorkflow, EnvName: "resume"}, "workflow-resume-1")
 		Expect(err).Should(BeNil())
 
@@ -390,6 +381,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 	It("Test TerminateRecord function", func() {
 		ctx := context.TODO()
 
+		_, err := envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "terminate"})
+		Expect(err).Should(BeNil())
 		workflowName := "terminate-workflow"
 		req := apisv1.CreateWorkflowRequest{
 			Name:        workflowName,
@@ -398,8 +391,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}
 		workflow := &model.Workflow{Name: workflowName, EnvName: "terminate"}
 		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
@@ -408,8 +400,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
@@ -421,8 +412,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.TerminateRecord(ctx, &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, workflow, "test-workflow-2-1")
 		Expect(err).Should(BeNil())
 
@@ -433,7 +423,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 	It("Test RollbackRecord function", func() {
 		ctx := context.TODO()
-
+		_, err := envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "rollback"})
+		Expect(err).Should(BeNil())
 		workflowName := "rollback-workflow"
 		req := apisv1.CreateWorkflowRequest{
 			Name:        workflowName,
@@ -442,8 +433,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}
 		workflow := &model.Workflow{Name: workflowName, EnvName: "rollback"}
 		base, err := workflowUsecase.CreateOrUpdateWorkflow(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
@@ -452,8 +442,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
@@ -472,8 +461,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.RollbackRecord(ctx, &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, workflow, "test-workflow-2-2", "revision-rollback0")
 		Expect(err).Should(BeNil())
 
@@ -489,14 +477,12 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Annotations[oam.AnnotationPublishVersion] = "workflow-rollback-2"
 		app.Status.Workflow.AppRevision = "workflow-rollback-2"
 		err = workflowUsecase.CreateWorkflowRecord(context.TODO(), &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, app, workflow)
 		Expect(err).Should(BeNil())
 
 		err = workflowUsecase.RollbackRecord(ctx, &model.Application{
-			Name:      appName,
-			Namespace: "default",
+			Name: appName,
 		}, workflow, "workflow-rollback-2", "")
 		Expect(err).Should(BeNil())
 
@@ -527,7 +513,7 @@ metadata:
     app.oam.dev/deployVersion: "1234"
     app.oam.dev/publishVersion: "test-workflow-name-111"
     app.oam.dev/appName: "app-workflow"
-  name: app-workflow-dev
+  name: app-workflow
   namespace: default
 spec:
   components:

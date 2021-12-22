@@ -19,7 +19,6 @@ package e2e_apiserver_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/google/go-cmp/cmp"
@@ -48,7 +47,6 @@ var _ = Describe("Test project rest api", func() {
 		err = json.NewDecoder(res.Body).Decode(&projectBase)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(projectBase.Name, req.Name)).Should(BeEmpty())
-		Expect(cmp.Diff(projectBase.Namespace, fmt.Sprintf("project-%s", req.Name))).Should(BeEmpty())
 		Expect(cmp.Diff(projectBase.Description, req.Description)).Should(BeEmpty())
 	})
 

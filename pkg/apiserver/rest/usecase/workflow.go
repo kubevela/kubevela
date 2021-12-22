@@ -65,7 +65,7 @@ type WorkflowUsecase interface {
 }
 
 // NewWorkflowUsecase new workflow usecase
-func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
+func NewWorkflowUsecase(ds datastore.DataStore, envUsecase EnvUsecase) WorkflowUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
@@ -74,6 +74,7 @@ func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
 		ds:         ds,
 		kubeClient: kubecli,
 		apply:      apply.NewAPIApplicator(kubecli),
+		envUsecase: envUsecase,
 	}
 }
 
@@ -81,6 +82,7 @@ type workflowUsecaseImpl struct {
 	ds         datastore.DataStore
 	kubeClient client.Client
 	apply      apply.Applicator
+	envUsecase EnvUsecase
 }
 
 // DeleteWorkflow delete application workflow
@@ -220,7 +222,9 @@ func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *mode
 	workflow.Steps = steps
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
-	workflow.Default = &req.Default
+	if req.Default != nil {
+		workflow.Default = req.Default
+	}
 	if err := w.ds.Put(ctx, workflow); err != nil {
 		return nil, err
 	}
@@ -387,7 +391,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			klog.ErrorS(err, "failed to get workflow", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
-		appName := convertAppName(record.AppPrimaryKey, workflow.EnvName)
+		appName := record.AppPrimaryKey
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
 			Name:      appName,
 			Namespace: record.Namespace,
@@ -519,7 +523,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		AppPrimaryKey:      appModel.PrimaryKey(),
 		RevisionPrimaryKey: app.Annotations[oam.AnnotationDeployVersion],
 		Name:               app.Annotations[oam.AnnotationPublishVersion],
-		Namespace:          appModel.Namespace,
+		Namespace:          app.Namespace,
 		Finished:           "false",
 		StartTime:          time.Now().Time,
 		Steps:              steps,
@@ -719,7 +723,11 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 
 func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *model.Application, envName string) (*v1beta1.Application, error) {
 	oamApp := &v1beta1.Application{}
-	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: convertAppName(appModel.Name, envName), Namespace: appModel.Namespace}, oamApp); err != nil {
+	env, err := w.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: appModel.Name, Namespace: env.Namespace}, oamApp); err != nil {
 		return nil, err
 	}
 	if oamApp.Status.Workflow != nil && !oamApp.Status.Workflow.Suspend && !oamApp.Status.Workflow.Terminated && !oamApp.Status.Workflow.Finished {

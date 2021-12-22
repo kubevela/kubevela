@@ -27,58 +27,56 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-var _ = Describe("Test delivery target usecase functions", func() {
+var _ = Describe("Test target usecase functions", func() {
 	var (
-		deliveryTargetUsecase *deliveryTargetUsecaseImpl
-		projectUsecase        *projectUsecaseImpl
-		testProject           = "target-project"
+		targetUsecase  *targetUsecaseImpl
+		projectUsecase *projectUsecaseImpl
+		testProject    = "target-project"
 	)
 	BeforeEach(func() {
-		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
-		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
+		projectUsecase = &projectUsecaseImpl{ds: ds}
+		targetUsecase = &targetUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
 	})
-	It("Test CreateDeliveryTarget function", func() {
+	It("Test CreateTarget function", func() {
 		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
 
-		req := apisv1.CreateDeliveryTargetRequest{
-			Name:        "test-delivery-target",
-			Project:     testProject,
+		req := apisv1.CreateTargetRequest{
+			Name:        "test--target",
 			Alias:       "test-alias",
-			Description: "this is a deliveryTarget",
+			Description: "this is a Target",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 			Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"},
 		}
-		base, err := deliveryTargetUsecase.CreateDeliveryTarget(context.TODO(), req)
+		base, err := targetUsecase.CreateTarget(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
-		Expect(deliveryTargetUsecase.ds.Add(context.TODO(), &model.Cluster{Name: "cluster-dev", Alias: "dev-alias"})).Should(Succeed())
+		Expect(targetUsecase.ds.Add(context.TODO(), &model.Cluster{Name: "cluster-dev", Alias: "dev-alias"})).Should(Succeed())
 	})
 
-	It("Test GetDeliveryTarget function", func() {
-		deliveryTarget, err := deliveryTargetUsecase.GetDeliveryTarget(context.TODO(), "test-delivery-target")
+	It("Test GetTarget function", func() {
+		Target, err := targetUsecase.GetTarget(context.TODO(), "test--target")
 		Expect(err).Should(BeNil())
-		Expect(deliveryTarget).ShouldNot(BeNil())
-		Expect(cmp.Diff(deliveryTarget.Name, "test-delivery-target")).Should(BeEmpty())
+		Expect(Target).ShouldNot(BeNil())
+		Expect(cmp.Diff(Target.Name, "test--target")).Should(BeEmpty())
 	})
 
-	It("Test ListDeliveryTargets function", func() {
-		resp, err := deliveryTargetUsecase.ListDeliveryTargets(context.TODO(), 1, 1, "")
+	It("Test ListTargets function", func() {
+		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1)
 		Expect(err).Should(BeNil())
 		Expect(resp.Targets[0].ClusterAlias).Should(Equal("dev-alias"))
 	})
 
-	It("Test DetailDeliveryTarget function", func() {
-		detail, err := deliveryTargetUsecase.DetailDeliveryTarget(context.TODO(),
-			&model.DeliveryTarget{
-				Name:        "test-delivery-target",
-				Namespace:   "test-namespace",
+	It("Test DetailTarget function", func() {
+		detail, err := targetUsecase.DetailTarget(context.TODO(),
+			&model.Target{
+				Name:        "test--target",
 				Alias:       "test-alias",
-				Description: "this is a deliveryTarget",
+				Description: "this is a Target",
 				Cluster:     &model.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 				Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"}})
 		Expect(err).Should(BeNil())
-		Expect(detail.Name).Should(Equal("test-delivery-target"))
+		Expect(detail.Name).Should(Equal("test--target"))
 	})
 })

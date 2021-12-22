@@ -154,7 +154,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 }
 
 func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
-	w := usecase.NewWorkflowUsecase(s.dataStore)
+	w := usecase.NewWorkflowUsecase(s.dataStore, usecase.NewEnvUsecase(s.dataStore))
 
 	t := time.NewTicker(duration)
 	defer t.Stop()

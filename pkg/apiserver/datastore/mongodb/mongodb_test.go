@@ -63,14 +63,14 @@ var _ = Describe("Test mongodb datastore driver", func() {
 	It("Test batch add function", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
-			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.Application{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Application{Name: "kubevela-app-3", Description: "this is demo 3"},
+			&model.Application{Name: "kubevela-app-4", Description: "this is demo 4"},
 		}
 		err := mongodbDriver.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
 
 		var datas2 = []datastore.Entity{
-			&model.Application{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
+			&model.Application{Name: "can-delete", Description: "this is demo can-delete"},
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = mongodbDriver.BatchAdd(context.TODO(), datas2)
@@ -110,12 +110,6 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		list, err = mongodbDriver.List(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 4)
-		Expect(diff).Should(BeEmpty())
-
-		app.Namespace = "test-namespace"
-		list, err = mongodbDriver.List(context.TODO(), &app, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		diff = cmp.Diff(len(list), 1)
 		Expect(diff).Should(BeEmpty())
 	})
 
@@ -163,11 +157,6 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		count, err := mongodbDriver.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
-
-		app.Namespace = "test-namespace"
-		count, err = mongodbDriver.Count(context.TODO(), &app, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(count).Should(Equal(int64(1)))
 
 		count, err = mongodbDriver.Count(context.TODO(), &model.Cluster{}, &datastore.FilterOptions{
 			Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
