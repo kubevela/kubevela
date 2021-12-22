@@ -32,6 +32,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var ResponseString = "Hello HTTP Get."
@@ -353,4 +356,16 @@ patch: {
 	assert.NoError(t, err)
 	_, err = RefineParameterInstance(inst)
 	assert.NotNil(t, err)
+}
+
+func TestFilterClusterObjectRefFromAddonObservability(t *testing.T) {
+	ref := common.ClusterObjectReference{}
+	ref.Name = AddonObservabilityGrafanaSvc
+	ref.Namespace = types.DefaultKubeVelaNS
+	resources := []common.ClusterObjectReference{ref}
+
+	res := filterClusterObjectRefFromAddonObservability(resources)
+	assert.Equal(t, 1, len(res))
+	assert.Equal(t, "Service", res[0].Kind)
+	assert.Equal(t, "v1", res[0].APIVersion)
 }
