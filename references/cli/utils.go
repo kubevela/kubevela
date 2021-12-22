@@ -59,5 +59,10 @@ func getCompNameFromClusterObjectReference(ctx context.Context, k8sClient client
 	if labels == nil {
 		return "", nil
 	}
+	// Addon observability --> some Helm typed components --> some fluxcd objects --> some services. Those services
+	// are not labeled with oam.LabelAppComponent
+	if r.Name == common.AddonObservabilityGrafanaSvc {
+		return r.Name, nil
+	}
 	return labels[oam.LabelAppComponent], nil
 }
