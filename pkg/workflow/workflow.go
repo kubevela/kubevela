@@ -289,6 +289,7 @@ func (w *workflow) checkDuplicateID(ctx monitorContext.Context) {
 		}
 	}
 	if found {
+		fmt.Println("========================================================================")
 		w.CleanupCountersInContext(ctx)
 	}
 }
