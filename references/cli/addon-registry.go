@@ -171,7 +171,7 @@ func listAddonRegistry(ctx context.Context) error {
 	for _, registry := range registries {
 		var repoType, repoURL string
 		if registry.OSS != nil {
-			repoType = "Oss"
+			repoType = "OSS"
 			u, err := url.Parse(registry.OSS.Endpoint)
 			if err != nil {
 				continue
@@ -202,8 +202,8 @@ func getAddonRegistry(ctx context.Context, name string) error {
 	}
 	table := uitable.New()
 	if registry.OSS != nil {
-		table.AddRow("NAME", "ENDPOINT", "BUCKET")
-		table.AddRow(registry.Name, registry.OSS.Endpoint, registry.OSS.Bucket)
+		table.AddRow("NAME", "ENDPOINT", "BUCKET", "PATH")
+		table.AddRow(registry.Name, registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
 	} else {
 		table.AddRow("NAME", "URL", "PATH")
 		table.AddRow(registry.Name, registry.Git.URL, registry.Git.Path)
@@ -276,6 +276,11 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 			return nil, err
 		}
 		r.OSS.Bucket = bucket
+		path, err := cmd.Flags().GetString(addonPath)
+		if err != nil {
+			return nil, err
+		}
+		r.OSS.Path = path
 	case addonGitType:
 		r.Git = &pkgaddon.GitAddonSource{}
 		gitURL, err := cmd.Flags().GetString(addonGitURL)

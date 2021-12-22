@@ -100,6 +100,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		NewAddonDisableCommand(ioStreams),
 		NewAddonStatusCommand(ioStreams),
 		NewAddonRegistryCommand(c, ioStreams),
+		NewAddonUpgradeCommand(c, ioStreams),
 	)
 	return cmd
 }
@@ -139,6 +140,45 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
+			addonArgs, err := parseToMap(args[1:])
+			if err != nil {
+				return err
+			}
+			err = enableAddon(ctx, k8sClient, c.Config, name, addonArgs)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Successfully enable addon:%s\n", name)
+			if name == "velaux" {
+				fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`)
+			}
+			return nil
+		},
+	}
+}
+
+// NewAddonUpgradeCommand create addon upgrade command
+func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	ctx := context.Background()
+	return &cobra.Command{
+		Use:     "upgrade",
+		Short:   "upgrade an addon",
+		Long:    "upgrade an addon in cluster",
+		Example: "vela addon upgrade <addon-name>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
+			if len(args) < 1 {
+				return fmt.Errorf("must specify addon name")
+			}
+			name := args[0]
+			_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+			if err != nil {
+				return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
+			}
 			addonArgs, err := parseToMap(args[1:])
 			if err != nil {
 				return err
