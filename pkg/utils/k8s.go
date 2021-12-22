@@ -52,22 +52,33 @@ func MergeNoConflictLabels(labels map[string]string) MutateOption {
 // CreateOrUpdateNamespace will create a namespace if not exist, it will also update a namespace if exists
 // It will report an error if the labels conflict while it will override the annotations
 func CreateOrUpdateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
+	err := CreateNamespace(ctx, kubeClient, name, options...)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	return UpdateNamespace(ctx, kubeClient, name, options...)
+}
+
+// CreateNamespace will create a namespace with mutate option
+func CreateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
+	obj := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: corev1.NamespaceSpec{},
+	}
+	for _, op := range options {
+		if err := op(obj); err != nil {
+			return err
+		}
+	}
+	return kubeClient.Create(ctx, obj)
+}
+
+// UpdateNamespace will update a namespace with mutate option
+func UpdateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
 	var namespace corev1.Namespace
 	err := kubeClient.Get(ctx, k8stypes.NamespacedName{Name: name}, &namespace)
-	if apierrors.IsNotFound(err) {
-		obj := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-			Spec: corev1.NamespaceSpec{},
-		}
-		for _, op := range options {
-			if err = op(obj); err != nil {
-				return err
-			}
-		}
-		return kubeClient.Create(ctx, obj)
-	}
 	if err != nil {
 		return err
 	}
@@ -76,8 +87,5 @@ func CreateOrUpdateNamespace(ctx context.Context, kubeClient client.Client, name
 			return err
 		}
 	}
-	if err = kubeClient.Update(ctx, &namespace); err != nil {
-		return err
-	}
-	return nil
+	return kubeClient.Update(ctx, &namespace)
 }

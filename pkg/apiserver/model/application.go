@@ -33,6 +33,7 @@ type Application struct {
 	Name        string            `json:"name"`
 	Alias       string            `json:"alias"`
 	Project     string            `json:"project"`
+	Env         string            `json:"env"`
 	Namespace   string            `json:"namespace"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
@@ -60,6 +61,9 @@ func (a *Application) Index() map[string]string {
 	}
 	if a.Project != "" {
 		index["project"] = a.Project
+	}
+	if a.Env != "" {
+		index["env"] = a.Env
 	}
 	return index
 }

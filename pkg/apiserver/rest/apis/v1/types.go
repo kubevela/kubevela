@@ -268,6 +268,7 @@ type ClusterBase struct {
 // ListApplicatioOptions list application  query options
 type ListApplicatioOptions struct {
 	Project    string `json:"project"`
+	Env        string `json:"env"`
 	TargetName string `json:"targetName"`
 	Query      string `json:"query"`
 }

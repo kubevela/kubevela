@@ -70,16 +70,23 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase, projectUsecase)
-	RegistWebService(NewClusterWebService(clusterUsecase))
-	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
+
+	// Application
 	RegistWebService(NewProjectWebService(projectUsecase))
 	RegistWebService(NewEnvWebService(envUsecase))
+	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
+
+	// Extension
 	RegistWebService(NewDefinitionWebservice(definitionUsecase))
 	RegistWebService(NewAddonWebService(addonUsecase))
 	RegistWebService(NewEnabledAddonWebService(addonUsecase))
 	RegistWebService(NewAddonRegistryWebService(addonUsecase))
+
+	// Resources
+	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase, applicationUsecase))
+	RegistWebService(NewClusterWebService(clusterUsecase))
+
 	RegistWebService(NewOAMApplication(oamApplicationUsecase))
 	RegistWebService(&policyDefinitionWebservice{})
-	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase, applicationUsecase))
 	RegistWebService(NewVelaQLWebService(velaQLUsecase))
 }

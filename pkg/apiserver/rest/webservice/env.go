@@ -28,6 +28,7 @@ import (
 
 type envWebService struct {
 	envUsecase usecase.EnvUsecase
+	appUsecase usecase.ApplicationUsecase
 }
 
 // NewEnvWebService new env webservice
@@ -56,6 +57,14 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "", apis.Env{}).
 		Writes(apis.Env{}))
+
+	ws.Route(ws.DELETE("/{name}").To(n.delete).
+		Doc("delete one env").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 	return ws
 }
 
@@ -66,6 +75,32 @@ func (n *envWebService) list(req *restful.Request, res *restful.Response) {
 		return
 	}
 	if err := res.WriteEntity(apis.ListEnvResponse{Envs: envs}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+// it will prevent the deletion if there's still application in it.
+func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
+	envname := req.PathParameter("name")
+
+	ctx := req.Request.Context()
+	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicatioOptions{Env: envname})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if len(lists) > 0 {
+		bcode.ReturnError(req, res, bcode.ErrDeleteEnvButAppExist)
+		return
+	}
+
+	err = n.envUsecase.DeleteEnv(ctx, envname)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err = res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

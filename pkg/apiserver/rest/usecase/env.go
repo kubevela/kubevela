@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 
+	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -37,6 +38,7 @@ import (
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
 	ListEnvs(ctx context.Context) ([]*apisv1.Env, error)
+	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 }
 
@@ -65,6 +67,37 @@ func (p *envUsecaseImpl) GetEnv(ctx context.Context, envName string) (*model.Env
 		return nil, err
 	}
 	return env, nil
+}
+
+// DeleteEnv delete an env by name
+// the function assume applications contain in env already empty.
+// it won't delete the namespace created by the Env, but it will update the label
+func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
+	env := &model.Env{}
+	env.Name = envName
+
+	if err := p.ds.Get(ctx, env); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil
+		}
+		return err
+	}
+	// reset the labels
+	err := util.UpdateNamespace(ctx, p.kubeClient, env.Namespace, util.MergeOverrideLabels(map[string]string{
+		oam.LabelNamespaceOfEnv: "",
+		oam.LabelUsageNamespace: "",
+	}))
+	if err != nil && apierror.IsNotFound(err) {
+		return err
+	}
+
+	if err = p.ds.Delete(ctx, env); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // ListEnvs list envs

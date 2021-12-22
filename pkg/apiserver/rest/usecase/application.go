@@ -131,6 +131,9 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	if listOptions.Project != "" {
 		app.Project = listOptions.Project
 	}
+	if listOptions.Env != "" {
+		app.Env = listOptions.Env
+	}
 	entitys, err := c.ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
