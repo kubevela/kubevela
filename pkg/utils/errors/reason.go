@@ -3,6 +3,7 @@ package errors
 import "strings"
 
 const (
+	// LabelConflict defines the conflict label error string
 	LabelConflict = "LabelConflict"
 )
 

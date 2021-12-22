@@ -29,4 +29,4 @@ var ErrEnvNamespaceFail = NewBcode(400, 11003, "env bind namespace failure")
 var ErrEnvNamespaceAlreadyBound = NewBcode(400, 11004, "the namespace specified already belongs to other env")
 
 // ErrDeleteEnvButAppExist reports an error when delete an Env but still has apps inside
-var ErrDeleteEnvButAppExist = NewBcode(400, 11001, "env can't be deleted as app existed inside")
+var ErrDeleteEnvButAppExist = NewBcode(400, 11005, "env can't be deleted as app existed inside")

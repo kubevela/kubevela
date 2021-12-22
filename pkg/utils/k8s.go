@@ -14,6 +14,7 @@ import (
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
+// MutateOption defines the function pattern for mutate
 type MutateOption func(object metav1.Object) error
 
 // MergeOverrideLabels will merge the existing labels and override by the labels passed in

@@ -28,18 +28,18 @@ type Env struct {
 
 // EnvBase defines the data of Env except the base model
 type EnvBase struct {
-	Name        string `json:"name"`
-	Alias       string `json:"alias"`
-	Description string `json:"description,omitempty"`
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description,omitempty"  optional:"true"`
 
 	// Project defines the project this Env belongs to
 	Project string `json:"project"`
-	//Namespace defines the K8s namespace of the Env in control plane
+	// Namespace defines the K8s namespace of the Env in control plane
 	Namespace string `json:"namespace"`
 
 	// Targets defines the name of delivery target that belongs to this env
 	// In one project, a delivery target can only belong to one env.
-	Targets []string `json:"targets,omitempty"`
+	Targets []string `json:"targets,omitempty"  optional:"true"`
 }
 
 // TableName return custom table name

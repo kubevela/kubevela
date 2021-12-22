@@ -141,21 +141,17 @@ To execute the e2e test of the API module, the mongodb service needs to exist lo
 make e2e-apiserver-test
 ```
 
-## Contribute Docs
+## Contribute apiserver and velaux
 
-Please read [the documentation](https://github.com/oam-dev/kubevela/tree/master/docs/README.md) before contributing to the docs.
+Before start, please make sure you have already started the vela controller environment.
 
-- Build docs
-
-```shell script
-make docs-build
+```shell
+make run-apiserver
 ```
 
-- Local development and preview
+By default, the apiserver will serving at "0.0.0.0:8000".
 
-```shell script
-make docs-start
-```
+
 
 ## Next steps
 

@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -47,7 +46,7 @@ var _ = Describe("Test env usecase functions", func() {
 		base, err := envUsecase.CreateEnv(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
-		Expect(cmp.Diff(base.Namespace, fmt.Sprintf("%s", req.Name))).Should(BeEmpty())
+		Expect(cmp.Diff(base.Namespace, req.Name)).Should(BeEmpty())
 
 		By("test specified namespace to create env")
 		req2 := apisv1.CreateEnvRequest{
