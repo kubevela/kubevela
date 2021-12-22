@@ -162,7 +162,7 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 // ListEnvs shows info of all environments
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
-	table.AddRow("NAME", "NAMESPACE", "CURRENT")
+	table.AddRow("NAME", "NAMESPACE")
 	var envName = ""
 	if len(args) > 0 {
 		envName = args[0]
@@ -172,7 +172,7 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	for _, env := range envList {
-		table.AddRow(env.Name, env.Namespace, env.Current)
+		table.AddRow(env.Name, env.Namespace)
 	}
 	ioStreams.Info(table.String())
 	return nil
@@ -195,17 +195,27 @@ func DeleteEnv(args []string, ioStreams cmdutil.IOStreams) error {
 
 // CreateEnv creates an environment
 func CreateEnv(envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
+	var envName, namespace string
 	if len(args) < 1 {
-		return fmt.Errorf("you must specify environment name for 'vela env init' command")
+		c, err := common.GetClient()
+		if err != nil {
+			return err
+		}
+		envArgs.Namespace, err = common.AskToChooseOneNamespace(c)
+		if err != nil {
+			return errors.New("you must specify environment name for 'vela env init' command")
+		}
+		envArgs.Name = namespace
+	} else {
+		envArgs.Name = args[0]
 	}
-	envName := args[0]
-	envArgs.Name = envName
-	err := env.CreateEnv(envName, envArgs)
+
+	err := env.CreateEnv(envArgs)
 	if err != nil {
 		return err
 	}
-	ioStreams.Infof("environment %s created\n", envName)
-	return nil
+	ioStreams.Infof("environment %s with namespace %s created\n", envName, envArgs.Namespace)
+	return env.SetEnv(envArgs)
 }
 
 // SetEnv sets current environment
@@ -214,11 +224,16 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("you must specify environment name for vela env command")
 	}
 	envName := args[0]
-	msg, err := env.SetEnv(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		return err
 	}
-	ioStreams.Info(msg)
+	err = env.SetEnv(envMeta)
+	if err != nil {
+		return err
+	}
+
+	ioStreams.Info(fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace))
 	return nil
 }
 

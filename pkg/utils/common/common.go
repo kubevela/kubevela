@@ -41,6 +41,7 @@ import (
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -330,6 +331,36 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 		}
 	}
 	return nil, fmt.Errorf("choosing resource err %w", err)
+}
+
+func AskToChooseOneNamespace(c client.Client) (string, error) {
+	var nsList v1.NamespaceList
+	if err := c.List(context.TODO(), &nsList); err != nil {
+		return "", err
+	}
+	const custom = "create a new namespace"
+	var ops = []string{custom}
+	for _, r := range nsList.Items {
+		ops = append(ops, r.Name)
+	}
+	prompt := &survey.Select{
+		Message: fmt.Sprintf("Would you like to choose one of your namespaces as your environment:"),
+		Options: ops,
+	}
+	var selectedRsc string
+	err := survey.AskOne(prompt, &selectedRsc)
+	if err != nil {
+		return "", fmt.Errorf("choosing namespace err %w", err)
+	}
+	if selectedRsc == custom {
+		err = survey.AskOne(&survey.Input{
+			Message: "Please name your new namespace:",
+		}, &selectedRsc)
+		if err != nil {
+			return "", err
+		}
+	}
+	return selectedRsc, nil
 }
 
 // AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
