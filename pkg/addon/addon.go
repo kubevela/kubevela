@@ -102,10 +102,20 @@ var (
 	CLIMetaOptions = ListOptions{}
 )
 
+const (
+	// ObservabilityAddon is the name of the observability addon
+	ObservabilityAddon = "observability"
+	// ObservabilityAddonEndpointComponent is the endpoint component name of the observability addon
+	ObservabilityAddonEndpointComponent = "grafana"
+	// ObservabilityAddonDomainArg is the domain argument name of the observability addon
+	ObservabilityAddonDomainArg = "domain"
+)
+
 // ObservabilityEnvironment contains the Observability addon's domain for each cluster
 type ObservabilityEnvironment struct {
-	Cluster string
-	Domain  string
+	Cluster        string
+	Domain         string
+	LoadBalancerIP string
 }
 
 // ObservabilityEnvBindingValues is a list of ObservabilityEnvironment and will be used to render observability-env-binding.yaml
@@ -480,7 +490,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		if err != nil {
 			return nil, ErrRenderCueTmpl
 		}
-		if addon.Name == "observability" && strings.HasSuffix(comp.Name, ".cue") {
+		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
 			comp.Name = strings.Split(comp.Name, ".cue")[0]
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
@@ -500,8 +510,8 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 				Name: "deploy-runtime",
 				Type: "deploy2runtime",
 			})
-	case addon.Name == "observability":
-		arg, ok := args["domain"]
+	case addon.Name == ObservabilityAddon:
+		arg, ok := args[ObservabilityAddonDomainArg]
 		if !ok {
 			return nil, ErrorNoDomain
 		}

@@ -163,7 +163,6 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 }
 
 func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error) {
-
 	status, err := pkgaddon.GetAddonStatus(ctx, u.kubeClient, name)
 	if err != nil {
 		return nil, bcode.ErrGetAddonApplication
@@ -179,6 +178,7 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		Name:      name,
 		Phase:     apis.AddonPhase(status.AddonPhase),
 		AppStatus: *status.AppStatus,
+		Clusters:  status.Clusters,
 	}
 
 	if res.Phase != apis.AddonPhaseEnabled {
@@ -196,8 +196,8 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		for k, v := range sec.Data {
 			res.Args[k] = string(v)
 		}
-
 	}
+
 	return &res, nil
 }
 

@@ -146,14 +146,18 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 			}
 		}
 	}
-
-	act.Wait("")
+	msg, _ := v.GetString("message")
+	act.Wait(msg)
 	return nil
 }
 
 // Break let workflow terminate.
 func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	act.Terminate("")
+	var msg string
+	if v != nil {
+		msg, _ = v.GetString("message")
+	}
+	act.Terminate(msg)
 	return nil
 }
 

@@ -50,6 +50,12 @@ var _ = Describe("Addon Test", func() {
 			Expect(output).To(ContainSubstring("Successfully enable addon"))
 		})
 
+		It("Upgrade addon test-addon", func() {
+			output, err := e2e.Exec("vela addon upgrade test-addon")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully enable addon"))
+		})
+
 		It("Disable addon test-addon", func() {
 			output, err := e2e.LongTimeExec("vela addon disable test-addon", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
