@@ -20,7 +20,7 @@ import "github.com/oam-dev/kubevela/pkg/addon"
 
 // AddonRegistry defines the data model of a AddonRegistry
 type AddonRegistry struct {
-	Model
+	BaseModel
 	Name string `json:"name"`
 
 	Git *addon.GitAddonSource `json:"git,omitempty"`

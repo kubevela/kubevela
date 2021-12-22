@@ -17,31 +17,43 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Project{})
+	RegistModel(&Env{})
 }
 
-// Project project model
-type Project struct {
+// Env models the data of env in database
+type Env struct {
 	BaseModel
+	EnvBase
+}
+
+// EnvBase defines the data of Env except the base model
+type EnvBase struct {
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
 	Description string `json:"description,omitempty"`
-	// Namespace Control cluster namespace
+
+	// Project defines the project this Env belongs to
+	Project string `json:"project"`
+	//Namespace defines the K8s namespace of the Env in control plane
 	Namespace string `json:"namespace"`
+
+	// Targets defines the name of delivery target that belongs to this env
+	// In one project, a delivery target can only belong to one env.
+	Targets []string `json:"targets,omitempty"`
 }
 
 // TableName return custom table name
-func (p *Project) TableName() string {
-	return tableNamePrefix + "project"
+func (p *Env) TableName() string {
+	return tableNamePrefix + "env"
 }
 
 // PrimaryKey return custom primary key
-func (p *Project) PrimaryKey() string {
+func (p *Env) PrimaryKey() string {
 	return p.Name
 }
 
 // Index return custom index
-func (p *Project) Index() map[string]string {
+func (p *Env) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name

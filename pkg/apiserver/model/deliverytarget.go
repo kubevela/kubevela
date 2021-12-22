@@ -23,7 +23,7 @@ func init() {
 // DeliveryTarget defines the delivery target information for the application
 // It includes kubernetes clusters or cloud service providers
 type DeliveryTarget struct {
-	Model
+	BaseModel
 	Name        string                 `json:"name"`
 	Project     string                 `json:"project"`
 	Namespace   string                 `json:"namespace"`

@@ -24,7 +24,7 @@ func init() {
 
 // EnvBinding application env binding
 type EnvBinding struct {
-	Model
+	BaseModel
 	AppPrimaryKey     string             `json:"appPrimaryKey"`
 	Name              string             `json:"name"`
 	Alias             string             `json:"alias"`

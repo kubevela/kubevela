@@ -499,6 +499,17 @@ type CreateProjectRequest struct {
 	Namespace   string `json:"namespace" optional:"true"`
 }
 
+// Env models the data of env in API
+type Env model.Env
+
+// ListEnvResponse response the while env list
+type ListEnvResponse struct {
+	Envs []*Env `json:"envs"`
+}
+
+// CreateEnvRequest contains the env data as request body
+type CreateEnvRequest model.EnvBase
+
 // ListDefinitionResponse list definition response model
 type ListDefinitionResponse struct {
 	Definitions []*DefinitionBase `json:"definitions"`

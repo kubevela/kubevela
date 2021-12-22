@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha2 contains resources relating to the Open Application Model.
+// Package v1alpha2 contains resources relating to the Open Application BaseModel.
 // See https://github.com/oam-dev/spec for more details.
 // +kubebuilder:object:generate=true
 // +groupName=core.oam.dev

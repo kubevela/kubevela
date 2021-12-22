@@ -75,8 +75,16 @@ const (
 	// LabelProject Namesapce records the project name of namespace
 	LabelProjectNamesapce = "namespace.oam.dev/project"
 
+	// LabelNamespaceOfEnv records the env name of namespace
+	LabelNamespaceOfEnv = "namespace.oam.dev/env"
+
 	// LabelUsageNamespace mark the usage of the namespace.
 	LabelUsageNamespace = "usage.oam.dev"
+)
+
+const (
+	// VelaUsageEnv mark the usage of the namespace is used by env.
+	VelaUsageEnv = "env"
 )
 
 const (

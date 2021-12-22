@@ -113,19 +113,19 @@ func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: b}
 }
 
-// Model common model
-type Model struct {
+// BaseModel common model
+type BaseModel struct {
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`
 }
 
 // SetCreateTime set create time
-func (m *Model) SetCreateTime(time time.Time) {
+func (m *BaseModel) SetCreateTime(time time.Time) {
 	m.CreateTime = time
 }
 
 // SetUpdateTime set update time
-func (m *Model) SetUpdateTime(time time.Time) {
+func (m *BaseModel) SetUpdateTime(time time.Time) {
 	m.UpdateTime = time
 }
 

@@ -39,7 +39,7 @@ func NewCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			allCommands := cmd.Commands()
-			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  kubectl vela [flags]\n  kubectl vela [command]\n\nAvailable Commands:\n\n")
+			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application BaseModel.\n\nUsage:\n  kubectl vela [flags]\n  kubectl vela [command]\n\nAvailable Commands:\n\n")
 			cli.PrintHelpByTag(cmd, allCommands, types.TypePlugin)
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
@@ -107,7 +107,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
 		allCommands := cmd.Root().Commands()
 		// print error message at first, since it can contain suggestions
-		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  kubectl vela [flags]\n  kubectl vela [command]\n\nAvailable Commands:\n\n")
+		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application BaseModel.\n\nUsage:\n  kubectl vela [flags]\n  kubectl vela [command]\n\nAvailable Commands:\n\n")
 		cli.PrintHelpByTag(cmd, allCommands, types.TypePlugin)
 	} else {
 		foundCmd, _, err := cmd.Root().Find(args)
