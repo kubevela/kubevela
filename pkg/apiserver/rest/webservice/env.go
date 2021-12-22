@@ -58,6 +58,13 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.Env{}).
 		Writes(apis.Env{}))
 
+	ws.Route(ws.PUT("/").To(n.update).
+		Doc("create an env").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreateEnvRequest{}).
+		Returns(200, "", apis.Env{}).
+		Writes(apis.Env{}))
+
 	ws.Route(ws.DELETE("/{name}").To(n.delete).
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -121,6 +128,31 @@ func (n *envWebService) create(req *restful.Request, res *restful.Response) {
 	env, err := n.envUsecase.CreateEnv(req.Request.Context(), createReq)
 	if err != nil {
 		log.Logger.Errorf("create application failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(env); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *envWebService) update(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateEnvRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), updateReq)
+	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

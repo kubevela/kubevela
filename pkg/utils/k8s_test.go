@@ -62,6 +62,7 @@ var _ = Describe("Test Create Or Update Namespace functions", func() {
 		overrideAnn := map[string]string{"abc": "xyz", "haha": "123"}
 		overrideLabels := map[string]string{"l1": "v1", "l2": "v2"}
 		err = CreateNamespace(context.Background(), k8sClient, namespaceName, MergeOverrideAnnotations(overrideAnn), MergeOverrideLabels(overrideLabels))
+		Expect(err).Should(BeNil())
 
 		By("test a namespace update with merge labels and annotations case that should be updated")
 		overrideAnn = map[string]string{"haha": "456", "newkey": "newvalue"}

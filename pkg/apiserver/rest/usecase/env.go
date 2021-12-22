@@ -40,6 +40,7 @@ type EnvUsecase interface {
 	ListEnvs(ctx context.Context) ([]*apisv1.Env, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
+	UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
 }
 
 type envUsecaseImpl struct {
@@ -113,6 +114,35 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context) ([]*apisv1.Env, error) {
 		envs = append(envs, convertEnvModel2Base(apienv))
 	}
 	return envs, nil
+}
+
+// UpdateEnv update an env for request
+func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
+
+	env := &model.Env{}
+	env.Name = req.Name
+
+	err := p.ds.Get(ctx, env)
+	if err != nil {
+		log.Logger.Errorf("check if env name exists failure %s", err.Error())
+		return nil, bcode.ErrEnvNotExisted
+	}
+	if req.Alias != "" {
+		env.Alias = req.Alias
+	}
+	if req.Description != "" {
+		env.Description = req.Description
+	}
+	if len(req.Targets) > 0 {
+		env.Targets = req.Targets
+	}
+
+	// create namespace at first
+	if err := p.ds.Put(ctx, env); err != nil {
+		return nil, err
+	}
+	resp := apisv1.Env(*env)
+	return &resp, nil
 }
 
 // CreateEnv create an env for request

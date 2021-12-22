@@ -511,6 +511,17 @@ type ListEnvResponse struct {
 // CreateEnvRequest contains the env data as request body
 type CreateEnvRequest model.EnvBase
 
+// UpdateEnvRequest defines the data of Env for update
+type UpdateEnvRequest struct {
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description,omitempty"  optional:"true"`
+
+	// Targets defines the name of delivery target that belongs to this env
+	// In one project, a delivery target can only belong to one env.
+	Targets []string `json:"targets,omitempty"  optional:"true"`
+}
+
 // ListDefinitionResponse list definition response model
 type ListDefinitionResponse struct {
 	Definitions []*DefinitionBase `json:"definitions"`
