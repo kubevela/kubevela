@@ -40,7 +40,7 @@ func MergeNoConflictLabels(labels map[string]string) MutateOption {
 		// check and fill the labels
 		for k, v := range labels {
 			ev, ok := existingLabels[k]
-			if ok && ev != v {
+			if ok && ev != "" && ev != v {
 				return fmt.Errorf("%s for object %s, key: %s, conflicts value: %s <-> %s", velaerr.LabelConflict, object.GetName(), k, ev, v)
 			}
 			existingLabels[k] = v

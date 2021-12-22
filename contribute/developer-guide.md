@@ -141,7 +141,7 @@ To execute the e2e test of the API module, the mongodb service needs to exist lo
 make e2e-apiserver-test
 ```
 
-## Contribute apiserver and velaux
+## Contribute apiserver and [velaux](https://github.com/oam-dev/velaux)
 
 Before start, please make sure you have already started the vela controller environment.
 
@@ -151,7 +151,25 @@ make run-apiserver
 
 By default, the apiserver will serving at "0.0.0.0:8000".
 
+Get the velaux code by:
 
+```shell
+git clone git@github.com:oam-dev/velaux.git
+```
+
+Configure the apiserver address:
+
+```shell
+cd velaux
+echo "BASE_DOMAIN='http://127.0.0.1:8000'" > .env
+```
+
+Make sure you have installed [yarn](https://classic.yarnpkg.com/en/docs/install).
+
+```shell
+yarn install
+yarn start
+```
 
 ## Next steps
 
