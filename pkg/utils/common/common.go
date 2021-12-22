@@ -344,7 +344,7 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
-func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference{
+func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
 	var observabilityResources []common.ClusterObjectReference
 	for _, res := range resources {
 		if res.Namespace == types.DefaultKubeVelaNS && res.Name == AddonObservabilityGrafanaSvc {
