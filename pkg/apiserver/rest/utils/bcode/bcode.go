@@ -20,13 +20,17 @@ import (
 	"errors"
 	"fmt"
 
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 	"github.com/go-playground/validator/v10"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
+
+// Business Code of VelaUX contains 5 digits, the first 3 digits should be reversed and indicates the category of concept
+// the last two digits indicates the error number
+// For example, business code 11001 should split to 110 and 01, it means the code belongs to the 011 category env, and it's the 01 number error.
 
 // ErrServer an unexpected mistake.
 var ErrServer = NewBcode(500, 500, "The service has lapsed.")

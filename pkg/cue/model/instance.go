@@ -30,7 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 )
 
-// Instance defines BaseModel Interface
+// Instance defines Model Interface
 type Instance interface {
 	String() string
 	Unstructured() (*unstructured.Unstructured, error)

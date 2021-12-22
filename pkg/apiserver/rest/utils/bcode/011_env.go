@@ -15,3 +15,15 @@ limitations under the License.
 */
 
 package bcode
+
+// ErrEnvAlreadyExists Env name is existed
+var ErrEnvAlreadyExists = NewBcode(400, 11001, "env name already exists")
+
+// ErrEnvNotExisted means env is not existed
+var ErrEnvNotExisted = NewBcode(404, 11002, "env is not existed")
+
+// ErrEnvNamespaceFail env binds namespace failure
+var ErrEnvNamespaceFail = NewBcode(400, 11003, "env bind namespace failure")
+
+// ErrEnvNamespaceAlreadyBound indicates the namespace already belongs to other env
+var ErrEnvNamespaceAlreadyBound = NewBcode(400, 11004, "the namespace specified already belongs to other env")

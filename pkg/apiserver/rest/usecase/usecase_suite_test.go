@@ -43,6 +43,11 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var ds datastore.DataStore
 
+func TestUsecase(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Usecase Suite")
+}
+
 var _ = BeforeSuite(func(done Done) {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
@@ -95,11 +100,6 @@ func NewDatastore(cfg datastore.Config) (ds datastore.DataStore, err error) {
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Type)
 	}
 	return ds, nil
-}
-
-func TestUsecase(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Usecase Suite")
 }
 
 func randomNamespaceName(basic string) string {

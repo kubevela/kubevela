@@ -38,7 +38,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
 		allCommands := cmd.Root().Commands()
 		// print error message at first, since it can contain suggestions
-		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application BaseModel.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 		PrintHelpByTag(cmd, allCommands, types.TypeStart)
 		PrintHelpByTag(cmd, allCommands, types.TypeApp)
 		PrintHelpByTag(cmd, allCommands, types.TypeCap)

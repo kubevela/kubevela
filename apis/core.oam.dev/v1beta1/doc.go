@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-// Package v1beta1 contains resources relating to the Open Application BaseModel.
+// Package v1beta1 contains resources relating to the Open Application Model.
 // See https://github.com/oam-dev/spec for more details.
 // +kubebuilder:object:generate=true
 // +groupName=core.oam.dev

@@ -166,7 +166,7 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 		if credType == "" && item.Type == v1.SecretTypeTLS {
 			item.Labels[v1alpha1.LabelKeyClusterCredentialType] = string(v1alpha1.CredentialTypeX509Certificate)
 			if err := c.Update(ctx, item.DeepCopy()); err != nil {
-				errs.Append(errors2.Wrapf(err, "failed to update outdated secret %s", item.Name))
+				errs = append(errs, errors2.Wrapf(err, "failed to update outdated secret %s", item.Name))
 			}
 		}
 	}

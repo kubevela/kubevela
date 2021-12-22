@@ -107,10 +107,12 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		newProject.Namespace = req.Namespace
 	}
 	// create namespace at first
-	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newProject.Namespace, map[string]string{
-		oam.LabelProjectNamesapce: newProject.Name,
-		oam.LabelUsageNamespace:   ProjectNamespace,
-	}, nil)
+	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newProject.Namespace,
+		util.MergeOverrideLabels(map[string]string{
+			oam.LabelUsageNamespace: ProjectNamespace,
+		}), util.MergeNoConflictLabels(map[string]string{
+			oam.LabelProjectNamesapce: newProject.Name,
+		}))
 	if err != nil {
 		if velaerr.IsLabelConflict(err) {
 			return nil, bcode.ErrProjectNamespaceIsExist
@@ -125,8 +127,8 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	return &apisv1.ProjectBase{
 		Name:        newProject.Name,
 		Alias:       newProject.Alias,
-		Namespace:   newProject.Namespace,
 		Description: newProject.Description,
+		Namespace:   newProject.Namespace,
 		CreateTime:  newProject.CreateTime,
 		UpdateTime:  newProject.UpdateTime,
 	}, nil

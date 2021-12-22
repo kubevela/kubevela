@@ -60,7 +60,7 @@ func (p *envUsecaseImpl) GetEnv(ctx context.Context, envName string) (*model.Env
 	env.Name = envName
 	if err := p.ds.Get(ctx, env); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrProjectIsNotExist
+			return nil, bcode.ErrEnvNotExisted
 		}
 		return nil, err
 	}
@@ -90,11 +90,11 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 
 	exist, err := p.ds.IsExist(ctx, env)
 	if err != nil {
-		log.Logger.Errorf("check project name is exist failure %s", err.Error())
-		return nil, bcode.ErrProjectIsExist
+		log.Logger.Errorf("check if env name exists failure %s", err.Error())
+		return nil, bcode.ErrEnvAlreadyExists
 	}
 	if exist {
-		return nil, bcode.ErrProjectIsExist
+		return nil, bcode.ErrEnvAlreadyExists
 	}
 	if req.Namespace == "" {
 		req.Namespace = req.Name
@@ -103,16 +103,18 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 	newEnv.EnvBase = model.EnvBase(req)
 
 	// create namespace at first
-	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newEnv.Namespace, map[string]string{
-		oam.LabelNamespaceOfEnv: newEnv.Name,
-		oam.LabelUsageNamespace: oam.VelaUsageEnv,
-	}, nil)
+	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newEnv.Namespace,
+		util.MergeOverrideLabels(map[string]string{
+			oam.LabelUsageNamespace: oam.VelaUsageEnv,
+		}), util.MergeNoConflictLabels(map[string]string{
+			oam.LabelNamespaceOfEnv: newEnv.Name,
+		}))
 	if err != nil {
 		if velaerr.IsLabelConflict(err) {
-			return nil, bcode.ErrProjectNamespaceIsExist
+			return nil, bcode.ErrEnvNamespaceAlreadyBound
 		}
 		log.Logger.Errorf("update namespace label failure %s", err.Error())
-		return nil, bcode.ErrProjectNamespaceFail
+		return nil, bcode.ErrEnvNamespaceFail
 	}
 	if err := p.ds.Add(ctx, newEnv); err != nil {
 		return nil, err
