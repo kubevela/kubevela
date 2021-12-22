@@ -74,7 +74,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	// Application
 	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
 	RegistWebService(NewProjectWebService(projectUsecase))
-	RegistWebService(NewEnvWebService(envUsecase))
+	RegistWebService(NewEnvWebService(envUsecase, applicationUsecase))
 
 	// Extension
 	RegistWebService(NewDefinitionWebservice(definitionUsecase))

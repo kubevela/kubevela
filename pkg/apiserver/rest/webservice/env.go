@@ -32,8 +32,8 @@ type envWebService struct {
 }
 
 // NewEnvWebService new env webservice
-func NewEnvWebService(envUsecase usecase.EnvUsecase) WebService {
-	return &envWebService{envUsecase: envUsecase}
+func NewEnvWebService(envUsecase usecase.EnvUsecase, appUseCase usecase.ApplicationUsecase) WebService {
+	return &envWebService{envUsecase: envUsecase, appUsecase: appUseCase}
 }
 
 func (n *envWebService) GetWebService() *restful.WebService {
