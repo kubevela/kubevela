@@ -333,6 +333,7 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
+// AskToChooseOneNamespace ask for choose one namespace as env
 func AskToChooseOneNamespace(c client.Client) (string, error) {
 	var nsList v1.NamespaceList
 	if err := c.List(context.TODO(), &nsList); err != nil {
@@ -344,7 +345,7 @@ func AskToChooseOneNamespace(c client.Client) (string, error) {
 		ops = append(ops, r.Name)
 	}
 	prompt := &survey.Select{
-		Message: fmt.Sprintf("Would you like to choose one of your namespaces as your environment:"),
+		Message: "Would you like to choose one of your namespaces as your environment:",
 		Options: ops,
 	}
 	var selectedRsc string
