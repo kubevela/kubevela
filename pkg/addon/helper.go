@@ -118,8 +118,8 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 				}
 				clusters[o.Cluster] = map[string]interface{}{
 					"domain":         o.Domain,
-					"LoadBalancerIP": o.LoadBalancerIP,
-					"Access":         access,
+					"loadBalancerIP": o.LoadBalancerIP,
+					"access":         access,
 				}
 			}
 			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
