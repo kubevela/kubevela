@@ -255,7 +255,10 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		}
 		addonResources = append(addonResources, addonRes)
 	}
-	return addonResources, gatherErr
+	if gatherErr.Error() != "" {
+		return addonResources, gatherErr
+	}
+	return addonResources, nil
 }
 
 func (u *defaultAddonHandler) DeleteAddonRegistry(ctx context.Context, name string) error {
