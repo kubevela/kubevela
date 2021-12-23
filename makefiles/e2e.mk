@@ -35,9 +35,7 @@ e2e-api-test:
 	ginkgo -v -r e2e/application
 
 .PHONY: e2e-apiserver-test
-e2e-apiserver-test: build-swagger
-	git --no-pager diff
-	git diff --quiet || ($(ERR) please run 'make build-swagger' to include all API changes && false)
+e2e-apiserver-test:
 	go run ./e2e/addon/mock &
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
