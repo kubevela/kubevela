@@ -17,7 +17,6 @@
 package e2e_apiserver
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/go-cmp/cmp"
@@ -74,18 +73,75 @@ var _ = Describe("Test env rest api", func() {
 			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: "t1", Alias: "my-target-for-env1"}}))
 		}
 		Expect(found).Should(BeTrue())
+
+		By("delete the first env")
+		err = HttpRequest(nil, http.MethodDelete, "/envs/dev-env", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+
 	})
 
 	It("Test crate, update, list env", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
+
+		By("create a target for preparation")
+		var reqt = apisv1.CreateTargetRequest{
+			Name:        "t2",
+			Alias:       "my-target-for-env2",
+			Description: "KubeVela Target",
+		}
+		var tgBase apisv1.TargetBase
+		err := HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
-		var projects apisv1.ListProjectResponse
-		err = json.NewDecoder(res.Body).Decode(&projects)
+		reqt = apisv1.CreateTargetRequest{
+			Name:        "t3",
+			Alias:       "my-target-for-env3",
+			Description: "KubeVela Target",
+		}
+		err = HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
 		Expect(err).ShouldNot(HaveOccurred())
+
+		By("create  env for update")
+		var req = apisv1.CreateEnvRequest{
+			Name:        "dev-env2",
+			Alias:       "my=test!",
+			Project:     "my-pro",
+			Description: "KubeVela Env",
+			Namespace:   "my-name",
+			Targets:     []string{"t2"},
+		}
+		var envBase apisv1.Env
+		err = HttpRequest(req, http.MethodPost, "/envs", &envBase)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(envBase.Name, req.Name)).Should(BeEmpty())
+		Expect(cmp.Diff(envBase.Description, req.Description)).Should(BeEmpty())
+
+		By("update the env")
+		upreq := apisv1.UpdateEnvRequest{
+			Alias:       "my=test3",
+			Description: "KubeVela Env2",
+			Targets:     []string{"t3"},
+		}
+		err = HttpRequest(upreq, http.MethodPut, "/envs/dev-env2", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("get the env")
+		var envs apisv1.ListEnvResponse
+		err = HttpRequest(nil, http.MethodGet, "/envs", &envs)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(len(envs.Envs) >= 1).Should(BeTrue())
+		var found bool
+		for _, ev := range envs.Envs {
+			if ev.Name != req.Name {
+				found = true
+				continue
+			}
+			Expect(ev.Alias).Should(BeEquivalentTo("my=test3"))
+			Expect(ev.Project).Should(BeEquivalentTo(req.Project))
+			Expect(ev.Description).Should(BeEquivalentTo("KubeVela Env2"))
+			Expect(ev.Namespace).Should(BeEquivalentTo(req.Namespace))
+			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: "t3", Alias: "my-target-for-env3"}}))
+		}
+		Expect(found).Should(BeTrue())
+
 	})
 })
