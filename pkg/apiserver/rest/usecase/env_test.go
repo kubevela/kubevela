@@ -73,7 +73,7 @@ var _ = Describe("Test env usecase functions", func() {
 	})
 
 	It("Test ListEnvs function", func() {
-		_, err := envUsecase.ListEnvs(context.TODO(), 1, 1)
+		_, err := envUsecase.ListEnvs(context.TODO(), 1, 1, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
 	})
 })
