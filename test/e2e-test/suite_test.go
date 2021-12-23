@@ -49,17 +49,14 @@ import (
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	// +kubebuilder:scaffold:imports
 )
 
 var k8sClient client.Client
 var scheme = runtime.NewScheme()
 var manualscalertrait v1alpha2.TraitDefinition
-var extendedmanualscalertrait v1alpha2.TraitDefinition
 var roleName = "oam-example-com"
 var roleBindingName = "oam-role-binding"
-var crd crdv1.CustomResourceDefinition
 
 // A DefinitionExtension is an Object type for xxxDefinitin.spec.extension
 type DefinitionExtension struct {
@@ -123,8 +120,6 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	// For some reason, traitDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(context.Background(), manualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// for oam spec v0.2 e2e-test
-	manualscalertrait.Namespace = "oam-runtime-system"
 	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	// Create manual scaler trait definition with spec.extension field
 	definitionExtension := DefinitionExtension{
@@ -133,24 +128,6 @@ var _ = BeforeSuite(func(done Done) {
 	in := new(runtime.RawExtension)
 	in.Raw, _ = json.Marshal(definitionExtension)
 
-	extendedmanualscalertrait = v1alpha2.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits-extended.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    map[string]string{"trait": "manualscalertrait"},
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			WorkloadRefPath: "spec.workloadRef",
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits-extended.core.oam.dev",
-			},
-			Extension: in,
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), extendedmanualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// for oam spec v0.2 e2e-test
-	extendedmanualscalertrait.Namespace = "oam-runtime-system"
-	Expect(k8sClient.Create(context.Background(), &extendedmanualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created extended manualscalertraits.core.oam.dev")
 
 	// create workload definition for 'deployments'
@@ -205,62 +182,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(context.Background(), &adminRoleBinding)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created cluster role binding for the test service account")
 
-	crd = crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "bars.example.com",
-			Labels: map[string]string{"crd": "revision-test"},
-		},
-		Spec: crdv1.CustomResourceDefinitionSpec{
-			Group: "example.com",
-			Names: crdv1.CustomResourceDefinitionNames{
-				Kind:     "Bar",
-				ListKind: "BarList",
-				Plural:   "bars",
-				Singular: "bar",
-			},
-			Versions: []crdv1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1",
-					Served:  true,
-					Storage: true,
-					Schema: &crdv1.CustomResourceValidation{
-						OpenAPIV3Schema: &crdv1.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]crdv1.JSONSchemaProps{
-								"spec": {
-									Type: "object",
-									Properties: map[string]crdv1.JSONSchemaProps{
-										"key": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			Scope: crdv1.NamespaceScoped,
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), crd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// for oam spec v0.2 e2e-test
-	crd.Namespace = "oam-runtime-system"
-	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created a crd for revision mechanism test")
-
-	By("Create workload definition for revision mechanism test")
-	var nwd v1alpha2.WorkloadDefinition
-	Expect(common.ReadYamlToObject("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
-	Eventually(
-		func() error {
-			return k8sClient.Create(context.Background(), nwd.DeepCopy())
-		},
-		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	nwd.Namespace = "oam-runtime-system"
-	Eventually(
-		func() error {
-			return k8sClient.Create(context.Background(), &nwd)
-		},
-		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	close(done)
 }, 300)
 
@@ -274,14 +195,6 @@ var _ = AfterSuite(func() {
 	}
 	Expect(k8sClient.Delete(context.Background(), &adminRoleBinding)).Should(BeNil())
 	By("Deleted the cluster role binding")
-
-	crd = crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "bars.example.com",
-			Labels: map[string]string{"crd": "revision-test"},
-		},
-	}
-	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 })
 
 // RequestReconcileNow will trigger an immediate reconciliation on K8s object.
