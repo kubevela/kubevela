@@ -234,8 +234,11 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 // GetApplicationStatus get application status from controller cluster
 func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
 	var app v1beta1.Application
-
-	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: envName, Name: appmodel.Name}, &app)
+	env, err := c.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.Name}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
