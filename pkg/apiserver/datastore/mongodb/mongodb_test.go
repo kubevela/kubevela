@@ -121,12 +121,22 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		}
 		for _, name := range []string{"first", "second", "third"} {
 			Expect(mongodbDriver.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(time.Millisecond * 300)
 		}
 		entities, err := mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
 		Expect(err).Should(Succeed())
 		Expect(len(entities)).Should(Equal(3))
 		for i, name := range []string{"first", "second", "third"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			Page:     1,
+			PageSize: 2,
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(2))
+		for i, name := range []string{"third", "second"} {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{

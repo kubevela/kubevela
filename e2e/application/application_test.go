@@ -185,7 +185,7 @@ var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool
 			cli := fmt.Sprintf("vela delete %s --wait", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
 		})
 	})
 }
@@ -225,7 +225,7 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 			cli = fmt.Sprintf("vela delete %s --force", appName)
 			output, err = e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
 		})
 	})
 }
