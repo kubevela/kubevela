@@ -238,7 +238,7 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 }
 
 // GetFlagEnvOrCurrent gets environment by name or current environment
-// if no env exists, then init default environment
+// if no env exists, return default namespace as env
 func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, error) {
 	clt, err := args.GetClient()
 	if err != nil {
@@ -255,5 +255,9 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 	if envName != "" {
 		return env.GetEnvByName(envName)
 	}
-	return env.GetCurrentEnv()
+	cur, err := env.GetCurrentEnv()
+	if err != nil {
+		return &types.EnvMeta{Name: "", Namespace: "default"}, nil
+	}
+	return cur, nil
 }

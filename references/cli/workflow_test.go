@@ -101,7 +101,8 @@ func TestWorkflowSuspend(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowSuspendCommand(c, ioStream)
 			initCommand(cmd)
-
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			if tc.app != nil {
 				err := c.Client.Create(ctx, tc.app)
 				r.NoError(err)
