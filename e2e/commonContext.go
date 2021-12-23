@@ -110,8 +110,7 @@ var (
 				cli := fmt.Sprintf("vela env sw %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Set environment succeed, current environment is %s", envName)
-				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
+				gomega.Expect(output).To(gomega.ContainSubstring(envName))
 			})
 		})
 	}

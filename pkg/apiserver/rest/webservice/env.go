@@ -105,6 +105,7 @@ func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
 		return
 	}
 	if len(lists) > 0 {
+		log.Logger.Infof("detected %d applications in this env, the first is %s", len(lists), lists[0].Name)
 		bcode.ReturnError(req, res, bcode.ErrDeleteEnvButAppExist)
 		return
 	}

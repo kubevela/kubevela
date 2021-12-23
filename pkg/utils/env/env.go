@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,7 +55,16 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 		return err
 	}
 	if envArgs.Namespace == "" {
-		envArgs.Namespace, err = common.AskToChooseOneNamespace(c)
+		envArgs, err = common.AskToChooseOneNamespace(c)
+		if err != nil {
+			return err
+		}
+	}
+	if envArgs.Name == "" {
+		prompt := &survey.Input{
+			Message: "Please name your new env:",
+		}
+		err = survey.AskOne(prompt, &envArgs.Name)
 		if err != nil {
 			return err
 		}
@@ -111,6 +121,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ctx := context.Background()
 	var nsList v1.NamespaceList
 	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelUsageNamespace: oam.VelaUsageEnv})
@@ -122,6 +133,21 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 			Name:      it.Labels[oam.LabelNamespaceOfEnv],
 			Namespace: it.Name,
 		})
+	}
+	if len(envList) < 1 {
+		return envList, nil
+	}
+	cur, err := GetCurrentEnv()
+	if err != nil {
+		// nolint(nilerr): we set a current env if not exist
+		_ = SetCurrentEnv(envList[0])
+		envList[0].Current = "*"
+		return envList, nil
+	}
+	for i := range envList {
+		if envList[i].Name == cur.Name {
+			envList[i].Current = "*"
+		}
 	}
 	return envList, nil
 }
@@ -168,14 +194,14 @@ func GetCurrentEnv() (*types.EnvMeta, error) {
 		if err != nil {
 			return nil, err
 		}
-		_ = SetEnv(em)
+		_ = SetCurrentEnv(em)
 		return em, nil
 	}
 	return &envMeta, nil
 }
 
-// SetEnv will set the current env to the specified one
-func SetEnv(meta *types.EnvMeta) error {
+// SetCurrentEnv will set the current env to the specified one
+func SetCurrentEnv(meta *types.EnvMeta) error {
 	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
 		return err

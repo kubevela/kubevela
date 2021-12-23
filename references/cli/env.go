@@ -162,7 +162,7 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 // ListEnvs shows info of all environments
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
-	table.AddRow("NAME", "NAMESPACE")
+	table.AddRow("NAME", "NAMESPACE", "CURRENT")
 	var envName = ""
 	if len(args) > 0 {
 		envName = args[0]
@@ -172,7 +172,7 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	for _, env := range envList {
-		table.AddRow(env.Name, env.Namespace)
+		table.AddRow(env.Name, env.Namespace, env.Current)
 	}
 	ioStreams.Info(table.String())
 	return nil
@@ -195,27 +195,15 @@ func DeleteEnv(args []string, ioStreams cmdutil.IOStreams) error {
 
 // CreateEnv creates an environment
 func CreateEnv(envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
-	var envName, namespace string
-	if len(args) < 1 {
-		c, err := common.GetClient()
-		if err != nil {
-			return err
-		}
-		envArgs.Namespace, err = common.AskToChooseOneNamespace(c)
-		if err != nil {
-			return errors.New("you must specify environment name for 'vela env init' command")
-		}
-		envArgs.Name = namespace
-	} else {
+	if len(args) > 0 {
 		envArgs.Name = args[0]
 	}
-
 	err := env.CreateEnv(envArgs)
 	if err != nil {
 		return err
 	}
-	ioStreams.Infof("environment %s with namespace %s created\n", envName, envArgs.Namespace)
-	return env.SetEnv(envArgs)
+	ioStreams.Infof("environment %s with namespace %s created\n", envArgs.Name, envArgs.Namespace)
+	return env.SetCurrentEnv(envArgs)
 }
 
 // SetEnv sets current environment
@@ -228,12 +216,11 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	err = env.SetEnv(envMeta)
+	err = env.SetCurrentEnv(envMeta)
 	if err != nil {
 		return err
 	}
-
-	ioStreams.Info(fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace))
+	ioStreams.Info(fmt.Sprintf("Current environment switched to %s (namespace = %s)", envName, envMeta.Namespace))
 	return nil
 }
 

@@ -63,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var (
@@ -347,34 +348,40 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 }
 
 // AskToChooseOneNamespace ask for choose one namespace as env
-func AskToChooseOneNamespace(c client.Client) (string, error) {
+func AskToChooseOneNamespace(c client.Client) (*types.EnvMeta, error) {
 	var nsList v1.NamespaceList
 	if err := c.List(context.TODO(), &nsList); err != nil {
-		return "", err
+		return nil, err
 	}
-
+	var envMeta = &types.EnvMeta{}
 	var ops = []string{CreateCustomNamespace}
 	for _, r := range nsList.Items {
 		ops = append(ops, r.Name)
 	}
 	prompt := &survey.Select{
-		Message: "Would you like to choose one of your namespaces as your environment:",
+		Message: "Would you like to choose an existing namespaces as your env?",
 		Options: ops,
 	}
-	var selectedRsc string
-	err := survey.AskOne(prompt, &selectedRsc)
+	err := survey.AskOne(prompt, &envMeta.Namespace)
 	if err != nil {
-		return "", fmt.Errorf("choosing namespace err %w", err)
+		return nil, fmt.Errorf("choosing namespace err %w", err)
 	}
-	if selectedRsc == CreateCustomNamespace {
+	if envMeta.Namespace == CreateCustomNamespace {
 		err = survey.AskOne(&survey.Input{
-			Message: "Please name your new namespace:",
-		}, &selectedRsc)
+			Message: "Please name the new namespace:",
+		}, &envMeta.Namespace)
 		if err != nil {
-			return "", err
+			return nil, err
+		}
+		return envMeta, nil
+	}
+	for _, ns := range nsList.Items {
+		if ns.Name == envMeta.Namespace {
+			envMeta.Name = ns.Labels[oam.LabelNamespaceOfEnv]
+			return envMeta, nil
 		}
 	}
-	return selectedRsc, nil
+	return envMeta, nil
 }
 
 func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
