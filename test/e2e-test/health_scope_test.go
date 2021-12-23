@@ -37,10 +37,6 @@ import (
 	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var (
-	varInt32_60 int32 = 60
-)
-
 var _ = Describe("HealthScope", func() {
 	ctx := context.Background()
 	var namespace string
