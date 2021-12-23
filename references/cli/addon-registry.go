@@ -201,11 +201,11 @@ func getAddonRegistry(ctx context.Context, name string) error {
 	}
 	table := uitable.New()
 	if registry.OSS != nil {
-		table.AddRow("NAME", "ENDPOINT", "BUCKET", "PATH")
-		table.AddRow(registry.Name, registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
+		table.AddRow("NAME", "Type", "ENDPOINT", "BUCKET", "PATH")
+		table.AddRow(registry.Name, "OSS", registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
 	} else {
-		table.AddRow("NAME", "ENDPOINT", "PATH")
-		table.AddRow(registry.Name, registry.Git.URL, registry.Git.Path)
+		table.AddRow("NAME", "Type", "ENDPOINT", "PATH")
+		table.AddRow(registry.Name, "git", registry.Git.URL, registry.Git.Path)
 	}
 	fmt.Println(table.String())
 	return nil
