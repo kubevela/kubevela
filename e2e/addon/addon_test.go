@@ -96,12 +96,12 @@ var _ = Describe("Addon Test", func() {
 		})
 
 		It("Add test addon registry", func() {
-			output, err := e2e.LongTimeExec("vela addon registry add my-repo --type=git --gitUrl=https://github.com/oam-dev/catalog --path=/experimental/addons", 600*time.Second)
+			output, err := e2e.LongTimeExec("vela addon registry add my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/experimental/addons", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("Successfully add an addon registry my-repo"))
 
 			Eventually(func() error {
-				output, err := e2e.LongTimeExec("vela addon registry update my-repo --type=git --gitUrl=https://github.com/oam-dev/catalog --path=/addons", 300*time.Second)
+				output, err := e2e.LongTimeExec("vela addon registry update my-repo --type=git --endpoint=https://github.com/oam-dev/catalog --path=/addons", 300*time.Second)
 				if err != nil {
 					return err
 				}

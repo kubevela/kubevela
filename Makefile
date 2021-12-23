@@ -61,18 +61,6 @@ docker-push:
 build-swagger:
 	go run ./cmd/apiserver/main.go build-swagger ./docs/apidoc/swagger.json
 
-compatibility-test: vet lint staticcheck generate-compatibility-testdata
-	# Run compatibility test with old crd
-	COMPATIBILITY_TEST=TRUE go test -race $(shell go list ./pkg/...  | grep -v apiserver)
-	@$(OK) compatibility-test pass
-
-generate-compatibility-testdata:
-	mkdir -p  ./test/compatibility-test/testdata
-	go run ./test/compatibility-test/convert/main.go ./charts/vela-core/crds ./test/compatibility-test/testdata
-
-compatibility-testdata-cleanup:
-	rm -f ./test/compatibility-test/testdata/*
-
 
 
 image-cleanup:

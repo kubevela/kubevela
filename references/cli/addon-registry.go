@@ -32,12 +32,11 @@ import (
 
 const (
 	addonRegistryType = "type"
-	addonOssEndpoint  = "ossEndpoint"
-	addonOssBucket    = "ossBucket"
-	addonGitURL       = "gitUrl"
+	addonEndpoint     = "endpoint"
+	addonOssBucket    = "bucket"
 	addonPath         = "path"
 	addonGitToken     = "gitToken"
-	addonOssType      = "oss"
+	addonOssType      = "OSS"
 	addonGitType      = "git"
 )
 
@@ -64,7 +63,7 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 		Use:     "add",
 		Short:   "Add an addon registry in KubeVela",
 		Long:    "Add an addon registry in KubeVela",
-		Example: "vela addon registry add my-repo --type oss --ossEndpoint=xxxxx --ossBucket=xxxx",
+		Example: `"vela addon registry add my-repo --type OSS --endpoint=xxxxx --bucket=xxxx or vela addon registry add my-repo --type git --endpoint=xxxxx --path=xxxx --gitToken=xxx"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -123,7 +122,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 		Use:     "update",
 		Short:   "Update an addon registry in KubeVela",
 		Long:    "Update an addon registry in KubeVela",
-		Example: "vela addon registry update my-repo --type oss --ossEndpoint=xxxxx --ossBucket=xxxx",
+		Example: "vela addon registry update my-repo --type OSS --endpoint=xxxxx --bucket=xxxx",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -185,7 +184,7 @@ func listAddonRegistry(ctx context.Context) error {
 				repoURL = fmt.Sprintf("%s://%s.%s", u.Scheme, registry.OSS.Bucket, u.Host)
 			}
 		} else {
-			repoType = "Git"
+			repoType = "git"
 			repoURL = fmt.Sprintf("%s/tree/master/%s", registry.Git.URL, registry.Git.Path)
 		}
 		table.AddRow(registry.Name, repoType, repoURL)
@@ -202,11 +201,11 @@ func getAddonRegistry(ctx context.Context, name string) error {
 	}
 	table := uitable.New()
 	if registry.OSS != nil {
-		table.AddRow("NAME", "ENDPOINT", "BUCKET", "PATH")
-		table.AddRow(registry.Name, registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
+		table.AddRow("NAME", "Type", "ENDPOINT", "BUCKET", "PATH")
+		table.AddRow(registry.Name, "OSS", registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
 	} else {
-		table.AddRow("NAME", "URL", "PATH")
-		table.AddRow(registry.Name, registry.Git.URL, registry.Git.Path)
+		table.AddRow("NAME", "Type", "ENDPOINT", "PATH")
+		table.AddRow(registry.Name, "git", registry.Git.URL, registry.Git.Path)
 	}
 	fmt.Println(table.String())
 	return nil
@@ -241,9 +240,8 @@ func updateAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error 
 
 func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonRegistryType, "", "", "specify the addon registry type")
-	cmd.Flags().StringP(addonOssEndpoint, "", "", "specify the oss endpoint")
-	cmd.Flags().StringP(addonOssBucket, "", "", "specify the oss bucket")
-	cmd.Flags().StringP(addonGitURL, "", "", "specify the git repo url")
+	cmd.Flags().StringP(addonEndpoint, "", "", "specify the addon registry endpoint")
+	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket")
 	cmd.Flags().StringP(addonPath, "", "", "specify the repo path")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
 }
@@ -260,16 +258,18 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		return nil, err
 	}
 
+	endpoint, err := cmd.Flags().GetString(addonEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	if endpoint == "" {
+		return nil, errors.New("addon registry must set --endpoint flag")
+	}
+
 	switch registryType {
 	case addonOssType:
 		r.OSS = &pkgaddon.OSSAddonSource{}
-		endpoint, err := cmd.Flags().GetString(addonOssEndpoint)
-		if err != nil {
-			return nil, err
-		}
-		if endpoint == "" {
-			return nil, errors.New("oss type registry must set --ossEndpoint")
-		}
+
 		r.OSS.Endpoint = endpoint
 		bucket, err := cmd.Flags().GetString(addonOssBucket)
 		if err != nil {
@@ -283,14 +283,7 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		r.OSS.Path = path
 	case addonGitType:
 		r.Git = &pkgaddon.GitAddonSource{}
-		gitURL, err := cmd.Flags().GetString(addonGitURL)
-		if err != nil {
-			return nil, err
-		}
-		if gitURL == "" {
-			return nil, errors.New("oss type registry must set --gitUrl")
-		}
-		r.Git.URL = gitURL
+		r.Git.URL = endpoint
 		path, err := cmd.Flags().GetString(addonPath)
 		if err != nil {
 			return nil, err
