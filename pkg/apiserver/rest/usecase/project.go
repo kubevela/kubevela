@@ -55,10 +55,9 @@ func (p *projectUsecaseImpl) GetProject(ctx context.Context, projectName string)
 	return project, nil
 }
 
-// ListProjects list projects
-func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error) {
+func listProjects(ctx context.Context, ds datastore.DataStore) ([]*apisv1.ProjectBase, error) {
 	var project = model.Project{}
-	entitys, err := p.ds.List(ctx, &project, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entitys, err := ds.List(ctx, &project, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +67,11 @@ func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.Projec
 		projects = append(projects, convertProjectModel2Base(project))
 	}
 	return projects, nil
+}
+
+// ListProjects list projects
+func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error) {
+	return listProjects(ctx, p.ds)
 }
 
 // CreateProject create project

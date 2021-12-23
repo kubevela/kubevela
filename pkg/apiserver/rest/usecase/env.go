@@ -37,7 +37,7 @@ import (
 // EnvUsecase defines the API of Env.
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
-	ListEnvs(ctx context.Context, page, pageSize int) ([]*apisv1.Env, error)
+	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 	UpdateEnv(ctx context.Context, envName string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
@@ -119,7 +119,7 @@ func listTarget(ctx context.Context, ds datastore.DataStore) ([]*model.Target, e
 }
 
 // ListEnvs list envs
-func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int) ([]*apisv1.Env, error) {
+func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error) {
 	var env = model.Env{}
 	entities, err := p.ds.List(ctx, &env, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
@@ -130,11 +130,25 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int) ([]*a
 	if err != nil {
 		return nil, err
 	}
-
+	projects, err := listProjects(ctx, p.ds)
 	var envs []*apisv1.Env
 	for _, entity := range entities {
-		apienv := entity.(*model.Env)
+		apienv, ok := entity.(*model.Env)
+		if !ok {
+			continue
+		}
+		if listOption.Project != "" && apienv.Project != listOption.Project {
+			continue
+		}
 		envs = append(envs, convertEnvModel2Base(apienv, Targets))
+	}
+	for _, e := range envs {
+		for _, pj := range projects {
+			if e.Project.Name == pj.Name {
+				e.Project.Alias = pj.Alias
+				break
+			}
+		}
 	}
 	return envs, nil
 }
@@ -223,7 +237,7 @@ func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {
 		Name:        env.Name,
 		Alias:       env.Alias,
 		Description: env.Description,
-		Project:     env.Project,
+		Project:     apisv1.NameAlias{Name: env.Project},
 		Namespace:   env.Namespace,
 		CreateTime:  env.CreateTime,
 		UpdateTime:  env.UpdateTime,

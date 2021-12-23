@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Netflix/go-expect"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
@@ -31,7 +32,24 @@ var (
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print environment initiation successful message", func() {
 				cli := fmt.Sprintf("vela env init %s", envName)
-				output, err := Exec(cli)
+
+				output, err := InteractiveExec(cli, func(c *expect.Console) {
+					data := []struct {
+						q, a string
+					}{
+						{
+							q: "Would you like to choose one of your namespaces as your environment:",
+							a: "default",
+						},
+					}
+					for _, qa := range data {
+						_, err := c.ExpectString(qa.q)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+						_, err = c.SendLine(qa.a)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					}
+					c.ExpectEOF()
+				})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("environment %s created", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))

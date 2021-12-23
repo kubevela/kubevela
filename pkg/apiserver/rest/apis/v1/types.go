@@ -494,7 +494,7 @@ type Env struct {
 	Description string `json:"description,omitempty"  optional:"true"`
 
 	// Project defines the project this Env belongs to
-	Project string `json:"project"`
+	Project NameAlias `json:"project"`
 	// Namespace defines the K8s namespace of the Env in control plane
 	Namespace string `json:"namespace"`
 
@@ -504,6 +504,11 @@ type Env struct {
 
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`
+}
+
+// ListEnvOptions list envs by query options
+type ListEnvOptions struct {
+	Project string `json:"project"`
 }
 
 // ListEnvResponse response the while env list

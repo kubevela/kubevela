@@ -82,7 +82,8 @@ func (n *envWebService) list(req *restful.Request, res *restful.Response) {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	envs, err := n.envUsecase.ListEnvs(req.Request.Context(), page, pageSize)
+	project := req.QueryParameter("project")
+	envs, err := n.envUsecase.ListEnvs(req.Request.Context(), page, pageSize, apis.ListEnvOptions{Project: project})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

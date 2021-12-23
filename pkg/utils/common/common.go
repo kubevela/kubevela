@@ -76,6 +76,7 @@ const (
 	// AddonObservabilityGrafanaSvc is grafana service name for Addon Observability
 	AddonObservabilityGrafanaSvc = "grafana"
 )
+const CreateCustomNamespace = "create new namespace"
 
 func init() {
 	_ = clientgoscheme.AddToScheme(Scheme)
@@ -351,8 +352,8 @@ func AskToChooseOneNamespace(c client.Client) (string, error) {
 	if err := c.List(context.TODO(), &nsList); err != nil {
 		return "", err
 	}
-	const custom = "create a new namespace"
-	var ops = []string{custom}
+
+	var ops = []string{CreateCustomNamespace}
 	for _, r := range nsList.Items {
 		ops = append(ops, r.Name)
 	}
@@ -365,7 +366,7 @@ func AskToChooseOneNamespace(c client.Client) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("choosing namespace err %w", err)
 	}
-	if selectedRsc == custom {
+	if selectedRsc == CreateCustomNamespace {
 		err = survey.AskOne(&survey.Input{
 			Message: "Please name your new namespace:",
 		}, &selectedRsc)
