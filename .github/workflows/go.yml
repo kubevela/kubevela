@@ -33,52 +33,6 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
           concurrent_skipping: false
 
-  compatibility-test:
-    runs-on: ubuntu-20.04
-    needs: detect-noop
-    if: needs.detect-noop.outputs.noop != 'true'
-
-    steps:
-      - name: Set up Go
-        uses: actions/setup-go@v1
-        with:
-          go-version: ${{ env.GO_VERSION }}
-        id: go
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@v2
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
-      - name: Install ginkgo
-        run: |
-          sudo apt-get install -y golang-ginkgo-dev
-
-      - name: Setup Kind Cluster
-        uses: engineerd/setup-kind@v0.5.0
-        with:
-          version: ${{ env.KIND_VERSION }}
-
-      - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@v1.2
-        with:
-          version: 3.1.0
-          kubebuilderOnly: false
-          kubernetesVersion: v1.21.2
-
-      - name: Run Make compatibility-test
-        run: make compatibility-test
-
-      - name: Clean up testdata
-        run: make compatibility-testdata-cleanup
-
   staticcheck:
     runs-on: ubuntu-20.04
     needs: detect-noop

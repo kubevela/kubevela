@@ -165,7 +165,6 @@ e2e-setup:
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
-	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
 	go run ./e2e/addon/mock &
 	bin/vela addon enable fluxcd
 	bin/vela addon enable terraform
@@ -207,18 +206,6 @@ e2e-rollout-test:
 e2e-multicluster-test:
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_multicluster_test.out ./test/e2e-multicluster-test
 	@$(OK) tests pass
-
-compatibility-test: vet lint staticcheck generate-compatibility-testdata
-	# Run compatibility test with old crd
-	COMPATIBILITY_TEST=TRUE go test -race $(shell go list ./pkg/...  | grep -v apiserver)
-	@$(OK) compatibility-test pass
-
-generate-compatibility-testdata:
-	mkdir -p  ./test/compatibility-test/testdata
-	go run ./test/compatibility-test/convert/main.go ./charts/vela-core/crds ./test/compatibility-test/testdata
-
-compatibility-testdata-cleanup:
-	rm -f ./test/compatibility-test/testdata/*
 
 e2e-cleanup:
 	# Clean up

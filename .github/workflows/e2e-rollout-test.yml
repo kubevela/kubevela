@@ -90,12 +90,12 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: /tmp/e2e-profile.out,/tmp/oam-e2e-profile.out
+          files: /tmp/e2e-profile.out
           flags: e2e-rollout-tests
           name: codecov-umbrella
 
       - name: Clean e2e profile
-        run: rm /tmp/e2e-profile.out /tmp/oam-e2e-profile.out
+        run: rm /tmp/e2e-profile.out
 
       - name: Cleanup image
         if: ${{ always() }}
