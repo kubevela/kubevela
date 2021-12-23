@@ -139,9 +139,9 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	}
 	cur, err := GetCurrentEnv()
 	if err != nil {
-		// nolint(nilerr): we set a current env if not exist
 		_ = SetCurrentEnv(envList[0])
 		envList[0].Current = "*"
+		// nolint(nilerr): we set a current env if not exist
 		return envList, nil
 	}
 	for i := range envList {

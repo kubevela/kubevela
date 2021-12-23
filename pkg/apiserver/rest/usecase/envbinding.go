@@ -137,6 +137,7 @@ func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Ap
 	return envBinding, nil
 }
 
+// CheckAppEnvBindingsContainTarget check envbinding contain target
 func CheckAppEnvBindingsContainTarget(envBindings []*apisv1.EnvBindingBase, targetName string) (bool, error) {
 	var filteredList []*apisv1.EnvBindingBase
 	for _, envBinding := range envBindings {

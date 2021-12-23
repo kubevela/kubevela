@@ -77,6 +77,8 @@ const (
 	// AddonObservabilityGrafanaSvc is grafana service name for Addon Observability
 	AddonObservabilityGrafanaSvc = "grafana"
 )
+
+// CreateCustomNamespace display the create namespace message
 const CreateCustomNamespace = "create new namespace"
 
 func init() {
