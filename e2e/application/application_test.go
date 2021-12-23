@@ -46,9 +46,9 @@ var (
 
 var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.JsonAppFileContext("json appfile apply", jsonAppFile)
-	e2e.EnvSetContext("env set", "default")
+	e2e.EnvSetContext("env set default", "default")
 	e2e.DeleteEnvFunc("env delete", envName)
-	e2e.EnvInitContext("env init", envName)
+	e2e.EnvInitContext("env init env-application", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
 	ApplicationExecContext("exec -- COMMAND", applicationName)

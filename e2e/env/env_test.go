@@ -29,8 +29,8 @@ var (
 )
 
 var _ = ginkgo.Describe("Env", func() {
-	e2e.EnvInitContext("env init", envName)
-	e2e.EnvInitContext("env init another one", envName2)
+	e2e.EnvInitWithNamespaceOptionContext("env init env-hello --namespace heelo", envName, "heelo")
+	e2e.EnvInitWithNamespaceOptionContext("env init another one --namespace heelo2", envName2, "heelo2")
 	e2e.EnvShowContext("env show", envName)
 	e2e.EnvSetContext("env set", envName)
 
@@ -46,5 +46,4 @@ var _ = ginkgo.Describe("Env", func() {
 	})
 
 	e2e.EnvDeleteContext("env delete", envName2)
-	e2e.EnvDeleteCurrentUsingContext("env delete currently using one", envName)
 })

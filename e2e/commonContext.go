@@ -32,14 +32,17 @@ var (
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print environment initiation successful message", func() {
 				cli := fmt.Sprintf("vela env init %s", envName)
-
+				var answer = "default"
+				if envName != "env-application" {
+					answer = "vela-system"
+				}
 				output, err := InteractiveExec(cli, func(c *expect.Console) {
 					data := []struct {
 						q, a string
 					}{
 						{
-							q: "Would you like to choose one of your namespaces as your environment:",
-							a: "default",
+							q: "Would you like to choose an existing namespaces as your env?",
+							a: answer,
 						},
 					}
 					for _, qa := range data {
@@ -51,7 +54,7 @@ var (
 					c.ExpectEOF()
 				})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("environment %s created", envName)
+				expectedOutput := fmt.Sprintf("environment %s with namespace %s created", envName, answer)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -63,7 +66,7 @@ var (
 				cli := fmt.Sprintf("vela env init %s --namespace %s", envName, namespace)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("environment %s created", envName)
+				expectedOutput := fmt.Sprintf("environment %s with namespace %s created", envName, namespace)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -122,17 +125,6 @@ var (
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("%s deleted", envName)
-				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-			})
-		})
-	}
-	EnvDeleteCurrentUsingContext = func(context string, envName string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("should delete all envs", func() {
-				cli := fmt.Sprintf("vela env delete %s", envName)
-				output, err := Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Error: you can't delete current using environment %s", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})

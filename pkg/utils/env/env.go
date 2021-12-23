@@ -55,7 +55,7 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 		return err
 	}
 	if envArgs.Namespace == "" {
-		envArgs, err = common.AskToChooseOneNamespace(c)
+		err = common.AskToChooseOneNamespace(c, envArgs)
 		if err != nil {
 			return err
 		}
@@ -83,6 +83,9 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 
 // GetEnvByName will get env info by name
 func GetEnvByName(name string) (*types.EnvMeta, error) {
+	if name == DefaultEnvNamespace {
+		return &types.EnvMeta{Name: DefaultEnvNamespace, Namespace: DefaultEnvNamespace}, nil
+	}
 	clt, err := common.GetClient()
 	if err != nil {
 		return nil, err
@@ -94,7 +97,7 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 		return nil, err
 	}
 	if len(nsList.Items) < 1 {
-		return nil, errors.New("Env not exist")
+		return nil, errors.Errorf("Env %s not exist", name)
 	}
 	return &types.EnvMeta{
 		Name:      name,
@@ -173,7 +176,15 @@ func DeleteEnv(envName string) (string, error) {
 		err = fmt.Errorf("you can't delete this environment(namespace=%s) that has %d application inside", envMeta.Namespace, len(appList.Items))
 		return message, err
 	}
-	message = "env" + envName + " deleted"
+	// reset the labels
+	err = utils.UpdateNamespace(context.TODO(), clt, envMeta.Namespace, utils.MergeOverrideLabels(map[string]string{
+		oam.LabelNamespaceOfEnv: "",
+		oam.LabelUsageNamespace: "",
+	}))
+	if err != nil {
+		return "", err
+	}
+	message = "env " + envName + " deleted"
 	return message, err
 }
 

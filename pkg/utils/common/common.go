@@ -350,12 +350,11 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 }
 
 // AskToChooseOneNamespace ask for choose one namespace as env
-func AskToChooseOneNamespace(c client.Client) (*types.EnvMeta, error) {
+func AskToChooseOneNamespace(c client.Client, envMeta *types.EnvMeta) error {
 	var nsList v1.NamespaceList
 	if err := c.List(context.TODO(), &nsList); err != nil {
-		return nil, err
+		return err
 	}
-	var envMeta = &types.EnvMeta{}
 	var ops = []string{CreateCustomNamespace}
 	for _, r := range nsList.Items {
 		ops = append(ops, r.Name)
@@ -366,24 +365,24 @@ func AskToChooseOneNamespace(c client.Client) (*types.EnvMeta, error) {
 	}
 	err := survey.AskOne(prompt, &envMeta.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("choosing namespace err %w", err)
+		return fmt.Errorf("choosing namespace err %w", err)
 	}
 	if envMeta.Namespace == CreateCustomNamespace {
 		err = survey.AskOne(&survey.Input{
 			Message: "Please name the new namespace:",
 		}, &envMeta.Namespace)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return envMeta, nil
+		return nil
 	}
 	for _, ns := range nsList.Items {
-		if ns.Name == envMeta.Namespace {
+		if ns.Name == envMeta.Namespace && envMeta.Name == "" {
 			envMeta.Name = ns.Labels[oam.LabelNamespaceOfEnv]
-			return envMeta, nil
+			return nil
 		}
 	}
-	return envMeta, nil
+	return nil
 }
 
 func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {
