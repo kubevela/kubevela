@@ -96,13 +96,6 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		Expect(cmp.Diff(envBinding.Name, "envbinding-dev")).Should(BeEmpty())
 	})
 
-	It("Test CheckAppEnvBindingsContainTarget function", func() {
-		isContain, err := envBindingUsecase.CheckAppEnvBindingsContainTarget(context.TODO(), testApp, "dev-target")
-		Expect(err).Should(BeNil())
-		Expect(isContain).ShouldNot(BeNil())
-		Expect(cmp.Diff(isContain, true)).Should(BeEmpty())
-	})
-
 	It("Test Application UpdateEnv function", func() {
 
 		envBinding, err := envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "envbinding-prod", apisv1.PutApplicationEnvBindingRequest{})

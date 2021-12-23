@@ -24,7 +24,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -176,7 +176,7 @@ func (dt *TargetWebService) updateTarget(req *restful.Request, res *restful.Resp
 func (dt *TargetWebService) deleteTarget(req *restful.Request, res *restful.Response) {
 	TargetName := req.PathParameter("name")
 	// Target in use, can't be deleted
-	applications, err := dt.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{TargetName: TargetName})
+	applications, err := dt.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{TargetName: TargetName})
 	if err != nil {
 		if !errors.Is(err, datastore.ErrRecordNotExist) {
 			bcode.ReturnError(req, res, err)

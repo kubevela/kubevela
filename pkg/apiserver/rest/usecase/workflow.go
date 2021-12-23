@@ -200,74 +200,38 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 	return w.DetailWorkflow(ctx, workflow)
 }
 
-func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
-	var steps []model.WorkflowStep
-	for _, step := range req.Steps {
-		properties, err := model.NewJSONStructByString(step.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse trait properties failire %w", err)
-			return nil, bcode.ErrInvalidProperties
-		}
-		steps = append(steps, model.WorkflowStep{
-			Name:        step.Name,
-			Alias:       step.Alias,
-			Description: step.Description,
-			DependsOn:   step.DependsOn,
-			Type:        step.Type,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-			Properties:  properties,
-		})
-	}
+// updateWorkflowSteps will update workflow with new steps
+func updateWorkflowSteps(ctx context.Context, ds datastore.DataStore, workflow *model.Workflow, steps []model.WorkflowStep) error {
 	workflow.Steps = steps
+	return ds.Put(ctx, workflow)
+}
+
+func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+	modeSteps, err := convertAPIStep2ModelStep(req.Steps)
+	if err != nil {
+		return nil, err
+	}
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
 	if req.Default != nil {
 		workflow.Default = req.Default
 	}
-	if err := w.ds.Put(ctx, workflow); err != nil {
+	if err := updateWorkflowSteps(ctx, w.ds, workflow, modeSteps); err != nil {
 		return nil, err
 	}
 	return w.DetailWorkflow(ctx, workflow)
 }
 
-func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
-	var steps []apisv1.WorkflowStep
-	for _, step := range workflow.Steps {
-		steps = append(steps, convertFromWorkflowStepModel(step))
-	}
-	return apisv1.WorkflowBase{
-		Name:        workflow.Name,
-		Alias:       workflow.Alias,
-		Description: workflow.Description,
-		Default:     convertBool(workflow.Default),
-		EnvName:     workflow.EnvName,
-		CreateTime:  workflow.CreateTime,
-		UpdateTime:  workflow.UpdateTime,
-		Steps:       steps,
-	}
-}
-
 // DetailWorkflow detail workflow
 func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error) {
 	return &apisv1.DetailWorkflowResponse{
-		WorkflowBase: converWorkflowBase(workflow),
+		WorkflowBase: convertWorkflowBase(workflow),
 	}, nil
 }
 
 // GetWorkflow get workflow model
 func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, app *model.Application, workflowName string) (*model.Workflow, error) {
-	var workflow = model.Workflow{
-		Name:          workflowName,
-		AppPrimaryKey: app.PrimaryKey(),
-	}
-	if err := w.ds.Get(ctx, &workflow); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrWorkflowNotExist
-		}
-		return nil, err
-	}
-	return &workflow, nil
+	return getWorkflowForApp(ctx, w.ds, app, workflowName)
 }
 
 // ListApplicationWorkflow list application workflows
@@ -282,7 +246,7 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 	var list []*apisv1.WorkflowBase
 	for _, workflow := range workflows {
 		wm := workflow.(*model.Workflow)
-		base := converWorkflowBase(wm)
+		base := convertWorkflowBase(wm)
 		list = append(list, &base)
 	}
 	return list, nil

@@ -61,7 +61,7 @@ const (
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
+	ListApplications(ctx context.Context, listOptions apisv1.ListApplicationOptions) ([]*apisv1.ApplicationBase, error)
 	GetApplication(ctx context.Context, appName string) (*model.Application, error)
 	GetApplicationStatus(ctx context.Context, app *model.Application, envName string) (*common.AppStatus, error)
 	DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error)
@@ -128,37 +128,47 @@ func NewApplicationUsecase(ds datastore.DataStore,
 	}
 }
 
-// ListApplications list applications
-func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
+func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.ListApplicationOptions) ([]*model.Application, error) {
 	var app = model.Application{}
 	if listOptions.Project != "" {
 		app.Project = listOptions.Project
 	}
-	entitys, err := c.ds.List(ctx, &app, &datastore.ListOptions{})
+	var err error
+	var envBinding []*apisv1.EnvBindingBase
+	if listOptions.Env != "" || listOptions.TargetName != "" {
+		envBinding, err = listFullEnvBinding(ctx, ds, envListOption{})
+		if err != nil {
+			log.Logger.Errorf("list envbinding for list application in env %s err %v", listOptions.Env, err)
+			return nil, err
+		}
+	}
+
+	entities, err := ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.ApplicationBase
-	for _, entity := range entitys {
-		appModel := entity.(*model.Application)
-		appBase := c.converAppModelToBase(ctx, appModel)
+	var list []*model.Application
+	for _, entity := range entities {
+		appModel, ok := entity.(*model.Application)
+		if !ok {
+			continue
+		}
 		if listOptions.Query != "" &&
-			!(strings.Contains(appBase.Alias, listOptions.Query) ||
-				strings.Contains(appBase.Name, listOptions.Query) ||
-				strings.Contains(appBase.Description, listOptions.Query)) {
+			!(strings.Contains(appModel.Alias, listOptions.Query) ||
+				strings.Contains(appModel.Name, listOptions.Query) ||
+				strings.Contains(appModel.Description, listOptions.Query)) {
 			continue
 		}
 		if listOptions.TargetName != "" {
-			targetIsContain, _ := c.envBindingUsecase.CheckAppEnvBindingsContainTarget(ctx, appModel, listOptions.TargetName)
+			targetIsContain, _ := CheckAppEnvBindingsContainTarget(envBinding, listOptions.TargetName)
 			if !targetIsContain {
 				continue
 			}
 		}
-		if listOptions.Env != "" {
-			envbindings, err := c.envBindingUsecase.GetEnvBindings(ctx, appModel)
+		if len(envBinding) > 0 {
 			check := func() bool {
-				for _, envbinding := range envbindings {
-					if envbinding.Name == listOptions.Env {
+				for _, eb := range envBinding {
+					if appModel.PrimaryKey() == eb.AppDeployName {
 						return true
 					}
 				}
@@ -168,6 +178,20 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 				continue
 			}
 		}
+		list = append(list, appModel)
+	}
+	return list, nil
+}
+
+// ListApplications list applications
+func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicationOptions) ([]*apisv1.ApplicationBase, error) {
+	apps, err := listApp(ctx, c.ds, listOptions)
+	if err != nil {
+		return nil, err
+	}
+	var list []*apisv1.ApplicationBase
+	for _, app := range apps {
+		appBase := c.converAppModelToBase(ctx, app)
 		list = append(list, appBase)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -193,7 +217,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 // DetailApplication detail application  info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
 	base := c.converAppModelToBase(ctx, app)
-	policys, err := c.queryApplicationPolicys(ctx, app)
+	policys, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +246,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 			ComponentNum: componentNum,
 		},
 		ApplicationType: func() string {
-			if c.envBindingUsecase.GetSuitableType(ctx, app) == DeployCloudResource {
+			if GetSuitableDeployWay(ctx, c.kubeClient, c.ds, app) == DeployCloudResource {
 				return "cloud"
 			}
 			return "common"
@@ -480,31 +504,18 @@ func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.Application
 
 // ListPolicies list application policies
 func (c *applicationUsecaseImpl) ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error) {
-	policies, err := c.queryApplicationPolicys(ctx, app)
+	policies, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
 	}
 	var list []*apisv1.PolicyBase
 	for _, policy := range policies {
-		list = append(list, c.converPolicyModelToBase(policy))
+		list = append(list, convertPolicyModelToBase(policy))
 	}
 	return list, nil
 }
 
-func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBase {
-	pb := &apisv1.PolicyBase{
-		Name:        policy.Name,
-		Type:        policy.Type,
-		Properties:  policy.Properties,
-		Description: policy.Description,
-		Creator:     policy.Creator,
-		CreateTime:  policy.CreateTime,
-		UpdateTime:  policy.UpdateTime,
-	}
-	return pb
-}
-
-func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
+func (c *applicationUsecaseImpl) queryApplicationPolicies(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -531,7 +542,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *c.converPolicyModelToBase(&policy),
+		PolicyBase: *convertPolicyModelToBase(&policy),
 	}, nil
 }
 
@@ -1069,7 +1080,7 @@ func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *c.converPolicyModelToBase(&policy),
+		PolicyBase: *convertPolicyModelToBase(&policy),
 	}, nil
 }
 
@@ -1238,7 +1249,7 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, env
 	var componentPatchs []v1alpha1.EnvComponentPatch
 	// init cloud application region and provider info
 	for _, component := range components {
-		definition, err := c.definitionUsecase.GetComponentDefinition(ctx, component.Type)
+		definition, err := GetComponentDefinition(ctx, c.kubeClient, component.Type)
 		if err != nil {
 			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
 			continue

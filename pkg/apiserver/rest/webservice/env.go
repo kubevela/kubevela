@@ -99,7 +99,7 @@ func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
 	envname := req.PathParameter("name")
 
 	ctx := req.Request.Context()
-	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicatioOptions{Env: envname})
+	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicationOptions{Env: envname})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

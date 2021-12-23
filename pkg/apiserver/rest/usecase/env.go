@@ -19,6 +19,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"reflect"
+	"sort"
 
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,15 +61,7 @@ func NewEnvUsecase(ds datastore.DataStore) EnvUsecase {
 
 // GetEnv get env
 func (p *envUsecaseImpl) GetEnv(ctx context.Context, envName string) (*model.Env, error) {
-	env := &model.Env{}
-	env.Name = envName
-	if err := p.ds.Get(ctx, env); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrEnvNotExisted
-		}
-		return nil, err
-	}
-	return env, nil
+	return getEnv(ctx, p.ds, envName)
 }
 
 // DeleteEnv delete an env by name
@@ -101,46 +95,29 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 	return nil
 }
 
-func listTarget(ctx context.Context, ds datastore.DataStore) ([]*model.Target, error) {
-	Target := model.Target{}
-	Targets, err := ds.List(ctx, &Target, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
-	if err != nil {
-		return nil, err
-	}
-	var respTargets []*model.Target
-
-	for _, raw := range Targets {
-		target, ok := raw.(*model.Target)
-		if ok {
-			respTargets = append(respTargets, target)
-		}
-	}
-	return respTargets, nil
-}
-
 // ListEnvs list envs
 func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error) {
-	var env = model.Env{}
-	entities, err := p.ds.List(ctx, &env, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds)
+	Targets, err := listTarget(ctx, p.ds, nil)
 	if err != nil {
 		return nil, err
 	}
-	projects, err := listProjects(ctx, p.ds)
+
 	var envs []*apisv1.Env
-	for _, entity := range entities {
-		apienv, ok := entity.(*model.Env)
-		if !ok {
+	for _, ee := range entities {
+		if listOption.Project != "" && ee.Project != listOption.Project {
 			continue
 		}
-		if listOption.Project != "" && apienv.Project != listOption.Project {
-			continue
-		}
-		envs = append(envs, convertEnvModel2Base(apienv, Targets))
+		envs = append(envs, convertEnvModel2Base(ee, Targets))
+	}
+
+	projects, err := listProjects(ctx, p.ds)
+	if err != nil {
+		return nil, err
 	}
 	for _, e := range envs {
 		for _, pj := range projects {
@@ -151,6 +128,35 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		}
 	}
 	return envs, nil
+}
+
+func checkEqual(old, new []string) bool {
+	if old == nil && new == nil {
+		return true
+	}
+	if old == nil || new == nil {
+		return false
+	}
+	sort.Strings(old)
+	sort.Strings(new)
+	return reflect.DeepEqual(old, new)
+}
+
+func (p *envUsecaseImpl) updateAppWithNewEnv(ctx context.Context, envName string, env *model.Env) error {
+
+	// List all apps inside the env
+	apps, err := listApp(ctx, p.ds, apisv1.ListApplicationOptions{Env: envName})
+	if err != nil {
+		return err
+	}
+	for _, app := range apps {
+		err = UpdateEnvWorkflow(ctx, p.kubeClient, p.ds, app, env)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
 }
 
 // UpdateEnv update an env for request
@@ -168,7 +174,9 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 	if req.Description != "" {
 		env.Description = req.Description
 	}
-	if len(req.Targets) > 0 {
+	var targetChanged bool
+	if len(req.Targets) > 0 && checkEqual(env.Targets, req.Targets) {
+		targetChanged = true
 		env.Targets = req.Targets
 	}
 
@@ -177,12 +185,17 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds)
+	if targetChanged {
+		if err = p.updateAppWithNewEnv(ctx, name, env); err != nil {
+			log.Logger.Errorf("update envbinding failure %s", err.Error())
+			return nil, err
+		}
+	}
+	targets, err := listTarget(ctx, p.ds, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	resp := convertEnvModel2Base(env, Targets)
+	resp := convertEnvModel2Base(env, targets)
 	return resp, nil
 }
 
@@ -223,7 +236,7 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 	if err := p.ds.Add(ctx, newEnv); err != nil {
 		return nil, err
 	}
-	Targets, err := listTarget(ctx, p.ds)
+	Targets, err := listTarget(ctx, p.ds, nil)
 	if err != nil {
 		return nil, err
 	}

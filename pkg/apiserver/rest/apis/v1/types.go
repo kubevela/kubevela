@@ -267,8 +267,8 @@ type ClusterBase struct {
 	Reason string `json:"reason"`
 }
 
-// ListApplicatioOptions list application  query options
-type ListApplicatioOptions struct {
+// ListApplicationOptions list application  query options
+type ListApplicationOptions struct {
 	Project    string `json:"project"`
 	Env        string `json:"env"`
 	TargetName string `json:"targetName"`

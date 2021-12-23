@@ -51,8 +51,8 @@ func NewTargetUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) Tar
 }
 
 func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int) (*apisv1.ListTargetResponse, error) {
-	Target := model.Target{}
-	Targets, err := dt.ds.List(ctx, &Target, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+
+	Targets, err := listTarget(ctx, dt.ds, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -60,12 +60,9 @@ func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int
 		Targets: []apisv1.TargetBase{},
 	}
 	for _, raw := range Targets {
-		target, ok := raw.(*model.Target)
-		if ok {
-			resp.Targets = append(resp.Targets, *(dt.convertFromTargetModel(ctx, target)))
-		}
+		resp.Targets = append(resp.Targets, *(dt.convertFromTargetModel(ctx, raw)))
 	}
-	count, err := dt.ds.Count(ctx, &Target, nil)
+	count, err := dt.ds.Count(ctx, &model.Target{}, nil)
 	if err != nil {
 		return nil, err
 	}

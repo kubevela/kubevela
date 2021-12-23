@@ -111,12 +111,12 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications function", func() {
-		_, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{})
+		_, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicationOptions{})
 		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListApplications and filter by targetName function", func() {
-		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicatioOptions{
+		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicationOptions{
 			Project:    testProject,
 			TargetName: defaultTarget})
 		Expect(err).Should(BeNil())

@@ -135,12 +135,6 @@ Start to test.
 make e2e-test
 ```
 
-To execute the e2e test of the API module, the mongodb service needs to exist locally.
-
-```shell script
-make e2e-apiserver-test
-```
-
 ## Contribute apiserver and [velaux](https://github.com/oam-dev/velaux)
 
 Before start, please make sure you have already started the vela controller environment.
@@ -170,6 +164,16 @@ Make sure you have installed [yarn](https://classic.yarnpkg.com/en/docs/install)
 yarn install
 yarn start
 ```
+
+To execute the e2e test of the API module, the mongodb service needs to exist locally.
+
+```shell script
+kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4 --name worker
+kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
+kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
+make e2e-apiserver-test
+```
+
 
 ## Next steps
 
