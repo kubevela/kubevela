@@ -216,7 +216,7 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 		return nil, err
 	}
 
-	resp := convertEnvModel2Base(env, Targets)
+	resp := convertEnvModel2Base(newEnv, Targets)
 	return resp, nil
 }
 

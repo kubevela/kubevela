@@ -5,6 +5,7 @@ include makefiles/develop.mk
 include makefiles/build.mk
 include makefiles/e2e.mk
 
+.DEFAULT_GOAL := all
 all: build
 
 # Run tests

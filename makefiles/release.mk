@@ -1,4 +1,5 @@
 
+.PHONY: cross-build
 cross-build:
 	rm -rf _bin
 	go get github.com/mitchellh/gox@v0.4.0
@@ -7,6 +8,7 @@ cross-build:
 	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/apiserver/{{.OS}}-{{.Arch}}/apiserver" -osarch="$(TARGETS)" ./cmd/apiserver
 
 
+.PHONY: compress
 compress:
 	( \
 		echo "\n## Release Info\nVERSION: $(VELA_VERSION)" >> README.md && \

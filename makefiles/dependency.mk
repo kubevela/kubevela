@@ -1,6 +1,7 @@
 
 GOLANGCILINT_VERSION ?= v1.38.0
 
+.PHONY: golangci
 golangci:
 ifneq ($(shell which golangci-lint),)
 	@$(OK) golangci-lint is already installed
