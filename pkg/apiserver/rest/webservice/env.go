@@ -59,8 +59,8 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.Env{}).
 		Writes(apis.Env{}))
 
-	ws.Route(ws.PUT("/").To(n.update).
-		Doc("create an env").
+	ws.Route(ws.PUT("/{name}").To(n.update).
+		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "", apis.Env{}).
@@ -157,7 +157,7 @@ func (n *envWebService) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), updateReq)
+	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), req.PathParameter("name"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

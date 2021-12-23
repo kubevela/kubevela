@@ -347,7 +347,7 @@ type EnvBindingBase struct {
 	Alias              string             `json:"alias" validate:"checkalias" optional:"true"`
 	Description        string             `json:"description,omitempty" optional:"true"`
 	TargetNames        []string           `json:"targetNames"`
-	Targets            []EnvBindingTarget `json:"Targets,omitempty"`
+	Targets            []EnvBindingTarget `json:"targets,omitempty"`
 	ComponentSelector  *ComponentSelector `json:"componentSelector" optional:"true"`
 	CreateTime         time.Time          `json:"createTime"`
 	UpdateTime         time.Time          `json:"updateTime"`
@@ -489,8 +489,8 @@ type CreateProjectRequest struct {
 
 // Env models the data of env in API
 type Env struct {
-	Name        string `json:"name" validate:"checkname"`
-	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Name        string `json:"name"`
+	Alias       string `json:"alias"`
 	Description string `json:"description,omitempty"  optional:"true"`
 
 	// Project defines the project this Env belongs to
@@ -516,10 +516,8 @@ type CreateEnvRequest model.EnvBase
 
 // UpdateEnvRequest defines the data of Env for update
 type UpdateEnvRequest struct {
-	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description,omitempty"  optional:"true"`
-
 	// Targets defines the name of delivery target that belongs to this env
 	// In one project, a delivery target can only belong to one env.
 	Targets []string `json:"targets,omitempty"  optional:"true"`

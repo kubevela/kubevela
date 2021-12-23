@@ -40,7 +40,7 @@ type EnvUsecase interface {
 	ListEnvs(ctx context.Context, page, pageSize int) ([]*apisv1.Env, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
-	UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
+	UpdateEnv(ctx context.Context, envName string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
 }
 
 type envUsecaseImpl struct {
@@ -140,11 +140,9 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int) ([]*a
 }
 
 // UpdateEnv update an env for request
-func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
-
+func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error) {
 	env := &model.Env{}
-	env.Name = req.Name
-
+	env.Name = name
 	err := p.ds.Get(ctx, env)
 	if err != nil {
 		log.Logger.Errorf("check if env name exists failure %s", err.Error())
