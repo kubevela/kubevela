@@ -134,7 +134,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 
 // GetObservabilityAccessibilityInfo will get the accessibility info of addon in local cluster and multiple clusters
 func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
-	domains, err := allocateDomainForAddon(ctx, k8sClient, domain)
+	domains, err := allocateDomainForAddon(ctx, k8sClient)
 	if err != nil {
 		return nil, err
 	}
@@ -153,16 +153,16 @@ func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Cli
 		if err := k8sClient.Get(readCtx, key, obj); err != nil {
 			return nil, err
 		}
-		var ingress networkingv1.Ingress
+		var svc v1.Service
 		data, err := obj.MarshalJSON()
 		if err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(data, &ingress); err != nil {
+		if err := json.Unmarshal(data, &svc); err != nil {
 			return nil, err
 		}
-		if ingress.Status.LoadBalancer.Ingress != nil && len(ingress.Status.LoadBalancer.Ingress) == 1 {
-			domains[i].LoadBalancerIP = ingress.Status.LoadBalancer.Ingress[0].IP
+		if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) == 1 {
+			domains[i].ServiceExternalIP = svc.Status.LoadBalancer.Ingress[0].IP
 		}
 	}
 	// set domain for the cluster if there is no child clusters

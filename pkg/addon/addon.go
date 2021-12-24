@@ -116,6 +116,7 @@ type ObservabilityEnvironment struct {
 	Cluster        string
 	Domain         string
 	LoadBalancerIP string
+	ServiceExternalIP string
 }
 
 // ObservabilityEnvBindingValues is a list of ObservabilityEnvironment and will be used to render observability-env-binding.yaml
@@ -135,14 +136,6 @@ const (
             placement:
               clusterSelector:
                 name: {{.Cluster}}
-            patch:
-              components:
-                - name: grafana
-                  type: helm
-                  traits:
-                    - type: pure-ingress
-                      properties:
-                        domain: {{.Domain}}
           {{ end }}
         {{ end }}`
 
@@ -511,12 +504,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 				Type: "deploy2runtime",
 			})
 	case addon.Name == ObservabilityAddon:
-		arg, ok := args[ObservabilityAddonDomainArg]
-		if !ok {
-			return nil, ErrorNoDomain
-		}
-		domain := arg.(string)
-		policies, err := preparePolicies4Observability(ctx, k8sClient, domain)
+		policies, err := preparePolicies4Observability(ctx, k8sClient)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
 		}
@@ -529,7 +517,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 			}},
 		}
 
-		workflowSteps, err := prepareWorkflow4Observability(ctx, k8sClient, domain)
+		workflowSteps, err := prepareWorkflow4Observability(ctx, k8sClient)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to prepare the workflow for Add-on Observability")
 		}
@@ -617,7 +605,7 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 	return schemaConfigmaps, nil
 }
 
-func allocateDomainForAddon(ctx context.Context, k8sClient client.Client, domain string) ([]ObservabilityEnvironment, error) {
+func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]ObservabilityEnvironment, error) {
 	secrets, err := multicluster.ListExistingClusterSecrets(ctx, k8sClient)
 	if err != nil {
 		klog.Error(err, "failed to list existing cluster secrets")
@@ -628,18 +616,16 @@ func allocateDomainForAddon(ctx context.Context, k8sClient client.Client, domain
 
 	for i, secret := range secrets {
 		cluster := secret.Name
-		domain := fmt.Sprintf("%s.%s", cluster, domain)
 		envs[i] = ObservabilityEnvironment{
 			Cluster: cluster,
-			Domain:  domain,
 		}
 	}
 
 	return envs, nil
 }
 
-func preparePolicies4Observability(ctx context.Context, k8sClient client.Client, domain string) ([]v1beta1.AppPolicy, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient, domain)
+func preparePolicies4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.AppPolicy, error) {
+	clusters, err := allocateDomainForAddon(ctx, k8sClient)
 	if err != nil {
 		return nil, err
 	}
@@ -669,8 +655,8 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client,
 	return policies, nil
 }
 
-func prepareWorkflow4Observability(ctx context.Context, k8sClient client.Client, domain string) ([]v1beta1.WorkflowStep, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient, domain)
+func prepareWorkflow4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.WorkflowStep, error) {
+	clusters, err := allocateDomainForAddon(ctx, k8sClient)
 	if err != nil {
 		return nil, err
 	}
