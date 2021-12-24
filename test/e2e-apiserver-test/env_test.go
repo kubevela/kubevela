@@ -67,7 +67,7 @@ var _ = Describe("Test env rest api", func() {
 				continue
 			}
 			Expect(ev.Alias).Should(BeEquivalentTo(req.Alias))
-			Expect(ev.Project).Should(BeEquivalentTo(req.Project))
+			Expect(ev.Project.Name).Should(BeEquivalentTo(req.Project))
 			Expect(ev.Description).Should(BeEquivalentTo(req.Description))
 			Expect(ev.Namespace).Should(BeEquivalentTo(req.Namespace))
 			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: "t1", Alias: "my-target-for-env1"}}))
@@ -106,7 +106,6 @@ var _ = Describe("Test env rest api", func() {
 			Alias:       "my=test!",
 			Project:     "my-pro",
 			Description: "KubeVela Env",
-			Namespace:   "my-name",
 			Targets:     []string{"t2"},
 		}
 		var envBase apisv1.Env

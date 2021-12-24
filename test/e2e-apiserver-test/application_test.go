@@ -48,7 +48,7 @@ var _ = Describe("Test application rest api", func() {
 			Component: &apisv1.CreateComponentRequest{
 				Name:          "webservice",
 				ComponentType: "webservice",
-				Properties:    "{'image':'nginx'}",
+				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
 		bodyByte, err := json.Marshal(req)

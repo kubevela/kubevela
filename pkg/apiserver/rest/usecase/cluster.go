@@ -174,7 +174,12 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 	for _, raw := range clusters {
 		cluster, ok := raw.(*model.Cluster)
 		if ok {
-			resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(cluster))
+			// local cluster must be first
+			if cluster.Name == multicluster.ClusterLocalName {
+				resp.Clusters = append([]apis.ClusterBase{*newClusterBaseFromCluster(cluster)}, resp.Clusters...)
+			} else {
+				resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(cluster))
+			}
 		}
 	}
 	total, err := c.ds.Count(ctx, &model.Cluster{}, &fo)
