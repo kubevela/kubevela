@@ -107,6 +107,7 @@ type ListAddonResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// AddonInfo contain addon metaData and some baseInfo
 type AddonInfo struct {
 	*addon.Meta
 	RegistryName string `json:"registryName"`
