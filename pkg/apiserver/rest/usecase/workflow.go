@@ -603,8 +603,9 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		var revision = model.ApplicationRevision{
 			AppPrimaryKey: appModel.Name,
 			Status:        model.RevisionStatusComplete,
+			WorkflowName:  workflow.Name,
+			EnvName:       workflow.EnvName,
 		}
-
 		revisions, err := w.ds.List(ctx, &revision, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
@@ -617,6 +618,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 			return bcode.ErrApplicationNoReadyRevision
 		}
 		revisionVersion = revisions[0].Index()["version"]
+		log.Logger.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
 	}
 
 	var record = &model.WorkflowRecord{

@@ -457,6 +457,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 			AppPrimaryKey: appName,
 			Version:       "revision-rollback1",
 			Status:        model.RevisionStatusRunning,
+			WorkflowName:  workflow.Name,
+			EnvName:       "rollback",
 		})
 		Expect(err).Should(BeNil())
 		err = workflowUsecase.createTestApplicationRevision(ctx, &model.ApplicationRevision{
@@ -464,6 +466,8 @@ var _ = Describe("Test workflow usecase functions", func() {
 			Version:        "revision-rollback0",
 			ApplyAppConfig: `{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"annotations":{"app.oam.dev/workflowName":"test-workflow-2-2","app.oam.dev/deployVersion":"revision-rollback1","vela.io/publish-version":"workflow-rollback1"},"name":"first-vela-app","namespace":"default"},"spec":{"components":[{"name":"express-server","properties":{"image":"crccheck/hello-world","port":8000},"traits":[{"properties":{"domain":"testsvc.example.com","http":{"/":8000}},"type":"ingress-1-20"}],"type":"webservice"}]}}`,
 			Status:         model.RevisionStatusComplete,
+			WorkflowName:   workflow.Name,
+			EnvName:        "rollback",
 		})
 		Expect(err).Should(BeNil())
 
