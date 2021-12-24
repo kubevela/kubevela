@@ -25,6 +25,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -99,7 +101,9 @@ var _ = Describe("Test application rest api", func() {
 		defer GinkgoRecover()
 		var targetName = "dev-default"
 		var envName = "dev"
-		var namespace = "default"
+		var namespace = "e2e-test"
+		err := k8sClient.Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+		Expect(err).ShouldNot(HaveOccurred())
 		// create target
 		var createTarget = apisv1.CreateTargetRequest{
 			Name: targetName,

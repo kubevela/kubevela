@@ -278,26 +278,26 @@ func (b bySortOptionConfigMap) Less(i, j int) bool {
 		y := b.objects[j][op.Key]
 		_x, xok := x.(time.Time)
 		_y, yok := y.(time.Time)
-		var x_score, y_score float64
+		var xScore, yScore float64
 		if xok && yok {
-			x_score = float64(_x.UnixNano())
-			y_score = float64(_y.UnixNano())
+			xScore = float64(_x.UnixNano())
+			yScore = float64(_y.UnixNano())
 		}
 		if !xok && !yok {
 			_x, xok := x.(float64)
 			_y, yok := y.(float64)
 			if xok && yok {
-				x_score = _x
-				y_score = _y
+				xScore = _x
+				yScore = _y
 			}
 		}
-		if x_score == y_score {
+		if xScore == yScore {
 			continue
 		}
 		if op.Order == datastore.SortOrderAscending {
-			return x_score < y_score
+			return xScore < yScore
 		}
-		return x_score > y_score
+		return xScore > yScore
 	}
 	return true
 }
