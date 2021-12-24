@@ -892,7 +892,7 @@ func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
 
 	meta, ok := metas[name]
 	if !ok {
-		return nil, fmt.Errorf("fail to find the addon meta of %s", name)
+		return nil, ErrNotExist
 	}
 	var uiData *UIData
 	uiData, err = h.cache.GetUIData(*h.r, name)
