@@ -481,8 +481,8 @@ func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{{
 				Name:       "test-component",
-				Type:       "worker",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"test":"test"}`)},
+				Type:       "webservice",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx"}`)},
 				Traits:     []common.ApplicationTrait{},
 				Scopes:     map[string]string{},
 			}},
