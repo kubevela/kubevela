@@ -174,7 +174,7 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		env.Description = req.Description
 	}
 	var targetChanged bool
-	if len(req.Targets) > 0 && checkEqual(env.Targets, req.Targets) {
+	if len(req.Targets) > 0 && !checkEqual(env.Targets, req.Targets) {
 		targetChanged = true
 		env.Targets = req.Targets
 	}

@@ -26,6 +26,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const TestNSprefix = "api-e2e-test-"
+
 // CreateRequest wraps request
 func CreateRequest(method string, path string, body interface{}) (*http.Response, error) {
 	if body == nil {

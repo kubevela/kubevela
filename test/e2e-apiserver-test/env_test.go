@@ -18,23 +18,36 @@ package e2e_apiserver
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
-var _ = Describe("Test env rest api", func() {
+var _ = FDescribe("Test env rest api", func() {
+	var (
+		testtarget1, testenv1, testtarget2 string
+	)
+	BeforeEach(func() {
+		testtarget1 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		testenv1 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		testtarget2 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+	})
+
 	It("Test create, get, delete env with normal format", func() {
 		defer GinkgoRecover()
 
 		By("create a target for preparation")
 		var reqt = apisv1.CreateTargetRequest{
-			Name:        "t1",
+			Name:        testtarget1,
 			Alias:       "my-target-for-env1",
 			Description: "KubeVela Target",
+			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
 		err := HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
@@ -42,11 +55,11 @@ var _ = Describe("Test env rest api", func() {
 
 		By("create the first env")
 		var req = apisv1.CreateEnvRequest{
-			Name:        "dev-env",
+			Name:        testenv1,
 			Alias:       "my=test!",
 			Project:     "my-pro",
 			Description: "KubeVela Env",
-			Namespace:   "my-name",
+			Namespace:   testenv1,
 			Targets:     []string{"t1"},
 		}
 		var envBase apisv1.Env
@@ -85,28 +98,31 @@ var _ = Describe("Test env rest api", func() {
 
 		By("create a target for preparation")
 		var reqt = apisv1.CreateTargetRequest{
-			Name:        "t2",
+			Name:        testtarget1,
 			Alias:       "my-target-for-env2",
 			Description: "KubeVela Target",
+			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
 		err := HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
 		Expect(err).ShouldNot(HaveOccurred())
 		reqt = apisv1.CreateTargetRequest{
-			Name:        "t3",
+			Name:        testtarget2,
 			Alias:       "my-target-for-env3",
 			Description: "KubeVela Target",
+			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget2},
 		}
 		err = HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("create  env for update")
 		var req = apisv1.CreateEnvRequest{
-			Name:        "dev-env2",
+			Name:        testenv1,
 			Alias:       "my=test!",
 			Project:     "my-pro",
+			Namespace:   testenv1,
 			Description: "KubeVela Env",
-			Targets:     []string{"t2"},
+			Targets:     []string{testtarget1},
 		}
 		var envBase apisv1.Env
 		err = HttpRequest(req, http.MethodPost, "/envs", &envBase)
@@ -118,9 +134,9 @@ var _ = Describe("Test env rest api", func() {
 		upreq := apisv1.UpdateEnvRequest{
 			Alias:       "my=test3",
 			Description: "KubeVela Env2",
-			Targets:     []string{"t3"},
+			Targets:     []string{testtarget2},
 		}
-		err = HttpRequest(upreq, http.MethodPut, "/envs/dev-env2", nil)
+		err = HttpRequest(upreq, http.MethodPut, "/envs/"+testenv1, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("get the env")
@@ -135,10 +151,10 @@ var _ = Describe("Test env rest api", func() {
 				continue
 			}
 			Expect(ev.Alias).Should(BeEquivalentTo("my=test3"))
-			Expect(ev.Project).Should(BeEquivalentTo(req.Project))
+			Expect(ev.Project.Name).Should(BeEquivalentTo(req.Project))
 			Expect(ev.Description).Should(BeEquivalentTo("KubeVela Env2"))
 			Expect(ev.Namespace).Should(BeEquivalentTo(req.Namespace))
-			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: "t3", Alias: "my-target-for-env3"}}))
+			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: testtarget2, Alias: "my-target-for-env3"}}))
 		}
 		Expect(found).Should(BeTrue())
 
