@@ -162,7 +162,7 @@ func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string,
 	clusters, err := c.ds.List(ctx, &model.Cluster{}, &datastore.ListOptions{
 		Page:          page,
 		PageSize:      pageSize,
-		SortBy:        []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+		SortBy:        []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 		FilterOptions: fo,
 	})
 	if err != nil {

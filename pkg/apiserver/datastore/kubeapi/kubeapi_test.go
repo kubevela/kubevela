@@ -169,14 +169,26 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			Expect(kubeStore.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
 			time.Sleep(time.Millisecond * 100)
 		}
-		entities, err := kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
+		entities, err := kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderAscending}}})
 		Expect(err).Should(Succeed())
 		Expect(len(entities)).Should(Equal(3))
 		for i, name := range []string{"first", "second", "third"} {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
+
 		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+			Page:     1,
+			PageSize: 2,
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(2))
+		for i, name := range []string{"third", "second"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+
+		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			Page:     2,
 			PageSize: 2,
 		})
@@ -186,7 +198,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			FilterOptions: datastore.FilterOptions{
 				Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
 			},

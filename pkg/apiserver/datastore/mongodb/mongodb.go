@@ -219,7 +219,11 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	if op != nil && len(op.SortBy) > 0 {
 		_d := bson.D{}
 		for _, sortOp := range op.SortBy {
-			_d = append(_d, bson.E{Key: strings.ToLower(sortOp.Key), Value: int(sortOp.Order)})
+			key := strings.ToLower(sortOp.Key)
+			if key == "createtime" || key == "updatetime" {
+				key = "basemodel." + key
+			}
+			_d = append(_d, bson.E{Key: key, Value: int(sortOp.Order)})
 		}
 		findOptions.SetSort(_d)
 	}

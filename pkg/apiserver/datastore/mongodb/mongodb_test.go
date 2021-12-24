@@ -121,16 +121,17 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		}
 		for _, name := range []string{"first", "second", "third"} {
 			Expect(mongodbDriver.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
-			time.Sleep(time.Millisecond * 300)
+			time.Sleep(time.Millisecond * 100)
 		}
-		entities, err := mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
+		entities, err := mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderAscending}}})
 		Expect(err).Should(Succeed())
 		Expect(len(entities)).Should(Equal(3))
 		for i, name := range []string{"first", "second", "third"} {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			Page:     1,
 			PageSize: 2,
 		})
@@ -140,7 +141,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			Page:     2,
 			PageSize: 2,
 		})
@@ -150,7 +151,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = mongodbDriver.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			FilterOptions: datastore.FilterOptions{
 				Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
 			},

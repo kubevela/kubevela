@@ -52,7 +52,7 @@ var (
 
 // Cluster describes the model of cluster in apiserver
 type Cluster struct {
-	BaseModel        `json:"model"`
+	BaseModel
 	Name             string            `json:"name"`
 	Alias            string            `json:"alias"`
 	Description      string            `json:"description"`
