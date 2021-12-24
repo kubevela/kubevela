@@ -109,7 +109,13 @@ type ListAddonResponse struct {
 
 // ListEnabledAddonResponse defines the format for enabled addon list response
 type ListEnabledAddonResponse struct {
-	EnabledAddons []*AddonStatusResponse
+	EnabledAddons []*AddonBaseStatus `json:"enabledAddons"`
+}
+
+// AddonBaseStatus addon base status
+type AddonBaseStatus struct {
+	Name  string     `json:"name"`
+	Phase AddonPhase `json:"phase"`
 }
 
 // DetailAddonResponse defines the format for showing the addon details
@@ -134,10 +140,8 @@ type AddonDefinition struct {
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
-	Name  string            `json:"name"`
-	Phase AddonPhase        `json:"phase"`
-	Args  map[string]string `json:"args"`
-
+	AddonBaseStatus
+	Args             map[string]string `json:"args"`
 	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
 	AppStatus        common.AppStatus  `json:"appStatus,omitempty"`
 	// the status of multiple clusters

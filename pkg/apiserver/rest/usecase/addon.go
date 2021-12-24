@@ -57,7 +57,7 @@ type AddonHandler interface {
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
-	ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error)
+	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
 
@@ -170,13 +170,18 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 
 	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
 		return &apis.AddonStatusResponse{
-			Phase: apis.AddonPhase(status.AddonPhase),
+			AddonBaseStatus: apis.AddonBaseStatus{
+				Name:  name,
+				Phase: apis.AddonPhase(status.AddonPhase),
+			},
 		}, nil
 	}
 
 	res := apis.AddonStatusResponse{
-		Name:      name,
-		Phase:     apis.AddonPhase(status.AddonPhase),
+		AddonBaseStatus: apis.AddonBaseStatus{
+			Name:  name,
+			Phase: apis.AddonPhase(status.AddonPhase),
+		},
 		AppStatus: *status.AppStatus,
 		Clusters:  status.Clusters,
 	}
@@ -361,18 +366,18 @@ func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string) err
 	return nil
 }
 
-func (u *defaultAddonHandler) ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error) {
+func (u *defaultAddonHandler) ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error) {
 	apps := &v1beta1.ApplicationList{}
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
 		return nil, err
 	}
-	var response []*apis.AddonStatusResponse
+	var response []*apis.AddonBaseStatus
 	for _, application := range apps.Items {
 		if addonName := application.Labels[oam.LabelAddonName]; addonName != "" {
 			if application.Status.Phase != common2.ApplicationRunning {
 				continue
 			}
-			response = append(response, &apis.AddonStatusResponse{
+			response = append(response, &apis.AddonBaseStatus{
 				Name:  addonName,
 				Phase: convertAppStateToAddonPhase(application.Status.Phase),
 			})
