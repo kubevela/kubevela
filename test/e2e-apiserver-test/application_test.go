@@ -21,6 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -30,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var appName = "app-e2e"
@@ -97,15 +100,14 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
-		var targetName = "dev-default"
+		var targetName = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		var envName = "dev"
-		var namespace = "default"
 		// create target
 		var createTarget = apisv1.CreateTargetRequest{
 			Name: targetName,
 			Cluster: &apisv1.ClusterTarget{
 				ClusterName: "local",
-				Namespace:   namespace,
+				Namespace:   targetName,
 			},
 		}
 		bodyByte, err := json.Marshal(createTarget)

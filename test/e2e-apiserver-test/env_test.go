@@ -29,7 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
-var _ = FDescribe("Test env rest api", func() {
+var _ = Describe("Test env rest api", func() {
 	var (
 		testtarget1, testenv1, testtarget2 string
 	)

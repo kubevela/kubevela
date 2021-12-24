@@ -20,19 +20,28 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var _ = Describe("Test project rest api", func() {
+	var (
+		projectName1 string
+	)
+	BeforeEach(func() {
+		projectName1 = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+	})
 	It("Test create project", func() {
 		defer GinkgoRecover()
 		var req = apisv1.CreateProjectRequest{
-			Name:        "dev-team",
+			Name:        projectName1,
 			Description: "KubeVela Project",
 		}
 		bodyByte, err := json.Marshal(req)
