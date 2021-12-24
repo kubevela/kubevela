@@ -60,7 +60,7 @@ var _ = Describe("Test env rest api", func() {
 			Project:     "my-pro",
 			Description: "KubeVela Env",
 			Namespace:   testenv1,
-			Targets:     []string{"t1"},
+			Targets:     []string{testtarget1},
 		}
 		var envBase apisv1.Env
 		err = HttpRequest(req, http.MethodPost, "/envs", &envBase)
@@ -88,7 +88,7 @@ var _ = Describe("Test env rest api", func() {
 		Expect(found).Should(BeTrue())
 
 		By("delete the first env")
-		err = HttpRequest(nil, http.MethodDelete, "/envs/dev-env", nil)
+		err = HttpRequest(nil, http.MethodDelete, "/envs/"+testenv1, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 	})

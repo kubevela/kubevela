@@ -163,8 +163,16 @@ var _ = Describe("Test application rest api", func() {
 		var oam v1beta1.Application
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName, Namespace: envName}, &oam)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(oam.Spec.Components), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
+	})
+
+	It("Test recycling application", func() {
+		var envName = "dev"
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/envs/"+envName+"/recycle", "application/json", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
 	It("Test create component", func() {
