@@ -42,6 +42,10 @@ func UpdateEnvWorkflow(ctx context.Context, kubeClient client.Client, ds datasto
 	envSteps := GenEnvWorkflowSteps(ctx, kubeClient, ds, env, app)
 	workflow, err := getWorkflowForApp(ctx, ds, app, convertWorkflowName(env.Name))
 	if err != nil {
+		// no workflow exist mean no need to update
+		if errors.Is(err, bcode.ErrWorkflowNotExist) {
+			return nil
+		}
 		return err
 	}
 

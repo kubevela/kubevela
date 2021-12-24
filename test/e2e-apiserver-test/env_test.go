@@ -83,7 +83,7 @@ var _ = Describe("Test env rest api", func() {
 			Expect(ev.Project.Name).Should(BeEquivalentTo(req.Project))
 			Expect(ev.Description).Should(BeEquivalentTo(req.Description))
 			Expect(ev.Namespace).Should(BeEquivalentTo(req.Namespace))
-			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: "t1", Alias: "my-target-for-env1"}}))
+			Expect(ev.Targets).Should(BeEquivalentTo([]apisv1.NameAlias{{Name: testtarget1, Alias: "my-target-for-env1"}}))
 		}
 		Expect(found).Should(BeTrue())
 
