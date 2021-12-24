@@ -54,7 +54,8 @@ const (
 )
 
 const (
-	statusEnabling = "enabling"
+	statusEnabled  = "enabled"
+	statusDisabled = "disabled"
 )
 
 var clt client.Client
@@ -98,7 +99,7 @@ func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		NewAddonListCommand(),
 		NewAddonEnableCommand(c, ioStreams),
 		NewAddonDisableCommand(ioStreams),
-		NewAddonStatusCommand(ioStreams),
+		NewAddonStatusCommand(c, ioStreams),
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
 	)
@@ -235,7 +236,7 @@ func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewAddonStatusCommand create addon status command
-func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "status",
 		Short:   "get an addon's status",
@@ -246,7 +247,7 @@ func NewAddonStatusCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			err := statusAddon(name)
+			err := statusAddon(name, ioStream, cmd, c)
 			if err != nil {
 				return err
 			}
@@ -286,14 +287,18 @@ func disableAddon(name string) error {
 	return nil
 }
 
-func statusAddon(name string) error {
+func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c common.Args) error {
 	status, err := pkgaddon.GetAddonStatus(context.Background(), clt, name)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
-	if status.AddonPhase == statusEnabling {
-		fmt.Printf("this addon is still enabling, please run \"vela status %s -n vela-system \" to check the status of the addon related app", pkgaddon.Convert2AppName(name))
+	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
+		fmt.Printf("diagnose addon info from  realted application %s ", pkgaddon.Convert2AppName(name))
+		err := printAppStatus(context.Background(), clt, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
