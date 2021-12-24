@@ -32,7 +32,6 @@ import (
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -325,17 +324,15 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 			Name:      Convert2SecName(ObservabilityAddon),
 			Namespace: types.DefaultKubeVelaNS,
 		},
-		Data: map[string][]byte{
-			"domain": []byte("abc.com"),
-		},
+		Data: map[string][]byte{},
 	}
 
-	addonIngress := &networkingv1.Ingress{
+	addonService := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: types.DefaultKubeVelaNS,
 			Name:      ObservabilityAddonEndpointComponent,
 		},
-		Status: networkingv1.IngressStatus{
+		Status: corev1.ServiceStatus{
 			LoadBalancer: corev1.LoadBalancerStatus{
 				Ingress: []corev1.LoadBalancerIngress{
 					{
@@ -367,17 +364,16 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 	assert.Equal(t, addonStatus.AddonPhase, enabling)
 
 	// Addon is not installed in multiple clusters
-	assert.NoError(t, networkingv1.AddToScheme(scheme))
-	k8sClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApplication, addonSecret, addonIngress).Build()
+	k8sClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApplication, addonSecret, addonService).Build()
 	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
 	assert.NoError(t, err)
-	assert.Equal(t, addonStatus.AddonPhase, enabled)
+	assert.Equal(t, addonStatus.AddonPhase, enabling)
 
 	// Addon is installed in multiple clusters
 	assert.NoError(t, k8sClient.Create(ctx, clusterSecret))
 	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
 	assert.NoError(t, err)
-	assert.Equal(t, addonStatus.AddonPhase, enabled)
+	assert.Equal(t, addonStatus.AddonPhase, enabling)
 }
 
 var baseAddon = InstallPackage{
