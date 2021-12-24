@@ -32,11 +32,17 @@ import (
 )
 
 const (
-	DefaultInitName      = "default"
+
+	// DefaultInitName is default object name for initialization
+	DefaultInitName = "default"
+	// DefaultInitNamespace is default namespace name for initialization
 	DefaultInitNamespace = "default"
 
-	DefaultTargetDescription  = "Default target is created by velaux system automatically."
-	DefaultEnvDescription     = "Default environment is created by velaux system automatically."
+	// DefaultTargetDescription describes default target created
+	DefaultTargetDescription = "Default target is created by velaux system automatically."
+	// DefaultEnvDescription describes default env created
+	DefaultEnvDescription = "Default environment is created by velaux system automatically."
+	// DefaultProjectDescription describes the default project created
 	DefaultProjectDescription = "Default project is created by velaux system automatically."
 )
 
@@ -89,7 +95,7 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 		},
 	})
 	// for idempotence, ignore default target already exist error
-	if err != nil && err != bcode.ErrTargetExist {
+	if err != nil && errors.Is(err, bcode.ErrTargetExist) {
 		log.Logger.Errorf("initialize default target failed %v", err)
 		return
 	}
@@ -107,7 +113,7 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 		},
 	})
 	// for idempotence, ignore default env already exist error
-	if err != nil && err != bcode.ErrEnvAlreadyExists {
+	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {
 		log.Logger.Errorf("initialize default environment failed %v", err)
 		return
 	}
@@ -121,7 +127,6 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 		log.Logger.Errorf("initialize project failed %v", err)
 		return
 	}
-	return
 }
 
 // GetProject get project

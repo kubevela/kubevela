@@ -52,7 +52,6 @@ var _ = Describe("Test project usecase functions", func() {
 	})
 	It("Test project initialize function", func() {
 		projectUsecase.initDefaultProjectEnvTarget()
-
 		By("test env created")
 		var namespace corev1.Namespace
 		err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: DefaultInitNamespace}, &namespace)
