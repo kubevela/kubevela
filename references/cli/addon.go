@@ -329,14 +329,14 @@ func listAddons(ctx context.Context, registry string) error {
 	}
 
 	table := uitable.New()
-	table.AddRow("NAME", "DESCRIPTION", "STATUS")
+	table.AddRow("NAME", "REGISTRY-NAME", "DESCRIPTION", "STATUS")
 
 	for _, addon := range addons {
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
 			return err
 		}
-		table.AddRow(addon.Name, addon.Description, status.AddonPhase)
+		table.AddRow(addon.Name, addon.RegistryName, addon.Description, status.AddonPhase)
 	}
 	fmt.Println(table.String())
 	return nil

@@ -101,10 +101,15 @@ type EnableAddonRequest struct {
 
 // ListAddonResponse defines the format for addon list response
 type ListAddonResponse struct {
-	Addons []*addon.Meta `json:"addons"`
+	Addons []*AddonInfo `json:"addons"`
 
 	// Message demonstrate the error info if exists
 	Message string `json:"message,omitempty"`
+}
+
+type AddonInfo struct {
+	*addon.Meta
+	RegistryName string `json:"registryName"`
 }
 
 // ListEnabledAddonResponse defines the format for enabled addon list response
@@ -126,8 +131,9 @@ type DetailAddonResponse struct {
 	UISchema  []*utils.UIParameter `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
-	Detail      string             `json:"detail,omitempty"`
-	Definitions []*AddonDefinition `json:"definitions"`
+	Detail       string             `json:"detail,omitempty"`
+	Definitions  []*AddonDefinition `json:"definitions"`
+	RegistryName string             `json:"registryName,omitempty"`
 }
 
 // AddonDefinition is definition an addon can provide
