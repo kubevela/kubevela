@@ -24,7 +24,6 @@ import (
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
@@ -117,9 +116,10 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 					access = fmt.Sprintf("Visiting URL: %s, IP: %s", o.Domain, o.LoadBalancerIP)
 				}
 				clusters[o.Cluster] = map[string]interface{}{
-					"domain":         o.Domain,
-					"loadBalancerIP": o.LoadBalancerIP,
-					"access":         access,
+					"domain":            o.Domain,
+					"loadBalancerIP":    o.LoadBalancerIP,
+					"access":            access,
+					"serviceExternalIP": o.ServiceExternalIP,
 				}
 			}
 			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
@@ -140,8 +140,8 @@ func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Cli
 	}
 
 	obj := new(unstructured.Unstructured)
-	obj.SetKind("Ingress")
-	obj.SetAPIVersion("networking.k8s.io/v1")
+	obj.SetKind("Service")
+	obj.SetAPIVersion("v1")
 	key := client.ObjectKeyFromObject(obj)
 	key.Namespace = types.DefaultKubeVelaNS
 	key.Name = ObservabilityAddonEndpointComponent
@@ -167,15 +167,14 @@ func GetObservabilityAccessibilityInfo(ctx context.Context, k8sClient client.Cli
 	}
 	// set domain for the cluster if there is no child clusters
 	if len(domains) == 0 {
-		var ingress networkingv1.Ingress
-		if err := k8sClient.Get(ctx, client.ObjectKey{Name: ObservabilityAddonEndpointComponent, Namespace: types.DefaultKubeVelaNS}, &ingress); err != nil {
+		var svc v1.Service
+		if err := k8sClient.Get(ctx, client.ObjectKey{Name: ObservabilityAddonEndpointComponent, Namespace: types.DefaultKubeVelaNS}, &svc); err != nil {
 			return nil, err
 		}
-		if ingress.Status.LoadBalancer.Ingress != nil && len(ingress.Status.LoadBalancer.Ingress) == 1 {
+		if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) == 1 {
 			domains = []ObservabilityEnvironment{
 				{
-					Domain:         domain,
-					LoadBalancerIP: ingress.Status.LoadBalancer.Ingress[0].IP,
+					ServiceExternalIP: svc.Status.LoadBalancer.Ingress[0].IP,
 				},
 			}
 		}
