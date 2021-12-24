@@ -113,9 +113,9 @@ const (
 
 // ObservabilityEnvironment contains the Observability addon's domain for each cluster
 type ObservabilityEnvironment struct {
-	Cluster        string
-	Domain         string
-	LoadBalancerIP string
+	Cluster           string
+	Domain            string
+	LoadBalancerIP    string
 	ServiceExternalIP string
 }
 
