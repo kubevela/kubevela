@@ -59,7 +59,7 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 		if err := kubeClient.Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        cfg.Database,
-				Annotations: map[string]string{"description": "For kubevela apiserver metadata storage."},
+				Annotations: map[string]string{"description": "For KubeVela API Server metadata storage."},
 			}}); err != nil {
 			return nil, fmt.Errorf("create namespace failure %w", err)
 		}

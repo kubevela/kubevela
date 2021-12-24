@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -46,8 +47,14 @@ var _ = Describe("Test workflow usecase functions", func() {
 		projectUsecase  *projectUsecaseImpl
 		envUsecase      *envUsecaseImpl
 		testProject     = "workflow-project"
+		ds              datastore.DataStore
 	)
+
 	BeforeEach(func() {
+		var err error
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "workflow-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		projectUsecase = &projectUsecaseImpl{ds: ds}
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{

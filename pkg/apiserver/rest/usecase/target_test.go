@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
@@ -34,6 +35,9 @@ var _ = Describe("Test target usecase functions", func() {
 		testProject    = "target-project"
 	)
 	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "target-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 	})
@@ -53,22 +57,19 @@ var _ = Describe("Test target usecase functions", func() {
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
 		Expect(targetUsecase.ds.Add(context.TODO(), &model.Cluster{Name: "cluster-dev", Alias: "dev-alias"})).Should(Succeed())
-	})
 
-	It("Test GetTarget function", func() {
+		By("Test GetTarget function")
 		Target, err := targetUsecase.GetTarget(context.TODO(), "test--target")
 		Expect(err).Should(BeNil())
 		Expect(Target).ShouldNot(BeNil())
 		Expect(cmp.Diff(Target.Name, "test--target")).Should(BeEmpty())
-	})
 
-	It("Test ListTargets function", func() {
+		By("Test ListTargets function")
 		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1)
 		Expect(err).Should(BeNil())
 		Expect(resp.Targets[0].ClusterAlias).Should(Equal("dev-alias"))
-	})
 
-	It("Test DetailTarget function", func() {
+		By("Test DetailTarget function")
 		detail, err := targetUsecase.DetailTarget(context.TODO(),
 			&model.Target{
 				Name:        "test--target",
@@ -78,5 +79,9 @@ var _ = Describe("Test target usecase functions", func() {
 				Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"}})
 		Expect(err).Should(BeNil())
 		Expect(detail.Name).Should(Equal("test--target"))
+
+		By("Test Delete target")
+		err = targetUsecase.DeleteTarget(context.TODO(), "test--target")
+		Expect(err).Should(BeNil())
 	})
 })

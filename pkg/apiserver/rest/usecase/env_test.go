@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -36,6 +37,9 @@ var _ = Describe("Test env usecase functions", func() {
 		envUsecase *envUsecaseImpl
 	)
 	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		envUsecase = &envUsecaseImpl{kubeClient: k8sClient, ds: ds}
 	})
 	It("Test Create/Get/Delete Env function", func() {
@@ -76,10 +80,9 @@ var _ = Describe("Test env usecase functions", func() {
 		Expect(err).Should(BeNil())
 		err = envUsecase.DeleteEnv(context.TODO(), "test-env-2")
 		Expect(err).Should(BeNil())
-	})
 
-	It("Test ListEnvs function", func() {
-		_, err := envUsecase.ListEnvs(context.TODO(), 1, 1, apisv1.ListEnvOptions{})
+		By("Test ListEnvs function")
+		_, err = envUsecase.ListEnvs(context.TODO(), 1, 1, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
 	})
 })

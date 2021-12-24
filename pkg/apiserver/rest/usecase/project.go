@@ -65,13 +65,13 @@ func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
 	p := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
-	p.initDefaultProjectEnvTarget()
+	p.initDefaultProjectEnvTarget(DefaultInitNamespace)
 	return p
 }
 
 // initDefaultProjectEnvTarget will initialize a default project with a default env that contain a default target
 // the default env and default target both using the `default` namespace in control plane cluster
-func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
+func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string) {
 
 	ctx := context.Background()
 	entities, err := listProjects(ctx, p.ds)
@@ -84,6 +84,10 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
 
+	if err := createTargetNamespace(ctx, p.k8sClient, multicluster.ClusterLocalName, defaultNamespace, DefaultInitName); err != nil {
+		log.Logger.Errorf("initialize default target namespace failed %v", err)
+		return
+	}
 	// initialize default target first
 	err = createTarget(ctx, p.ds, &model.Target{
 		Name:        DefaultInitName,
@@ -91,7 +95,7 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 		Description: DefaultTargetDescription,
 		Cluster: &model.ClusterTarget{
 			ClusterName: multicluster.ClusterLocalName,
-			Namespace:   DefaultInitNamespace,
+			Namespace:   defaultNamespace,
 		},
 	})
 	// for idempotence, ignore default target already exist error
@@ -108,7 +112,7 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget() {
 			Description: DefaultEnvDescription,
 
 			Project:   DefaultInitName,
-			Namespace: DefaultInitNamespace,
+			Namespace: defaultNamespace,
 			Targets:   []string{DefaultInitName},
 		},
 	})

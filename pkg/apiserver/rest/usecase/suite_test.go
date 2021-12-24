@@ -41,7 +41,6 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var ds datastore.DataStore
 
 func TestUsecase(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -72,9 +71,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 	clients.SetKubeClient(k8sClient)
-	ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "kubevela"})
 	Expect(err).Should(BeNil())
-	Expect(ds).ToNot(BeNil())
 	close(done)
 }, 240)
 

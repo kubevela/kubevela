@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -55,9 +56,15 @@ var _ = Describe("Test application usecase function", func() {
 		testProject       = "app-project"
 		testApp           = "test-app"
 		defaultTarget     = "default"
+		namespace1        = "app-test1"
+		envnsdev          = "envnsdev"
+		envnstest         = "envnstest"
 	)
 
 	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
@@ -79,17 +86,18 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test CreateApplication function", func() {
+
 		By("test sample create")
-		_, err := targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget})
+		_, err := targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
 		Expect(err).Should(BeNil())
 
 		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Targets: []string{defaultTarget}})
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Targets: []string{defaultTarget}})
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Namespace: envnstest, Targets: []string{defaultTarget}})
 		Expect(err).Should(BeNil())
 		req := v1.CreateApplicationRequest{
 			Name:        testApp,

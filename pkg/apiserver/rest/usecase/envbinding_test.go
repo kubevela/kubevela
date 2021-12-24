@@ -23,10 +23,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
-
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 )
 
 var _ = Describe("Test envBindingUsecase functions", func() {
@@ -40,6 +40,9 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		testApp           *model.Application
 	)
 	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		testApp = &model.Application{
 			Name: "test-app-env",
 		}
