@@ -33,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	util "github.com/oam-dev/kubevela/pkg/utils"
-	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // EnvUsecase defines the API of Env.
@@ -79,8 +78,8 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 	}
 	// reset the labels
 	err := util.UpdateNamespace(ctx, p.kubeClient, env.Namespace, util.MergeOverrideLabels(map[string]string{
-		oam.LabelNamespaceOfEnv: "",
-		oam.LabelUsageNamespace: "",
+		oam.LabelNamespaceOfEnvName:         "",
+		oam.LabelControlPlaneNamespaceUsage: "",
 	}))
 	if err != nil && apierror.IsNotFound(err) {
 		return err
@@ -201,41 +200,14 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 
 // CreateEnv create an env for request
 func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error) {
-
-	env := &model.Env{}
-	env.Name = req.Name
-
-	exist, err := p.ds.IsExist(ctx, env)
-	if err != nil {
-		log.Logger.Errorf("check if env name exists failure %s", err.Error())
-		return nil, bcode.ErrEnvAlreadyExists
-	}
-	if exist {
-		return nil, bcode.ErrEnvAlreadyExists
-	}
-	if req.Namespace == "" {
-		req.Namespace = req.Name
-	}
 	newEnv := &model.Env{}
 	newEnv.EnvBase = model.EnvBase(req)
 
-	// create namespace at first
-	err = util.CreateOrUpdateNamespace(ctx, p.kubeClient, newEnv.Namespace,
-		util.MergeOverrideLabels(map[string]string{
-			oam.LabelUsageNamespace: oam.VelaUsageEnv,
-		}), util.MergeNoConflictLabels(map[string]string{
-			oam.LabelNamespaceOfEnv: newEnv.Name,
-		}))
+	err := createEnv(ctx, p.kubeClient, p.ds, newEnv)
 	if err != nil {
-		if velaerr.IsLabelConflict(err) {
-			return nil, bcode.ErrEnvNamespaceAlreadyBound
-		}
-		log.Logger.Errorf("update namespace label failure %s", err.Error())
-		return nil, bcode.ErrEnvNamespaceFail
-	}
-	if err := p.ds.Add(ctx, newEnv); err != nil {
 		return nil, err
 	}
+
 	Targets, err := listTarget(ctx, p.ds, nil)
 	if err != nil {
 		return nil, err

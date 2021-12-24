@@ -191,7 +191,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	s.webContainer.Filter(s.webContainer.OPTIONSFilter)
 
 	// Regist all custom webservice
-	for _, handler := range webservice.GetRegistedWebService() {
+	for _, handler := range webservice.GetRegisteredWebService() {
 		s.webContainer.Add(handler.GetWebService())
 	}
 

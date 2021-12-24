@@ -20,10 +20,52 @@ import (
 	"context"
 	"errors"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	util "github.com/oam-dev/kubevela/pkg/utils"
+	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
+
+func createEnv(ctx context.Context, kubeClient client.Client, ds datastore.DataStore, env *model.Env) error {
+	tenv := &model.Env{}
+	tenv.Name = env.Name
+
+	exist, err := ds.IsExist(ctx, tenv)
+	if err != nil {
+		log.Logger.Errorf("check if env name exists failure %s", err.Error())
+		return err
+	}
+	if exist {
+		return bcode.ErrEnvAlreadyExists
+	}
+	if env.Namespace == "" {
+		env.Namespace = env.Name
+	}
+
+	// create namespace at first
+	err = util.CreateOrUpdateNamespace(ctx, kubeClient, env.Namespace,
+		util.MergeOverrideLabels(map[string]string{
+			oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
+		}), util.MergeNoConflictLabels(map[string]string{
+			oam.LabelNamespaceOfEnvName: env.Name,
+		}))
+	if err != nil {
+		if velaerr.IsLabelConflict(err) {
+			return bcode.ErrEnvNamespaceAlreadyBound
+		}
+		log.Logger.Errorf("update namespace label failure %s", err.Error())
+		return bcode.ErrEnvNamespaceFail
+	}
+	if err = ds.Add(ctx, env); err != nil {
+		return err
+	}
+	return nil
+}
 
 func getEnv(ctx context.Context, ds datastore.DataStore, envName string) (*model.Env, error) {
 	env := &model.Env{}

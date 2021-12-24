@@ -70,9 +70,9 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 		}
 	}
 	err = utils.CreateOrUpdateNamespace(context.TODO(), c, envArgs.Namespace, utils.MergeOverrideLabels(map[string]string{
-		oam.LabelUsageNamespace: oam.VelaUsageEnv,
+		oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
 	}), utils.MergeNoConflictLabels(map[string]string{
-		oam.LabelNamespaceOfEnv: envArgs.Name,
+		oam.LabelNamespaceOfEnvName: envArgs.Name,
 	}))
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 	}
 	ctx := context.Background()
 	var nsList v1.NamespaceList
-	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelNamespaceOfEnv: name})
+	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelNamespaceOfEnvName: name})
 	if err != nil {
 		return nil, err
 	}
@@ -127,13 +127,13 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 
 	ctx := context.Background()
 	var nsList v1.NamespaceList
-	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelUsageNamespace: oam.VelaUsageEnv})
+	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv})
 	if err != nil {
 		return nil, err
 	}
 	for _, it := range nsList.Items {
 		envList = append(envList, &types.EnvMeta{
-			Name:      it.Labels[oam.LabelNamespaceOfEnv],
+			Name:      it.Labels[oam.LabelNamespaceOfEnvName],
 			Namespace: it.Name,
 		})
 	}
@@ -178,8 +178,8 @@ func DeleteEnv(envName string) (string, error) {
 	}
 	// reset the labels
 	err = utils.UpdateNamespace(context.TODO(), clt, envMeta.Namespace, utils.MergeOverrideLabels(map[string]string{
-		oam.LabelNamespaceOfEnv: "",
-		oam.LabelUsageNamespace: "",
+		oam.LabelNamespaceOfEnvName:         "",
+		oam.LabelControlPlaneNamespaceUsage: "",
 	}))
 	if err != nil {
 		return "", err

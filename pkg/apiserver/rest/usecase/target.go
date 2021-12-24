@@ -20,11 +20,15 @@ import (
 	"context"
 	"errors"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 // TargetUsecase Target manage api
@@ -38,15 +42,19 @@ type TargetUsecase interface {
 }
 
 type targetUsecaseImpl struct {
-	ds             datastore.DataStore
-	projectUsecase ProjectUsecase
+	ds        datastore.DataStore
+	k8sClient client.Client
 }
 
 // NewTargetUsecase new Target usecase
-func NewTargetUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) TargetUsecase {
+func NewTargetUsecase(ds datastore.DataStore) TargetUsecase {
+	k8sClient, err := clients.GetKubeClient()
+	if err != nil {
+		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
+	}
 	return &targetUsecaseImpl{
-		ds:             ds,
-		projectUsecase: projectUsecase,
+		k8sClient: k8sClient,
+		ds:        ds,
 	}
 }
 
@@ -76,7 +84,17 @@ func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string
 	Target := &model.Target{
 		Name: targetName,
 	}
-	if err := dt.ds.Delete(ctx, Target); err != nil {
+	ddt, err := dt.GetTarget(ctx, targetName)
+	if errors.Is(err, datastore.ErrRecordExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err = deleteTargetNamespace(ctx, dt.k8sClient, ddt.Cluster.ClusterName, ddt.Cluster.Namespace, targetName); err != nil {
+		return err
+	}
+	if err = dt.ds.Delete(ctx, Target); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrTargetNotExist
 		}
@@ -85,20 +103,18 @@ func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string
 	return nil
 }
 
+// CreateTarget will create a delivery target binding with a cluster and namespace, by default, it will use local cluster and namespace align with targetName
+// TODO(@wonderflow): we should support empty target in the future which only delivery cloud resources
 func (dt *targetUsecaseImpl) CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error) {
 	Target := convertCreateReqToTargetModel(req)
-
-	// check Target name.
-	exit, err := dt.ds.IsExist(ctx, &Target)
+	if req.Cluster == nil {
+		req.Cluster = &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: req.Name}
+	}
+	if err := createTargetNamespace(ctx, dt.k8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
+		return nil, err
+	}
+	err := createTarget(ctx, dt.ds, &Target)
 	if err != nil {
-		log.Logger.Errorf("check application name is exist failure %s", err.Error())
-		return nil, bcode.ErrTargetExist
-	}
-	if exit {
-		return nil, bcode.ErrTargetExist
-	}
-
-	if err := dt.ds.Add(ctx, &Target); err != nil {
 		return nil, err
 	}
 	return dt.DetailTarget(ctx, &Target)
@@ -133,7 +149,6 @@ func (dt *targetUsecaseImpl) GetTarget(ctx context.Context, targetName string) (
 func convertUpdateReqToTargetModel(target *model.Target, req apisv1.UpdateTargetRequest) *model.Target {
 	target.Alias = req.Alias
 	target.Description = req.Description
-	target.Cluster = (*model.ClusterTarget)(req.Cluster)
 	target.Variable = req.Variable
 	return target
 }

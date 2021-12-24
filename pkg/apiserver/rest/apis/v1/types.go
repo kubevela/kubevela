@@ -758,7 +758,6 @@ type CreateTargetRequest struct {
 type UpdateTargetRequest struct {
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 

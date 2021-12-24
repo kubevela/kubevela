@@ -72,19 +72,25 @@ const (
 	// LabelAppEnv records the name of Env
 	LabelAppEnv = "envbinding.oam.dev/env"
 
-	// LabelProject Namesapce records the project name of namespace
-	LabelProjectNamesapce = "namespace.oam.dev/project"
+	// LabelNamespaceOfEnvName records the env name of namespace
+	LabelNamespaceOfEnvName = "namespace.oam.dev/env"
 
-	// LabelNamespaceOfEnv records the env name of namespace
-	LabelNamespaceOfEnv = "namespace.oam.dev/env"
+	// LabelNamespaceOfTargetName records the target name of namespace
+	LabelNamespaceOfTargetName = "namespace.oam.dev/target"
 
-	// LabelUsageNamespace mark the usage of the namespace.
-	LabelUsageNamespace = "usage.oam.dev"
+	// LabelControlPlaneNamespaceUsage mark the usage of the namespace in control plane cluster.
+	LabelControlPlaneNamespaceUsage = "usage.oam.dev/control-plane"
+
+	// LabelRuntimeNamespaceUsage mark the usage of the namespace in runtime cluster.
+	// A control plane cluster can also be used as runtime cluster
+	LabelRuntimeNamespaceUsage = "usage.oam.dev/runtime"
 )
 
 const (
-	// VelaUsageEnv mark the usage of the namespace is used by env.
-	VelaUsageEnv = "env"
+	// VelaNamespaceUsageEnv mark the usage of the namespace is used by env.
+	VelaNamespaceUsageEnv = "env"
+	// VelaNamespaceUsageTarget mark the usage of the namespace is used as delivery target.
+	VelaNamespaceUsageTarget = "target"
 )
 
 const (

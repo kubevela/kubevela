@@ -38,7 +38,7 @@ var _ = Describe("Test env usecase functions", func() {
 	BeforeEach(func() {
 		envUsecase = &envUsecaseImpl{kubeClient: k8sClient, ds: ds}
 	})
-	It("Test Create Env function", func() {
+	It("Test Create/Get/Delete Env function", func() {
 		req := apisv1.CreateEnvRequest{
 			Name:        "test-env",
 			Description: "this is a env description",
@@ -50,7 +50,7 @@ var _ = Describe("Test env usecase functions", func() {
 
 		By("test specified namespace to create env")
 		req2 := apisv1.CreateEnvRequest{
-			Name:        "test-project-2",
+			Name:        "test-env-2",
 			Description: "this is a env description",
 			Namespace:   base.Namespace,
 		}
@@ -59,7 +59,7 @@ var _ = Describe("Test env usecase functions", func() {
 		Expect(equal).Should(BeTrue())
 
 		req3 := apisv1.CreateEnvRequest{
-			Name:        "test-project-2",
+			Name:        "test-env-2",
 			Description: "this is a env description",
 			Namespace:   "default",
 		}
@@ -69,7 +69,13 @@ var _ = Describe("Test env usecase functions", func() {
 		var namespace corev1.Namespace
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: base.Namespace}, &namespace)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnv], req3.Name)).Should(BeEmpty())
+		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnvName], req3.Name)).Should(BeEmpty())
+
+		// clean up the env
+		err = envUsecase.DeleteEnv(context.TODO(), "test-env")
+		Expect(err).Should(BeNil())
+		err = envUsecase.DeleteEnv(context.TODO(), "test-env-2")
+		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListEnvs function", func() {

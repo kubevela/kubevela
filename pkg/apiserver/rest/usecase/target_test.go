@@ -34,8 +34,8 @@ var _ = Describe("Test target usecase functions", func() {
 		testProject    = "target-project"
 	)
 	BeforeEach(func() {
-		projectUsecase = &projectUsecaseImpl{ds: ds}
-		targetUsecase = &targetUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 	})
 	It("Test CreateTarget function", func() {
 		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})

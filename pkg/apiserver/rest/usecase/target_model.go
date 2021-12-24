@@ -19,10 +19,68 @@ package usecase
 import (
 	"context"
 
+	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
+
+func createTargetNamespace(ctx context.Context, k8sClient client.Client, clusterName, namespace, targetName string) error {
+	err := utils.CreateOrUpdateNamespace(multicluster.ContextWithClusterName(ctx, clusterName), k8sClient, namespace, utils.MergeOverrideLabels(map[string]string{
+		oam.LabelRuntimeNamespaceUsage: oam.VelaNamespaceUsageTarget,
+	}), utils.MergeNoConflictLabels(map[string]string{
+		oam.LabelNamespaceOfTargetName: targetName,
+	}))
+	if velaerr.IsLabelConflict(err) {
+		log.Logger.Errorf("update namespace for target err %v", err)
+		return bcode.ErrTargetNamespaceAlreadyBound
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteTargetNamespace(ctx context.Context, k8sClient client.Client, clusterName, namespace, targetName string) error {
+	err := utils.UpdateNamespace(multicluster.ContextWithClusterName(ctx, clusterName), k8sClient, namespace,
+		// check no conflict label first to make sure the namespace belong to the target, then override it
+		utils.MergeNoConflictLabels(map[string]string{
+			oam.LabelNamespaceOfTargetName: targetName,
+		}),
+		utils.MergeOverrideLabels(map[string]string{
+			oam.LabelRuntimeNamespaceUsage: "",
+			oam.LabelNamespaceOfTargetName: "",
+		}))
+	if apierror.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+func createTarget(ctx context.Context, ds datastore.DataStore, tg *model.Target) error {
+	// check Target name.
+	exit, err := ds.IsExist(ctx, tg)
+	if err != nil {
+		log.Logger.Errorf("check target existence failure %s", err.Error())
+		return err
+	}
+	if exit {
+		return bcode.ErrTargetExist
+	}
+
+	if err = ds.Add(ctx, tg); err != nil {
+		log.Logger.Errorf("add target failure %s", err.Error())
+		return err
+	}
+	return nil
+}
 
 func listTarget(ctx context.Context, ds datastore.DataStore, dsOption *datastore.ListOptions) ([]*model.Target, error) {
 	if dsOption == nil {

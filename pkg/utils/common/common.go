@@ -378,7 +378,7 @@ func AskToChooseOneNamespace(c client.Client, envMeta *types.EnvMeta) error {
 	}
 	for _, ns := range nsList.Items {
 		if ns.Name == envMeta.Namespace && envMeta.Name == "" {
-			envMeta.Name = ns.Labels[oam.LabelNamespaceOfEnv]
+			envMeta.Name = ns.Labels[oam.LabelNamespaceOfEnvName]
 			return nil
 		}
 	}

@@ -62,8 +62,8 @@ var _ = Describe("Test application usecase function", func() {
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
-		targetUsecase = &targetUsecaseImpl{ds: ds}
-		projectUsecase = &projectUsecaseImpl{ds: ds}
+		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,

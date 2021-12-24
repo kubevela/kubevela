@@ -24,3 +24,6 @@ var ErrTargetNotExist = NewBcode(404, 80002, "target is not exist")
 
 // ErrTargetInUseCantDeleted Target being used
 var ErrTargetInUseCantDeleted = NewBcode(404, 80003, "target in use, can't be deleted")
+
+// ErrTargetNamespaceAlreadyBound indicates the namespace already belongs to other target, one namespace can only belong to one target
+var ErrTargetNamespaceAlreadyBound = NewBcode(400, 80004, "the namespace specified already belongs to other target")
