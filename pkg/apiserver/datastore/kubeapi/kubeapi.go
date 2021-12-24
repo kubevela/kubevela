@@ -245,14 +245,12 @@ func newBySortOptionConfigMap(items []corev1.ConfigMap, sortBy []datastore.SortO
 	for i, item := range items {
 		m := map[string]interface{}{}
 		data := item.BinaryData["data"]
-
 		for _, op := range sortBy {
 			res := gjson.Get(string(data), op.Key)
 			switch res.Type {
 			case gjson.Number:
 				m[op.Key] = res.Num
 			default:
-				log.Logger.Info(res)
 				if !res.Time().IsZero() {
 					m[op.Key] = res.Time()
 				} else {
@@ -280,27 +278,26 @@ func (b bySortOptionConfigMap) Less(i, j int) bool {
 		y := b.objects[j][op.Key]
 		_x, xok := x.(time.Time)
 		_y, yok := y.(time.Time)
-		var lt, gt bool
+		var x_score, y_score float64
 		if xok && yok {
-			lt, gt = _x.Nanosecond() < _y.Nanosecond(), _x.Nanosecond() > _y.Nanosecond()
+			x_score = float64(_x.UnixNano())
+			y_score = float64(_y.UnixNano())
 		}
 		if !xok && !yok {
 			_x, xok := x.(float64)
 			_y, yok := y.(float64)
 			if xok && yok {
-				lt, gt = _x < _y, _x > _y
+				x_score = _x
+				y_score = _y
 			}
 		}
-		if !lt && !gt {
-			lt, gt = x.(string) < y.(string), x.(string) > y.(string)
-		}
-		if !lt && !gt {
+		if x_score == y_score {
 			continue
 		}
 		if op.Order == datastore.SortOrderAscending {
-			return lt
+			return x_score < y_score
 		}
-		return gt
+		return x_score > y_score
 	}
 	return true
 }
