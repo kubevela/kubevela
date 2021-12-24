@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -52,7 +54,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 
 	BeforeEach(func() {
 		var err error
-		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "workflow-test-kubevela"})
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "workflow-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		projectUsecase = &projectUsecaseImpl{ds: ds}
@@ -131,17 +133,15 @@ var _ = Describe("Test workflow usecase functions", func() {
 		}, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
-	})
 
-	It("Test GetApplicationDefaultWorkflow function", func() {
+		By("Test GetApplicationDefaultWorkflow function")
 		workflow, err := workflowUsecase.GetApplicationDefaultWorkflow(context.TODO(), &model.Application{
 			Name: appName,
 		})
 		Expect(err).Should(BeNil())
 		Expect(workflow).ShouldNot(BeNil())
-	})
 
-	It("Test ListWorkflowRecords function", func() {
+		By("Test ListWorkflowRecords function")
 		By("create some workflow records to test list workflow records")
 		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
 		Expect(err).Should(BeNil())
@@ -149,7 +149,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		app.Annotations[oam.AnnotationWorkflowName] = "test-workflow-2"
-		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
 			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
@@ -165,19 +165,17 @@ var _ = Describe("Test workflow usecase functions", func() {
 		resp, err := workflowUsecase.ListWorkflowRecords(context.TODO(), workflow, 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
-	})
 
-	It("Test DetailWorkflowRecord function", func() {
 		By("create one workflow record to test detail workflow record")
-		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
+		raw, err = yaml.YAMLToJSON([]byte(yamlStr))
 		Expect(err).Should(BeNil())
-		app := &v1beta1.Application{}
+		app = &v1beta1.Application{}
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-123"
 		app.Status.Workflow.AppRevision = "test-workflow-2-123"
 		app.Annotations[oam.AnnotationDeployVersion] = "1234"
-		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
 			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
@@ -203,13 +201,11 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(detail.WorkflowRecord.Name).Should(Equal("test-workflow-2-123"))
 		Expect(detail.DeployUser).Should(Equal("test-user"))
-	})
 
-	It("Test SyncWorkflowRecord function", func() {
 		By("create one workflow record to test sync status from application")
-		raw, err := yaml.YAMLToJSON([]byte(yamlStr))
+		raw, err = yaml.YAMLToJSON([]byte(yamlStr))
 		Expect(err).Should(BeNil())
-		app := &v1beta1.Application{}
+		app = &v1beta1.Application{}
 		err = json.Unmarshal(raw, app)
 		Expect(err).Should(BeNil())
 		app.Status.Workflow.Finished = false
@@ -217,7 +213,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		app.Annotations[oam.AnnotationPublishVersion] = "test-workflow-2-233"
 		app.Status.Workflow.AppRevision = "test-workflow-2-233"
 		app.Annotations[oam.AnnotationDeployVersion] = "4321"
-		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), &model.Application{
 			Name: appName,
 		}, "test-workflow-2")
 		Expect(err).Should(BeNil())
@@ -227,7 +223,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		By("create one revision to test sync workflow record")
-		var revision = &model.ApplicationRevision{
+		revision = &model.ApplicationRevision{
 			AppPrimaryKey: appName,
 			Version:       "4321",
 			Status:        model.RevisionStatusInit,
