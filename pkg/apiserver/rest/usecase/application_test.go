@@ -103,6 +103,7 @@ var _ = Describe("Test application usecase function", func() {
 			Component: &v1.CreateComponentRequest{
 				Name:          "component-name",
 				ComponentType: "webservice",
+				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
