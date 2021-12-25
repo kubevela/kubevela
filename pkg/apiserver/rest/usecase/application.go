@@ -165,16 +165,16 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 				continue
 			}
 		}
-		if len(envBinding) > 0 {
+		if len(envBinding) > 0 && listOptions.Env != "" {
 			check := func() bool {
 				for _, eb := range envBinding {
-					if appModel.PrimaryKey() == eb.AppDeployName {
+					if eb.Name == listOptions.Env && appModel.PrimaryKey() == eb.AppDeployName {
 						return true
 					}
 				}
 				return false
 			}
-			if err != nil || !check() {
+			if !check() {
 				continue
 			}
 		}

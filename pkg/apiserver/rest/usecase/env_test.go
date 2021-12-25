@@ -73,6 +73,7 @@ var _ = Describe("Test env usecase functions", func() {
 			Name:        "test-env-2",
 			Description: "this is a env description",
 			Namespace:   "default",
+			Project:     "env-project",
 			Targets:     []string{"env-test"},
 		}
 		base, err = envUsecase.CreateEnv(context.TODO(), req3)
@@ -88,6 +89,7 @@ var _ = Describe("Test env usecase functions", func() {
 			Name:        "test-env-3",
 			Description: "this is a env description",
 			Namespace:   "default",
+			Project:     "env-project",
 			Targets:     []string{"env-test"},
 		}
 		_, err = envUsecase.CreateEnv(context.TODO(), req4)
