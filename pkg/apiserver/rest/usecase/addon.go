@@ -39,10 +39,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	restutils "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // AddonHandler handle CRUD and installation of addons
@@ -57,7 +57,7 @@ type AddonHandler interface {
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string) error
-	ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error)
+	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
 
@@ -170,13 +170,18 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 
 	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
 		return &apis.AddonStatusResponse{
-			Phase: apis.AddonPhase(status.AddonPhase),
+			AddonBaseStatus: apis.AddonBaseStatus{
+				Name:  name,
+				Phase: apis.AddonPhase(status.AddonPhase),
+			},
 		}, nil
 	}
 
 	res := apis.AddonStatusResponse{
-		Name:      name,
-		Phase:     apis.AddonPhase(status.AddonPhase),
+		AddonBaseStatus: apis.AddonBaseStatus{
+			Name:  name,
+			Phase: apis.AddonPhase(status.AddonPhase),
+		},
 		AppStatus: *status.AppStatus,
 		Clusters:  status.Clusters,
 	}
@@ -208,7 +213,7 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		return nil, err
 	}
 
-	var gatherErr restutils.GatherErr
+	var gatherErr velaerr.ErrorList
 
 	for _, r := range rs {
 		if registry != "" && r.Name != registry {
@@ -255,7 +260,7 @@ func (u *defaultAddonHandler) ListAddons(ctx context.Context, registry, query st
 		}
 		addonResources = append(addonResources, addonRes)
 	}
-	if gatherErr.Error() != "" {
+	if gatherErr.HasError() {
 		return addonResources, gatherErr
 	}
 	return addonResources, nil
@@ -361,18 +366,18 @@ func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string) err
 	return nil
 }
 
-func (u *defaultAddonHandler) ListEnabledAddon(ctx context.Context) ([]*apis.AddonStatusResponse, error) {
+func (u *defaultAddonHandler) ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error) {
 	apps := &v1beta1.ApplicationList{}
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS), client.HasLabels{oam.LabelAddonName}); err != nil {
 		return nil, err
 	}
-	var response []*apis.AddonStatusResponse
+	var response []*apis.AddonBaseStatus
 	for _, application := range apps.Items {
 		if addonName := application.Labels[oam.LabelAddonName]; addonName != "" {
 			if application.Status.Phase != common2.ApplicationRunning {
 				continue
 			}
-			response = append(response, &apis.AddonStatusResponse{
+			response = append(response, &apis.AddonBaseStatus{
 				Name:  addonName,
 				Phase: convertAppStateToAddonPhase(application.Status.Phase),
 			})
@@ -429,6 +434,9 @@ func mergeAddons(a1, a2 []*pkgaddon.UIData) []*pkgaddon.UIData {
 }
 
 func hasAddon(addons []*pkgaddon.UIData, name string) bool {
+	if name == "" {
+		return true
+	}
 	for _, addon := range addons {
 		if addon.Name == name {
 			return true

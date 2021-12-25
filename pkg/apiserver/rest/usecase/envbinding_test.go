@@ -23,14 +23,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
-
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 )
 
 var _ = Describe("Test envBindingUsecase functions", func() {
 	var (
+		envUsecase        *envUsecaseImpl
 		envBindingUsecase *envBindingUsecaseImpl
 		workflowUsecase   *workflowUsecaseImpl
 		definitionUsecase DefinitionUsecase
@@ -39,43 +40,47 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		testApp           *model.Application
 	)
 	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
 		testApp = &model.Application{
-			Name:      "test-app-env",
-			Namespace: "default",
+			Name: "test-app-env",
 		}
-		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, definitionUsecase: definitionUsecase, kubeClient: k8sClient}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, definitionUsecase: definitionUsecase, kubeClient: k8sClient, envUsecase: envUsecase}
 		envBindingDemo1 = apisv1.EnvBinding{
-			Name:        "dev",
-			Alias:       "dev alias",
-			TargetNames: []string{"dev-target"},
+			Name: "envbinding-dev",
 		}
 		envBindingDemo2 = apisv1.EnvBinding{
-			Name:        "prod",
-			Alias:       "prod alias",
-			TargetNames: []string{"prod-target"},
+			Name: "envbinding-prod",
 		}
 	})
 
 	It("Test Create Application Env function", func() {
+		_, err := envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "envbinding-dev", Targets: []string{"dev-target"}})
+		Expect(err).Should(BeNil())
+		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "envbinding-prod", Targets: []string{"prod-target"}})
+		Expect(err).Should(BeNil())
+
 		By("create two envbinding")
-		req := apisv1.CreateApplicationEnvRequest{EnvBinding: envBindingDemo1}
+		req := apisv1.CreateApplicationEnvbindingRequest{EnvBinding: envBindingDemo1}
 		base, err := envBindingUsecase.CreateEnvBinding(context.TODO(), testApp, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
-		req = apisv1.CreateApplicationEnvRequest{EnvBinding: envBindingDemo2}
+		req = apisv1.CreateApplicationEnvbindingRequest{EnvBinding: envBindingDemo2}
 		base, err = envBindingUsecase.CreateEnvBinding(context.TODO(), testApp, req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
 		By("auto create two workflow")
-		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-dev")
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, convertWorkflowName("envbinding-dev"))
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(workflow.Steps[0].Name, "dev-target")).Should(BeEmpty())
 
-		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-prod")
+		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, convertWorkflowName("envbinding-prod"))
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(workflow.Steps[0].Name, "prod-target")).Should(BeEmpty())
 	})
@@ -88,56 +93,37 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 	})
 
 	It("Test GetApplication Env function", func() {
-		envBinding, err := envBindingUsecase.GetEnvBinding(context.TODO(), testApp, "dev")
+		envBinding, err := envBindingUsecase.GetEnvBinding(context.TODO(), testApp, "envbinding-dev")
 		Expect(err).Should(BeNil())
 		Expect(envBinding).ShouldNot(BeNil())
-		Expect(cmp.Diff(envBinding.Name, "dev")).Should(BeEmpty())
-	})
-
-	It("Test CheckAppEnvBindingsContainTarget function", func() {
-		isContain, err := envBindingUsecase.CheckAppEnvBindingsContainTarget(context.TODO(), testApp, "dev-target")
-		Expect(err).Should(BeNil())
-		Expect(isContain).ShouldNot(BeNil())
-		Expect(cmp.Diff(isContain, true)).Should(BeEmpty())
+		Expect(cmp.Diff(envBinding.Name, "envbinding-dev")).Should(BeEmpty())
 	})
 
 	It("Test Application UpdateEnv function", func() {
-		envBinding, err := envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "prod", apisv1.PutApplicationEnvRequest{
-			TargetNames: []string{"prod-target-new1", "prod-target-new2"},
-		})
-		Expect(err).Should(BeNil())
-		Expect(envBinding).ShouldNot(BeNil())
-		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target-new1")).Should(BeEmpty())
-		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-prod")
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(workflow.Steps[0].Name, "prod-target-new1")).Should(BeEmpty())
 
-		envBinding, err = envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "prod", apisv1.PutApplicationEnvRequest{
-			TargetNames: []string{"prod-target-new3", "prod-target-new2"},
-		})
+		envBinding, err := envBindingUsecase.UpdateEnvBinding(context.TODO(), testApp, "envbinding-prod", apisv1.PutApplicationEnvBindingRequest{})
 		Expect(err).Should(BeNil())
 		Expect(envBinding).ShouldNot(BeNil())
-		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target-new3")).Should(BeEmpty())
-		workflow, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-prod")
+		Expect(cmp.Diff(envBinding.TargetNames[0], "prod-target")).Should(BeEmpty())
+		workflow, err := workflowUsecase.GetWorkflow(context.TODO(), testApp, "workflow-envbinding-prod")
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(workflow.Steps[1].Name, "prod-target-new3")).Should(BeEmpty())
+		Expect(cmp.Diff(workflow.Steps[0].Name, "prod-target")).Should(BeEmpty())
 	})
 
 	It("Test Application DeleteEnv function", func() {
-		err := envBindingUsecase.DeleteEnvBinding(context.TODO(), testApp, "dev")
+		err := envBindingUsecase.DeleteEnvBinding(context.TODO(), testApp, "envbinding-dev")
 		Expect(err).Should(BeNil())
-		_, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, "dev")
+		_, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, convertWorkflowName("envbinding-dev"))
 		Expect(err).ShouldNot(BeNil())
-		err = envBindingUsecase.DeleteEnvBinding(context.TODO(), testApp, "prod")
+		err = envBindingUsecase.DeleteEnvBinding(context.TODO(), testApp, "envbinding-prod")
 		Expect(err).Should(BeNil())
-		_, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, "prod")
+		_, err = workflowUsecase.GetWorkflow(context.TODO(), testApp, convertWorkflowName("envbinding-prod"))
 		Expect(err).ShouldNot(BeNil())
 	})
 
 	It("Test Application BatchCreateEnv function", func() {
 		testBatchApp := &model.Application{
-			Name:      "test-batch-createt",
-			Namespace: "default",
+			Name: "test-batch-createt",
 		}
 		err := envBindingUsecase.BatchCreateEnvBinding(context.TODO(), testBatchApp, apisv1.EnvBindingList{&envBindingDemo1, &envBindingDemo2})
 		Expect(err).Should(BeNil())

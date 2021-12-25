@@ -22,7 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -306,7 +306,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Reads(apis.CreateApplicationEnvRequest{}).
+		Reads(apis.CreateApplicationEnvbindingRequest{}).
 		Returns(200, "", apis.EnvBinding{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -318,7 +318,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.envCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the envBinding ").DataType("string")).
-		Reads(apis.PutApplicationEnvRequest{}).
+		Reads(apis.PutApplicationEnvBindingRequest{}).
 		Returns(200, "", apis.EnvBinding{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.EnvBinding{}))
@@ -504,8 +504,9 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 }
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
-	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicatioOptions{
+	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{
 		Project:    req.QueryParameter("project"),
+		Env:        req.QueryParameter("env"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),
 	})
@@ -872,7 +873,7 @@ func (c *applicationWebService) detailApplicationRevision(req *restful.Request, 
 func (c *applicationWebService) updateApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
-	var updateReq apis.PutApplicationEnvRequest
+	var updateReq apis.PutApplicationEnvBindingRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -908,7 +909,7 @@ func (c *applicationWebService) listApplicationEnvs(req *restful.Request, res *r
 func (c *applicationWebService) createApplicationEnv(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
-	var createReq apis.CreateApplicationEnvRequest
+	var createReq apis.CreateApplicationEnvbindingRequest
 	if err := req.ReadEntity(&createReq); err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -14,13 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bcode
+package errors
 
-// ErrDeliveryTargetExist deliveryTarget is exist
-var ErrDeliveryTargetExist = NewBcode(400, 80001, "deliveryTarget is exist")
+import "strings"
 
-// ErrDeliveryTargetNotExist deliveryTarget is not exist
-var ErrDeliveryTargetNotExist = NewBcode(404, 80002, "deliveryTarget is not exist")
+const (
+	// LabelConflict defines the conflict label error string
+	LabelConflict = "LabelConflict"
+)
 
-// ErrDeliveryTargetInUseCantDeleted deliveryTarget being used
-var ErrDeliveryTargetInUseCantDeleted = NewBcode(404, 80003, "deliveryTarget in use, can't be deleted")
+// IsLabelConflict checks if the error is Label Conflict error
+func IsLabelConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), LabelConflict) {
+		return true
+	}
+	return false
+}

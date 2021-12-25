@@ -65,7 +65,7 @@ type WorkflowUsecase interface {
 }
 
 // NewWorkflowUsecase new workflow usecase
-func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
+func NewWorkflowUsecase(ds datastore.DataStore, envUsecase EnvUsecase) WorkflowUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
@@ -74,6 +74,7 @@ func NewWorkflowUsecase(ds datastore.DataStore) WorkflowUsecase {
 		ds:         ds,
 		kubeClient: kubecli,
 		apply:      apply.NewAPIApplicator(kubecli),
+		envUsecase: envUsecase,
 	}
 }
 
@@ -81,6 +82,7 @@ type workflowUsecaseImpl struct {
 	ds         datastore.DataStore
 	kubeClient client.Client
 	apply      apply.Applicator
+	envUsecase EnvUsecase
 }
 
 // DeleteWorkflow delete application workflow
@@ -198,72 +200,38 @@ func (w *workflowUsecaseImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 	return w.DetailWorkflow(ctx, workflow)
 }
 
-func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
-	var steps []model.WorkflowStep
-	for _, step := range req.Steps {
-		properties, err := model.NewJSONStructByString(step.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse trait properties failire %w", err)
-			return nil, bcode.ErrInvalidProperties
-		}
-		steps = append(steps, model.WorkflowStep{
-			Name:        step.Name,
-			Alias:       step.Alias,
-			Description: step.Description,
-			DependsOn:   step.DependsOn,
-			Type:        step.Type,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-			Properties:  properties,
-		})
-	}
+// updateWorkflowSteps will update workflow with new steps
+func updateWorkflowSteps(ctx context.Context, ds datastore.DataStore, workflow *model.Workflow, steps []model.WorkflowStep) error {
 	workflow.Steps = steps
+	return ds.Put(ctx, workflow)
+}
+
+func (w *workflowUsecaseImpl) UpdateWorkflow(ctx context.Context, workflow *model.Workflow, req apisv1.UpdateWorkflowRequest) (*apisv1.DetailWorkflowResponse, error) {
+	modeSteps, err := convertAPIStep2ModelStep(req.Steps)
+	if err != nil {
+		return nil, err
+	}
 	workflow.Description = req.Description
 	// It is allowed to set multiple workflows as default, and only one takes effect.
-	workflow.Default = &req.Default
-	if err := w.ds.Put(ctx, workflow); err != nil {
+	if req.Default != nil {
+		workflow.Default = req.Default
+	}
+	if err := updateWorkflowSteps(ctx, w.ds, workflow, modeSteps); err != nil {
 		return nil, err
 	}
 	return w.DetailWorkflow(ctx, workflow)
 }
 
-func converWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
-	var steps []apisv1.WorkflowStep
-	for _, step := range workflow.Steps {
-		steps = append(steps, convertFromWorkflowStepModel(step))
-	}
-	return apisv1.WorkflowBase{
-		Name:        workflow.Name,
-		Alias:       workflow.Alias,
-		Description: workflow.Description,
-		Default:     convertBool(workflow.Default),
-		EnvName:     workflow.EnvName,
-		CreateTime:  workflow.CreateTime,
-		UpdateTime:  workflow.UpdateTime,
-		Steps:       steps,
-	}
-}
-
 // DetailWorkflow detail workflow
 func (w *workflowUsecaseImpl) DetailWorkflow(ctx context.Context, workflow *model.Workflow) (*apisv1.DetailWorkflowResponse, error) {
 	return &apisv1.DetailWorkflowResponse{
-		WorkflowBase: converWorkflowBase(workflow),
+		WorkflowBase: convertWorkflowBase(workflow),
 	}, nil
 }
 
 // GetWorkflow get workflow model
 func (w *workflowUsecaseImpl) GetWorkflow(ctx context.Context, app *model.Application, workflowName string) (*model.Workflow, error) {
-	var workflow = model.Workflow{
-		Name:          workflowName,
-		AppPrimaryKey: app.PrimaryKey(),
-	}
-	if err := w.ds.Get(ctx, &workflow); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrWorkflowNotExist
-		}
-		return nil, err
-	}
-	return &workflow, nil
+	return getWorkflowForApp(ctx, w.ds, app, workflowName)
 }
 
 // ListApplicationWorkflow list application workflows
@@ -278,7 +246,7 @@ func (w *workflowUsecaseImpl) ListApplicationWorkflow(ctx context.Context, app *
 	var list []*apisv1.WorkflowBase
 	for _, workflow := range workflows {
 		wm := workflow.(*model.Workflow)
-		base := converWorkflowBase(wm)
+		base := convertWorkflowBase(wm)
 		list = append(list, &base)
 	}
 	return list, nil
@@ -387,7 +355,7 @@ func (w *workflowUsecaseImpl) SyncWorkflowRecord(ctx context.Context) error {
 			klog.ErrorS(err, "failed to get workflow", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
-		appName := convertAppName(record.AppPrimaryKey, workflow.EnvName)
+		appName := record.AppPrimaryKey
 		if err := w.kubeClient.Get(ctx, types.NamespacedName{
 			Name:      appName,
 			Namespace: record.Namespace,
@@ -519,7 +487,7 @@ func (w *workflowUsecaseImpl) CreateWorkflowRecord(ctx context.Context, appModel
 		AppPrimaryKey:      appModel.PrimaryKey(),
 		RevisionPrimaryKey: app.Annotations[oam.AnnotationDeployVersion],
 		Name:               app.Annotations[oam.AnnotationPublishVersion],
-		Namespace:          appModel.Namespace,
+		Namespace:          app.Namespace,
 		Finished:           "false",
 		StartTime:          time.Now().Time,
 		Steps:              steps,
@@ -635,8 +603,9 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 		var revision = model.ApplicationRevision{
 			AppPrimaryKey: appModel.Name,
 			Status:        model.RevisionStatusComplete,
+			WorkflowName:  workflow.Name,
+			EnvName:       workflow.EnvName,
 		}
-
 		revisions, err := w.ds.List(ctx, &revision, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
@@ -649,6 +618,7 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 			return bcode.ErrApplicationNoReadyRevision
 		}
 		revisionVersion = revisions[0].Index()["version"]
+		log.Logger.Infof("select lastest complete revision %s", revisions[0].Index()["version"])
 	}
 
 	var record = &model.WorkflowRecord{
@@ -719,7 +689,11 @@ func (w *workflowUsecaseImpl) RollbackRecord(ctx context.Context, appModel *mode
 
 func (w *workflowUsecaseImpl) checkRecordRunning(ctx context.Context, appModel *model.Application, envName string) (*v1beta1.Application, error) {
 	oamApp := &v1beta1.Application{}
-	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: convertAppName(appModel.Name, envName), Namespace: appModel.Namespace}, oamApp); err != nil {
+	env, err := w.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.kubeClient.Get(ctx, types.NamespacedName{Name: appModel.Name, Namespace: env.Namespace}, oamApp); err != nil {
 		return nil, err
 	}
 	if oamApp.Status.Workflow != nil && !oamApp.Status.Workflow.Suspend && !oamApp.Status.Workflow.Terminated && !oamApp.Status.Workflow.Finished {

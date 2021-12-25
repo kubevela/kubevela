@@ -84,7 +84,7 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 			}
 			baseTrait.Properties, err = MergeRawExtension(baseTrait.Properties, trait.Properties)
 			if err != nil {
-				errs.Append(errors.Wrapf(err, "failed to merge trait %s", trait.Type))
+				errs = append(errs, errors.Wrapf(err, "failed to merge trait %s", trait.Type))
 			}
 		} else {
 			if trait.Disable {
@@ -147,7 +147,7 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 			} else {
 				compMaps[comp.Name], err = MergeComponent(baseComp, comp.DeepCopy())
 				if err != nil {
-					errs.Append(errors.Wrapf(err, "failed to merge component %s", comp.Name))
+					errs = append(errs, errors.Wrapf(err, "failed to merge component %s", comp.Name))
 				}
 			}
 		} else {

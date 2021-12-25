@@ -59,7 +59,7 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 		if err := kubeClient.Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        cfg.Database,
-				Annotations: map[string]string{"description": "For kubevela apiserver metadata storage."},
+				Annotations: map[string]string{"description": "For KubeVela API Server metadata storage."},
 			}}); err != nil {
 			return nil, fmt.Errorf("create namespace failure %w", err)
 		}
@@ -247,10 +247,15 @@ func newBySortOptionConfigMap(items []corev1.ConfigMap, sortBy []datastore.SortO
 		data := item.BinaryData["data"]
 		for _, op := range sortBy {
 			res := gjson.Get(string(data), op.Key)
-			if res.Type == gjson.Number {
+			switch res.Type {
+			case gjson.Number:
 				m[op.Key] = res.Num
-			} else {
-				m[op.Key] = res.Raw
+			default:
+				if !res.Time().IsZero() {
+					m[op.Key] = res.Time()
+				} else {
+					m[op.Key] = res.Raw
+				}
 			}
 		}
 		s.objects[i] = m
@@ -271,25 +276,28 @@ func (b bySortOptionConfigMap) Less(i, j int) bool {
 	for _, op := range b.sortBy {
 		x := b.objects[i][op.Key]
 		y := b.objects[j][op.Key]
-		_x, xok := x.(float64)
-		_y, yok := y.(float64)
-		var lt, gt bool
+		_x, xok := x.(time.Time)
+		_y, yok := y.(time.Time)
+		var xScore, yScore float64
 		if xok && yok {
-			lt, gt = _x < _y, _x > _y
+			xScore = float64(_x.UnixNano())
+			yScore = float64(_y.UnixNano())
 		}
 		if !xok && !yok {
-			lt, gt = x.(string) < y.(string), x.(string) > y.(string)
+			_x, xok := x.(float64)
+			_y, yok := y.(float64)
+			if xok && yok {
+				xScore = _x
+				yScore = _y
+			}
 		}
-		if xok != yok {
-			lt, gt = false, false
-		}
-		if !lt && !gt {
+		if xScore == yScore {
 			continue
 		}
 		if op.Order == datastore.SortOrderAscending {
-			return lt
+			return xScore < yScore
 		}
-		return gt
+		return xScore > yScore
 	}
 	return true
 }

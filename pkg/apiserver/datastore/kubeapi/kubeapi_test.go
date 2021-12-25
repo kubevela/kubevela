@@ -95,14 +95,14 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	It("Test batch add function", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
-			&model.Application{Namespace: "test-namespace", Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.Application{Namespace: "test-namespace2", Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Application{Name: "kubevela-app-3", Description: "this is demo 3"},
+			&model.Application{Name: "kubevela-app-4", Description: "this is demo 4"},
 		}
 		err := kubeStore.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
 
 		var datas2 = []datastore.Entity{
-			&model.Application{Namespace: "test-namespace", Name: "can-delete", Description: "this is demo can-delete"},
+			&model.Application{Name: "can-delete", Description: "this is demo can-delete"},
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = kubeStore.BatchAdd(context.TODO(), datas2)
@@ -124,17 +124,17 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 	It("Test index", func() {
 		var app = model.Application{
-			Namespace: "test",
+			Name: "test",
 		}
 		selector, err := labels.Parse(fmt.Sprintf("table=%s", app.TableName()))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cmp.Diff(app.Index()["namespace"], "test")).Should(BeEmpty())
+		Expect(cmp.Diff(app.Index()["name"], "test")).Should(BeEmpty())
 		for k, v := range app.Index() {
 			rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
 			Expect(err).ToNot(HaveOccurred())
 			selector = selector.Add(*rq)
 		}
-		Expect(cmp.Diff(selector.String(), "namespace=test,table=vela_application")).Should(BeEmpty())
+		Expect(cmp.Diff(selector.String(), "name=test,table=vela_application")).Should(BeEmpty())
 	})
 	It("Test list function", func() {
 		var app model.Application
@@ -157,12 +157,6 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 4)
 		Expect(diff).Should(BeEmpty())
-
-		app.Namespace = "test-namespace"
-		list, err = kubeStore.List(context.TODO(), &app, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		diff = cmp.Diff(len(list), 1)
-		Expect(diff).Should(BeEmpty())
 	})
 
 	It("Test list clusters with sort and fuzzy query", func() {
@@ -175,14 +169,26 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			Expect(kubeStore.Add(context.TODO(), &model.Cluster{Name: name})).Should(Succeed())
 			time.Sleep(time.Millisecond * 100)
 		}
-		entities, err := kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderAscending}}})
+		entities, err := kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderAscending}}})
 		Expect(err).Should(Succeed())
 		Expect(len(entities)).Should(Equal(3))
 		for i, name := range []string{"first", "second", "third"} {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
+
 		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy:   []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+			Page:     1,
+			PageSize: 2,
+		})
+		Expect(err).Should(Succeed())
+		Expect(len(entities)).Should(Equal(2))
+		for i, name := range []string{"third", "second"} {
+			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
+		}
+
+		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
+			SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			Page:     2,
 			PageSize: 2,
 		})
@@ -192,7 +198,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			Expect(entities[i].(*model.Cluster).Name).Should(Equal(name))
 		}
 		entities, err = kubeStore.List(context.TODO(), &model.Cluster{}, &datastore.ListOptions{
-			SortBy: []datastore.SortOption{{Key: "model.createTime", Order: datastore.SortOrderDescending}},
+			SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
 			FilterOptions: datastore.FilterOptions{
 				Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
 			},
@@ -209,11 +215,6 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		count, err := kubeStore.Count(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(4)))
-
-		app.Namespace = "test-namespace"
-		count, err = kubeStore.Count(context.TODO(), &app, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(count).Should(Equal(int64(1)))
 
 		count, err = kubeStore.Count(context.TODO(), &model.Cluster{}, &datastore.FilterOptions{
 			Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},

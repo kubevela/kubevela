@@ -135,27 +135,52 @@ Start to test.
 make e2e-test
 ```
 
+## Contribute apiserver and [velaux](https://github.com/oam-dev/velaux)
+
+Before start, please make sure you have already started the vela controller environment.
+
+```shell
+make run-apiserver
+```
+
+By default, the apiserver will serving at "0.0.0.0:8000".
+
+Get the velaux code by:
+
+```shell
+git clone git@github.com:oam-dev/velaux.git
+```
+
+Configure the apiserver address:
+
+```shell
+cd velaux
+echo "BASE_DOMAIN='http://127.0.0.1:8000'" > .env
+```
+
+Make sure you have installed [yarn](https://classic.yarnpkg.com/en/docs/install).
+
+```shell
+yarn install
+yarn start
+```
+
 To execute the e2e test of the API module, the mongodb service needs to exist locally.
 
 ```shell script
+# save your config
+mv ~/.kube/config  ~/.kube/config.save
+
+kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4 --name worker
+kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
+kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
+
+# restore your config
+mv ~/.kube/config.save  ~/.kube/config
+
 make e2e-apiserver-test
 ```
 
-## Contribute Docs
-
-Please read [the documentation](https://github.com/oam-dev/kubevela/tree/master/docs/README.md) before contributing to the docs.
-
-- Build docs
-
-```shell script
-make docs-build
-```
-
-- Local development and preview
-
-```shell script
-make docs-start
-```
 
 ## Next steps
 

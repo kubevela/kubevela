@@ -22,18 +22,21 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var k8sClient client.Client
@@ -94,4 +97,16 @@ var _ = BeforeSuite(func() {
 			return errors.New("rest service not ready")
 		}, time.Second*5, time.Millisecond*200).Should(BeNil())
 	By("api server started")
+})
+
+var _ = AfterSuite(func() {
+	By("tearing down the test environment")
+	var nsList v1.NamespaceList
+	err := k8sClient.List(context.TODO(), &nsList)
+	Expect(err).ToNot(HaveOccurred())
+	for _, ns := range nsList.Items {
+		if strings.HasPrefix(ns.Name, e2e_apiserver.TestNSprefix) {
+			_ = k8sClient.Delete(context.TODO(), &ns)
+		}
+	}
 })

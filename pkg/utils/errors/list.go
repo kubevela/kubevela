@@ -21,29 +21,26 @@ import (
 	"strings"
 )
 
-// ErrorList wraps a list of errors
-type ErrorList struct {
-	errors []error
-}
+// ErrorList wraps a list of errors, it also fit for an Error interface
+type ErrorList []error
 
 // Error implement error interface
 func (e ErrorList) Error() string {
 	if !e.HasError() {
-		return "No error found."
+		// it reports an empty string if error is nil
+		return ""
 	}
-	errMessages := make([]string, len(e.errors))
-	for i, err := range e.errors {
+	errMessages := make([]string, len(e))
+	for i, err := range e {
 		errMessages[i] = err.Error()
 	}
-	return fmt.Sprintf("Found %d errors. [(%s)]", len(e.errors), strings.Join(errMessages, "), ("))
-}
-
-// Append append error to list
-func (e *ErrorList) Append(err error) {
-	e.errors = append(e.errors, err)
+	return fmt.Sprintf("Found %d errors. [(%s)]", len(e), strings.Join(errMessages, "), ("))
 }
 
 // HasError check if any error exists in list
 func (e ErrorList) HasError() bool {
-	return len(e.errors) > 0
+	if e == nil {
+		return false
+	}
+	return len(e) > 0
 }

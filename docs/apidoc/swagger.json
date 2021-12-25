@@ -1057,7 +1057,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateApplicationEnvRequest"
+							"$ref": "#/definitions/v1.CreateApplicationEnvbindingRequest"
 						}
 					}
 				],
@@ -1110,7 +1110,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.PutApplicationEnvRequest"
+							"$ref": "#/definitions/v1.PutApplicationEnvBindingRequest"
 						}
 					}
 				],
@@ -2738,9 +2738,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"workflowstep",
 							"component",
-							"trait",
-							"workflowstep"
+							"trait"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -2850,6 +2850,132 @@
 					"200": {
 						"schema": {
 							"$ref": "#/definitions/v1.ListAddonResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/envs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"env"
+				],
+				"summary": "list all envs",
+				"operationId": "list",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListEnvResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"env"
+				],
+				"summary": "create an env",
+				"operationId": "create",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateEnvRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.Env"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/envs/{name}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"env"
+				],
+				"summary": "update an env",
+				"operationId": "update",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateEnvRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.Env"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"env"
+				],
+				"summary": "delete one env",
+				"operationId": "delete",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					},
 					"400": {
@@ -2988,17 +3114,11 @@
 					"application/xml"
 				],
 				"tags": [
-					"deliveryTarget"
+					"Target"
 				],
-				"summary": "list deliveryTarget",
-				"operationId": "listDeliveryTargets",
+				"summary": "list Target",
+				"operationId": "listTargets",
 				"parameters": [
-					{
-						"type": "string",
-						"description": "Query the target belong to project",
-						"name": "project",
-						"in": "query"
-					},
 					{
 						"type": "integer",
 						"description": "Page for paging",
@@ -3034,17 +3154,17 @@
 					"application/xml"
 				],
 				"tags": [
-					"deliveryTarget"
+					"Target"
 				],
-				"summary": "create deliveryTarget",
-				"operationId": "createDeliveryTarget",
+				"summary": "create Target",
+				"operationId": "createTarget",
 				"parameters": [
 					{
 						"name": "body",
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.CreateDeliveryTargetRequest"
+							"$ref": "#/definitions/v1.CreateTargetRequest"
 						}
 					}
 				],
@@ -3078,14 +3198,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"deliveryTarget"
+					"Target"
 				],
-				"summary": "detail deliveryTarget",
-				"operationId": "detailDeliveryTarget",
+				"summary": "detail Target",
+				"operationId": "detailTarget",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the deliveryTarget.",
+						"description": "identifier of the Target.",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -3113,14 +3233,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"deliveryTarget"
+					"Target"
 				],
-				"summary": "update application DeliveryTarget config",
-				"operationId": "updateDeliveryTarget",
+				"summary": "update application Target config",
+				"operationId": "updateTarget",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the deliveryTarget",
+						"description": "identifier of the Target",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -3130,7 +3250,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/v1.UpdateDeliveryTargetRequest"
+							"$ref": "#/definitions/v1.UpdateTargetRequest"
 						}
 					}
 				],
@@ -3156,14 +3276,14 @@
 					"application/xml"
 				],
 				"tags": [
-					"deliveryTarget"
+					"Target"
 				],
-				"summary": "deletet DeliveryTarget",
-				"operationId": "deleteDeliveryTarget",
+				"summary": "deletet Target",
+				"operationId": "deleteTarget",
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the deliveryTarget",
+						"description": "identifier of the Target",
 						"name": "name",
 						"in": "path",
 						"required": true
@@ -3485,9 +3605,9 @@
 		"common.AppRolloutStatus": {
 			"required": [
 				"batchRollingState",
+				"currentBatch",
 				"upgradedReadyReplicas",
 				"rollingState",
-				"currentBatch",
 				"upgradedReplicas",
 				"lastTargetAppRevision"
 			],
@@ -4152,9 +4272,26 @@
 				}
 			}
 		},
+		"model.BaseModel": {
+			"required": [
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
 		"model.Cluster": {
 			"required": [
-				"model",
+				"updateTime",
+				"createTime",
 				"name",
 				"alias",
 				"description",
@@ -4174,6 +4311,10 @@
 				},
 				"apiServerURL": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"dashboardURL": {
 					"type": "string"
@@ -4196,9 +4337,6 @@
 						"type": "string"
 					}
 				},
-				"model": {
-					"$ref": "#/definitions/model.Model"
-				},
 				"name": {
 					"type": "string"
 				},
@@ -4210,27 +4348,15 @@
 				},
 				"status": {
 					"type": "string"
-				}
-			}
-		},
-		"model.JSONStruct": {
-			"type": "object"
-		},
-		"model.Model": {
-			"required": [
-				"createTime",
-				"updateTime"
-			],
-			"properties": {
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
 				},
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
 				}
 			}
+		},
+		"model.JSONStruct": {
+			"type": "object"
 		},
 		"model.ProviderInfo": {
 			"required": [
@@ -4520,6 +4646,12 @@
 						"type": "string"
 					}
 				},
+				"clusters": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/v1.AddonStatusResponse.clusters"
+					}
+				},
 				"enabling_progress": {
 					"$ref": "#/definitions/v1.EnablingProgress"
 				},
@@ -4530,6 +4662,9 @@
 					"type": "string"
 				}
 			}
+		},
+		"v1.AddonStatusResponse.clusters": {
+			"type": "object"
 		},
 		"v1.ApplicationBase": {
 			"required": [
@@ -4597,14 +4732,14 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"createTime",
+				"version",
+				"status",
 				"reason",
 				"deployUser",
 				"note",
 				"envName",
-				"triggerType",
-				"createTime",
-				"version",
-				"status"
+				"triggerType"
 			],
 			"properties": {
 				"createTime": {
@@ -4731,20 +4866,20 @@
 		"v1.ApplicationStatisticsResponse": {
 			"required": [
 				"envCount",
-				"deliveryTargetCount",
+				"targetCount",
 				"revisonCount",
 				"workflowCount"
 			],
 			"properties": {
-				"deliveryTargetCount": {
-					"type": "integer",
-					"format": "int64"
-				},
 				"envCount": {
 					"type": "integer",
 					"format": "int64"
 				},
 				"revisonCount": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"targetCount": {
 					"type": "integer",
 					"format": "int64"
 				},
@@ -5116,29 +5251,13 @@
 				}
 			}
 		},
-		"v1.CreateApplicationEnvRequest": {
+		"v1.CreateApplicationEnvbindingRequest": {
 			"required": [
-				"targetNames",
 				"name"
 			],
 			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"componentSelector": {
-					"$ref": "#/definitions/v1.ComponentSelector"
-				},
-				"description": {
-					"type": "string"
-				},
 				"name": {
 					"type": "string"
-				},
-				"targetNames": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
 				}
 			}
 		},
@@ -5178,9 +5297,6 @@
 					"type": "string"
 				},
 				"project": {
-					"type": "string"
-				},
-				"yamlConfig": {
 					"type": "string"
 				}
 			}
@@ -5377,17 +5493,15 @@
 				}
 			}
 		},
-		"v1.CreateDeliveryTargetRequest": {
+		"v1.CreateEnvRequest": {
 			"required": [
 				"name",
-				"project"
+				"project",
+				"namespace"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
-				},
-				"cluster": {
-					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"description": {
 					"type": "string"
@@ -5395,11 +5509,17 @@
 				"name": {
 					"type": "string"
 				},
+				"namespace": {
+					"type": "string"
+				},
 				"project": {
 					"type": "string"
 				},
-				"variable": {
-					"type": "object"
+				"targets": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -5438,9 +5558,28 @@
 				},
 				"name": {
 					"type": "string"
-				},
-				"namespace": {
+				}
+			}
+		},
+		"v1.CreateTargetRequest": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"alias": {
 					"type": "string"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"variable": {
+					"type": "object"
 				}
 			}
 		},
@@ -5495,56 +5634,13 @@
 				}
 			}
 		},
-		"v1.DeliveryTargetBase": {
-			"required": [
-				"name",
-				"project",
-				"createTime",
-				"updateTime"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"appNum": {
-					"type": "integer",
-					"format": "int64"
-				},
-				"cluster": {
-					"$ref": "#/definitions/v1.ClusterTarget"
-				},
-				"clusterAlias": {
-					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"project": {
-					"$ref": "#/definitions/v1.ProjectBase"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"variable": {
-					"type": "object"
-				}
-			}
-		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
-				"description",
-				"icon",
 				"name",
+				"description",
+				"invisible",
 				"version",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5611,13 +5707,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"name",
+				"alias",
+				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
-				"name",
-				"alias",
-				"project",
 				"policies",
 				"envBindings",
 				"status",
@@ -5679,19 +5775,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"description",
+				"apiServerURL",
 				"icon",
-				"labels",
+				"status",
 				"provider",
+				"reason",
+				"alias",
+				"description",
+				"labels",
 				"dashboardURL",
 				"kubeConfig",
-				"model",
-				"alias",
-				"status",
-				"reason",
-				"apiServerURL",
-				"kubeConfigSecret",
+				"updateTime",
+				"createTime",
 				"name",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5700,6 +5797,10 @@
 				},
 				"apiServerURL": {
 					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"dashboardURL": {
 					"type": "string"
@@ -5722,9 +5823,6 @@
 						"type": "string"
 					}
 				},
-				"model": {
-					"$ref": "#/definitions/model.Model"
-				},
 				"name": {
 					"type": "string"
 				},
@@ -5739,15 +5837,19 @@
 				},
 				"status": {
 					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"type",
+				"createTime",
 				"creator",
+				"updateTime",
 				"name",
 				"alias",
 				"appPrimaryKey"
@@ -5843,58 +5945,15 @@
 				}
 			}
 		},
-		"v1.DetailDeliveryTargetResponse": {
-			"required": [
-				"name",
-				"project",
-				"createTime",
-				"updateTime"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"appNum": {
-					"type": "integer",
-					"format": "int64"
-				},
-				"cluster": {
-					"$ref": "#/definitions/v1.ClusterTarget"
-				},
-				"clusterAlias": {
-					"type": "string"
-				},
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"project": {
-					"$ref": "#/definitions/v1.ProjectBase"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"variable": {
-					"type": "object"
-				}
-			}
-		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -5924,17 +5983,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"status",
+				"deployUser",
+				"note",
+				"workflowName",
 				"updateTime",
 				"version",
-				"deployUser",
-				"workflowName",
-				"createTime",
-				"appPrimaryKey",
-				"status",
 				"reason",
-				"note",
 				"triggerType",
-				"envName"
+				"envName",
+				"createTime",
+				"appPrimaryKey"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -5980,14 +6039,53 @@
 				}
 			}
 		},
+		"v1.DetailTargetResponse": {
+			"required": [
+				"name",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"clusterAlias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
-				"status",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -6039,14 +6137,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
 				"alias",
 				"description",
 				"default",
-				"envName",
-				"createTime",
+				"updateTime",
+				"name",
 				"enable",
-				"updateTime"
+				"envName",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -6107,17 +6205,22 @@
 				}
 			}
 		},
-		"v1.EnvBinding": {
+		"v1.Env": {
 			"required": [
 				"name",
-				"targetNames"
+				"alias",
+				"project",
+				"namespace",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
 				},
-				"componentSelector": {
-					"$ref": "#/definitions/v1.ComponentSelector"
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
@@ -6125,11 +6228,31 @@
 				"name": {
 					"type": "string"
 				},
-				"targetNames": {
+				"namespace": {
+					"type": "string"
+				},
+				"project": {
+					"$ref": "#/definitions/v1.NameAlias"
+				},
+				"targets": {
 					"type": "array",
 					"items": {
-						"type": "string"
+						"$ref": "#/definitions/v1.NameAlias"
 					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"v1.EnvBinding": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
 				}
 			}
 		},
@@ -6139,7 +6262,8 @@
 				"targetNames",
 				"createTime",
 				"updateTime",
-				"appDeployName"
+				"appDeployName",
+				"appDeployNamespace"
 			],
 			"properties": {
 				"alias": {
@@ -6148,18 +6272,15 @@
 				"appDeployName": {
 					"type": "string"
 				},
+				"appDeployNamespace": {
+					"type": "string"
+				},
 				"componentSelector": {
 					"$ref": "#/definitions/v1.ComponentSelector"
 				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
-				},
-				"deliveryTargets": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.EnvBindingTarget"
-					}
 				},
 				"description": {
 					"type": "string"
@@ -6171,6 +6292,12 @@
 					"type": "array",
 					"items": {
 						"type": "string"
+					}
+				},
+				"targets": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.EnvBindingTarget"
 					}
 				},
 				"updateTime": {
@@ -6326,6 +6453,19 @@
 				}
 			}
 		},
+		"v1.ListEnvResponse": {
+			"required": [
+				"envs"
+			],
+			"properties": {
+				"envs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Env"
+					}
+				}
+			}
+		},
 		"v1.ListPolicyDefinitionResponse": {
 			"required": [
 				"policyDefinitions"
@@ -6379,7 +6519,7 @@
 				"targets": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/v1.DeliveryTargetBase"
+						"$ref": "#/definitions/v1.TargetBase"
 					}
 				},
 				"total": {
@@ -6528,7 +6668,6 @@
 				"name",
 				"alias",
 				"description",
-				"namespace",
 				"createTime",
 				"updateTime"
 			],
@@ -6546,34 +6685,49 @@
 				"name": {
 					"type": "string"
 				},
-				"namespace": {
-					"type": "string"
-				},
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
 				}
 			}
 		},
-		"v1.PutApplicationEnvRequest": {
+		"v1.PutApplicationEnvBindingRequest": {},
+		"v1.TargetBase": {
 			"required": [
-				"targetNames"
+				"name",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
 					"type": "string"
 				},
-				"componentSelector": {
-					"$ref": "#/definitions/v1.ComponentSelector"
+				"appNum": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"cluster": {
+					"$ref": "#/definitions/v1.ClusterTarget"
+				},
+				"clusterAlias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"description": {
 					"type": "string"
 				},
-				"targetNames": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
+				"name": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"variable": {
+					"type": "object"
 				}
 			}
 		},
@@ -6653,22 +6807,6 @@
 				}
 			}
 		},
-		"v1.UpdateDeliveryTargetRequest": {
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"cluster": {
-					"$ref": "#/definitions/v1.ClusterTarget"
-				},
-				"description": {
-					"type": "string"
-				},
-				"variable": {
-					"type": "object"
-				}
-			}
-		},
 		"v1.UpdatePolicyRequest": {
 			"required": [
 				"description",
@@ -6687,9 +6825,21 @@
 				}
 			}
 		},
+		"v1.UpdateTargetRequest": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"variable": {
+					"type": "object"
+				}
+			}
+		},
 		"v1.UpdateWorkflowRequest": {
 			"required": [
-				"enable",
 				"default"
 			],
 			"properties": {
@@ -6701,9 +6851,6 @@
 				},
 				"description": {
 					"type": "string"
-				},
-				"enable": {
-					"type": "boolean"
 				},
 				"steps": {
 					"type": "array",

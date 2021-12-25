@@ -24,14 +24,25 @@ func init() {
 
 // EnvBinding application env binding
 type EnvBinding struct {
-	Model
-	AppPrimaryKey     string             `json:"appPrimaryKey"`
-	Name              string             `json:"name"`
-	Alias             string             `json:"alias"`
-	Description       string             `json:"description,omitempty"`
-	TargetNames       []string           `json:"targetNames"`
-	ComponentSelector *ComponentSelector `json:"componentSelector"`
-	//TODO: componentPatchs
+	BaseModel
+	AppPrimaryKey   string           `json:"appPrimaryKey"`
+	Name            string           `json:"name"`
+	ComponentsPatch []ComponentPatch `json:"componentsPatchs"`
+}
+
+// ComponentPatch Define differential patches for components in the environment.
+type ComponentPatch struct {
+	Name        string       `json:"name"`
+	Properties  *JSONStruct  `json:"properties,omitempty"`
+	Disable     bool         `json:"disable"`
+	TraitsPatch []TraitPatch `json:"traitsPatch,omitempty"`
+}
+
+// TraitPatch Define differential patches for traits in the environment.
+type TraitPatch struct {
+	Type       string      `json:"type"`
+	Properties *JSONStruct `json:"properties,omitempty"`
+	Disable    bool        `json:"disable"`
 }
 
 // TableName return custom table name

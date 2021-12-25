@@ -14,13 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package usecase
+package utils
 
 import (
-	"context"
-	"fmt"
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
@@ -32,26 +29,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
-var ds datastore.DataStore
+
+func TestUtils(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Utils Suite")
+}
 
 var _ = BeforeSuite(func(done Done) {
 	rand.Seed(time.Now().UnixNano())
-	By("bootstrapping test environment")
+	By("bootstrapping test environment for utils test")
 
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
-		CRDDirectoryPaths:        []string{"../../../../charts/vela-core/crds"},
 	}
 
 	By("start kube test env")
@@ -67,9 +64,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 	By("new kube client success")
 	clients.SetKubeClient(k8sClient)
-	ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "kubevela"})
 	Expect(err).Should(BeNil())
-	Expect(ds).ToNot(BeNil())
 	close(done)
 }, 240)
 
@@ -78,30 +73,3 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-func NewDatastore(cfg datastore.Config) (ds datastore.DataStore, err error) {
-	switch cfg.Type {
-	case "mongodb":
-		ds, err = mongodb.New(context.Background(), cfg)
-		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
-		}
-	case "kubeapi":
-		ds, err = kubeapi.New(context.Background(), cfg)
-		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("not support datastore type %s", cfg.Type)
-	}
-	return ds, nil
-}
-
-func TestUsecase(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Usecase Suite")
-}
-
-func randomNamespaceName(basic string) string {
-	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
-}

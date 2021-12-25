@@ -64,8 +64,7 @@ type Config map[string]string
 type EnvMeta struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
-
-	Current string `json:"current,omitempty"`
+	Current   string `json:"current"`
 }
 
 const (

@@ -123,13 +123,13 @@ type ListOptions struct {
 
 // DataStore datastore interface
 type DataStore interface {
-	// add entity to database, Name() and TableName() can't return zero value.
+	// Add adds entity to database, Name() and TableName() can't return zero value.
 	Add(ctx context.Context, entity Entity) error
 
-	// batch add entity to database, Name() and TableName() can't return zero value.
-	BatchAdd(ctx context.Context, entitys []Entity) error
+	// BatchAdd will adds batched entities to database, Name() and TableName() can't return zero value.
+	BatchAdd(ctx context.Context, entities []Entity) error
 
-	// Update entity to database, Name() and TableName() can't return zero value.
+	// Put will update entity to database, Name() and TableName() can't return zero value.
 	Put(ctx context.Context, entity Entity) error
 
 	// Delete entity from database, Name() and TableName() can't return zero value.

@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var appName = "app-e2e"
@@ -46,46 +47,12 @@ var _ = Describe("Test application rest api", func() {
 			Description: "this is a test app",
 			Icon:        "",
 			Labels:      map[string]string{"test": "true"},
-			EnvBinding:  []*apisv1.EnvBinding{{Name: "dev-env", TargetNames: []string{"test-target"}}},
-		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
-		var appBase apisv1.ApplicationBase
-		err = json.NewDecoder(res.Body).Decode(&appBase)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.Project.Namespace, fmt.Sprintf("project-%s", appProject))).Should(BeEmpty())
-		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
-	})
-
-	It("Test delete app", func() {
-		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-	})
-
-	It("Test create app with oamspec", func() {
-		defer GinkgoRecover()
-		bs, err := ioutil.ReadFile("./testdata/example-app.yaml")
-		Expect(err).Should(Succeed())
-		var req = apisv1.CreateApplicationRequest{
-			Name:        appName,
-			Project:     appProject,
-			Description: "this is a test app",
-			Icon:        "",
-			Labels:      map[string]string{"test": "true"},
-			YamlConfig:  string(bs),
+			EnvBinding:  []*apisv1.EnvBinding{{Name: "dev-env"}},
+			Component: &apisv1.CreateComponentRequest{
+				Name:          "webservice",
+				ComponentType: "webservice",
+				Properties:    "{\"image\":\"nginx\"}",
+			},
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -114,7 +81,7 @@ var _ = Describe("Test application rest api", func() {
 		var components apisv1.ComponentListResponse
 		err = json.NewDecoder(res.Body).Decode(&components)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(cmp.Diff(len(components.Components), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(components.Components), 1)).Should(BeEmpty())
 	})
 
 	It("Test detail application", func() {
@@ -133,16 +100,14 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
-		var targetName = "dev-default"
+		var targetName = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		var envName = "dev"
-		var namespace = "default"
 		// create target
-		var createTarget = apisv1.CreateDeliveryTargetRequest{
-			Name:    targetName,
-			Project: appProject,
+		var createTarget = apisv1.CreateTargetRequest{
+			Name: targetName,
 			Cluster: &apisv1.ClusterTarget{
 				ClusterName: "local",
-				Namespace:   namespace,
+				Namespace:   targetName,
 			},
 		}
 		bodyByte, err := json.Marshal(createTarget)
@@ -153,13 +118,23 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 
 		// create env
-		var createEnvReq = apisv1.CreateApplicationEnvRequest{
-			EnvBinding: apisv1.EnvBinding{
-				Name:        envName,
-				TargetNames: []string{targetName},
-			},
+		var createEnvReq = apisv1.CreateEnvRequest{
+			Name:    envName,
+			Targets: []string{targetName},
 		}
 		bodyByte, err = json.Marshal(createEnvReq)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err = http.Post("http://127.0.0.1:8000/api/v1/envs", "application/json", bytes.NewBuffer(bodyByte))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+
+		// create envbinding
+		var createEnvbindingReq = apisv1.CreateApplicationEnvbindingRequest{
+			EnvBinding: apisv1.EnvBinding{
+				Name: envName,
+			},
+		}
+		bodyByte, err = json.Marshal(createEnvbindingReq)
 		Expect(err).ShouldNot(HaveOccurred())
 		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/envs", "application/json", bytes.NewBuffer(bodyByte))
 		Expect(err).ShouldNot(HaveOccurred())
@@ -186,10 +161,18 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName + "-" + envName, Namespace: fmt.Sprintf("project-%s", appProject)}, &oam)
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName, Namespace: envName}, &oam)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(oam.Spec.Components), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(oam.Spec.Components), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
+	})
+
+	It("Test recycling application", func() {
+		var envName = "dev"
+		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/envs/"+envName+"/recycle", "application/json", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
 	It("Test create component", func() {
@@ -365,4 +348,13 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
+	It("Test delete app", func() {
+		defer GinkgoRecover()
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+	})
 })

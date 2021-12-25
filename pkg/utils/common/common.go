@@ -41,6 +41,7 @@ import (
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -62,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var (
@@ -75,6 +77,9 @@ const (
 	// AddonObservabilityGrafanaSvc is grafana service name for Addon Observability
 	AddonObservabilityGrafanaSvc = "grafana"
 )
+
+// CreateCustomNamespace display the create namespace message
+const CreateCustomNamespace = "create new namespace"
 
 func init() {
 	_ = clientgoscheme.AddToScheme(Scheme)
@@ -342,6 +347,42 @@ func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectRe
 		}
 	}
 	return nil, fmt.Errorf("choosing resource err %w", err)
+}
+
+// AskToChooseOneNamespace ask for choose one namespace as env
+func AskToChooseOneNamespace(c client.Client, envMeta *types.EnvMeta) error {
+	var nsList v1.NamespaceList
+	if err := c.List(context.TODO(), &nsList); err != nil {
+		return err
+	}
+	var ops = []string{CreateCustomNamespace}
+	for _, r := range nsList.Items {
+		ops = append(ops, r.Name)
+	}
+	prompt := &survey.Select{
+		Message: "Would you like to choose an existing namespaces as your env?",
+		Options: ops,
+	}
+	err := survey.AskOne(prompt, &envMeta.Namespace)
+	if err != nil {
+		return fmt.Errorf("choosing namespace err %w", err)
+	}
+	if envMeta.Namespace == CreateCustomNamespace {
+		err = survey.AskOne(&survey.Input{
+			Message: "Please name the new namespace:",
+		}, &envMeta.Namespace)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	for _, ns := range nsList.Items {
+		if ns.Name == envMeta.Namespace && envMeta.Name == "" {
+			envMeta.Name = ns.Labels[oam.LabelNamespaceOfEnvName]
+			return nil
+		}
+	}
+	return nil
 }
 
 func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObjectReference) []common.ClusterObjectReference {

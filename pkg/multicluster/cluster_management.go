@@ -86,7 +86,7 @@ func GetMutableClusterSecret(ctx context.Context, c client.Client, clusterName s
 			for _, env := range status.Envs {
 				for _, placement := range env.Placements {
 					if placement.Cluster == clusterName {
-						errs.Append(fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
+						errs = append(errs, fmt.Errorf("application %s/%s (env: %s) is currently using cluster %s", app.Namespace, app.Name, env.Env, clusterName))
 					}
 				}
 			}

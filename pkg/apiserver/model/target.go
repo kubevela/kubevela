@@ -17,16 +17,14 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&DeliveryTarget{})
+	RegistModel(&Target{})
 }
 
-// DeliveryTarget defines the delivery target information for the application
+// Target defines the delivery target information for the application
 // It includes kubernetes clusters or cloud service providers
-type DeliveryTarget struct {
-	Model
+type Target struct {
+	BaseModel
 	Name        string                 `json:"name"`
-	Project     string                 `json:"project"`
-	Namespace   string                 `json:"namespace"`
 	Alias       string                 `json:"alias,omitempty"`
 	Description string                 `json:"description,omitempty"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
@@ -34,31 +32,25 @@ type DeliveryTarget struct {
 }
 
 // TableName return custom table name
-func (d *DeliveryTarget) TableName() string {
-	return tableNamePrefix + "delivery_target"
+func (d *Target) TableName() string {
+	return tableNamePrefix + "target"
 }
 
 // PrimaryKey return custom primary key
-func (d *DeliveryTarget) PrimaryKey() string {
+func (d *Target) PrimaryKey() string {
 	return d.Name
 }
 
 // Index return custom index
-func (d *DeliveryTarget) Index() map[string]string {
+func (d *Target) Index() map[string]string {
 	index := make(map[string]string)
 	if d.Name != "" {
 		index["name"] = d.Name
 	}
-	if d.Namespace != "" {
-		index["namespace"] = d.Namespace
-	}
-	if d.Project != "" {
-		index["project"] = d.Project
-	}
 	return index
 }
 
-// ClusterTarget kubernetes delivery target
+// ClusterTarget one kubernetes cluster delivery target
 type ClusterTarget struct {
 	ClusterName string `json:"clusterName" validate:"checkname"`
 	Namespace   string `json:"namespace" optional:"true"`

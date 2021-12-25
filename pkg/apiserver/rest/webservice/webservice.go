@@ -34,16 +34,16 @@ type WebService interface {
 	GetWebService() *restful.WebService
 }
 
-var registedWebService []WebService
+var registeredWebService []WebService
 
-// RegistWebService regist webservice
-func RegistWebService(ws WebService) {
-	registedWebService = append(registedWebService, ws)
+// RegisterWebService regist webservice
+func RegisterWebService(ws WebService) {
+	registeredWebService = append(registeredWebService, ws)
 }
 
-// GetRegistedWebService return registedWebService
-func GetRegistedWebService() []WebService {
-	return registedWebService
+// GetRegisteredWebService return registeredWebService
+func GetRegisteredWebService() []WebService {
+	return registeredWebService
 }
 
 func noop(req *restful.Request, resp *restful.Response) {}
@@ -60,24 +60,34 @@ func returns500(b *restful.RouteBuilder) {
 // It can be implemented using the idea of dependency injection.
 func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
-	workflowUsecase := usecase.NewWorkflowUsecase(ds)
+	envUsecase := usecase.NewEnvUsecase(ds)
+	workflowUsecase := usecase.NewWorkflowUsecase(ds, envUsecase)
 	projectUsecase := usecase.NewProjectUsecase(ds)
-	deliveryTargetUsecase := usecase.NewDeliveryTargetUsecase(ds, projectUsecase)
+	targetUsecase := usecase.NewTargetUsecase(ds)
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
-	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase)
-	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, deliveryTargetUsecase, definitionUsecase, projectUsecase)
-	RegistWebService(NewClusterWebService(clusterUsecase))
-	RegistWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
-	RegistWebService(NewProjectWebService(projectUsecase))
-	RegistWebService(NewDefinitionWebservice(definitionUsecase))
-	RegistWebService(NewAddonWebService(addonUsecase))
-	RegistWebService(NewEnabledAddonWebService(addonUsecase))
-	RegistWebService(NewAddonRegistryWebService(addonUsecase))
-	RegistWebService(NewOAMApplication(oamApplicationUsecase))
-	RegistWebService(&policyDefinitionWebservice{})
-	RegistWebService(NewDeliveryTargetWebService(deliveryTargetUsecase, applicationUsecase))
-	RegistWebService(NewVelaQLWebService(velaQLUsecase))
+	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase, envUsecase)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
+
+	// init for default values
+
+	// Application
+	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
+	RegisterWebService(NewProjectWebService(projectUsecase))
+	RegisterWebService(NewEnvWebService(envUsecase, applicationUsecase))
+
+	// Extension
+	RegisterWebService(NewDefinitionWebservice(definitionUsecase))
+	RegisterWebService(NewAddonWebService(addonUsecase))
+	RegisterWebService(NewEnabledAddonWebService(addonUsecase))
+	RegisterWebService(NewAddonRegistryWebService(addonUsecase))
+
+	// Resources
+	RegisterWebService(NewClusterWebService(clusterUsecase))
+	RegisterWebService(NewOAMApplication(oamApplicationUsecase))
+	RegisterWebService(&policyDefinitionWebservice{})
+	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
+	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
 }

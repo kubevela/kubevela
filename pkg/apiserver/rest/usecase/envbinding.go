@@ -33,8 +33,6 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -52,26 +50,25 @@ const (
 type EnvBindingUsecase interface {
 	GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error)
 	GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*model.EnvBinding, error)
-	CheckAppEnvBindingsContainTarget(ctx context.Context, app *model.Application, targetName string) (bool, error)
-	CreateEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error)
+	CreateEnvBinding(ctx context.Context, app *model.Application, env apisv1.CreateApplicationEnvbindingRequest) (*apisv1.EnvBinding, error)
 	BatchCreateEnvBinding(ctx context.Context, app *model.Application, env apisv1.EnvBindingList) error
-	UpdateEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvRequest) (*apisv1.DetailEnvBindingResponse, error)
+	UpdateEnvBinding(ctx context.Context, app *model.Application, envName string, diff apisv1.PutApplicationEnvBindingRequest) (*apisv1.DetailEnvBindingResponse, error)
 	DeleteEnvBinding(ctx context.Context, app *model.Application, envName string) error
 	BatchDeleteEnvBinding(ctx context.Context, app *model.Application) error
 	DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error)
 	ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error
-	GetSuitableType(ctx context.Context, app *model.Application) string
 }
 
 type envBindingUsecaseImpl struct {
 	ds                datastore.DataStore
 	workflowUsecase   WorkflowUsecase
+	envUsecase        EnvUsecase
 	definitionUsecase DefinitionUsecase
 	kubeClient        client.Client
 }
 
 // NewEnvBindingUsecase new envBinding usecase
-func NewEnvBindingUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, definitionUsecase DefinitionUsecase) EnvBindingUsecase {
+func NewEnvBindingUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecase, definitionUsecase DefinitionUsecase, envUsecase EnvUsecase) EnvBindingUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
@@ -81,30 +78,52 @@ func NewEnvBindingUsecase(ds datastore.DataStore, workflowUsecase WorkflowUsecas
 		workflowUsecase:   workflowUsecase,
 		definitionUsecase: definitionUsecase,
 		kubeClient:        kubecli,
+		envUsecase:        envUsecase,
 	}
 }
 
-func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error) {
-	var envBinding = model.EnvBinding{
-		AppPrimaryKey: app.PrimaryKey(),
+func pickEnv(envs []*model.Env, name string) (*model.Env, error) {
+	for _, e := range envs {
+		if e.Name == name {
+			return e, nil
+		}
 	}
-	envBindings, err := e.ds.List(ctx, &envBinding, &datastore.ListOptions{})
+	return nil, bcode.ErrEnvNotExisted
+}
+
+func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envListOption) ([]*apisv1.EnvBindingBase, error) {
+	envBindings, err := listEnvBindings(ctx, ds, option)
 	if err != nil {
+
 		return nil, bcode.ErrEnvBindingsNotExist
 	}
-	deliveryTarget := model.DeliveryTarget{
-		Namespace: app.Namespace,
+	targets, err := listTarget(ctx, ds, nil)
+	if err != nil {
+		return nil, err
 	}
-	deliveryTargets, err := e.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{})
+	envs, err := listEnvs(ctx, ds, nil)
 	if err != nil {
 		return nil, err
 	}
 	var list []*apisv1.EnvBindingBase
-	for _, ebd := range envBindings {
-		eb := ebd.(*model.EnvBinding)
-		list = append(list, convertEnvbindingModelToBase(app, eb, deliveryTargets))
+	for _, eb := range envBindings {
+		env, err := pickEnv(envs, eb.Name)
+		if err != nil {
+			log.Logger.Errorf("envbinding invalid %s", err.Error())
+			continue
+		}
+		list = append(list, convertEnvbindingModelToBase(eb, env, targets))
 	}
 	return list, nil
+}
+
+func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error) {
+	full, err := listFullEnvBinding(ctx, e.ds, envListOption{appPrimaryKey: app.PrimaryKey()})
+	if err != nil {
+		log.Logger.Errorf("list envbinding for app %s err: %v\n", app.Name, err)
+		return nil, err
+	}
+	return full, nil
 }
 
 func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Application, envName string) (*model.EnvBinding, error) {
@@ -118,11 +137,8 @@ func (e *envBindingUsecaseImpl) GetEnvBinding(ctx context.Context, app *model.Ap
 	return envBinding, nil
 }
 
-func (e *envBindingUsecaseImpl) CheckAppEnvBindingsContainTarget(ctx context.Context, app *model.Application, targetName string) (bool, error) {
-	envBindings, err := e.GetEnvBindings(ctx, app)
-	if err != nil {
-		return false, err
-	}
+// CheckAppEnvBindingsContainTarget check envbinding contain target
+func CheckAppEnvBindingsContainTarget(envBindings []*apisv1.EnvBindingBase, targetName string) (bool, error) {
 	var filteredList []*apisv1.EnvBindingBase
 	for _, envBinding := range envBindings {
 		if utils.StringsContain(envBinding.TargetNames, targetName) {
@@ -132,7 +148,7 @@ func (e *envBindingUsecaseImpl) CheckAppEnvBindingsContainTarget(ctx context.Con
 	return len(filteredList) > 0, nil
 }
 
-func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvRequest) (*apisv1.EnvBinding, error) {
+func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model.Application, envReq apisv1.CreateApplicationEnvbindingRequest) (*apisv1.EnvBinding, error) {
 	envBinding, err := e.getBindingByEnv(ctx, app, envReq.Name)
 	if err != nil {
 		if !errors.Is(err, datastore.ErrRecordNotExist) {
@@ -142,26 +158,38 @@ func (e *envBindingUsecaseImpl) CreateEnvBinding(ctx context.Context, app *model
 	if envBinding != nil {
 		return nil, bcode.ErrEnvBindingExist
 	}
-	envBindingModel := convertCreateReqToEnvBindingModel(app, envReq)
-	if err := e.ds.Add(ctx, &envBindingModel); err != nil {
-		return nil, err
-	}
-	err = e.createEnvWorkflow(ctx, app, &envBindingModel, false)
+	env, err := getEnv(ctx, e.ds, envReq.Name)
 	if err != nil {
 		return nil, err
 	}
+	envBindingModel := convertCreateReqToEnvBindingModel(app, envReq)
+	err = e.createEnvWorkflow(ctx, app, env, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.ds.Add(ctx, &envBindingModel); err != nil {
+		return nil, err
+	}
+
 	return &envReq.EnvBinding, nil
 }
 
 func (e *envBindingUsecaseImpl) BatchCreateEnvBinding(ctx context.Context, app *model.Application, envbindings apisv1.EnvBindingList) error {
 	for i := range envbindings {
 		envBindingModel := convertToEnvBindingModel(app, *envbindings[i])
-		if err := e.ds.Add(ctx, envBindingModel); err != nil {
-			return err
-		}
-		err := e.createEnvWorkflow(ctx, app, envBindingModel, i == 0)
+		env, err := getEnv(ctx, e.ds, envBindingModel.Name)
 		if err != nil {
-			return err
+			log.Logger.Errorf("get env failure %s", err.Error())
+			continue
+		}
+		if err := e.ds.Add(ctx, envBindingModel); err != nil {
+			log.Logger.Errorf("add envbinding %s failure %s", envBindingModel.Name, err.Error())
+			continue
+		}
+		err = e.createEnvWorkflow(ctx, app, env, i == 0)
+		if err != nil {
+			log.Logger.Errorf("create env workflow failure %s", err.Error())
+			continue
 		}
 	}
 	return nil
@@ -179,7 +207,7 @@ func (e *envBindingUsecaseImpl) getBindingByEnv(ctx context.Context, app *model.
 	return &envBinding, nil
 }
 
-func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model.Application, envName string, envUpdate apisv1.PutApplicationEnvRequest) (*apisv1.DetailEnvBindingResponse, error) {
+func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model.Application, envName string, _ apisv1.PutApplicationEnvBindingRequest) (*apisv1.DetailEnvBindingResponse, error) {
 	envBinding, err := e.getBindingByEnv(ctx, app, envName)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -187,13 +215,16 @@ func (e *envBindingUsecaseImpl) UpdateEnvBinding(ctx context.Context, app *model
 		}
 		return nil, err
 	}
-	convertUpdateReqToEnvBindingModel(envBinding, envUpdate)
+	env, err := getEnv(ctx, e.ds, envName)
+	if err != nil {
+		return nil, err
+	}
 	// update env
 	if err := e.ds.Put(ctx, envBinding); err != nil {
 		return nil, err
 	}
 	// update env workflow
-	if err := e.updateEnvWorkflow(ctx, app, envBinding); err != nil {
+	if err := UpdateEnvWorkflow(ctx, e.kubeClient, e.ds, app, env); err != nil {
 		return nil, bcode.ErrEnvBindingUpdateWorkflow
 	}
 	return e.DetailEnvBinding(ctx, app, envBinding)
@@ -207,13 +238,19 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 		}
 		return err
 	}
-	var app v1beta1.Application
-	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
-	if err == nil || !apierrors.IsNotFound(err) {
-		return bcode.ErrApplicationEnvRefusedDelete
-	}
-	if err := e.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: appModel.PrimaryKey(), Name: envBinding.Name}); err != nil {
+	env, err := getEnv(ctx, e.ds, envName)
+	if err != nil && errors.Is(err, datastore.ErrRecordNotExist) {
 		return err
+	}
+	if env != nil {
+		var app v1beta1.Application
+		err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appModel.Name}, &app)
+		if err == nil || !apierrors.IsNotFound(err) {
+			return bcode.ErrApplicationEnvRefusedDelete
+		}
+		if err := e.ds.Delete(ctx, &model.EnvBinding{AppPrimaryKey: appModel.PrimaryKey(), Name: envBinding.Name}); err != nil {
+			return err
+		}
 	}
 	// delete env workflow
 	if err := e.deleteEnvWorkflow(ctx, appModel, convertWorkflowName(envBinding.Name)); err != nil {
@@ -241,8 +278,8 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 	return nil
 }
 
-func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding, isDefault bool) error {
-	steps := e.genEnvWorkflowSteps(ctx, env, app)
+func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.Env, isDefault bool) error {
+	steps := GenEnvWorkflowSteps(ctx, e.kubeClient, e.ds, env, app)
 	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
 		Name:        convertWorkflowName(env.Name),
 		Alias:       fmt.Sprintf("%s Workflow", env.Alias),
@@ -250,48 +287,6 @@ func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *mode
 		EnvName:     env.Name,
 		Steps:       steps,
 		Default:     &isDefault,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *envBindingUsecaseImpl) updateEnvWorkflow(ctx context.Context, app *model.Application, env *model.EnvBinding) error {
-	// The existing step configuration should be maintained and the delivery target steps should be automatically updated.
-	envSteps := e.genEnvWorkflowSteps(ctx, env, app)
-	workflow, err := e.workflowUsecase.GetWorkflow(ctx, app, convertWorkflowName(env.Name))
-	if err != nil {
-		return err
-	}
-
-	var envStepNames = env.TargetNames
-	var workflowStepNames []string
-	for _, step := range workflow.Steps {
-		if isEnvStepType(step.Type) {
-			workflowStepNames = append(workflowStepNames, step.Name)
-		}
-	}
-
-	var filteredSteps []apisv1.WorkflowStep
-	_, readyToDeleteSteps, readyToAddSteps := compareSlices(workflowStepNames, envStepNames)
-
-	for _, step := range workflow.Steps {
-		if isEnvStepType(step.Type) && utils.StringsContain(readyToDeleteSteps, step.Name) {
-			continue
-		}
-		filteredSteps = append(filteredSteps, convertFromWorkflowStepModel(step))
-	}
-
-	for _, step := range envSteps {
-		if isEnvStepType(step.Type) && utils.StringsContain(readyToAddSteps, step.Name) {
-			filteredSteps = append(filteredSteps, step)
-		}
-	}
-
-	_, err = e.workflowUsecase.UpdateWorkflow(ctx, workflow, apisv1.UpdateWorkflowRequest{
-		Steps:       filteredSteps,
-		Description: workflow.Description,
 	})
 	if err != nil {
 		return err
@@ -309,21 +304,26 @@ func (e *envBindingUsecaseImpl) deleteEnvWorkflow(ctx context.Context, app *mode
 }
 
 func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
-	deliveryTarget := model.DeliveryTarget{
-		Namespace: app.Namespace,
+	targets, err := listTarget(ctx, e.ds, nil)
+	if err != nil {
+		return nil, err
 	}
-	deliveryTargets, err := e.ds.List(ctx, &deliveryTarget, &datastore.ListOptions{})
+	env, err := getEnv(ctx, e.ds, envBinding.Name)
 	if err != nil {
 		return nil, err
 	}
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *convertEnvbindingModelToBase(app, envBinding, deliveryTargets),
+		EnvBindingBase: *convertEnvbindingModelToBase(envBinding, env, targets),
 	}, nil
 }
 
 func (e *envBindingUsecaseImpl) ApplicationEnvRecycle(ctx context.Context, appModel *model.Application, envBinding *model.EnvBinding) error {
+	env, err := getEnv(ctx, e.ds, envBinding.Name)
+	if err != nil {
+		return err
+	}
 	var app v1beta1.Application
-	err := e.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.Namespace, Name: convertAppName(appModel.Name, envBinding.Name)}, &app)
+	err = e.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appModel.Name}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -340,25 +340,21 @@ func (e *envBindingUsecaseImpl) ApplicationEnvRecycle(ctx context.Context, appMo
 	return nil
 }
 
-func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.CreateApplicationEnvRequest) model.EnvBinding {
+func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.CreateApplicationEnvbindingRequest) model.EnvBinding {
 	envBinding := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          req.Name,
-		Alias:         req.Alias,
-		Description:   req.Description,
-		TargetNames:   req.TargetNames,
 	}
 	return envBinding
 }
 
-func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvBinding, deliveryTargets []datastore.Entity) *apisv1.EnvBindingBase {
-	var dtMap = make(map[string]*model.DeliveryTarget, len(deliveryTargets))
-	for _, dte := range deliveryTargets {
-		dt := dte.(*model.DeliveryTarget)
-		dtMap[dt.Name] = dt
+func convertEnvbindingModelToBase(envBinding *model.EnvBinding, env *model.Env, targets []*model.Target) *apisv1.EnvBindingBase {
+	var dtMap = make(map[string]*model.Target, len(targets))
+	for _, dte := range targets {
+		dtMap[dte.Name] = dte
 	}
-	var targets []apisv1.EnvBindingTarget
-	for _, targetName := range envBinding.TargetNames {
+	var envBindingTargets []apisv1.EnvBindingTarget
+	for _, targetName := range env.Targets {
 		dt := dtMap[targetName]
 		if dt != nil {
 			ebt := apisv1.EnvBindingTarget{
@@ -370,106 +366,29 @@ func convertEnvbindingModelToBase(app *model.Application, envBinding *model.EnvB
 					Namespace:   dt.Cluster.Namespace,
 				}
 			}
-			targets = append(targets, ebt)
+			envBindingTargets = append(envBindingTargets, ebt)
 		}
 	}
 	ebb := &apisv1.EnvBindingBase{
-		Name:              envBinding.Name,
-		Alias:             envBinding.Alias,
-		Description:       envBinding.Description,
-		TargetNames:       envBinding.TargetNames,
-		Targets:           targets,
-		ComponentSelector: (*apisv1.ComponentSelector)(envBinding.ComponentSelector),
-		CreateTime:        envBinding.CreateTime,
-		UpdateTime:        envBinding.UpdateTime,
-		AppDeployName:     convertAppName(app.Name, envBinding.Name),
+		Name:               envBinding.Name,
+		Alias:              env.Alias,
+		Description:        env.Description,
+		TargetNames:        env.Targets,
+		Targets:            envBindingTargets,
+		CreateTime:         envBinding.CreateTime,
+		UpdateTime:         envBinding.UpdateTime,
+		AppDeployName:      envBinding.AppPrimaryKey,
+		AppDeployNamespace: env.Namespace,
 	}
 	return ebb
-}
-
-func convertUpdateReqToEnvBindingModel(envBinding *model.EnvBinding, envUpdate apisv1.PutApplicationEnvRequest) *model.EnvBinding {
-	envBinding.Alias = envUpdate.Alias
-	envBinding.Description = envUpdate.Description
-	envBinding.TargetNames = envUpdate.TargetNames
-	if envUpdate.ComponentSelector != nil {
-		envBinding.ComponentSelector = (*model.ComponentSelector)(envUpdate.ComponentSelector)
-	}
-	return envBinding
 }
 
 func convertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding) *model.EnvBinding {
 	re := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          envBind.Name,
-		Description:   envBind.Description,
-		Alias:         envBind.Alias,
-		TargetNames:   envBind.TargetNames,
-	}
-	if envBind.ComponentSelector != nil {
-		re.ComponentSelector = (*model.ComponentSelector)(envBind.ComponentSelector)
 	}
 	return &re
-}
-
-func (e *envBindingUsecaseImpl) GetSuitableType(ctx context.Context, app *model.Application) string {
-	components, err := e.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, &datastore.ListOptions{PageSize: 1, Page: 1})
-	if err != nil {
-		log.Logger.Errorf("list application component list failure %s", err.Error())
-	}
-	if len(components) > 0 {
-		component := components[0].(*model.ApplicationComponent)
-		definition, err := e.definitionUsecase.GetComponentDefinition(ctx, component.Type)
-		if err != nil {
-			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
-		}
-		if definition != nil {
-			if definition.Spec.Workload.Type == TerraformWorkfloadType {
-				return DeployCloudResource
-			}
-			if definition.Spec.Workload.Definition.Kind == TerraformWorkfloadKind {
-				return DeployCloudResource
-			}
-		}
-	}
-	return Deploy2Env
-}
-
-func (e *envBindingUsecaseImpl) genEnvWorkflowSteps(ctx context.Context, env *model.EnvBinding, app *model.Application) []apisv1.WorkflowStep {
-	var workflowSteps []v1beta1.WorkflowStep
-	for _, targetName := range env.TargetNames {
-		step := v1beta1.WorkflowStep{
-			Name: genPolicyEnvName(targetName),
-			Type: e.GetSuitableType(ctx, app),
-			Properties: util.Object2RawExtension(map[string]string{
-				"policy": genPolicyName(env.Name),
-				"env":    genPolicyEnvName(targetName),
-			}),
-		}
-		workflowSteps = append(workflowSteps, step)
-	}
-	var steps []apisv1.WorkflowStep
-	for _, step := range workflowSteps {
-		var propertyStr string
-		if step.Properties != nil {
-			properties, err := model.NewJSONStruct(step.Properties)
-			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", utils2.Sanitize(app.Name), utils2.Sanitize(step.Name), err.Error())
-				continue
-			}
-			propertyStr = properties.JSON()
-		}
-		steps = append(steps, apisv1.WorkflowStep{
-			Name:        step.Name,
-			Type:        step.Type,
-			Alias:       fmt.Sprintf("Deploy To %s", step.Name),
-			Description: fmt.Sprintf("deploy app to delivery target %s", step.Name),
-			DependsOn:   step.DependsOn,
-			Properties:  propertyStr,
-			Inputs:      step.Inputs,
-			Outputs:     step.Outputs,
-		})
-	}
-	return steps
 }
 
 func convertWorkflowName(envName string) string {

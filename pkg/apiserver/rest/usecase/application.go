@@ -61,7 +61,7 @@ const (
 
 // ApplicationUsecase application usecase
 type ApplicationUsecase interface {
-	ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error)
+	ListApplications(ctx context.Context, listOptions apisv1.ListApplicationOptions) ([]*apisv1.ApplicationBase, error)
 	GetApplication(ctx context.Context, appName string) (*model.Application, error)
 	GetApplicationStatus(ctx context.Context, app *model.Application, envName string) (*common.AppStatus, error)
 	DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error)
@@ -91,21 +91,23 @@ type ApplicationUsecase interface {
 }
 
 type applicationUsecaseImpl struct {
-	ds                    datastore.DataStore
-	kubeClient            client.Client
-	apply                 apply.Applicator
-	workflowUsecase       WorkflowUsecase
-	envBindingUsecase     EnvBindingUsecase
-	deliveryTargetUsecase DeliveryTargetUsecase
-	definitionUsecase     DefinitionUsecase
-	projectUsecase        ProjectUsecase
+	ds                datastore.DataStore
+	kubeClient        client.Client
+	apply             apply.Applicator
+	workflowUsecase   WorkflowUsecase
+	envUsecase        EnvUsecase
+	envBindingUsecase EnvBindingUsecase
+	targetUsecase     TargetUsecase
+	definitionUsecase DefinitionUsecase
+	projectUsecase    ProjectUsecase
 }
 
 // NewApplicationUsecase new application usecase
 func NewApplicationUsecase(ds datastore.DataStore,
 	workflowUsecase WorkflowUsecase,
 	envBindingUsecase EnvBindingUsecase,
-	deliveryTargetUsecase DeliveryTargetUsecase,
+	envUsecase EnvUsecase,
+	targetUsecase TargetUsecase,
 	definitionUsecase DefinitionUsecase,
 	projectUsecase ProjectUsecase,
 ) ApplicationUsecase {
@@ -114,43 +116,82 @@ func NewApplicationUsecase(ds datastore.DataStore,
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
 	return &applicationUsecaseImpl{
-		ds:                    ds,
-		workflowUsecase:       workflowUsecase,
-		envBindingUsecase:     envBindingUsecase,
-		deliveryTargetUsecase: deliveryTargetUsecase,
-		kubeClient:            kubecli,
-		apply:                 apply.NewAPIApplicator(kubecli),
-		definitionUsecase:     definitionUsecase,
-		projectUsecase:        projectUsecase,
+		ds:                ds,
+		workflowUsecase:   workflowUsecase,
+		envBindingUsecase: envBindingUsecase,
+		targetUsecase:     targetUsecase,
+		kubeClient:        kubecli,
+		apply:             apply.NewAPIApplicator(kubecli),
+		definitionUsecase: definitionUsecase,
+		projectUsecase:    projectUsecase,
+		envUsecase:        envUsecase,
 	}
 }
 
-// ListApplications list applications
-func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicatioOptions) ([]*apisv1.ApplicationBase, error) {
+func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.ListApplicationOptions) ([]*model.Application, error) {
 	var app = model.Application{}
 	if listOptions.Project != "" {
 		app.Project = listOptions.Project
 	}
-	entitys, err := c.ds.List(ctx, &app, &datastore.ListOptions{})
+	var err error
+	var envBinding []*apisv1.EnvBindingBase
+	if listOptions.Env != "" || listOptions.TargetName != "" {
+		envBinding, err = listFullEnvBinding(ctx, ds, envListOption{})
+		if err != nil {
+			log.Logger.Errorf("list envbinding for list application in env %s err %v", listOptions.Env, err)
+			return nil, err
+		}
+	}
+
+	entities, err := ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	var list []*apisv1.ApplicationBase
-	for _, entity := range entitys {
-		appModel := entity.(*model.Application)
-		appBase := c.converAppModelToBase(ctx, appModel)
+	var list []*model.Application
+	for _, entity := range entities {
+		appModel, ok := entity.(*model.Application)
+		if !ok {
+			continue
+		}
 		if listOptions.Query != "" &&
-			!(strings.Contains(appBase.Alias, listOptions.Query) ||
-				strings.Contains(appBase.Name, listOptions.Query) ||
-				strings.Contains(appBase.Description, listOptions.Query)) {
+			!(strings.Contains(appModel.Alias, listOptions.Query) ||
+				strings.Contains(appModel.Name, listOptions.Query) ||
+				strings.Contains(appModel.Description, listOptions.Query)) {
 			continue
 		}
 		if listOptions.TargetName != "" {
-			targetIsContain, _ := c.envBindingUsecase.CheckAppEnvBindingsContainTarget(ctx, appModel, listOptions.TargetName)
+			targetIsContain, _ := CheckAppEnvBindingsContainTarget(envBinding, listOptions.TargetName)
 			if !targetIsContain {
 				continue
 			}
 		}
+		if len(envBinding) > 0 {
+			check := func() bool {
+				for _, eb := range envBinding {
+					if appModel.PrimaryKey() == eb.AppDeployName {
+						return true
+					}
+				}
+				return false
+			}
+			if err != nil || !check() {
+				continue
+			}
+		}
+		list = append(list, appModel)
+	}
+	return list, nil
+}
+
+// ListApplications list applications
+func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicationOptions) ([]*apisv1.ApplicationBase, error) {
+	apps, err := listApp(ctx, c.ds, listOptions)
+	if err != nil {
+		return nil, err
+	}
+	var list []*apisv1.ApplicationBase
+	for _, app := range apps {
+		appBase := c.converAppModelToBase(ctx, app)
 		list = append(list, appBase)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -176,7 +217,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 // DetailApplication detail application  info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
 	base := c.converAppModelToBase(ctx, app)
-	policys, err := c.queryApplicationPolicys(ctx, app)
+	policys, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +246,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 			ComponentNum: componentNum,
 		},
 		ApplicationType: func() string {
-			if c.envBindingUsecase.GetSuitableType(ctx, app) == DeployCloudResource {
+			if GetSuitableDeployWay(ctx, c.kubeClient, c.ds, app) == DeployCloudResource {
 				return "cloud"
 			}
 			return "common"
@@ -217,7 +258,11 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 // GetApplicationStatus get application status from controller cluster
 func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmodel *model.Application, envName string) (*common.AppStatus, error) {
 	var app v1beta1.Application
-	err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appmodel.Namespace, Name: convertAppName(appmodel.Name, envName)}, &app)
+	env, err := c.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.Name}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -230,7 +275,7 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 	return &app.Status, nil
 }
 
-// GetApplicationCR get application cr in cluster
+// GetApplicationCR get application CR in cluster
 func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
 	var apps v1beta1.ApplicationList
 	selector := labels.NewSelector()
@@ -241,7 +286,6 @@ func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel 
 	selector = selector.Add(*re)
 	err = c.kubeClient.List(ctx, &apps, &client.ListOptions{
 		LabelSelector: selector,
-		Namespace:     appModel.Namespace,
 	})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -282,28 +326,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	if err != nil {
 		return nil, err
 	}
-	application.Namespace = project.Namespace
 	application.Project = project.Name
-
-	if req.YamlConfig != "" {
-		var oamApp v1beta1.Application
-		if err := yaml.Unmarshal([]byte(req.YamlConfig), &oamApp); err != nil {
-			log.Logger.Errorf("application yaml config is invalid,%s", err.Error())
-			return nil, bcode.ErrApplicationConfig
-		}
-
-		// split the configuration and store it in the database.
-		if err := c.saveApplicationComponent(ctx, &application, oamApp.Spec.Components); err != nil {
-			log.Logger.Errorf("save applictaion component failure,%s", err.Error())
-			return nil, err
-		}
-		if len(oamApp.Spec.Policies) > 0 {
-			if err := c.saveApplicationPolicy(ctx, &application, oamApp.Spec.Policies); err != nil {
-				log.Logger.Errorf("save applictaion polocies failure,%s", err.Error())
-				return nil, err
-			}
-		}
-	}
 
 	if req.Component != nil {
 		_, err = c.AddComponent(ctx, &application, *req.Component)
@@ -339,14 +362,17 @@ func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.
 	}
 	appPolicy.Name = genPolicyName(envBinding.Name)
 	appPolicy.Type = string(EnvBindingPolicy)
-
+	env, err := c.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return appPolicy, err
+	}
 	var envBindingSpec v1alpha1.EnvBindingSpec
-	for _, targetName := range envBinding.TargetNames {
-		target, err := c.deliveryTargetUsecase.GetDeliveryTarget(ctx, targetName)
+	for _, targetName := range env.Targets {
+		target, err := c.targetUsecase.GetTarget(ctx, targetName)
 		if err != nil || target == nil {
 			return appPolicy, bcode.ErrFoundEnvbindingDeliveryTarget
 		}
-		envBindingSpec.Envs = append(envBindingSpec.Envs, c.createTargetClusterEnv(ctx, app, envBinding, target, components))
+		envBindingSpec.Envs = append(envBindingSpec.Envs, c.createTargetClusterEnv(ctx, envBinding, env, target, components))
 	}
 	properties, err := model.NewJSONStructByStruct(envBindingSpec)
 	if err != nil {
@@ -373,45 +399,6 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 		return nil, err
 	}
 	return c.converAppModelToBase(ctx, app), nil
-}
-
-func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.Application, components []common.ApplicationComponent) error {
-	var componentModels []datastore.Entity
-	for _, component := range components {
-		// TODO: Check whether the component type is supported.
-		var traits []model.ApplicationTrait
-		for _, trait := range component.Traits {
-			properties, err := model.NewJSONStruct(trait.Properties)
-			if err != nil {
-				log.Logger.Errorf("parse trait properties failire %w", err)
-				return bcode.ErrInvalidProperties
-			}
-			traits = append(traits, model.ApplicationTrait{
-				Type:       trait.Type,
-				Properties: properties,
-			})
-		}
-		properties, err := model.NewJSONStruct(component.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse component properties failire %w", err)
-			return bcode.ErrInvalidProperties
-		}
-		componentModel := model.ApplicationComponent{
-			AppPrimaryKey:    app.PrimaryKey(),
-			Name:             component.Name,
-			Type:             component.Type,
-			ExternalRevision: component.ExternalRevision,
-			DependsOn:        component.DependsOn,
-			Inputs:           component.Inputs,
-			Outputs:          component.Outputs,
-			Scopes:           component.Scopes,
-			Traits:           traits,
-			Properties:       properties,
-		}
-		componentModels = append(componentModels, &componentModel)
-	}
-	log.Logger.Infof("batch add %d components for app %s", len(componentModels), utils2.Sanitize(app.PrimaryKey()))
-	return c.ds.BatchAdd(ctx, componentModels)
 }
 
 // ListRecords list application record
@@ -520,52 +507,18 @@ func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.Application
 
 // ListPolicies list application policies
 func (c *applicationUsecaseImpl) ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error) {
-	policies, err := c.queryApplicationPolicys(ctx, app)
+	policies, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
 	}
 	var list []*apisv1.PolicyBase
 	for _, policy := range policies {
-		list = append(list, c.converPolicyModelToBase(policy))
+		list = append(list, convertPolicyModelToBase(policy))
 	}
 	return list, nil
 }
 
-func (c *applicationUsecaseImpl) converPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBase {
-	pb := &apisv1.PolicyBase{
-		Name:        policy.Name,
-		Type:        policy.Type,
-		Properties:  policy.Properties,
-		Description: policy.Description,
-		Creator:     policy.Creator,
-		CreateTime:  policy.CreateTime,
-		UpdateTime:  policy.UpdateTime,
-	}
-	return pb
-}
-
-func (c *applicationUsecaseImpl) saveApplicationPolicy(ctx context.Context, app *model.Application, policys []v1beta1.AppPolicy) error {
-	var policyModels []datastore.Entity
-	for _, policy := range policys {
-		properties, err := model.NewJSONStruct(policy.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse trait properties failire %w", err)
-			return bcode.ErrInvalidProperties
-		}
-		appPolicy := &model.ApplicationPolicy{
-			AppPrimaryKey: app.PrimaryKey(),
-			Name:          policy.Name,
-			Type:          policy.Type,
-			Properties:    properties,
-		}
-		if policy.Type != string(EnvBindingPolicy) {
-			policyModels = append(policyModels, appPolicy)
-		}
-	}
-	return c.ds.BatchAdd(ctx, policyModels)
-}
-
-func (c *applicationUsecaseImpl) queryApplicationPolicys(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
+func (c *applicationUsecaseImpl) queryApplicationPolicies(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
@@ -592,7 +545,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *c.converPolicyModelToBase(&policy),
+		PolicyBase: *convertPolicyModelToBase(&policy),
 	}, nil
 }
 
@@ -727,7 +680,10 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	if workflow == nil || workflow.EnvName == "" {
 		return nil, bcode.ErrWorkflowNotExist
 	}
-
+	env, err := c.envUsecase.GetEnv(ctx, workflow.EnvName)
+	if err != nil {
+		return nil, err
+	}
 	labels := make(map[string]string)
 	for key, value := range appModel.Labels {
 		labels[key] = value
@@ -740,8 +696,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      convertAppName(appModel.Name, workflow.EnvName),
-			Namespace: appModel.Namespace,
+			Name:      appModel.Name,
+			Namespace: env.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{
 				oam.AnnotationDeployVersion: version,
@@ -754,8 +710,8 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 	originalApp := &v1beta1.Application{}
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{
-		Name:      convertAppName(appModel.Name, workflow.EnvName),
-		Namespace: appModel.Namespace,
+		Name:      appModel.Name,
+		Namespace: env.Namespace,
 	}, originalApp); err == nil {
 		app.ResourceVersion = originalApp.ResourceVersion
 	}
@@ -793,7 +749,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 			traits = append(traits, aTrait)
 		}
 		bc := common.ApplicationComponent{
-			Name:             converComponentName(component.Name, workflow.EnvName),
+			Name:             component.Name,
 			Type:             component.Type,
 			ExternalRevision: component.ExternalRevision,
 			DependsOn:        component.DependsOn,
@@ -1127,7 +1083,7 @@ func (c *applicationUsecaseImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *c.converPolicyModelToBase(&policy),
+		PolicyBase: *convertPolicyModelToBase(&policy),
 	}, nil
 }
 
@@ -1280,21 +1236,15 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 		return nil, err
 	}
 	return &apisv1.ApplicationStatisticsResponse{
-		EnvCount:            int64(len(envbinding)),
-		DeliveryTargetCount: int64(len(targetMap)),
-		RevisonCount:        count,
-		WorkflowCount:       c.workflowUsecase.CountWorkflow(ctx, app),
+		EnvCount:      int64(len(envbinding)),
+		TargetCount:   int64(len(targetMap)),
+		RevisonCount:  count,
+		WorkflowCount: c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app *model.Application, envBind *model.EnvBinding, target *model.DeliveryTarget, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
+func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
-	var componentSelector *v1alpha1.EnvSelector
-	if envBind.ComponentSelector != nil {
-		componentSelector = &v1alpha1.EnvSelector{
-			Components: envBind.ComponentSelector.Components,
-		}
-	}
 	if target.Cluster != nil {
 		placement.ClusterSelector = &common.ClusterSelector{Name: target.Cluster.ClusterName}
 		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{Name: target.Cluster.Namespace}
@@ -1302,7 +1252,7 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 	var componentPatchs []v1alpha1.EnvComponentPatch
 	// init cloud application region and provider info
 	for _, component := range components {
-		definition, err := c.definitionUsecase.GetComponentDefinition(ctx, component.Type)
+		definition, err := GetComponentDefinition(ctx, c.kubeClient, component.Type)
 		if err != nil {
 			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
 			continue
@@ -1316,7 +1266,7 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 					},
 					"writeConnectionSecretToRef": map[string]interface{}{
 						"name":      fmt.Sprintf("%s-%s", component.Name, envBind.Name),
-						"namespace": app.Namespace,
+						"namespace": env.Namespace,
 					},
 				}
 				if region, ok := target.Variable["region"]; ok {
@@ -1329,7 +1279,7 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 					properties["providerRef"].(map[string]interface{})["namespace"] = providerNamespace
 				}
 				componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
-					Name:       converComponentName(component.Name, envBind.Name),
+					Name:       component.Name,
 					Properties: properties.RawExtension(),
 					Type:       component.Type,
 				})
@@ -1340,19 +1290,10 @@ func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, app
 	return v1alpha1.EnvConfig{
 		Name:      genPolicyEnvName(target.Name),
 		Placement: placement,
-		Selector:  componentSelector,
 		Patch: v1alpha1.EnvPatch{
 			Components: componentPatchs,
 		},
 	}
-}
-
-func convertAppName(appModelName, envName string) string {
-	return fmt.Sprintf("%s-%s", appModelName, envName)
-}
-
-func converComponentName(componentModelName, envName string) string {
-	return fmt.Sprintf("%s-%s", componentModelName, envName)
 }
 
 func genPolicyName(envName string) string {

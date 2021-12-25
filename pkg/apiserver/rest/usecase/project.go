@@ -19,12 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -33,11 +28,23 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
-// ProjectNamespace mark the usage of the namespace.
-const ProjectNamespace = "project"
+const (
+
+	// DefaultInitName is default object name for initialization
+	DefaultInitName = "default"
+	// DefaultInitNamespace is default namespace name for initialization
+	DefaultInitNamespace = "default"
+
+	// DefaultTargetDescription describes default target created
+	DefaultTargetDescription = "Default target is created by velaux system automatically."
+	// DefaultEnvDescription describes default env created
+	DefaultEnvDescription = "Default environment is created by velaux system automatically."
+	// DefaultProjectDescription describes the default project created
+	DefaultProjectDescription = "Default project is created by velaux system automatically."
+)
 
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
@@ -47,17 +54,83 @@ type ProjectUsecase interface {
 }
 
 type projectUsecaseImpl struct {
-	ds         datastore.DataStore
-	kubeClient client.Client
+	ds        datastore.DataStore
+	k8sClient client.Client
 }
 
 // NewProjectUsecase new project usecase
 func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
-	kubecli, err := clients.GetKubeClient()
+	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
-		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
+		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
-	return &projectUsecaseImpl{kubeClient: kubecli, ds: ds}
+	p := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+	p.initDefaultProjectEnvTarget(DefaultInitNamespace)
+	return p
+}
+
+// initDefaultProjectEnvTarget will initialize a default project with a default env that contain a default target
+// the default env and default target both using the `default` namespace in control plane cluster
+func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string) {
+
+	ctx := context.Background()
+	entities, err := listProjects(ctx, p.ds)
+	if err != nil {
+		log.Logger.Errorf("initialize project failed %v", err)
+		return
+	}
+	if len(entities) > 0 {
+		return
+	}
+	log.Logger.Info("no default project found, adding a default project with default env and target")
+
+	if err := createTargetNamespace(ctx, p.k8sClient, multicluster.ClusterLocalName, defaultNamespace, DefaultInitName); err != nil {
+		log.Logger.Errorf("initialize default target namespace failed %v", err)
+		return
+	}
+	// initialize default target first
+	err = createTarget(ctx, p.ds, &model.Target{
+		Name:        DefaultInitName,
+		Alias:       "Default",
+		Description: DefaultTargetDescription,
+		Cluster: &model.ClusterTarget{
+			ClusterName: multicluster.ClusterLocalName,
+			Namespace:   defaultNamespace,
+		},
+	})
+	// for idempotence, ignore default target already exist error
+	if err != nil && errors.Is(err, bcode.ErrTargetExist) {
+		log.Logger.Errorf("initialize default target failed %v", err)
+		return
+	}
+
+	// initialize default target first
+	err = createEnv(ctx, p.k8sClient, p.ds, &model.Env{
+		EnvBase: model.EnvBase{
+			Name:        DefaultInitName,
+			Alias:       "Default",
+			Description: DefaultEnvDescription,
+
+			Project:   DefaultInitName,
+			Namespace: defaultNamespace,
+			Targets:   []string{DefaultInitName},
+		},
+	})
+	// for idempotence, ignore default env already exist error
+	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {
+		log.Logger.Errorf("initialize default environment failed %v", err)
+		return
+	}
+
+	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
+		Name:        DefaultInitName,
+		Alias:       "Default",
+		Description: DefaultProjectDescription,
+	})
+	if err != nil {
+		log.Logger.Errorf("initialize project failed %v", err)
+		return
+	}
 }
 
 // GetProject get project
@@ -72,10 +145,9 @@ func (p *projectUsecaseImpl) GetProject(ctx context.Context, projectName string)
 	return project, nil
 }
 
-// ListProjects list projects
-func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error) {
+func listProjects(ctx context.Context, ds datastore.DataStore) ([]*apisv1.ProjectBase, error) {
 	var project = model.Project{}
-	entitys, err := p.ds.List(ctx, &project, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entitys, err := ds.List(ctx, &project, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +157,20 @@ func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.Projec
 		projects = append(projects, convertProjectModel2Base(project))
 	}
 	return projects, nil
+}
+
+// ListProjects list projects
+func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error) {
+	return listProjects(ctx, p.ds)
+}
+
+// DeleteProject delete a project
+func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) error {
+
+	// TODO(@wonderflow): it's not supported for delete a project now, just used in test
+	// we should prevent delete a project that contain any application/env inside.
+
+	return p.ds.Delete(ctx, &model.Project{Name: name})
 }
 
 // CreateProject create project
@@ -99,68 +185,28 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		return nil, bcode.ErrProjectIsExist
 	}
 
-	new := &model.Project{
+	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
-		Namespace:   fmt.Sprintf("project-%s", req.Name),
-	}
-	if req.Namespace != "" {
-		new.Namespace = req.Namespace
-	}
-	// create namespace at first
-	if err := p.kubeClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: new.Namespace,
-			Labels: map[string]string{
-				oam.LabelProjectNamesapce: new.Name,
-				oam.LabelUsageNamespace:   ProjectNamespace,
-			},
-		},
-		Spec: corev1.NamespaceSpec{},
-	}); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return nil, err
-		}
-		if apierrors.IsAlreadyExists(err) {
-			var namespace corev1.Namespace
-			if err := p.kubeClient.Get(ctx, k8stypes.NamespacedName{Name: new.Namespace}, &namespace); err != nil {
-				return nil, bcode.ErrProjectNamespaceFail
-			}
-			if _, exist := namespace.Labels[oam.LabelProjectNamesapce]; !exist {
-				if namespace.Labels == nil {
-					namespace.Labels = make(map[string]string)
-				}
-				namespace.Labels[oam.LabelProjectNamesapce] = new.Name
-				namespace.Labels[oam.LabelUsageNamespace] = ProjectNamespace
-				if err := p.kubeClient.Update(ctx, &namespace); err != nil {
-					log.Logger.Errorf("update namespace label failure %s", err.Error())
-					return nil, bcode.ErrProjectNamespaceFail
-				}
-			} else {
-				return nil, bcode.ErrProjectNamespaceIsExist
-			}
-		}
 	}
 
-	if err := p.ds.Add(ctx, new); err != nil {
+	if err := p.ds.Add(ctx, newProject); err != nil {
 		return nil, err
 	}
 
 	return &apisv1.ProjectBase{
-		Name:        new.Name,
-		Alias:       new.Alias,
-		Namespace:   new.Namespace,
-		Description: new.Description,
-		CreateTime:  new.CreateTime,
-		UpdateTime:  new.UpdateTime,
+		Name:        newProject.Name,
+		Alias:       newProject.Alias,
+		Description: newProject.Description,
+		CreateTime:  newProject.CreateTime,
+		UpdateTime:  newProject.UpdateTime,
 	}, nil
 }
 
 func convertProjectModel2Base(project *model.Project) *apisv1.ProjectBase {
 	return &apisv1.ProjectBase{
 		Name:        project.Name,
-		Namespace:   project.Namespace,
 		Description: project.Description,
 		Alias:       project.Alias,
 		CreateTime:  project.CreateTime,

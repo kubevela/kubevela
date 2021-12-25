@@ -35,8 +35,8 @@ var (
 	CtxKeyApplication = "application"
 	// CtxKeyWorkflow request context key of workflow
 	CtxKeyWorkflow = "workflow"
-	// CtxKeyDeliveryTarget request context key of workflow
-	CtxKeyDeliveryTarget = "delivery-target"
+	// CtxKeyTarget request context key of workflow
+	CtxKeyTarget = "delivery-target"
 	// CtxKeyApplicationEnvBinding request context key of env binding
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
 	// CtxKeyApplicationComponent request context key of component
@@ -109,7 +109,13 @@ type ListAddonResponse struct {
 
 // ListEnabledAddonResponse defines the format for enabled addon list response
 type ListEnabledAddonResponse struct {
-	EnabledAddons []*AddonStatusResponse
+	EnabledAddons []*AddonBaseStatus `json:"enabledAddons"`
+}
+
+// AddonBaseStatus addon base status
+type AddonBaseStatus struct {
+	Name  string     `json:"name"`
+	Phase AddonPhase `json:"phase"`
 }
 
 // DetailAddonResponse defines the format for showing the addon details
@@ -134,10 +140,8 @@ type AddonDefinition struct {
 
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
-	Name  string            `json:"name"`
-	Phase AddonPhase        `json:"phase"`
-	Args  map[string]string `json:"args"`
-
+	AddonBaseStatus
+	Args             map[string]string `json:"args"`
 	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
 	AppStatus        common.AppStatus  `json:"appStatus,omitempty"`
 	// the status of multiple clusters
@@ -267,9 +271,10 @@ type ClusterBase struct {
 	Reason string `json:"reason"`
 }
 
-// ListApplicatioOptions list application  query options
-type ListApplicatioOptions struct {
+// ListApplicationOptions list application  query options
+type ListApplicationOptions struct {
 	Project    string `json:"project"`
+	Env        string `json:"env"`
 	TargetName string `json:"targetName"`
 	Query      string `json:"query"`
 }
@@ -281,16 +286,6 @@ type ListApplicationResponse struct {
 
 // EnvBindingList env binding list
 type EnvBindingList []*EnvBinding
-
-// ContainTarget contain cluster name
-func (e EnvBindingList) ContainTarget(name string) bool {
-	for _, eb := range e {
-		if utils.StringsContain(eb.TargetNames, name) {
-			return true
-		}
-	}
-	return false
-}
 
 // ApplicationBase application base model
 type ApplicationBase struct {
@@ -312,10 +307,10 @@ type ApplicationStatusResponse struct {
 
 // ApplicationStatisticsResponse application statistics response body
 type ApplicationStatisticsResponse struct {
-	EnvCount            int64 `json:"envCount"`
-	DeliveryTargetCount int64 `json:"deliveryTargetCount"`
-	RevisonCount        int64 `json:"revisonCount"`
-	WorkflowCount       int64 `json:"workflowCount"`
+	EnvCount      int64 `json:"envCount"`
+	TargetCount   int64 `json:"targetCount"`
+	RevisonCount  int64 `json:"revisonCount"`
+	WorkflowCount int64 `json:"workflowCount"`
 }
 
 // CreateApplicationRequest create application  request body
@@ -327,7 +322,6 @@ type CreateApplicationRequest struct {
 	Icon        string                  `json:"icon"`
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
-	YamlConfig  string                  `json:"yamlConfig,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
 }
 
@@ -341,11 +335,8 @@ type UpdateApplicationRequest struct {
 
 // EnvBinding application env binding
 type EnvBinding struct {
-	Name              string             `json:"name" validate:"checkname"`
-	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
-	Description       string             `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
-	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
+	Name string `json:"name" validate:"checkname"`
+	//TODO: support componentsPatch
 }
 
 // EnvBindingTarget the target struct in the envbinding base struct
@@ -356,15 +347,16 @@ type EnvBindingTarget struct {
 
 // EnvBindingBase application env binding
 type EnvBindingBase struct {
-	Name              string             `json:"name" validate:"checkname"`
-	Alias             string             `json:"alias" validate:"checkalias" optional:"true"`
-	Description       string             `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
-	Targets           []EnvBindingTarget `json:"deliveryTargets,omitempty"`
-	ComponentSelector *ComponentSelector `json:"componentSelector" optional:"true"`
-	CreateTime        time.Time          `json:"createTime"`
-	UpdateTime        time.Time          `json:"updateTime"`
-	AppDeployName     string             `json:"appDeployName"`
+	Name               string             `json:"name" validate:"checkname"`
+	Alias              string             `json:"alias" validate:"checkalias" optional:"true"`
+	Description        string             `json:"description,omitempty" optional:"true"`
+	TargetNames        []string           `json:"targetNames"`
+	Targets            []EnvBindingTarget `json:"targets,omitempty"`
+	ComponentSelector  *ComponentSelector `json:"componentSelector" optional:"true"`
+	CreateTime         time.Time          `json:"createTime"`
+	UpdateTime         time.Time          `json:"updateTime"`
+	AppDeployName      string             `json:"appDeployName"`
+	AppDeployNamespace string             `json:"appDeployNamespace"`
 }
 
 // DetailEnvBindingResponse defines the response of env-binding details
@@ -488,7 +480,6 @@ type ProjectBase struct {
 	Name        string    `json:"name"`
 	Alias       string    `json:"alias"`
 	Description string    `json:"description"`
-	Namespace   string    `json:"namespace"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
 }
@@ -498,7 +489,47 @@ type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
-	Namespace   string `json:"namespace" optional:"true"`
+}
+
+// Env models the data of env in API
+type Env struct {
+	Name        string `json:"name"`
+	Alias       string `json:"alias"`
+	Description string `json:"description,omitempty"  optional:"true"`
+
+	// Project defines the project this Env belongs to
+	Project NameAlias `json:"project"`
+	// Namespace defines the K8s namespace of the Env in control plane
+	Namespace string `json:"namespace"`
+
+	// Targets defines the name of delivery target that belongs to this env
+	// In one project, a delivery target can only belong to one env.
+	Targets []NameAlias `json:"targets,omitempty"  optional:"true"`
+
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// ListEnvOptions list envs by query options
+type ListEnvOptions struct {
+	Project string `json:"project"`
+}
+
+// ListEnvResponse response the while env list
+type ListEnvResponse struct {
+	Envs []*Env `json:"envs"`
+}
+
+// CreateEnvRequest contains the env data as request body
+type CreateEnvRequest model.EnvBase
+
+// UpdateEnvRequest defines the data of Env for update
+type UpdateEnvRequest struct {
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description,omitempty"  optional:"true"`
+	// Targets defines the name of delivery target that belongs to this env
+	// In one project, a delivery target can only belong to one env.
+	Targets []string `json:"targets,omitempty"  optional:"true"`
 }
 
 // ListDefinitionResponse list definition response model
@@ -591,8 +622,7 @@ type UpdateWorkflowRequest struct {
 	Alias       string         `json:"alias"  validate:"checkalias" optional:"true"`
 	Description string         `json:"description" optional:"true"`
 	Steps       []WorkflowStep `json:"steps,omitempty"`
-	Enable      bool           `json:"enable"`
-	Default     bool           `json:"default"`
+	Default     *bool          `json:"default"`
 }
 
 // WorkflowStep workflow step config
@@ -678,12 +708,8 @@ type ApplicationDeployResponse struct {
 // VelaQLViewResponse query response
 type VelaQLViewResponse map[string]interface{}
 
-// PutApplicationEnvRequest set diff request
-type PutApplicationEnvRequest struct {
-	ComponentSelector *ComponentSelector `json:"componentSelector,omitempty"`
-	Alias             string             `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Description       string             `json:"description,omitempty" optional:"true"`
-	TargetNames       []string           `json:"targetNames"`
+// PutApplicationEnvBindingRequest update app envbinding request body
+type PutApplicationEnvBindingRequest struct {
 }
 
 // ListApplicationEnvBinding list app envBindings
@@ -691,8 +717,8 @@ type ListApplicationEnvBinding struct {
 	EnvBindings []*EnvBindingBase `json:"envBindings"`
 }
 
-// CreateApplicationEnvRequest new application env
-type CreateApplicationEnvRequest struct {
+// CreateApplicationEnvbindingRequest new application env
+type CreateApplicationEnvbindingRequest struct {
 	EnvBinding
 }
 
@@ -723,21 +749,19 @@ type ApplicationTrait struct {
 	UpdateTime time.Time         `json:"updateTime"`
 }
 
-// CreateDeliveryTargetRequest  create delivery target request body
-type CreateDeliveryTargetRequest struct {
+// CreateTargetRequest  create delivery target request body
+type CreateTargetRequest struct {
 	Name        string                 `json:"name" validate:"checkname"`
-	Project     string                 `json:"project" validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
-// UpdateDeliveryTargetRequest only support full quantity update
-type UpdateDeliveryTargetRequest struct {
+// UpdateTargetRequest only support full quantity update
+type UpdateTargetRequest struct {
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description string                 `json:"description,omitempty" optional:"true"`
-	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
 }
 
@@ -747,21 +771,20 @@ type ClusterTarget struct {
 	Namespace   string `json:"namespace" optional:"true"`
 }
 
-// DetailDeliveryTargetResponse detail deliveryTarget response
-type DetailDeliveryTargetResponse struct {
-	DeliveryTargetBase
+// DetailTargetResponse detail Target response
+type DetailTargetResponse struct {
+	TargetBase
 }
 
 // ListTargetResponse list delivery target response body
 type ListTargetResponse struct {
-	Targets []DeliveryTargetBase `json:"targets"`
-	Total   int64                `json:"total"`
+	Targets []TargetBase `json:"targets"`
+	Total   int64        `json:"total"`
 }
 
-// DeliveryTargetBase deliveryTarget base model
-type DeliveryTargetBase struct {
+// TargetBase Target base model
+type TargetBase struct {
 	Name         string                 `json:"name"`
-	Project      *ProjectBase           `json:"project"`
 	Alias        string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
 	Description  string                 `json:"description,omitempty" optional:"true"`
 	Cluster      *ClusterTarget         `json:"cluster,omitempty"`

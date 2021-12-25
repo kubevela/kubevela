@@ -46,9 +46,9 @@ var (
 
 var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.JsonAppFileContext("json appfile apply", jsonAppFile)
-	e2e.EnvSetContext("env set", "default")
+	e2e.EnvSetContext("env set default", "default")
 	e2e.DeleteEnvFunc("env delete", envName)
-	e2e.EnvInitContext("env init", envName)
+	e2e.EnvInitContext("env init env-application", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
 	ApplicationExecContext("exec -- COMMAND", applicationName)
@@ -185,7 +185,7 @@ var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool
 			cli := fmt.Sprintf("vela delete %s --wait", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
 		})
 	})
 }
@@ -225,7 +225,7 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 			cli = fmt.Sprintf("vela delete %s --force", appName)
 			output, err = e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))
+			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
 		})
 	})
 }

@@ -29,11 +29,10 @@ func init() {
 
 // Application application delivery model
 type Application struct {
-	Model
+	BaseModel
 	Name        string            `json:"name"`
 	Alias       string            `json:"alias"`
 	Project     string            `json:"project"`
-	Namespace   string            `json:"namespace"`
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
@@ -55,9 +54,6 @@ func (a *Application) Index() map[string]string {
 	if a.Name != "" {
 		index["name"] = a.Name
 	}
-	if a.Namespace != "" {
-		index["namespace"] = a.Namespace
-	}
 	if a.Project != "" {
 		index["project"] = a.Project
 	}
@@ -78,7 +74,7 @@ type ComponentSelector struct {
 
 // ApplicationComponent component database model
 type ApplicationComponent struct {
-	Model
+	BaseModel
 	AppPrimaryKey string            `json:"appPrimaryKey"`
 	Description   string            `json:"description,omitempty"`
 	Labels        map[string]string `json:"labels,omitempty"`
@@ -128,7 +124,7 @@ func (a *ApplicationComponent) Index() map[string]string {
 
 // ApplicationPolicy app policy
 type ApplicationPolicy struct {
-	Model
+	BaseModel
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
 	Description   string      `json:"description"`
@@ -192,7 +188,7 @@ var RevisionStatusRollback = "rollback"
 
 // ApplicationRevision be created when an application initiates deployment and describes the phased version of the application.
 type ApplicationRevision struct {
-	Model
+	BaseModel
 	AppPrimaryKey   string `json:"appPrimaryKey"`
 	Version         string `json:"version"`
 	RollbackVersion string `json:"rollbackVersion,omitempty"`

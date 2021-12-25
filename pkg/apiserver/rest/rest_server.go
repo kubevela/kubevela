@@ -154,7 +154,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 }
 
 func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
-	w := usecase.NewWorkflowUsecase(s.dataStore)
+	w := usecase.NewWorkflowUsecase(s.dataStore, usecase.NewEnvUsecase(s.dataStore))
 
 	t := time.NewTicker(duration)
 	defer t.Stop()
@@ -191,7 +191,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	s.webContainer.Filter(s.webContainer.OPTIONSFilter)
 
 	// Regist all custom webservice
-	for _, handler := range webservice.GetRegistedWebService() {
+	for _, handler := range webservice.GetRegisteredWebService() {
 		s.webContainer.Add(handler.GetWebService())
 	}
 

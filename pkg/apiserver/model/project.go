@@ -22,12 +22,10 @@ func init() {
 
 // Project project model
 type Project struct {
-	Model
+	BaseModel
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
 	Description string `json:"description,omitempty"`
-	// Namespace Control cluster namespace
-	Namespace string `json:"namespace"`
 }
 
 // TableName return custom table name
@@ -45,9 +43,6 @@ func (p *Project) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name
-	}
-	if p.Namespace != "" {
-		index["namespace"] = p.Namespace
 	}
 	return index
 }

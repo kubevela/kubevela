@@ -31,7 +31,7 @@ func init() {
 
 // Workflow application delivery database model
 type Workflow struct {
-	Model
+	BaseModel
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
 	Description string `json:"description"`
@@ -87,7 +87,7 @@ func (w *Workflow) Index() map[string]string {
 
 // WorkflowRecord is the workflow record database model
 type WorkflowRecord struct {
-	Model
+	BaseModel
 	WorkflowName       string               `json:"workflowName"`
 	WorkflowAlias      string               `json:"workflowAlias"`
 	AppPrimaryKey      string               `json:"appPrimaryKey"`
