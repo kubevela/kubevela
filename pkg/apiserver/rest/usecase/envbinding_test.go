@@ -38,9 +38,11 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		envBindingDemo1   apisv1.EnvBinding
 		envBindingDemo2   apisv1.EnvBinding
 		testApp           *model.Application
+		ds                datastore.DataStore
 	)
 	BeforeEach(func() {
-		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
+		var err error
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		testApp = &model.Application{
@@ -59,7 +61,15 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 	})
 
 	It("Test Create Application Env function", func() {
-		_, err := envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "envbinding-dev", Targets: []string{"dev-target"}})
+
+		// create target
+		err := ds.Add(context.TODO(), &model.Target{Name: "dev-target"})
+		Expect(err).Should(BeNil())
+
+		err = ds.Add(context.TODO(), &model.Target{Name: "prod-target"})
+		Expect(err).Should(BeNil())
+
+		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "envbinding-dev", Targets: []string{"dev-target"}})
 		Expect(err).Should(BeNil())
 		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "envbinding-prod", Targets: []string{"prod-target"}})
 		Expect(err).Should(BeNil())

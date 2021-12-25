@@ -23,14 +23,9 @@ func init() {
 // Env models the data of env in database
 type Env struct {
 	BaseModel
-	EnvBase
-}
-
-// EnvBase defines the data of Env except the base model
-type EnvBase struct {
-	Name        string `json:"name" validate:"checkname"`
-	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
-	Description string `json:"description,omitempty"  optional:"true"`
+	Name        string `json:"name"`
+	Alias       string `json:"alias"`
+	Description string `json:"description,omitempty"`
 
 	// Project defines the project this Env belongs to
 	Project string `json:"project"`
@@ -39,7 +34,7 @@ type EnvBase struct {
 
 	// Targets defines the name of delivery target that belongs to this env
 	// In one project, a delivery target can only belong to one env.
-	Targets []string `json:"targets,omitempty"  optional:"true"`
+	Targets []string `json:"targets,omitempty"`
 }
 
 // TableName return custom table name
@@ -60,6 +55,9 @@ func (p *Env) Index() map[string]string {
 	}
 	if p.Namespace != "" {
 		index["namespace"] = p.Namespace
+	}
+	if p.Project != "" {
+		index["project"] = p.Project
 	}
 	return index
 }

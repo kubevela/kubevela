@@ -106,15 +106,12 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string
 
 	// initialize default target first
 	err = createEnv(ctx, p.k8sClient, p.ds, &model.Env{
-		EnvBase: model.EnvBase{
-			Name:        DefaultInitName,
-			Alias:       "Default",
-			Description: DefaultEnvDescription,
-
-			Project:   DefaultInitName,
-			Namespace: defaultNamespace,
-			Targets:   []string{DefaultInitName},
-		},
+		Name:        DefaultInitName,
+		Alias:       "Default",
+		Description: DefaultEnvDescription,
+		Project:     DefaultInitName,
+		Namespace:   defaultNamespace,
+		Targets:     []string{DefaultInitName},
 	})
 	// for idempotence, ignore default env already exist error
 	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {

@@ -101,7 +101,8 @@ func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envL
 	if err != nil {
 		return nil, err
 	}
-	envs, err := listEnvs(ctx, ds, nil)
+	// TODO: list by project
+	envs, err := listEnvs(ctx, ds, "", nil)
 	if err != nil {
 		return nil, err
 	}

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -35,14 +36,20 @@ import (
 var _ = Describe("Test env usecase functions", func() {
 	var (
 		envUsecase *envUsecaseImpl
+		ds         datastore.DataStore
 	)
 	BeforeEach(func() {
-		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
+		var err error
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		envUsecase = &envUsecaseImpl{kubeClient: k8sClient, ds: ds}
 	})
 	It("Test Create/Get/Delete Env function", func() {
+		// create target
+		err := ds.Add(context.TODO(), &model.Target{Name: "env-test"})
+		Expect(err).Should(BeNil())
+
 		req := apisv1.CreateEnvRequest{
 			Name:        "test-env",
 			Description: "this is a env description",
@@ -66,6 +73,8 @@ var _ = Describe("Test env usecase functions", func() {
 			Name:        "test-env-2",
 			Description: "this is a env description",
 			Namespace:   "default",
+			Project:     "env-project",
+			Targets:     []string{"env-test"},
 		}
 		base, err = envUsecase.CreateEnv(context.TODO(), req3)
 		Expect(err).Should(BeNil())
@@ -74,6 +83,26 @@ var _ = Describe("Test env usecase functions", func() {
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: base.Namespace}, &namespace)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnvName], req3.Name)).Should(BeEmpty())
+
+		// test env target conflict
+		req4 := apisv1.CreateEnvRequest{
+			Name:        "test-env-3",
+			Description: "this is a env description",
+			Namespace:   "default",
+			Project:     "env-project",
+			Targets:     []string{"env-test"},
+		}
+		_, err = envUsecase.CreateEnv(context.TODO(), req4)
+		Expect(cmp.Equal(err, bcode.ErrEnvTargetConflict, cmpopts.EquateErrors())).Should(BeTrue())
+
+		// test update env
+		req5 := apisv1.UpdateEnvRequest{
+			Description: "this is a env description update",
+			Targets:     []string{"env-test"},
+		}
+		env, err := envUsecase.UpdateEnv(context.TODO(), "test-env-2", req5)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(env.Description, req5.Description)).Should(BeEmpty())
 
 		// clean up the env
 		err = envUsecase.DeleteEnv(context.TODO(), "test-env")
@@ -84,5 +113,10 @@ var _ = Describe("Test env usecase functions", func() {
 		By("Test ListEnvs function")
 		_, err = envUsecase.ListEnvs(context.TODO(), 1, 1, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
+	})
+
+	It("test checkEqual", func() {
+		Expect(checkEqual([]string{"default"}, []string{"default", "dev"})).Should(BeFalse())
+		Expect(checkEqual([]string{"default"}, []string{"default"})).Should(BeTrue())
 	})
 })

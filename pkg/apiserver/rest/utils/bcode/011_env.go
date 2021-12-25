@@ -30,3 +30,6 @@ var ErrEnvNamespaceAlreadyBound = NewBcode(400, 11004, "the namespace specified 
 
 // ErrDeleteEnvButAppExist reports an error when delete an Env but still has apps inside
 var ErrDeleteEnvButAppExist = NewBcode(400, 11005, "env can't be deleted as app existed inside")
+
+// ErrEnvTargetConflict in one project, one target can only belong to one env
+var ErrEnvTargetConflict = NewBcode(400, 11006, "in one project, one target can only belong to one env.")
