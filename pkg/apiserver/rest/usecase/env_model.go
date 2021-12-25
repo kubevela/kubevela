@@ -79,8 +79,11 @@ func getEnv(ctx context.Context, ds datastore.DataStore, envName string) (*model
 	return env, nil
 }
 
-func listEnvs(ctx context.Context, ds datastore.DataStore, listOption *datastore.ListOptions) ([]*model.Env, error) {
+func listEnvs(ctx context.Context, ds datastore.DataStore, project string, listOption *datastore.ListOptions) ([]*model.Env, error) {
 	var env = model.Env{}
+	if project != "" {
+		env.Project = project
+	}
 	entities, err := ds.List(ctx, &env, listOption)
 	if err != nil {
 		return nil, err

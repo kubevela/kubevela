@@ -96,7 +96,7 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 
 // ListEnvs list envs
 func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error) {
-	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entities, err := listEnvs(ctx, p.ds, listOption.Project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +108,6 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 
 	var envs []*apisv1.Env
 	for _, ee := range entities {
-		if listOption.Project != "" && ee.Project != listOption.Project {
-			continue
-		}
 		envs = append(envs, convertEnvModel2Base(ee, Targets))
 	}
 
@@ -173,10 +170,30 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 	if req.Description != "" {
 		env.Description = req.Description
 	}
+
+	pass, err := p.checkEnvTarget(ctx, env.Project, env.Name, req.Targets)
+	if err != nil || !pass {
+		return nil, bcode.ErrEnvTargetConflict
+	}
+
 	var targetChanged bool
 	if len(req.Targets) > 0 && !checkEqual(env.Targets, req.Targets) {
 		targetChanged = true
 		env.Targets = req.Targets
+	}
+
+	targets, err := listTarget(ctx, p.ds, nil)
+	if err != nil {
+		return nil, err
+	}
+	var targetMap = make(map[string]*model.Target, len(targets))
+	for i, existTarget := range targets {
+		targetMap[existTarget.Name] = targets[i]
+	}
+	for _, target := range req.Targets {
+		if _, exist := targetMap[target]; !exist {
+			return nil, bcode.ErrTargetNotExist
+		}
 	}
 
 	// create namespace at first
@@ -190,31 +207,74 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 			return nil, err
 		}
 	}
-	targets, err := listTarget(ctx, p.ds, nil)
-	if err != nil {
-		return nil, err
-	}
+
 	resp := convertEnvModel2Base(env, targets)
 	return resp, nil
 }
 
 // CreateEnv create an env for request
 func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error) {
-	newEnv := &model.Env{}
-	newEnv.EnvBase = model.EnvBase(req)
+	newEnv := &model.Env{
+		Name:        req.Name,
+		Alias:       req.Alias,
+		Description: req.Description,
+		Namespace:   req.Namespace,
+		Project:     req.Project,
+		Targets:     req.Targets,
+	}
 
-	err := createEnv(ctx, p.kubeClient, p.ds, newEnv)
+	pass, err := p.checkEnvTarget(ctx, req.Project, req.Name, req.Targets)
+	if err != nil || !pass {
+		return nil, bcode.ErrEnvTargetConflict
+	}
+
+	targets, err := listTarget(ctx, p.ds, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds, nil)
+	var targetMap = make(map[string]*model.Target, len(targets))
+	for i, existTarget := range targets {
+		targetMap[existTarget.Name] = targets[i]
+	}
+
+	for _, target := range req.Targets {
+		if _, exist := targetMap[target]; !exist {
+			return nil, bcode.ErrTargetNotExist
+		}
+	}
+
+	err = createEnv(ctx, p.kubeClient, p.ds, newEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := convertEnvModel2Base(newEnv, Targets)
+	resp := convertEnvModel2Base(newEnv, targets)
 	return resp, nil
+}
+
+// checkEnvTarget In one project, a delivery target can only belong to one env.
+func (p *envUsecaseImpl) checkEnvTarget(ctx context.Context, project string, envName string, targets []string) (bool, error) {
+	if len(targets) == 0 {
+		return true, nil
+	}
+	entitys, err := p.ds.List(ctx, &model.Env{Project: project}, &datastore.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	newMap := make(map[string]bool, len(targets))
+	for _, new := range targets {
+		newMap[new] = true
+	}
+	for _, entity := range entitys {
+		env := entity.(*model.Env)
+		for _, existTarget := range env.Targets {
+			if ok := newMap[existTarget]; ok && env.Name != envName {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
 }
 
 func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {

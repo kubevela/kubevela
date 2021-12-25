@@ -94,10 +94,10 @@ var _ = Describe("Test application usecase function", func() {
 		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}})
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: "app-dev"})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Namespace: envnstest, Targets: []string{defaultTarget}})
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Namespace: envnstest, Targets: []string{defaultTarget}, Project: "app-test"})
 		Expect(err).Should(BeNil())
 		req := v1.CreateApplicationRequest{
 			Name:        testApp,
@@ -438,9 +438,7 @@ var _ = Describe("Test application usecase function", func() {
 		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.EnvBinding{
 			Name: "prod",
 		}, &model.Env{
-			EnvBase: model.EnvBase{
-				Name: "prod",
-			},
+			Name: "prod",
 		}, &model.Target{
 			Name: "prod",
 			Variable: map[string]interface{}{
