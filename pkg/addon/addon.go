@@ -188,7 +188,7 @@ func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 }
 
 // ListAddonUIDataFromReader list addons from AsyncReader
-func ListAddonUIDataFromReader(r AsyncReader, registryMeta map[string]SourceMeta, opt ListOptions) ([]*UIData, error) {
+func ListAddonUIDataFromReader(r AsyncReader, registryMeta map[string]SourceMeta, registryName string, opt ListOptions) ([]*UIData, error) {
 	var addons []*UIData
 	var err error
 	var wg sync.WaitGroup
@@ -206,6 +206,7 @@ func ListAddonUIDataFromReader(r AsyncReader, registryMeta map[string]SourceMeta
 				errCh <- err
 				return
 			}
+			addonRes.RegistryName = registryName
 			l.Lock()
 			addons = append(addons, addonRes)
 			l.Unlock()

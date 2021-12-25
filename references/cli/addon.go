@@ -294,7 +294,7 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	}
 	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
-		fmt.Printf("diagnose addon info from  realted application %s ", pkgaddon.Convert2AppName(name))
+		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
 		err := printAppStatus(context.Background(), clt, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
 		if err != nil {
 			return err
@@ -329,14 +329,14 @@ func listAddons(ctx context.Context, registry string) error {
 	}
 
 	table := uitable.New()
-	table.AddRow("NAME", "DESCRIPTION", "STATUS")
+	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "STATUS")
 
 	for _, addon := range addons {
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
 			return err
 		}
-		table.AddRow(addon.Name, addon.Description, status.AddonPhase)
+		table.AddRow(addon.Name, addon.RegistryName, addon.Description, status.AddonPhase)
 	}
 	fmt.Println(table.String())
 	return nil

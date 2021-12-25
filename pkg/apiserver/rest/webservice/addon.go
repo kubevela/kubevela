@@ -20,7 +20,6 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
-	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -122,10 +121,10 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 		return
 	}
 
-	var addons []*pkgaddon.Meta
+	var addons []*apis.AddonInfo
 
 	for _, d := range detailAddons {
-		addons = append(addons, &d.Meta)
+		addons = append(addons, &apis.AddonInfo{Meta: &d.Meta, RegistryName: d.RegistryName})
 	}
 
 	var message string

@@ -191,7 +191,7 @@ func (r *Registry) ListUIData(registryAddonMeta map[string]SourceMeta, opt ListO
 	if err != nil {
 		return nil, err
 	}
-	return ListAddonUIDataFromReader(reader, registryAddonMeta, opt)
+	return ListAddonUIDataFromReader(reader, registryAddonMeta, r.Name, opt)
 }
 
 // GetInstallPackage get install package which is all needed to enable an addon from addon registry

@@ -123,7 +123,7 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.True(t, len(uiData.Definitions) > 0)
 
 	// test get ui data
-	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, UIMetaOptions)
+	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, "KubeVela", UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
 	assert.Equal(t, len(uiDataList), 3)
 

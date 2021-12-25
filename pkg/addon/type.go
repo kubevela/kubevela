@@ -36,6 +36,7 @@ type UIData struct {
 	Definitions    []ElementFile `json:"definitions"`
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
 	Parameters     string        `json:"parameters"`
+	RegistryName   string        `json:"registryName"`
 }
 
 // InstallPackage contains all necessary files that can be installed for an addon

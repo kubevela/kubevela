@@ -78,11 +78,12 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 		})
 	}
 	return &apis.DetailAddonResponse{
-		Meta:        impl.Meta,
-		APISchema:   impl.APISchema,
-		UISchema:    impl.UISchema,
-		Detail:      impl.Detail,
-		Definitions: defs,
+		Meta:         impl.Meta,
+		APISchema:    impl.APISchema,
+		UISchema:     impl.UISchema,
+		Detail:       impl.Detail,
+		Definitions:  defs,
+		RegistryName: impl.RegistryName,
 	}, nil
 }
 
