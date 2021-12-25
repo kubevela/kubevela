@@ -294,7 +294,7 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	}
 	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
-		fmt.Printf("diagnose addon info from  realted application %s ", pkgaddon.Convert2AppName(name))
+		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
 		err := printAppStatus(context.Background(), clt, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
 		if err != nil {
 			return err

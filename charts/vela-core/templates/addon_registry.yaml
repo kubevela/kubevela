@@ -12,13 +12,5 @@ data:
       "bucket": "",
       "path": ""
     }
-  },
-  "KubeVela-Experimental":{
-    "name": "KubeVela-Experimental",
-    "oss": {
-      "end_point": "https://addons.kubevela.net",
-      "bucket": "",
-      "path": "experimental/"
-    }
   }
 }'
