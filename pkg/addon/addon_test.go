@@ -367,13 +367,13 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 	k8sClient = fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApplication, addonSecret, addonService).Build()
 	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
 	assert.NoError(t, err)
-	assert.Equal(t, addonStatus.AddonPhase, enabling)
+	assert.Equal(t, addonStatus.AddonPhase, enabled)
 
 	// Addon is installed in multiple clusters
 	assert.NoError(t, k8sClient.Create(ctx, clusterSecret))
 	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
 	assert.NoError(t, err)
-	assert.Equal(t, addonStatus.AddonPhase, enabling)
+	assert.Equal(t, addonStatus.AddonPhase, enabled)
 }
 
 var baseAddon = InstallPackage{
