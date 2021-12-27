@@ -16,7 +16,12 @@ limitations under the License.
 
 package multicluster
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+)
 
 var (
 	// ErrClusterExists cluster already exists
@@ -27,3 +32,18 @@ var (
 
 // ClusterManagementError multicluster management error
 type ClusterManagementError error
+
+// IsClusterNotExists check if error is cluster not exists
+func IsClusterNotExists(err error) bool {
+	return strings.Contains(err.Error(), "no such cluster")
+}
+
+// IsNotFoundOrClusterNotExists check if error is not found or cluster not exists
+func IsNotFoundOrClusterNotExists(err error) bool {
+	return kerrors.IsNotFound(err) || IsClusterNotExists(err)
+}
+
+// IsClusterDisconnect check if error is cluster disconnect
+func IsClusterDisconnect(err error) bool {
+	return strings.Contains(err.Error(), "dial tcp")
+}

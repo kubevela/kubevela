@@ -266,7 +266,7 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 		if _, exists := inUseComponents[cr.ComponentKey()]; !exists && !skipGC {
 			_cr := &v1.ControllerRevision{}
 			err := h.Client.Get(multicluster.ContextWithClusterName(ctx, cr.Cluster), cr.NamespacedName(), _cr)
-			if err != nil && !kerrors.IsNotFound(err) {
+			if err != nil && !multicluster.IsNotFoundOrClusterNotExists(err) {
 				return errors.Wrapf(err, "failed to get component revision %s", cr.ResourceKey())
 			}
 			if err == nil {
