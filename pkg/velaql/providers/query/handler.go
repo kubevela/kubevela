@@ -17,11 +17,17 @@
 package query
 
 import (
+	"bufio"
 	stdctx "context"
+	"io"
+	"strings"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -42,6 +48,7 @@ var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Ve
 
 type provider struct {
 	cli client.Client
+	cfg *rest.Config
 }
 
 // Resource refer to an object with cluster info
@@ -144,15 +151,67 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	return v.FillObject(eventList.Items, "list")
 }
 
+func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return errors.Wrapf(err, "invalid cluster")
+	}
+	namespace, err := v.GetString("namespace")
+	if err != nil {
+		return errors.Wrapf(err, "invalid namespace")
+	}
+	pod, err := v.GetString("pod")
+	if err != nil {
+		return errors.Wrapf(err, "invalid pod name")
+	}
+	container, err := v.GetString("container")
+	if err != nil {
+		return errors.Wrapf(err, "invalid container name")
+	}
+	cliCtx := multicluster.ContextWithClusterName(stdctx.Background(), cluster)
+	clientSet, err := kubernetes.NewForConfig(h.cfg)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create kubernetes clientset")
+	}
+	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Container: container})
+	readCloser, err := req.Stream(cliCtx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get stream logs")
+	}
+	defer func() {
+		_ = readCloser.Close()
+	}()
+	r := bufio.NewReader(readCloser)
+	var b strings.Builder
+	var readErr error
+	for {
+		s, err := r.ReadString('\n')
+		b.WriteString(s)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				readErr = err
+			}
+			break
+		}
+	}
+	o := map[string]interface{}{"logs": b.String()}
+	if readErr != nil {
+		o["err"] = readErr.Error()
+	}
+	return v.FillObject(o, "outputs")
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client) {
+func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	prd := &provider{
 		cli: cli,
+		cfg: cfg,
 	}
 
 	p.Register(ProviderName, map[string]providers.Handler{
 		"listResourcesInApp": prd.ListResourcesInApp,
 		"collectPods":        prd.CollectPods,
 		"searchEvents":       prd.SearchEvents,
+		"collectLogsInPod":   prd.CollectLogsInPod,
 	})
 }

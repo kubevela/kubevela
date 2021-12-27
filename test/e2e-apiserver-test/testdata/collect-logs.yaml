@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-collect-logs
+  namespace: vela-system
+data:
+  template: |
+    import (
+        "vela/ql"
+    )
+
+    collectLogs: ql.#CollectLogsInPod & parameter
+    status: collectLogs.outputs
+
+    parameter: {
+        // +usage=Specify the cluster of the pod
+        cluster: string
+        // +usage=Specify the namespace of the pod
+        namespace: string
+        // +usage=Specify the name of the pod
+        pod: string
+        // +usage=Specify the name of the container
+        container: string
+    }
+

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -114,11 +115,11 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 }
 
 // NewViewTaskDiscover will create a client for load task generator.
-func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, apply kube.Dispatcher, delete kube.Deleter, viewNs string) types.TaskDiscover {
+func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string) types.TaskDiscover {
 	handlerProviders := providers.NewProviders()
 
 	// install builtin provider
-	query.Install(handlerProviders, cli)
+	query.Install(handlerProviders, cli, cfg)
 	time.Install(handlerProviders)
 	kube.Install(handlerProviders, cli, apply, delete)
 	http.Install(handlerProviders, cli, viewNs)

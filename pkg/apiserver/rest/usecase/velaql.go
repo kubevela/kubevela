@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -37,6 +38,7 @@ type VelaQLUsecase interface {
 
 type velaQLUsecaseImpl struct {
 	kubeClient client.Client
+	kubeConfig *rest.Config
 	dm         discoverymapper.DiscoveryMapper
 	pd         *packages.PackageDiscover
 }
@@ -46,6 +48,11 @@ func NewVelaQLUsecase() VelaQLUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
+	}
+
+	kubeConfig, err := clients.GetKubeConfig()
+	if err != nil {
+		log.Logger.Fatalf("get kubeconfig failure %s", err.Error())
 	}
 
 	dm, err := clients.GetDiscoverMapper()
@@ -59,6 +66,7 @@ func NewVelaQLUsecase() VelaQLUsecase {
 	}
 	return &velaQLUsecaseImpl{
 		kubeClient: k8sClient,
+		kubeConfig: kubeConfig,
 		dm:         dm,
 		pd:         pd,
 	}
@@ -71,7 +79,7 @@ func (v *velaQLUsecaseImpl) QueryView(ctx context.Context, velaQL string) (*apis
 		return nil, bcode.ErrParseVelaQL
 	}
 
-	queryValue, err := velaql.NewViewHandler(v.kubeClient, v.dm, v.pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(v.kubeClient, v.kubeConfig, v.dm, v.pd).QueryView(ctx, query)
 	if err != nil {
 		log.Logger.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery

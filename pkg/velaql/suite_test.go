@@ -75,7 +75,7 @@ var _ = BeforeSuite(func(done Done) {
 	pd, err := packages.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 
-	viewHandler = NewViewHandler(k8sClient, dm, pd)
+	viewHandler = NewViewHandler(k8sClient, cfg, dm, pd)
 	ctx := context.Background()
 
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}

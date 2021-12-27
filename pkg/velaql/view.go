@@ -23,6 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -48,6 +49,7 @@ const (
 // ViewHandler view handler
 type ViewHandler struct {
 	cli       client.Client
+	cfg       *rest.Config
 	viewTask  v1beta1.WorkflowStep
 	dm        discoverymapper.DiscoveryMapper
 	pd        *packages.PackageDiscover
@@ -55,9 +57,10 @@ type ViewHandler struct {
 }
 
 // NewViewHandler new view handler
-func NewViewHandler(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *ViewHandler {
+func NewViewHandler(cli client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover) *ViewHandler {
 	return &ViewHandler{
 		cli:       cli,
+		cfg:       cfg,
 		dm:        dm,
 		pd:        pd,
 		namespace: qlNs,
@@ -79,7 +82,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		Outputs:    queryKey.Outputs,
 	}
 
-	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.dispatch, handler.delete, handler.namespace)
+	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.cfg, handler.dispatch, handler.delete, handler.namespace)
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, handler.viewTask.Type)
 	if err != nil {
 		return nil, err

@@ -298,9 +298,57 @@ cluster: "test"`
 		})
 	})
 
+	Context("Test CollectLogsInPod", func() {
+		It("Test CollectLogsInPod with specified container", func() {
+			prd := provider{cli: k8sClient, cfg: cfg}
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "default"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "main", Image: "busybox"}},
+				}}
+			Expect(k8sClient.Create(ctx, pod)).Should(Succeed())
+
+			v, err := value.NewValue(``, nil, "")
+			Expect(err).Should(Succeed())
+			err = prd.CollectLogsInPod(nil, v, nil)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("var(path=cluster) not exist"))
+
+			v, err = value.NewValue(`cluster: "local"`, nil, "")
+			Expect(err).Should(Succeed())
+			err = prd.CollectLogsInPod(nil, v, nil)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("var(path=namespace) not exist"))
+
+			v, err = value.NewValue(`cluster: "local"
+namespace: "default"`, nil, "")
+			Expect(err).Should(Succeed())
+			err = prd.CollectLogsInPod(nil, v, nil)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("var(path=pod) not exist"))
+
+			v, err = value.NewValue(`cluster: "local"
+namespace: "default"
+pod: "hello-world"`, nil, "")
+			Expect(err).Should(Succeed())
+			err = prd.CollectLogsInPod(nil, v, nil)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("var(path=container) not exist"))
+
+			v, err = value.NewValue(`cluster: "local"
+namespace: "default"
+pod: "hello-world"
+container: "main"`, nil, "")
+			Expect(err).Should(Succeed())
+			Expect(prd.CollectLogsInPod(nil, v, nil)).Should(Succeed())
+			_, err = v.GetString("outputs", "logs")
+			Expect(err).Should(Succeed())
+		})
+	})
+
 	It("Test install provider", func() {
 		p := providers.NewProviders()
-		Install(p, k8sClient)
+		Install(p, k8sClient, cfg)
 		h, ok := p.GetHandler("query", "listResourcesInApp")
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
@@ -308,6 +356,9 @@ cluster: "test"`
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
 		h, ok = p.GetHandler("query", "searchEvents")
+		Expect(ok).Should(Equal(true))
+		Expect(h).ShouldNot(BeNil())
+		h, ok = p.GetHandler("query", "collectLogsInPod")
 		Expect(ok).Should(Equal(true))
 		Expect(h).ShouldNot(BeNil())
 	})

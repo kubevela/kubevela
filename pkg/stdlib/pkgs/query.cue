@@ -34,3 +34,18 @@
 	cluster: string
 	...
 }
+
+#CollectLogsInPod: {
+	#do:       "collectLogsInPod"
+	#provider: "query"
+	cluster:   string
+	namespace: string
+	pod:       string
+	container: string
+	outputs?: {
+		logs: string
+		err?: string
+		...
+	}
+	...
+}
