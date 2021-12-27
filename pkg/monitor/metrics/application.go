@@ -90,3 +90,25 @@ var (
 		Help: "list resourceTrackers times.",
 	}, []string{"controller"})
 )
+
+type VecKey string
+
+var (
+	GCResourceTrackersDurationDetailHistograms = map[VecKey]*prometheus.HistogramVec{}
+	GCResourceTrackersInitDuration = VecKey("gc_rt_init")
+	GCResourceTrackersMarkDuration = VecKey("gc_rt_mark")
+	GCResourceTrackersSweepDuration = VecKey("gc_rt_sweep")
+	GCResourceTrackersFinalizeDuration = VecKey("gc_rt_finalize")
+	GCResourceTrackersCompRevDuration = VecKey("gc_rt_comp_rev")
+)
+
+func init() {
+	for _, key := range []VecKey{GCResourceTrackersInitDuration, GCResourceTrackersMarkDuration, GCResourceTrackersSweepDuration, GCResourceTrackersFinalizeDuration, GCResourceTrackersCompRevDuration} {
+		GCResourceTrackersDurationDetailHistograms[key] = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        string(key),
+			Help:        string(key),
+			Buckets:     histogramBuckets,
+			ConstLabels: prometheus.Labels{},
+		}, []string{"controller"})
+	}
+}

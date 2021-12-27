@@ -32,6 +32,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
@@ -94,7 +96,7 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption
 
 func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	gc := gcHandler{resourceKeeper: h, cfg: cfg}
-	gc.Init()
+	gc.Init(ctx)
 	// Mark Stage
 	if !cfg.disableMark {
 		if err = gc.Mark(ctx); err != nil {
@@ -134,7 +136,19 @@ type gcHandler struct {
 	cfg *gcConfig
 }
 
-func (h *gcHandler) Init() {
+func (h *gcHandler) monitor(ctx context.Context, key metrics.VecKey) func() {
+	if logCtx, ok := ctx.(monitorContext.Context); ok {
+		subCtx := logCtx.Fork(string(key), monitorContext.DurationMetric(func(v float64) {
+			metrics.GCResourceTrackersDurationDetailHistograms[key].WithLabelValues("application").Observe(v)
+		}))
+		return func() { subCtx.Commit("finish " + string(key)) }
+	}
+	return func() {}
+}
+
+func (h *gcHandler) Init(ctx context.Context) {
+	cb := h.monitor(ctx, metrics.GCResourceTrackersInitDuration)
+	defer cb()
 	h.cache.registerResourceTrackers(append(h._historyRTs, h._currentRT, h._rootRT)...)
 }
 
@@ -168,6 +182,8 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 }
 
 func (h *gcHandler) Mark(ctx context.Context) error {
+	cb := h.monitor(ctx, metrics.GCResourceTrackersMarkDuration)
+	defer cb()
 	inactiveRTs := h.scan(ctx)
 	for _, rt := range inactiveRTs {
 		if rt != nil && rt.GetDeletionTimestamp() == nil {
@@ -203,6 +219,8 @@ func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, 
 }
 
 func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+	cb := h.monitor(ctx, metrics.GCResourceTrackersSweepDuration)
+	defer cb()
 	finished = true
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil {
@@ -238,6 +256,8 @@ func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.Reso
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {
+	cb := h.monitor(ctx, metrics.GCResourceTrackersFinalizeDuration)
+	defer cb()
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil && meta.FinalizerExists(rt, resourcetracker.Finalizer) {
 			if err := h.recycleResourceTracker(ctx, rt); err != nil {
@@ -249,6 +269,8 @@ func (h *gcHandler) Finalize(ctx context.Context) error {
 }
 
 func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.Context) error {
+	cb := h.monitor(ctx, metrics.GCResourceTrackersCompRevDuration)
+	defer cb()
 	if h._crRT == nil {
 		return nil
 	}
