@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 )
 
@@ -190,6 +191,9 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	// Add container filter to respond to OPTIONS
 	s.webContainer.Filter(s.webContainer.OPTIONSFilter)
 
+	// Add request log
+	s.webContainer.Filter(s.requestLog)
+
 	// Regist all custom webservice
 	for _, handler := range webservice.GetRegisteredWebService() {
 		s.webContainer.Add(handler.GetWebService())
@@ -201,6 +205,22 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
 	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
 	return config
+}
+
+func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
+	start := time.Now()
+	c := utils.NewResponseCapture(resp.ResponseWriter)
+	resp.ResponseWriter = c
+	chain.ProcessFilter(req, resp)
+	takeTime := time.Since(start)
+	log.Logger.With(
+		"clientIP", utils.ClientIP(req.Request),
+		"path", req.Request.URL.Path,
+		"method", req.Request.Method,
+		"status", c.StatusCode(),
+		"time", takeTime.String(),
+		"responseSize", len(c.Bytes()),
+	).Infof("request log")
 }
 
 func enrichSwaggerObject(swo *spec.Swagger) {
