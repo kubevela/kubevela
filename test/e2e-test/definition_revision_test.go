@@ -352,7 +352,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
 	})
 
-	It("Test deploy application which containing helm module", func() {
+	PIt("Test deploy application which containing helm module", func() {
 		var (
 			appName  = "test-helm"
 			compName = "worker"
