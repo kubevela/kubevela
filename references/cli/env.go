@@ -244,7 +244,8 @@ func GetFlagEnvOrCurrent(cmd *cobra.Command, args common.Args) (*types.EnvMeta, 
 	}
 	cur, err := env.GetCurrentEnv()
 	if err != nil {
-		//nolint(nilerr): ignore this error and return a default value
+		// ignore this error and return a default value
+		// nolint:nilerr
 		return &types.EnvMeta{Name: "", Namespace: "default"}, nil
 	}
 	return cur, nil
