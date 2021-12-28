@@ -20,10 +20,13 @@ import (
 	"bufio"
 	stdctx "context"
 	"io"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
@@ -151,6 +154,14 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	return v.FillObject(eventList.Items, "list")
 }
 
+var (
+	terminatedContainerNotFoundRegex = regexp.MustCompile("previous terminated container .+ in pod .+ not found")
+)
+
+func isTerminatedContainerNotFound(err error) bool {
+	return err != nil && terminatedContainerNotFoundRegex.MatchString(err.Error())
+}
+
 func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	cluster, err := v.GetString("cluster")
 	if err != nil {
@@ -164,37 +175,65 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 	if err != nil {
 		return errors.Wrapf(err, "invalid pod name")
 	}
-	container, err := v.GetString("container")
+	val, err := v.LookupValue("options")
 	if err != nil {
-		return errors.Wrapf(err, "invalid container name")
+		return errors.Wrapf(err, "invalid log options")
+	}
+	opts := &corev1.PodLogOptions{}
+	if err = val.UnmarshalTo(opts); err != nil {
+		return errors.Wrapf(err, "invalid log options content")
 	}
 	cliCtx := multicluster.ContextWithClusterName(stdctx.Background(), cluster)
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create kubernetes clientset")
 	}
-	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Container: container})
-	readCloser, err := req.Stream(cliCtx)
+	podInst, err := clientSet.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
 	if err != nil {
+		return errors.Wrapf(err, "failed to get pod")
+	}
+	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, opts)
+	readCloser, err := req.Stream(cliCtx)
+	if err != nil && !isTerminatedContainerNotFound(err) {
 		return errors.Wrapf(err, "failed to get stream logs")
 	}
-	defer func() {
-		_ = readCloser.Close()
-	}()
 	r := bufio.NewReader(readCloser)
 	var b strings.Builder
 	var readErr error
-	for {
-		s, err := r.ReadString('\n')
-		b.WriteString(s)
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				readErr = err
+	if err == nil {
+		defer func() {
+			_ = readCloser.Close()
+		}()
+		for {
+			s, err := r.ReadString('\n')
+			b.WriteString(s)
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					readErr = err
+				}
+				break
 			}
-			break
 		}
+	} else {
+		readErr = err
 	}
-	o := map[string]interface{}{"logs": b.String()}
+	toDate := v1.Now()
+	var fromDate v1.Time
+	// nolint
+	if opts.SinceTime != nil {
+		fromDate = *opts.SinceTime
+	} else if opts.SinceSeconds != nil {
+		fromDate = v1.NewTime(toDate.Add(time.Duration(-(*opts.SinceSeconds) * int64(time.Second))))
+	} else {
+		fromDate = podInst.CreationTimestamp
+	}
+	o := map[string]interface{}{
+		"logs": b.String(),
+		"info": map[string]interface{}{
+			"fromDate": fromDate,
+			"toDate":   toDate,
+		},
+	}
 	if readErr != nil {
 		o["err"] = readErr.Error()
 	}

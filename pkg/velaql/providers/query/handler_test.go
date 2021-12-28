@@ -333,12 +333,28 @@ pod: "hello-world"`, nil, "")
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=container) not exist"))
+			Expect(err.Error()).Should(ContainSubstring("var(path=options) not exist"))
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"
 pod: "hello-world"
-container: "main"`, nil, "")
+options: {
+  container: 1
+}`, nil, "")
+			Expect(err).Should(Succeed())
+			err = prd.CollectLogsInPod(nil, v, nil)
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("invalid log options content"))
+
+			v, err = value.NewValue(`cluster: "local"
+namespace: "default"
+pod: "hello-world"
+options: {
+  container: "main"
+  previous: true
+  sinceSeconds: 100
+  tailLines: 50
+}`, nil, "")
 			Expect(err).Should(Succeed())
 			Expect(prd.CollectLogsInPod(nil, v, nil)).Should(Succeed())
 			_, err = v.GetString("outputs", "logs")
