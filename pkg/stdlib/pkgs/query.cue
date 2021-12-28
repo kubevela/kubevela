@@ -34,3 +34,30 @@
 	cluster: string
 	...
 }
+
+#CollectLogsInPod: {
+	#do:       "collectLogsInPod"
+	#provider: "query"
+	cluster:   string
+	namespace: string
+	pod:       string
+	options: {
+		container:    string
+		previous:     *false | bool
+		sinceSeconds: *null | int
+		sinceTime:    *null | string
+		timestamps:   *false | bool
+		tailLines:    *null | int
+		limitBytes:   *null | int
+	}
+	outputs?: {
+		logs: string
+		err?: string
+		info: {
+			fromDate: string
+			toDate:   string
+		}
+		...
+	}
+	...
+}

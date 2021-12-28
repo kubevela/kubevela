@@ -9,3 +9,5 @@
 #CollectPods: query.#CollectPods
 
 #SearchEvents: query.#SearchEvents
+
+#CollectLogsInPod: query.#CollectLogsInPod

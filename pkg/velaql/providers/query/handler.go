@@ -17,11 +17,20 @@
 package query
 
 import (
+	"bufio"
 	stdctx "context"
+	"io"
+	"regexp"
+	"strings"
+	"time"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -42,6 +51,7 @@ var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Ve
 
 type provider struct {
 	cli client.Client
+	cfg *rest.Config
 }
 
 // Resource refer to an object with cluster info
@@ -144,15 +154,103 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	return v.FillObject(eventList.Items, "list")
 }
 
+var (
+	terminatedContainerNotFoundRegex = regexp.MustCompile("previous terminated container .+ in pod .+ not found")
+)
+
+func isTerminatedContainerNotFound(err error) bool {
+	return err != nil && terminatedContainerNotFoundRegex.MatchString(err.Error())
+}
+
+func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return errors.Wrapf(err, "invalid cluster")
+	}
+	namespace, err := v.GetString("namespace")
+	if err != nil {
+		return errors.Wrapf(err, "invalid namespace")
+	}
+	pod, err := v.GetString("pod")
+	if err != nil {
+		return errors.Wrapf(err, "invalid pod name")
+	}
+	val, err := v.LookupValue("options")
+	if err != nil {
+		return errors.Wrapf(err, "invalid log options")
+	}
+	opts := &corev1.PodLogOptions{}
+	if err = val.UnmarshalTo(opts); err != nil {
+		return errors.Wrapf(err, "invalid log options content")
+	}
+	cliCtx := multicluster.ContextWithClusterName(stdctx.Background(), cluster)
+	clientSet, err := kubernetes.NewForConfig(h.cfg)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create kubernetes clientset")
+	}
+	podInst, err := clientSet.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get pod")
+	}
+	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, opts)
+	readCloser, err := req.Stream(cliCtx)
+	if err != nil && !isTerminatedContainerNotFound(err) {
+		return errors.Wrapf(err, "failed to get stream logs")
+	}
+	r := bufio.NewReader(readCloser)
+	var b strings.Builder
+	var readErr error
+	if err == nil {
+		defer func() {
+			_ = readCloser.Close()
+		}()
+		for {
+			s, err := r.ReadString('\n')
+			b.WriteString(s)
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					readErr = err
+				}
+				break
+			}
+		}
+	} else {
+		readErr = err
+	}
+	toDate := v1.Now()
+	var fromDate v1.Time
+	// nolint
+	if opts.SinceTime != nil {
+		fromDate = *opts.SinceTime
+	} else if opts.SinceSeconds != nil {
+		fromDate = v1.NewTime(toDate.Add(time.Duration(-(*opts.SinceSeconds) * int64(time.Second))))
+	} else {
+		fromDate = podInst.CreationTimestamp
+	}
+	o := map[string]interface{}{
+		"logs": b.String(),
+		"info": map[string]interface{}{
+			"fromDate": fromDate,
+			"toDate":   toDate,
+		},
+	}
+	if readErr != nil {
+		o["err"] = readErr.Error()
+	}
+	return v.FillObject(o, "outputs")
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client) {
+func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	prd := &provider{
 		cli: cli,
+		cfg: cfg,
 	}
 
 	p.Register(ProviderName, map[string]providers.Handler{
 		"listResourcesInApp": prd.ListResourcesInApp,
 		"collectPods":        prd.CollectPods,
 		"searchEvents":       prd.SearchEvents,
+		"collectLogsInPod":   prd.CollectLogsInPod,
 	})
 }

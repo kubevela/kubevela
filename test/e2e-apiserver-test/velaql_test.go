@@ -29,6 +29,8 @@ import (
 	"github.com/pkg/errors"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -424,6 +426,44 @@ var _ = Describe("Test velaQL rest api", func() {
 			}
 			return nil
 		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+	})
+
+	It("Test query logs in pod", func() {
+		collectLogsQuery := new(corev1.ConfigMap)
+		Expect(common.ReadYamlToObject("./testdata/collect-logs.yaml", collectLogsQuery)).Should(BeNil())
+		Expect(k8sClient.Create(context.Background(), collectLogsQuery)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		podName := "hello-world-example-pod"
+		containerName := "main"
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: "default"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{
+					Name:    containerName,
+					Image:   "busybox",
+					Command: []string{"/bin/sh", "-c"},
+					Args:    []string{"echo hello-world && sleep 3600"},
+				}},
+			}}
+		Expect(k8sClient.Create(context.Background(), pod)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		defer k8sClient.Delete(context.Background(), pod)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)).Should(Succeed())
+			g.Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
+		}, 30*time.Second).Should(Succeed())
+		queryRes, err := http.Get(
+			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{cluster=%s,namespace=%s,pod=%s,container=%s}.%s", "test-collect-logs", "local", "default", podName, containerName, "status"),
+		)
+		Expect(err).Should(BeNil())
+		Expect(queryRes.StatusCode).Should(Equal(200))
+
+		defer queryRes.Body.Close()
+		status := &struct {
+			Logs string `json:"logs"`
+			Err  string `json:"err,omitempty"`
+		}{}
+		err = json.NewDecoder(queryRes.Body).Decode(status)
+		Expect(err).Should(Succeed())
 	})
 })
 
