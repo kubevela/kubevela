@@ -295,15 +295,14 @@ type EnvBindingList []*EnvBinding
 
 // ApplicationBase application base model
 type ApplicationBase struct {
-	Name         string            `json:"name"`
-	Alias        string            `json:"alias"`
-	Project      *ProjectBase      `json:"project"`
-	Description  string            `json:"description"`
-	CreateTime   time.Time         `json:"createTime"`
-	UpdateTime   time.Time         `json:"updateTime"`
-	Icon         string            `json:"icon"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	WebhookToken string            `json:"webhookToken"`
+	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
+	Project     *ProjectBase      `json:"project"`
+	Description string            `json:"description"`
+	CreateTime  time.Time         `json:"createTime"`
+	UpdateTime  time.Time         `json:"updateTime"`
+	Icon        string            `json:"icon"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 // ApplicationStatusResponse application status response body
@@ -340,11 +339,31 @@ type UpdateApplicationRequest struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 
+// CreateApplicationTriggerRequest create application trigger
+type CreateApplicationTriggerRequest struct {
+	Name         string `json:"name" validate:"checkname"`
+	Alias        string `json:"alias" validate:"checkalias" optional:"true"`
+	Description  string `json:"description" optional:"true"`
+	WorkflowName string `json:"workflowName"`
+	Type         string `json:"type" validate:"oneof=webhook"`
+	PayloadType  string `json:"payloadType" validate:"oneof=custom"`
+}
+
+// ApplicationTriggerBase application trigger base model
+type ApplicationTriggerBase struct {
+	Name         string `json:"name"`
+	Alias        string `json:"alias"`
+	Description  string `json:"description"`
+	WorkflowName string `json:"workflowName"`
+	Type         string `json:"type"`
+	PayloadType  string `json:"payloadType"`
+	Token        string `json:"token"`
+}
+
 // HandleApplicationWebhookRequest handles application webhook request
 type HandleApplicationWebhookRequest struct {
-	Workflow            string                       `json:"workflow,omitempty"`
-	ComponentProperties map[string]*model.JSONStruct `json:"componentProperties,omitempty"`
-	GitInfo             *model.GitInfo               `json:"gitInfo,omitempty"`
+	Upgrade  map[string]*model.JSONStruct `json:"upgrade,omitempty"`
+	CodeInfo *model.CodeInfo              `json:"codeInfo,omitempty"`
 }
 
 // EnvBinding application env binding
@@ -734,8 +753,8 @@ type ApplicationDeployRequest struct {
 	TriggerType string `json:"triggerType" validate:"oneof=web api webhook"`
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
-	// GitInfo is the source git info of this deploy
-	GitInfo *model.GitInfo `json:"gitInfo,omitempty"`
+	// CodeInfo is the source code info of this deploy
+	CodeInfo *model.CodeInfo `json:"gitInfo,omitempty"`
 }
 
 // ApplicationDeployResponse application deploy response body

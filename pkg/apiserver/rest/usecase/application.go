@@ -91,6 +91,8 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
+	CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
+	ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -324,18 +326,6 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, bcode.ErrApplicationExist
 	}
 
-	// generate webhook token
-	webhook := &model.ApplicationWebhook{
-		AppPrimaryKey: application.PrimaryKey(),
-		Token:         genWebhookToken(),
-	}
-	err = c.ds.Add(ctx, webhook)
-	if err != nil {
-		log.Logger.Errorf("failed to create webhook, %s", err.Error())
-		return nil, err
-	}
-	application.WebhookToken = webhook.Token
-
 	// check project
 	project, err := c.projectUsecase.GetProject(ctx, req.Project)
 	if err != nil {
@@ -356,6 +346,13 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		if err != nil {
 			return nil, err
 		}
+		if _, err := c.CreateApplicationTrigger(ctx, application.PrimaryKey(), apisv1.CreateApplicationTriggerRequest{
+			Name:        fmt.Sprintf("%s-%s", application.Name, "default"),
+			PayloadType: model.PayloadTypeCustom,
+			Type:        apisv1.TriggerTypeWebhook,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	// add application to db.
 	if err := c.ds.Add(ctx, &application); err != nil {
@@ -367,6 +364,62 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	// render app base info.
 	base := c.converAppModelToBase(ctx, &application)
 	return base, nil
+}
+
+// CreateApplicationTrigger create application trigger
+func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+	trigger := &model.ApplicationTrigger{
+		AppPrimaryKey: appName,
+		WorkflowName:  req.WorkflowName,
+		Name:          req.Name,
+		Alias:         req.Alias,
+		Description:   req.Description,
+		Type:          req.Type,
+		PayloadType:   req.PayloadType,
+		Token:         genWebhookToken(),
+	}
+	if err := c.ds.Add(ctx, trigger); err != nil {
+		log.Logger.Errorf("failed to create application trigger, %s", err.Error())
+		return nil, err
+	}
+
+	return &apisv1.ApplicationTriggerBase{
+		WorkflowName: req.WorkflowName,
+		Name:         req.Name,
+		Alias:        req.Alias,
+		Description:  req.Description,
+		Type:         req.Type,
+		PayloadType:  req.PayloadType,
+		Token:        trigger.Token,
+	}, nil
+}
+
+// ListApplicationTrigger list application triggers
+func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error) {
+	trigger := &model.ApplicationTrigger{
+		AppPrimaryKey: appName,
+	}
+	triggers, err := c.ds.List(ctx, trigger, &datastore.ListOptions{})
+	if err != nil {
+		log.Logger.Errorf("failed to list application triggers, %s", err.Error())
+		return nil, err
+	}
+
+	resp := []*apisv1.ApplicationTriggerBase{}
+	for _, raw := range triggers {
+		trigger, ok := raw.(*model.ApplicationTrigger)
+		if ok {
+			resp = append(resp, &apisv1.ApplicationTriggerBase{
+				WorkflowName: trigger.WorkflowName,
+				Name:         trigger.Name,
+				Alias:        trigger.Alias,
+				Description:  trigger.Description,
+				Type:         trigger.Type,
+				Token:        trigger.Token,
+			})
+		}
+	}
+	return resp, nil
 }
 
 func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.Application, envName string, components []*model.ApplicationComponent) (v1beta1.AppPolicy, error) {
@@ -414,45 +467,6 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 		return nil, err
 	}
 	return c.converAppModelToBase(ctx, app), nil
-}
-
-func (c *applicationUsecaseImpl) saveApplicationComponent(ctx context.Context, app *model.Application, components []common.ApplicationComponent) error {
-	var componentModels []datastore.Entity
-	for _, component := range components {
-		// TODO: Check whether the component type is supported.
-		var traits []model.ApplicationTrait
-		for _, trait := range component.Traits {
-			properties, err := model.NewJSONStruct(trait.Properties)
-			if err != nil {
-				log.Logger.Errorf("parse trait properties failire %w", err)
-				return bcode.ErrInvalidProperties
-			}
-			traits = append(traits, model.ApplicationTrait{
-				Type:       trait.Type,
-				Properties: properties,
-			})
-		}
-		properties, err := model.NewJSONStruct(component.Properties)
-		if err != nil {
-			log.Logger.Errorf("parse component properties failire %w", err)
-			return bcode.ErrInvalidProperties
-		}
-		componentModel := model.ApplicationComponent{
-			AppPrimaryKey:    app.PrimaryKey(),
-			Name:             component.Name,
-			Type:             component.Type,
-			ExternalRevision: component.ExternalRevision,
-			DependsOn:        component.DependsOn,
-			Inputs:           component.Inputs,
-			Outputs:          component.Outputs,
-			Scopes:           component.Scopes,
-			Traits:           traits,
-			Properties:       properties,
-		}
-		componentModels = append(componentModels, &componentModel)
-	}
-	log.Logger.Infof("batch add %d components for app %s", len(componentModels), utils2.Sanitize(app.PrimaryKey()))
-	return c.ds.BatchAdd(ctx, componentModels)
 }
 
 // ListRecords list application record
@@ -665,7 +679,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 		EnvName:      workflow.EnvName,
-		GitInfo:      req.GitInfo,
+		CodeInfo:     req.CodeInfo,
 	}
 
 	if err := c.ds.Add(ctx, appRevision); err != nil {
@@ -721,12 +735,14 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	// Priority 2 uses the default workflow as release .
 	var workflow *model.Workflow
 	var err error
+	fmt.Println("======req workflow", reqWorkflowName)
 	if reqWorkflowName != "" {
 		workflow, err = c.workflowUsecase.GetWorkflow(ctx, appModel, reqWorkflowName)
 		if err != nil {
 			return nil, err
 		}
 	} else {
+		fmt.Println("======default workflow")
 		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
 		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
 			return nil, err
@@ -861,14 +877,13 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 
 func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
 	appBase := &apisv1.ApplicationBase{
-		Name:         app.Name,
-		Alias:        app.Alias,
-		CreateTime:   app.CreateTime,
-		UpdateTime:   app.UpdateTime,
-		Description:  app.Description,
-		Icon:         app.Icon,
-		Labels:       app.Labels,
-		WebhookToken: app.WebhookToken,
+		Name:        app.Name,
+		Alias:       app.Alias,
+		CreateTime:  app.CreateTime,
+		UpdateTime:  app.UpdateTime,
+		Description: app.Description,
+		Icon:        app.Icon,
+		Labels:      app.Labels,
 	}
 	project, err := c.projectUsecase.GetProject(ctx, app.Project)
 	if err != nil {

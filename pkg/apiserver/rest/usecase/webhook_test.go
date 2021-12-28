@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -30,30 +31,36 @@ import (
 
 var _ = Describe("Test application usecase function", func() {
 	var (
-		webhookUsecase        *webhookUsecaseImpl
-		appUsecase            *applicationUsecaseImpl
-		workflowUsecase       *workflowUsecaseImpl
-		envBindingUsecase     *envBindingUsecaseImpl
-		deliveryTargetUsecase *deliveryTargetUsecaseImpl
-		definitionUsecase     *definitionUsecaseImpl
-		projectUsecase        *projectUsecaseImpl
+		appUsecase        *applicationUsecaseImpl
+		workflowUsecase   *workflowUsecaseImpl
+		envUsecase        *envUsecaseImpl
+		envBindingUsecase *envBindingUsecaseImpl
+		targetUsecase     *targetUsecaseImpl
+		definitionUsecase *definitionUsecaseImpl
+		projectUsecase    *projectUsecaseImpl
+		webhookUsecase    *webhookUsecaseImpl
 	)
 
 	BeforeEach(func() {
-		workflowUsecase = &workflowUsecaseImpl{ds: ds}
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
-		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
-		projectUsecase = &projectUsecaseImpl{ds: ds, kubeClient: k8sClient}
-		deliveryTargetUsecase = &deliveryTargetUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
+		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
+		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		appUsecase = &applicationUsecaseImpl{
-			ds:                    ds,
-			workflowUsecase:       workflowUsecase,
-			apply:                 apply.NewAPIApplicator(k8sClient),
-			kubeClient:            k8sClient,
-			envBindingUsecase:     envBindingUsecase,
-			definitionUsecase:     definitionUsecase,
-			deliveryTargetUsecase: deliveryTargetUsecase,
-			projectUsecase:        projectUsecase,
+			ds:                ds,
+			workflowUsecase:   workflowUsecase,
+			apply:             apply.NewAPIApplicator(k8sClient),
+			kubeClient:        k8sClient,
+			envBindingUsecase: envBindingUsecase,
+			envUsecase:        envUsecase,
+			definitionUsecase: definitionUsecase,
+			targetUsecase:     targetUsecase,
+			projectUsecase:    projectUsecase,
 		}
 		webhookUsecase = &webhookUsecaseImpl{
 			ds:                 ds,
@@ -62,27 +69,28 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test HandleApplicationWebhook function", func() {
-		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
+		_, err := targetUsecase.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook"})
+		Expect(err).Should(BeNil())
+
+		_, err = projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
+		Expect(err).Should(BeNil())
+
+		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "webhook-dev", Namespace: "webhook-dev", Targets: []string{"dev-target-webhook"}, Project: "project-webhook"})
+		Expect(err).Should(BeNil())
+
 		Expect(err).Should(BeNil())
 		req := apisv1.CreateApplicationRequest{
 			Name:        "test-app-webhook",
 			Project:     "project-webhook",
 			Description: "this is a test app",
 			EnvBinding: []*apisv1.EnvBinding{{
-				Name:        "dev-webhook",
-				Description: "dev env",
-				TargetNames: []string{"dev-target-webhook"},
+				Name: "webhook-dev",
 			}},
 			Component: &apisv1.CreateComponentRequest{
 				Name:          "component-name-webhook",
 				ComponentType: "webservice",
 			},
 		}
-		_, err = deliveryTargetUsecase.CreateDeliveryTarget(context.TODO(), apisv1.CreateDeliveryTargetRequest{
-			Name:    "dev-target-webhook",
-			Project: "project-webhook",
-		})
-		Expect(err).Should(BeNil())
 		_, err = appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 
@@ -92,13 +100,16 @@ var _ = Describe("Test application usecase function", func() {
 		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), "invalid-token", apisv1.HandleApplicationWebhookRequest{})
 		Expect(err).Should(Equal(bcode.ErrInvalidWebhookToken))
 
-		res, err := webhookUsecase.HandleApplicationWebhook(context.TODO(), appModel.WebhookToken, apisv1.HandleApplicationWebhookRequest{
-			ComponentProperties: map[string]*model.JSONStruct{
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), "test-app-webhook")
+		Expect(err).Should(BeNil())
+
+		res, err := webhookUsecase.HandleApplicationWebhook(context.TODO(), triggers[0].Token, apisv1.HandleApplicationWebhookRequest{
+			Upgrade: map[string]*model.JSONStruct{
 				"component-name-webhook": {
 					"image": "test-image",
 				},
 			},
-			GitInfo: &model.GitInfo{
+			CodeInfo: &model.CodeInfo{
 				Commit: "test-commit",
 				Branch: "test-branch",
 				User:   "test-user",
@@ -115,8 +126,8 @@ var _ = Describe("Test application usecase function", func() {
 		}
 		err = webhookUsecase.ds.Get(context.TODO(), revision)
 		Expect(err).Should(BeNil())
-		Expect(revision.GitInfo.Commit).Should(Equal("test-commit"))
-		Expect(revision.GitInfo.Branch).Should(Equal("test-branch"))
-		Expect(revision.GitInfo.User).Should(Equal("test-user"))
+		Expect(revision.CodeInfo.Commit).Should(Equal("test-commit"))
+		Expect(revision.CodeInfo.Branch).Should(Equal("test-branch"))
+		Expect(revision.CodeInfo.User).Should(Equal("test-user"))
 	})
 })

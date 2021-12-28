@@ -24,19 +24,18 @@ import (
 )
 
 func init() {
-	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationWebhook{})
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationTrigger{})
 }
 
 // Application application delivery model
 type Application struct {
 	BaseModel
-	Name         string            `json:"name"`
-	Alias        string            `json:"alias"`
-	Project      string            `json:"project"`
-	Description  string            `json:"description"`
-	Icon         string            `json:"icon"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	WebhookToken string            `json:"webhookToken"`
+	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
+	Project     string            `json:"project"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 // TableName return custom table name
@@ -212,12 +211,12 @@ type ApplicationRevision struct {
 	WorkflowName string `json:"workflowName"`
 	// EnvName is the env name of this application revision
 	EnvName string `json:"envName"`
-	// GitInfo is the git info of this application revision
-	GitInfo *GitInfo `json:"gitInfo,omitempty"`
+	// CodeInfo is the code info of this application revision
+	CodeInfo *CodeInfo `json:"gitInfo,omitempty"`
 }
 
-// GitInfo is the git info for webhook request
-type GitInfo struct {
+// CodeInfo is the code info for webhook request
+type CodeInfo struct {
 	// Commit is the commit hash
 	Commit string `json:"commit,omitempty"`
 	// Branch is the branch name
@@ -263,28 +262,50 @@ func (a *ApplicationRevision) Index() map[string]string {
 	return index
 }
 
-// ApplicationWebhook is the model for webhook request
-type ApplicationWebhook struct {
+// ApplicationTrigger is the model for trigger
+type ApplicationTrigger struct {
 	BaseModel
 	AppPrimaryKey string `json:"appPrimaryKey"`
+	WorkflowName  string `json:"workflowName,omitempty"`
+	Name          string `json:"name"`
+	Alias         string `json:"alias,omitempty"`
+	Description   string `json:"description,omitempty"`
 	Token         string `json:"token"`
+	Type          string `json:"type"`
+	PayloadType   string `json:"payloadType"`
 }
 
+const (
+	// PayloadTypeCustom is the payload type custom
+	PayloadTypeCustom = "custom"
+	// PayloadTypeDockerhub is the payload type dockerhub
+	PayloadTypeDockerhub = "dockerhub"
+)
+
 // TableName return custom table name
-func (w *ApplicationWebhook) TableName() string {
-	return tableNamePrefix + "webhook"
+func (w *ApplicationTrigger) TableName() string {
+	return tableNamePrefix + "trigger"
 }
 
 // PrimaryKey return custom primary key
-func (w *ApplicationWebhook) PrimaryKey() string {
+func (w *ApplicationTrigger) PrimaryKey() string {
 	return w.Token
 }
 
 // Index return custom index
-func (w *ApplicationWebhook) Index() map[string]string {
+func (w *ApplicationTrigger) Index() map[string]string {
 	index := make(map[string]string)
+	if w.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = w.AppPrimaryKey
+	}
 	if w.Token != "" {
 		index["token"] = w.Token
+	}
+	if w.Name != "" {
+		index["name"] = w.Name
+	}
+	if w.Type != "" {
+		index["type"] = w.Type
 	}
 	return index
 }

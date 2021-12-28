@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -47,17 +48,18 @@ func NewWebhookUsecase(ds datastore.DataStore,
 }
 
 func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req apisv1.HandleApplicationWebhookRequest) (*apisv1.ApplicationDeployResponse, error) {
-	webhook := &model.ApplicationWebhook{
+	webhookTrigger := &model.ApplicationTrigger{
 		Token: token,
 	}
-	if err := c.ds.Get(ctx, webhook); err != nil {
+	if err := c.ds.Get(ctx, webhookTrigger); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return nil, bcode.ErrInvalidWebhookToken
 		}
 		return nil, err
 	}
+	fmt.Println("===================", token)
 	app := &model.Application{
-		Name: webhook.AppPrimaryKey,
+		Name: webhookTrigger.AppPrimaryKey,
 	}
 	if err := c.ds.Get(ctx, app); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -65,28 +67,33 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		}
 		return nil, err
 	}
-	for comp, properties := range req.ComponentProperties {
-		component := &model.ApplicationComponent{
-			AppPrimaryKey: webhook.AppPrimaryKey,
-			Name:          comp,
-		}
-		if err := c.ds.Get(ctx, component); err != nil {
-			if errors.Is(err, datastore.ErrRecordNotExist) {
-				return nil, bcode.ErrApplicationComponetNotExist
+	switch webhookTrigger.PayloadType {
+	case model.PayloadTypeCustom:
+		for comp, properties := range req.Upgrade {
+			component := &model.ApplicationComponent{
+				AppPrimaryKey: webhookTrigger.AppPrimaryKey,
+				Name:          comp,
 			}
-			return nil, err
+			if err := c.ds.Get(ctx, component); err != nil {
+				if errors.Is(err, datastore.ErrRecordNotExist) {
+					return nil, bcode.ErrApplicationComponetNotExist
+				}
+				return nil, err
+			}
+			component.Properties = component.Properties.MergeFrom(*properties)
+			if err := c.ds.Put(ctx, component); err != nil {
+				return nil, err
+			}
 		}
-		component.Properties = component.Properties.MergeFrom(*properties)
-		if err := c.ds.Put(ctx, component); err != nil {
-			return nil, err
-		}
+		fmt.Println("=======", webhookTrigger.WorkflowName)
+		return c.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+			WorkflowName: webhookTrigger.WorkflowName,
+			Note:         "triggered by webhook",
+			TriggerType:  apisv1.TriggerTypeWebhook,
+			Force:        true,
+			CodeInfo:     req.CodeInfo,
+		})
+	default:
+		return nil, bcode.ErrInvalidWebhookPayloadType
 	}
-
-	return c.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
-		WorkflowName: req.Workflow,
-		Note:         "triggered by webhook",
-		TriggerType:  apisv1.TriggerTypeWebhook,
-		Force:        true,
-		GitInfo:      req.GitInfo,
-	})
 }

@@ -117,6 +117,10 @@ var _ = Describe("Test application usecase function", func() {
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
+
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(len(triggers)).Should(Equal(1))
 	})
 
 	It("Test ListApplications function", func() {
@@ -141,6 +145,19 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(1))).Should(BeEmpty())
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
+	})
+
+	It("Test CreateTrigger function", func() {
+		_, err := appUsecase.CreateApplicationTrigger(context.TODO(), testApp, v1.CreateApplicationTriggerRequest{
+			Name: "trigger-name",
+		})
+		Expect(err).Should(BeNil())
+	})
+
+	It("Test ListTriggers function", func() {
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(len(triggers)).Should(Equal(2))
 	})
 
 	It("Test ListComponents function", func() {
