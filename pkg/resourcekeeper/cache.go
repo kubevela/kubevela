@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -90,7 +89,7 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 	}
 	if !entry.loaded {
 		if err := cache.cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), mr.NamespacedName(), entry.obj); err != nil {
-			if kerrors.IsNotFound(err) {
+			if multicluster.IsNotFoundOrClusterNotExists(err) {
 				entry.exists = false
 			} else {
 				entry.err = errors.Wrapf(err, "failed to get resource %s", key)
