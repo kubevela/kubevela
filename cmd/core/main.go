@@ -43,6 +43,7 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorclient "github.com/oam-dev/kubevela/pkg/monitor/client"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -211,6 +212,7 @@ func main() {
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
 		ClientDisableCacheFor:      []client.Object{&appsv1.ControllerRevision{}},
+		NewClient:                  monitorclient.DefaultNewMonitorClient,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

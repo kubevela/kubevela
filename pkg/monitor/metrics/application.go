@@ -81,6 +81,14 @@ var (
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
+
+	// ClientRequestHistogram report the client request execution duration.
+	ClientRequestHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "client_request_time_seconds",
+		Help:        "client request duration distributions.",
+		Buckets:     histogramBuckets,
+		ConstLabels: prometheus.Labels{},
+	}, []string{"verb", "Kind", "apiVersion", "unstructured", "cluster"})
 )
 
 var (
