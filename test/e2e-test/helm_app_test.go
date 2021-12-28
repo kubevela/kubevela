@@ -133,7 +133,7 @@ var _ = Describe("Test application containing helm module", func() {
 		Expect(k8sClient.Patch(ctx, &scalerTd, client.Merge)).Should(Succeed())
 	})
 
-	It("Test deploy an application containing helm module", func() {
+	PIt("Test deploy an application containing helm module", func() {
 		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
