@@ -21,12 +21,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1249,20 +1250,33 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-//CompareAppWithLatestRevision compare application with last revision
+// CompareAppWithLatestRevision compare application with last revision
 func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error) {
 	newApp, err := c.getAppFromDB(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
-	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	newAppBytes, err := yaml.Marshal(newApp)
 	if err != nil {
 		return nil, err
 	}
-	return c.compareDiff(newApp, oldApp)
+
+	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	if err != nil {
+		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
+			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
+		}
+		return nil, err
+	}
+	oldAppBytes, err := yaml.Marshal(oldApp)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.compareDiff(newApp, oldApp, string(newAppBytes), string(oldAppBytes))
 }
 
-//ResetAppToLatestRevision reset application to last revision
+// ResetAppToLatestRevision reset application to last revision
 func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
 	newApp, err := c.getAppFromDB(ctx, appName)
 	if err != nil {
@@ -1420,7 +1434,7 @@ func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, a
 	latestRevisionRaw := revisions[0]
 	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
 	if !ok {
-		return nil, errors.New("")
+		return nil, errors.New("convert application revision error")
 	}
 	// sort component、trait and  hash
 	tempApp := &v1beta1.Application{}
@@ -1440,7 +1454,7 @@ func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, a
 	return oldApp, nil
 }
 
-func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp *v1beta1.Application) (*apisv1.AppCompareResponse, error) {
+func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp *v1beta1.Application, newAppYAML, oldAppYAML string) (*apisv1.AppCompareResponse, error) {
 	cmdArgs := common2.Args{
 		Schema: common2.Scheme,
 	}
@@ -1466,15 +1480,7 @@ func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp
 	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)
 	reportDiffOpt.PrintDiffReport(diffResult)
 
-	newAppBytes, err := yaml.Marshal(newApp)
-	if err != nil {
-		return nil, err
-	}
-	oldAppBytes, err := yaml.Marshal(oldApp)
-	if err != nil {
-		return nil, err
-	}
-	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
+	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: newAppYAML, OldAppYAML: oldAppYAML}, nil
 }
 
 func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
@@ -1494,7 +1500,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.A
 
 	readyToUpdate, readyToDelete, readyToAdd := compareSlices(newAppCompNames, oldAppCompNames)
 
-	//delete new app's components
+	// delete new app's components
 	for _, compName := range readyToDelete {
 		var component = model.ApplicationComponent{
 			AppPrimaryKey: appPrimaryKey,
@@ -1509,7 +1515,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.A
 	}
 
 	for _, comp := range oldAppComps {
-		//add or update new app's components from old app
+		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
 			compModel := convertToModelComponent(appPrimaryKey, comp)
 			properties, err := model.NewJSONStruct(comp.Properties)
