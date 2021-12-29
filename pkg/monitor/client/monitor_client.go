@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -40,11 +40,22 @@ type monitorClient struct {
 	client.Client
 }
 
-func DefaultNewMonitorClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (client.Client, error) {
-	c, err := cluster.DefaultNewClient(cache, config, options, uncachedObjects...)
-	if err != nil {
+func DefaultNewMonitorClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (c client.Client, err error) {
+	if c, err = client.New(config, options); err != nil {
 		return nil, err
 	}
+	if c, err = client.NewDelegatingClient(client.NewDelegatingClientInput{
+		CacheReader:     cache,
+		Client:          c,
+		UncachedObjects: []client.Object{},
+		CacheUnstructured: true,
+	}); err != nil {
+		return nil, err
+	}
+	//c, err := cluster.DefaultNewClient(cache, config, options, uncachedObjects...)
+	//if err != nil {
+	//	return nil, err
+	//}
 	return &monitorClient{c}, nil
 }
 
@@ -52,15 +63,23 @@ func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 	o := obj.GetObjectKind().GroupVersionKind()
 	_, isUnstructured := obj.(*unstructured.Unstructured)
 	_, isUnstructuredList := obj.(*unstructured.UnstructuredList)
-	un := "false"
+	un := "structured"
 	if isUnstructured || isUnstructuredList {
-		un = "true"
+		un = "unstructured"
 	}
 	clusterName := multicluster.ClusterNameInContext(ctx)
 	if clusterName == "" {
 		clusterName = multicluster.ClusterLocalName
 	}
-	kind := strings.TrimSuffix(o.Kind, "List")
+	kind := o.Kind
+	if kind == "" {
+		if t := reflect.TypeOf(obj); t.Kind() == reflect.Ptr {
+			kind = t.Elem().Name()
+		} else {
+			kind = t.Name()
+		}
+	}
+	kind = strings.TrimSuffix(kind, "List")
 	begin := time.Now()
 	return func() {
 		v := time.Now().Sub(begin).Seconds()
@@ -111,7 +130,7 @@ func (c *monitorClient) DeleteAllOf(ctx context.Context, obj client.Object, opts
 }
 
 func (c *monitorClient) Status() client.StatusWriter {
-	return &monitorStatusWriter{c.Status()}
+	return &monitorStatusWriter{c.Client.Status()}
 }
 
 type monitorStatusWriter struct {
