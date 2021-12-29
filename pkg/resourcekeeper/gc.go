@@ -348,7 +348,7 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 	for cluster := range clusters {
 		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
 		rts := &unstructured.UnstructuredList{}
-		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTracker"))
+		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTrackerList"))
 		if err = h.Client.List(_ctx, rts, client.MatchingLabels(map[string]string{
 			oam.LabelAppName:      h.app.Name,
 			oam.LabelAppNamespace: h.app.Namespace,
