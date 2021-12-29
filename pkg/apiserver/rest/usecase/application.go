@@ -399,7 +399,9 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 	trigger := &model.ApplicationTrigger{
 		AppPrimaryKey: appName,
 	}
-	triggers, err := c.ds.List(ctx, trigger, &datastore.ListOptions{})
+	triggers, err := c.ds.List(ctx, trigger, &datastore.ListOptions{
+		SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}},
+	)
 	if err != nil {
 		log.Logger.Errorf("failed to list application triggers, %s", err.Error())
 		return nil, err
@@ -416,6 +418,8 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 				Description:  trigger.Description,
 				Type:         trigger.Type,
 				Token:        trigger.Token,
+				UpdateTime:   trigger.UpdateTime,
+				CreateTime:   trigger.CreateTime,
 			})
 		}
 	}

@@ -351,13 +351,15 @@ type CreateApplicationTriggerRequest struct {
 
 // ApplicationTriggerBase application trigger base model
 type ApplicationTriggerBase struct {
-	Name         string `json:"name"`
-	Alias        string `json:"alias"`
-	Description  string `json:"description"`
-	WorkflowName string `json:"workflowName"`
-	Type         string `json:"type"`
-	PayloadType  string `json:"payloadType"`
-	Token        string `json:"token"`
+	Name         string    `json:"name"`
+	Alias        string    `json:"alias,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	WorkflowName string    `json:"workflowName"`
+	Type         string    `json:"type"`
+	PayloadType  string    `json:"payloadType"`
+	Token        string    `json:"token"`
+	CreateTime   time.Time `json:"createTime"`
+	UpdateTime   time.Time `json:"updateTime"`
 }
 
 // HandleApplicationWebhookRequest handles application webhook request
