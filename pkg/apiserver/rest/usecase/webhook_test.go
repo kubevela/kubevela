@@ -107,6 +107,9 @@ var _ = Describe("Test application usecase function", func() {
 			Upgrade: map[string]*model.JSONStruct{
 				"component-name-webhook": {
 					"image": "test-image",
+					"test1": map[string]string{
+						"test2": "test3",
+					},
 				},
 			},
 			CodeInfo: &model.CodeInfo{
@@ -119,6 +122,9 @@ var _ = Describe("Test application usecase function", func() {
 		comp, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("test-image"))
+		Expect((*comp.Properties)["test1"]).Should(Equal(map[string]interface{}{
+			"test2": "test3",
+		}))
 
 		revision := &model.ApplicationRevision{
 			AppPrimaryKey: "test-app-webhook",

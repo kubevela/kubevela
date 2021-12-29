@@ -735,14 +735,12 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	// Priority 2 uses the default workflow as release .
 	var workflow *model.Workflow
 	var err error
-	fmt.Println("======req workflow", reqWorkflowName)
 	if reqWorkflowName != "" {
 		workflow, err = c.workflowUsecase.GetWorkflow(ctx, appModel, reqWorkflowName)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		fmt.Println("======default workflow")
 		workflow, err = c.workflowUsecase.GetApplicationDefaultWorkflow(ctx, appModel)
 		if err != nil && !errors.Is(err, bcode.ErrWorkflowNoDefault) {
 			return nil, err

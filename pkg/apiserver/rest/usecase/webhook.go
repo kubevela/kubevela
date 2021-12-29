@@ -19,12 +19,12 @@ package usecase
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
 // WebhookUsecase webhook usecase
@@ -57,7 +57,6 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		}
 		return nil, err
 	}
-	fmt.Println("===================", token)
 	app := &model.Application{
 		Name: webhookTrigger.AppPrimaryKey,
 	}
@@ -80,12 +79,19 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 				}
 				return nil, err
 			}
-			component.Properties = component.Properties.MergeFrom(*properties)
+			merge, err := envbinding.MergeRawExtension(properties.RawExtension(), component.Properties.RawExtension())
+			if err != nil {
+				return nil, err
+			}
+			prop, err := model.NewJSONStructByStruct(merge)
+			if err != nil {
+				return nil, err
+			}
+			component.Properties = prop
 			if err := c.ds.Put(ctx, component); err != nil {
 				return nil, err
 			}
 		}
-		fmt.Println("=======", webhookTrigger.WorkflowName)
 		return c.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
 			WorkflowName: webhookTrigger.WorkflowName,
 			Note:         "triggered by webhook",

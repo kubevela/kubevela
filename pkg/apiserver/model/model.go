@@ -98,17 +98,6 @@ func (j *JSONStruct) JSON() string {
 	return string(b)
 }
 
-// MergeFrom merges json struct from another struct
-func (j *JSONStruct) MergeFrom(from JSONStruct) *JSONStruct {
-	if j == nil {
-		return &from
-	}
-	for k, v := range from {
-		(*j)[k] = v
-	}
-	return j
-}
-
 // RawExtension Encoded as a RawExtension
 func (j *JSONStruct) RawExtension() *runtime.RawExtension {
 	yamlByte, err := yaml.Marshal(j)
