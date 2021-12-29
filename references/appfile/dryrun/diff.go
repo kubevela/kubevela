@@ -112,6 +112,33 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 	return diffResult, nil
 }
 
+// DiffApps does three phases, dry-run on input app, preparing manifest for diff, and
+// calculating diff on manifests.
+func (l *LiveDiffOption) DiffApps(ctx context.Context, app *v1beta1.Application, oldApp *v1beta1.Application) (*DiffEntry, error) {
+	comps, err := l.ExecuteDryRun(ctx, app)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", app.Name)
+	}
+	// new refers to the app as input to dry-run
+	newManifest, err := generateManifest(app, comps)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "cannot generate diff manifest for app %q", app.Name)
+	}
+
+	oldComps, err := l.ExecuteDryRun(ctx, oldApp)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", oldApp.Name)
+	}
+	// new refers to the app as input to dry-run
+	oldManifest, err := generateManifest(oldApp, oldComps)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "cannot generate diff manifest for app %q", oldApp.Name)
+	}
+
+	diffResult := l.calculateDiff(oldManifest, newManifest)
+	return diffResult, nil
+}
+
 // calculateDiff calculate diff between two application and their sub-resources
 func (l *LiveDiffOption) calculateDiff(oldApp, newApp *manifest) *DiffEntry {
 	emptyManifest := &manifest{}

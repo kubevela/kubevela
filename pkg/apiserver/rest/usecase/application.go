@@ -17,9 +17,13 @@ limitations under the License.
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 	"sort"
 	"strings"
 	"time"
@@ -88,6 +92,8 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
+	CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error)
+	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -1243,6 +1249,32 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
+//CompareAppWithLatestRevision compare application with last revision
+func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error) {
+	newApp, err := c.getAppFromDB(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	return c.compareDiff(newApp, oldApp)
+}
+
+//ResetAppToLatestRevision reset application to last revision
+func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
+	newApp, err := c.getAppFromDB(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	return c.resetApp(ctx, newApp, oldApp)
+}
+
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	if target.Cluster != nil {
@@ -1302,4 +1334,203 @@ func genPolicyName(envName string) string {
 
 func genPolicyEnvName(targetName string) string {
 	return targetName
+}
+
+func convertToAppComponents(components []datastore.Entity) []common.ApplicationComponent {
+	var appComponents []common.ApplicationComponent
+	for _, entity := range components {
+		component := entity.(*model.ApplicationComponent)
+		var traits []common.ApplicationTrait
+		for _, trait := range component.Traits {
+			aTrait := common.ApplicationTrait{
+				Type: trait.Type,
+			}
+			if trait.Properties != nil {
+				aTrait.Properties = trait.Properties.RawExtension()
+			}
+			traits = append(traits, aTrait)
+		}
+		bc := common.ApplicationComponent{
+			Name:             component.Name,
+			Type:             component.Type,
+			ExternalRevision: component.ExternalRevision,
+			DependsOn:        component.DependsOn,
+			Inputs:           component.Inputs,
+			Outputs:          component.Outputs,
+			Traits:           traits,
+			Scopes:           component.Scopes,
+			Properties:       component.Properties.RawExtension(),
+		}
+		if component.Properties != nil {
+			bc.Properties = component.Properties.RawExtension()
+		}
+		appComponents = append(appComponents, bc)
+	}
+	return appComponents
+}
+
+func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) model.ApplicationComponent {
+	bc := model.ApplicationComponent{
+		AppPrimaryKey:    appPrimaryKey,
+		Name:             component.Name,
+		Type:             component.Type,
+		ExternalRevision: component.ExternalRevision,
+		DependsOn:        component.DependsOn,
+		Inputs:           component.Inputs,
+		Outputs:          component.Outputs,
+		Scopes:           component.Scopes,
+	}
+	if component.Properties != nil {
+		bc.Properties, _ = model.NewJSONStruct(component.Properties)
+	}
+	for _, trait := range component.Traits {
+		properties, _ := model.NewJSONStruct(trait.Properties)
+		bc.Traits = append(bc.Traits, model.ApplicationTrait{CreateTime: time.Now(), UpdateTime: time.Now(), Properties: properties, Type: trait.Type, Alias: trait.Type, Description: "auto gen"})
+	}
+	return bc
+}
+
+func (c *applicationUsecaseImpl) getAppFromDB(ctx context.Context, appName string) (*v1beta1.Application, error) {
+	components, err := c.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appName}, &datastore.ListOptions{})
+	if err != nil {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
+	newApp := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: appName,
+		},
+	}
+	newApp.Spec.Components = convertToAppComponents(components)
+	return newApp, nil
+}
+
+func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string) (*v1beta1.Application, error) {
+	revisions, err := c.ds.List(ctx, &model.ApplicationRevision{AppPrimaryKey: appName, Status: model.RevisionStatusComplete}, &datastore.ListOptions{
+		Page:     1,
+		PageSize: 1,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+	})
+	if err != nil || len(revisions) == 0 {
+		return nil, bcode.ErrApplicationRevisionNotExist
+	}
+	latestRevisionRaw := revisions[0]
+	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
+	if !ok {
+		return nil, errors.New("")
+	}
+	// sort component、trait and  hash
+	tempApp := &v1beta1.Application{}
+	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), tempApp); err != nil {
+		return nil, err
+	}
+	oldApp := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: appName,
+		},
+	}
+	oldApp.Spec.Components = tempApp.Spec.Components
+	return oldApp, nil
+}
+
+func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp *v1beta1.Application) (*apisv1.AppCompareResponse, error) {
+	cmdArgs := common2.Args{
+		Schema: common2.Scheme,
+	}
+	_, err := cmdArgs.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	pd, err := cmdArgs.GetPackageDiscover()
+	if err != nil {
+		return nil, err
+	}
+	dm, err := discoverymapper.New(cmdArgs.Config)
+	if err != nil {
+		return nil, err
+	}
+	var objs []oam.Object
+	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
+	diffResult, err := liveDiffOption.DiffApps(context.Background(), newApp, oldApp)
+	if err != nil {
+		return nil, errors.New("cannot calculate diff")
+	}
+	var buff = bytes.Buffer{}
+	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)
+	reportDiffOpt.PrintDiffReport(diffResult)
+
+	newAppBytes, err := yaml.Marshal(newApp)
+	if err != nil {
+		return nil, err
+	}
+	oldAppBytes, err := yaml.Marshal(oldApp)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
+}
+
+func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
+	appPrimaryKey := newApp.Name
+
+	newAppComps := newApp.Spec.Components
+	var newAppCompNames []string
+	for _, comp := range newAppComps {
+		newAppCompNames = append(newAppCompNames, comp.Name)
+	}
+
+	oldAppComps := oldApp.Spec.Components
+	var oldAppCompNames []string
+	for _, comp := range oldAppComps {
+		oldAppCompNames = append(oldAppCompNames, comp.Name)
+	}
+
+	readyToUpdate, readyToDelete, readyToAdd := compareSlices(newAppCompNames, oldAppCompNames)
+
+	//delete new app's components
+	for _, compName := range readyToDelete {
+		var component = model.ApplicationComponent{
+			AppPrimaryKey: appPrimaryKey,
+			Name:          compName,
+		}
+		if err := c.ds.Delete(ctx, &component); err != nil {
+			if errors.Is(err, datastore.ErrRecordNotExist) {
+				continue
+			}
+			log.Logger.Warnf("delete app %s comp %s failure %s", appPrimaryKey, compName, err.Error())
+		}
+	}
+
+	for _, comp := range oldAppComps {
+		//add or update new app's components from old app
+		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
+			compModel := convertToModelComponent(appPrimaryKey, comp)
+			properties, err := model.NewJSONStruct(comp.Properties)
+			if err != nil {
+				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
+			}
+			compModel.Properties = properties
+			if err := c.ds.Add(ctx, &compModel); err != nil {
+				if errors.Is(err, datastore.ErrRecordExist) {
+					err := c.ds.Put(ctx, &compModel)
+					if err != nil {
+						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+					}
+					return &apisv1.AppResetResponse{IsReset: true}, err
+				}
+				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+				return &apisv1.AppResetResponse{}, err
+			}
+		}
+	}
+
+	return &apisv1.AppResetResponse{IsReset: true}, nil
+
 }

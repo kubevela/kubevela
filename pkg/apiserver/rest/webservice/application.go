@@ -474,6 +474,25 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", nil).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
+
+	ws.Route(ws.POST("/{name}/compare").To(c.compareAppWithLatestRevision).
+		Doc("compare application with latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.ApplicationBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppCompareResponse{}))
+
+	ws.Route(ws.POST("/{name}/reset").To(c.resetAppToLatestRevision).
+		Doc("reset application to latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.ApplicationBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppResetResponse{}))
+
 	return ws
 }
 
@@ -1008,6 +1027,34 @@ func (c *applicationWebService) listApplicationRecords(req *restful.Request, res
 		return
 	}
 	if err := res.WriteEntity(records); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+
+	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) resetAppToLatestRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+
+	base, err := c.applicationUsecase.ResetAppToLatestRevision(req.Request.Context(), app.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
