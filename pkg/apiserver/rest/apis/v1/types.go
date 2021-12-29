@@ -306,6 +306,7 @@ type ApplicationBase struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 
+// AppCompareResponse application compare result
 type AppCompareResponse struct {
 	IsDiff     bool   `json:"isDiff"`
 	DiffReport string `json:"diffReport"`
@@ -313,6 +314,7 @@ type AppCompareResponse struct {
 	OldAppYAML string `json:"oldAppYAML"`
 }
 
+// AppCompareResponse application reset result
 type AppResetResponse struct {
 	IsReset bool `json:"isReset"`
 }
