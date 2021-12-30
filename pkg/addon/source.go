@@ -127,8 +127,8 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 			return nil, errors.New("addon registry invalid")
 		}
 		u.Path = path.Join(u.Path, subPath)
-		tp, content, err := utils.Parse(u.String())
-		if err != nil || tp != utils.TypeGithub {
+		_, content, err := utils.Parse(u.String())
+		if err != nil {
 			return nil, err
 		}
 		gith := createGitHelper(content, token)
