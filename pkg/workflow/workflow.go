@@ -98,6 +98,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 			AppRevision: revAndSpecHash,
 			Mode:        common.WorkflowModeStep,
 			StartTime:   metav1.Now(),
+			Steps:       []common.WorkflowStepStatus{},
 		}
 		w.app.Status.Workflow.Message = MessageInitializingWorkflow
 		if w.dagMode {

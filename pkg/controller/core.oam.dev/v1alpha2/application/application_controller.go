@@ -107,6 +107,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	logCtx.AddTag("resource_version", app.ResourceVersion)
+	if publishVersion := getPublishVersion(app); publishVersion != "" {
+		logCtx.AddTag("publish_version", publishVersion)
+	}
+
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
@@ -415,6 +419,13 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 		}
 	}
 	return true
+}
+
+func getPublishVersion(app *v1beta1.Application) string {
+	if anno := app.Annotations; anno != nil {
+		return anno[oam.AnnotationPublishVersion]
+	}
+	return ""
 }
 
 // SetupWithManager install to manager
