@@ -484,6 +484,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		// deploy
 		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
+		Expect(err).Should(BeNil())
 		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
 		Expect(err).Should(BeNil())
 		// should not diff
