@@ -90,7 +90,6 @@ func NewCommand() *cobra.Command {
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
-
 		NewRegistryCommand(ioStream),
 		NewTemplateCommand(ioStream),
 		NewTraitCommand(commandArgs, ioStream),
@@ -112,6 +111,9 @@ func NewCommand() *cobra.Command {
 
 		// cluster
 		ClusterCommandGroup(commandArgs, ioStream),
+
+		// ui schema
+		NewUISchemaCommand(commandArgs, ioStream),
 
 		// Helper
 		SystemCommandGroup(commandArgs, ioStream),
