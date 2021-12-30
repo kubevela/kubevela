@@ -263,6 +263,9 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 	for i, custom := range customSchema {
 		customSchemaMap[custom.JSONKey] = customSchema[i]
 	}
+	if len(defaultSchema) == 0 {
+		return customSchema
+	}
 	for i := range defaultSchema {
 		dSchema := defaultSchema[i]
 		if cusSchema, exist := customSchemaMap[dSchema.JSONKey]; exist {
