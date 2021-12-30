@@ -26,9 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	corev1 "k8s.io/api/core/v1"
@@ -47,12 +44,16 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 )
 
 // PolicyType build-in policy type
@@ -1359,7 +1360,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 		return nil, err
 	}
 
-	return c.compareDiff(newApp, oldApp, string(newAppBytes), string(oldAppBytes))
+	return c.compareDiff(ctx, newApp, oldApp, string(newAppBytes), string(oldAppBytes))
 }
 
 // ResetAppToLatestRevision reset application to last revision
@@ -1571,7 +1572,7 @@ func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, a
 	return oldApp, nil
 }
 
-func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp *v1beta1.Application, newAppYAML, oldAppYAML string) (*apisv1.AppCompareResponse, error) {
+func (c *applicationUsecaseImpl) compareDiff(ctx context.Context, newApp, oldApp *v1beta1.Application, newAppYAML, oldAppYAML string) (*apisv1.AppCompareResponse, error) {
 	cmdArgs := common2.Args{
 		Schema: common2.Scheme,
 	}
@@ -1589,7 +1590,7 @@ func (c *applicationUsecaseImpl) compareDiff(newApp *v1beta1.Application, oldApp
 	}
 	var objs []oam.Object
 	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
-	diffResult, err := liveDiffOption.DiffApps(context.Background(), newApp, oldApp)
+	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
 	if err != nil {
 		return nil, errors.New("cannot calculate diff")
 	}
