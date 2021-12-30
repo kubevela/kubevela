@@ -715,7 +715,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 		Revision:     int64(revNum),
 		RevisionHash: h.currentRevHash,
 	}
-	if err := h.r.patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
+	if err := h.r.patchStatus(ctx, nil, h.app, common.ApplicationRendering); err != nil {
 		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err

@@ -170,6 +170,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logCtx.Info("Successfully generated application policies")
 	}
 
+	originApp := app.DeepCopy()
 	app.Status.SetConditions(condition.ReadyCondition("Render"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 
@@ -194,11 +195,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		switch workflowState {
 		case common.WorkflowStateSuspended:
 			logCtx.Info("Workflow return state=Suspend")
-			return ctrl.Result{}, r.patchStatus(logCtx, app, common.ApplicationWorkflowSuspending)
+			return ctrl.Result{}, r.patchStatus(logCtx, originApp, app, common.ApplicationWorkflowSuspending)
 		case common.WorkflowStateTerminated:
-			return ctrl.Result{}, r.patchStatus(logCtx, app, common.ApplicationWorkflowTerminated)
+			return ctrl.Result{}, r.patchStatus(logCtx, originApp, app, common.ApplicationWorkflowTerminated)
 		case common.WorkflowStateExecuting:
-			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, app, common.ApplicationRunningWorkflow)
+			return reconcile.Result{RequeueAfter: baseWorkflowBackoffWaitTime}, r.patchStatus(ctx, originApp, app, common.ApplicationRunningWorkflow)
 		case common.WorkflowStateFinished:
 			wfStatus := app.Status.Workflow
 			if wfStatus != nil {
@@ -249,7 +250,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// skip health check and garbage collection if rollout have not finished
 		// start next reconcile immediately
 		if res.Requeue || res.RequeueAfter > 0 {
-			if err := r.patchStatus(logCtx, app, common.ApplicationRollingOut); err != nil {
+			if err := r.patchStatus(logCtx, originApp, app, common.ApplicationRollingOut); err != nil {
 				return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRollingOut)
 			}
 			return res, nil
@@ -281,7 +282,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Reason:             condition.ReasonReconcileSuccess,
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return ctrl.Result{}, r.patchStatus(logCtx, app, phase)
+	return ctrl.Result{}, r.patchStatus(logCtx, originApp, app, phase)
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
@@ -336,16 +337,20 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
-	if err := r.patchStatus(ctx, app, phase); err != nil {
+	if err := r.patchStatus(ctx, nil, app, phase); err != nil {
 		return ctrl.Result{}, errors.WithMessage(err, "cannot update application status")
 	}
 	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
 }
 
-func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
+func (r *Reconciler) patchStatus(ctx context.Context, originApp, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return r.Client.Status().Patch(ctx, app, client.Merge)
+	patch := client.Merge
+	if originApp != nil {
+		patch = client.MergeFrom(originApp)
+	}
+	return r.Client.Status().Patch(ctx, app, patch)
 }
 
 // appWillRollout judge whether the application will be released by rollout.
