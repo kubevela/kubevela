@@ -17,7 +17,10 @@
 package v1beta1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -137,4 +140,31 @@ func (app *Application) GetComponent(workloadType string) *common.ApplicationCom
 		}
 	}
 	return nil
+}
+
+// Unstructured convert application to unstructured.Unstructured.
+func (app *Application) Unstructured() (*unstructured.Unstructured, error) {
+	var obj = &unstructured.Unstructured{}
+	app.SetGroupVersionKind(ApplicationKindVersionKind)
+	bt, err := json.Marshal(app)
+	if err != nil {
+		return nil, err
+	}
+	if err := obj.UnmarshalJSON(bt); err != nil {
+		return nil, err
+	}
+
+	if app.Status.Services == nil {
+		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "services")
+	}
+
+	if app.Status.AppliedResources == nil {
+		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "appliedResources")
+	}
+
+	if wfStatus := app.Status.Workflow; wfStatus != nil && wfStatus.Steps == nil {
+		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "workflow", "steps")
+	}
+
+	return obj, nil
 }

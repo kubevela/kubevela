@@ -388,7 +388,12 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return r.Status().Update(ctx, app)
+
+	obj, err := app.Unstructured()
+	if err != nil {
+		return err
+	}
+	return r.Status().Update(ctx, obj)
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
