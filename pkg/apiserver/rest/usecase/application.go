@@ -1522,7 +1522,7 @@ func (c *applicationUsecaseImpl) getAppFromDB(ctx context.Context, appName strin
 
 func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
 
-	ar := &model.ApplicationRevision{AppPrimaryKey: appName, Status: model.RevisionStatusComplete}
+	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
 	if envName != "" {
 		ar.EnvName = envName
 	}
