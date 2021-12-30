@@ -59,12 +59,7 @@ func (c *webhookWebService) GetWebService() *restful.WebService {
 }
 
 func (c *webhookWebService) handleApplicationWebhook(req *restful.Request, res *restful.Response) {
-	var webhookReq apis.HandleApplicationWebhookRequest
-	if err := req.ReadEntity(&webhookReq); err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	base, err := c.webhookUsecase.HandleApplicationWebhook(req.Request.Context(), req.PathParameter("token"), webhookReq)
+	base, err := c.webhookUsecase.HandleApplicationWebhook(req.Request.Context(), req.PathParameter("token"), req)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
