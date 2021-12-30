@@ -505,6 +505,7 @@ var _ = Describe("Test application usecase function", func() {
 
 	It("Test ResetAppToLatestRevision function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
 		resetResponse, err := appUsecase.ResetAppToLatestRevision(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(resetResponse.IsReset, true)).Should(BeEmpty())

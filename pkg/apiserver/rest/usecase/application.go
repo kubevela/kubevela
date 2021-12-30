@@ -1690,6 +1690,9 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	}
 	buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) \n---\n\n", app.Name)))
 	result, err := yaml.Marshal(app)
+	if err != nil {
+		return buff, errors.New("marshal app error")
+	}
 	buff.Write(result)
 	buff.Write([]byte("\n---\n"))
 	for _, c := range comps {
