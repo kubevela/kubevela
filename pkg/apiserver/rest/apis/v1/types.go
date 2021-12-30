@@ -362,6 +362,11 @@ type ApplicationTriggerBase struct {
 	UpdateTime   time.Time `json:"updateTime"`
 }
 
+// ListApplicationTriggerResponse list application triggers response body
+type ListApplicationTriggerResponse struct {
+	Triggers []*ApplicationTriggerBase `json:"triggers"`
+}
+
 // HandleApplicationWebhookRequest handles application webhook request
 type HandleApplicationWebhookRequest struct {
 	Upgrade  map[string]*model.JSONStruct `json:"upgrade,omitempty"`
@@ -859,12 +864,14 @@ type ApplicationRevisionBase struct {
 	CreateTime time.Time `json:"createTime"`
 	Version    string    `json:"version"`
 	Status     string    `json:"status"`
-	Reason     string    `json:"reason"`
-	DeployUser string    `json:"deployUser"`
+	Reason     string    `json:"reason,omitempty"`
+	DeployUser string    `json:"deployUser,omitempty"`
 	Note       string    `json:"note"`
 	EnvName    string    `json:"envName"`
 	// SourceType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
+	// CodeInfo is the code info of this application revision
+	CodeInfo *model.CodeInfo `json:"codeInfo,omitempty"`
 }
 
 // ListRevisionsResponse list application revisions

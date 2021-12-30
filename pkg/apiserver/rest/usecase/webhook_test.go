@@ -17,8 +17,12 @@ limitations under the License.
 package usecase
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
 
+	"github.com/emicklei/go-restful/v3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -97,13 +101,12 @@ var _ = Describe("Test application usecase function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), "test-app-webhook")
 		Expect(err).Should(BeNil())
 
-		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), "invalid-token", apisv1.HandleApplicationWebhookRequest{})
+		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), "invalid-token", nil)
 		Expect(err).Should(Equal(bcode.ErrInvalidWebhookToken))
 
-		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), "test-app-webhook")
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-
-		res, err := webhookUsecase.HandleApplicationWebhook(context.TODO(), triggers[0].Token, apisv1.HandleApplicationWebhookRequest{
+		reqBody := apisv1.HandleApplicationWebhookRequest{
 			Upgrade: map[string]*model.JSONStruct{
 				"component-name-webhook": {
 					"image": "test-image",
@@ -117,7 +120,13 @@ var _ = Describe("Test application usecase function", func() {
 				Branch: "test-branch",
 				User:   "test-user",
 			},
-		})
+		}
+		body, err := json.Marshal(reqBody)
+		Expect(err).Should(BeNil())
+		httpreq, err := http.NewRequest("post", "/", bytes.NewBuffer(body))
+		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
+		Expect(err).Should(BeNil())
+		res, err := webhookUsecase.HandleApplicationWebhook(context.TODO(), triggers[0].Token, restful.NewRequest(httpreq))
 		Expect(err).Should(BeNil())
 		comp, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
 		Expect(err).Should(BeNil())
