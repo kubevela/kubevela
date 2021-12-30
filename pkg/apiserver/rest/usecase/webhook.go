@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/emicklei/go-restful/v3"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -29,7 +31,7 @@ import (
 
 // WebhookUsecase webhook usecase
 type WebhookUsecase interface {
-	HandleApplicationWebhook(ctx context.Context, token string, req apisv1.HandleApplicationWebhookRequest) (*apisv1.ApplicationDeployResponse, error)
+	HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (*apisv1.ApplicationDeployResponse, error)
 }
 
 type webhookUsecaseImpl struct {
@@ -47,7 +49,7 @@ func NewWebhookUsecase(ds datastore.DataStore,
 	}
 }
 
-func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req apisv1.HandleApplicationWebhookRequest) (*apisv1.ApplicationDeployResponse, error) {
+func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (*apisv1.ApplicationDeployResponse, error) {
 	webhookTrigger := &model.ApplicationTrigger{
 		Token: token,
 	}
@@ -68,7 +70,11 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 	}
 	switch webhookTrigger.PayloadType {
 	case model.PayloadTypeCustom:
-		for comp, properties := range req.Upgrade {
+		var webhookReq apisv1.HandleApplicationWebhookRequest
+		if err := req.ReadEntity(&webhookReq); err != nil {
+			return nil, bcode.ErrInvalidWebhookPayloadBody
+		}
+		for comp, properties := range webhookReq.Upgrade {
 			component := &model.ApplicationComponent{
 				AppPrimaryKey: webhookTrigger.AppPrimaryKey,
 				Name:          comp,
@@ -79,7 +85,7 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 				}
 				return nil, err
 			}
-			merge, err := envbinding.MergeRawExtension(properties.RawExtension(), component.Properties.RawExtension())
+			merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), properties.RawExtension())
 			if err != nil {
 				return nil, err
 			}
@@ -97,7 +103,7 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 			Note:         "triggered by webhook",
 			TriggerType:  apisv1.TriggerTypeWebhook,
 			Force:        true,
-			CodeInfo:     req.CodeInfo,
+			CodeInfo:     webhookReq.CodeInfo,
 		})
 	default:
 		return nil, bcode.ErrInvalidWebhookPayloadType
