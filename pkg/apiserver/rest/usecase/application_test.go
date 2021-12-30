@@ -478,14 +478,16 @@ var _ = Describe("Test application usecase function", func() {
 
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
+		// deploy
 		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
-		Expect(err).Should(BeNil())
 		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
-		if err != nil {
-			return
-		}
 		Expect(err).Should(BeNil())
+		// should not diff
+		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
+		// update app's component
 		newProperties := "{\"exposeType\":\"NodePort\",\"image\":\"nginx\",\"imagePullPolicy\":\"Always\"}"
 		_, err = appUsecase.UpdateComponent(context.TODO(),
 			appModel,
@@ -494,12 +496,12 @@ var _ = Describe("Test application usecase function", func() {
 				Properties: &newProperties,
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+
+		//compare
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
-		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
-			Name: testApp,
-		}, &model.EnvBinding{Name: "app-dev"})
+		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{Name: testApp}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
 	})
 
@@ -515,7 +517,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 		expectProperties := "{\"image\":\"nginx\"}"
-		Expect(cmp.Diff(component.Properties.RawExtension().String(), expectProperties)).Should(BeEmpty())
+		Expect(cmp.Diff(component.Properties.JSON(), expectProperties)).Should(BeEmpty())
 	})
 
 	It("Test DeleteApplication function", func() {
