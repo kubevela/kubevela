@@ -70,6 +70,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase, envUsecase)
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
+	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 
 	// init for default values
 
@@ -90,4 +91,5 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegisterWebService(&policyDefinitionWebservice{})
 	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
 	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
+	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))
 }

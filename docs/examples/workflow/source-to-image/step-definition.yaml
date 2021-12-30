@@ -10,46 +10,69 @@ spec:
         import ("vela/op")
 
         parameter: {
-           repoUrl: string
-           dockerfile: string
-           image: string
+          // +usage=Specify the SSH URL of git repository for your source codes, e.g. git@git.woa.com:my-git-repo/demo.git
+          repoUrl: string
+
+          // +usage=Specify the branch which you want to be checked out and built
+          branch: string
+
+          // +usage=Specify the filename of Dockerfile under the root folder in your git repository
+          dockerfile: string
+
+          // +usage=Specify the secret name for the docker repository in your namespace in your K8S cluster
+          dockerSecret: string
+
+          // +usage=Specify the address where the image built is pushed into
+          image: string
         }
 
-        let pushImage=image
-
         build: op.#Task & {
-                name:      "\(context.name)-\(context.stepId)"
-                namespace: context.namespace
+          name:      "\(context.name)-build-\(context.stepSessionID)"
+          namespace: context.namespace
 
-                // Declare workspaces that used to share data.
-                workspace: {
-                        "code-dir": {}
-                }
+          toolImage: "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/entrypoint:v0.27.2"
+          baseImage: "busybox:1.34"
 
-                steps: [
-                        // git clone code repo.
-                        {
-                                name:  "git-clone"
-                                image: "git-image-with-pull-ssh"
-                                workspaceMounts: [{workspace: workspace["code-dir"], mountPath: "/data/code"}]
-                                script: """
-                #! /bin/bash
-                git clone \(repourl) /data/code
-                """
-                        },
-                        // build and push image.
-                        {
-                                name:  "build-image"
-                                image: "gcr.io/kaniko-project/executor:v1.3.0"
-                                workspaceMounts: [{workspace: workspace["code-dir"], mountPath: "/data/build"}]
-                                script: """
-                #! /bin/bash
-                /kaniko/executor --dockerfile=/data/build/\(dockerfile) --context=/data/build --destination=\(pushImage)
-                """
-                        }]
+          // Declare workspaces that used to share data.
+          workspaces: {
+            "code-dir": {}
+          }
+
+          secrets: {
+            "\(parameter.dockerSecret)": {
+              items: [{
+                  key: ".dockerconfigjson"
+                  path: "config.json"
+              }]
+            }
+          }
+
+          steps: [
+            // git clone code repo.
+            {
+              name:  "git-clone"
+              image: "bitnami/git:2.34.1"
+              workspaceMounts: [{workspace: workspaces["code-dir"], mountPath: "/data/code"}]
+              script: """
+              #!/bin/bash
+              git clone -b \(parameter.branch)  \(parameter.repoUrl) /data/code
+              """
+            },
+            // build and push image.
+            {
+              name:  "build-image"
+              image: "gcr.io/kaniko-project/executor:debug"
+              workspaceMounts: [{workspace: workspaces["code-dir"], mountPath: "/data/build"}]
+              secretMounts: [{secret: secrets["\(parameter.dockerSecret)"], mountPath: "/kaniko/.docker/"}]
+              script: """
+              #!/busybox/sh
+              /kaniko/executor --dockerfile=/data/build/\(parameter.dockerfile) --context=/data/build --destination=\(parameter.image)
+              """
+            }]
         }
 
         // wait until deployment ready
         wait: op.#ConditionalWait & {
-           continue: build.do.status.phase == "successed"
+          continue: build.apply.value.status.phase == "Succeeded"
         }
+

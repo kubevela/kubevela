@@ -103,6 +103,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
+
 	ws.Route(ws.GET("/{name}/statistics").To(c.applicationStatistics).
 		Doc("detail one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -121,6 +122,25 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
+
+	ws.Route(ws.POST("/{name}/triggers").To(c.createApplicationTrigger).
+		Doc("create one application trigger").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Reads(apis.CreateApplicationTriggerRequest{}).
+		Returns(200, "", apis.ApplicationTriggerBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.ApplicationTriggerBase{}))
+
+	ws.Route(ws.GET("/{name}/triggers").To(c.listApplicationTriggers).
+		Doc("list application triggers").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", []*apis.ApplicationTriggerBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes([]*apis.ApplicationTriggerBase{}))
 
 	ws.Route(ws.POST("/{name}/template").To(c.publishApplicationTemplate).
 		Doc("create one application template").
@@ -557,6 +577,35 @@ func (c *applicationWebService) detailApplication(req *restful.Request, res *res
 		return
 	}
 	if err := res.WriteEntity(detail); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) createApplicationTrigger(req *restful.Request, res *restful.Response) {
+	var createReq apis.CreateApplicationTriggerRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.applicationUsecase.CreateApplicationTrigger(req.Request.Context(), req.PathParameter("name"), createReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) listApplicationTriggers(req *restful.Request, res *restful.Response) {
+	triggers, err := c.applicationUsecase.ListApplicationTriggers(req.Request.Context(), req.PathParameter("name"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(triggers); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
