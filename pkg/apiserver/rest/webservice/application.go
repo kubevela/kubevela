@@ -496,10 +496,11 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
 	ws.Route(ws.POST("/{name}/compare").To(c.compareAppWithLatestRevision).
-		Doc("compare application with latest revision").
+		Doc("compare application with env latest revision").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.QueryParameter("envName", "identifier of the env").DataType("string")).
 		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppCompareResponse{}))
@@ -1096,7 +1097,7 @@ func (c *applicationWebService) listApplicationRecords(req *restful.Request, res
 func (c *applicationWebService) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 
-	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app.Name)
+	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app, req.QueryParameter("envName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

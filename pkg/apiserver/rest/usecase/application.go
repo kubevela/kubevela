@@ -98,7 +98,7 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
-	CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error)
+	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, envName string) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 	DryRunAppOrRevision(ctx context.Context, appName apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
@@ -1338,8 +1338,12 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 }
 
 // CompareAppWithLatestRevision compare application with last revision
-func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error) {
-	newApp, err := c.getAppFromDB(ctx, appName)
+func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, envName string) (*apisv1.AppCompareResponse, error) {
+	var reqWorkflowName string
+	if envName != "" {
+		reqWorkflowName = convertWorkflowName(envName)
+	}
+	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1348,7 +1352,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 		return nil, err
 	}
 
-	oldApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
+	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, envName, "")
 	if err != nil {
 		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
 			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
@@ -1359,12 +1363,14 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-
+	removeRevisionRelatedAnnotation(newApp)
+	removeRevisionRelatedAnnotation(oldApp)
 	return c.compareDiff(ctx, newApp, oldApp, string(newAppBytes), string(oldAppBytes))
 }
 
-// ResetAppToLatestRevision reset application to last revision
+// ResetAppToLatestRevision reset app's component to last revision
 func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
+
 	newApp, err := c.getAppFromDB(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -1374,6 +1380,7 @@ func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, a
 		return nil, err
 	}
 	return c.resetApp(ctx, newApp, oldApp)
+
 }
 
 // DryRunAppOrRevision dry-run application or revision
@@ -1555,20 +1562,10 @@ func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, a
 		return nil, errors.New("convert application revision error")
 	}
 	// sort component、trait and  hash
-	tempApp := &v1beta1.Application{}
-	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), tempApp); err != nil {
+	oldApp := &v1beta1.Application{}
+	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), oldApp); err != nil {
 		return nil, err
 	}
-	oldApp := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: appName,
-		},
-	}
-	oldApp.Spec.Components = tempApp.Spec.Components
 	return oldApp, nil
 }
 
@@ -1715,6 +1712,20 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 		buff.Write([]byte("\n"))
 	}
 	return buff, nil
+}
+
+func removeRevisionRelatedAnnotation(o *v1beta1.Application) {
+	// set default
+	o.ResourceVersion = ""
+	newAnnotations := map[string]string{}
+	annotations := o.GetAnnotations()
+	for k, v := range annotations {
+		if k == oam.AnnotationDeployVersion || k == oam.AnnotationPublishVersion || k == "kubectl.kubernetes.io/last-applied-configuration" {
+			continue
+		}
+		newAnnotations[k] = v
+	}
+	o.SetAnnotations(newAnnotations)
 }
 
 func genWebhookToken() string {

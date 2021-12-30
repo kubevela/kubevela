@@ -482,17 +482,39 @@ var _ = Describe("Test application usecase function", func() {
 
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		// deploy
 		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
 		Expect(err).Should(BeNil())
 		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
 		Expect(err).Should(BeNil())
-		// should not diff
-		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+
+		// compare1: when not change, should return false
+		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
-		// update app's component
+		// compare2: add app's env , not change, should return false
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-prod", Namespace: "envnsprod", Targets: []string{defaultTarget}, Project: "app-prod"})
+		Expect(err).Should(BeNil())
+		_, err = envBindingUsecase.CreateEnvBinding(context.TODO(), appModel, v1.CreateApplicationEnvbindingRequest{EnvBinding: v1.EnvBinding{Name: "app-prod"}})
+		Expect(err).Should(BeNil())
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+
+		// compare3: update app's env add target , should return true
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
+		Expect(err).Should(BeNil())
+		_, err = envUsecase.UpdateEnv(context.TODO(), "app-dev",
+			v1.UpdateEnvRequest{
+				Description: "this is a env description update",
+				Targets:     []string{defaultTarget, "dev-target1"},
+			})
+		Expect(err).Should(BeNil())
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+
+		// compare4: change app's component after app's deployed ,should return ture
 		newProperties := "{\"exposeType\":\"NodePort\",\"image\":\"nginx\",\"imagePullPolicy\":\"Always\"}"
 		_, err = appUsecase.UpdateComponent(context.TODO(),
 			appModel,
@@ -501,13 +523,13 @@ var _ = Describe("Test application usecase function", func() {
 				Properties: &newProperties,
 			})
 		Expect(err).Should(BeNil())
-
-		//compare
-		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+
 		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{Name: testApp}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
+
 	})
 
 	It("Test ResetAppToLatestRevision function", func() {
@@ -518,9 +540,6 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(resetResponse.IsReset, true)).Should(BeEmpty())
 		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
 		Expect(err).Should(BeNil())
-		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 		expectProperties := "{\"image\":\"nginx\"}"
 		Expect(cmp.Diff(component.Properties.JSON(), expectProperties)).Should(BeEmpty())
 	})
