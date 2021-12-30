@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -57,6 +58,8 @@ const (
 
 	// EnvBindingPolicyDefaultName default policy name
 	EnvBindingPolicyDefaultName string = "env-bindings"
+
+	defaultTokenLen int = 16
 )
 
 // ApplicationUsecase application usecase
@@ -88,6 +91,8 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
+	CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
+	ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -341,6 +346,13 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		if err != nil {
 			return nil, err
 		}
+		if _, err := c.CreateApplicationTrigger(ctx, application.PrimaryKey(), apisv1.CreateApplicationTriggerRequest{
+			Name:        fmt.Sprintf("%s-%s", application.Name, "default"),
+			PayloadType: model.PayloadTypeCustom,
+			Type:        apisv1.TriggerTypeWebhook,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	// add application to db.
 	if err := c.ds.Add(ctx, &application); err != nil {
@@ -352,6 +364,66 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 	// render app base info.
 	base := c.converAppModelToBase(ctx, &application)
 	return base, nil
+}
+
+// CreateApplicationTrigger create application trigger
+func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+	trigger := &model.ApplicationTrigger{
+		AppPrimaryKey: appName,
+		WorkflowName:  req.WorkflowName,
+		Name:          req.Name,
+		Alias:         req.Alias,
+		Description:   req.Description,
+		Type:          req.Type,
+		PayloadType:   req.PayloadType,
+		Token:         genWebhookToken(),
+	}
+	if err := c.ds.Add(ctx, trigger); err != nil {
+		log.Logger.Errorf("failed to create application trigger, %s", err.Error())
+		return nil, err
+	}
+
+	return &apisv1.ApplicationTriggerBase{
+		WorkflowName: req.WorkflowName,
+		Name:         req.Name,
+		Alias:        req.Alias,
+		Description:  req.Description,
+		Type:         req.Type,
+		PayloadType:  req.PayloadType,
+		Token:        trigger.Token,
+	}, nil
+}
+
+// ListApplicationTrigger list application triggers
+func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error) {
+	trigger := &model.ApplicationTrigger{
+		AppPrimaryKey: appName,
+	}
+	triggers, err := c.ds.List(ctx, trigger, &datastore.ListOptions{
+		SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}},
+	)
+	if err != nil {
+		log.Logger.Errorf("failed to list application triggers, %s", err.Error())
+		return nil, err
+	}
+
+	resp := []*apisv1.ApplicationTriggerBase{}
+	for _, raw := range triggers {
+		trigger, ok := raw.(*model.ApplicationTrigger)
+		if ok {
+			resp = append(resp, &apisv1.ApplicationTriggerBase{
+				WorkflowName: trigger.WorkflowName,
+				Name:         trigger.Name,
+				Alias:        trigger.Alias,
+				Description:  trigger.Description,
+				Type:         trigger.Type,
+				Token:        trigger.Token,
+				UpdateTime:   trigger.UpdateTime,
+				CreateTime:   trigger.CreateTime,
+			})
+		}
+	}
+	return resp, nil
 }
 
 func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.Application, envName string, components []*model.ApplicationComponent) (v1beta1.AppPolicy, error) {
@@ -611,6 +683,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		TriggerType:  req.TriggerType,
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 		EnvName:      workflow.EnvName,
+		CodeInfo:     req.CodeInfo,
 	}
 
 	if err := c.ds.Add(ctx, appRevision); err != nil {
@@ -1302,4 +1375,15 @@ func genPolicyName(envName string) string {
 
 func genPolicyEnvName(targetName string) string {
 	return targetName
+}
+
+func genWebhookToken() string {
+	rand.Seed(time.Now().UnixNano())
+	runes := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+
+	b := make([]rune, defaultTokenLen)
+	for i := range b {
+		b[i] = runes[rand.Intn(len(runes))] // #nosec
+	}
+	return string(b)
 }

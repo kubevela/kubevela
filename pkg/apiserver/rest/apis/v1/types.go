@@ -19,12 +19,11 @@ package v1
 import (
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/addon"
-
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/cloudprovider"
@@ -320,7 +319,7 @@ type ApplicationStatisticsResponse struct {
 	WorkflowCount int64 `json:"workflowCount"`
 }
 
-// CreateApplicationRequest create application  request body
+// CreateApplicationRequest create application request body
 type CreateApplicationRequest struct {
 	Name        string                  `json:"name" validate:"checkname"`
 	Alias       string                  `json:"alias" validate:"checkalias" optional:"true"`
@@ -332,12 +331,41 @@ type CreateApplicationRequest struct {
 	Component   *CreateComponentRequest `json:"component"`
 }
 
-// UpdateApplicationRequest update application  base config
+// UpdateApplicationRequest update application base config
 type UpdateApplicationRequest struct {
 	Alias       string            `json:"alias" validate:"checkalias" optional:"true"`
 	Description string            `json:"description" optional:"true"`
 	Icon        string            `json:"icon" optional:"true"`
 	Labels      map[string]string `json:"labels,omitempty"`
+}
+
+// CreateApplicationTriggerRequest create application trigger
+type CreateApplicationTriggerRequest struct {
+	Name         string `json:"name" validate:"checkname"`
+	Alias        string `json:"alias" validate:"checkalias" optional:"true"`
+	Description  string `json:"description" optional:"true"`
+	WorkflowName string `json:"workflowName"`
+	Type         string `json:"type" validate:"oneof=webhook"`
+	PayloadType  string `json:"payloadType" validate:"oneof=custom"`
+}
+
+// ApplicationTriggerBase application trigger base model
+type ApplicationTriggerBase struct {
+	Name         string    `json:"name"`
+	Alias        string    `json:"alias,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	WorkflowName string    `json:"workflowName"`
+	Type         string    `json:"type"`
+	PayloadType  string    `json:"payloadType"`
+	Token        string    `json:"token"`
+	CreateTime   time.Time `json:"createTime"`
+	UpdateTime   time.Time `json:"updateTime"`
+}
+
+// HandleApplicationWebhookRequest handles application webhook request
+type HandleApplicationWebhookRequest struct {
+	Upgrade  map[string]*model.JSONStruct `json:"upgrade,omitempty"`
+	CodeInfo *model.CodeInfo              `json:"codeInfo,omitempty"`
 }
 
 // EnvBinding application env binding
@@ -687,13 +715,22 @@ type ListWorkflowRecordsResponse struct {
 	Total   int64            `json:"total"`
 }
 
+const (
+	// TriggerTypeWeb means trigger by web
+	TriggerTypeWeb string = "web"
+	// TriggerTypeAPI means trigger by api
+	TriggerTypeAPI string = "api"
+	// TriggerTypeWebhook means trigger by webhook
+	TriggerTypeWebhook string = "webhook"
+)
+
 // DetailWorkflowRecordResponse get workflow record detail
 type DetailWorkflowRecordResponse struct {
 	WorkflowRecord
 	DeployTime time.Time `json:"deployTime"`
 	DeployUser string    `json:"deployUser"`
 	Note       string    `json:"note"`
-	// TriggerType the event trigger source, Web or API
+	// TriggerType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
 }
 
@@ -714,10 +751,12 @@ type ApplicationDeployRequest struct {
 	WorkflowName string `json:"workflowName"`
 	// User note message, optional
 	Note string `json:"note"`
-	// TriggerType the event trigger source, Web or API
-	TriggerType string `json:"triggerType" validate:"oneof=web api"`
+	// TriggerType the event trigger source, Web or API or Webhook
+	TriggerType string `json:"triggerType" validate:"oneof=web api webhook"`
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
+	// CodeInfo is the source code info of this deploy
+	CodeInfo *model.CodeInfo `json:"gitInfo,omitempty"`
 }
 
 // ApplicationDeployResponse application deploy response body
@@ -824,7 +863,7 @@ type ApplicationRevisionBase struct {
 	DeployUser string    `json:"deployUser"`
 	Note       string    `json:"note"`
 	EnvName    string    `json:"envName"`
-	// SourceType the event trigger source, Web or API
+	// SourceType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
 }
 
