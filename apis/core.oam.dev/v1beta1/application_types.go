@@ -155,15 +155,21 @@ func (app *Application) Unstructured() (*unstructured.Unstructured, error) {
 	}
 
 	if app.Status.Services == nil {
-		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "services")
+		if err := unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "services"); err != nil {
+			return nil, err
+		}
 	}
 
 	if app.Status.AppliedResources == nil {
-		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "appliedResources")
+		if err := unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "appliedResources"); err != nil {
+			return nil, err
+		}
 	}
 
 	if wfStatus := app.Status.Workflow; wfStatus != nil && wfStatus.Steps == nil {
-		unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "workflow", "steps")
+		if err := unstructured.SetNestedSlice(obj.Object, []interface{}{}, "status", "workflow", "steps"); err != nil {
+			return nil, err
+		}
 	}
 
 	return obj, nil
