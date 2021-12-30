@@ -144,3 +144,25 @@ func (app *Application) GetComponent(workloadType string) *common.ApplicationCom
 	}
 	return nil
 }
+
+// BuiltinApplication is a builtin application.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type BuiltinApplication struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   ApplicationSpec         `json:"spec,omitempty"`
+	Status common.BuiltinAppStatus `json:"status,omitempty"`
+}
+
+// Convert application to builtin mode
+func (app *Application) Convert() *BuiltinApplication {
+	builtin := &BuiltinApplication{
+		TypeMeta:   app.TypeMeta,
+		ObjectMeta: app.ObjectMeta,
+		Spec:       app.Spec,
+		Status:     app.Status.ConvertBuiltin(),
+	}
+	builtin.SetGroupVersionKind(ApplicationKindVersionKind)
+	return builtin
+}

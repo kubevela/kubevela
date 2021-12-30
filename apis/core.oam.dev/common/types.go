@@ -317,6 +317,65 @@ type AppStatus struct {
 	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
 }
 
+// ConvertBuiltin convert AppStatus to BuiltinAppStatus
+func (appStatus AppStatus) ConvertBuiltin() BuiltinAppStatus {
+	var workflow *BuiltinWorkflowStatus
+	if wf := appStatus.Workflow; wf != nil {
+		workflow = wf.convertBuiltin()
+	}
+	return BuiltinAppStatus{
+		ConditionedStatus:  appStatus.ConditionedStatus,
+		ObservedGeneration: appStatus.ObservedGeneration,
+		Rollout:            appStatus.Rollout,
+		Phase:              appStatus.Phase,
+		Components:         appStatus.Components,
+		Services:           appStatus.Services,
+		ResourceTracker:    appStatus.ResourceTracker,
+		Workflow:           workflow,
+		LatestRevision:     appStatus.LatestRevision,
+		AppliedResources:   appStatus.AppliedResources,
+		PolicyStatus:       appStatus.PolicyStatus,
+	}
+}
+
+// BuiltinAppStatus defines the observed state of Application
+type BuiltinAppStatus struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+	condition.ConditionedStatus `json:",inline"`
+
+	// The generation observed by the application controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration"`
+
+	Rollout *AppRolloutStatus `json:"rollout,omitempty"`
+
+	Phase ApplicationPhase `json:"status,omitempty"`
+
+	// Components record the related Components created by Application Controller
+	Components []corev1.ObjectReference `json:"components"`
+
+	// Services record the status of the application services
+	Services []ApplicationComponentStatus `json:"services"`
+
+	// Deprecated
+	// ResourceTracker record the status of the ResourceTracker
+	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
+
+	// Workflow record the status of workflow
+	Workflow *BuiltinWorkflowStatus `json:"workflow"`
+
+	// LatestRevision of the application configuration it generates
+	// +optional
+	LatestRevision *Revision `json:"latestRevision,omitempty"`
+
+	// AppliedResources record the resources that the  workflow step apply.
+	AppliedResources []ClusterObjectReference `json:"appliedResources"`
+
+	// PolicyStatus records the status of policy
+	PolicyStatus []PolicyStatus `json:"policy"`
+}
+
 // PolicyStatus records the status of policy
 type PolicyStatus struct {
 	Name string `json:"name"`
@@ -339,6 +398,36 @@ type WorkflowStatus struct {
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
+}
+
+// BuiltinWorkflowStatus record the status of workflow
+type BuiltinWorkflowStatus struct {
+	AppRevision string       `json:"appRevision"`
+	Mode        WorkflowMode `json:"mode"`
+	Message     string       `json:"message"`
+
+	Suspend    bool `json:"suspend"`
+	Terminated bool `json:"terminated"`
+	Finished   bool `json:"finished"`
+
+	ContextBackend *corev1.ObjectReference `json:"contextBackend"`
+	Steps          []WorkflowStepStatus    `json:"steps"`
+
+	StartTime metav1.Time `json:"startTime"`
+}
+
+func (wfStatus *WorkflowStatus) convertBuiltin() *BuiltinWorkflowStatus {
+	return &BuiltinWorkflowStatus{
+		AppRevision:    wfStatus.AppRevision,
+		Mode:           wfStatus.Mode,
+		Message:        wfStatus.Message,
+		Suspend:        wfStatus.Suspend,
+		Terminated:     wfStatus.Terminated,
+		Finished:       wfStatus.Finished,
+		ContextBackend: wfStatus.ContextBackend,
+		Steps:          wfStatus.Steps,
+		StartTime:      wfStatus.StartTime,
+	}
 }
 
 // SubStepsStatus record the status of workflow steps.

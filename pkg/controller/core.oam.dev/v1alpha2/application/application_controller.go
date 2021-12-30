@@ -373,7 +373,7 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return r.Status().Patch(ctx, app, client.Merge)
+	return r.Status().Patch(ctx, app.Convert(), client.Merge)
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
