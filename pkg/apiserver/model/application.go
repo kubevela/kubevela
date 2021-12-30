@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{})
+	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationTrigger{})
 }
 
 // Application application delivery model
@@ -211,6 +211,18 @@ type ApplicationRevision struct {
 	WorkflowName string `json:"workflowName"`
 	// EnvName is the env name of this application revision
 	EnvName string `json:"envName"`
+	// CodeInfo is the code info of this application revision
+	CodeInfo *CodeInfo `json:"gitInfo,omitempty"`
+}
+
+// CodeInfo is the code info for webhook request
+type CodeInfo struct {
+	// Commit is the commit hash
+	Commit string `json:"commit,omitempty"`
+	// Branch is the branch name
+	Branch string `json:"branch,omitempty"`
+	// User is the user name
+	User string `json:"user,omitempty"`
 }
 
 // TableName return custom table name
@@ -246,6 +258,54 @@ func (a *ApplicationRevision) Index() map[string]string {
 	}
 	if a.EnvName != "" {
 		index["envName"] = a.EnvName
+	}
+	return index
+}
+
+// ApplicationTrigger is the model for trigger
+type ApplicationTrigger struct {
+	BaseModel
+	AppPrimaryKey string `json:"appPrimaryKey"`
+	WorkflowName  string `json:"workflowName,omitempty"`
+	Name          string `json:"name"`
+	Alias         string `json:"alias,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Token         string `json:"token"`
+	Type          string `json:"type"`
+	PayloadType   string `json:"payloadType"`
+}
+
+const (
+	// PayloadTypeCustom is the payload type custom
+	PayloadTypeCustom = "custom"
+	// PayloadTypeDockerhub is the payload type dockerhub
+	PayloadTypeDockerhub = "dockerhub"
+)
+
+// TableName return custom table name
+func (w *ApplicationTrigger) TableName() string {
+	return tableNamePrefix + "trigger"
+}
+
+// PrimaryKey return custom primary key
+func (w *ApplicationTrigger) PrimaryKey() string {
+	return w.Token
+}
+
+// Index return custom index
+func (w *ApplicationTrigger) Index() map[string]string {
+	index := make(map[string]string)
+	if w.AppPrimaryKey != "" {
+		index["appPrimaryKey"] = w.AppPrimaryKey
+	}
+	if w.Token != "" {
+		index["token"] = w.Token
+	}
+	if w.Name != "" {
+		index["name"] = w.Name
+	}
+	if w.Type != "" {
+		index["type"] = w.Type
 	}
 	return index
 }

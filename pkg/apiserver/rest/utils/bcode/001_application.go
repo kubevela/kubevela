@@ -61,10 +61,10 @@ var ErrApplicationNotEnv = NewBcode(404, 10013, "application not set env binding
 // ErrApplicationEnvExist application env is exist
 var ErrApplicationEnvExist = NewBcode(400, 10014, "application env is exist")
 
-// ErrTraitNotExist  trait is not exist
+// ErrTraitNotExist trait is not exist
 var ErrTraitNotExist = NewBcode(400, 10015, "trait is not exist")
 
-// ErrTraitAlreadyExist  trait is already exist
+// ErrTraitAlreadyExist trait is already exist
 var ErrTraitAlreadyExist = NewBcode(400, 10016, "trait is already exist")
 
 // ErrApplicationNoReadyRevision application not have ready revision
@@ -73,8 +73,14 @@ var ErrApplicationNoReadyRevision = NewBcode(400, 10017, "application not have r
 // ErrApplicationRevisionNotExist application revision is not exist
 var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision is not exist")
 
-// ErrApplicationRefusedDelete The application cannot be deleted because it has been deployed
+// ErrApplicationRefusedDelete means the application cannot be deleted because it has been deployed
 var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")
 
-// ErrApplicationEnvRefusedDelete The application env cannot be deleted because it has been deployed
+// ErrApplicationEnvRefusedDelete means he application env cannot be deleted because it has been deployed
 var ErrApplicationEnvRefusedDelete = NewBcode(400, 10020, "The application envbinding cannot be deleted because it has been deployed")
+
+// ErrInvalidWebhookToken means the webhook token is invalid
+var ErrInvalidWebhookToken = NewBcode(400, 10021, "Invalid webhook token")
+
+// ErrInvalidWebhookPayloadType means the webhook payload type is invalid
+var ErrInvalidWebhookPayloadType = NewBcode(400, 10022, "Invalid webhook payload type")
