@@ -138,7 +138,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", []*apis.ApplicationTriggerBase{}).
+		Returns(200, "", apis.ListApplicationTriggerResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes([]*apis.ApplicationTriggerBase{}))
 
@@ -509,7 +509,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", apis.ApplicationBase{}).
+		Returns(200, "", apis.AppResetResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppResetResponse{}))
 
@@ -518,8 +518,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("env", "identifier of the env ").DataType("string")).
-		Returns(200, "", apis.ApplicationBase{}).
+		Returns(200, "", apis.AppDryRunResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppDryRunResponse{}))
 
@@ -588,7 +587,8 @@ func (c *applicationWebService) createApplicationTrigger(req *restful.Request, r
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	base, err := c.applicationUsecase.CreateApplicationTrigger(req.Request.Context(), req.PathParameter("name"), createReq)
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	base, err := c.applicationUsecase.CreateApplicationTrigger(req.Request.Context(), app, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -600,12 +600,13 @@ func (c *applicationWebService) createApplicationTrigger(req *restful.Request, r
 }
 
 func (c *applicationWebService) listApplicationTriggers(req *restful.Request, res *restful.Response) {
-	triggers, err := c.applicationUsecase.ListApplicationTriggers(req.Request.Context(), req.PathParameter("name"))
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	triggers, err := c.applicationUsecase.ListApplicationTriggers(req.Request.Context(), app)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(triggers); err != nil {
+	if err := res.WriteEntity(apis.ListApplicationTriggerResponse{Triggers: triggers}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

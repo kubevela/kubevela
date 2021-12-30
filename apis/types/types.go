@@ -82,6 +82,8 @@ const (
 	TypeDefinition = "Managing Definitions"
 	// TypePlugin defines one category used in Kubectl Plugin
 	TypePlugin = "Plugin Command"
+	// TypeUISchema defines one category
+	TypeUISchema = "Managing UISchema"
 )
 
 // LabelArg is the argument `label` of a definition

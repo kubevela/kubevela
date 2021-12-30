@@ -100,8 +100,8 @@ type ApplicationUsecase interface {
 	CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 	DryRunAppOrRevision(ctx context.Context, appName apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
-	CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
-	ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error)
+	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
+	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -355,10 +355,11 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		if err != nil {
 			return nil, err
 		}
-		if _, err := c.CreateApplicationTrigger(ctx, application.PrimaryKey(), apisv1.CreateApplicationTriggerRequest{
-			Name:        fmt.Sprintf("%s-%s", application.Name, "default"),
-			PayloadType: model.PayloadTypeCustom,
-			Type:        apisv1.TriggerTypeWebhook,
+		if _, err := c.CreateApplicationTrigger(ctx, &application, apisv1.CreateApplicationTriggerRequest{
+			Name:         fmt.Sprintf("%s-%s", application.Name, "default"),
+			PayloadType:  model.PayloadTypeCustom,
+			Type:         apisv1.TriggerTypeWebhook,
+			WorkflowName: convertWorkflowName(req.EnvBinding[0].Name),
 		}); err != nil {
 			return nil, err
 		}
@@ -376,9 +377,9 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 }
 
 // CreateApplicationTrigger create application trigger
-func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, appName string, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
 	trigger := &model.ApplicationTrigger{
-		AppPrimaryKey: appName,
+		AppPrimaryKey: app.Name,
 		WorkflowName:  req.WorkflowName,
 		Name:          req.Name,
 		Alias:         req.Alias,
@@ -404,9 +405,9 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 }
 
 // ListApplicationTrigger list application triggers
-func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, appName string) ([]*apisv1.ApplicationTriggerBase, error) {
+func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error) {
 	trigger := &model.ApplicationTrigger{
-		AppPrimaryKey: appName,
+		AppPrimaryKey: app.Name,
 	}
 	triggers, err := c.ds.List(ctx, trigger, &datastore.ListOptions{
 		SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}},
@@ -426,6 +427,7 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 				Alias:        trigger.Alias,
 				Description:  trigger.Description,
 				Type:         trigger.Type,
+				PayloadType:  trigger.PayloadType,
 				Token:        trigger.Token,
 				UpdateTime:   trigger.UpdateTime,
 				CreateTime:   trigger.CreateTime,
@@ -732,14 +734,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	return &apisv1.ApplicationDeployResponse{
-		ApplicationRevisionBase: apisv1.ApplicationRevisionBase{
-			Version:     appRevision.Version,
-			Status:      appRevision.Status,
-			Reason:      appRevision.Reason,
-			DeployUser:  appRevision.DeployUser,
-			Note:        appRevision.Note,
-			TriggerType: appRevision.TriggerType,
-		},
+		ApplicationRevisionBase: c.converRevisionModelToBase(appRevision),
 	}, nil
 }
 
@@ -906,6 +901,20 @@ func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *
 	return appBase
 }
 
+func (c *applicationUsecaseImpl) converRevisionModelToBase(revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
+	return apisv1.ApplicationRevisionBase{
+		Version:     revision.Version,
+		Status:      revision.Status,
+		Reason:      revision.Reason,
+		DeployUser:  revision.DeployUser,
+		Note:        revision.Note,
+		TriggerType: revision.TriggerType,
+		CreateTime:  revision.CreateTime,
+		EnvName:     revision.EnvName,
+		CodeInfo:    revision.CodeInfo,
+	}
+}
+
 // DeleteApplication delete application
 func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.Application) error {
 	// TODO: check app can be deleted
@@ -935,6 +944,11 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 		return err
 	}
 
+	triggers, err := c.ListApplicationTriggers(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	// delete workflow
 	if err := c.workflowUsecase.DeleteWorkflowByApp(ctx, app); err != nil && !errors.Is(err, bcode.ErrWorkflowNotExist) {
 		log.Logger.Errorf("delete workflow %s failure %s", app.Name, err.Error())
@@ -958,6 +972,12 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 		revision := entity.(*model.ApplicationRevision)
 		if err := c.ds.Delete(ctx, &model.ApplicationRevision{AppPrimaryKey: app.PrimaryKey(), Version: revision.Version}); err != nil {
 			log.Logger.Errorf("delete revision %s in app %s failure %s", revision.Version, app.Name, err.Error())
+		}
+	}
+
+	for _, trigger := range triggers {
+		if err := c.ds.Delete(ctx, &model.ApplicationTrigger{AppPrimaryKey: app.PrimaryKey(), Name: trigger.Name, Token: trigger.Token}); err != nil {
+			log.Logger.Errorf("delete trigger %s in app %s failure %s", trigger.Name, app.Name, err.Error())
 		}
 	}
 
@@ -1268,16 +1288,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	for _, raw := range revisions {
 		r, ok := raw.(*model.ApplicationRevision)
 		if ok {
-			resp.Revisions = append(resp.Revisions, apisv1.ApplicationRevisionBase{
-				CreateTime:  r.CreateTime,
-				Version:     r.Version,
-				Status:      r.Status,
-				Reason:      r.Reason,
-				DeployUser:  r.DeployUser,
-				Note:        r.Note,
-				EnvName:     r.EnvName,
-				TriggerType: r.TriggerType,
-			})
+			resp.Revisions = append(resp.Revisions, c.converRevisionModelToBase(r))
 		}
 	}
 	count, err := c.ds.Count(ctx, &revision, nil)

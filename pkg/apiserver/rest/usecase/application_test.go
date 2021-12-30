@@ -118,7 +118,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
 
-		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), testApp)
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), &model.Application{Name: testApp})
 		Expect(err).Should(BeNil())
 		Expect(len(triggers)).Should(Equal(1))
 	})
@@ -148,14 +148,18 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test CreateTrigger function", func() {
-		_, err := appUsecase.CreateApplicationTrigger(context.TODO(), testApp, v1.CreateApplicationTriggerRequest{
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.CreateApplicationTrigger(context.TODO(), appModel, v1.CreateApplicationTriggerRequest{
 			Name: "trigger-name",
 		})
 		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListTriggers function", func() {
-		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), testApp)
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
 		Expect(len(triggers)).Should(Equal(2))
 	})

@@ -84,3 +84,6 @@ var ErrInvalidWebhookToken = NewBcode(400, 10021, "Invalid webhook token")
 
 // ErrInvalidWebhookPayloadType means the webhook payload type is invalid
 var ErrInvalidWebhookPayloadType = NewBcode(400, 10022, "Invalid webhook payload type")
+
+// ErrInvalidWebhookPayloadBody means the webhook payload body is invalid
+var ErrInvalidWebhookPayloadBody = NewBcode(400, 10023, "Invalid webhook payload body")

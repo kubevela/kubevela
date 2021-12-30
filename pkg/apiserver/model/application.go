@@ -212,7 +212,7 @@ type ApplicationRevision struct {
 	// EnvName is the env name of this application revision
 	EnvName string `json:"envName"`
 	// CodeInfo is the code info of this application revision
-	CodeInfo *CodeInfo `json:"gitInfo,omitempty"`
+	CodeInfo *CodeInfo `json:"codeInfo,omitempty"`
 }
 
 // CodeInfo is the code info for webhook request
