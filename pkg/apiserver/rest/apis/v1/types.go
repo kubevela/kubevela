@@ -313,7 +313,7 @@ type AppCompareResponse struct {
 	OldAppYAML string `json:"oldAppYAML"`
 }
 
-// AppCompareResponse application reset result
+// AppResetResponse application reset result
 type AppResetResponse struct {
 	IsReset bool `json:"isReset"`
 }
