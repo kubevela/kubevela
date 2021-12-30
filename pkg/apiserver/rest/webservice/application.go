@@ -493,6 +493,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppResetResponse{}))
 
+	ws.Route(ws.POST("/{name}/dry-run").To(c.dryRunAppOrRevision).
+		Doc("dry-run application to latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("env", "identifier of the env ").DataType("string")).
+		Returns(200, "", apis.ApplicationBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppDryRunResponse{}))
+
 	return ws
 }
 
@@ -1050,6 +1060,33 @@ func (c *applicationWebService) resetAppToLatestRevision(req *restful.Request, r
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 
 	base, err := c.applicationUsecase.ResetAppToLatestRevision(req.Request.Context(), app.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) dryRunAppOrRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	// Verify the validity of parameters
+	var dryRunReq apis.AppDryRunReq
+	if err := req.ReadEntity(&dryRunReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&dryRunReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if dryRunReq.AppName == "" {
+		dryRunReq.AppName = app.Name
+	}
+
+	base, err := c.applicationUsecase.DryRunAppOrRevision(req.Request.Context(), dryRunReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

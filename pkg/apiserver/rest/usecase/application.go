@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile/dryrun"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -95,6 +96,7 @@ type ApplicationUsecase interface {
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
 	CompareAppWithLatestRevision(ctx context.Context, appName string) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
+	DryRunAppOrRevision(ctx context.Context, appName apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -1261,7 +1263,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 		return nil, err
 	}
 
-	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	oldApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
 	if err != nil {
 		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
 			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
@@ -1282,11 +1284,34 @@ func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, a
 	if err != nil {
 		return nil, err
 	}
-	oldApp, err := c.getAppFromLatestRevision(ctx, appName)
+	oldApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
 	if err != nil {
 		return nil, err
 	}
 	return c.resetApp(ctx, newApp, oldApp)
+}
+
+// DryRunAppOrRevision dry-run application or revision
+func (c *applicationUsecaseImpl) DryRunAppOrRevision(ctx context.Context, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
+	var app *v1beta1.Application
+	var err error
+	if dryRunReq.DryRunType == "APP" {
+		app, err = c.getAppFromDB(ctx, dryRunReq.AppName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		app, err = c.getAppFromLatestRevision(ctx, dryRunReq.AppName, dryRunReq.Env, dryRunReq.Version)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dryRunResult, err := dryRunApplication(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.AppDryRunResponse{YAML: dryRunResult.String()}, nil
 }
 
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
@@ -1422,8 +1447,16 @@ func (c *applicationUsecaseImpl) getAppFromDB(ctx context.Context, appName strin
 	return newApp, nil
 }
 
-func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string) (*v1beta1.Application, error) {
-	revisions, err := c.ds.List(ctx, &model.ApplicationRevision{AppPrimaryKey: appName, Status: model.RevisionStatusComplete}, &datastore.ListOptions{
+func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
+
+	ar := &model.ApplicationRevision{AppPrimaryKey: appName, Status: model.RevisionStatusComplete}
+	if envName != "" {
+		ar.EnvName = envName
+	}
+	if version != "" {
+		ar.Version = version
+	}
+	revisions, err := c.ds.List(ctx, ar, &datastore.ListOptions{
 		Page:     1,
 		PageSize: 1,
 		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
@@ -1536,7 +1569,62 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.A
 			}
 		}
 	}
-
 	return &apisv1.AppResetResponse{IsReset: true}, nil
+}
 
+func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buffer, error) {
+	c := common2.Args{
+		Schema: common2.Scheme,
+	}
+
+	var buff = bytes.Buffer{}
+
+	newClient, err := c.GetClient()
+	if err != nil {
+		return buff, err
+	}
+	var objs []oam.Object
+	pd, err := c.GetPackageDiscover()
+	if err != nil {
+		return buff, err
+	}
+
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return buff, err
+	}
+
+	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
+	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	if err != nil {
+		return buff, errors.New("generate OAM objects")
+	}
+
+	var components = make(map[string]*unstructured.Unstructured)
+	for _, comp := range comps {
+		components[comp.Name] = comp.StandardWorkload
+	}
+	buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) \n---\n\n", app.Name)))
+	result, err := yaml.Marshal(app)
+	buff.Write(result)
+	buff.Write([]byte("\n---\n"))
+	for _, c := range comps {
+		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Component(%s) \n---\n\n", app.Name, c.Name)))
+		result, err := yaml.Marshal(components[c.Name])
+		if err != nil {
+			return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
+		}
+		buff.Write(result)
+		buff.Write([]byte("\n---\n"))
+		for _, t := range c.Traits {
+			result, err := yaml.Marshal(t)
+			if err != nil {
+				return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
+			}
+			buff.Write(result)
+			buff.Write([]byte("\n---\n"))
+		}
+		buff.Write([]byte("\n"))
+	}
+	return buff, nil
 }

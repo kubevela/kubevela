@@ -56,7 +56,7 @@ var _ = Describe("Test application usecase function", func() {
 		testProject       = "app-project"
 		testApp           = "test-app"
 		defaultTarget     = "default"
-		namespace1        = "app-test1"
+		namespace1        = "app-test2"
 		envnsdev          = "envnsdev"
 		envnstest         = "envnstest"
 	)
@@ -457,6 +457,49 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 	})
 
+	It("Test CompareAppWithLatestRevision function", func() {
+
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
+		Expect(err).Should(BeNil())
+		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
+		if err != nil {
+			return
+		}
+		Expect(err).Should(BeNil())
+
+		newProperties := "{\"exposeType\":\"NodePort\",\"image\":\"nginx\",\"imagePullPolicy\":\"Always\"}"
+		_, err = appUsecase.UpdateComponent(context.TODO(),
+			appModel,
+			component,
+			v1.UpdateApplicationComponentRequest{
+				Properties: &newProperties,
+			})
+		Expect(err).Should(BeNil())
+		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
+			Name: testApp,
+		}, &model.EnvBinding{Name: "app-dev"})
+		Expect(err).Should(BeNil())
+	})
+
+	It("Test ResetAppToLatestRevision function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		resetResponse, err := appUsecase.ResetAppToLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(resetResponse.IsReset, true)).Should(BeEmpty())
+		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
+		Expect(err).Should(BeNil())
+		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		expectProperties := "{\"image\":\"nginx\"}"
+		Expect(cmp.Diff(component.Properties.RawExtension().String(), expectProperties)).Should(BeEmpty())
+	})
+
 	It("Test DeleteApplication function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
@@ -470,6 +513,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
 	})
+
 })
 
 func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
