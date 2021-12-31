@@ -854,7 +854,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	}
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
-	for _, resource := range h.app.Status.AppliedResources {
+	for i, resource := range h.app.Status.AppliedResources {
 		compName := resource.Name
 		ns := resource.Namespace
 		r := &unstructured.Unstructured{}
@@ -863,7 +863,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 		err := h.r.Get(_ctx, ktypes.NamespacedName{Name: compName, Namespace: ns}, r)
 		notFound := apierrors.IsNotFound(err)
 		if err != nil && !notFound {
-			return err
+			return errors.WithMessagef(err, "get applied resource index=%d", i)
 		}
 		if compRevisionInUse[compName] == nil {
 			compRevisionInUse[compName] = map[string]struct{}{}

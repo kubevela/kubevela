@@ -121,6 +121,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationKubeVelaVersion])
+
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
 	if err != nil {
@@ -286,7 +288,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
 	}
 	if !finished {
-		logCtx.Info("GarbageCollecting resourcetrackers")
+		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
 		cond := condition.Deleting()
 		if len(waiting) > 0 {
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
