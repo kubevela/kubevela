@@ -100,7 +100,7 @@ type ApplicationUsecase interface {
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
 	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, envName string) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
-	DryRunAppOrRevision(ctx context.Context, appName apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
+	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 }
@@ -1370,25 +1370,23 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 
 // ResetAppToLatestRevision reset app's component to last revision
 func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
-
-	newApp, err := c.getAppFromDB(ctx, appName)
+	targetApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
 	if err != nil {
 		return nil, err
 	}
-	oldApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
-	if err != nil {
-		return nil, err
-	}
-	return c.resetApp(ctx, newApp, oldApp)
-
+	return c.resetApp(ctx, targetApp)
 }
 
 // DryRunAppOrRevision dry-run application or revision
-func (c *applicationUsecaseImpl) DryRunAppOrRevision(ctx context.Context, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
+func (c *applicationUsecaseImpl) DryRunAppOrRevision(ctx context.Context, appModel *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
 	var app *v1beta1.Application
 	var err error
 	if dryRunReq.DryRunType == "APP" {
-		app, err = c.getAppFromDB(ctx, dryRunReq.AppName)
+		var reqWorkflowName string
+		if dryRunReq.Env != "" {
+			reqWorkflowName = convertWorkflowName(dryRunReq.Env)
+		}
+		app, err = c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
 		if err != nil {
 			return nil, err
 		}
@@ -1478,39 +1476,6 @@ func genWebhookToken() string {
 	return string(b)
 }
 
-func convertToAppComponents(components []datastore.Entity) []common.ApplicationComponent {
-	var appComponents []common.ApplicationComponent
-	for _, entity := range components {
-		component := entity.(*model.ApplicationComponent)
-		var traits []common.ApplicationTrait
-		for _, trait := range component.Traits {
-			aTrait := common.ApplicationTrait{
-				Type: trait.Type,
-			}
-			if trait.Properties != nil {
-				aTrait.Properties = trait.Properties.RawExtension()
-			}
-			traits = append(traits, aTrait)
-		}
-		bc := common.ApplicationComponent{
-			Name:             component.Name,
-			Type:             component.Type,
-			ExternalRevision: component.ExternalRevision,
-			DependsOn:        component.DependsOn,
-			Inputs:           component.Inputs,
-			Outputs:          component.Outputs,
-			Traits:           traits,
-			Scopes:           component.Scopes,
-			Properties:       component.Properties.RawExtension(),
-		}
-		if component.Properties != nil {
-			bc.Properties = component.Properties.RawExtension()
-		}
-		appComponents = append(appComponents, bc)
-	}
-	return appComponents
-}
-
 func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) model.ApplicationComponent {
 	bc := model.ApplicationComponent{
 		AppPrimaryKey:    appPrimaryKey,
@@ -1530,24 +1495,6 @@ func convertToModelComponent(appPrimaryKey string, component common.ApplicationC
 		bc.Traits = append(bc.Traits, model.ApplicationTrait{CreateTime: time.Now(), UpdateTime: time.Now(), Properties: properties, Type: trait.Type, Alias: trait.Type, Description: "auto gen"})
 	}
 	return bc
-}
-
-func (c *applicationUsecaseImpl) getAppFromDB(ctx context.Context, appName string) (*v1beta1.Application, error) {
-	components, err := c.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appName}, &datastore.ListOptions{})
-	if err != nil {
-		return nil, bcode.ErrApplicationComponetNotExist
-	}
-	newApp := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: appName,
-		},
-	}
-	newApp.Spec.Components = convertToAppComponents(components)
-	return newApp, nil
 }
 
 func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
@@ -1609,22 +1556,27 @@ func (c *applicationUsecaseImpl) compareDiff(ctx context.Context, newApp, oldApp
 	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: newAppYAML, OldAppYAML: oldAppYAML}, nil
 }
 
-func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
-	appPrimaryKey := newApp.Name
+func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
+	appPrimaryKey := targetApp.Name
 
-	newAppComps := newApp.Spec.Components
-	var newAppCompNames []string
-	for _, comp := range newAppComps {
-		newAppCompNames = append(newAppCompNames, comp.Name)
+	originComps, err := c.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appPrimaryKey}, &datastore.ListOptions{})
+	if err != nil {
+		return nil, bcode.ErrApplicationComponetNotExist
 	}
 
-	oldAppComps := oldApp.Spec.Components
-	var oldAppCompNames []string
-	for _, comp := range oldAppComps {
-		oldAppCompNames = append(oldAppCompNames, comp.Name)
+	var originCompNames []string
+	for _, entity := range originComps {
+		comp := entity.(*model.ApplicationComponent)
+		originCompNames = append(originCompNames, comp.Name)
 	}
 
-	readyToUpdate, readyToDelete, readyToAdd := compareSlices(newAppCompNames, oldAppCompNames)
+	var targetCompNames []string
+	targetComps := targetApp.Spec.Components
+	for _, comp := range targetComps {
+		targetCompNames = append(targetCompNames, comp.Name)
+	}
+
+	readyToUpdate, readyToDelete, readyToAdd := compareSlices(originCompNames, targetCompNames)
 
 	// delete new app's components
 	for _, compName := range readyToDelete {
@@ -1640,7 +1592,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, newApp *v1beta1.A
 		}
 	}
 
-	for _, comp := range oldAppComps {
+	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
 			compModel := convertToModelComponent(appPrimaryKey, comp)
@@ -1728,6 +1680,7 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 func removeRevisionRelatedAnnotation(o *v1beta1.Application) {
 	// set default
 	o.ResourceVersion = ""
+	o.Spec.Workflow = nil
 	newAnnotations := map[string]string{}
 	annotations := o.GetAnnotations()
 	for k, v := range annotations {
@@ -1737,4 +1690,5 @@ func removeRevisionRelatedAnnotation(o *v1beta1.Application) {
 		newAnnotations[k] = v
 	}
 	o.SetAnnotations(newAnnotations)
+
 }

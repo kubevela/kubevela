@@ -1137,7 +1137,7 @@ func (c *applicationWebService) dryRunAppOrRevision(req *restful.Request, res *r
 		dryRunReq.AppName = app.Name
 	}
 
-	base, err := c.applicationUsecase.DryRunAppOrRevision(req.Request.Context(), dryRunReq)
+	base, err := c.applicationUsecase.DryRunAppOrRevision(req.Request.Context(), app, dryRunReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
