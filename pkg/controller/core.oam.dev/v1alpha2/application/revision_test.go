@@ -151,7 +151,6 @@ var _ = Describe("test generate revision ", func() {
 		appRevision1.Spec.ComponentDefinitions[cd.Name] = cd
 		appRevision1.Spec.WorkloadDefinitions[wd.Name] = wd
 		appRevision1.Spec.TraitDefinitions[td.Name] = td
-		appRevision1.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
 		appRevision1.Spec.ScopeDefinitions[sd.Name] = sd
 
 		appRevision2 = *appRevision1.DeepCopy()
@@ -167,6 +166,10 @@ var _ = Describe("test generate revision ", func() {
 		By("[TEST] Clean up resources after an integration test")
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
 	})
+
+	verifyDeepEqualRevision := func() {
+		Expect(DeepEqualRevision(&appRevision1, &appRevision2)).Should(BeTrue())
+	}
 
 	verifyEqual := func() {
 		appHash1, err := ComputeAppRevisionHash(&appRevision1)
@@ -228,7 +231,7 @@ var _ = Describe("test generate revision ", func() {
 		verifyNotEqual()
 	})
 
-	It("Test appliction contain a SkipAppRevision tait will have same hash", func() {
+	It("Test appliction contain a SkipAppRevision tait will have same hash and revision will equal", func() {
 		rolloutTrait := common.ApplicationTrait{
 			Type: "rollout",
 			Properties: &runtime.RawExtension{
@@ -236,7 +239,10 @@ var _ = Describe("test generate revision ", func() {
 			},
 		}
 		appRevision2.Spec.Application.Spec.Components[0].Traits = append(appRevision2.Spec.Application.Spec.Components[0].Traits, rolloutTrait)
+		// appRevision will have no traitDefinition of rollout
+		appRevision2.Spec.TraitDefinitions[rolloutTd.Name] = rolloutTd
 		verifyEqual()
+		verifyDeepEqualRevision()
 	})
 
 	It("Test apply success for none rollout case", func() {
