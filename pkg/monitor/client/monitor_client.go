@@ -22,9 +22,12 @@ import (
 	"strings"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,6 +41,7 @@ type MonitorClient interface {
 
 type monitorClient struct {
 	client.Client
+	cacheUnstructuredTypes map[string]struct{}
 }
 
 func DefaultNewMonitorClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (c client.Client, err error) {
@@ -48,15 +52,16 @@ func DefaultNewMonitorClient(cache cache.Cache, config *rest.Config, options cli
 		CacheReader:     cache,
 		Client:          c,
 		UncachedObjects: []client.Object{},
-		CacheUnstructured: true,
 	}); err != nil {
 		return nil, err
 	}
-	//c, err := cluster.DefaultNewClient(cache, config, options, uncachedObjects...)
-	//if err != nil {
-	//	return nil, err
-	//}
-	return &monitorClient{c}, nil
+
+	return &monitorClient{
+		Client: c,
+		cacheUnstructuredTypes: map[string]struct{}{
+			batchv1.SchemeGroupVersion.WithKind("Job").String(): {},
+		},
+	}, nil
 }
 
 func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
@@ -87,10 +92,37 @@ func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 	}
 }
 
+func (c *monitorClient) needConvertToTyped(gvk schema.GroupVersionKind) bool {
+	t := strings.TrimSuffix(gvk.String(), "List")
+	_, need := c.cacheUnstructuredTypes[t]
+	return need
+}
+
+func (c *monitorClient) convertObjectToStructured(obj client.Object) (client.Object, func()) {
+	if un, ok := obj.(*unstructured.Unstructured); ok {
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if c.needConvertToTyped(gvk) {
+			o, err := c.Scheme().New(gvk)
+			if err == nil && runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, o) == nil {
+				if _o, ok := o.(client.Object); ok {
+					return _o, func() {
+						if un.Object, err = runtime.DefaultUnstructuredConverter.ToUnstructured(_o); err != nil {
+							klog.ErrorS(err, "failed to convert typed object into unstructured")
+						}
+					}
+				}
+			}
+		}
+	}
+	return obj, func() {}
+}
+
 func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 	cb := monitor(ctx, "Get", obj)
 	defer cb()
-	return c.Client.Get(ctx, key, obj)
+	_obj, cbo := c.convertObjectToStructured(obj)
+	defer cbo()
+	return c.Client.Get(ctx, key, _obj)
 }
 
 func (c *monitorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
