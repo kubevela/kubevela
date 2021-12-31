@@ -1344,6 +1344,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 		reqWorkflowName = convertWorkflowName(envName)
 	}
 	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
+	ignoreSomeParams(newApp)
 	if err != nil {
 		return nil, err
 	}
@@ -1353,6 +1354,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 	}
 
 	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, envName, "")
+	ignoreSomeParams(oldApp)
 	if err != nil {
 		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
 			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
@@ -1363,8 +1365,7 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	removeRevisionRelatedAnnotation(newApp)
-	removeRevisionRelatedAnnotation(oldApp)
+
 	return c.compareDiff(ctx, newApp, oldApp, string(newAppBytes), string(oldAppBytes))
 }
 
@@ -1710,7 +1711,7 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	return buff, nil
 }
 
-func removeRevisionRelatedAnnotation(o *v1beta1.Application) {
+func ignoreSomeParams(o *v1beta1.Application) {
 	// set default
 	o.ResourceVersion = ""
 	o.Spec.Workflow = nil
