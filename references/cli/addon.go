@@ -28,6 +28,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	v12 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -151,7 +154,22 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			}
 			fmt.Printf("Successfully enable addon:%s\n", name)
 			if name == "velaux" {
-				fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`)
+				// give k8s 10 second to fill the EIP or nodePort
+				var message string
+				var err error
+				for i := 0; i < 10; i++ {
+					message, err = fetchVelaUXRequestWay(ctx, k8sClient)
+					if err != nil {
+						time.Sleep(time.Second)
+						fmt.Println("try again to fetch the velaux requestWay")
+						continue
+					}
+					fmt.Println(message)
+					break
+				}
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -394,6 +412,37 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 		}
 	}
 	return false
+}
+
+func fetchVelaUXRequestWay(ctx context.Context, cli client.Client) (string, error) {
+	ingress := v1.Ingress{}
+	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: "velaux"}, &ingress); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return "", err
+		}
+		svc := v12.Service{}
+		if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: "velaux"}, &svc); err != nil {
+			return "", err
+		}
+
+		switch svc.Spec.Type {
+		case v12.ServiceTypeClusterIP:
+			return `"Please use command: \"vela port-forward -n vela-system addon-velaux 9082:80\" and Select \"Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`, nil
+		case v12.ServiceTypeLoadBalancer:
+			if len(svc.Status.LoadBalancer.Ingress) == 0 || len(svc.Status.LoadBalancer.Ingress[0].IP) == 0 {
+				return "", fmt.Errorf("cannot fetch the EIP from velaux service")
+			}
+			return fmt.Sprintf("Please use the ExternalIP: %s to check the dashboard", svc.Status.LoadBalancer.Ingress[0].IP), nil
+		case v12.ServiceTypeNodePort:
+			if len(svc.Spec.Ports) == 0 || svc.Spec.Ports[0].NodePort == 0 {
+				return "", fmt.Errorf("cannot fetch the nodeport from velaux service")
+			}
+			return fmt.Sprintf("Please use the nodeIP: {NodeIP}:%d to check the dashboard", svc.Spec.Ports[0].NodePort), nil
+		default:
+			return "", fmt.Errorf("not support service type")
+		}
+	}
+	return fmt.Sprintf("Please use the domain: %s to check the dashboard", ingress.Spec.Rules[0].Host), nil
 }
 
 // TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times

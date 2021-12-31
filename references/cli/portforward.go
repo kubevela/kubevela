@@ -255,7 +255,6 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 
 	if o.targetResource.Kind == "HelmRelease" {
-		var args []string
 		svcName, port, err := getSvcNameAndPortFromHelmRelease(o.Ctx, o.Client, *o.targetResource)
 		if err != nil {
 			return err
@@ -269,9 +268,9 @@ func (o *VelaPortForwardOptions) Complete() error {
 		default:
 			val = fmt.Sprintf("%s:%s", port, port)
 		}
-		args = append(args, fmt.Sprintf("svc/%s", svcName))
-		args = append(args, val)
-		return o.kcPortForwardOptions.Complete(o.f, o.Cmd, args)
+		o.Args[0] = fmt.Sprintf("svc/%s", svcName)
+		o.Args = append(o.Args, val)
+		return o.kcPortForwardOptions.Complete(o.f, o.Cmd, o.Args)
 	}
 
 	var podName string
