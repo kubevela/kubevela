@@ -316,12 +316,12 @@ func TestRefineParameterInstance(t *testing.T) {
 	s := `parameter: #parameter
 #parameter: {
 	x?: string
-	if x != _|_ {
+	if x != "" {
 	y: string
 	}
 }
 patch: {
-	if parameter.x != _|_ {
+	if parameter.x != "" {
 	label: parameter.x
 	}
 }`
@@ -333,7 +333,7 @@ patch: {
 	// test #parameter not exist but parameter exists
 	s = `parameter: {
 	x?: string
-	if x != _|_ {
+	if x != "" {
 	y: string
 	}
 }`
