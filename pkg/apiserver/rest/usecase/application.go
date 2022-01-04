@@ -407,6 +407,7 @@ func (c *applicationUsecaseImpl) DeleteApplicationTrigger(ctx context.Context, a
 			return bcode.ErrApplicationTriggerNotExist
 		}
 		log.Logger.Warnf("delete app trigger %s failure %s", token, err.Error())
+		return err
 	}
 	return nil
 }
