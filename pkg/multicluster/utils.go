@@ -68,6 +68,12 @@ func ContextWithClusterName(ctx context.Context, clusterName string) context.Con
 	return context.WithValue(ctx, ClusterContextKey, clusterName)
 }
 
+// IsInLocalCluster check if target cluster is local cluster
+func IsInLocalCluster(ctx context.Context) bool {
+	clusterName := ClusterNameInContext(ctx)
+	return clusterName == "" || clusterName == ClusterLocalName
+}
+
 // ContextInLocalCluster create context in local cluster
 func ContextInLocalCluster(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ClusterContextKey, ClusterLocalName)

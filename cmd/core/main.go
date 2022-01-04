@@ -30,20 +30,18 @@ import (
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	monitorclient "github.com/oam-dev/kubevela/pkg/monitor/client"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -132,6 +130,7 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
+	flag.StringVar(&ctrlClient.CachedGVKs, "cached-gvks", "", "Types of resources to be cached. For example, --cached-resources=Deployment.v1.apps,Job.v1.batch")
 
 	flag.Parse()
 	// setup logging
@@ -211,8 +210,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:      []client.Object{&appsv1.ControllerRevision{}},
-		NewClient:                  monitorclient.DefaultNewMonitorClient,
+		NewClient:                  ctrlClient.DefaultNewControllerClient,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
