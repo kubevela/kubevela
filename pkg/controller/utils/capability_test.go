@@ -429,7 +429,7 @@ variable "aaa" {
 			err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, "main.tf")), tc.data, 0644)
 			assert.NilError(t, err)
 
-			conf, err := getTerraformConfigurationFromRemote(tc.name, tc.url, tc.path)
+			conf, err := GetTerraformConfigurationFromRemote(tc.name, tc.url, tc.path)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error, +got error:\n%s", name, diff)
 			}

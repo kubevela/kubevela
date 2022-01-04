@@ -27,7 +27,14 @@ import (
 func main() {
 	ref := &plugins.MarkdownReference{}
 	ctx := context.Background()
-	if err := ref.GenerateReferenceDocs(ctx, plugins.BaseRefPath); err != nil {
+	path := plugins.BaseRefPath
+
+	if len(os.Args) == 2 {
+		ref.DefinitionName = os.Args[1]
+		path = plugins.KubeVelaIOTerraformPath
+	}
+
+	if err := ref.GenerateReferenceDocs(ctx, path); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

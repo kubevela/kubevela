@@ -179,6 +179,8 @@ type Capability struct {
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
+	ConfigurationType      string `json:"configurationType,omitempty"`
+	Path                   string `json:"path,omitempty"`
 
 	// KubeTemplate
 	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`

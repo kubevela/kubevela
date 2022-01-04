@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -42,6 +43,8 @@ import (
 const (
 	// BaseRefPath is the target path for reference docs
 	BaseRefPath = "docs/en/end-user"
+	// KubeVelaIOTerraformPath is the target path for kubevela.io terraform docs
+	KubeVelaIOTerraformPath = "kubevela.io/docs/end-user/components/cloud-services/terraform"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
@@ -73,6 +76,7 @@ type ParseReference struct {
 
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
+	DefinitionName string `json:"definitionName"`
 	ParseReference
 }
 
@@ -304,6 +308,22 @@ spec:
           - sleep
           - "1000"
 `,
+
+	"alibaba-vpc": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-vpc-sample
+spec:
+  components:
+    - name: sample-vpc
+      type: alibaba-vpc
+      properties:
+        vpc_cidr: "172.16.0.0/12"
+
+        writeConnectionSecretToRef:
+          name: vpc-conn
+`,
 }
 
 // BaseOpenAPIV3Template is Standard OpenAPIV3 Template
@@ -347,17 +367,27 @@ func setDisplayFormat(format string) {
 
 // GenerateReferenceDocs generates reference docs
 func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string) error {
+	var (
+		caps []types.Capability
+	)
 	c, err := common.InitBaseRestConfig()
 	if err != nil {
 		return err
 	}
-	caps, err := LoadAllInstalledCapability("default", c)
-	if err != nil {
-		return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
+
+	if ref.DefinitionName == "" {
+		caps, err = LoadAllInstalledCapability("default", c)
+		if err != nil {
+			return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
+		}
+	} else {
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, types.DefaultKubeVelaNS)
+		if err != nil {
+			return fmt.Errorf("failed to generate reference docs for capability %s: %w", ref.DefinitionName, err)
+		}
+		caps = []types.Capability{*cap}
 	}
-	if baseRefPath == "" {
-		baseRefPath = BaseRefPath
-	}
+
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath)
 }
 
@@ -424,14 +454,14 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				refContent += ref.prepareParameter("###"+property.Name, property.Parameters, types.KubeCategory)
 			}
 		case types.TerraformCategory:
-			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
+			refContent, err = ref.GenerateTerraformCapabilityPropertiesAndOutputs(c)
 			if err != nil {
 				return err
 			}
 		default:
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
-		title := fmt.Sprintf("%s\n===============", capNameInTitle)
+		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
 
 		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
 		var sample string
@@ -485,6 +515,22 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 		}
 	default:
 	}
+	return refContent
+}
+
+// prepareParameter prepares the table content for each property
+func (ref *MarkdownReference) prepareTerraformOutputs(tableName string, parameterList []ReferenceParameter) string {
+	if len(parameterList) == 0 {
+		return ""
+	}
+	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
+	refContent += "Name | Description\n"
+	refContent += "------------ | ------------- \n"
+
+	for _, p := range parameterList {
+		refContent += fmt.Sprintf(" %s | %s\n", p.Name, p.Usage)
+	}
+
 	return refContent
 }
 
@@ -734,11 +780,15 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 }
 
 // GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
-func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.Capability) ([]ReferenceParameterTable, error) {
+func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.Capability) ([]ReferenceParameterTable, []ReferenceParameterTable, error) {
 	var (
 		tables                                       []ReferenceParameterTable
 		refParameterList                             []ReferenceParameter
 		writeConnectionSecretToRefReferenceParameter ReferenceParameter
+		configuration                                string
+		err                                          error
+		outputsList                                  []ReferenceParameter
+		outputsTables                                []ReferenceParameterTable
 	)
 
 	writeConnectionSecretToRefReferenceParameter.Name = terraform.TerraformWriteConnectionSecretToRefName
@@ -746,9 +796,18 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeConnectionSecretToRefReferenceParameter.Required = false
 	writeConnectionSecretToRefReferenceParameter.Usage = terraform.TerraformWriteConnectionSecretToRefDescription
 
-	variables, err := common.ParseTerraformVariables(capability.TerraformConfiguration)
+	if capability.ConfigurationType == "remote" {
+		configuration, err = utils.GetTerraformConfigurationFromRemote(capability.Name, capability.TerraformConfiguration, capability.Path)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to retrieve Terraform configuration from %s: %w", capability.Name, err)
+		}
+	} else {
+		configuration = capability.TerraformConfiguration
+	}
+
+	variables, outputs, err := common.ParseTerraformVariables(configuration)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate capability properties")
+		return nil, nil, errors.Wrap(err, "failed to generate capability properties")
 	}
 	for _, v := range variables {
 		var refParam ReferenceParameter
@@ -790,7 +849,22 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		Parameters: writeSecretRefParameterList,
 	})
 
-	return tables, nil
+	// outputs
+	for _, v := range outputs {
+		var refParam ReferenceParameter
+		refParam.Name = v.Name
+		refParam.Usage = v.Description
+		outputsList = append(outputsList, refParam)
+	}
+
+	outputsTableName := fmt.Sprintf("%s %s\n\nIf `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:", strings.Repeat("#", 3), "Outputs")
+
+	outputsTables = append(outputsTables, ReferenceParameterTable{
+		Name:       outputsTableName,
+		Parameters: outputsList,
+	})
+
+	return tables, outputsTables, nil
 }
 
 // WalkParameterSchema will extract properties from *openapi3.Schema
@@ -845,26 +919,29 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability types.Capability) ([]ConsoleReference, error) {
 	var references []ConsoleReference
 
-	tables, err := ref.parseTerraformCapabilityParameters(capability)
+	variableTables, _, err := ref.parseTerraformCapabilityParameters(capability)
 	if err != nil {
 		return nil, err
 	}
-	for _, t := range tables {
+	for _, t := range variableTables {
 		references = append(references, ref.prepareParameter(t.Name, t.Parameters, types.TerraformCategory))
 	}
 	return references, nil
 }
 
-// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition in a local website
-func (ref *MarkdownReference) GenerateTerraformCapabilityProperties(capability types.Capability) (string, error) {
+// GenerateTerraformCapabilityPropertiesAndOutputs generates Capability properties and outputs for Terraform ComponentDefinition
+func (ref *MarkdownReference) GenerateTerraformCapabilityPropertiesAndOutputs(capability types.Capability) (string, error) {
 	var references string
 
-	tables, err := ref.parseTerraformCapabilityParameters(capability)
+	variableTables, outputsTable, err := ref.parseTerraformCapabilityParameters(capability)
 	if err != nil {
 		return "", err
 	}
-	for _, t := range tables {
+	for _, t := range variableTables {
 		references += ref.prepareParameter(t.Name, t.Parameters, types.CUECategory)
+	}
+	for _, t := range outputsTable {
+		references += ref.prepareTerraformOutputs(t.Name, t.Parameters)
 	}
 	return references, nil
 }
