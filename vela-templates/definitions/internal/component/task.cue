@@ -111,10 +111,10 @@ template: {
 
 	parameter: {
 		// +usage=Specify the labels in the workload
-		labels?: {...}
+		labels?: [string]: string
 
 		// +usage=Specify the annotations in the workload
-		annotations?: {...}
+		annotations?: [string]: string
 
 		// +usage=Specify number of tasks to run in parallel
 		// +short=c
