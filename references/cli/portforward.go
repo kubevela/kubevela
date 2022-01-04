@@ -50,7 +50,7 @@ import (
 )
 
 const (
-	fluxcdNameLabel      = " helm.toolkit.fluxcd.io/name"
+	fluxcdNameLabel      = "helm.toolkit.fluxcd.io/name"
 	fluxcdNameSpaceLabel = "helm.toolkit.fluxcd.io/namespace"
 )
 
