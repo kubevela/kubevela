@@ -65,7 +65,11 @@ var clientArgs common.Args
 
 func init() {
 	clientArgs, _ = common.InitBaseRestConfig()
-	clt, _ = clientArgs.GetClient()
+	var err error
+	clt, err = clientArgs.GetClient()
+	if err != nil {
+		panic(fmt.Sprintf("fail to create K8s client %v", err))
+	}
 
 	// assume KubeVela 1.2 needn't consider the compatibility of 1.1
 	// legacyAddonNamespace = map[string]string{
