@@ -49,6 +49,11 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
+const (
+	fluxcdNameLabel      = "helm.toolkit.fluxcd.io/name"
+	fluxcdNameSpaceLabel = "helm.toolkit.fluxcd.io/namespace"
+)
+
 // VelaPortForwardOptions for vela port-forward
 type VelaPortForwardOptions struct {
 	Cmd       *cobra.Command
@@ -189,6 +194,27 @@ func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 	return ""
 }
 
+func getSvcNameAndPortFromHelmRelease(ctx context.Context, cli client.Client, o common2.ClusterObjectReference) (string, string, error) {
+	svcList := corev1.ServiceList{}
+	if err := cli.List(ctx, &svcList, client.InNamespace(o.Namespace), client.MatchingLabels{
+		fluxcdNameLabel:      o.Name,
+		fluxcdNameSpaceLabel: o.Namespace,
+	}); err != nil {
+		return "", "", err
+	}
+	for _, svc := range svcList.Items {
+		if strings.HasPrefix(svc.Name, o.Name) {
+			// avoid panic
+			if len(svc.Spec.Ports) == 0 {
+				continue
+			}
+			port := svc.Spec.Ports[0].Port
+			return svc.Name, strconv.Itoa(int(port)), nil
+		}
+	}
+	return "", "", fmt.Errorf("have not found svc from helmRelease: %s", o.Name)
+}
+
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
 	compName, err := getCompNameFromClusterObjectReference(o.Ctx, o.VelaC.Client, o.targetResource)
@@ -226,6 +252,25 @@ func (o *VelaPortForwardOptions) Complete() error {
 		copy(args, o.Args)
 		args[0] = "svc/" + routeSvc
 		return o.kcPortForwardOptions.Complete(o.f, o.Cmd, args)
+	}
+
+	if o.targetResource.Kind == "HelmRelease" {
+		svcName, port, err := getSvcNameAndPortFromHelmRelease(o.Ctx, o.Client, *o.targetResource)
+		if err != nil {
+			return err
+		}
+		var val string
+		switch port {
+		case "80":
+			val = "8080:80"
+		case "443":
+			val = "8443:443"
+		default:
+			val = fmt.Sprintf("%s:%s", port, port)
+		}
+		o.Args[0] = fmt.Sprintf("svc/%s", svcName)
+		o.Args = append(o.Args, val)
+		return o.kcPortForwardOptions.Complete(o.f, o.Cmd, o.Args)
 	}
 
 	var podName string
