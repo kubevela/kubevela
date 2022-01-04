@@ -505,20 +505,34 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 				Type: "deploy2runtime",
 			})
 	case addon.Name == ObservabilityAddon:
-		policies, err := preparePolicies4Observability(ctx, k8sClient)
+		clusters, err := allocateDomainForAddon(ctx, k8sClient)
+		if err != nil {
+			return nil, err
+		}
+
+		policies, err := preparePolicies4Observability(clusters)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
 		}
 		app.Spec.Policies = policies
 
-		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []v1beta1.WorkflowStep{{
-				Name: "deploy-control-plane",
-				Type: "apply-application-in-parallel",
-			}},
+		if len(clusters) > 0 {
+			app.Spec.Workflow = &v1beta1.Workflow{
+				Steps: []v1beta1.WorkflowStep{{
+					Name: "deploy-control-plane",
+					Type: "apply-application-in-parallel",
+				}},
+			}
+		} else {
+			app.Spec.Workflow = &v1beta1.Workflow{
+				Steps: []v1beta1.WorkflowStep{{
+					Name: "deploy-control-plane",
+					Type: "apply-application",
+				}},
+			}
 		}
 
-		workflowSteps, err := prepareWorkflow4Observability(ctx, k8sClient)
+		workflowSteps, err := prepareWorkflow4Observability(clusters)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to prepare the workflow for Add-on Observability")
 		}
@@ -625,12 +639,10 @@ func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]Obs
 	return envs, nil
 }
 
-func preparePolicies4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.AppPolicy, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient)
-	if err != nil {
-		return nil, err
+func preparePolicies4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.AppPolicy, error) {
+	if clusters == nil {
+		return nil, nil
 	}
-
 	envProperties, err := render(clusters, ObservabilityEnvBindingEnvTmpl)
 	if err != nil {
 		return nil, err
@@ -656,12 +668,7 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client)
 	return policies, nil
 }
 
-func prepareWorkflow4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.WorkflowStep, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient)
-	if err != nil {
-		return nil, err
-	}
-
+func prepareWorkflow4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.WorkflowStep, error) {
 	envBindingWorkflow, err := render(clusters, ObservabilityWorkflow4EnvBindingTmpl)
 	if err != nil {
 		return nil, err
