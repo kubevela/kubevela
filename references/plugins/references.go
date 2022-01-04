@@ -336,7 +336,6 @@ type ReferenceParameterTable struct {
 }
 
 var refContent string
-var recurseDepth *int
 var propertyConsole []ConsoleReference
 var displayFormat *string
 var commonRefs []CommonReference
@@ -403,7 +402,6 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
 			var defaultDepth = 0
-			recurseDepth = &defaultDepth
 			if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
 				return err
 			}
@@ -525,7 +523,6 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 // parseParameters parses every parameter
 func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string, depth int) error {
 	var params []ReferenceParameter
-	*recurseDepth++
 	switch paraValue.Kind() {
 	case cue.StructKind:
 		arguments, err := paraValue.Struct()
@@ -560,7 +557,6 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
-				depth := *recurseDepth
 				if subField, _ := val.Struct(); subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
 						// In the future we could recursive call to surpport complex map-value(struct or list)
@@ -569,7 +565,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 						return fmt.Errorf("failed to got Map kind from %s", param.Name)
 					}
 				} else {
-					if err := ref.parseParameters(val, name, depth); err != nil {
+					if err := ref.parseParameters(val, name, depth+1); err != nil {
 						return err
 					}
 					param.PrintableType = fmt.Sprintf("[%s](#%s)", name, name)
@@ -577,13 +573,15 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			case cue.ListKind:
 				elem, success := val.Elem()
 				if !success {
-					return fmt.Errorf("failed to get elements from %s", val)
+					// fail to get elements, use the value of ListKind to be the type
+					param.Type = val.Kind()
+					param.PrintableType = val.IncompleteKind().String()
+					break
 				}
 				switch elem.Kind() {
 				case cue.StructKind:
 					param.PrintableType = fmt.Sprintf("[[]%s](#%s)", name, name)
-					depth := *recurseDepth
-					if err := ref.parseParameters(elem, name, depth); err != nil {
+					if err := ref.parseParameters(elem, name, depth+1); err != nil {
 						return err
 					}
 				default:
@@ -601,6 +599,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 
 	switch *displayFormat {
 	case "markdown":
+		// markdown defines the contents that display in web
 		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+3), paramKey)
 		ref := MarkdownReference{}
 		refContent = ref.prepareParameter(tableName, params, types.CUECategory) + refContent
@@ -678,7 +677,6 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 		return nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}
 	var defaultDepth = 0
-	recurseDepth = &defaultDepth
 	if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
 		return nil, err
 	}
