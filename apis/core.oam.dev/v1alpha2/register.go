@@ -109,14 +109,6 @@ var (
 	ApplicationKindVersionKind = SchemeGroupVersion.WithKind(ApplicationKind)
 )
 
-// AppRollout type metadata.
-var (
-	AppRolloutKind            = reflect.TypeOf(AppRollout{}).Name()
-	AppRolloutGroupKind       = schema.GroupKind{Group: Group, Kind: AppRolloutKind}.String()
-	AppRolloutKindAPIVersion  = ApplicationKind + "." + SchemeGroupVersion.String()
-	AppRolloutKindVersionKind = SchemeGroupVersion.WithKind(AppRolloutKind)
-)
-
 // ApplicationRevision type metadata
 var (
 	ApplicationRevisionKind             = reflect.TypeOf(ApplicationRevision{}).Name()
@@ -135,6 +127,5 @@ func init() {
 	SchemeBuilder.Register(&ManualScalerTrait{}, &ManualScalerTraitList{})
 	SchemeBuilder.Register(&HealthScope{}, &HealthScopeList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
-	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 }

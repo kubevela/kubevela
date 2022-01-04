@@ -30,7 +30,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -54,7 +53,7 @@ var _ = Describe("deployment controller", func() {
 		namespaceName = "rollout-ns"
 		sourceName = "source-dep"
 		targetName = "target-dep"
-		appRollout := v1beta1.AppRollout{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.AppRolloutKind}, ObjectMeta: metav1.ObjectMeta{Name: "test-rollout"}}
+		appRollout := v1alpha1.Rollout{TypeMeta: metav1.TypeMeta{APIVersion: v1alpha1.SchemeGroupVersion.String(), Kind: v1alpha1.RolloutKind}, ObjectMeta: metav1.ObjectMeta{Name: "test-rollout"}}
 		sourceNamespacedName = client.ObjectKey{Name: sourceName, Namespace: namespaceName}
 		targetNamespacedName = client.ObjectKey{Name: targetName, Namespace: namespaceName}
 		c = DeploymentRolloutController{
@@ -134,7 +133,7 @@ var _ = Describe("deployment controller", func() {
 		It("init a Deployment Rollout Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
-			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: sourceName}}
+			parentController := &v1alpha1.Rollout{ObjectMeta: metav1.ObjectMeta{Name: sourceName}}
 			rolloutSpec := &v1alpha1.RolloutPlan{
 				RolloutBatches: []v1alpha1.RolloutBatch{{
 					Replicas: intstr.FromInt(1),
@@ -267,8 +266,8 @@ var _ = Describe("deployment controller", func() {
 			By("Create deployments")
 			sourceDeploy.Spec.Paused = true
 			sourceDeploy.SetOwnerReferences([]metav1.OwnerReference{{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.ApplicationKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
 				Controller: pointer.BoolPtr(true),
@@ -324,14 +323,14 @@ var _ = Describe("deployment controller", func() {
 			By("Verify the source deployment is claimed")
 			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
 			Expect(len(sourceDeploy.GetOwnerReferences())).Should(Equal(1))
-			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha1.RolloutKindVersionKind.Kind))
 			Expect(sourceDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
 			Expect(sourceDeploy.Spec.Paused).Should(BeFalse())
 			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
 			By("Verify the target deployment is claimed and init to zero")
 			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
 			Expect(len(targetDeploy.GetOwnerReferences())).Should(Equal(1))
-			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha1.RolloutKindVersionKind.Kind))
 			Expect(targetDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
 			Expect(targetDeploy.Spec.Paused).Should(BeFalse())
 			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(2))
@@ -350,14 +349,14 @@ var _ = Describe("deployment controller", func() {
 			By("Verify the source deployment is claimed")
 			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
 			Expect(len(sourceDeploy.GetOwnerReferences())).Should(Equal(1))
-			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha1.RolloutKindVersionKind.Kind))
 			Expect(sourceDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
 			Expect(sourceDeploy.Spec.Paused).Should(BeFalse())
 			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(7))
 			By("Verify the target deployment is claimed with the right amount of replicas")
 			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
 			Expect(len(targetDeploy.GetOwnerReferences())).Should(Equal(1))
-			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1alpha1.RolloutKindVersionKind.Kind))
 			Expect(targetDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
 			Expect(targetDeploy.Spec.Paused).Should(BeFalse())
 			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(
@@ -796,16 +795,16 @@ var _ = Describe("deployment controller", func() {
 		It("release success as the owner", func() {
 			By("Create the deployments")
 			sourceDeploy.SetOwnerReferences([]metav1.OwnerReference{{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.AppRolloutKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
 				Controller: pointer.BoolPtr(true),
 			}})
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 			targetDeploy.SetOwnerReferences([]metav1.OwnerReference{{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.ApplicationKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
 				Controller: pointer.BoolPtr(true),

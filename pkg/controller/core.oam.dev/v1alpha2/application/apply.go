@@ -19,24 +19,19 @@ package application
 import (
 	"context"
 
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
@@ -286,7 +281,7 @@ type garbageCollectFunc func(ctx context.Context, h *AppHandler) error
 func garbageCollection(ctx context.Context, h *AppHandler) error {
 	collectFuncs := []garbageCollectFunc{
 		garbageCollectFunc(cleanUpApplicationRevision),
-		garbageCollectFunc(cleanUpComponentRevision),
+		garbageCollectFunc(cleanUpWorkflowComponentRevision),
 	}
 	for _, collectFunc := range collectFuncs {
 		if err := collectFunc(ctx, h); err != nil {
@@ -294,56 +289,4 @@ func garbageCollection(ctx context.Context, h *AppHandler) error {
 		}
 	}
 	return nil
-}
-
-func (h *AppHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
-	var comps []string
-	for _, component := range h.app.Spec.Components {
-		comps = append(comps, component.Name)
-		// TODO rollout only support one component now, and we only rollout the first component in Application
-		break
-	}
-
-	// targetRevision should always points to LatestRevison
-	targetRevision := h.app.Status.LatestRevision.Name
-	var srcRevision string
-	target, _ := oamutil.ExtractRevisionNum(targetRevision, "-")
-	// if target == 1 this is a initial scale operation, sourceRevision should be empty
-	// otherwise source revision always is targetRevision - 1
-	if target > 1 {
-		srcRevision = utils.ConstructRevisionName(h.app.Name, int64(target-1))
-	}
-
-	appRollout := v1beta1.AppRollout{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1beta1.SchemeGroupVersion.String(),
-			Kind:       v1beta1.ApplicationKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      h.app.Name,
-			Namespace: h.app.Namespace,
-			UID:       h.app.UID,
-		},
-		Spec: v1beta1.AppRolloutSpec{
-			SourceAppRevisionName: srcRevision,
-			TargetAppRevisionName: targetRevision,
-			ComponentList:         comps,
-			RolloutPlan:           *h.app.Spec.RolloutPlan,
-		},
-	}
-	if h.app.Status.Rollout != nil {
-		appRollout.Status = *h.app.Status.Rollout
-	} else {
-		appRollout.Status = common.AppRolloutStatus{}
-	}
-	// construct a fake rollout object and call rollout.DoReconcile
-	r := applicationrollout.NewReconciler(h.r.Client, h.r.dm, h.r.pd, h.r.Recorder, h.r.Scheme, h.r.concurrentReconciles)
-	res, err := r.DoReconcile(ctx, &appRollout)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// write back rollout status to application
-	h.app.Status.Rollout = &appRollout.Status
-	return res, nil
 }

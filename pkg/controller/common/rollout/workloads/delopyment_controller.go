@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apps "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,8 +29,6 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 // deploymentController is the place to hold fields needed for handle Deployment type of workloads
@@ -40,8 +40,8 @@ type deploymentController struct {
 // add the parent controller to the owner of the deployment, unpause it and initialize the size
 // before kicking start the update and start from every pod in the old version
 func (c *deploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize *int32) (bool, error) {
-	if controller := metav1.GetControllerOf(deploy); controller != nil &&
-		controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
+	if controller := metav1.GetControllerOf(deploy); controller != nil && controller.APIVersion == v1alpha1.SchemeGroupVersion.String() &&
+		controller.Kind == v1alpha1.RolloutKind {
 		// it's already there
 		return true, nil
 	}

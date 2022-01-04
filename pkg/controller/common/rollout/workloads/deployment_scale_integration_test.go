@@ -30,7 +30,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -48,7 +47,7 @@ var _ = Describe("deployment controller", func() {
 	BeforeEach(func() {
 		namespace = "rollout-ns"
 		name = "rollout1"
-		appRollout := v1beta1.AppRollout{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.AppRolloutKind}, ObjectMeta: metav1.ObjectMeta{Name: name}}
+		appRollout := v1alpha1.Rollout{TypeMeta: metav1.TypeMeta{APIVersion: v1alpha1.SchemeGroupVersion.String(), Kind: v1alpha1.RolloutKind}, ObjectMeta: metav1.ObjectMeta{Name: name}}
 		namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
 		s = DeploymentScaleController{
 			deploymentController: deploymentController{
@@ -110,7 +109,7 @@ var _ = Describe("deployment controller", func() {
 		It("init a Deployment Scale Controller", func() {
 			recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 				WithAnnotations("controller", "AppRollout")
-			parentController := &v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
+			parentController := &v1alpha1.Rollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 			rolloutSpec := &v1alpha1.RolloutPlan{
 				RolloutBatches: []v1alpha1.RolloutBatch{{
 					Replicas: intstr.FromInt(1),
@@ -242,8 +241,8 @@ var _ = Describe("deployment controller", func() {
 		It("workload Deployment is controlled by appRollout already", func() {
 			By("Create a Deployment")
 			deployment.SetOwnerReferences([]metav1.OwnerReference{{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.AppRolloutKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+				Kind:       v1alpha1.RolloutKind,
 				Name:       "def",
 				UID:        "123456",
 				Controller: pointer.BoolPtr(true),
@@ -463,7 +462,7 @@ var _ = Describe("deployment controller", func() {
 		It("Already finalize Deployment", func() {
 			By("Create a Deployment")
 			deployment.SetOwnerReferences([]metav1.OwnerReference{{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
 				Kind:       "notRollout",
 				Name:       "def",
 				UID:        "123456",
@@ -479,8 +478,8 @@ var _ = Describe("deployment controller", func() {
 			By("Create a Deployment")
 			deployment.SetOwnerReferences([]metav1.OwnerReference{
 				{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.AppRolloutKind,
+					APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					Kind:       v1alpha1.RolloutKind,
 					Name:       "def",
 					UID:        "123456",
 					Controller: pointer.Bool(true),

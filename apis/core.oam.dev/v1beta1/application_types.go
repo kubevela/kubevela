@@ -22,7 +22,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 const (
@@ -86,11 +85,6 @@ type ApplicationSpec struct {
 	Workflow *Workflow `json:"workflow,omitempty"`
 
 	// TODO(wonderflow): we should have application level scopes supported here
-
-	// RolloutPlan is the details on how to rollout the resources
-	// The controller simply replace the old resources with the new one if there is no rollout plan involved
-	// +optional
-	RolloutPlan *v1alpha1.RolloutPlan `json:"rolloutPlan,omitempty"`
 }
 
 // +kubebuilder:object:root=true

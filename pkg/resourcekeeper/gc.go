@@ -262,7 +262,7 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 	}
 	var managedResources []v1beta1.ManagedResource
 	for _, cr := range h._crRT.Spec.ManagedResources {
-		skipGC := h.app.GetDeletionTimestamp() == nil && (len(h.app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || h.app.Spec.RolloutPlan != nil) // legacy code for rollout-plan
+		skipGC := h.app.GetDeletionTimestamp() == nil
 		if _, exists := inUseComponents[cr.ComponentKey()]; !exists && !skipGC {
 			_cr := &v1.ControllerRevision{}
 			err := h.Client.Get(multicluster.ContextWithClusterName(ctx, cr.Cluster), cr.NamespacedName(), _cr)
