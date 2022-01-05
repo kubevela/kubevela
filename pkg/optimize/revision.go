@@ -18,6 +18,7 @@ package optimize
 
 type revisionOptimizer struct {
 	DisableAllComponentRevision bool
+	DisableAllApplicationRevision bool
 	DisableWorkflowRecorder bool
 }
 

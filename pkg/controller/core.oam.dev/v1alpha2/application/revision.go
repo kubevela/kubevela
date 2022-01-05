@@ -251,6 +251,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 }
 
 func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
+	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+		return nil
+	}
 	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
 		return nil
 	}
@@ -665,6 +668,10 @@ func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Compone
 
 // FinalizeAndApplyAppRevision finalise AppRevision object and apply it
 func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
+	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+		return nil
+	}
+
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("apply-app-revision", monitorContext.DurationMetric(func(v float64) {
 			metrics.ApplyAppRevisionDurationHistogram.WithLabelValues("application").Observe(v)
@@ -706,6 +713,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 // UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
 func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
+	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+		return nil
+	}
 	if !h.isNewRevision {
 		// skip update if app revision is not changed
 		return nil
@@ -729,6 +739,9 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
+	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+		return nil
+	}
 	listOpts := []client.ListOption{
 		client.InNamespace(h.app.Namespace),
 		client.MatchingLabels{oam.LabelAppName: h.app.Name},
