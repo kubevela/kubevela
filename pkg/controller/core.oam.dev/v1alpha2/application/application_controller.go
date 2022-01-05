@@ -91,8 +91,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	defer cancel()
 
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Reconcile application")
-	defer logCtx.Commit("Reconcile application")
+	logCtx.Info("Start reconcile application")
+	defer logCtx.Commit("End reconcile application")
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -104,7 +104,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
 
-	logCtx.AddTag("resource_version", app.ResourceVersion)
+	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
