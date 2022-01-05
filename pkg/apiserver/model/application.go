@@ -243,8 +243,8 @@ type ImageResource struct {
 	Digest string `json:"digest"`
 	// Tag is the image tag
 	Tag string `json:"tag"`
-	// Url is the image url
-	Url string `json:"url"`
+	// URL is the image url
+	URL string `json:"url"`
 	// CreateTime is the image create time
 	CreateTime time.Time `json:"createTime,omitempty"`
 }
@@ -323,6 +323,13 @@ const (
 	PayloadTypeDockerhub = "dockerhub"
 	// PayloadTypeACR is the payload type acr
 	PayloadTypeACR = "acr"
+
+	// ComponentTypeWebservice is the component type webservice
+	ComponentTypeWebservice = "webservice"
+	// ComponentTypeWorker is the component type worker
+	ComponentTypeWorker = "worker"
+	// ComponentTypeTask is the component type task
+	ComponentTypeTask = "task"
 )
 
 // TableName return custom table name

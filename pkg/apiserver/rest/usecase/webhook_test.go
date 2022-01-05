@@ -186,7 +186,7 @@ var _ = Describe("Test application usecase function", func() {
 		httpreq, err = http.NewRequest("post", "/", bytes.NewBuffer(body))
 		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
 		Expect(err).Should(BeNil())
-		res, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), acrTrigger.Token, restful.NewRequest(httpreq))
+		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), acrTrigger.Token, restful.NewRequest(httpreq))
 		Expect(err).Should(BeNil())
 		comp, err = appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
 		Expect(err).Should(BeNil())

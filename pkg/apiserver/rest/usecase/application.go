@@ -94,6 +94,7 @@ type ApplicationUsecase interface {
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
+	ListPayloadTypes(ctx context.Context, app *model.Application) ([]string, error)
 }
 
 type applicationUsecaseImpl struct {
@@ -1351,6 +1352,26 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 		RevisonCount:  count,
 		WorkflowCount: c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
+}
+
+func (c *applicationUsecaseImpl) ListPayloadTypes(ctx context.Context, app *model.Application) ([]string, error) {
+	var component = model.ApplicationComponent{
+		AppPrimaryKey: app.PrimaryKey(),
+	}
+	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	list := make([]string, 0)
+	list = append(list, model.PayloadTypeCustom)
+	for _, component := range components {
+		c := component.(*model.ApplicationComponent)
+		if c.Type == model.ComponentTypeWebservice || c.Type == model.ComponentTypeTask || c.Type == model.ComponentTypeWorker {
+			list = append(list, model.PayloadTypeACR)
+			break
+		}
+	}
+	return list, nil
 }
 
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {

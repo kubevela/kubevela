@@ -192,6 +192,14 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(trigger).Should(BeNil())
 	})
 
+	It("Test ListPayloadTypes function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		payloadTypes, err := appUsecase.ListPayloadTypes(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		Expect(len(payloadTypes)).Should(Equal(2))
+	})
+
 	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())

@@ -72,6 +72,7 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		}
 		return nil, err
 	}
+
 	switch webhookTrigger.PayloadType {
 	case model.PayloadTypeCustom:
 		return c.handleCustomWebhook(ctx, req, webhookTrigger, app)
@@ -165,7 +166,7 @@ func (c *webhookUsecaseImpl) handleACRWebhook(ctx context.Context, req *restful.
 			Resource: &model.ImageResource{
 				Digest:     acrReq.PushData.Digest,
 				Tag:        acrReq.PushData.Tag,
-				Url:        image,
+				URL:        image,
 				CreateTime: parseTimeString(acrReq.PushData.PushedAt),
 			},
 			Repository: &model.ImageRepository{
