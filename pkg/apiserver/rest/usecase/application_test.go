@@ -193,10 +193,11 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListPayloadTypes function", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		payloadTypes, err := appUsecase.ListPayloadTypes(context.TODO(), appModel)
-		Expect(err).Should(BeNil())
+		payloadTypes := appUsecase.ListPayloadTypes(context.TODO())
+		Expect(len(payloadTypes)).Should(Equal(0))
+
+		registerHandlers()
+		payloadTypes = appUsecase.ListPayloadTypes(context.TODO())
 		Expect(len(payloadTypes)).Should(Equal(2))
 	})
 

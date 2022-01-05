@@ -43,14 +43,59 @@ type webhookUsecaseImpl struct {
 	applicationUsecase ApplicationUsecase
 }
 
+var webhookHandlers []string
+
 // NewWebhookUsecase new webhook usecase
 func NewWebhookUsecase(ds datastore.DataStore,
 	applicationUsecase ApplicationUsecase,
 ) WebhookUsecase {
+	registerHandlers()
 	return &webhookUsecaseImpl{
 		ds:                 ds,
 		applicationUsecase: applicationUsecase,
 	}
+}
+
+func registerHandlers() {
+	new(customHandlerImpl).install()
+	new(acrHandlerImpl).install()
+}
+
+type webhookHandler interface {
+	handle(ctx context.Context, trigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error)
+	install()
+}
+
+type customHandlerImpl struct {
+	req apisv1.HandleApplicationTriggerWebhookRequest
+	w   *webhookUsecaseImpl
+}
+
+type acrHandlerImpl struct {
+	req apisv1.HandleApplicationTriggerACRRequest
+	w   *webhookUsecaseImpl
+}
+
+func (c *webhookUsecaseImpl) newCustomHandler(req *restful.Request) (webhookHandler, error) {
+	var webhookReq apisv1.HandleApplicationTriggerWebhookRequest
+	if err := req.ReadEntity(&webhookReq); err != nil {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	return &customHandlerImpl{
+		req: webhookReq,
+		w:   c,
+	}, nil
+}
+
+func (c *webhookUsecaseImpl) newACRHandler(req *restful.Request) (webhookHandler, error) {
+	var acrReq apisv1.HandleApplicationTriggerACRRequest
+	if err := req.ReadEntity(&acrReq); err != nil {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	return &acrHandlerImpl{
+		req: acrReq,
+		w:   c,
+	}, nil
 }
 
 func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (*apisv1.ApplicationDeployResponse, error) {
@@ -73,90 +118,94 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		return nil, err
 	}
 
+	var handler webhookHandler
+	var err error
 	switch webhookTrigger.PayloadType {
 	case model.PayloadTypeCustom:
-		return c.handleCustomWebhook(ctx, req, webhookTrigger, app)
+		handler, err = c.newCustomHandler(req)
+		if err != nil {
+			return nil, err
+		}
 	case model.PayloadTypeACR:
-		return c.handleACRWebhook(ctx, req, webhookTrigger, app)
+		handler, err = c.newACRHandler(req)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, bcode.ErrInvalidWebhookPayloadType
 	}
+
+	return handler.handle(ctx, webhookTrigger, app)
 }
 
-func (c *webhookUsecaseImpl) handleCustomWebhook(ctx context.Context, req *restful.Request, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
-	var webhookReq apisv1.HandleApplicationTriggerWebhookRequest
-	if err := req.ReadEntity(&webhookReq); err != nil {
-		return nil, bcode.ErrInvalidWebhookPayloadBody
+func (c *webhookUsecaseImpl) patchComponentProperties(ctx context.Context, component *model.ApplicationComponent, patch *runtime.RawExtension) error {
+	merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), patch)
+	if err != nil {
+		return err
 	}
-	for comp, properties := range webhookReq.Upgrade {
+	prop, err := model.NewJSONStructByStruct(merge)
+	if err != nil {
+		return err
+	}
+	component.Properties = prop
+	if err := c.ds.Put(ctx, component); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *customHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+	for comp, properties := range c.req.Upgrade {
 		component := &model.ApplicationComponent{
 			AppPrimaryKey: webhookTrigger.AppPrimaryKey,
 			Name:          comp,
 		}
-		if err := c.ds.Get(ctx, component); err != nil {
+		if err := c.w.ds.Get(ctx, component); err != nil {
 			if errors.Is(err, datastore.ErrRecordNotExist) {
 				return nil, bcode.ErrApplicationComponetNotExist
 			}
 			return nil, err
 		}
-		merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), properties.RawExtension())
-		if err != nil {
-			return nil, err
-		}
-		prop, err := model.NewJSONStructByStruct(merge)
-		if err != nil {
-			return nil, err
-		}
-		component.Properties = prop
-		if err := c.ds.Put(ctx, component); err != nil {
+		if err := c.w.patchComponentProperties(ctx, component, properties.RawExtension()); err != nil {
 			return nil, err
 		}
 	}
-	return c.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+	return c.w.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
 		WorkflowName: webhookTrigger.WorkflowName,
 		Note:         "triggered by webhook custom",
 		TriggerType:  apisv1.TriggerTypeWebhook,
 		Force:        true,
-		CodeInfo:     webhookReq.CodeInfo,
+		CodeInfo:     c.req.CodeInfo,
 	})
 }
 
-func (c *webhookUsecaseImpl) handleACRWebhook(ctx context.Context, req *restful.Request, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
-	var acrReq apisv1.HandleApplicationTriggerACRRequest
-	if err := req.ReadEntity(&acrReq); err != nil {
-		return nil, bcode.ErrInvalidWebhookPayloadBody
+func (c *customHandlerImpl) install() {
+	webhookHandlers = append(webhookHandlers, model.PayloadTypeCustom)
+}
+
+func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+	comp := &model.ApplicationComponent{
+		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
 	}
-	if webhookTrigger.ComponentName == "" {
+	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(comps) == 0 {
 		return nil, bcode.ErrApplicationComponetNotExist
 	}
-	component := &model.ApplicationComponent{
-		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
-		Name:          webhookTrigger.ComponentName,
-	}
-	if err := c.ds.Get(ctx, component); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrApplicationComponetNotExist
-		}
-		return nil, err
-	}
 
+	// use the first component as the target component
+	component := comps[0].(*model.ApplicationComponent)
+	acrReq := c.req
 	image := fmt.Sprintf("registry.%s.aliyuncs.com/%s:%s", acrReq.Repository.Region, acrReq.Repository.RepoFullName, acrReq.PushData.Tag)
-	merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), &runtime.RawExtension{
+	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
 		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, image)),
-	})
-	if err != nil {
-		return nil, err
-	}
-	prop, err := model.NewJSONStructByStruct(merge)
-	if err != nil {
-		return nil, err
-	}
-	component.Properties = prop
-	if err := c.ds.Put(ctx, component); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
-	return c.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+	return c.w.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
 		WorkflowName: webhookTrigger.WorkflowName,
 		Note:         "triggered by webhook acr",
 		TriggerType:  apisv1.TriggerTypeWebhook,
@@ -179,6 +228,10 @@ func (c *webhookUsecaseImpl) handleACRWebhook(ctx context.Context, req *restful.
 			},
 		},
 	})
+}
+
+func (c *acrHandlerImpl) install() {
+	webhookHandlers = append(webhookHandlers, model.PayloadTypeACR)
 }
 
 func parseTimeString(t string) time.Time {

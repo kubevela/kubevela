@@ -313,7 +313,6 @@ type ApplicationTrigger struct {
 	Token         string `json:"token"`
 	Type          string `json:"type"`
 	PayloadType   string `json:"payloadType"`
-	ComponentName string `json:"componentName,omitempty"`
 }
 
 const (

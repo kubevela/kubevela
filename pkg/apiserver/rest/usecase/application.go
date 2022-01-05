@@ -94,7 +94,7 @@ type ApplicationUsecase interface {
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
-	ListPayloadTypes(ctx context.Context, app *model.Application) ([]string, error)
+	ListPayloadTypes(ctx context.Context) []string
 }
 
 type applicationUsecaseImpl struct {
@@ -382,7 +382,6 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 		Description:   req.Description,
 		Type:          req.Type,
 		PayloadType:   req.PayloadType,
-		ComponentName: req.ComponentName,
 		Token:         genWebhookToken(),
 	}
 	if err := c.ds.Add(ctx, trigger); err != nil {
@@ -438,16 +437,15 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 		trigger, ok := raw.(*model.ApplicationTrigger)
 		if ok {
 			resp = append(resp, &apisv1.ApplicationTriggerBase{
-				WorkflowName:  trigger.WorkflowName,
-				Name:          trigger.Name,
-				Alias:         trigger.Alias,
-				Description:   trigger.Description,
-				Type:          trigger.Type,
-				PayloadType:   trigger.PayloadType,
-				Token:         trigger.Token,
-				ComponentName: trigger.ComponentName,
-				UpdateTime:    trigger.UpdateTime,
-				CreateTime:    trigger.CreateTime,
+				WorkflowName: trigger.WorkflowName,
+				Name:         trigger.Name,
+				Alias:        trigger.Alias,
+				Description:  trigger.Description,
+				Type:         trigger.Type,
+				PayloadType:  trigger.PayloadType,
+				Token:        trigger.Token,
+				UpdateTime:   trigger.UpdateTime,
+				CreateTime:   trigger.CreateTime,
 			})
 		}
 	}
@@ -1354,24 +1352,8 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-func (c *applicationUsecaseImpl) ListPayloadTypes(ctx context.Context, app *model.Application) ([]string, error) {
-	var component = model.ApplicationComponent{
-		AppPrimaryKey: app.PrimaryKey(),
-	}
-	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	list := make([]string, 0)
-	list = append(list, model.PayloadTypeCustom)
-	for _, component := range components {
-		c := component.(*model.ApplicationComponent)
-		if c.Type == model.ComponentTypeWebservice || c.Type == model.ComponentTypeTask || c.Type == model.ComponentTypeWorker {
-			list = append(list, model.PayloadTypeACR)
-			break
-		}
-	}
-	return list, nil
+func (c *applicationUsecaseImpl) ListPayloadTypes(ctx context.Context) []string {
+	return webhookHandlers
 }
 
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {

@@ -504,6 +504,31 @@
 				}
 			}
 		},
+		"/api/v1/applications/payload_types": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list application trigger payload types",
+				"operationId": "ListPayloadTypes",
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}": {
 			"get": {
 				"consumes": [
@@ -1707,6 +1732,133 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/triggers": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "list application triggers",
+				"operationId": "listApplicationTriggers",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ListApplicationTriggerResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "create one application trigger",
+				"operationId": "createApplicationTrigger",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateApplicationTriggerRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationTriggerBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/triggers/{token}": {
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "delete one application trigger",
+				"operationId": "deleteApplicationTrigger",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the trigger",
+						"name": "token",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/workflows": {
 			"get": {
 				"consumes": [
@@ -2738,9 +2890,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"workflowstep",
 							"component",
-							"trait"
+							"trait",
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -2817,7 +2969,7 @@
 				}
 			}
 		},
-		"/api/v1/enabled-addon": {
+		"/api/v1/enabled_addon": {
 			"get": {
 				"consumes": [
 					"application/xml",
@@ -3302,6 +3454,52 @@
 				}
 			}
 		},
+		"/api/v1/webhook/{token}": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"webhook"
+				],
+				"summary": "handle application webhook request",
+				"operationId": "handleApplicationWebhook",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.HandleApplicationTriggerWebhookRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationDeployResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/v1/namespaces/{namespace}/applications/{appname}": {
 			"get": {
 				"consumes": [
@@ -3424,6 +3622,8 @@
 		}
 	},
 	"definitions": {
+		"*v1.ApplicationTriggerBase": {},
+		"*v1.EmptyResponse": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -3604,11 +3804,11 @@
 		},
 		"common.AppRolloutStatus": {
 			"required": [
-				"batchRollingState",
-				"currentBatch",
-				"upgradedReadyReplicas",
 				"rollingState",
+				"upgradedReadyReplicas",
+				"currentBatch",
 				"upgradedReplicas",
+				"batchRollingState",
 				"lastTargetAppRevision"
 			],
 			"properties": {
@@ -4204,6 +4404,9 @@
 				"applyAppConfig": {
 					"type": "string"
 				},
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -4213,6 +4416,9 @@
 				},
 				"envName": {
 					"type": "string"
+				},
+				"imageInfo": {
+					"$ref": "#/definitions/model.ImageInfo"
 				},
 				"note": {
 					"type": "string"
@@ -4290,8 +4496,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"name",
 				"alias",
 				"description",
@@ -4352,6 +4558,86 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"model.CodeInfo": {
+			"properties": {
+				"branch": {
+					"type": "string"
+				},
+				"commit": {
+					"type": "string"
+				},
+				"user": {
+					"type": "string"
+				}
+			}
+		},
+		"model.ImageInfo": {
+			"required": [
+				"type"
+			],
+			"properties": {
+				"repository": {
+					"$ref": "#/definitions/model.ImageRepository"
+				},
+				"resource": {
+					"$ref": "#/definitions/model.ImageResource"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"model.ImageRepository": {
+			"required": [
+				"name",
+				"namespace",
+				"fullName",
+				"type"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"fullName": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"model.ImageResource": {
+			"required": [
+				"digest",
+				"tag",
+				"url"
+			],
+			"properties": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"digest": {
+					"type": "string"
+				},
+				"tag": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
 				}
 			}
 		},
@@ -4601,6 +4887,20 @@
 				}
 			}
 		},
+		"v1.AddonBaseStatus": {
+			"required": [
+				"name",
+				"phase"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.AddonDefinition": {
 			"properties": {
 				"description": {
@@ -4610,6 +4910,20 @@
 					"type": "string"
 				},
 				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.AddonInfo": {
+			"required": [
+				"Meta",
+				"registryName"
+			],
+			"properties": {
+				"Meta": {
+					"$ref": "#/definitions/addon.Meta"
+				},
+				"registryName": {
 					"type": "string"
 				}
 			}
@@ -4716,8 +5030,14 @@
 				"force"
 			],
 			"properties": {
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
+				},
 				"force": {
 					"type": "boolean"
+				},
+				"imageInfo": {
+					"$ref": "#/definitions/model.ImageInfo"
 				},
 				"note": {
 					"type": "string"
@@ -4732,16 +5052,17 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"createTime",
-				"version",
 				"status",
-				"reason",
-				"deployUser",
 				"note",
 				"envName",
-				"triggerType"
+				"triggerType",
+				"version",
+				"createTime"
 			],
 			"properties": {
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -4751,6 +5072,9 @@
 				},
 				"envName": {
 					"type": "string"
+				},
+				"imageInfo": {
+					"$ref": "#/definitions/model.ImageInfo"
 				},
 				"note": {
 					"type": "string"
@@ -4829,13 +5153,14 @@
 				"createTime",
 				"version",
 				"status",
-				"reason",
-				"deployUser",
 				"note",
 				"envName",
 				"triggerType"
 			],
 			"properties": {
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -4845,6 +5170,9 @@
 				},
 				"envName": {
 					"type": "string"
+				},
+				"imageInfo": {
+					"$ref": "#/definitions/model.ImageInfo"
 				},
 				"note": {
 					"type": "string"
@@ -4988,6 +5316,51 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.ApplicationTriggerBase": {
+			"required": [
+				"name",
+				"workflowName",
+				"type",
+				"payloadType",
+				"token",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentName": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"payloadType": {
+					"type": "string"
+				},
+				"token": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workflowName": {
+					"type": "string"
 				}
 			}
 		},
@@ -5339,6 +5712,37 @@
 				}
 			}
 		},
+		"v1.CreateApplicationTriggerRequest": {
+			"required": [
+				"name",
+				"workflowName",
+				"type",
+				"payloadType"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentName": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"payloadType": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"workflowName": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.CreateCloudClusterRequest": {
 			"required": [
 				"accessKeyID",
@@ -5637,10 +6041,10 @@
 		"v1.DetailAddonResponse": {
 			"required": [
 				"name",
-				"description",
-				"invisible",
 				"version",
+				"description",
 				"icon",
+				"invisible",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -5682,6 +6086,9 @@
 						"type": "string"
 					}
 				},
+				"registryName": {
+					"type": "string"
+				},
 				"schema": {
 					"type": "string"
 				},
@@ -5707,13 +6114,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
 				"alias",
 				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
+				"name",
 				"policies",
 				"envBindings",
 				"status",
@@ -5775,20 +6182,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"apiServerURL",
-				"icon",
+				"createTime",
 				"status",
 				"provider",
-				"reason",
-				"alias",
-				"description",
-				"labels",
-				"dashboardURL",
 				"kubeConfig",
 				"updateTime",
-				"createTime",
-				"name",
 				"kubeConfigSecret",
+				"alias",
+				"icon",
+				"reason",
+				"apiServerURL",
+				"dashboardURL",
+				"name",
+				"description",
+				"labels",
 				"resourceInfo"
 			],
 			"properties": {
@@ -5846,13 +6253,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"type",
 				"createTime",
 				"creator",
-				"updateTime",
 				"name",
 				"alias",
-				"appPrimaryKey"
+				"updateTime",
+				"appPrimaryKey",
+				"type"
 			],
 			"properties": {
 				"alias": {
@@ -5983,16 +6390,16 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"reason",
 				"status",
+				"workflowName",
+				"triggerType",
+				"createTime",
+				"version",
 				"deployUser",
 				"note",
-				"workflowName",
-				"updateTime",
-				"version",
-				"reason",
-				"triggerType",
 				"envName",
-				"createTime",
+				"updateTime",
 				"appPrimaryKey"
 			],
 			"properties": {
@@ -6001,6 +6408,9 @@
 				},
 				"applyAppConfig": {
 					"type": "string"
+				},
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
 				},
 				"createTime": {
 					"type": "string",
@@ -6011,6 +6421,9 @@
 				},
 				"envName": {
 					"type": "string"
+				},
+				"imageInfo": {
+					"$ref": "#/definitions/model.ImageInfo"
 				},
 				"note": {
 					"type": "string"
@@ -6041,9 +6454,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -6137,14 +6550,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
-				"description",
-				"default",
-				"updateTime",
+				"createTime",
 				"name",
+				"description",
 				"enable",
+				"default",
+				"alias",
 				"envName",
-				"createTime"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -6323,6 +6736,19 @@
 				}
 			}
 		},
+		"v1.HandleApplicationTriggerWebhookRequest": {
+			"properties": {
+				"codeInfo": {
+					"$ref": "#/definitions/model.CodeInfo"
+				},
+				"upgrade": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/model.JSONStruct"
+					}
+				}
+			}
+		},
 		"v1.ListAddonRegistryResponse": {
 			"required": [
 				"registries"
@@ -6344,7 +6770,7 @@
 				"addons": {
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/addon.Meta"
+						"$ref": "#/definitions/v1.AddonInfo"
 					}
 				},
 				"message": {
@@ -6387,6 +6813,19 @@
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/v1.ApplicationBase"
+					}
+				}
+			}
+		},
+		"v1.ListApplicationTriggerResponse": {
+			"required": [
+				"triggers"
+			],
+			"properties": {
+				"triggers": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationTriggerBase"
 					}
 				}
 			}
