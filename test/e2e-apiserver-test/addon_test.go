@@ -83,7 +83,7 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(deleteRes.StatusCode).Should(Equal(200))
 	})
 
-	Context("list addons", func() {
+	It("list addons", func() {
 		DefaultRegistry := "KubeVela"
 		listRes := get("/api/v1/addons/")
 		defer listRes.Body.Close()
