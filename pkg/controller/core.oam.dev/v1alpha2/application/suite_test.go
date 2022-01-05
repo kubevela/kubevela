@@ -137,13 +137,14 @@ var _ = BeforeSuite(func(done Done) {
 	appParser = appfile.NewApplicationParser(k8sClient, dm, pd)
 
 	reconciler = &Reconciler{
-		Client:           k8sClient,
-		Scheme:           testScheme,
-		dm:               dm,
-		pd:               pd,
-		Recorder:         event.NewAPIRecorder(recorder),
-		appRevisionLimit: appRevisionLimit,
+		Client:   k8sClient,
+		Scheme:   testScheme,
+		dm:       dm,
+		pd:       pd,
+		Recorder: event.NewAPIRecorder(recorder),
 	}
+
+	reconciler.appRevisionLimit = appRevisionLimit
 	// setup the controller manager since we need the component handler to run in the background
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                  testScheme,
