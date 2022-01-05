@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
@@ -436,6 +437,10 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 // 1. if update component create a new component Revision
 // 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
+	if optimize.RevisionOptimizer.DisableAllComponentRevision {
+		return nil
+	}
+
 	for _, cm := range compManifests {
 
 		// external revision specified
@@ -808,6 +813,9 @@ func (h historiesByRevision) Less(i, j int) bool {
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
+	if optimize.RevisionOptimizer.DisableAllComponentRevision {
+		return nil
+	}
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
 	for _, resource := range h.app.Status.AppliedResources {

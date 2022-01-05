@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/optimize"
 )
 
 type delegatingClient struct {
@@ -96,6 +97,7 @@ func (d *delegatingReader) Get(ctx context.Context, key client.ObjectKey, obj cl
 
 // List retrieves list of objects for a given namespace and list options.
 func (d *delegatingReader) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	opts = optimize.ResourceTrackerOptimizer.ExtendResourceTrackerListOption(list, opts)
 	if isUncached, err := d.shouldBypassCache(ctx, list); err != nil {
 		return err
 	} else if isUncached {
