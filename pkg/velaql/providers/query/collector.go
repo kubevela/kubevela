@@ -28,6 +28,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -344,6 +345,32 @@ func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]unstructured.
 		workloads = append(workloads, workloadsList[i]...)
 	}
 	return workloads, nil
+}
+
+// CollectServices collect service of HelmRelease
+func (c *HelmReleaseCollector) CollectServices(ctx context.Context, cluster string) ([]corev1.Service, error) {
+	cctx := multicluster.ContextWithClusterName(ctx, cluster)
+	listOptions := []client.ListOption{
+		client.MatchingLabels(c.matchLabels),
+	}
+	var services corev1.ServiceList
+	if err := c.cli.List(cctx, &services, listOptions...); err != nil {
+		return nil, err
+	}
+	return services.Items, nil
+}
+
+// CollectIngress collect ingress of HelmRelease
+func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster string) ([]networkv1beta1.Ingress, error) {
+	cctx := multicluster.ContextWithClusterName(ctx, cluster)
+	listOptions := []client.ListOption{
+		client.MatchingLabels(c.matchLabels),
+	}
+	var ingreses networkv1beta1.IngressList
+	if err := c.cli.List(cctx, &ingreses, listOptions...); err != nil {
+		return nil, err
+	}
+	return ingreses.Items, nil
 }
 
 // helmReleasePodCollector collect pods created by helmRelease
