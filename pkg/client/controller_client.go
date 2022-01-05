@@ -25,6 +25,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/oam-dev/kubevela/pkg/optimize"
 )
 
 var (
@@ -39,6 +41,9 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	}
 
 	mClient := &monitorClient{rawClient}
+	if err := optimize.ResourceTrackerOptimizer.AddResourceTrackerCacheIndex(cache); err != nil {
+		return nil, errors.Wrapf(err, "failed to add app index to ResourceTracker cache")
+	}
 	mCache := &monitorCache{cache}
 
 	uncachedStructuredGVKs := map[schema.GroupVersionKind]struct{}{}
