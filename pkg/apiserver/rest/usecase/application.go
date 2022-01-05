@@ -98,7 +98,7 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
-	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, envName string) (*apisv1.AppCompareResponse, error)
+	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
@@ -1355,29 +1355,29 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 }
 
 // CompareAppWithLatestRevision compare application with last revision
-func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, envName string) (*apisv1.AppCompareResponse, error) {
+func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
 	var reqWorkflowName string
-	if envName != "" {
-		reqWorkflowName = convertWorkflowName(envName)
+	if compareReq.Env != "" {
+		reqWorkflowName = convertWorkflowName(compareReq.Env)
 	}
 	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
-	ignoreSomeParams(newApp)
 	if err != nil {
 		return nil, err
 	}
+	ignoreSomeParams(newApp)
 	newAppBytes, err := yaml.Marshal(newApp)
 	if err != nil {
 		return nil, err
 	}
 
-	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, envName, "")
-	ignoreSomeParams(oldApp)
+	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, compareReq.Env, "")
 	if err != nil {
 		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
 			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
 		}
 		return nil, err
 	}
+	ignoreSomeParams(oldApp)
 	oldAppBytes, err := yaml.Marshal(oldApp)
 	if err != nil {
 		return nil, err
@@ -1598,7 +1598,7 @@ func (c *applicationUsecaseImpl) compareDiff(ctx context.Context, newApp, oldApp
 	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
 	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
 	if err != nil {
-		return nil, errors.New("cannot calculate diff")
+		return nil, err
 	}
 	var buff = bytes.Buffer{}
 	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)

@@ -510,7 +510,6 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.QueryParameter("envName", "identifier of the env").DataType("string")).
 		Returns(200, "", apis.ApplicationBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppCompareResponse{}))
@@ -1118,8 +1117,18 @@ func (c *applicationWebService) listApplicationRecords(req *restful.Request, res
 
 func (c *applicationWebService) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	// Verify the validity of parameters
+	var compareReq apis.AppCompareReq
+	if err := req.ReadEntity(&compareReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&compareReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 
-	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app, req.QueryParameter("envName"))
+	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app, compareReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
