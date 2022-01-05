@@ -302,7 +302,7 @@ variable "mapVar" {
   type = "map"
 }`
 
-	variables, err := ParseTerraformVariables(configuration)
+	variables, _, err := ParseTerraformVariables(configuration)
 	assert.NoError(t, err)
 	_, passwordExisted := variables["password"]
 	assert.True(t, passwordExisted)

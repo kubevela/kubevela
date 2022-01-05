@@ -140,7 +140,7 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(pd *packages.PackageD
 func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]byte, error) {
 	schemas := make(map[string]*openapi3.Schema)
 	var required []string
-	variables, err := common.ParseTerraformVariables(configuration)
+	variables, _, err := common.ParseTerraformVariables(configuration)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate capability properties")
 	}
@@ -187,7 +187,8 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 	return generateJSONSchemaWithRequiredProperty(schemas, required)
 }
 
-func getTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
+// GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
+func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
 	tmpPath := filepath.Join("./tmp/terraform", name)
 	_, err := git.PlainClone(tmpPath, false, &git.CloneOptions{
 		URL:      remoteURL,
@@ -333,7 +334,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		configuration := def.Terraform.Configuration
 		if def.Terraform.Type == "remote" {
-			configuration, err = getTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path)
+			configuration, err = GetTerraformConfigurationFromRemote(def.Name, def.Terraform.Configuration, def.Terraform.Path)
 			if err != nil {
 				return "", fmt.Errorf("cannot get Terraform configuration %s from remote: %w", def.Name, err)
 			}

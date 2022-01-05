@@ -253,6 +253,8 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		if schematic.Terraform != nil {
 			tmp.Category = types.TerraformCategory
 			tmp.TerraformConfiguration = schematic.Terraform.Configuration
+			tmp.ConfigurationType = schematic.Terraform.Type
+			tmp.Path = schematic.Terraform.Path
 			return tmp, nil
 		}
 		if schematic.KUBE != nil {

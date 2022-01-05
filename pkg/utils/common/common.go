@@ -447,18 +447,18 @@ func ReadYamlToObject(path string, object k8sruntime.Object) error {
 }
 
 // ParseTerraformVariables get variables from Terraform Configuration
-func ParseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, error) {
+func ParseTerraformVariables(configuration string) (map[string]*tfconfig.Variable, map[string]*tfconfig.Output, error) {
 	p := hclparse.NewParser()
 	hclFile, diagnostic := p.ParseHCL([]byte(configuration), "")
 	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
+		return nil, nil, errors.New(diagnostic.Error())
 	}
-	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}}
+	mod := tfconfig.Module{Variables: map[string]*tfconfig.Variable{}, Outputs: map[string]*tfconfig.Output{}}
 	diagnostic = tfconfig.LoadModuleFromFile(hclFile, &mod)
 	if diagnostic != nil {
-		return nil, errors.New(diagnostic.Error())
+		return nil, nil, errors.New(diagnostic.Error())
 	}
-	return mod.Variables, nil
+	return mod.Variables, mod.Outputs, nil
 }
 
 // GenerateUnstructuredObj generate UnstructuredObj
