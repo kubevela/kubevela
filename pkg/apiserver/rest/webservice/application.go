@@ -519,7 +519,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", apis.ApplicationBase{}).
+		Returns(200, "", apis.AppResetResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppResetResponse{}))
 
@@ -528,8 +528,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Param(ws.PathParameter("env", "identifier of the env ").DataType("string")).
-		Returns(200, "", apis.ApplicationBase{}).
+		Returns(200, "", apis.AppDryRunResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.AppDryRunResponse{}))
 

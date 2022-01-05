@@ -1483,39 +1483,6 @@ func genPolicyEnvName(targetName string) string {
 	return targetName
 }
 
-func convertToAppComponents(components []datastore.Entity) []common.ApplicationComponent {
-	var appComponents []common.ApplicationComponent
-	for _, entity := range components {
-		component := entity.(*model.ApplicationComponent)
-		var traits []common.ApplicationTrait
-		for _, trait := range component.Traits {
-			aTrait := common.ApplicationTrait{
-				Type: trait.Type,
-			}
-			if trait.Properties != nil {
-				aTrait.Properties = trait.Properties.RawExtension()
-			}
-			traits = append(traits, aTrait)
-		}
-		bc := common.ApplicationComponent{
-			Name:             component.Name,
-			Type:             component.Type,
-			ExternalRevision: component.ExternalRevision,
-			DependsOn:        component.DependsOn,
-			Inputs:           component.Inputs,
-			Outputs:          component.Outputs,
-			Traits:           traits,
-			Scopes:           component.Scopes,
-			Properties:       component.Properties.RawExtension(),
-		}
-		if component.Properties != nil {
-			bc.Properties = component.Properties.RawExtension()
-		}
-		appComponents = append(appComponents, bc)
-	}
-	return appComponents
-}
-
 func genWebhookToken() string {
 	rand.Seed(time.Now().UnixNano())
 	runes := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
@@ -1742,15 +1709,4 @@ func ignoreSomeParams(o *v1beta1.Application) {
 	}
 	o.SetAnnotations(newAnnotations)
 
-}
-
-func genWebhookToken() string {
-	rand.Seed(time.Now().UnixNano())
-	runes := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-
-	b := make([]rune, defaultTokenLen)
-	for i := range b {
-		b[i] = runes[rand.Intn(len(runes))] // #nosec
-	}
-	return string(b)
 }
