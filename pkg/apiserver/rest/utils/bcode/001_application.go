@@ -87,3 +87,6 @@ var ErrInvalidWebhookPayloadType = NewBcode(400, 10022, "Invalid webhook payload
 
 // ErrInvalidWebhookPayloadBody means the webhook payload body is invalid
 var ErrInvalidWebhookPayloadBody = NewBcode(400, 10023, "Invalid webhook payload body")
+
+// ErrApplicationTriggerNotExist means application trigger is not exist
+var ErrApplicationTriggerNotExist = NewBcode(404, 10024, "application trigger is not exist")

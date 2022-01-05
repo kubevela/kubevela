@@ -164,6 +164,34 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(len(triggers)).Should(Equal(2))
 	})
 
+	It("Test DeleteTrigger function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		Expect(len(triggers)).Should(Equal(2))
+		var trigger *v1.ApplicationTriggerBase
+		for _, t := range triggers {
+			if t.Name == "trigger-name" {
+				trigger = t
+				break
+			}
+		}
+		Expect(trigger).ShouldNot(BeNil())
+		Expect(appUsecase.DeleteApplicationTrigger(context.TODO(), appModel, trigger.Token)).Should(BeNil())
+		triggers, err = appUsecase.ListApplicationTriggers(context.TODO(), appModel)
+		Expect(err).Should(BeNil())
+		Expect(len(triggers)).Should(Equal(1))
+		trigger = nil
+		for _, t := range triggers {
+			if t.Name == "trigger-name" {
+				trigger = t
+				break
+			}
+		}
+		Expect(trigger).Should(BeNil())
+	})
+
 	It("Test ListComponents function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
