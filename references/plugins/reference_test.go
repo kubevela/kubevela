@@ -402,6 +402,19 @@ variable "acl" {
 				tableName2: "#### writeConnectionSecretToRef",
 			},
 		},
+		"configuration is in git remote": {
+			args: args{
+				cap: types.Capability{
+					TerraformConfiguration: "https://github.com/zzxwill/terraform-alibaba-eip.git",
+					ConfigurationType:      "remote",
+				},
+			},
+			want: want{
+				errMsg:     "",
+				tableName1: "### Properties",
+				tableName2: "#### writeConnectionSecretToRef",
+			},
+		},
 		"configuration is not valid": {
 			args: args{
 				cap: types.Capability{
