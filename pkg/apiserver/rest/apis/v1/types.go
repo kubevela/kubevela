@@ -318,6 +318,11 @@ type AppResetResponse struct {
 	IsReset bool `json:"isReset"`
 }
 
+// AppCompareReq  application compare req
+type AppCompareReq struct {
+	Env string `json:"env"`
+}
+
 // AppDryRunReq application dry-run req
 type AppDryRunReq struct {
 	AppName    string `json:"appName"`

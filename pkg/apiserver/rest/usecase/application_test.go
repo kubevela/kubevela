@@ -516,7 +516,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 
 		// compare1: when not change, should return false
-		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
@@ -525,7 +525,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		_, err = envBindingUsecase.CreateEnvBinding(context.TODO(), appModel, v1.CreateApplicationEnvbindingRequest{EnvBinding: v1.EnvBinding{Name: "app-prod"}})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
@@ -538,7 +538,7 @@ var _ = Describe("Test application usecase function", func() {
 				Targets:     []string{defaultTarget, "dev-target1"},
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
 
@@ -551,7 +551,7 @@ var _ = Describe("Test application usecase function", func() {
 				Properties: &newProperties,
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, "")
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
 
