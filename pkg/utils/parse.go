@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -117,6 +118,7 @@ func Parse(addr string) (string, *Content, error) {
 				},
 				nil
 		default:
+			return "", nil, fmt.Errorf("git type repository only support github for now")
 		}
 	case "oss":
 		return TypeOss, &Content{

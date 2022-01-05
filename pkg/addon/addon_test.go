@@ -537,3 +537,8 @@ func TestGetPatternFromItem(t *testing.T) {
 		assert.Equal(t, res, tc.meetPattern, tc.caseName)
 	}
 }
+
+func TestGitLabReaderNotPanic(t *testing.T) {
+	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
+	assert.EqualError(t, err, "git type repository only support github for now")
+}
