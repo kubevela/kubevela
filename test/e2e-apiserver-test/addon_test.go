@@ -92,7 +92,7 @@ var _ = Describe("Test addon rest api", func() {
 		err := json.NewDecoder(listRes.Body).Decode(&lres)
 		Expect(err).Should(BeNil())
 		Expect(lres.Addons).ShouldNot(BeZero())
-		Expect(lres.Addons[0]).To(Equal(DefaultRegistry))
+		Expect(lres.Addons[0].RegistryName).To(Equal(DefaultRegistry))
 
 		By("get addon detail")
 		detailRes := get("/api/v1/addons/terraform-alibaba")
