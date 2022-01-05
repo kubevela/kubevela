@@ -133,6 +133,16 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationTriggerBase{}))
 
+	ws.Route(ws.DELETE("/{name}/triggers/{token}").To(c.deleteApplicationTrigger).
+		Doc("delete one application trigger").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("token", "identifier of the trigger").DataType("string")).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes([]*apis.EmptyResponse{}))
+
 	ws.Route(ws.GET("/{name}/triggers").To(c.listApplicationTriggers).
 		Doc("list application triggers").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -608,6 +618,18 @@ func (c *applicationWebService) listApplicationTriggers(req *restful.Request, re
 		return
 	}
 	if err := res.WriteEntity(apis.ListApplicationTriggerResponse{Triggers: triggers}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) deleteApplicationTrigger(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	if err := c.applicationUsecase.DeleteApplicationTrigger(req.Request.Context(), app, req.PathParameter("token")); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

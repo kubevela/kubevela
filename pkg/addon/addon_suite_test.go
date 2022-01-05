@@ -40,7 +40,7 @@ var _ = Describe("Addon test", func() {
 		Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
 	})
 
-	It("continueIfSuspend func test", func() {
+	It("continueOrRestartWorkflow func test", func() {
 		app = v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(appYaml), &app)).Should(BeNil())
 		app.SetNamespace(testns)
@@ -69,7 +69,7 @@ var _ = Describe("Addon test", func() {
 			}
 
 			h := Installer{ctx: ctx, cli: k8sClient, addon: &InstallPackage{Meta: Meta{Name: "test-app"}}}
-			if err := h.continueIfSuspend(); err != nil {
+			if err := h.continueOrRestartWorkflow(); err != nil {
 				return err
 			}
 			return nil
@@ -82,6 +82,54 @@ var _ = Describe("Addon test", func() {
 			}
 			if checkApp.Status.Workflow.Suspend {
 				return fmt.Errorf("app haven't not continue")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+	})
+
+	It("continueOrRestartWorkflow func test, test restart workflow", func() {
+		app = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(appYaml), &app)).Should(BeNil())
+		app.SetNamespace(testns)
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+
+		Eventually(func() error {
+			checkApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: app.Namespace, Name: app.Name}, checkApp); err != nil {
+				return err
+			}
+			appPatch := client.MergeFrom(checkApp.DeepCopy())
+			checkApp.Status.Workflow = &common.WorkflowStatus{Message: "someMessage", AppRevision: "test-revision"}
+			checkApp.Status.Phase = common.ApplicationRunning
+			if err := k8sClient.Status().Patch(ctx, checkApp, appPatch); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+		Eventually(func() error {
+			checkApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: app.Namespace, Name: app.Name}, checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Phase != common.ApplicationRunning {
+				return fmt.Errorf("app haven't not running")
+			}
+
+			h := Installer{ctx: ctx, cli: k8sClient, addon: &InstallPackage{Meta: Meta{Name: "test-app"}}}
+			if err := h.continueOrRestartWorkflow(); err != nil {
+				return err
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+		Eventually(func() error {
+			checkApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: app.Namespace, Name: app.Name}, checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Workflow != nil {
+				return fmt.Errorf("app workflow havenot been restart")
 			}
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())

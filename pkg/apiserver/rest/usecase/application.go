@@ -103,6 +103,7 @@ type ApplicationUsecase interface {
 	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
+	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
 }
 
 type applicationUsecaseImpl struct {
@@ -403,6 +404,22 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 		PayloadType:  req.PayloadType,
 		Token:        trigger.Token,
 	}, nil
+}
+
+// DeleteApplicationTrigger delete application trigger
+func (c *applicationUsecaseImpl) DeleteApplicationTrigger(ctx context.Context, app *model.Application, token string) error {
+	trigger := model.ApplicationTrigger{
+		AppPrimaryKey: app.PrimaryKey(),
+		Token:         token,
+	}
+	if err := c.ds.Delete(ctx, &trigger); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return bcode.ErrApplicationTriggerNotExist
+		}
+		log.Logger.Warnf("delete app trigger %s failure %s", token, err.Error())
+		return err
+	}
+	return nil
 }
 
 // ListApplicationTrigger list application triggers

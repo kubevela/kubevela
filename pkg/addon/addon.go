@@ -505,20 +505,34 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 				Type: "deploy2runtime",
 			})
 	case addon.Name == ObservabilityAddon:
-		policies, err := preparePolicies4Observability(ctx, k8sClient)
+		clusters, err := allocateDomainForAddon(ctx, k8sClient)
+		if err != nil {
+			return nil, err
+		}
+
+		policies, err := preparePolicies4Observability(clusters)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
 		}
 		app.Spec.Policies = policies
 
-		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []v1beta1.WorkflowStep{{
-				Name: "deploy-control-plane",
-				Type: "apply-application-in-parallel",
-			}},
+		if len(clusters) > 0 {
+			app.Spec.Workflow = &v1beta1.Workflow{
+				Steps: []v1beta1.WorkflowStep{{
+					Name: "deploy-control-plane",
+					Type: "apply-application-in-parallel",
+				}},
+			}
+		} else {
+			app.Spec.Workflow = &v1beta1.Workflow{
+				Steps: []v1beta1.WorkflowStep{{
+					Name: "deploy-control-plane",
+					Type: "apply-application",
+				}},
+			}
 		}
 
-		workflowSteps, err := prepareWorkflow4Observability(ctx, k8sClient)
+		workflowSteps, err := prepareWorkflow4Observability(clusters)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to prepare the workflow for Add-on Observability")
 		}
@@ -625,12 +639,10 @@ func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]Obs
 	return envs, nil
 }
 
-func preparePolicies4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.AppPolicy, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient)
-	if err != nil {
-		return nil, err
+func preparePolicies4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.AppPolicy, error) {
+	if clusters == nil {
+		return nil, nil
 	}
-
 	envProperties, err := render(clusters, ObservabilityEnvBindingEnvTmpl)
 	if err != nil {
 		return nil, err
@@ -656,12 +668,7 @@ func preparePolicies4Observability(ctx context.Context, k8sClient client.Client)
 	return policies, nil
 }
 
-func prepareWorkflow4Observability(ctx context.Context, k8sClient client.Client) ([]v1beta1.WorkflowStep, error) {
-	clusters, err := allocateDomainForAddon(ctx, k8sClient)
-	if err != nil {
-		return nil, err
-	}
-
+func prepareWorkflow4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.WorkflowStep, error) {
 	envBindingWorkflow, err := render(clusters, ObservabilityWorkflow4EnvBindingTmpl)
 	if err != nil {
 		return nil, err
@@ -865,7 +872,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	}
 	// we shouldn't put continue func into dispatchAddonResource, because the re-apply app maybe already update app and
 	// the suspend will set with false automatically
-	if err := h.continueIfSuspend(); err != nil {
+	if err := h.continueOrRestartWorkflow(); err != nil {
 		return err
 	}
 	return nil
@@ -986,17 +993,34 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	return nil
 }
 
-func (h *Installer) continueIfSuspend() error {
+// this func will handle such two case
+// 1. if last apply failed an workflow have suspend, this func will continue the workflow
+// 2. restart the workflow, if the new cluster have been added in KubeVela
+func (h *Installer) continueOrRestartWorkflow() error {
 	app, err := FetchAddonRelatedApp(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err
 	}
-	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
+
+	switch {
+	// this case means user add a new cluster and user want to restart workflow to dispatch addon resources to new cluster
+	// re-apply app won't help app restart workflow
+	case app.Status.Phase == common2.ApplicationRunning:
+		app.Status.Workflow = nil
+
+		if err := h.cli.Status().Update(context.TODO(), app); err != nil {
+			return err
+		}
+		return nil
+	// this case means addon last installation meet some error and workflow has been suspend by app controller
+	// re-apply app won't help app workflow continue
+	case app.Status.Workflow != nil && app.Status.Workflow.Suspend:
 		mergePatch := client.MergeFrom(app.DeepCopy())
 		app.Status.Workflow.Suspend = false
 		if err := h.cli.Status().Patch(h.ctx, app, mergePatch); err != nil {
 			return err
 		}
+		return nil
 	}
 	return nil
 }

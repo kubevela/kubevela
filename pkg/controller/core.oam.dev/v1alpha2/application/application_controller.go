@@ -444,14 +444,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
 			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
-				new, ok := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
-				if !ok {
-					return true
+				new, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+				old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+				if !isNewApp || !isOldApp {
+					return filterManagedFieldChangesUpdate(e)
 				}
-				old, ok := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
-				if !ok {
-					return true
-				}
+				// filter managedFields changes
+				new.ManagedFields = old.ManagedFields
+
 				// if the generation is changed, return true to let the controller handle it
 				if old.Generation != new.Generation {
 					return true
@@ -469,7 +469,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					// once the resources is added, the managed fields will also be changed
 					new.Status.AppliedResources = old.Status.AppliedResources
 					new.Status.Services = old.Status.Services
-					new.ManagedFields = old.ManagedFields
 					// the resource version will be changed if the object is changed
 					// ignore this change and let reflect.DeepEqual to compare the rest of the object
 					new.ResourceVersion = old.ResourceVersion
@@ -505,6 +504,19 @@ func updateObservedGeneration(app *v1beta1.Application) {
 	if app.Status.ObservedGeneration != app.Generation {
 		app.Status.ObservedGeneration = app.Generation
 	}
+}
+
+// filterManagedFieldChangesUpdate filter resourceTracker update event by ignoring managedFields changes
+// For old k8s version like 1.18.5, the managedField could always update and cause infinite loop
+// this function helps filter those events and prevent infinite loop
+func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
+	new, isNewRT := e.ObjectNew.DeepCopyObject().(*v1beta1.ResourceTracker)
+	old, isOldRT := e.ObjectOld.DeepCopyObject().(*v1beta1.ResourceTracker)
+	if !isNewRT || !isOldRT {
+		return true
+	}
+	new.ManagedFields = old.ManagedFields
+	return !reflect.DeepEqual(new, old)
 }
 
 func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLimitingInterface) {

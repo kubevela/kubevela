@@ -435,7 +435,7 @@ func TestRenderApp4Observability(t *testing.T) {
 				},
 			},
 			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"}]}},"status":{}}`,
+			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application"}]}},"status":{}}`,
 		},
 	}
 	for _, tc := range testcases {
@@ -536,4 +536,9 @@ func TestGetPatternFromItem(t *testing.T) {
 		res := GetPatternFromItem(tc.item, tc.r, tc.root)
 		assert.Equal(t, res, tc.meetPattern, tc.caseName)
 	}
+}
+
+func TestGitLabReaderNotPanic(t *testing.T) {
+	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
+	assert.EqualError(t, err, "git type repository only support github for now")
 }
