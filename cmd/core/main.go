@@ -131,9 +131,7 @@ func main() {
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
 	flag.StringVar(&ctrlClient.CachedGVKs, "cached-gvks", "", "Types of resources to be cached. For example, --cached-resources=Deployment.v1.apps,Job.v1.batch")
-	flag.BoolVar(&optimize.ResourceTrackerOptimizer.OptimizeListOp, "optimize-resource-tracker-list-op", false, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker.")
-	flag.BoolVar(&optimize.RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used.")
-	flag.BoolVar(&optimize.RevisionOptimizer.DisableWorkflowRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
+	optimize.AddFlags()
 
 	flag.Parse()
 	// setup logging
