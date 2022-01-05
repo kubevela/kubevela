@@ -17,8 +17,6 @@ limitations under the License.
 package addon
 
 import (
-	"net/http"
-
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 )
@@ -38,15 +36,6 @@ var (
 	// ErrNotExist  means addon not exists
 	ErrNotExist = NewAddonError("addon not exist")
 )
-
-// WrapErrNotExist returns ErrNotExist if is the situation, or original error
-func WrapErrNotExist(err error) error {
-	errMsg := &github.ErrorResponse{}
-	if ok := errors.As(err, &errMsg); ok && errMsg.Response.StatusCode == http.StatusNotFound {
-		return ErrNotExist
-	}
-	return err
-}
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
 func WrapErrRateLimit(err error) error {
