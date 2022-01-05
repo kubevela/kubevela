@@ -402,6 +402,19 @@ variable "acl" {
 				tableName2: "#### writeConnectionSecretToRef",
 			},
 		},
+		"configuration is in git remote": {
+			args: args{
+				cap: types.Capability{
+					TerraformConfiguration: "https://github.com/zzxwill/terraform-alibaba-eip.git",
+					ConfigurationType:      "remote",
+				},
+			},
+			want: want{
+				errMsg:     "",
+				tableName1: "### Properties",
+				tableName2: "#### writeConnectionSecretToRef",
+			},
+		},
 		"configuration is not valid": {
 			args: args{
 				cap: types.Capability{
@@ -434,5 +447,46 @@ variable "acl" {
 				t.Errorf("\n%s\nGexnerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
 			}
 		}
+	}
+}
+
+func TestPrepareTerraformOutputs(t *testing.T) {
+	type args struct {
+		tableName     string
+		parameterList []ReferenceParameter
+	}
+
+	param := ReferenceParameter{}
+	param.Name = "ID"
+	param.Usage = "Identity of the cloud resource"
+
+	testcases := []struct {
+		args   args
+		expect string
+	}{
+		{
+			args: args{
+				tableName:     "",
+				parameterList: nil,
+			},
+			expect: "",
+		},
+		{
+			args: args{
+				tableName:     "abc",
+				parameterList: []ReferenceParameter{param},
+			},
+			expect: "\n\nabc\n\nName | Description\n------------ | ------------- \n ID | Identity of the cloud resource\n",
+		},
+	}
+	ref := &MarkdownReference{}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			content := ref.prepareTerraformOutputs(tc.args.tableName, tc.args.parameterList)
+			if content != tc.expect {
+				t.Errorf("prepareTerraformOutputs(...): -want, +got:\n%s\n", cmp.Diff(tc.expect, content))
+			}
+		})
+
 	}
 }
