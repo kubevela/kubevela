@@ -29,7 +29,7 @@ import (
 )
 
 // NewEnvCommand creates `env` command and its nested children
-func NewEnvCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewEnvCommand(c common.Args, order string, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
@@ -39,7 +39,8 @@ func NewEnvCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeStart,
 		},
 	}
 	cmd.SetOut(ioStream.Out)

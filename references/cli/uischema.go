@@ -42,21 +42,23 @@ import (
 )
 
 // NewUISchemaCommand creates `uischema` command
-func NewUISchemaCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uischema",
 		Aliases: []string{"ui"},
+		Long:    "Manage UI schema for addons",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeUISchema,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeExtension,
 		},
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "apply",
 		Short: "apply <ui schema file/dir path>",
 		Args:  cobra.ExactValidArgs(1),
-		Long:  "apply uischema from a file or dir",
+		Long:  "apply UI schema from a file or dir",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeUISchema,
+			types.TagCommandType: types.TypeExtension,
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()

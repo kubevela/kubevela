@@ -33,7 +33,7 @@ func TestLoadUISchemaFiles(t *testing.T) {
 }
 
 func TestNewUISchemaCommand(t *testing.T) {
-	cmd := NewUISchemaCommand(common2.Args{}, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+	cmd := NewUISchemaCommand(common2.Args{}, "", util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	initCommand(cmd)
 	cmd.SetArgs([]string{"apply", "test-data/uischema"})
 	if err := cmd.Execute(); err != nil {

@@ -47,6 +47,6 @@ func TestUp(t *testing.T) {
 func TestNewUpCommandPersistentPreRunE(t *testing.T) {
 	io := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	fakeC := common2.Args{}
-	cmd := NewUpCommand(fakeC, io)
+	cmd := NewUpCommand(fakeC, "", io)
 	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }

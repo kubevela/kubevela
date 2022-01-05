@@ -93,13 +93,14 @@ func init() {
 }
 
 // NewAddonCommand create `addon` command
-func NewAddonCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "addon",
 		Short: "List and get addon in KubeVela",
 		Long:  "List and get addon in KubeVela",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeExtension,
 		},
 	}
 	cmd.AddCommand(

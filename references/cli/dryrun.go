@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -45,20 +46,6 @@ type DryRunCmdOptions struct {
 	DefinitionFile  string
 }
 
-// NewSystemDryRunCommand is deprecated
-func NewSystemDryRunCommand(_ common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &DryRunCmdOptions{IOStreams: ioStreams}
-	cmd := &cobra.Command{
-		Use: "dry-run",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			o.Info("vela system dry-run is deprecated, please use vela dry-run instead")
-			return nil
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
-}
-
 // NewDryRunCommand creates `dry-run` command
 func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &DryRunCmdOptions{IOStreams: ioStreams}
@@ -68,6 +55,9 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
 		Long:                  "Dry Run an application, and output the K8s resources as result to stdout, only CUE template supported for now",
 		Example:               "vela dry-run",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
@@ -87,7 +77,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

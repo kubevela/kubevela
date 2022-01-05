@@ -21,7 +21,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/plugin/cli"
+	"github.com/oam-dev/kubevela/references/cli"
 )
 
 func main() {

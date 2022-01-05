@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -40,25 +41,8 @@ type LiveDiffCmdOptions struct {
 	Context  int
 }
 
-// NewSystemLiveDiffCommand is deprecated
-func NewSystemLiveDiffCommand(_ common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &LiveDiffCmdOptions{
-		DryRunCmdOptions: DryRunCmdOptions{
-			IOStreams: ioStreams,
-		}}
-	cmd := &cobra.Command{
-		Use: "live-diff",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			o.Info("vela system live-diff is deprecated, please use vela live-diff instead")
-			return nil
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
-}
-
 // NewLiveDiffCommand creates `live-diff` command
-func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &LiveDiffCmdOptions{
 		DryRunCmdOptions: DryRunCmdOptions{
 			IOStreams: ioStreams,
@@ -69,6 +53,10 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Short:                 "Dry-run an application, and do diff on a specific app revison",
 		Long:                  "Dry-run an application, and do diff on a specific app revison. The provided capability definitions will be used during Dry-run. If any capabilities used in the app are not found in the provided ones, it will try to find from cluster.",
 		Example:               "vela live-diff -f app-v2.yaml -r app-v1 --context 10",
+		Annotations: map[string]string{
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
@@ -90,7 +78,7 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a file or directory containing capability definitions, they will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().StringVarP(&o.Revision, "Revision", "r", "", "specify an application Revision name, by default, it will compare with the latest Revision")
 	cmd.Flags().IntVarP(&o.Context, "context", "c", -1, "output number lines of context around changes, by default show all unchanged lines")
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

@@ -71,10 +71,10 @@ const (
 func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
-		Short: "Manage Clusters",
-		Long:  "Manage Clusters",
+		Short: "Manage Kubernetes Clusters",
+		Long:  "Manage Kubernetes Clusters",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypeCD,
 		},
 		// check if cluster-gateway is ready
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

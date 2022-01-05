@@ -40,7 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-	apis "github.com/oam-dev/kubevela/references/apis"
+	"github.com/oam-dev/kubevela/references/apis"
 	"github.com/oam-dev/kubevela/references/plugins"
 
 	"github.com/pkg/errors"
@@ -50,11 +50,15 @@ import (
 )
 
 // NewRegistryCommand Manage Capability Center
-func NewRegistryCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+func NewRegistryCommand(ioStream cmdutil.IOStreams, order string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "registry <command>",
+		Use:   "registry",
 		Short: "Manage Registry",
 		Long:  "Manage Registry with config, remove, list",
+		Annotations: map[string]string{
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeExtension,
+		},
 	}
 	cmd.AddCommand(
 		NewRegistryConfigCommand(ioStream),

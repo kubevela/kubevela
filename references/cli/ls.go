@@ -31,7 +31,7 @@ import (
 )
 
 // NewListCommand creates `ls` command and its nested children command
-func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",
@@ -55,10 +55,11 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return printApplicationList(ctx, newClient, namespace, ioStreams)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
