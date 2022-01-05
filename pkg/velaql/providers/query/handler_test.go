@@ -17,6 +17,7 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -25,13 +26,16 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -377,6 +381,333 @@ options: {
 		h, ok = p.GetHandler("query", "collectLogsInPod")
 		Expect(ok).Should(Equal(true))
 		Expect(h).ShouldNot(BeNil())
+		h, ok = p.GetHandler("query", "collectServiceEndpoints")
+		Expect(ok).Should(Equal(true))
+		Expect(h).ShouldNot(BeNil())
+	})
+
+	It("Test generator service endpoints", func() {
+		testApp := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "endpoints-app",
+				Namespace: "default",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name: "endpoints-test",
+						Type: "webservice",
+					},
+				},
+			},
+			Status: common.AppStatus{
+				AppliedResources: []common.ClusterObjectReference{
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:       "Ingress",
+							Namespace:  "default",
+							Name:       "ingress-http",
+							APIVersion: "networking.k8s.io/v1beta1",
+						},
+					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:       "Ingress",
+							Namespace:  "default",
+							Name:       "ingress-https",
+							APIVersion: "networking.k8s.io/v1",
+						},
+					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:       "Ingress",
+							Namespace:  "default",
+							Name:       "ingress-paths",
+							APIVersion: "networking.k8s.io/v1",
+						},
+					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:      "Service",
+							Namespace: "default",
+							Name:      "nodeport",
+						},
+					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:      "Service",
+							Namespace: "default",
+							Name:      "loadbalancer",
+						},
+					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:      helmapi.HelmReleaseGVK.Kind,
+							Namespace: "default",
+							Name:      "helmRelease",
+						},
+					},
+				},
+			},
+		}
+		err := k8sClient.Create(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+
+		testServicelist := []map[string]interface{}{
+			{
+				"name": "clusterip",
+				"ports": []corev1.ServicePort{
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
+					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port"},
+				},
+				"type": corev1.ServiceTypeClusterIP,
+			},
+			{
+				"name": "nodeport",
+				"ports": []corev1.ServicePort{
+					{Port: 80, TargetPort: intstr.FromInt(80), NodePort: 30229},
+				},
+				"type": corev1.ServiceTypeNodePort,
+			},
+			{
+				"name": "loadbalancer",
+				"ports": []corev1.ServicePort{
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
+					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port"},
+				},
+				"type": corev1.ServiceTypeLoadBalancer,
+				"status": corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "10.10.10.10",
+							},
+							{
+								Hostname: "text.example.com",
+							},
+						},
+					},
+				},
+			},
+			{
+				"name": "helm1",
+				"ports": []corev1.ServicePort{
+					{Port: 80, NodePort: 30002, TargetPort: intstr.FromInt(80)},
+				},
+				"type": corev1.ServiceTypeNodePort,
+				"labels": map[string]string{
+					"helm.toolkit.fluxcd.io/name":      "helmRelease",
+					"helm.toolkit.fluxcd.io/namespace": "default",
+				},
+			},
+		}
+		for _, s := range testServicelist {
+			service := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      s["name"].(string),
+					Namespace: "default",
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: s["ports"].([]corev1.ServicePort),
+					Type:  s["type"].(corev1.ServiceType),
+				},
+			}
+
+			if s["labels"] != nil {
+				service.Labels = s["labels"].(map[string]string)
+			}
+			err := k8sClient.Create(context.TODO(), service)
+			Expect(err).Should(BeNil())
+			if s["status"] != nil {
+				service.Status = s["status"].(corev1.ServiceStatus)
+				err := k8sClient.Status().Update(context.TODO(), service)
+				Expect(err).Should(BeNil())
+			}
+		}
+		var prefixbeta = networkv1beta1.PathTypePrefix
+		testIngress := []client.Object{
+			&networkv1beta1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress-http",
+					Namespace: "default",
+				},
+				Spec: networkv1beta1.IngressSpec{
+					Rules: []networkv1beta1.IngressRule{
+						{
+							Host: "ingress.domain",
+							IngressRuleValue: networkv1beta1.IngressRuleValue{
+								HTTP: &networkv1beta1.HTTPIngressRuleValue{
+									Paths: []networkv1beta1.HTTPIngressPath{
+										{
+											Path: "/",
+											Backend: networkv1beta1.IngressBackend{
+												ServiceName: "clusterip",
+												ServicePort: intstr.FromInt(80),
+											},
+											PathType: &prefixbeta,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			&networkv1beta1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress-https",
+					Namespace: "default",
+				},
+				Spec: networkv1beta1.IngressSpec{
+					TLS: []networkv1beta1.IngressTLS{
+						{
+							SecretName: "https-secret",
+						},
+					},
+					Rules: []networkv1beta1.IngressRule{
+						{
+							Host: "ingress.domain.https",
+							IngressRuleValue: networkv1beta1.IngressRuleValue{
+								HTTP: &networkv1beta1.HTTPIngressRuleValue{
+									Paths: []networkv1beta1.HTTPIngressPath{
+										{
+											Path: "/",
+											Backend: networkv1beta1.IngressBackend{
+												ServiceName: "clusterip",
+												ServicePort: intstr.FromInt(80),
+											},
+											PathType: &prefixbeta,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			&networkv1beta1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress-paths",
+					Namespace: "default",
+				},
+				Spec: networkv1beta1.IngressSpec{
+					TLS: []networkv1beta1.IngressTLS{
+						{
+							SecretName: "https-secret",
+						},
+					},
+					Rules: []networkv1beta1.IngressRule{
+						{
+							Host: "ingress.domain.path",
+							IngressRuleValue: networkv1beta1.IngressRuleValue{
+								HTTP: &networkv1beta1.HTTPIngressRuleValue{
+									Paths: []networkv1beta1.HTTPIngressPath{
+										{
+											Path: "/test",
+											Backend: networkv1beta1.IngressBackend{
+												ServiceName: "clusterip",
+												ServicePort: intstr.FromInt(80),
+											},
+											PathType: &prefixbeta,
+										},
+										{
+											Path: "/test2",
+											Backend: networkv1beta1.IngressBackend{
+												ServiceName: "clusterip",
+												ServicePort: intstr.FromInt(80),
+											},
+											PathType: &prefixbeta,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			&networkv1beta1.Ingress{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "networking.k8s.io/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress-helm",
+					Namespace: "default",
+					Labels: map[string]string{
+						"helm.toolkit.fluxcd.io/name":      "helmRelease",
+						"helm.toolkit.fluxcd.io/namespace": "default",
+					},
+				},
+				Spec: networkv1beta1.IngressSpec{
+					Rules: []networkv1beta1.IngressRule{
+						{
+							Host: "ingress.domain.helm",
+							IngressRuleValue: networkv1beta1.IngressRuleValue{
+								HTTP: &networkv1beta1.HTTPIngressRuleValue{
+									Paths: []networkv1beta1.HTTPIngressPath{
+										{
+											Path: "/",
+											Backend: networkv1beta1.IngressBackend{
+												ServiceName: "clusterip",
+												ServicePort: intstr.FromInt(80),
+											},
+											PathType: &prefixbeta,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		for _, ing := range testIngress {
+			err := k8sClient.Create(context.TODO(), ing)
+			Expect(err).Should(BeNil())
+		}
+		opt := `app: {
+			name: "endpoints-app"
+			namespace: "default"
+			filter: {
+				cluster: "",
+				clusterNamespace: "default",
+			}
+		}`
+		v, err := value.NewValue(opt, nil, "")
+		Expect(err).Should(BeNil())
+		pr := &provider{
+			cli: k8sClient,
+		}
+		err = pr.GeneratorServiceEndpoints(nil, v, nil)
+		Expect(err).Should(BeNil())
+		urls := []string{
+			"http://ingress.domain",
+			"https://ingress.domain.https",
+			"https://ingress.domain.path/test",
+			"https://ingress.domain.path/test2",
+			"tcp://:30229",
+			"tcp://10.10.10.10:80",
+			"tcp://text.example.com:80",
+			"tcp://10.10.10.10:81",
+			"tcp://text.example.com:81",
+			// helmRelease
+			"tcp://:30002",
+			"http://ingress.domain.helm",
+		}
+		endValue, err := v.Field("list")
+		Expect(err).Should(BeNil())
+		var endpoints []ServiceEndpoint
+		err = endValue.Decode(&endpoints)
+		Expect(err).Should(BeNil())
+		for i, endpoint := range endpoints {
+			Expect(endpoint.String()).Should(BeEquivalentTo(urls[i]))
+		}
 	})
 })
 

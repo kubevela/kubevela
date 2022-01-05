@@ -61,3 +61,27 @@
 	}
 	...
 }
+
+#CollectServiceEndpoints: {
+	#do:       "collectServiceEndpoints"
+	#provider: "query"
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+		}
+	}
+	list?: [...{
+		endpoint: {
+			protocol:    string
+			appProtocol: string
+			host?:       string
+			port:        int
+			path?:       string
+		}
+		ref: {...}
+	}]
+	...
+}
