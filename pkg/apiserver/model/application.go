@@ -213,6 +213,8 @@ type ApplicationRevision struct {
 	EnvName string `json:"envName"`
 	// CodeInfo is the code info of this application revision
 	CodeInfo *CodeInfo `json:"codeInfo,omitempty"`
+	// ImageInfo is the image info of this application revision
+	ImageInfo *ImageInfo `json:"imageInfo,omitempty"`
 }
 
 // CodeInfo is the code info for webhook request
@@ -223,6 +225,44 @@ type CodeInfo struct {
 	Branch string `json:"branch,omitempty"`
 	// User is the user name
 	User string `json:"user,omitempty"`
+}
+
+// ImageInfo is the image info for webhook request
+type ImageInfo struct {
+	// Type is the image type, ACR or Harbor or DockerHub
+	Type string `json:"type"`
+	// Resource is the image resource
+	Resource *ImageResource `json:"resource,omitempty"`
+	// Repository is the image repository
+	Repository *ImageRepository `json:"repository,omitempty"`
+}
+
+// ImageResource is the image resource
+type ImageResource struct {
+	// Digest is the image digest
+	Digest string `json:"digest"`
+	// Tag is the image tag
+	Tag string `json:"tag"`
+	// Url is the image url
+	Url string `json:"url"`
+	// CreateTime is the image create time
+	CreateTime time.Time `json:"createTime,omitempty"`
+}
+
+// ImageRepository is the image repository
+type ImageRepository struct {
+	// Name is the image repository name
+	Name string `json:"name"`
+	// Namespace is the image repository namespace
+	Namespace string `json:"namespace"`
+	// FullName is the image repository full name
+	FullName string `json:"fullName"`
+	// Region is the image repository region
+	Region string `json:"region,omitempty"`
+	// Type is the image repository type, public or private
+	Type string `json:"type"`
+	// CreateTime is the image repository create time
+	CreateTime time.Time `json:"createTime,omitempty"`
 }
 
 // TableName return custom table name
@@ -273,6 +313,7 @@ type ApplicationTrigger struct {
 	Token         string `json:"token"`
 	Type          string `json:"type"`
 	PayloadType   string `json:"payloadType"`
+	ComponentName string `json:"componentName,omitempty"`
 }
 
 const (
@@ -280,6 +321,8 @@ const (
 	PayloadTypeCustom = "custom"
 	// PayloadTypeDockerhub is the payload type dockerhub
 	PayloadTypeDockerhub = "dockerhub"
+	// PayloadTypeACR is the payload type acr
+	PayloadTypeACR = "acr"
 )
 
 // TableName return custom table name

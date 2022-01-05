@@ -370,6 +370,9 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 
 // CreateApplicationTrigger create application trigger
 func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
+	if (req.PayloadType == model.PayloadTypeACR || req.PayloadType == model.PayloadTypeDockerhub) && req.ComponentName == "" {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
 	trigger := &model.ApplicationTrigger{
 		AppPrimaryKey: app.Name,
 		WorkflowName:  req.WorkflowName,
@@ -378,6 +381,7 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 		Description:   req.Description,
 		Type:          req.Type,
 		PayloadType:   req.PayloadType,
+		ComponentName: req.ComponentName,
 		Token:         genWebhookToken(),
 	}
 	if err := c.ds.Add(ctx, trigger); err != nil {
@@ -386,13 +390,16 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 	}
 
 	return &apisv1.ApplicationTriggerBase{
-		WorkflowName: req.WorkflowName,
-		Name:         req.Name,
-		Alias:        req.Alias,
-		Description:  req.Description,
-		Type:         req.Type,
-		PayloadType:  req.PayloadType,
-		Token:        trigger.Token,
+		WorkflowName:  req.WorkflowName,
+		Name:          req.Name,
+		Alias:         req.Alias,
+		Description:   req.Description,
+		Type:          req.Type,
+		PayloadType:   req.PayloadType,
+		Token:         trigger.Token,
+		ComponentName: req.ComponentName,
+		CreateTime:    trigger.CreateTime,
+		UpdateTime:    trigger.UpdateTime,
 	}, nil
 }
 
@@ -430,15 +437,16 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 		trigger, ok := raw.(*model.ApplicationTrigger)
 		if ok {
 			resp = append(resp, &apisv1.ApplicationTriggerBase{
-				WorkflowName: trigger.WorkflowName,
-				Name:         trigger.Name,
-				Alias:        trigger.Alias,
-				Description:  trigger.Description,
-				Type:         trigger.Type,
-				PayloadType:  trigger.PayloadType,
-				Token:        trigger.Token,
-				UpdateTime:   trigger.UpdateTime,
-				CreateTime:   trigger.CreateTime,
+				WorkflowName:  trigger.WorkflowName,
+				Name:          trigger.Name,
+				Alias:         trigger.Alias,
+				Description:   trigger.Description,
+				Type:          trigger.Type,
+				PayloadType:   trigger.PayloadType,
+				Token:         trigger.Token,
+				ComponentName: trigger.ComponentName,
+				UpdateTime:    trigger.UpdateTime,
+				CreateTime:    trigger.CreateTime,
 			})
 		}
 	}
@@ -703,8 +711,8 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
 		EnvName:      workflow.EnvName,
 		CodeInfo:     req.CodeInfo,
+		ImageInfo:    req.ImageInfo,
 	}
-
 	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
 	}
@@ -920,6 +928,7 @@ func (c *applicationUsecaseImpl) converRevisionModelToBase(revision *model.Appli
 		CreateTime:  revision.CreateTime,
 		EnvName:     revision.EnvName,
 		CodeInfo:    revision.CodeInfo,
+		ImageInfo:   revision.ImageInfo,
 	}
 }
 
