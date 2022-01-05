@@ -81,12 +81,17 @@ var (
 // Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
-	dm                   discoverymapper.DiscoveryMapper
-	pd                   *packages.PackageDiscover
-	Scheme               *runtime.Scheme
-	Recorder             event.Recorder
+	dm       discoverymapper.DiscoveryMapper
+	pd       *packages.PackageDiscover
+	Scheme   *runtime.Scheme
+	Recorder event.Recorder
+	options
+}
+
+type options struct {
 	appRevisionLimit     int
 	concurrentReconciles int
+	disableStatusUpdate  bool
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -391,6 +396,9 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
 
+	if !r.disableStatusUpdate {
+		return r.Status().Update(ctx, app)
+	}
 	obj, err := app.Unstructured()
 	if err != nil {
 		return err
@@ -508,13 +516,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:                   args.DiscoveryMapper,
-		pd:                   args.PackageDiscover,
-		appRevisionLimit:     args.AppRevisionLimit,
-		concurrentReconciles: args.ConcurrentReconciles,
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		dm:       args.DiscoveryMapper,
+		pd:       args.PackageDiscover,
+		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -562,5 +569,13 @@ func timeReconcile(app *v1beta1.Application) func() {
 	return func() {
 		v := time.Since(t).Seconds()
 		metrics.ApplicationReconcileTimeHistogram.WithLabelValues(beginPhase, string(app.Status.Phase)).Observe(v)
+	}
+}
+
+func parseOptions(args core.Args) options {
+	return options{
+		disableStatusUpdate:  args.EnableCompatibility,
+		appRevisionLimit:     args.AppRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 }
