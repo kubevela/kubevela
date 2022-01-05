@@ -17,6 +17,7 @@ limitations under the License.
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -24,6 +25,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -41,12 +44,16 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 )
 
 // PolicyType build-in policy type
@@ -91,6 +98,9 @@ type ApplicationUsecase interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
+	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
+	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
+	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
@@ -1344,6 +1354,74 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
+// CompareAppWithLatestRevision compare application with last revision
+func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
+	var reqWorkflowName string
+	if compareReq.Env != "" {
+		reqWorkflowName = convertWorkflowName(compareReq.Env)
+	}
+	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
+	if err != nil {
+		return nil, err
+	}
+	ignoreSomeParams(newApp)
+	newAppBytes, err := yaml.Marshal(newApp)
+	if err != nil {
+		return nil, err
+	}
+
+	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, compareReq.Env, "")
+	if err != nil {
+		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
+			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
+		}
+		return nil, err
+	}
+	ignoreSomeParams(oldApp)
+	oldAppBytes, err := yaml.Marshal(oldApp)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.compareDiff(ctx, newApp, oldApp, string(newAppBytes), string(oldAppBytes))
+}
+
+// ResetAppToLatestRevision reset app's component to last revision
+func (c *applicationUsecaseImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
+	targetApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
+	if err != nil {
+		return nil, err
+	}
+	return c.resetApp(ctx, targetApp)
+}
+
+// DryRunAppOrRevision dry-run application or revision
+func (c *applicationUsecaseImpl) DryRunAppOrRevision(ctx context.Context, appModel *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
+	var app *v1beta1.Application
+	var err error
+	if dryRunReq.DryRunType == "APP" {
+		var reqWorkflowName string
+		if dryRunReq.Env != "" {
+			reqWorkflowName = convertWorkflowName(dryRunReq.Env)
+		}
+		app, err = c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		app, err = c.getAppFromLatestRevision(ctx, dryRunReq.AppName, dryRunReq.Env, dryRunReq.Version)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dryRunResult, err := dryRunApplication(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.AppDryRunResponse{YAML: dryRunResult.String()}, nil
+}
+
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	if target.Cluster != nil {
@@ -1414,4 +1492,221 @@ func genWebhookToken() string {
 		b[i] = runes[rand.Intn(len(runes))] // #nosec
 	}
 	return string(b)
+}
+
+func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) model.ApplicationComponent {
+	bc := model.ApplicationComponent{
+		AppPrimaryKey:    appPrimaryKey,
+		Name:             component.Name,
+		Type:             component.Type,
+		ExternalRevision: component.ExternalRevision,
+		DependsOn:        component.DependsOn,
+		Inputs:           component.Inputs,
+		Outputs:          component.Outputs,
+		Scopes:           component.Scopes,
+	}
+	if component.Properties != nil {
+		bc.Properties, _ = model.NewJSONStruct(component.Properties)
+	}
+	for _, trait := range component.Traits {
+		properties, _ := model.NewJSONStruct(trait.Properties)
+		bc.Traits = append(bc.Traits, model.ApplicationTrait{CreateTime: time.Now(), UpdateTime: time.Now(), Properties: properties, Type: trait.Type, Alias: trait.Type, Description: "auto gen"})
+	}
+	return bc
+}
+
+func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
+
+	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
+	if envName != "" {
+		ar.EnvName = envName
+	}
+	if version != "" {
+		ar.Version = version
+	}
+	revisions, err := c.ds.List(ctx, ar, &datastore.ListOptions{
+		Page:     1,
+		PageSize: 1,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+	})
+	if err != nil || len(revisions) == 0 {
+		return nil, bcode.ErrApplicationRevisionNotExist
+	}
+	latestRevisionRaw := revisions[0]
+	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
+	if !ok {
+		return nil, errors.New("convert application revision error")
+	}
+	// sort component、trait and  hash
+	oldApp := &v1beta1.Application{}
+	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), oldApp); err != nil {
+		return nil, err
+	}
+	return oldApp, nil
+}
+
+func (c *applicationUsecaseImpl) compareDiff(ctx context.Context, newApp, oldApp *v1beta1.Application, newAppYAML, oldAppYAML string) (*apisv1.AppCompareResponse, error) {
+	cmdArgs := common2.Args{
+		Schema: common2.Scheme,
+	}
+	_, err := cmdArgs.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	pd, err := cmdArgs.GetPackageDiscover()
+	if err != nil {
+		return nil, err
+	}
+	dm, err := discoverymapper.New(cmdArgs.Config)
+	if err != nil {
+		return nil, err
+	}
+	var objs []oam.Object
+	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
+	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
+	if err != nil {
+		return nil, err
+	}
+	var buff = bytes.Buffer{}
+	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)
+	reportDiffOpt.PrintDiffReport(diffResult)
+
+	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: newAppYAML, OldAppYAML: oldAppYAML}, nil
+}
+
+func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
+	appPrimaryKey := targetApp.Name
+
+	originComps, err := c.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appPrimaryKey}, &datastore.ListOptions{})
+	if err != nil {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
+
+	var originCompNames []string
+	for _, entity := range originComps {
+		comp := entity.(*model.ApplicationComponent)
+		originCompNames = append(originCompNames, comp.Name)
+	}
+
+	var targetCompNames []string
+	targetComps := targetApp.Spec.Components
+	for _, comp := range targetComps {
+		targetCompNames = append(targetCompNames, comp.Name)
+	}
+
+	readyToUpdate, readyToDelete, readyToAdd := compareSlices(originCompNames, targetCompNames)
+
+	// delete new app's components
+	for _, compName := range readyToDelete {
+		var component = model.ApplicationComponent{
+			AppPrimaryKey: appPrimaryKey,
+			Name:          compName,
+		}
+		if err := c.ds.Delete(ctx, &component); err != nil {
+			if errors.Is(err, datastore.ErrRecordNotExist) {
+				continue
+			}
+			log.Logger.Warnf("delete app %s comp %s failure %s", appPrimaryKey, compName, err.Error())
+		}
+	}
+
+	for _, comp := range targetComps {
+		// add or update new app's components from old app
+		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
+			compModel := convertToModelComponent(appPrimaryKey, comp)
+			properties, err := model.NewJSONStruct(comp.Properties)
+			if err != nil {
+				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
+			}
+			compModel.Properties = properties
+			if err := c.ds.Add(ctx, &compModel); err != nil {
+				if errors.Is(err, datastore.ErrRecordExist) {
+					err := c.ds.Put(ctx, &compModel)
+					if err != nil {
+						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+					}
+					return &apisv1.AppResetResponse{IsReset: true}, err
+				}
+				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+				return &apisv1.AppResetResponse{}, err
+			}
+		}
+	}
+	return &apisv1.AppResetResponse{IsReset: true}, nil
+}
+
+func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buffer, error) {
+	c := common2.Args{
+		Schema: common2.Scheme,
+	}
+
+	var buff = bytes.Buffer{}
+
+	newClient, err := c.GetClient()
+	if err != nil {
+		return buff, err
+	}
+	var objs []oam.Object
+	pd, err := c.GetPackageDiscover()
+	if err != nil {
+		return buff, err
+	}
+
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return buff, err
+	}
+
+	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
+	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	if err != nil {
+		return buff, errors.New("generate OAM objects")
+	}
+
+	var components = make(map[string]*unstructured.Unstructured)
+	for _, comp := range comps {
+		components[comp.Name] = comp.StandardWorkload
+	}
+	buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) \n---\n\n", app.Name)))
+	result, err := yaml.Marshal(app)
+	if err != nil {
+		return buff, errors.New("marshal app error")
+	}
+	buff.Write(result)
+	buff.Write([]byte("\n---\n"))
+	for _, c := range comps {
+		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Component(%s) \n---\n\n", app.Name, c.Name)))
+		result, err := yaml.Marshal(components[c.Name])
+		if err != nil {
+			return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
+		}
+		buff.Write(result)
+		buff.Write([]byte("\n---\n"))
+		for _, t := range c.Traits {
+			result, err := yaml.Marshal(t)
+			if err != nil {
+				return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
+			}
+			buff.Write(result)
+			buff.Write([]byte("\n---\n"))
+		}
+		buff.Write([]byte("\n"))
+	}
+	return buff, nil
+}
+
+func ignoreSomeParams(o *v1beta1.Application) {
+	// set default
+	o.ResourceVersion = ""
+	o.Spec.Workflow = nil
+	newAnnotations := map[string]string{}
+	annotations := o.GetAnnotations()
+	for k, v := range annotations {
+		if k == oam.AnnotationDeployVersion || k == oam.AnnotationPublishVersion || k == "kubectl.kubernetes.io/last-applied-configuration" {
+			continue
+		}
+		newAnnotations[k] = v
+	}
+	o.SetAnnotations(newAnnotations)
+
 }

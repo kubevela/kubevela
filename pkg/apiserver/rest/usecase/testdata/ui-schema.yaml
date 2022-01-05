@@ -51,13 +51,6 @@
     - valueFrom
     label: Add By Secret
   subParameters:
-  - description: Environment variable name
-    jsonKey: name
-    label: Name
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
   - description: The value of the environment variable
     jsonKey: value
     label: Value
@@ -94,6 +87,13 @@
         required: true
     uiType: InnerGroup
     validate: {}
+  - description: Environment variable name
+    jsonKey: name
+    label: Name
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
   uiType: Structs
   validate: {}
 - description: Instructions for assessing whether the container is in a suitable state
@@ -102,6 +102,15 @@
   label: ReadinessProbe
   sort: 13
   subParameters:
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
   - description: Instructions for assessing container health by probing a TCP socket.
       Either this attribute or the exec attribute or the httpGet attribute MUST be
       specified. This attribute is mutually exclusive with both the exec attribute
@@ -220,15 +229,6 @@
     uiType: Number
     validate:
       defaultValue: 10
-      required: true
-  - description: Minimum consecutive successes for the probe to be considered successful
-      after having failed.
-    jsonKey: successThreshold
-    label: SuccessThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
       required: true
   uiType: Group
   validate: {}
@@ -237,6 +237,33 @@
   label: LivenessProbe
   sort: 15
   subParameters:
+  - description: Minimum consecutive successes for the probe to be considered successful
+      after having failed.
+    jsonKey: successThreshold
+    label: SuccessThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 1
+      required: true
+  - description: Instructions for assessing container health by probing a TCP socket.
+      Either this attribute or the exec attribute or the httpGet attribute MUST be
+      specified. This attribute is mutually exclusive with both the exec attribute
+      and the httpGet attribute.
+    jsonKey: tcpSocket
+    label: TcpSocket
+    sort: 100
+    subParameters:
+    - description: The TCP socket within the container that should be probed to assess
+        container health.
+      jsonKey: port
+      label: Port
+      sort: 100
+      uiType: Number
+      validate:
+        required: true
+    uiType: Group
+    validate: {}
   - description: Number of seconds after which the probe times out.
     jsonKey: timeoutSeconds
     label: TimeoutSeconds
@@ -338,33 +365,6 @@
     validate:
       defaultValue: 10
       required: true
-  - description: Minimum consecutive successes for the probe to be considered successful
-      after having failed.
-    jsonKey: successThreshold
-    label: SuccessThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 1
-      required: true
-  - description: Instructions for assessing container health by probing a TCP socket.
-      Either this attribute or the exec attribute or the httpGet attribute MUST be
-      specified. This attribute is mutually exclusive with both the exec attribute
-      and the httpGet attribute.
-    jsonKey: tcpSocket
-    label: TcpSocket
-    sort: 100
-    subParameters:
-    - description: The TCP socket within the container that should be probed to assess
-        container health.
-      jsonKey: port
-      label: Port
-      sort: 100
-      uiType: Number
-      validate:
-        required: true
-    uiType: Group
-    validate: {}
   uiType: Group
   validate: {}
 - description: Specify image pull secrets for your service
