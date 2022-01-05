@@ -82,27 +82,6 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
 
-	//applySourceApp := func(source string) {
-	//	By("Apply an application")
-	//	var newApp v1beta1.Application
-	//	Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+source, &newApp)).Should(BeNil())
-	//	newApp.Namespace = namespaceName
-	//	Eventually(func() error {
-	//		return k8sClient.Create(ctx, &newApp)
-	//	}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-	//
-	//	By("Get Application latest status")
-	//	Eventually(
-	//		func() *oamcomm.Revision {
-	//			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, &app)
-	//			if app.Status.LatestRevision != nil {
-	//				return app.Status.LatestRevision
-	//			}
-	//			return nil
-	//		},
-	//		time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
-	//}
-
 	verifyRolloutSucceeded := func(compRevName string) {
 		By("Wait for the rollout  to succeed")
 		Eventually(
@@ -185,50 +164,6 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		Expect(k8sClient.Create(ctx, &compRev1)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &compRev2)).Should(BeNil())
 	}
-
-	//updateApp := func(target string, revision int) {
-	//	By("Update the application to target spec")
-	//	var targetApp v1beta1.Application
-	//	Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+target, &targetApp)).Should(BeNil())
-	//
-	//	Eventually(
-	//		func() error {
-	//			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
-	//			if err != nil {
-	//				return err
-	//			}
-	//			if app.Status.Phase != oamcomm.ApplicationRunning {
-	//				return fmt.Errorf("application is still last generating apprev ")
-	//			}
-	//			var appRevList = &v1beta1.ApplicationRevisionList{}
-	//			err = k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
-	//				client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-	//			if err != nil {
-	//				return err
-	//			}
-	//			if len(appRevList.Items) != revision-1 {
-	//				return fmt.Errorf("apprev mismatch actually %d", len(appRevList.Items))
-	//			}
-	//			app.Spec = targetApp.DeepCopy().Spec
-	//			return k8sClient.Update(ctx, app.DeepCopy())
-	//		}, time.Second*15, time.Millisecond*500).Should(Succeed())
-	//
-	//	By("Get Application Revision created with more than one")
-	//	Eventually(
-	//		func() error {
-	//			var appRevList = &v1beta1.ApplicationRevisionList{}
-	//			err := k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
-	//				client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-	//			if err != nil {
-	//				return err
-	//			}
-	//			if len(appRevList.Items) != revision {
-	//				return fmt.Errorf("appRevision number mismatch actually %d", len(appRevList.Items))
-	//			}
-	//			return nil
-	//		},
-	//		time.Second*30, time.Millisecond*300).Should(BeNil())
-	//}
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
