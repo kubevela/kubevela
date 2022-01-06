@@ -28,5 +28,6 @@ func AddFlags() {
 	// optimize functions
 	flag.BoolVar(&RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used.")
 	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize Application by disabling the creation and gc. Side effect: application cannot rollback.")
-	flag.BoolVar(&RevisionOptimizer.DisableWorkflowRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
+	flag.BoolVar(&WorkflowOptimizer.DisableRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
+	flag.BoolVar(&WorkflowOptimizer.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to mistakes in workflow inputs/outputs.")
 }
