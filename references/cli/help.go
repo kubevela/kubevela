@@ -17,6 +17,8 @@ limitations under the License.
 package cli
 
 import (
+	"sort"
+
 	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/spf13/cobra"
@@ -41,7 +43,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 		PrintHelpByTag(cmd, allCommands, types.TypeStart)
 		PrintHelpByTag(cmd, allCommands, types.TypeApp)
-		PrintHelpByTag(cmd, allCommands, types.TypeCap)
+		PrintHelpByTag(cmd, allCommands, types.TypeExtension)
 		PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 	} else {
 		foundCmd, _, err := cmd.Root().Find(args)
@@ -51,13 +53,43 @@ func RunHelp(cmd *cobra.Command, args []string) {
 	}
 }
 
+type printable struct {
+	order string
+	use   string
+	long  string
+}
+
+type printlist []printable
+
+func (p printlist) Len() int {
+	return len(p)
+}
+func (p printlist) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+func (p printlist) Less(i, j int) bool {
+	return p[i].order > p[j].order
+}
+
 // PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	table := newUITable()
+	var pl printlist
 	for _, c := range all {
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			table.AddRow("    "+c.Use, c.Long)
+			pl = append(pl, printable{order: c.Annotations[types.TagCommandOrder], use: c.Use, long: c.Long})
 		}
+	}
+	if len(all) == 0 {
+		return
+	}
+	cmd.Println("  " + tag + ":")
+	cmd.Println()
+
+	sort.Sort(pl)
+
+	for _, v := range pl {
+		table.AddRow("    "+v.use, v.long)
 	}
 	cmd.Println(table.String())
 	cmd.Println()

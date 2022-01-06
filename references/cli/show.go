@@ -58,19 +58,19 @@ const (
 
 var webSite bool
 
-// NewCapabilityShowCommand shows the reference doc for a workload type or trait
+// NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
-		Short:   "Show the reference doc for a workload type or trait",
-		Long:    "Show the reference doc for a workload type or trait",
+		Short:   "Show the reference doc for a component type or trait",
+		Long:    "Show the reference doc for a component type or trait",
 		Example: `show webservice`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("please specify a workload type or trait")
+				return fmt.Errorf("please specify a component type or trait")
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
@@ -89,7 +89,8 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	}
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
-	addNamespaceArg(cmd)
+
+	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

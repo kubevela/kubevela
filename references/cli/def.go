@@ -54,13 +54,14 @@ const (
 )
 
 // DefinitionCommandGroup create the command group for `vela def` command to manage definitions
-func DefinitionCommandGroup(c common.Args) *cobra.Command {
+func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "def",
 		Short: "Manage Definitions",
 		Long:  "Manage Definitions",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCap,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeExtension,
 		},
 	}
 	_ = c.SetConfig() // set kubeConfig if possible, otherwise ignore it

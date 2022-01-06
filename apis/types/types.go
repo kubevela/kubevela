@@ -74,20 +74,27 @@ type EnvMeta struct {
 const (
 	// TagCommandType used for tag cli category
 	TagCommandType = "commandType"
+
+	// TagCommandOrder defines the order
+	TagCommandOrder = "commandOrder"
+
 	// TypeStart defines one category
 	TypeStart = "Getting Started"
+
 	// TypeApp defines one category
 	TypeApp = "Managing Applications"
-	// TypeCap defines one category
-	TypeCap = "Managing Capabilities"
+
+	// TypeCD defines workflow Management operations
+	TypeCD = "Continuous Delivery"
+
+	// TypeExtension defines one category
+	TypeExtension = "Managing Extension"
+
 	// TypeSystem defines one category
-	TypeSystem = "System"
-	// TypeDefinition defines one category
-	TypeDefinition = "Managing Definitions"
+	TypeSystem = "Others"
+
 	// TypePlugin defines one category used in Kubectl Plugin
 	TypePlugin = "Plugin Command"
-	// TypeUISchema defines one category
-	TypeUISchema = "Managing UISchema"
 )
 
 // LabelArg is the argument `label` of a definition

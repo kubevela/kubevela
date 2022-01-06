@@ -29,7 +29,7 @@ import (
 )
 
 // NewDeleteCommand Delete App
-func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "delete APP_NAME",
 		DisableFlagsInUseLine: true,
@@ -39,7 +39,8 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			return c.SetConfig()
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 		Example: "vela delete frontend",
 	}
@@ -95,9 +96,10 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		}
 		return nil
 	}
+
 	cmd.PersistentFlags().StringP(Service, "", "", "delete only the specified service in this app")
 	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is deleted completely")
 	cmd.PersistentFlags().BoolVarP(&o.ForceDelete, "force", "f", false, "force to delete the application")
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }

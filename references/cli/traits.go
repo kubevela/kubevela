@@ -88,7 +88,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return PrintInstalledTraitDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCap,
+			types.TagCommandType: types.TypeExtension,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

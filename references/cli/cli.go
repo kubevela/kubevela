@@ -45,7 +45,9 @@ func NewCommand() *cobra.Command {
 			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
-			PrintHelpByTag(cmd, allCommands, types.TypeCap)
+			PrintHelpByTag(cmd, allCommands, types.TypeCD)
+
+			PrintHelpByTag(cmd, allCommands, types.TypeExtension)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
@@ -57,7 +59,6 @@ func NewCommand() *cobra.Command {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
-	cmds.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
 
 	commandArgs := common.Args{
 		Schema: common.Scheme,
@@ -74,52 +75,46 @@ func NewCommand() *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		NewInitCommand(commandArgs, ioStream),
-		NewUpCommand(commandArgs, ioStream),
-		NewExportCommand(commandArgs, ioStream),
+		NewEnvCommand(commandArgs, "3", ioStream),
+		NewInitCommand(commandArgs, "2", ioStream),
+		NewUpCommand(commandArgs, "1", ioStream),
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
-		// Apps
-		NewListCommand(commandArgs, ioStream),
-		NewDeleteCommand(commandArgs, ioStream),
-		NewAppStatusCommand(commandArgs, ioStream),
-		NewExecCommand(commandArgs, ioStream),
-		NewPortForwardCommand(commandArgs, ioStream),
-		NewLogsCommand(commandArgs, ioStream),
-		NewEnvCommand(commandArgs, ioStream),
+		// Manage Apps
+		NewListCommand(commandArgs, "9", ioStream),
+		NewAppStatusCommand(commandArgs, "8", ioStream),
+		NewDeleteCommand(commandArgs, "7", ioStream),
+		NewExecCommand(commandArgs, "6", ioStream),
+		NewPortForwardCommand(commandArgs, "5", ioStream),
+		NewLogsCommand(commandArgs, "4", ioStream),
+		NewLiveDiffCommand(commandArgs, "3", ioStream),
+		NewDryRunCommand(commandArgs, ioStream),
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
-		NewRegistryCommand(ioStream),
-		NewTemplateCommand(ioStream),
-		NewTraitCommand(commandArgs, ioStream),
-		NewComponentsCommand(commandArgs, ioStream),
-		NewWorkloadsCommand(commandArgs, ioStream),
-		DefinitionCommandGroup(commandArgs),
-
-		// Addons
-		NewAddonCommand(commandArgs, ioStream),
-
-		// live-diff
-		NewLiveDiffCommand(commandArgs, ioStream),
-
-		// dry-run
-		NewDryRunCommand(commandArgs, ioStream),
-
-		// cue-packages
-		NewCUEPackageCommand(commandArgs, ioStream),
-
-		// cluster
 		ClusterCommandGroup(commandArgs, ioStream),
 
-		// ui schema
-		NewUISchemaCommand(commandArgs, ioStream),
+		// Extension
+		NewAddonCommand(commandArgs, "9", ioStream),
+		NewUISchemaCommand(commandArgs, "8", ioStream),
+		DefinitionCommandGroup(commandArgs, "7"),
+		NewRegistryCommand(ioStream, "6"),
+		NewTraitCommand(commandArgs, ioStream),
+		NewComponentsCommand(commandArgs, ioStream),
 
-		// Helper
+		// System
+		NewExportCommand(commandArgs, ioStream),
+		NewCUEPackageCommand(commandArgs, ioStream),
 		SystemCommandGroup(commandArgs, ioStream),
-		NewCompletionCommand(),
 		NewVersionCommand(),
+		NewCompletionCommand(),
+
+		// helper
 		NewHelpCommand(),
+
+		// hide
+		NewTemplateCommand(ioStream),
+		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 
 	// this is for mute klog

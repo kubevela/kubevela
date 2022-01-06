@@ -44,8 +44,8 @@ const (
 func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "registry",
-		Short: "Manage addon registry in KubeVela",
-		Long:  "Manage addon registry in KubeVela",
+		Short: "Manage addon registry",
+		Long:  "Manage addon registry",
 	}
 	cmd.AddCommand(
 		NewAddAddonRegistryCommand(c, ioStreams),
@@ -61,8 +61,8 @@ func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.
 func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add",
-		Short:   "Add an addon registry in KubeVela",
-		Long:    "Add an addon registry in KubeVela",
+		Short:   "Add an addon registry",
+		Long:    "Add an addon registry",
 		Example: `"vela addon registry add my-repo --type OSS --endpoint=xxxxx --bucket=xxxx or vela addon registry add my-repo --type git --endpoint=xxxxx --path=xxxx --gitToken=xxx"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
@@ -83,8 +83,8 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "get",
-		Short:   "Get an addon registry in KubeVela",
-		Long:    "Get an addon registry in KubeVela",
+		Short:   "Get an addon registry",
+		Long:    "Get an addon registry",
 		Example: "vela addon registry get my-repo ",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -104,8 +104,8 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
-		Short:   "List addon registries in KubeVela",
-		Long:    "List addon registries in KubeVela",
+		Short:   "List addon registries",
+		Long:    "List addon registries",
 		Example: "vela addon registry list",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := listAddonRegistry(context.Background()); err != nil {
@@ -120,8 +120,8 @@ func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *co
 func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update",
-		Short:   "Update an addon registry in KubeVela",
-		Long:    "Update an addon registry in KubeVela",
+		Short:   "Update an addon registry",
+		Long:    "Update an addon registry",
 		Example: "vela addon registry update my-repo --type OSS --endpoint=xxxxx --bucket=xxxx",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
@@ -142,8 +142,8 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "delete",
-		Short:   "Delete an addon registry in KubeVela",
-		Long:    "Delete an addon registry in KubeVela",
+		Short:   "Delete an addon registry",
+		Long:    "Delete an addon registry",
 		Example: "vela addon registry delete my-repo ",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {

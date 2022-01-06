@@ -35,10 +35,10 @@ import (
 func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Operate application workflow in KubeVela",
-		Long:  "Operate application workflow in KubeVela",
+		Short: "Operate application delivery workflow",
+		Long:  "Operate application delivery workflow",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypeCD,
 		},
 	}
 	cmd.AddCommand(
@@ -88,7 +88,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			return nil
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
@@ -136,7 +136,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			return nil
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
@@ -177,7 +177,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			return nil
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
@@ -218,7 +218,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			return nil
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
@@ -259,7 +259,7 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			return nil
 		},
 	}
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 

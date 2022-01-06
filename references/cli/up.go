@@ -32,15 +32,16 @@ import (
 )
 
 // NewUpCommand will create command for applying an AppFile
-func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cobra.Command {
 	appFilePath := new(string)
 	cmd := &cobra.Command{
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
-		Short:                 "Apply an appfile",
-		Long:                  "Apply an appfile",
+		Short:                 "Apply an appfile or application from file",
+		Long:                  "Apply an appfile or application from file, vela will convert appfile to application automatically",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeStart,
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
@@ -61,7 +62,7 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			var app corev1beta1.Application
 			err = yaml.Unmarshal(fileContent, &app)
 			if err != nil {
-				return errors.Wrap(err, "File format is illegal")
+				return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
 			}
 			if app.APIVersion != "" && app.Kind != "" {
 				err = common.ApplyApplication(app, ioStream, kubecli)
@@ -80,7 +81,8 @@ func NewUpCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile")
-	addNamespaceArg(cmd)
+	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile or application")
+
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
