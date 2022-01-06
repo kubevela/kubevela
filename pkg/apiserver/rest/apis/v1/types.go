@@ -372,25 +372,27 @@ type UpdateApplicationRequest struct {
 
 // CreateApplicationTriggerRequest create application trigger
 type CreateApplicationTriggerRequest struct {
-	Name         string `json:"name" validate:"checkname"`
-	Alias        string `json:"alias" validate:"checkalias" optional:"true"`
-	Description  string `json:"description" optional:"true"`
-	WorkflowName string `json:"workflowName"`
-	Type         string `json:"type" validate:"oneof=webhook"`
-	PayloadType  string `json:"payloadType" validate:"oneof=custom"`
+	Name          string `json:"name" validate:"checkname"`
+	Alias         string `json:"alias" validate:"checkalias" optional:"true"`
+	Description   string `json:"description" optional:"true"`
+	WorkflowName  string `json:"workflowName"`
+	Type          string `json:"type" validate:"oneof=webhook"`
+	PayloadType   string `json:"payloadType" validate:"oneof=custom acr"`
+	ComponentName string `json:"componentName,omitempty" optional:"true"`
 }
 
 // ApplicationTriggerBase application trigger base model
 type ApplicationTriggerBase struct {
-	Name         string    `json:"name"`
-	Alias        string    `json:"alias,omitempty"`
-	Description  string    `json:"description,omitempty"`
-	WorkflowName string    `json:"workflowName"`
-	Type         string    `json:"type"`
-	PayloadType  string    `json:"payloadType"`
-	Token        string    `json:"token"`
-	CreateTime   time.Time `json:"createTime"`
-	UpdateTime   time.Time `json:"updateTime"`
+	Name          string    `json:"name"`
+	Alias         string    `json:"alias,omitempty"`
+	Description   string    `json:"description,omitempty"`
+	WorkflowName  string    `json:"workflowName"`
+	Type          string    `json:"type"`
+	PayloadType   string    `json:"payloadType"`
+	Token         string    `json:"token"`
+	ComponentName string    `json:"componentName,omitempty"`
+	CreateTime    time.Time `json:"createTime"`
+	UpdateTime    time.Time `json:"updateTime"`
 }
 
 // ListApplicationTriggerResponse list application triggers response body
@@ -398,10 +400,35 @@ type ListApplicationTriggerResponse struct {
 	Triggers []*ApplicationTriggerBase `json:"triggers"`
 }
 
-// HandleApplicationWebhookRequest handles application webhook request
-type HandleApplicationWebhookRequest struct {
+// HandleApplicationTriggerWebhookRequest handles application trigger webhook request
+type HandleApplicationTriggerWebhookRequest struct {
 	Upgrade  map[string]*model.JSONStruct `json:"upgrade,omitempty"`
 	CodeInfo *model.CodeInfo              `json:"codeInfo,omitempty"`
+}
+
+// HandleApplicationTriggerACRRequest handles application trigger ACR request
+type HandleApplicationTriggerACRRequest struct {
+	PushData   ACRPushData   `json:"push_data"`
+	Repository ACRRepository `json:"repository"`
+}
+
+// ACRPushData is the push data of ACR
+type ACRPushData struct {
+	Digest   string `json:"digest"`
+	PushedAt string `json:"pushed_at"`
+	Tag      string `json:"tag"`
+}
+
+// ACRRepository is the repository of ACR
+type ACRRepository struct {
+	DateCreated            string `json:"date_created"`
+	Name                   string `json:"name"`
+	Namespace              string `json:"namespace"`
+	Region                 string `json:"region"`
+	RepoAuthenticationType string `json:"repo_authentication_type"`
+	RepoFullName           string `json:"repo_full_name"`
+	RepoOriginType         string `json:"repo_origin_type"`
+	RepoType               string `json:"repo_type"`
 }
 
 // EnvBinding application env binding
@@ -792,7 +819,9 @@ type ApplicationDeployRequest struct {
 	// Force set to True to ignore unfinished events.
 	Force bool `json:"force"`
 	// CodeInfo is the source code info of this deploy
-	CodeInfo *model.CodeInfo `json:"gitInfo,omitempty"`
+	CodeInfo *model.CodeInfo `json:"codeInfo,omitempty"`
+	// ImageInfo is the image code info of this deploy
+	ImageInfo *model.ImageInfo `json:"imageInfo,omitempty"`
 }
 
 // ApplicationDeployResponse application deploy response body
@@ -903,6 +932,8 @@ type ApplicationRevisionBase struct {
 	TriggerType string `json:"triggerType"`
 	// CodeInfo is the code info of this application revision
 	CodeInfo *model.CodeInfo `json:"codeInfo,omitempty"`
+	// ImageInfo is the image info of this application revision
+	ImageInfo *model.ImageInfo `json:"imageInfo,omitempty"`
 }
 
 // ListRevisionsResponse list application revisions

@@ -51,7 +51,7 @@ func (c *webhookWebService) GetWebService() *restful.WebService {
 		Doc("handle application webhook request").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Reads(apis.HandleApplicationWebhookRequest{}).
+		Reads(apis.HandleApplicationTriggerWebhookRequest{}).
 		Returns(200, "", apis.ApplicationDeployResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
