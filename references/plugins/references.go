@@ -375,12 +375,12 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	if ref.DefinitionName == "" {
 		caps, err = LoadAllInstalledCapability("default", c)
 		if err != nil {
-			return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
+			return fmt.Errorf("failed to get all capabilityes: %w", err)
 		}
 	} else {
 		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace)
 		if err != nil {
-			return fmt.Errorf("failed to generate reference docs for capability %s: %w", ref.DefinitionName, err)
+			return fmt.Errorf("failed to get capability capability %s: %w", ref.DefinitionName, err)
 		}
 		caps = []types.Capability{*cap}
 	}

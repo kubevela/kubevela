@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"path/filepath"
@@ -229,16 +230,11 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 
 func TestNewDefinitionGenDocCommand(t *testing.T) {
 	c := initArgs()
-
-	// normal test
 	cmd := NewDefinitionGenDocCommand(c)
-	initCommand(cmd)
-	traitName := createTrait(c, t)
-	cmd.SetArgs([]string{traitName})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpeced error when executing gen-doc command: %v", err)
-	}
+	assert.NotNil(t, cmd.Execute())
 
+	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
+	assert.NotNil(t, cmd.Execute())
 }
 
 func TestNewDefinitionListCommand(t *testing.T) {

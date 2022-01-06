@@ -353,6 +353,9 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 		return capability, nil
 	}
+	if ns == types.DefaultKubeVelaNS {
+		return nil, fmt.Errorf("could not find %s in namespace %s", capabilityName, ns)
+	}
 	return nil, fmt.Errorf("could not find %s in namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
 }
 
