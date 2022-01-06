@@ -29,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
 // ValidateCreate validates the Application on creation
@@ -52,9 +51,6 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 	}
 	if v := app.GetAnnotations()[oam.AnnotationAppRollout]; len(v) != 0 && v != "true" {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("annotation:app.oam.dev/rollout-template"), app, "the annotation value of rollout-template must be true"))
-	}
-	if app.Spec.RolloutPlan != nil {
-		componentErrs = append(componentErrs, rollout.ValidateCreate(h.Client, app.Spec.RolloutPlan, field.NewPath("rolloutPlan"))...)
 	}
 	componentErrs = append(componentErrs, h.validateExternalRevisionName(ctx, app)...)
 	return componentErrs

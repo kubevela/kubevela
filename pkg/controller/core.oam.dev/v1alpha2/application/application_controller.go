@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -48,7 +47,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -177,101 +175,59 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
-	if !appWillRollout(app) {
-		steps, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
-		if err != nil {
-			logCtx.Error(err, "[handle workflow]")
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRendering)
-		}
-		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-		wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode)
-		workflowState, err := wf.ExecuteSteps(logCtx.Fork("workflow"), handler.currentAppRev, steps)
-		if err != nil {
-			logCtx.Error(err, "[handle workflow]")
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
-		}
-
-		handler.addServiceStatus(false, app.Status.Services...)
-		handler.addAppliedResource(true, app.Status.AppliedResources...)
-		app.Status.AppliedResources = handler.appliedResources
-		app.Status.Services = handler.services
-		switch workflowState {
-		case common.WorkflowStateInitializing:
-			logCtx.Info("Workflow return state=Initializing")
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
-		case common.WorkflowStateSuspended:
-			logCtx.Info("Workflow return state=Suspend")
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
-		case common.WorkflowStateTerminated:
-			logCtx.Info("Workflow return state=Terminated")
-			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
-			}
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
-		case common.WorkflowStateExecuting:
-			logCtx.Info("Workflow return state=Executing")
-			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
-			return reconcile.Result{RequeueAfter: wf.GetBackoffWaitTime()}, err
-		case common.WorkflowStateSucceeded:
-			logCtx.Info("Workflow return state=Succeeded")
-			if err := r.doWorkflowFinish(app, wf); err != nil {
-				return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
-			}
-			app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
-			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
-			logCtx.Info("Application manifests has applied by workflow successfully")
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
-		case common.WorkflowStateFinished:
-			logCtx.Info("Workflow state=Finished")
-			if status := app.Status.Workflow; status != nil && status.Terminated {
-				return ctrl.Result{}, nil
-			}
-		}
-	} else {
-		var comps []*velatypes.ComponentManifest
-		comps, err = appFile.GenerateComponentManifests()
-		if err != nil {
-			logCtx.Error(err, "Failed to render components")
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
-		}
-		app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-
-		assemble.HandleCheckManageWorkloadTrait(*handler.currentAppRev, comps)
-
-		if err := handler.HandleComponentsRevision(logCtx, comps); err != nil {
-			logCtx.Error(err, "Failed to handle components revision")
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RenderCondition.String(), err), common.ApplicationRendering)
-		}
-		klog.Info("Application manifests has prepared and ready for appRollout to handle", "application", klog.KObj(app))
+	steps, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
+	if err != nil {
+		logCtx.Error(err, "[handle workflow]")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRendering)
 	}
-	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
-	if handler.app.Spec.RolloutPlan != nil {
-		res, err := handler.handleRollout(logCtx)
-		if err != nil {
-			logCtx.Error(err, "Failed to handle rollout")
-			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.RolloutCondition.String(), err), common.ApplicationRollingOut)
-		}
-		// skip health check and garbage collection if rollout have not finished
-		// start next reconcile immediately
-		if res.Requeue || res.RequeueAfter > 0 {
-			if err := r.patchStatus(logCtx, app, common.ApplicationRollingOut); err != nil {
-				return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRollingOut)
-			}
-			return res, nil
-		}
-
-		// there is no need reconcile immediately, that means the rollout operation have finished
-		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
-		app.Status.SetConditions(condition.ReadyCondition(common.RolloutCondition.String()))
-		logCtx.Info("Finished rollout ")
+	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
+	wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode)
+	workflowState, err := wf.ExecuteSteps(logCtx.Fork("workflow"), handler.currentAppRev, steps)
+	if err != nil {
+		logCtx.Error(err, "[handle workflow]")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 	}
+
+	handler.addServiceStatus(false, app.Status.Services...)
+	handler.addAppliedResource(true, app.Status.AppliedResources...)
+	app.Status.AppliedResources = handler.appliedResources
+	app.Status.Services = handler.services
+	switch workflowState {
+	case common.WorkflowStateInitializing:
+		logCtx.Info("Workflow return state=Initializing")
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
+	case common.WorkflowStateSuspended:
+		logCtx.Info("Workflow return state=Suspend")
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
+	case common.WorkflowStateTerminated:
+		logCtx.Info("Workflow return state=Terminated")
+		if err := r.doWorkflowFinish(app, wf); err != nil {
+			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
+		}
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
+	case common.WorkflowStateExecuting:
+		logCtx.Info("Workflow return state=Executing")
+		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+		return reconcile.Result{RequeueAfter: wf.GetBackoffWaitTime()}, err
+	case common.WorkflowStateSucceeded:
+		logCtx.Info("Workflow return state=Succeeded")
+		if err := r.doWorkflowFinish(app, wf); err != nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
+		}
+		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
+		logCtx.Info("Application manifests has applied by workflow successfully")
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+	case common.WorkflowStateFinished:
+		logCtx.Info("Workflow state=Finished")
+		if status := app.Status.Workflow; status != nil && status.Terminated {
+			return ctrl.Result{}, nil
+		}
+	}
+
 	var phase = common.ApplicationRunning
 	if !hasHealthCheckPolicy(appFile.Policies) {
 		app.Status.Services = handler.services
@@ -384,13 +340,6 @@ func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Work
 	}
 	app.Status.Workflow.Finished = true
 	return nil
-}
-
-// appWillRollout judge whether the application will be released by rollout.
-// If it's true, application controller will only create or update application revision but not emit any other K8s
-// resources into the cluster. Rollout controller will do real release works.
-func appWillRollout(app *v1beta1.Application) bool {
-	return len(app.GetAnnotations()[oam.AnnotationAppRollout]) != 0 || app.Spec.RolloutPlan != nil
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Workload) bool {

@@ -220,14 +220,6 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 
-	It("Test app have empty rollingBatches rolloutPlan", func() {
-		By("Apply an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app6.yaml", &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
-	})
-
 	It("Test app have components with same name", func() {
 		By("Apply an application")
 		var newApp v1beta1.Application

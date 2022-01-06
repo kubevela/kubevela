@@ -29,14 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -296,29 +293,6 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			}
 			return nil
 		}, time.Second*10, time.Millisecond*500).Should(BeNil())
-		appRollout := &v1beta1.AppRollout{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: v1beta1.AppRolloutKindAPIVersion,
-				Kind:       v1beta1.AppRolloutKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      "app-roll-out",
-			},
-			Spec: v1beta1.AppRolloutSpec{
-				TargetAppRevisionName: appName + "-v3",
-				ComponentList:         []string{"comp1"},
-				RolloutPlan: v1alpha1.RolloutPlan{
-					TargetSize: pointer.Int32Ptr(2),
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(2),
-						},
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, appRollout)).Should(BeNil())
 
 		By("update app twice will gc appRevision4 not appRevision3")
 		for i := 7; i < 9; i++ {
@@ -343,30 +317,6 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 				return nil
 			}, time.Second*30, time.Microsecond).Should(BeNil())
 		}
-		Eventually(func() error {
-			err := k8sClient.List(ctx, appRevisionList, listOpts...)
-			if err != nil {
-				return err
-			}
-			if len(appRevisionList.Items) != appRevisionLimit+2 {
-				return fmt.Errorf("error appRevison number wants %d, actually %d", appRevisionLimit+2, len(appRevisionList.Items))
-			}
-			revKey = types.NamespacedName{Namespace: namespace, Name: appName + "-v4"}
-			err = k8sClient.Get(ctx, revKey, deletedRevison)
-			if err == nil || !apierrors.IsNotFound(err) {
-				return fmt.Errorf("haven't clean up the  revision-4")
-			}
-			existRev := new(v1beta1.ApplicationRevision)
-			revKey = types.NamespacedName{Namespace: namespace, Name: appName + "-v3"}
-			err = k8sClient.Get(ctx, revKey, existRev)
-			if err != nil {
-				return err
-			}
-			if res, err := util.CheckAppRevision(appRevisionList.Items, []int{3, 5, 6, 7, 8, 9, 10}); err != nil || !res {
-				return fmt.Errorf("appRevision collection mismatch")
-			}
-			return nil
-		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
 })
 
