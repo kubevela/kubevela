@@ -20,7 +20,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/appdeployment"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition"
@@ -34,8 +33,7 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 	switch args.OAMSpecVer {
 	case "all":
 		for _, setup := range []func(ctrl.Manager, controller.Args) error{
-			application.Setup, appdeployment.Setup,
-			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
 			applicationconfiguration.Setup,
 		} {
 			if err := setup(mgr, args); err != nil {
@@ -52,8 +50,7 @@ func Setup(mgr ctrl.Manager, args controller.Args) error {
 		}
 	case "v0.3":
 		for _, setup := range []func(ctrl.Manager, controller.Args) error{
-			application.Setup, appdeployment.Setup,
-			traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
+			application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
 		} {
 			if err := setup(mgr, args); err != nil {
 				return err

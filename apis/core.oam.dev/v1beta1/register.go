@@ -120,14 +120,6 @@ var (
 	ResourceTrackerKindVersionKind = SchemeGroupVersion.WithKind(ResourceTrackerKind)
 )
 
-// AppDeployment type metadata.
-var (
-	AppDeploymentKind            = reflect.TypeOf(AppDeployment{}).Name()
-	AppDeploymentGroupKind       = schema.GroupKind{Group: Group, Kind: AppDeploymentKind}.String()
-	AppDeploymentKindAPIVersion  = AppDeploymentKind + "." + SchemeGroupVersion.String()
-	AppDeploymentKindVersionKind = SchemeGroupVersion.WithKind(AppDeploymentKind)
-)
-
 // Cluster type metadata.
 var (
 	ClusterKind            = reflect.TypeOf(Cluster{}).Name()
@@ -145,8 +137,6 @@ func init() {
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
 	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
-	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
-	SchemeBuilder.Register(&AppDeployment{}, &AppDeploymentList{})
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
 }
