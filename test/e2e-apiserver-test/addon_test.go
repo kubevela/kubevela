@@ -49,14 +49,15 @@ func get(path string) *http.Response {
 }
 
 var _ = Describe("Test addon rest api", func() {
+	registryName := "test-addon-registry"
 	createReq := apis.CreateAddonRegistryRequest{
-		Name: "test-addon-registry-1",
+		Name: registryName,
 		Oss: &addon.OSSAddonSource{
 			Endpoint: "https://oss-cn-hangzhou.aliyuncs.com",
-			Bucket:   "kubevela-addons",
+			Bucket:   "fake-kubevela-addons",
 		},
 	}
-	It("should add a registry and list addons from it", func() {
+	It("should add and delete a registry, list addons from default registry", func() {
 		defer GinkgoRecover()
 
 		By("add registry")
@@ -72,15 +73,26 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(err).Should(BeNil())
 		Expect(rmeta.Name).Should(Equal(createReq.Name))
 		Expect(rmeta.Git).Should(Equal(createReq.Git))
+		Expect(rmeta.OSS).Should(Equal(createReq.Oss))
 
-		By("list addons")
+		deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/api/v1/addon_registries/"+createReq.Name, nil)
+		Expect(err).Should(BeNil())
+		deleteRes, err := http.DefaultClient.Do(deleteReq)
+		Expect(err).Should(BeNil())
+		Expect(deleteRes).ShouldNot(BeNil())
+		Expect(deleteRes.StatusCode).Should(Equal(200))
+	})
+
+	It("list addons", func() {
+		DefaultRegistry := "KubeVela"
 		listRes := get("/api/v1/addons/")
 		defer listRes.Body.Close()
 
 		var lres apis.ListAddonResponse
-		err = json.NewDecoder(listRes.Body).Decode(&lres)
+		err := json.NewDecoder(listRes.Body).Decode(&lres)
 		Expect(err).Should(BeNil())
 		Expect(lres.Addons).ShouldNot(BeZero())
+		Expect(lres.Addons[0].RegistryName).To(Equal(DefaultRegistry))
 
 		By("get addon detail")
 		detailRes := get("/api/v1/addons/terraform-alibaba")
@@ -92,6 +104,7 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(dres.Meta).ShouldNot(BeNil())
 		Expect(dres.UISchema).ShouldNot(BeNil())
 		Expect(dres.APISchema).ShouldNot(BeNil())
+		Expect(dres.RegistryName).Should(Equal(DefaultRegistry))
 	})
 
 	PIt("should enable and disable an addon", func() {
@@ -141,11 +154,5 @@ var _ = Describe("Test addon rest api", func() {
 
 	It("should delete test registry", func() {
 		defer GinkgoRecover()
-		deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/api/v1/addon_registries/"+createReq.Name, nil)
-		Expect(err).Should(BeNil())
-		deleteRes, err := http.DefaultClient.Do(deleteReq)
-		Expect(err).Should(BeNil())
-		Expect(deleteRes).ShouldNot(BeNil())
-		Expect(deleteRes.StatusCode).Should(Equal(200))
 	})
 })
