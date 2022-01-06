@@ -720,10 +720,7 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if err := h.r.List(ctx, appRevisionList, listOpts...); err != nil {
 		return err
 	}
-	appRevisionInUse, err := gatherUsingAppRevision(ctx, h)
-	if err != nil {
-		return err
-	}
+	appRevisionInUse := gatherUsingAppRevision(h)
 	needKill := len(appRevisionList.Items) - h.r.appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
@@ -749,20 +746,13 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	return nil
 }
 
-// gatherUsingAppRevision get all using appRevisions include app's status pointing to and appContext point to
-func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool, error) {
+// gatherUsingAppRevision get all using appRevisions include app's status pointing to
+func gatherUsingAppRevision(h *AppHandler) map[string]bool {
 	usingRevision := map[string]bool{}
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
 	}
-	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
-	if err != nil {
-		return usingRevision, err
-	}
-	for _, revName := range appDeployUsingRevision {
-		usingRevision[revName] = true
-	}
-	return usingRevision, nil
+	return usingRevision
 }
 
 func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {

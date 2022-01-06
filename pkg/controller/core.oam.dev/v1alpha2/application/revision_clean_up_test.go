@@ -618,56 +618,5 @@ var _ = Describe("Test application controller clean up ", func() {
 			}
 			return nil
 		}, time.Second*10, time.Second*2).Should(BeNil())
-
-		By("update create appDeploy check gc logic")
-		appDeploy := &v1beta1.AppDeployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: v1beta1.AppDeploymentKindAPIVersion,
-				Kind:       v1beta1.AppDeploymentKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      "app-deploy",
-			},
-			Spec: v1beta1.AppDeploymentSpec{
-				AppRevisions: []v1beta1.AppRevision{
-					{
-						RevisionName: appName + "-v2",
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, appDeploy)).Should(BeNil())
-		// give informer some time to cache
-		time.Sleep(2 * time.Second)
-		for i := 7; i < 9; i++ {
-			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-			property = fmt.Sprintf(`{"cmd":["sleep","1000"],"image":"busybox:%d"}`, i)
-			checkApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(property)}
-			Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-			_, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey})
-			Expect(err).Should(BeNil())
-		}
-		Eventually(func() error {
-			if _, err = reconciler.Reconcile(context.TODO(), ctrl.Request{NamespacedName: appKey}); err != nil {
-				return err
-			}
-			err := k8sClient.List(ctx, appRevisionList, listOpts...)
-			if err != nil {
-				return err
-			}
-			if len(appRevisionList.Items) != appRevisionLimit+2 {
-				return fmt.Errorf("error appRevison number wants %d, actually %d", appRevisionLimit+2, len(appRevisionList.Items))
-			}
-			revKey = types.NamespacedName{Namespace: namespace, Name: appName + "-v3"}
-			err = k8sClient.Get(ctx, revKey, deletedRevison)
-			if err == nil || !apierrors.IsNotFound(err) {
-				return fmt.Errorf("haven't clean up the  revision-3")
-			}
-			if res, err := util.CheckAppRevision(appRevisionList.Items, []int{2, 4, 5, 6, 7, 8, 9}); err != nil || !res {
-				return fmt.Errorf("appRevision collection mismatch")
-			}
-			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
 	})
 })
