@@ -165,7 +165,7 @@ func removeDir(dirname string, t *testing.T) {
 }
 
 func TestNewDefinitionCommandGroup(t *testing.T) {
-	cmd := DefinitionCommandGroup(common2.Args{})
+	cmd := DefinitionCommandGroup(common2.Args{}, "")
 	initCommand(cmd)
 	cmd.SetArgs([]string{"-h"})
 	if err := cmd.Execute(); err != nil {

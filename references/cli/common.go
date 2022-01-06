@@ -46,8 +46,10 @@ const (
 	FlagInteractive = "interactive"
 )
 
-func addNamespaceArg(cmd *cobra.Command) {
-	cmd.Flags().StringP(Namespace, "n", "", "specify the namespace to use")
+func addNamespaceAndEnvArg(cmd *cobra.Command) {
+	cmd.Flags().StringP(Namespace, "n", "", "specify the Kubernetes namespace to use")
+
+	cmd.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
 }
 
 // GetFlagNamespaceOrEnv will get env and namespace flag, namespace flag takes the priority

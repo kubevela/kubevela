@@ -40,8 +40,8 @@ import (
 func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var isDiscover bool
 	cmd := &cobra.Command{
-		Use:     "components",
-		Aliases: []string{"comp", "component"},
+		Use:     "component",
+		Aliases: []string{"comp", "components"},
 		Short:   "List/get components",
 		Long:    "List components & get components in registry",
 		Example: `vela comp`,
@@ -79,7 +79,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return PrintInstalledCompDef(ioStreams, filter)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCap,
+			types.TagCommandType: types.TypeExtension,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

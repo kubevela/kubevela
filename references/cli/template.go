@@ -31,9 +31,8 @@ func NewTemplateCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Manage templates",
 		Long:                  "Manage templates",
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeCap,
-		},
+		Hidden:                true,
+		Annotations:           map[string]string{},
 	}
 	cmd.SetOut(ioStream.Out)
 	cmd.AddCommand(NewTemplateContextCommand(ioStream))

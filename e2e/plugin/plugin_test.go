@@ -119,25 +119,25 @@ var _ = Describe("Test Kubectl Plugin", func() {
 	Context("Test kubectl vela show", func() {
 		It("Test show componentDefinition reference", func() {
 			cdName := "test-show-task"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring(showCdResult))
 		})
 		It("Test show traitDefinition reference", func() {
 			tdName := "test-sidecar"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring(showTdResult))
 		})
 		It("Test show componentDefinition use Helm Charts as Workload", func() {
 			cdName := "test-webapp-chart"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
 		})
 		It("Test show componentDefinition def with raw Kube mode", func() {
 			cdName := "kube-worker"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("image"))
 			Expect(output).Should(ContainSubstring("The value will be applied to fields: [spec.template.spec.containers[0].image]."))
@@ -146,26 +146,26 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		})
 		It("Test show traitDefinition def with raw Kube mode", func() {
 			tdName := "service-kube"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("targetPort"))
 			Expect(output).Should(ContainSubstring("target port num for service provider."))
 		})
 		It("Test show traitDefinition def with cue single map parameter", func() {
 			tdName := "annotations"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("map[string]string"))
 		})
 		It("Test show webservice def with cue ignore annotation ", func() {
 			tdName := "webservice"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
 		})
 		It("Test show webservice def with cue ignore annotation ", func() {
 			tdName := "mywebservice"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", tdName))
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).ShouldNot(ContainSubstring("addRevisionLabel"))
 			Expect(output).ShouldNot(ContainSubstring("mySecretKey"))

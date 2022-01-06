@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -71,10 +70,12 @@ type VelaPortForwardOptions struct {
 	ClientSet            kubernetes.Interface
 	Client               client.Client
 	routeTrait           bool
+
+	namespace string
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
@@ -98,6 +99,13 @@ func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Comma
 				ioStreams.Error("Please specify application name.")
 				return nil
 			}
+
+			var err error
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
+
 			newClient, err := o.VelaC.GetClient()
 			if err != nil {
 				return err
@@ -115,15 +123,18 @@ func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Comma
 			return nil
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
+
 	cmd.Flags().StringSliceVar(&o.kcPortForwardOptions.Address, "address", []string{"localhost"}, "Addresses to listen on (comma separated). Only accepts IP addresses or localhost as a value. When localhost is supplied, vela will try to bind on both 127.0.0.1 and ::1 and will fail if neither of these addresses are available to bind.")
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
 	cmd.Flags().BoolVar(&o.routeTrait, "route", false, "forward ports from route trait service")
-	cmd.Flags().StringP(FlagNamespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
@@ -133,18 +144,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	namespace, err := cmd.Flags().GetString(FlagNamespace)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
-	}
-	if namespace == "" {
-		env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
-		if err != nil {
-			return err
-		}
-		namespace = env.Namespace
-	}
-	app, err := appfile.LoadApplication(namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}

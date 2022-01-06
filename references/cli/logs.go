@@ -41,10 +41,10 @@ import (
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
-func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	largs := &Args{Args: c}
 	cmd := &cobra.Command{
-		Use:   "logs <appName>",
+		Use:   "logs APP_NAME",
 		Short: "Tail logs for application in multicluster",
 		Long:  "Tail logs for application in multicluster",
 		Args:  cobra.ExactArgs(1),
@@ -61,6 +61,10 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
 			largs.App = app
 			ctx := context.Background()
 			if err := largs.Run(ctx, ioStreams); err != nil {
@@ -69,12 +73,13 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			return nil
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
-	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
-	cmd.Flags().StringVarP(&largs.Namespace, "namespace", "n", "default", "application namespace")
 
+	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
+	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 

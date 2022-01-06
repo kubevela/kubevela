@@ -56,7 +56,7 @@ type appInitOptions struct {
 }
 
 // NewInitCommand creates `init` command
-func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &appInitOptions{IOStreams: ioStreams, c: c}
 	cmd := &cobra.Command{
 		Use:                   "init",
@@ -124,11 +124,12 @@ func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Namespace, cmd, c)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeStart,
 		},
 	}
 	cmd.Flags().BoolVar(&o.renderOnly, "render-only", false, "Rendering vela.yaml in current dir and do not deploy")
-	addNamespaceArg(cmd)
+	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

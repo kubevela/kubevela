@@ -55,6 +55,7 @@ type VelaExecOptions struct {
 	Env   *types.EnvMeta
 	App   *v1beta1.Application
 
+	namespace         string
 	resourceName      string
 	resourceNamespace string
 	f                 k8scmdutil.Factory
@@ -63,7 +64,7 @@ type VelaExecOptions struct {
 }
 
 // NewExecCommand creates `exec` command
-func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
 			StreamOptions: cmdexec.StreamOptions{
@@ -103,7 +104,11 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 				ioStreams.Error("vela exec APP_NAME COMMAND is not supported. Use vela exec APP_NAME -- COMMAND instead.")
 				return nil
 			}
-
+			var err error
+			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -116,7 +121,8 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			return nil
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 		Example: `
 		# Get output from running 'date' command from app pod, using the first container by default
@@ -132,7 +138,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
-	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, uses namespace in env.")
+	addNamespaceAndEnvArg(cmd)
 
 	return cmd
 }
@@ -142,18 +148,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.Cmd = c
 	o.Args = argsIn
 
-	namespace, err := c.Flags().GetString(FlagNamespace)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get `%s`", FlagNamespace)
-	}
-	if namespace == "" {
-		env, err := GetFlagEnvOrCurrent(o.Cmd, o.VelaC)
-		if err != nil {
-			return err
-		}
-		namespace = env.Namespace
-	}
-	app, err := appfile.LoadApplication(namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}

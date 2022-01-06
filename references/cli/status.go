@@ -81,7 +81,7 @@ const (
 )
 
 // NewAppStatusCommand creates `status` command for showing status
-func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "status APP_NAME",
@@ -109,11 +109,13 @@ func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
+			types.TagCommandOrder: order,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
-	addNamespaceArg(cmd)
+
+	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
