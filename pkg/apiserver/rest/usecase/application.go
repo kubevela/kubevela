@@ -1383,7 +1383,11 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 		return nil, err
 	}
 
-	return c.compareDiff(ctx, newApp, oldApp, string(newAppBytes), string(oldAppBytes))
+	diffResult, buff, err := compare(ctx, newApp, oldApp)
+	if err != nil {
+		return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, err
+	}
+	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
 }
 
 // ResetAppToLatestRevision reset app's component to last revision
@@ -1494,7 +1498,7 @@ func genWebhookToken() string {
 	return string(b)
 }
 
-func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) model.ApplicationComponent {
+func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) (model.ApplicationComponent, error) {
 	bc := model.ApplicationComponent{
 		AppPrimaryKey:    appPrimaryKey,
 		Name:             component.Name,
@@ -1506,13 +1510,20 @@ func convertToModelComponent(appPrimaryKey string, component common.ApplicationC
 		Scopes:           component.Scopes,
 	}
 	if component.Properties != nil {
-		bc.Properties, _ = model.NewJSONStruct(component.Properties)
+		properties, err := model.NewJSONStruct(component.Properties)
+		if err != nil {
+			return bc, err
+		}
+		bc.Properties = properties
 	}
 	for _, trait := range component.Traits {
-		properties, _ := model.NewJSONStruct(trait.Properties)
+		properties, err := model.NewJSONStruct(trait.Properties)
+		if err != nil {
+			return bc, err
+		}
 		bc.Traits = append(bc.Traits, model.ApplicationTrait{CreateTime: time.Now(), UpdateTime: time.Now(), Properties: properties, Type: trait.Type, Alias: trait.Type, Description: "auto gen"})
 	}
-	return bc
+	return bc, nil
 }
 
 func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
@@ -1537,41 +1548,11 @@ func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, a
 	if !ok {
 		return nil, errors.New("convert application revision error")
 	}
-	// sort component、trait and  hash
 	oldApp := &v1beta1.Application{}
 	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), oldApp); err != nil {
 		return nil, err
 	}
 	return oldApp, nil
-}
-
-func (c *applicationUsecaseImpl) compareDiff(ctx context.Context, newApp, oldApp *v1beta1.Application, newAppYAML, oldAppYAML string) (*apisv1.AppCompareResponse, error) {
-	cmdArgs := common2.Args{
-		Schema: common2.Scheme,
-	}
-	_, err := cmdArgs.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	pd, err := cmdArgs.GetPackageDiscover()
-	if err != nil {
-		return nil, err
-	}
-	dm, err := discoverymapper.New(cmdArgs.Config)
-	if err != nil {
-		return nil, err
-	}
-	var objs []oam.Object
-	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
-	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
-	if err != nil {
-		return nil, err
-	}
-	var buff = bytes.Buffer{}
-	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)
-	reportDiffOpt.PrintDiffReport(diffResult)
-
-	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: newAppYAML, OldAppYAML: oldAppYAML}, nil
 }
 
 func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
@@ -1613,7 +1594,10 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
-			compModel := convertToModelComponent(appPrimaryKey, comp)
+			compModel, err := convertToModelComponent(appPrimaryKey, comp)
+			if err != nil {
+				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
+			}
 			properties, err := model.NewJSONStruct(comp.Properties)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
@@ -1708,5 +1692,32 @@ func ignoreSomeParams(o *v1beta1.Application) {
 		newAnnotations[k] = v
 	}
 	o.SetAnnotations(newAnnotations)
+}
 
+func compare(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
+	var buff = bytes.Buffer{}
+	cmdArgs := common2.Args{
+		Schema: common2.Scheme,
+	}
+	_, err := cmdArgs.GetClient()
+	if err != nil {
+		return nil, buff, err
+	}
+	pd, err := cmdArgs.GetPackageDiscover()
+	if err != nil {
+		return nil, buff, err
+	}
+	dm, err := discoverymapper.New(cmdArgs.Config)
+	if err != nil {
+		return nil, buff, err
+	}
+	var objs []oam.Object
+	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
+	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
+	if err != nil {
+		return nil, buff, err
+	}
+	reportDiffOpt := dryrun.NewReportDiffOption(10, &buff)
+	reportDiffOpt.PrintDiffReport(diffResult)
+	return diffResult, buff, nil
 }

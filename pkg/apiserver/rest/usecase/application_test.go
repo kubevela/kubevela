@@ -24,6 +24,16 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -32,16 +42,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test application usecase function", func() {
@@ -67,7 +67,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
-		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
@@ -82,7 +82,6 @@ var _ = Describe("Test application usecase function", func() {
 			targetUsecase:     targetUsecase,
 			projectUsecase:    projectUsecase,
 		}
-
 	})
 
 	It("Test CreateApplication function", func() {
@@ -515,12 +514,17 @@ var _ = Describe("Test application usecase function", func() {
 		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name")
 		Expect(err).Should(BeNil())
 
-		// compare1: when not change, should return false
+		By("compare when app not change, should return false")
 		compareResponse, err := appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
-		// compare2: add app's env , not change, should return false
+		By("compare when app not change and env not empty, should return false")
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{Env: "app-dev"})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+
+		By("compare when app add env, not change, should return false")
 		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-prod", Namespace: "envnsprod", Targets: []string{defaultTarget}, Project: "app-prod"})
 		Expect(err).Should(BeNil())
 		_, err = envBindingUsecase.CreateEnvBinding(context.TODO(), appModel, v1.CreateApplicationEnvbindingRequest{EnvBinding: v1.EnvBinding{Name: "app-prod"}})
@@ -529,7 +533,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
-		// compare3: update app's env add target , should return true
+		By("compare when app's env add target, should return true")
 		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
 		Expect(err).Should(BeNil())
 		_, err = envUsecase.UpdateEnv(context.TODO(), "app-dev",
@@ -542,7 +546,24 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
 
-		// compare4: change app's component after app's deployed ,should return ture
+		By("compare when update app's trait, should return true")
+		// reset app config
+		_, err = appUsecase.ResetAppToLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "component-name"}, "scaler", v1.UpdateApplicationTraitRequest{
+			Properties:  `{"replicas":2}`,
+			Alias:       "alias",
+			Description: "description",
+		})
+		Expect(err).Should(BeNil())
+		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+
+		By("compare when update component's target after app deployed ,should return ture")
+		// reset app config
+		_, err = appUsecase.ResetAppToLatestRevision(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
 		newProperties := "{\"exposeType\":\"NodePort\",\"image\":\"nginx\",\"imagePullPolicy\":\"Always\"}"
 		_, err = appUsecase.UpdateComponent(context.TODO(),
 			appModel,
