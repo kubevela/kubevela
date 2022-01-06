@@ -89,6 +89,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegisterWebService(NewClusterWebService(clusterUsecase))
 	RegisterWebService(NewOAMApplication(oamApplicationUsecase))
 	RegisterWebService(&policyDefinitionWebservice{})
+	RegisterWebService(&payloadTypesWebservice{})
 	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
 	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
 	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))

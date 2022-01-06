@@ -505,13 +505,6 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
-	ws.Route(ws.GET("/payload_types").To(c.ListPayloadTypes).
-		Doc("list application trigger payload types").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(c.appCheckFilter).
-		Returns(200, "", nil).
-		Returns(400, "", bcode.Bcode{}).
-		Writes([]string{}))
 	return ws
 }
 
@@ -609,15 +602,6 @@ func (c *applicationWebService) deleteApplicationTrigger(req *restful.Request, r
 		return
 	}
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-}
-
-func (c *applicationWebService) ListPayloadTypes(req *restful.Request, res *restful.Response) {
-	payloadTypes := c.applicationUsecase.ListPayloadTypes(req.Request.Context())
-
-	if err := res.WriteEntity(payloadTypes); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

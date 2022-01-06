@@ -43,7 +43,8 @@ type webhookUsecaseImpl struct {
 	applicationUsecase ApplicationUsecase
 }
 
-var webhookHandlers []string
+// WebhookHandlers is the webhook handlers
+var WebhookHandlers []string
 
 // NewWebhookUsecase new webhook usecase
 func NewWebhookUsecase(ds datastore.DataStore,
@@ -180,7 +181,7 @@ func (c *customHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 }
 
 func (c *customHandlerImpl) install() {
-	webhookHandlers = append(webhookHandlers, model.PayloadTypeCustom)
+	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeCustom)
 }
 
 func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
@@ -231,7 +232,7 @@ func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Appli
 }
 
 func (c *acrHandlerImpl) install() {
-	webhookHandlers = append(webhookHandlers, model.PayloadTypeACR)
+	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeACR)
 }
 
 func parseTimeString(t string) time.Time {

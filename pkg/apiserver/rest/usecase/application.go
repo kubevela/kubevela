@@ -94,7 +94,6 @@ type ApplicationUsecase interface {
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
 	ListApplicationTriggers(ctx context.Context, app *model.Application) ([]*apisv1.ApplicationTriggerBase, error)
 	DeleteApplicationTrigger(ctx context.Context, app *model.Application, triggerName string) error
-	ListPayloadTypes(ctx context.Context) []string
 }
 
 type applicationUsecaseImpl struct {
@@ -1350,10 +1349,6 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 		RevisonCount:  count,
 		WorkflowCount: c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
-}
-
-func (c *applicationUsecaseImpl) ListPayloadTypes(ctx context.Context) []string {
-	return webhookHandlers
 }
 
 func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
