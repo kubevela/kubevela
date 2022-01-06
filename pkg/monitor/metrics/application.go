@@ -89,6 +89,13 @@ var (
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"verb", "Kind", "apiVersion", "unstructured", "cluster"})
+
+	ApplicationReconcileTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "application_reconcile_time_seconds",
+		Help: "application reconcile duration distributions.",
+		Buckets: histogramBuckets,
+		ConstLabels: prometheus.Labels{},
+	}, []string{"begin_phase", "end_phase"})
 )
 
 var (

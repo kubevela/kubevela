@@ -104,6 +104,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	timeReporter := timeReconcile(app)
+	defer timeReporter()
+
 	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
@@ -497,5 +500,14 @@ func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLi
 				limitingInterface.Add(request)
 			}
 		}
+	}
+}
+
+func timeReconcile(app *v1beta1.Application) func() {
+	t := time.Now()
+	beginPhase := string(app.Status.Phase)
+	return func() {
+		v := time.Now().Sub(t).Seconds()
+		metrics.ApplicationReconcileTimeHistogram.WithLabelValues(beginPhase, string(app.Status.Phase)).Observe(v)
 	}
 }
