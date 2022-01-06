@@ -944,7 +944,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		},
 
 		"workload's params is bad": {
-
 			args: args{
 				params: badParam,
 				hcl:    "abc",
@@ -952,14 +951,21 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)},
 		},
 
-		"terraform workload has a provider reference": {
-
+		"terraform workload has a provider reference, but parameters are bad": {
 			args: args{
 				params:      badParam,
 				hcl:         "abc",
 				providerRef: &terraformtypes.Reference{Name: "azure", Namespace: "default"},
 			},
 			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)},
+		},
+		"terraform workload has a provider reference": {
+			args: args{
+				params:      variable,
+				hcl:         "variable \"name\" {\n      description = \"Name to be used on all resources as prefix. Default to 'TF-Module-EIP'.\"\n      default = \"TF-Module-EIP\"\n      type = string\n    }",
+				providerRef: &terraformtypes.Reference{Name: "aws", Namespace: "default"},
+			},
+			want: want{err: nil},
 		},
 	}
 
@@ -1021,7 +1027,16 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
 		if tc.args.providerRef != nil {
-			template.Terraform.ProviderReference = tc.args.providerRef
+			tf := &common.Terraform{}
+			tf.ProviderReference = tc.args.providerRef
+			template.ComponentDefinition = &v1beta1.ComponentDefinition{
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Schematic: &common.Schematic{
+						Terraform: tf,
+					},
+				},
+			}
+			configSpec.ProviderReference = tc.args.providerRef
 		}
 
 		wl := &Workload{
