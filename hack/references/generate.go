@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"os"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -35,7 +36,13 @@ func main() {
 		path = plugins.KubeVelaIOTerraformPath
 	}
 
-	if err := ref.GenerateReferenceDocs(ctx, path, types.DefaultKubeVelaNS); err != nil {
+	c, err := common.InitBaseRestConfig()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err := ref.GenerateReferenceDocs(ctx, c, path, types.DefaultKubeVelaNS); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

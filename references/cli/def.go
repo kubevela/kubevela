@@ -75,7 +75,7 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
-		NewDefinitionGenDocCommand(),
+		NewDefinitionGenDocCommand(c),
 	)
 	return cmd
 }
@@ -328,7 +328,7 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 }
 
 // NewDefinitionGenDocCommand create the `vela def gen-doc` command to generate documentation of definitions
-func NewDefinitionGenDocCommand() *cobra.Command {
+func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gen-doc NAME",
 		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
@@ -350,10 +350,10 @@ func NewDefinitionGenDocCommand() *cobra.Command {
 			ref.DefinitionName = args[0]
 			path := plugins.KubeVelaIOTerraformPath
 
-			if err := ref.GenerateReferenceDocs(ctx, path, namespace); err != nil {
+			if err := ref.GenerateReferenceDocs(ctx, c, path, namespace); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
-			cmd.Print(fmt.Printf("Generated docs for %s in ./%s/components/%s.md", args[0], path, args[0]))
+			cmd.Printf("Generated docs for %s in ./%s/%s.md\n", args[0], path, args[0])
 			return nil
 		},
 	}

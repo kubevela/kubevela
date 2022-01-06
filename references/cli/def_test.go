@@ -201,6 +201,7 @@ func TestNewDefinitionInitCommand(t *testing.T) {
 
 func TestNewDefinitionGetCommand(t *testing.T) {
 	c := initArgs()
+
 	// normal test
 	cmd := NewDefinitionGetCommand(c)
 	initCommand(cmd)
@@ -224,6 +225,20 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expect found no trait error, but not found")
 	}
+}
+
+func TestNewDefinitionGenDocCommand(t *testing.T) {
+	c := initArgs()
+
+	// normal test
+	cmd := NewDefinitionGenDocCommand(c)
+	initCommand(cmd)
+	traitName := createTrait(c, t)
+	cmd.SetArgs([]string{traitName})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpeced error when executing gen-doc command: %v", err)
+	}
+
 }
 
 func TestNewDefinitionListCommand(t *testing.T) {
