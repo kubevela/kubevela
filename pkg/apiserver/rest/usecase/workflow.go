@@ -546,6 +546,11 @@ func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appNa
 			}
 			record.Status = model.RevisionStatusTerminated
 			record.Finished = "true"
+			for i, step := range record.Steps {
+				if step.Phase == common.WorkflowStepPhaseRunning {
+					record.Steps[i].Phase = common.WorkflowStepPhaseStopped
+				}
+			}
 			if err := ds.Put(ctx, record); err != nil {
 				klog.Info("failed to set rest records' status to terminate", "app name", appName, "workflow name", record.WorkflowName, "record name", record.Name, "error", err)
 			}

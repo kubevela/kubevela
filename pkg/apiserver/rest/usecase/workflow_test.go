@@ -510,6 +510,40 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(originalRevision.Status).Should(Equal(model.RevisionStatusRollback))
 		Expect(originalRevision.RollbackVersion).Should(Equal("revision-rollback0"))
 	})
+
+	It("Test resetRevisionsAndRecords function", func() {
+		ctx := context.TODO()
+
+		err := workflowUsecase.ds.Add(ctx, &model.WorkflowRecord{
+			AppPrimaryKey: "reset-app",
+			WorkflowName:  "reset-workflow",
+			Name:          "reset-record",
+			Finished:      "false",
+			Steps: []model.WorkflowStepStatus{
+				{
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+				{
+					Phase: common.WorkflowStepPhaseRunning,
+				},
+			},
+		})
+		Expect(err).Should(BeNil())
+
+		err = resetRevisionsAndRecords(ctx, workflowUsecase.ds, "reset-app", "reset-workflow", "", "")
+		Expect(err).Should(BeNil())
+
+		record := &model.WorkflowRecord{
+			AppPrimaryKey: "reset-app",
+			WorkflowName:  "reset-workflow",
+			Name:          "reset-record",
+		}
+		err = workflowUsecase.ds.Get(ctx, record)
+		Expect(err).Should(BeNil())
+		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
+		Expect(record.Finished).Should(Equal("true"))
+		Expect(record.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseStopped))
+	})
 })
 
 var yamlStr = `apiVersion: core.oam.dev/v1beta1
