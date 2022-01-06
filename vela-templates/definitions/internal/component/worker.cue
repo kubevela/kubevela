@@ -24,12 +24,7 @@ worker: {
 						replica:  strconv.FormatInt(context.output.status.readyReplicas, 10)
 					}
 				}
-				if context.output.status.replicas != _|_ {
-					message: "Ready:" + ready.replica + "/" + strconv.FormatInt(context.output.status.replicas, 10)
-				}
-				if context.output.status.replicas == _|_ {
-					message: ""
-				}
+				message: "Ready:" + ready.replica + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
 				"""#
 			healthPolicy: #"""
 				ready: {
@@ -40,12 +35,7 @@ worker: {
 						replica:  context.output.status.readyReplicas
 					}
 				}
-				if context.output.status.replicas != _|_ {
-					isHealth: context.output.status.replicas == ready.replica
-				}
-				if context.output.status.replicas == _|_ {
-					isHealth: false
-				}
+				isHealth: context.output.spec.replicas == ready.replica
 				"""#
 		}
 	}
