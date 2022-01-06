@@ -704,7 +704,14 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 	if spec.ProviderReference != nil && !reflect.DeepEqual(configuration.Spec.ProviderReference, spec.ProviderReference) {
 		configuration.Spec.ProviderReference = spec.ProviderReference
+	} else if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil &&
+		wl.FullTemplate.ComponentDefinition.Spec.Schematic != nil &&
+		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform != nil &&
+		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference != nil {
+		// Check whether the provider reference is set in ComponentDefinition
+		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
+
 	if spec.Region != "" && configuration.Spec.Region != spec.Region {
 		configuration.Spec.Region = spec.Region
 	}
