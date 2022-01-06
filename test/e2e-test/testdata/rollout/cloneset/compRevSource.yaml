@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+data:
+  apiVersion: core.oam.dev/v1alpha2
+  kind: Component
+  metadata:
+    creationTimestamp: null
+    name: metrics-provider
+  spec:
+    workload:
+      apiVersion: apps.kruise.io/v1alpha1
+      kind: CloneSet
+      metadata:
+        name: metrics-provider
+        labels:
+          app.oam.dev/component: metrics-provider
+      spec:
+        replicas: 5
+        selector:
+          matchLabels:
+            app.oam.dev/component: metrics-provider
+        template:
+          metadata:
+            labels:
+              app.oam.dev/component: metrics-provider
+          spec:
+            containers:
+              - command:
+                  - ./podinfo
+                  - stress-cpu=1
+                image: stefanprodan/podinfo:4.0.3
+                name: metrics-provider
+                ports:
+                  - containerPort: 8080
+        updateStrategy:
+          type: InPlaceOnly
+  status:
+    observedGeneration: 0
+kind: ControllerRevision
+metadata:
+  name: metrics-provider-v1
+  labels:
+    controller.oam.dev/component: metrics-provider
+revision: 1

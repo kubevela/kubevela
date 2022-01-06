@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"time"
 
 	"k8s.io/utils/pointer"
@@ -50,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -940,90 +938,6 @@ var _ = Describe("Test Application Controller", func() {
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app with rollout annotation", func() {
-		By("create application with rolling out annotation")
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-app-with-rollout",
-			},
-		}
-		rolloutApp := appWithTraitAndScope.DeepCopy()
-		rolloutApp.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		compName := rolloutApp.Spec.Components[0].Name
-		// set the annotation
-		rolloutApp.SetAnnotations(map[string]string{
-			oam.AnnotationAppRollout: strconv.FormatBool(true),
-			"keep":                   strconv.FormatBool(true),
-		})
-		Expect(k8sClient.Create(ctx, rolloutApp)).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      rolloutApp.Name,
-			Namespace: rolloutApp.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Check AppRevision created as expected")
-		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: rolloutApp.Namespace,
-			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
-		}, appRevision)).Should(BeNil())
-		Expect(appRevision.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
-
-		By("Check affiliated resource tracker is not created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
-
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-		Expect(comp.Name).Should(Equal(compName))
-
-		By("Reconcile again to make sure we are not creating more resource trackers")
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Verify that no new AppRevision created")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: rolloutApp.Namespace,
-			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
-		}, appRevision)).ShouldNot(Succeed())
-
-		By("Check no new affiliated resource tracker is created")
-		expectRTName = fmt.Sprintf("%s-%s", utils.ConstructRevisionName(rolloutApp.Name, 2), rolloutApp.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
-
-		By("Remove rollout annotation should lead to new resource tracker created")
-		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
-		rolloutApp.SetAnnotations(map[string]string{
-			"keep": "true",
-		})
-		Expect(k8sClient.Update(ctx, rolloutApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Verify that no new AppRevision created")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: rolloutApp.Namespace,
-			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
-		}, appRevision)).ShouldNot(Succeed())
-
-		By("Check no new affiliated resource tracker is created")
-		expectRTName = fmt.Sprintf("%s-%s", utils.ConstructRevisionName(rolloutApp.Name, 2), rolloutApp.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).ShouldNot(Succeed())
-
-		By("Delete Application, clean the resource")
-		Expect(k8sClient.Delete(ctx, rolloutApp)).Should(BeNil())
 	})
 
 	It("app with health policy and custom status for workload", func() {

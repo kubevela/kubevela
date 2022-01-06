@@ -28,7 +28,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
@@ -41,8 +40,7 @@ type statefulSetController struct {
 // before kicking start the update and start from every pod in the old version
 func (c *statefulSetController) claimStatefulSet(ctx context.Context, statefulSet *apps.StatefulSet) (bool, error) {
 	if controller := metav1.GetControllerOf(statefulSet); controller != nil &&
-		(controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() ||
-			controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
+		(controller.Kind == v1alpha1.RolloutKind && controller.APIVersion == v1alpha1.SchemeGroupVersion.String()) {
 		// it's already there
 		return true, nil
 	}
@@ -104,7 +102,7 @@ func (c *statefulSetController) releaseStatefulSet(ctx context.Context, stateful
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range statefulSet.GetOwnerReferences() {
-		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() &&
+		if owner.Kind == v1alpha1.RolloutKind && owner.APIVersion == v1alpha1.SchemeGroupVersion.String() &&
 			owner.Controller != nil && *owner.Controller {
 			found = true
 			continue

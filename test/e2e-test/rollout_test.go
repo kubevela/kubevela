@@ -35,12 +35,9 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
@@ -53,7 +50,6 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 	ctx := context.Background()
 	var namespaceName, componentName, rolloutName string
 	var ns corev1.Namespace
-	var app v1beta1.Application
 	var rollout v1alpha1.Rollout
 	var kc kruise.CloneSet
 
@@ -84,39 +80,6 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 				return k8sClient.Create(ctx, &ns)
 			},
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	}
-
-	CreateClonesetDef := func() {
-		By("Install CloneSet based componentDefinition")
-		var cd v1beta1.ComponentDefinition
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/clonesetDefinition.yaml", &cd)).Should(BeNil())
-		// create the componentDefinition if not exist
-		Eventually(
-			func() error {
-				return k8sClient.Create(ctx, &cd)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	}
-
-	applySourceApp := func(source string) {
-		By("Apply an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+source, &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		Eventually(func() error {
-			return k8sClient.Create(ctx, &newApp)
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Get Application latest status")
-		Eventually(
-			func() *oamcomm.Revision {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, &app)
-				if app.Status.LatestRevision != nil {
-					return app.Status.LatestRevision
-				}
-				return nil
-			},
-			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
 	}
 
 	verifyRolloutSucceeded := func(compRevName string) {
@@ -192,54 +155,19 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 		verifyRolloutSucceeded(compRevName)
 	}
 
-	updateApp := func(target string, revision int) {
-		By("Update the application to target spec")
-		var targetApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+target, &targetApp)).Should(BeNil())
-
-		Eventually(
-			func() error {
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
-				if err != nil {
-					return err
-				}
-				if app.Status.Phase != oamcomm.ApplicationRunning {
-					return fmt.Errorf("application is still last generating apprev ")
-				}
-				var appRevList = &v1beta1.ApplicationRevisionList{}
-				err = k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
-					client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-				if err != nil {
-					return err
-				}
-				if len(appRevList.Items) != revision-1 {
-					return fmt.Errorf("apprev mismatch actually %d", len(appRevList.Items))
-				}
-				app.Spec = targetApp.DeepCopy().Spec
-				return k8sClient.Update(ctx, app.DeepCopy())
-			}, time.Second*15, time.Millisecond*500).Should(Succeed())
-
-		By("Get Application Revision created with more than one")
-		Eventually(
-			func() error {
-				var appRevList = &v1beta1.ApplicationRevisionList{}
-				err := k8sClient.List(ctx, appRevList, client.InNamespace(namespaceName),
-					client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
-				if err != nil {
-					return err
-				}
-				if len(appRevList.Items) != revision {
-					return fmt.Errorf("appRevision number mismatch actually %d", len(appRevList.Items))
-				}
-				return nil
-			},
-			time.Second*30, time.Millisecond*300).Should(BeNil())
+	applyTwoComponentRevision := func() {
+		var compRev1, compRev2 appsv1.ControllerRevision
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/compRevSource.yaml", &compRev1)).Should(BeNil())
+		compRev1.SetNamespace(namespaceName)
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/compRevTarget.yaml", &compRev2)).Should(BeNil())
+		compRev2.SetNamespace(namespaceName)
+		Expect(k8sClient.Create(ctx, &compRev1)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &compRev2)).Should(BeNil())
 	}
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
 		namespaceName = randomNamespaceName("comp-rollout-e2e-test")
-		CreateClonesetDef()
 		createNamespace()
 		componentName = "metrics-provider"
 	})
@@ -267,8 +195,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 
 	It("Test component rollout cloneset", func() {
 		var err error
-		applySourceApp("app-source.yaml")
-		updateApp("app-target.yaml", 2)
+		applyTwoComponentRevision()
 		By("verify generate two controller revisions")
 		ctlRevList := appsv1.ControllerRevisionList{}
 		Eventually(func() error {
@@ -365,8 +292,7 @@ var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", fu
 
 	It("Test component rollout cloneset revert in middle of rollout", func() {
 		var err error
-		applySourceApp("app-source.yaml")
-		updateApp("app-target.yaml", 2)
+		applyTwoComponentRevision()
 		By("verify generate two controller revisions")
 		ctlRevList := appsv1.ControllerRevisionList{}
 		Eventually(func() error {

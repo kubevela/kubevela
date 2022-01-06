@@ -1736,13 +1736,6 @@ func TestIsControlledByApp(t *testing.T) {
 	// only true when it's the controller
 	ac.OwnerReferences[1].Controller = pointer.BoolPtr(true)
 	assert.True(t, isControlledByApp(ac))
-	// still true when it's not the only the controller
-	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
-		APIVersion: v1beta1.SchemeGroupVersion.String(),
-		Kind:       v1beta1.AppRolloutKind,
-		Controller: pointer.BoolPtr(true),
-	})
-	assert.True(t, isControlledByApp(ac))
 }
 
 func TestSetTraitProperties(t *testing.T) {

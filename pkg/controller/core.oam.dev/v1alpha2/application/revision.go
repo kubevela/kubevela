@@ -173,8 +173,6 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
-	// AppRevision shouldn't contain RolloutPlan and Workflow
-	copiedApp.Spec.RolloutPlan = nil
 	copiedApp.Spec.Workflow = nil
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
@@ -757,13 +755,6 @@ func gatherUsingAppRevision(ctx context.Context, h *AppHandler) (map[string]bool
 	if h.app.Status.LatestRevision != nil && len(h.app.Status.LatestRevision.Name) != 0 {
 		usingRevision[h.app.Status.LatestRevision.Name] = true
 	}
-	appRolloutRevision, err := utils.CheckAppRolloutUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
-	if err != nil {
-		return usingRevision, err
-	}
-	for _, revName := range appRolloutRevision {
-		usingRevision[revName] = true
-	}
 	appDeployUsingRevision, err := utils.CheckAppDeploymentUsingAppRevision(ctx, h.r.Client, h.app.Namespace, h.app.Name)
 	if err != nil {
 		return usingRevision, err
@@ -811,13 +802,6 @@ func (h historiesByRevision) Less(i, j int) bool {
 	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
 	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
 	return ir < ij
-}
-
-func cleanUpComponentRevision(ctx context.Context, h *AppHandler) error {
-	if appWillRollout(h.app) {
-		return cleanUpRollOutComponentRevision(ctx, h)
-	}
-	return cleanUpWorkflowComponentRevision(ctx, h)
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
@@ -871,71 +855,6 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 			_rev := rev.DeepCopy()
 			oam.SetCluster(_rev, curComp.Cluster)
 			if err := h.resourceKeeper.DeleteComponentRevision(_ctx, _rev); err != nil {
-				return err
-			}
-			needKill--
-		}
-	}
-	return nil
-}
-
-func cleanUpRollOutComponentRevision(ctx context.Context, h *AppHandler) error {
-	appRevInUse, err := gatherUsingAppRevision(ctx, h)
-	if err != nil {
-		return err
-	}
-	// collect component revision in use
-	compRevisionInUse := map[string]map[string]struct{}{}
-	for appRevName := range appRevInUse {
-		appRev := &v1beta1.ApplicationRevision{}
-		if err := h.r.Get(ctx, client.ObjectKey{Name: appRevName, Namespace: h.getComponentRevisionNamespace(ctx)}, appRev); err != nil {
-			return err
-		}
-		af, err := h.parser.GenerateAppFileFromRevision(appRev)
-		if err != nil {
-			return err
-		}
-		comps, err := af.GenerateComponentManifests()
-		if err != nil {
-			return err
-		}
-		for _, comp := range comps {
-			if compRevisionInUse[comp.Name] == nil {
-				compRevisionInUse[comp.Name] = map[string]struct{}{}
-			}
-			compRevisionInUse[comp.Name][comp.RevisionName] = struct{}{}
-		}
-	}
-	af, err := h.parser.GenerateAppFileFromRevision(h.currentAppRev)
-	if err != nil {
-		return err
-	}
-	comps, err := af.GenerateComponentManifests()
-	if err != nil {
-		return err
-	}
-	for _, curComp := range comps {
-		crList := &appsv1.ControllerRevisionList{}
-		listOpts := []client.ListOption{client.MatchingLabels{
-			oam.LabelControllerRevisionComponent: curComp.Name,
-		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
-		if err := h.r.List(ctx, crList, listOpts...); err != nil {
-			return err
-		}
-		needKill := len(crList.Items) - h.r.appRevisionLimit - len(compRevisionInUse[curComp.Name])
-		if needKill < 1 {
-			continue
-		}
-		sortedRevision := crList.Items
-		sort.Sort(historiesByComponentRevision(sortedRevision))
-		for _, rev := range sortedRevision {
-			if needKill <= 0 {
-				break
-			}
-			if _, inUse := compRevisionInUse[curComp.Name][rev.Name]; inUse {
-				continue
-			}
-			if err := h.r.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 			needKill--

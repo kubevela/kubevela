@@ -23,7 +23,6 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
-	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/traitdefinition"
@@ -37,8 +36,6 @@ func Register(mgr manager.Manager, args controller.Args) {
 		componentdefinition.RegisterMutatingHandler(mgr, args)
 		componentdefinition.RegisterValidatingHandler(mgr, args)
 		traitdefinition.RegisterValidatingHandler(mgr, args)
-		applicationrollout.RegisterMutatingHandler(mgr)
-		applicationrollout.RegisterValidatingHandler(mgr)
 		applicationconfiguration.RegisterMutatingHandler(mgr)
 		applicationconfiguration.RegisterValidatingHandler(mgr, args)
 		component.RegisterMutatingHandler(mgr, args)
@@ -53,8 +50,6 @@ func Register(mgr manager.Manager, args controller.Args) {
 		componentdefinition.RegisterMutatingHandler(mgr, args)
 		componentdefinition.RegisterValidatingHandler(mgr, args)
 		traitdefinition.RegisterValidatingHandler(mgr, args)
-		applicationrollout.RegisterMutatingHandler(mgr)
-		applicationrollout.RegisterValidatingHandler(mgr)
 	case "v0.2":
 		applicationconfiguration.RegisterMutatingHandler(mgr)
 		applicationconfiguration.RegisterValidatingHandler(mgr, args)

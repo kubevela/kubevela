@@ -64,8 +64,6 @@ func ApplicationV1alpha2ToV1beta1(v1a2 *Application, v1b1 *v1beta1.Application) 
 			Scopes:     scopes,
 		})
 	}
-	// 3.2) convert Spec.RolloutPlan
-	v1b1.Spec.RolloutPlan = v1a2.Spec.RolloutPlan.DeepCopy()
 
 	// 4) convert Status common.AppStatus
 	v1b1.Status = *v1a2.Status.DeepCopy()
@@ -131,8 +129,6 @@ func (app *Application) ConvertFrom(src conversion.Hub) error {
 				Scopes:       scopes,
 			})
 		}
-		// 3.2) convert Spec.RolloutPlan
-		app.Spec.RolloutPlan = sourceApp.Spec.RolloutPlan.DeepCopy()
 
 		// 4) convert Status common.AppStatus
 		app.Status = *sourceApp.Status.DeepCopy()

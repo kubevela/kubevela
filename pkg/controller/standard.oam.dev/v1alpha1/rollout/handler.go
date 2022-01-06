@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -59,9 +58,9 @@ type handler struct {
 // but we do same thing with it in the func
 func (h *handler) assembleWorkload(ctx context.Context) error {
 	workloadOptions := []assemble.WorkloadOption{
-		applicationrollout.RolloutWorkloadName(h.compName),
+		WorkloadName(h.compName),
 		assemble.PrepareWorkloadForRollout(h.compName),
-		applicationrollout.HandleReplicas(ctx, h.compName, h.Client)}
+		HandleReplicas(ctx, h.compName, h.Client)}
 
 	for _, workloadOption := range workloadOptions {
 		if err := workloadOption.ApplyToWorkload(h.targetWorkload, nil, nil); err != nil {
@@ -261,7 +260,7 @@ func (h *handler) checkWorkloadNotExist(ctx context.Context) (bool, error) {
 }
 
 func getWorkloadReplicasNum(u unstructured.Unstructured) (int32, error) {
-	replicaPath, err := applicationrollout.GetWorkloadReplicasPath(u)
+	replicaPath, err := GetWorkloadReplicasPath(u)
 	if err != nil {
 		return 0, fmt.Errorf("get workload replicas path err %w", err)
 	}
