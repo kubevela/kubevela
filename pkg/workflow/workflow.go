@@ -180,7 +180,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
-	if optimize.RevisionOptimizer.DisableWorkflowRecorder {
+	if optimize.WorkflowOptimizer.DisableRecorder {
 		return nil
 	}
 	data, err := json.Marshal(w.app)
