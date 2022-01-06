@@ -365,7 +365,7 @@ func setDisplayFormat(format string) {
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string) error {
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string, namespace string) error {
 	var (
 		caps []types.Capability
 	)
@@ -380,7 +380,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRef
 			return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
 		}
 	} else {
-		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, types.DefaultKubeVelaNS)
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace)
 		if err != nil {
 			return fmt.Errorf("failed to generate reference docs for capability %s: %w", ref.DefinitionName, err)
 		}

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -34,7 +35,7 @@ func main() {
 		path = plugins.KubeVelaIOTerraformPath
 	}
 
-	if err := ref.GenerateReferenceDocs(ctx, path); err != nil {
+	if err := ref.GenerateReferenceDocs(ctx, path, types.DefaultKubeVelaNS); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
