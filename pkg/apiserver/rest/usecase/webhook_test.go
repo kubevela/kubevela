@@ -106,7 +106,15 @@ var _ = Describe("Test application usecase function", func() {
 
 		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		reqBody := apisv1.HandleApplicationWebhookRequest{
+
+		invalidReq, err := http.NewRequest("post", "/", bytes.NewBuffer([]byte(`{"upgrade": "test"}`)))
+		invalidReq.Header.Add(restful.HEADER_ContentType, "application/json")
+		Expect(err).Should(BeNil())
+		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), triggers[0].Token, restful.NewRequest(invalidReq))
+		Expect(err).Should(Equal(bcode.ErrInvalidWebhookPayloadBody))
+
+		By("Test HandleApplicationWebhook function with custom payload")
+		reqBody := apisv1.HandleApplicationTriggerWebhookRequest{
 			Upgrade: map[string]*model.JSONStruct{
 				"component-name-webhook": {
 					"image": "test-image",
@@ -144,5 +152,44 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(revision.CodeInfo.Commit).Should(Equal("test-commit"))
 		Expect(revision.CodeInfo.Branch).Should(Equal("test-branch"))
 		Expect(revision.CodeInfo.User).Should(Equal("test-user"))
+
+		By("Test HandleApplicationWebhook function with ACR payload")
+		_, err = appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
+			Name:        "test-acr",
+			PayloadType: "acr",
+			Type:        "webhook",
+		})
+		Expect(err).Should(Equal(bcode.ErrApplicationComponetNotExist))
+		acrTrigger, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
+			Name:          "test-acr",
+			PayloadType:   "acr",
+			Type:          "webhook",
+			ComponentName: "component-name-webhook",
+		})
+		Expect(err).Should(BeNil())
+
+		acrBody := apisv1.HandleApplicationTriggerACRRequest{
+			PushData: apisv1.ACRPushData{
+				Digest: "test-digest",
+				Tag:    "test-tag",
+			},
+			Repository: apisv1.ACRRepository{
+				Name:         "test-repo",
+				Namespace:    "test-namespace",
+				Region:       "test-region",
+				RepoFullName: "test-namespace/test-repo",
+				RepoType:     "public",
+			},
+		}
+		body, err = json.Marshal(acrBody)
+		Expect(err).Should(BeNil())
+		httpreq, err = http.NewRequest("post", "/", bytes.NewBuffer(body))
+		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
+		Expect(err).Should(BeNil())
+		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), acrTrigger.Token, restful.NewRequest(httpreq))
+		Expect(err).Should(BeNil())
+		comp, err = appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
+		Expect(err).Should(BeNil())
+		Expect((*comp.Properties)["image"]).Should(Equal("registry.test-region.aliyuncs.com/test-namespace/test-repo:test-tag"))
 	})
 })

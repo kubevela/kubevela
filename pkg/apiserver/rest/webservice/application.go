@@ -504,6 +504,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", nil).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
+
 	return ws
 }
 
