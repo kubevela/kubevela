@@ -29,7 +29,8 @@ import (
 const ResourceTrackerAppIndex = "app"
 
 type resourceTrackerOptimizer struct{
-	OptimizeListOp bool
+	OptimizeListOp      bool
+	MarkWithProbability float64
 }
 
 // ResourceTrackerOptimizer optimizer for ResourceTracker

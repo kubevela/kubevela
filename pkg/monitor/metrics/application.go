@@ -96,6 +96,13 @@ var (
 		Buckets: histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"begin_phase", "end_phase"})
+
+	ApplyComponentTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "apply_component_time_seconds",
+		Help: "apply component duration distributions.",
+		Buckets: histogramBuckets,
+		ConstLabels: prometheus.Labels{},
+	}, []string{"stage"})
 )
 
 var (

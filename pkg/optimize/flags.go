@@ -25,7 +25,11 @@ func AddFlags() {
 	// optimize client
 	flag.BoolVar(&ResourceTrackerOptimizer.OptimizeListOp, "optimize-resource-tracker-list-op", false, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker.")
 
+	// optimize controller reconcile loop
+	flag.BoolVar(&ControllerOptimizer.EnableReconcileLoopReduction, "optimize-controller-reconcile-loop-reduction", false, "Optimize ApplicationController reconcile by reducing the number loops to reconcile application.")
+
 	// optimize functions
+	flag.Float64Var(&ResourceTrackerOptimizer.MarkWithProbability, "optimize-mark-with-prob", 0.0, "Optimize ResourceTracker GC by only run mark with probability. Default to 0.0 means not enable it. Side effect: outdated ResourceTracker might not be able to be removed immediately.")
 	flag.BoolVar(&RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used.")
 	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize Application by disabling the creation and gc. Side effect: application cannot rollback.")
 	flag.BoolVar(&WorkflowOptimizer.DisableRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")

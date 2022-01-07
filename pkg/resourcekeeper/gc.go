@@ -19,6 +19,7 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	version2 "github.com/oam-dev/kubevela/version"
 )
@@ -157,6 +159,9 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 	} else {
 		if h.cfg.passive {
 			inactiveRTs = []*v1beta1.ResourceTracker{}
+			if optimize.ResourceTrackerOptimizer.MarkWithProbability > 0 && rand.Float64() > optimize.ResourceTrackerOptimizer.MarkWithProbability {
+				return inactiveRTs
+			}
 			for _, rt := range h._historyRTs {
 				if rt != nil {
 					inactive := true

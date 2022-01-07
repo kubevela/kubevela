@@ -223,7 +223,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		logCtx.Info("Application manifests has applied by workflow successfully")
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+		if !optimize.ControllerOptimizer.EnableReconcileLoopReduction {
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+		}
 	case common.WorkflowStateFinished:
 		logCtx.Info("Workflow state=Finished")
 		if status := app.Status.Workflow; status != nil && status.Terminated {
@@ -332,7 +334,8 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			subCtx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
+			endReconcile := !optimize.ControllerOptimizer.EnableReconcileLoopReduction
+			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) {

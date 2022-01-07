@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
@@ -31,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -143,6 +145,9 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		t := time.Now()
+		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Now().Sub(t).Seconds()) }()
+
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentRevisionNamespace(ctx, overrideNamespace)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
