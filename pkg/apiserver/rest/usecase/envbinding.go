@@ -33,6 +33,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -184,7 +185,7 @@ func (e *envBindingUsecaseImpl) BatchCreateEnvBinding(ctx context.Context, app *
 			continue
 		}
 		if err := e.ds.Add(ctx, envBindingModel); err != nil {
-			log.Logger.Errorf("add envbinding %s failure %s", envBindingModel.Name, err.Error())
+			log.Logger.Errorf("add envbinding %s failure %s", utils2.Sanitize(envBindingModel.Name), err.Error())
 			continue
 		}
 		err = e.createEnvWorkflow(ctx, app, env, i == 0)

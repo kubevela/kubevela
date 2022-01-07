@@ -144,7 +144,7 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 	if listOptions.Env != "" || listOptions.TargetName != "" {
 		envBinding, err = listFullEnvBinding(ctx, ds, envListOption{})
 		if err != nil {
-			log.Logger.Errorf("list envbinding for list application in env %s err %v", listOptions.Env, err)
+			log.Logger.Errorf("list envbinding for list application in env %s err %v", utils2.Sanitize(listOptions.Env), err)
 			return nil, err
 		}
 	}
@@ -412,7 +412,7 @@ func (c *applicationUsecaseImpl) DeleteApplicationTrigger(ctx context.Context, a
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrApplicationTriggerNotExist
 		}
-		log.Logger.Warnf("delete app trigger %s failure %s", token, err.Error())
+		log.Logger.Warnf("delete app trigger failure %s", err.Error())
 		return err
 	}
 	return nil
