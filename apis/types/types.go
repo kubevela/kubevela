@@ -48,6 +48,10 @@ const (
 	LabelDefinitionDeprecated = "custom.definition.oam.dev/deprecated"
 	// LabelDefinitionHidden is the label which describe whether the capability is hidden by UI
 	LabelDefinitionHidden = "custom.definition.oam.dev/ui-hidden"
+	// LabelNodeRoleGateway gateway role of node
+	LabelNodeRoleGateway = "node-role.kubernetes.io/gateway"
+	// LabelNodeRoleWorker worker role of node
+	LabelNodeRoleWorker = "node-role.kubernetes.io/worker"
 	// AnnoIngressControllerHTTPSPort define ingress controller listen port for https
 	AnnoIngressControllerHTTPSPort = "ingress.controller/https-port"
 	// AnnoIngressControllerHTTPPort define ingress controller listen port for http

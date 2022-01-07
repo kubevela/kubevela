@@ -87,7 +87,9 @@ func (t *traceContext) Commit(msg string) {
 	for _, export := range t.exporters {
 		export(t, duration.Microseconds())
 	}
-	klog.InfoSDepth(1, msg, t.getTagsWith("duration", duration.String())...)
+	if t.logLevel == 0 {
+		klog.InfoSDepth(1, msg, t.getTagsWith("duration", duration.String())...)
+	}
 }
 
 func (t *traceContext) getTagsWith(keysAndValues ...interface{}) []interface{} {

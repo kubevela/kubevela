@@ -21,11 +21,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -42,11 +40,4 @@ func TestUp(t *testing.T) {
 	msg := o.Info(app)
 	assert.Contains(t, msg, "App has been deployed")
 	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", app.Name))
-}
-
-func TestNewUpCommandPersistentPreRunE(t *testing.T) {
-	io := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	fakeC := common2.Args{}
-	cmd := NewUpCommand(fakeC, "", io)
-	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }

@@ -66,6 +66,7 @@ type TaskLoader struct {
 	pd                *packages.PackageDiscover
 	handlers          providers.Providers
 	runOptionsProcess func(*wfTypes.TaskRunOptions)
+	logLevel          int
 }
 
 // GetTaskGenerator get TaskGenerator by name.
@@ -156,6 +157,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				}
 			}
 			tracer := options.GetTracer(exec.wfStatus.ID, wfStep).AddTag("step_name", wfStep.Name, "step_type", wfStep.Type)
+			tracer.V(t.logLevel)
 			defer func() {
 				tracer.Commit(string(exec.status().Phase))
 			}()
@@ -413,7 +415,7 @@ func getLabel(v *value.Value, label string) string {
 }
 
 // NewTaskLoader create a tasks loader.
-func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers) *TaskLoader {
+func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers, logLevel int) *TaskLoader {
 	return &TaskLoader{
 		loadTemplate: lt,
 		pd:           pkgDiscover,
@@ -422,5 +424,6 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 			options.PreStartHooks = append(options.PreStartHooks, hooks.Input)
 			options.PostStopHooks = append(options.PostStopHooks, hooks.Output)
 		},
+		logLevel: logLevel,
 	}
 }

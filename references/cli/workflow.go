@@ -76,12 +76,11 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
-			kubecli, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-
-			err = suspendWorkflow(kubecli, app)
+			err = suspendWorkflow(client, app)
 			if err != nil {
 				return err
 			}
@@ -124,12 +123,12 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 				}
 				return nil
 			}
-			kubecli, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 
-			err = resumeWorkflow(kubecli, app)
+			err = resumeWorkflow(client, app)
 			if err != nil {
 				return err
 			}
@@ -165,12 +164,11 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
-			kubecli, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-
-			err = terminateWorkflow(kubecli, app)
+			err = terminateWorkflow(client, app)
 			if err != nil {
 				return err
 			}
@@ -206,12 +204,12 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
-			kubecli, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 
-			err = restartWorkflow(kubecli, app)
+			err = restartWorkflow(client, app)
 			if err != nil {
 				return err
 			}
@@ -247,12 +245,12 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
 				return fmt.Errorf("can not rollback a running workflow")
 			}
-			kubecli, err := c.GetClient()
+			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 
-			err = rollbackWorkflow(kubecli, app)
+			err = rollbackWorkflow(client, app)
 			if err != nil {
 				return err
 			}

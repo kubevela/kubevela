@@ -40,9 +40,6 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		Short:                 "List applications",
 		Long:                  "List all applications in cluster",
 		Example:               `vela ls`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := c.GetClient()
 			if err != nil {

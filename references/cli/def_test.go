@@ -45,9 +45,9 @@ const (
 )
 
 func initArgs() common2.Args {
-	return common2.Args{
-		Client: fake.NewClientBuilder().WithScheme(common2.Scheme).Build(),
-	}
+	arg := common2.Args{}
+	arg.SetClient(fake.NewClientBuilder().WithScheme(common2.Scheme).Build())
+	return arg
 }
 
 func initCommand(cmd *cobra.Command) {
@@ -66,7 +66,11 @@ func createTrait(c common2.Args, t *testing.T) string {
 
 func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T) {
 	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
-	if err := c.Client.Create(context.Background(), &v1beta1.TraitDefinition{
+	client, err := c.GetClient()
+	if err != nil {
+		t.Fatalf("failed to get client: %v", err)
+	}
+	if err := client.Create(context.Background(), &v1beta1.TraitDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
@@ -343,7 +347,11 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}
 	obj := &v1beta1.TraitDefinition{}
-	if err := c.Client.Get(context.Background(), types.NamespacedName{
+	client, err := c.GetClient()
+	if err != nil {
+		t.Fatalf("failed to get client: %v", err)
+	}
+	if err := client.Get(context.Background(), types.NamespacedName{
 		Namespace: VelaTestNamespace,
 		Name:      traitName,
 	}, obj); !errors.IsNotFound(err) {

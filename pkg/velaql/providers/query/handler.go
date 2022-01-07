@@ -18,7 +18,7 @@ package query
 
 import (
 	"bufio"
-	stdctx "context"
+	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -83,53 +84,6 @@ type FilterOption struct {
 	Cluster          string   `json:"cluster,omitempty"`
 	ClusterNamespace string   `json:"clusterNamespace,omitempty"`
 	Components       []string `json:"components,omitempty"`
-}
-
-// ServiceEndpoint record the access endpoints of the application services
-type ServiceEndpoint struct {
-	Endpoint Endpoint               `json:"endpoint"`
-	Ref      corev1.ObjectReference `json:"ref"`
-}
-
-// String return endpoint URL
-func (s *ServiceEndpoint) String() string {
-	protocol := strings.ToLower(string(s.Endpoint.Protocol))
-	if s.Endpoint.AppProtocol != nil {
-		protocol = *s.Endpoint.AppProtocol
-	}
-	path := s.Endpoint.Path
-	if s.Endpoint.Path == "/" {
-		path = ""
-	}
-	if (protocol == "https" && s.Endpoint.Port == 443) || (protocol == "http" && s.Endpoint.Port == 80) {
-		return fmt.Sprintf("%s://%s%s", protocol, s.Endpoint.Host, path)
-	}
-	return fmt.Sprintf("%s://%s:%d%s", protocol, s.Endpoint.Host, s.Endpoint.Port, path)
-}
-
-// Endpoint create by ingress or service
-type Endpoint struct {
-	// The protocol for this endpoint. Supports "TCP", "UDP", and "SCTP".
-	// Default is TCP.
-	// +default="TCP"
-	// +optional
-	Protocol corev1.Protocol `json:"protocol,omitempty"`
-
-	// The protocol for this endpoint.
-	// Un-prefixed names are reserved for IANA standard service names (as per
-	// RFC-6335 and http://www.iana.org/assignments/service-names).
-	// +optional
-	AppProtocol *string `json:"appProtocol,omitempty"`
-
-	// the host for the endpoint, it could be IP or domain
-	Host string `json:"host"`
-
-	// the port for the endpoint
-	// Default is 80.
-	Port int32 `json:"port"`
-
-	// the path for the endpoint
-	Path string `json:"path,omitempty"`
 }
 
 // ListResourcesInApp lists CRs created by Application
@@ -195,7 +149,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 		return err
 	}
 
-	listCtx := multicluster.ContextWithClusterName(stdctx.Background(), cluster)
+	listCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	fieldSelector := getEventFieldSelector(obj)
 	eventList := corev1.EventList{}
 	listOpts := []client.ListOption{
@@ -210,15 +164,15 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	return v.FillObject(eventList.Items, "list")
 }
 
-// generatorServiceEndpoints generator service endpoints is available for common component type,
+// GeneratorServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
 func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.Value, act types.Action) error {
-	ctx := stdctx.Background()
+	ctx := context.Background()
 	findResource := func(obj client.Object, name, namespace, cluster string) error {
 		obj.SetNamespace(namespace)
 		obj.SetName(name)
-		gctx, cancel := stdctx.WithTimeout(ctx, time.Second*10)
+		gctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
 		if err := h.cli.Get(multicluster.ContextWithClusterName(gctx, cluster),
 			client.ObjectKeyFromObject(obj), obj); err != nil {
@@ -242,10 +196,22 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	if err != nil {
 		return fmt.Errorf("query app failure %w", err)
 	}
-	var serviceEndpoints []ServiceEndpoint
-	for _, resource := range app.Status.AppliedResources {
+	var serviceEndpoints []querytypes.ServiceEndpoint
+	var clusterGatewayNodeIP = make(map[string]string)
+	for i, resource := range app.Status.AppliedResources {
 		if !isResourceInTargetCluster(opt.Filter, resource) {
 			continue
+		}
+		cluster := app.Status.AppliedResources[i].Cluster
+		selectorNodeIP := func() string {
+			if ip, exist := clusterGatewayNodeIP[cluster]; exist {
+				return ip
+			}
+			ip := selectorNodeIP(ctx, cluster, h.cli)
+			if ip != "" {
+				clusterGatewayNodeIP[cluster] = ip
+			}
+			return ip
 		}
 		switch resource.Kind {
 		case "Ingress":
@@ -267,7 +233,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service)...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP)...)
 		case helmapi.HelmReleaseGVK.Kind:
 			obj := new(unstructured.Unstructured)
 			obj.SetNamespace(resource.Namespace)
@@ -278,7 +244,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP)...)
 			}
 
 			// only support network/v1beta1
@@ -323,7 +289,7 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 	if err = val.UnmarshalTo(opts); err != nil {
 		return errors.Wrapf(err, "invalid log options content")
 	}
-	cliCtx := multicluster.ContextWithClusterName(stdctx.Background(), cluster)
+	cliCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create kubernetes clientset")
@@ -396,21 +362,23 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	})
 }
 
-func generatorFromService(service corev1.Service) []ServiceEndpoint {
-	var serviceEndpoints []ServiceEndpoint
+func generatorFromService(service corev1.Service, selectorNodeIP func() string) []querytypes.ServiceEndpoint {
+	var serviceEndpoints []querytypes.ServiceEndpoint
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
 		for _, port := range service.Spec.Ports {
+			judgeAppProtocol := judgeAppProtocol(port.Port)
 			for _, ingress := range service.Status.LoadBalancer.Ingress {
 				if ingress.Hostname != "" {
-					serviceEndpoints = append(serviceEndpoints, ServiceEndpoint{
-						Endpoint: Endpoint{
-							Protocol: port.Protocol,
-							Host:     ingress.Hostname,
-							Port:     port.Port,
+					serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
+						Endpoint: querytypes.Endpoint{
+							Protocol:    port.Protocol,
+							AppProtocol: &judgeAppProtocol,
+							Host:        ingress.Hostname,
+							Port:        int(port.Port),
 						},
 						Ref: corev1.ObjectReference{
-							Kind:            service.Kind,
+							Kind:            "Service",
 							Namespace:       service.ObjectMeta.Namespace,
 							Name:            service.ObjectMeta.Name,
 							UID:             service.UID,
@@ -420,14 +388,15 @@ func generatorFromService(service corev1.Service) []ServiceEndpoint {
 					})
 				}
 				if ingress.IP != "" {
-					serviceEndpoints = append(serviceEndpoints, ServiceEndpoint{
-						Endpoint: Endpoint{
-							Protocol: port.Protocol,
-							Host:     ingress.IP,
-							Port:     port.Port,
+					serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
+						Endpoint: querytypes.Endpoint{
+							Protocol:    port.Protocol,
+							AppProtocol: &judgeAppProtocol,
+							Host:        ingress.IP,
+							Port:        int(port.Port),
 						},
 						Ref: corev1.ObjectReference{
-							Kind:            service.Kind,
+							Kind:            "Service",
 							Namespace:       service.ObjectMeta.Namespace,
 							Name:            service.ObjectMeta.Name,
 							UID:             service.UID,
@@ -440,13 +409,16 @@ func generatorFromService(service corev1.Service) []ServiceEndpoint {
 		}
 	case corev1.ServiceTypeNodePort:
 		for _, port := range service.Spec.Ports {
-			serviceEndpoints = append(serviceEndpoints, ServiceEndpoint{
-				Endpoint: Endpoint{
-					Protocol: port.Protocol,
-					Port:     port.NodePort,
+			judgeAppProtocol := judgeAppProtocol(port.Port)
+			serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
+				Endpoint: querytypes.Endpoint{
+					Protocol:    port.Protocol,
+					Port:        int(port.NodePort),
+					AppProtocol: &judgeAppProtocol,
+					Host:        selectorNodeIP(),
 				},
 				Ref: corev1.ObjectReference{
-					Kind:            service.Kind,
+					Kind:            "Service",
 					Namespace:       service.ObjectMeta.Namespace,
 					Name:            service.ObjectMeta.Name,
 					UID:             service.UID,
@@ -460,15 +432,15 @@ func generatorFromService(service corev1.Service) []ServiceEndpoint {
 	return serviceEndpoints
 }
 
-func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []ServiceEndpoint) {
+func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []querytypes.ServiceEndpoint) {
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
 				if len(tls.Hosts) > 0 && utils.StringsContain(tls.Hosts, host) {
-					return "https"
+					return querytypes.HTTPS
 				}
 				if len(tls.Hosts) == 0 {
-					return "https"
+					return querytypes.HTTPS
 				}
 			}
 		}
@@ -476,7 +448,7 @@ func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []Se
 	}
 	// It depends on the Ingress Controller
 	getEndpointPort := func(appProtocol string) int {
-		if appProtocol == "https" {
+		if appProtocol == querytypes.HTTPS {
 			if port, err := strconv.Atoi(ingress.Annotations[apis.AnnoIngressControllerHTTPSPort]); port > 0 && err == nil {
 				return port
 			}
@@ -492,16 +464,16 @@ func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []Se
 		var appPort = getEndpointPort(appProtocol)
 		if rule.HTTP != nil {
 			for _, path := range rule.HTTP.Paths {
-				serviceEndpoints = append(serviceEndpoints, ServiceEndpoint{
-					Endpoint: Endpoint{
+				serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
+					Endpoint: querytypes.Endpoint{
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: &appProtocol,
 						Host:        rule.Host,
 						Path:        path.Path,
-						Port:        int32(appPort),
+						Port:        appPort,
 					},
 					Ref: corev1.ObjectReference{
-						Kind:            ingress.Kind,
+						Kind:            "Ingress",
 						Namespace:       ingress.ObjectMeta.Namespace,
 						Name:            ingress.ObjectMeta.Name,
 						UID:             ingress.UID,
@@ -513,4 +485,62 @@ func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []Se
 		}
 	}
 	return serviceEndpoints
+}
+
+func selectorNodeIP(ctx context.Context, clusterName string, client client.Client) string {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	var nodes corev1.NodeList
+	if err := client.List(multicluster.ContextWithClusterName(ctx, clusterName), &nodes); err != nil {
+		return ""
+	}
+	if len(nodes.Items) == 0 {
+		return ""
+	}
+	var gatewayNode *corev1.Node
+	var workerNodes []corev1.Node
+	for i, node := range nodes.Items {
+		if _, exist := node.Labels[apis.LabelNodeRoleGateway]; exist {
+			gatewayNode = &nodes.Items[i]
+			break
+		} else if _, exist := node.Labels[apis.LabelNodeRoleWorker]; exist {
+			workerNodes = append(workerNodes, nodes.Items[i])
+		}
+	}
+	if gatewayNode == nil && len(workerNodes) > 0 {
+		gatewayNode = &workerNodes[0]
+	}
+	if gatewayNode == nil {
+		gatewayNode = &nodes.Items[0]
+	}
+	if gatewayNode != nil {
+		var addressMap = make(map[corev1.NodeAddressType]string)
+		for _, address := range gatewayNode.Status.Addresses {
+			addressMap[address.Type] = address.Address
+		}
+		// first get external ip
+		if ip, exist := addressMap[corev1.NodeExternalIP]; exist {
+			return ip
+		}
+		if ip, exist := addressMap[corev1.NodeInternalIP]; exist {
+			return ip
+		}
+	}
+	return ""
+}
+
+// judgeAppProtocol  RFC-6335 and http://www.iana.org/assignments/service-names).
+func judgeAppProtocol(port int32) string {
+	switch port {
+	case 80, 8080:
+		return querytypes.HTTP
+	case 443:
+		return querytypes.HTTPS
+	case 3306:
+		return querytypes.Mysql
+	case 6379:
+		return querytypes.Redis
+	default:
+		return ""
+	}
 }

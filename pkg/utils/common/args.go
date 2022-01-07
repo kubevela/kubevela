@@ -31,53 +31,73 @@ import (
 
 // Args is args for controller-runtime client
 type Args struct {
-	Config *rest.Config
+	config *rest.Config
 	Schema *runtime.Scheme
-	Client client.Client
+	client client.Client
 	dm     discoverymapper.DiscoveryMapper
 	pd     *packages.PackageDiscover
 }
 
 // SetConfig insert kubeconfig into Args
-func (a *Args) SetConfig() error {
+func (a *Args) SetConfig(c *rest.Config) error {
+	if c != nil {
+		a.config = c
+		return nil
+	}
 	restConf, err := config.GetConfig()
 	if err != nil {
 		return err
 	}
 	restConf.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
-	a.Config = restConf
+	a.config = restConf
 	return nil
+}
+
+// GetConfig get config, if not exist, will create
+func (a *Args) GetConfig() (*rest.Config, error) {
+	if a.config != nil {
+		return a.config, nil
+	}
+	if err := a.SetConfig(nil); err != nil {
+		return nil, err
+	}
+	return a.config, nil
+}
+
+// SetClient set custom client
+func (a *Args) SetClient(c client.Client) {
+	a.client = c
 }
 
 // GetClient get client if exist
 func (a *Args) GetClient() (client.Client, error) {
-	if a.Config == nil {
-		if err := a.SetConfig(); err != nil {
+	if a.client != nil {
+		return a.client, nil
+	}
+	if a.config == nil {
+		if err := a.SetConfig(nil); err != nil {
 			return nil, err
 		}
 	}
-	if a.Client != nil {
-		return a.Client, nil
-	}
-	newClient, err := client.New(a.Config, client.Options{Scheme: a.Schema})
+	newClient, err := client.New(a.config, client.Options{Scheme: a.Schema})
 	if err != nil {
 		return nil, err
 	}
-	a.Client = newClient
-	return a.Client, nil
+	a.client = newClient
+	return a.client, nil
 }
 
 // GetDiscoveryMapper get discoveryMapper client if exist, create if not exist.
 func (a *Args) GetDiscoveryMapper() (discoverymapper.DiscoveryMapper, error) {
-	if a.Config == nil {
-		if err := a.SetConfig(); err != nil {
+	if a.config == nil {
+		if err := a.SetConfig(nil); err != nil {
 			return nil, err
 		}
 	}
 	if a.dm != nil {
 		return a.dm, nil
 	}
-	dm, err := discoverymapper.New(a.Config)
+	dm, err := discoverymapper.New(a.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CRD discovery client %w", err)
 	}
@@ -87,15 +107,15 @@ func (a *Args) GetDiscoveryMapper() (discoverymapper.DiscoveryMapper, error) {
 
 // GetPackageDiscover get PackageDiscover client if exist, create if not exist.
 func (a *Args) GetPackageDiscover() (*packages.PackageDiscover, error) {
-	if a.Config == nil {
-		if err := a.SetConfig(); err != nil {
+	if a.config == nil {
+		if err := a.SetConfig(nil); err != nil {
 			return nil, err
 		}
 	}
 	if a.pd != nil {
 		return a.pd, nil
 	}
-	pd, err := packages.NewPackageDiscover(a.Config)
+	pd, err := packages.NewPackageDiscover(a.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CRD discovery for CUE package client %w", err)
 	}

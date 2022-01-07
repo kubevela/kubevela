@@ -44,7 +44,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/a/preimport"
 )
 
 const (
@@ -78,16 +77,12 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		},
 		// check if cluster-gateway is ready
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if c.Config == nil {
-				if err := c.SetConfig(); err != nil {
-					return errors.Wrapf(err, "failed to set config for k8s client")
-				}
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
 			}
-			c.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-			c.Client = nil
-			preimport.SuppressLogging()
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			k8sClient, err := c.GetClient()
-			preimport.ResumeLogging()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
@@ -119,7 +114,11 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT")
-			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			clusters, err := clustermanager.GetRegisteredClusters(client)
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
@@ -210,7 +209,14 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 			if createNamespace == "" {
 				createNamespace = types.DefaultKubeVelaNS
 			}
-
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			restConfig, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
 			switch clusterManagementType {
 			case ClusterGateWayClusterManagement:
 				if endpoint, err := utils.ParseAPIServerEndpoint(cluster.Server); err == nil {
@@ -218,7 +224,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 				} else {
 					ioStreams.Infof("failed to parse server endpoint: %v", err)
 				}
-				if err = registerClusterManagedByVela(c.Client, cluster, authInfo, clusterName, createNamespace); err != nil {
+				if err = registerClusterManagedByVela(client, cluster, authInfo, clusterName, createNamespace); err != nil {
 					return err
 				}
 			case OCMClusterManagement:
@@ -227,7 +233,7 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return errors.Wrapf(err, "failed to determine the registration endpoint for the hub cluster "+
 						"when parsing --in-cluster-bootstrap flag")
 				}
-				if err = registerClusterManagedByOCM(ioStreams, c.Config, config, clusterName, inClusterBootstrap); err != nil {
+				if err = registerClusterManagedByOCM(ioStreams, restConfig, config, clusterName, inClusterBootstrap); err != nil {
 					return err
 				}
 			}
@@ -392,14 +398,18 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 			if newClusterName == multicluster.ClusterLocalName {
 				return fmt.Errorf("cannot use `%s` as cluster name, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
-			clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), c.Client, oldClusterName)
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), client, oldClusterName)
 			if err != nil {
 				return errors.Wrapf(err, "cluster %s is not mutable now", oldClusterName)
 			}
-			if err := clustermanager.EnsureClusterNotExists(c.Client, newClusterName); err != nil {
+			if err := clustermanager.EnsureClusterNotExists(client, newClusterName); err != nil {
 				return errors.Wrapf(err, "cannot set cluster name to %s", newClusterName)
 			}
-			if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
+			if err := client.Delete(context.Background(), clusterSecret); err != nil {
 				return errors.Wrapf(err, "failed to rename cluster from %s to %s", oldClusterName, newClusterName)
 			}
 			clusterSecret.ObjectMeta = metav1.ObjectMeta{
@@ -408,7 +418,7 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 				Labels:      clusterSecret.Labels,
 				Annotations: clusterSecret.Annotations,
 			}
-			if err := c.Client.Create(context.Background(), clusterSecret); err != nil {
+			if err := client.Create(context.Background(), clusterSecret); err != nil {
 				return errors.Wrapf(err, "failed to rename cluster from %s to %s", oldClusterName, newClusterName)
 			}
 			cmd.Printf("Rename cluster %s to %s successfully.\n", oldClusterName, newClusterName)
@@ -429,7 +439,11 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 			if clusterName == multicluster.ClusterLocalName {
 				return fmt.Errorf("cannot delete `%s` cluster, it is reserved as the local cluster", multicluster.ClusterLocalName)
 			}
-			clusters, err := clustermanager.GetRegisteredClusters(c.Client)
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			clusters, err := clustermanager.GetRegisteredClusters(client)
 			if err != nil {
 				return err
 			}
@@ -445,11 +459,11 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 
 			switch clusterType {
 			case string(clusterv1alpha1.CredentialTypeX509Certificate), string(clusterv1alpha1.CredentialTypeServiceAccountToken):
-				clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), c.Client, clusterName)
+				clusterSecret, err := multicluster.GetMutableClusterSecret(context.Background(), client, clusterName)
 				if err != nil {
 					return errors.Wrapf(err, "cluster %s is not mutable now", clusterName)
 				}
-				if err := c.Client.Delete(context.Background(), clusterSecret); err != nil {
+				if err := client.Delete(context.Background(), clusterSecret); err != nil {
 					return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
 				}
 			case "ManagedCluster":
@@ -478,7 +492,7 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 						Name: clusterName,
 					},
 				}
-				if err = c.Client.Delete(context.Background(), &managedCluster); err != nil {
+				if err = client.Delete(context.Background(), &managedCluster); err != nil {
 					if !apierrors.IsNotFound(err) {
 						return err
 					}
@@ -503,7 +517,11 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 			if clusterName == multicluster.ClusterLocalName {
 				return errors.New("you must specify a remote cluster name")
 			}
-			content, err := versioned.NewForConfigOrDie(c.Config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			content, err := versioned.NewForConfigOrDie(config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("healthz").DoRaw(context.TODO())
 			if err != nil {
 				return errors.Wrapf(err, "failed connect cluster %s", clusterName)
 			}

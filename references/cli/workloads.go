@@ -34,9 +34,6 @@ func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 		Long:                  "List workloads",
 		Example:               `vela workloads`,
 		Hidden:                true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {

@@ -50,7 +50,7 @@ func TestDiscover(t *testing.T) {
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil),
+		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil, 0),
 	}
 
 	_, err := discover.GetTaskGenerator(context.Background(), "suspend")
