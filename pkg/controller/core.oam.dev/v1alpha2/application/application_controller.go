@@ -399,7 +399,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return filterManagedFieldChangesUpdate(e)
 				}
 
-				//We think this event is triggered by resync
+				// We think this event is triggered by resync
 				if reflect.DeepEqual(old, new) {
 					return true
 				}
