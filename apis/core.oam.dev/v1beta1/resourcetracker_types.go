@@ -187,7 +187,7 @@ func (in *ResourceTracker) findMangedResourceIndex(mr ManagedResource) int {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) (updated bool) {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
 	mr := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
@@ -206,17 +206,21 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) 
 		mr.Data = &runtime.RawExtension{Object: rsc}
 	}
 	if idx := in.findMangedResourceIndex(mr); idx >= 0 {
+		if reflect.DeepEqual(in.Spec.ManagedResources[idx], mr) {
+			return false
+		}
 		in.Spec.ManagedResources[idx] = mr
 	} else {
 		in.Spec.ManagedResources = append(in.Spec.ManagedResources, mr)
 	}
+	return true
 }
 
 // DeleteManagedResource if remove flag is on, it will remove the object from recorded resources.
 // otherwise, it will mark the object as deleted instead of removing it
 // workflow   stage: resources are marked as deleted (and execute the deletion action)
 // state-keep stage: resources marked as deleted and successfully deleted will be removed from resourcetracker
-func (in *ResourceTracker) DeleteManagedResource(rsc client.Object, remove bool) {
+func (in *ResourceTracker) DeleteManagedResource(rsc client.Object, remove bool) (updated bool) {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
 	mr := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
@@ -234,6 +238,9 @@ func (in *ResourceTracker) DeleteManagedResource(rsc client.Object, remove bool)
 		if remove {
 			in.Spec.ManagedResources = append(in.Spec.ManagedResources[:idx], in.Spec.ManagedResources[idx+1:]...)
 		} else {
+			if reflect.DeepEqual(in.Spec.ManagedResources[idx], mr) {
+				return false
+			}
 			in.Spec.ManagedResources[idx] = mr
 		}
 	} else {
@@ -241,6 +248,7 @@ func (in *ResourceTracker) DeleteManagedResource(rsc client.Object, remove bool)
 			in.Spec.ManagedResources = append(in.Spec.ManagedResources, mr)
 		}
 	}
+	return true
 }
 
 // addClusterObjectReference
