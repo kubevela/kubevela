@@ -150,7 +150,11 @@ func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace strin
 	if err != nil {
 		return nil, nil, err
 	}
-	dm, err := discoverymapper.New(c.Config)
+	config, err := c.GetConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return nil, nil, err
 	}

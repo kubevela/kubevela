@@ -65,9 +65,6 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 		Short:   "Show the reference doc for a component type or trait",
 		Long:    "Show the reference doc for a component type or trait",
 		Example: `show webservice`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("please specify a component type or trait")

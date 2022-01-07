@@ -84,7 +84,7 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers, 0),
 		templateLoader:     templateLoader,
 	}
 }
@@ -115,7 +115,7 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 }
 
 // NewViewTaskDiscover will create a client for load task generator.
-func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string) types.TaskDiscover {
+func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string, logLevel int) types.TaskDiscover {
 	handlerProviders := providers.NewProviders()
 
 	// install builtin provider
@@ -128,7 +128,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 
 	templateLoader := template.NewViewTemplateLoader(cli, viewNs)
 	return &taskDiscover{
-		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel),
 		templateLoader:     templateLoader,
 	}
 }

@@ -18,11 +18,13 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -88,23 +90,25 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 		Short:   "Show status of an application",
 		Long:    "Show status of an application, including workloads and traits of each service.",
 		Example: `vela status APP_NAME`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// check args
+			argsLength := len(args)
+			if argsLength == 0 {
+				return fmt.Errorf("please specify an application")
+			}
+			appName := args[0]
+			// get namespace
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
-			argsLength := len(args)
-			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify an application")
-				os.Exit(1)
-			}
-			appName := args[0]
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
+			}
+			showEndpoints, err := cmd.Flags().GetBool("endpoint")
+			if showEndpoints && err == nil {
+				return printAppEndpoints(ctx, newClient, appName, namespace, c)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -114,7 +118,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 		},
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
-
+	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -138,6 +142,21 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	}
 	cmd.Printf("Services:\n\n")
 	return loopCheckStatus(c, ioStreams, appName, namespace)
+}
+
+func printAppEndpoints(ctx context.Context, client client.Client, appName string, namespace string, velaC common.Args) error {
+	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC)
+	if err != nil {
+		return err
+	}
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetColWidth(100)
+	table.SetHeader([]string{"Ref(Kind/Namespace/Name)", "Endpoint"})
+	for _, endpoint := range endpoints {
+		table.Append([]string{fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
+	}
+	table.Render()
+	return nil
 }
 
 func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Application, error) {
@@ -164,20 +183,22 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		return err
 	}
 	workflowStatus := remoteApp.Status.Workflow
-	ioStreams.Info("Workflow:\n")
-	ioStreams.Infof("  mode: %s\n", workflowStatus.Mode)
-	ioStreams.Infof("  finished: %t\n", workflowStatus.Finished)
-	ioStreams.Infof("  Suspend: %t\n", workflowStatus.Suspend)
-	ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
-	ioStreams.Info("  Steps")
-	for _, step := range workflowStatus.Steps {
-		ioStreams.Infof("  - id:%s\n", step.ID)
-		ioStreams.Infof("    name:%s\n", step.Name)
-		ioStreams.Infof("    type:%s\n", step.Type)
-		ioStreams.Infof("    phase:%s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
-		ioStreams.Infof("    message:%s\n", step.Message)
+	if workflowStatus != nil {
+		ioStreams.Info("Workflow:\n")
+		ioStreams.Infof("  mode: %s\n", workflowStatus.Mode)
+		ioStreams.Infof("  finished: %t\n", workflowStatus.Finished)
+		ioStreams.Infof("  Suspend: %t\n", workflowStatus.Suspend)
+		ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
+		ioStreams.Info("  Steps")
+		for _, step := range workflowStatus.Steps {
+			ioStreams.Infof("  - id:%s\n", step.ID)
+			ioStreams.Infof("    name:%s\n", step.Name)
+			ioStreams.Infof("    type:%s\n", step.Type)
+			ioStreams.Infof("    phase:%s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
+			ioStreams.Infof("    message:%s\n", step.Message)
+		}
+		ioStreams.Infof("\n")
 	}
-	ioStreams.Infof("\n")
 	return nil
 }
 

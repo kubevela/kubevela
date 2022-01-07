@@ -39,9 +39,6 @@ func NewCUEPackageCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
 		},
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return printCUEPackageList(c, ioStreams)
 		},

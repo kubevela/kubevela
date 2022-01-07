@@ -53,9 +53,6 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Short:   "List/get traits",
 		Long:    "List traits & get trait in registry",
 		Example: `vela trait`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// parse label filter
 			if label != "" {
@@ -85,7 +82,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return PrintTraitListFromRegistry(registry, ioStreams, filter)
 
 			}
-			return PrintInstalledTraitDef(ioStreams, filter)
+			return PrintInstalledTraitDef(c, ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,
@@ -214,9 +211,13 @@ func InstallTraitByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStream
 }
 
 // PrintInstalledTraitDef will print all TraitDefinition in cluster
-func PrintInstalledTraitDef(io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.TraitDefinitionList
-	err := clt.List(context.Background(), &list)
+	clt, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	err = clt.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get trait definition list error")
 	}

@@ -42,7 +42,12 @@ var _ = It("Test ApplyTerraform", func() {
 		}},
 	}
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, common.Args{Config: cfg})
+	arg := common.Args{
+		Schema: scheme,
+	}
+	err := arg.SetConfig(cfg)
+	Expect(err).Should(BeNil())
+	_, err = ApplyTerraform(app, k8sClient, ioStream, addonNamespace, arg)
 	Expect(err).Should(BeNil())
 })
 

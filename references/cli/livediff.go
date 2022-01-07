@@ -57,9 +57,6 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeApp,
 		},
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
@@ -102,8 +99,11 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args, namespace
 	if err != nil {
 		return buff, err
 	}
-
-	dm, err := discoverymapper.New(c.Config)
+	config, err := c.GetConfig()
+	if err != nil {
+		return buff, err
+	}
+	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return buff, err
 	}

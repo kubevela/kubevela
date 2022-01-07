@@ -35,9 +35,6 @@ func NewEnvCommand(c common.Args, order string, ioStream cmdutil.IOStreams) *cob
 		DisableFlagsInUseLine: true,
 		Short:                 "Manage environments",
 		Long:                  "Manage environments",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeStart,

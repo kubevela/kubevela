@@ -35,9 +35,6 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete an application",
 		Long:                  "Delete an application",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeApp,

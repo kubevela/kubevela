@@ -75,11 +75,11 @@
 	}
 	list?: [...{
 		endpoint: {
-			protocol:    string
-			appProtocol: string
-			host?:       string
-			port:        int
-			path?:       string
+			protocol:     string
+			appProtocol?: string
+			host?:        string
+			port:         int
+			path?:        string
 		}
 		ref: {...}
 	}]

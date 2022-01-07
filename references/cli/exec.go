@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
@@ -82,11 +81,6 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Short: "Execute command in a container",
 		Long:  "Execute command in a container",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if c.Config == nil {
-				if err := c.SetConfig(); err != nil {
-					return errors.Wrapf(err, "failed to set config for k8s client")
-				}
-			}
 			o.VelaC = c
 			return nil
 		},
@@ -169,8 +163,12 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	o.resourceName = targetResource.Name
 	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
 	o.resourceNamespace = targetResource.Namespace
-	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-	k8sClient, err := kubernetes.NewForConfig(o.VelaC.Config)
+	config, err := o.VelaC.GetConfig()
+	if err != nil {
+		return err
+	}
+	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err
 	}
