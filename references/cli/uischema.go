@@ -60,12 +60,9 @@ func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,
 		},
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New("please provider the uischema file or dir path")
+				return errors.New("please provider the ui schema file or dir path")
 			}
 			allUISchemaFiles, err := loadUISchemaFiles(args[0])
 			if err != nil {

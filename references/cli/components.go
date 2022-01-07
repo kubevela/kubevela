@@ -45,9 +45,6 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		Short:   "List/get components",
 		Long:    "List components & get components in registry",
 		Example: `vela comp`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// parse label filter
 			if label != "" {
@@ -76,7 +73,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 				}
 				return PrintComponentListFromRegistry(registry, ioStreams, filter)
 			}
-			return PrintInstalledCompDef(ioStreams, filter)
+			return PrintInstalledCompDef(c, ioStreams, filter)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeExtension,
@@ -213,9 +210,13 @@ func InstallCompByNameFromRegistry(args common2.Args, ioStream cmdutil.IOStreams
 }
 
 // PrintInstalledCompDef will print all ComponentDefinition in cluster
-func PrintInstalledCompDef(io cmdutil.IOStreams, filter filterFunc) error {
+func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFunc) error {
 	var list v1beta1.ComponentDefinitionList
-	err := clt.List(context.Background(), &list)
+	clt, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	err = clt.List(context.Background(), &list)
 	if err != nil {
 		return errors.Wrap(err, "get component definition list error")
 	}

@@ -49,11 +49,12 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Long:  "Tail logs for application in multicluster",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := c.SetConfig(); err != nil {
+			config, err := c.GetConfig()
+			if err != nil {
 				return err
 			}
 			largs.Args = c
-			largs.Args.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,7 +96,11 @@ type Args struct {
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
 	labelSelector := labels.Everything()
-	clientSet, err := kubernetes.NewForConfig(l.Args.Config)
+	config, err := l.Args.GetConfig()
+	if err != nil {
+		return err
+	}
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err
 	}

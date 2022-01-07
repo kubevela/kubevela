@@ -75,7 +75,7 @@ myIP: value: "1.1.1.1"
 		},
 	})
 
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
 
 	steps := []v1beta1.WorkflowStep{
 		{
@@ -178,7 +178,7 @@ close({
 			return errors.New("mock error")
 		},
 	})
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
 
 	steps := []v1beta1.WorkflowStep{
 		{
@@ -413,7 +413,7 @@ func TestPendingInputCheck(t *testing.T) {
 			ParameterKey: "score",
 		}},
 	}
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
@@ -442,7 +442,7 @@ func TestPendingDependsOnCheck(t *testing.T) {
 		Type:      "ok",
 		DependsOn: []string{"depend"},
 	}
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover)
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})

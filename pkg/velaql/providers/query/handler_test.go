@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
@@ -686,23 +687,35 @@ options: {
 		}
 		err = pr.GeneratorServiceEndpoints(nil, v, nil)
 		Expect(err).Should(BeNil())
+		var node corev1.NodeList
+		err = k8sClient.List(context.TODO(), &node)
+		Expect(err).Should(BeNil())
+		var gatewayIP string
+		if len(node.Items) > 0 {
+			for _, address := range node.Items[0].Status.Addresses {
+				if address.Type == corev1.NodeInternalIP {
+					gatewayIP = address.Address
+					break
+				}
+			}
+		}
 		urls := []string{
 			"http://ingress.domain",
 			"https://ingress.domain.https",
 			"https://ingress.domain.path/test",
 			"https://ingress.domain.path/test2",
-			"tcp://:30229",
-			"tcp://10.10.10.10:80",
-			"tcp://text.example.com:80",
+			fmt.Sprintf("http://%s:30229", gatewayIP),
+			"http://10.10.10.10",
+			"http://text.example.com",
 			"tcp://10.10.10.10:81",
 			"tcp://text.example.com:81",
 			// helmRelease
-			"tcp://:30002",
+			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())
-		var endpoints []ServiceEndpoint
+		var endpoints []querytypes.ServiceEndpoint
 		err = endValue.Decode(&endpoints)
 		Expect(err).Should(BeNil())
 		for i, endpoint := range endpoints {

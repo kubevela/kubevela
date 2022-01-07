@@ -69,7 +69,7 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 			if err != nil {
 				return err
 			}
-			if err := addAddonRegistry(context.Background(), *registry); err != nil {
+			if err := addAddonRegistry(context.Background(), c, *registry); err != nil {
 				return err
 			}
 			return nil
@@ -91,7 +91,7 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 				return errors.New("must specify the registry name")
 			}
 			name := args[0]
-			err := getAddonRegistry(context.Background(), name)
+			err := getAddonRegistry(context.Background(), c, name)
 			if err != nil {
 				return err
 			}
@@ -108,7 +108,7 @@ func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *co
 		Long:    "List addon registries",
 		Example: "vela addon registry list",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := listAddonRegistry(context.Background()); err != nil {
+			if err := listAddonRegistry(context.Background(), c); err != nil {
 				return err
 			}
 			return nil
@@ -128,7 +128,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 			if err != nil {
 				return err
 			}
-			if err := updateAddonRegistry(context.Background(), *registry); err != nil {
+			if err := updateAddonRegistry(context.Background(), c, *registry); err != nil {
 				return err
 			}
 			return nil
@@ -150,7 +150,7 @@ func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 				return errors.New("must specify the registry name")
 			}
 			name := args[0]
-			err := deleteAddonRegistry(context.Background(), name)
+			err := deleteAddonRegistry(context.Background(), c, name)
 			if err != nil {
 				return err
 			}
@@ -159,8 +159,12 @@ func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 	}
 }
 
-func listAddonRegistry(ctx context.Context) error {
-	ds := pkgaddon.NewRegistryDataStore(clt)
+func listAddonRegistry(ctx context.Context, c common.Args) error {
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ds := pkgaddon.NewRegistryDataStore(client)
 	registries, err := ds.ListRegistries(ctx)
 	if err != nil {
 		return err
@@ -193,8 +197,12 @@ func listAddonRegistry(ctx context.Context) error {
 	return nil
 }
 
-func getAddonRegistry(ctx context.Context, name string) error {
-	ds := pkgaddon.NewRegistryDataStore(clt)
+func getAddonRegistry(ctx context.Context, c common.Args, name string) error {
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ds := pkgaddon.NewRegistryDataStore(client)
 	registry, err := ds.GetRegistry(ctx, name)
 	if err != nil {
 		return err
@@ -211,8 +219,12 @@ func getAddonRegistry(ctx context.Context, name string) error {
 	return nil
 }
 
-func deleteAddonRegistry(ctx context.Context, name string) error {
-	ds := pkgaddon.NewRegistryDataStore(clt)
+func deleteAddonRegistry(ctx context.Context, c common.Args, name string) error {
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ds := pkgaddon.NewRegistryDataStore(client)
 	if err := ds.DeleteRegistry(ctx, name); err != nil {
 		return err
 	}
@@ -220,8 +232,12 @@ func deleteAddonRegistry(ctx context.Context, name string) error {
 	return nil
 }
 
-func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
-	ds := pkgaddon.NewRegistryDataStore(clt)
+func addAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ds := pkgaddon.NewRegistryDataStore(client)
 	if err := ds.AddRegistry(ctx, registry); err != nil {
 		return err
 	}
@@ -229,8 +245,12 @@ func addAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
 	return nil
 }
 
-func updateAddonRegistry(ctx context.Context, registry pkgaddon.Registry) error {
-	ds := pkgaddon.NewRegistryDataStore(clt)
+func updateAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ds := pkgaddon.NewRegistryDataStore(client)
 	if err := ds.UpdateRegistry(ctx, registry); err != nil {
 		return err
 	}

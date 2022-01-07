@@ -43,9 +43,6 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeStart,
 		},
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {

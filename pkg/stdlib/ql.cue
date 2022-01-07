@@ -11,3 +11,5 @@
 #SearchEvents: query.#SearchEvents
 
 #CollectLogsInPod: query.#CollectLogsInPod
+
+#CollectServiceEndpoints: query.#CollectServiceEndpoints

@@ -29,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/a/preimport"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -68,10 +67,6 @@ func NewCommand() *cobra.Command {
 		fmt.Println("InitDir err", err)
 		os.Exit(1)
 	}
-
-	preimport.SuppressLogging()
-	_, _ = commandArgs.GetClient()
-	preimport.ResumeLogging()
 
 	cmds.AddCommand(
 		// Getting Start

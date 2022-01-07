@@ -64,9 +64,6 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 		Short:                 "Create scaffold for an application",
 		Long:                  "Create scaffold for an application",
 		Example:               "vela init",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return c.SetConfig()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			o.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)

@@ -88,9 +88,6 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 		Long:    "Forward local ports to services in an application",
 		Example: "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := c.SetConfig(); err != nil {
-				return err
-			}
 			o.VelaC = c
 			return nil
 		},
@@ -164,13 +161,18 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	o.targetResource = targetResource
 	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
-	o.VelaC.Config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-	o.VelaC.Client, err = client.New(o.VelaC.Config, client.Options{Scheme: common.Scheme})
+	config, err := o.VelaC.GetConfig()
 	if err != nil {
 		return err
 	}
+	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	client, err := client.New(config, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return err
+	}
+	o.VelaC.SetClient(client)
 	if o.ClientSet == nil {
-		c, err := kubernetes.NewForConfig(o.VelaC.Config)
+		c, err := kubernetes.NewForConfig(config)
 		if err != nil {
 			return err
 		}
@@ -217,7 +219,11 @@ func getSvcNameAndPortFromHelmRelease(ctx context.Context, cli client.Client, o 
 
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-	compName, err := getCompNameFromClusterObjectReference(o.Ctx, o.VelaC.Client, o.targetResource)
+	client, err := o.VelaC.GetClient()
+	if err != nil {
+		return err
+	}
+	compName, err := getCompNameFromClusterObjectReference(o.Ctx, client, o.targetResource)
 	if err != nil {
 		return err
 	}
@@ -225,7 +231,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 		return fmt.Errorf("failed to get component name")
 	}
 	if o.routeTrait {
-		appconfig, err := appfile.GetAppConfig(o.Ctx, o.VelaC.Client, o.App, o.Env)
+		appconfig, err := appfile.GetAppConfig(o.Ctx, client, o.App, o.Env)
 		if err != nil {
 			return err
 		}
@@ -234,7 +240,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 			return fmt.Errorf("no route trait found in %s %s", o.App.Name, compName)
 		}
 		var svc = corev1.Service{}
-		err = o.VelaC.Client.Get(o.Ctx, types2.NamespacedName{Name: routeSvc, Namespace: o.Env.Namespace}, &svc)
+		err = client.Get(o.Ctx, types2.NamespacedName{Name: routeSvc, Namespace: o.Env.Namespace}, &svc)
 		if err != nil {
 			return err
 		}

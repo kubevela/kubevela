@@ -19,18 +19,17 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"k8s.io/client-go/rest"
 
 	"github.com/gosuri/uitable"
+	"github.com/olekukonko/tablewriter"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v12 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/networking/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -61,37 +60,6 @@ const (
 	statusDisabled = "disabled"
 )
 
-var clt client.Client
-var clientArgs common.Args
-
-// var legacyAddonNamespace map[string]string
-
-func init() {
-	clientArgs, _ = common.InitBaseRestConfig()
-	var err error
-	clt, err = clientArgs.GetClient()
-	if err != nil {
-		panic(fmt.Sprintf("fail to create K8s client %v", err))
-	}
-
-	// assume KubeVela 1.2 needn't consider the compatibility of 1.1
-	// legacyAddonNamespace = map[string]string{
-	//	"fluxcd":                     types.DefaultKubeVelaNS,
-	//	"ns-flux-system":             types.DefaultKubeVelaNS,
-	//	"kruise":                     types.DefaultKubeVelaNS,
-	//	"prometheus":                 types.DefaultKubeVelaNS,
-	//	"observability":              "observability",
-	//	"observability-asset":        types.DefaultKubeVelaNS,
-	//	"istio":                      "istio-system",
-	//	"ns-istio-system":            types.DefaultKubeVelaNS,
-	//	"keda":                       types.DefaultKubeVelaNS,
-	//	"ocm-cluster-manager":        types.DefaultKubeVelaNS,
-	//	"terraform":                  types.DefaultKubeVelaNS,
-	//	"terraform-provider/alibaba": "default",
-	//	"terraform-provider/azure":   "default",
-	// }
-}
-
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -104,9 +72,9 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		},
 	}
 	cmd.AddCommand(
-		NewAddonListCommand(),
+		NewAddonListCommand(c),
 		NewAddonEnableCommand(c, ioStreams),
-		NewAddonDisableCommand(ioStreams),
+		NewAddonDisableCommand(c, ioStreams),
 		NewAddonStatusCommand(c, ioStreams),
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
@@ -115,14 +83,18 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 }
 
 // NewAddonListCommand create addon list command
-func NewAddonListCommand() *cobra.Command {
+func NewAddonListCommand(c common.Args) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List addons",
 		Long:    "List addons in KubeVela",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := listAddons(context.Background(), "")
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			err = listAddons(context.Background(), client, "")
 			if err != nil {
 				return err
 			}
@@ -140,10 +112,6 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Long:    "enable an addon in cluster",
 		Example: "vela addon enable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
 
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
@@ -153,28 +121,29 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if err != nil {
 				return err
 			}
-			err = enableAddon(ctx, k8sClient, c.Config, name, addonArgs)
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			err = enableAddon(ctx, k8sClient, config, name, addonArgs)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("Successfully enable addon:%s\n", name)
-			if name == "velaux" {
-				// give k8s 10 second to fill the EIP or nodePort
-				var message string
-				var err error
-				for i := 0; i < 10; i++ {
-					message, err = fetchVelaUXRequestWay(ctx, k8sClient)
-					if err != nil {
-						time.Sleep(time.Second)
-						fmt.Println("try again to fetch the velaux requestWay")
-						continue
-					}
-					fmt.Println(message)
-					break
+			endpoints, _ := GetServiceEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, c)
+			if len(endpoints) > 0 {
+				table := tablewriter.NewWriter(os.Stdout)
+				table.SetColWidth(100)
+				table.SetHeader([]string{"Ref(Kind/Namespace/Name)", "Endpoint"})
+				for _, endpoint := range endpoints {
+					table.Append([]string{fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
 				}
-				if err != nil {
-					return err
-				}
+				fmt.Printf("Please access the %s from the following endpoints:\n", name)
+				table.Render()
 			}
 			return nil
 		},
@@ -190,15 +159,18 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Long:    "upgrade an addon in cluster",
 		Example: "vela addon upgrade <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			k8sClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
 			_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
 			if err != nil {
 				return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
@@ -207,7 +179,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			err = enableAddon(ctx, k8sClient, c.Config, name, addonArgs)
+			err = enableAddon(ctx, k8sClient, config, name, addonArgs)
 			if err != nil {
 				return err
 			}
@@ -237,7 +209,7 @@ func parseToMap(args []string) (map[string]interface{}, error) {
 }
 
 // NewAddonDisableCommand create addon disable command
-func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
+func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "disable",
 		Short:   "disable an addon",
@@ -248,7 +220,11 @@ func NewAddonDisableCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 				return fmt.Errorf("must specify addon name")
 			}
 			name := args[0]
-			err := disableAddon(name)
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			err = disableAddon(k8sClient, name)
 			if err != nil {
 				return err
 			}
@@ -295,7 +271,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 		if err != nil {
 			return err
 		}
-		if err = waitApplicationRunning(name); err != nil {
+		if err = waitApplicationRunning(k8sClient, name); err != nil {
 			return err
 		}
 		return nil
@@ -303,22 +279,26 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 	return fmt.Errorf("addon: %s not found in registrys", name)
 }
 
-func disableAddon(name string) error {
-	if err := pkgaddon.DisableAddon(context.Background(), clt, name); err != nil {
+func disableAddon(client client.Client, name string) error {
+	if err := pkgaddon.DisableAddon(context.Background(), client, name); err != nil {
 		return err
 	}
 	return nil
 }
 
 func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c common.Args) error {
-	status, err := pkgaddon.GetAddonStatus(context.Background(), clt, name)
+	client, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	status, err := pkgaddon.GetAddonStatus(context.Background(), client, name)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
-		err := printAppStatus(context.Background(), clt, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
+		err := printAppStatus(context.Background(), client, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
 		if err != nil {
 			return err
 		}
@@ -326,7 +306,7 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	return nil
 }
 
-func listAddons(ctx context.Context, registry string) error {
+func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	var addons []*pkgaddon.UIData
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(clt)
@@ -334,7 +314,6 @@ func listAddons(ctx context.Context, registry string) error {
 	if err != nil {
 		return err
 	}
-
 	for _, r := range registries {
 		if registry != "" && r.Name != registry {
 			continue
@@ -365,7 +344,7 @@ func listAddons(ctx context.Context, registry string) error {
 	return nil
 }
 
-func waitApplicationRunning(addonName string) error {
+func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 	trackInterval := 5 * time.Second
 	timeout := 600 * time.Second
 	start := time.Now()
@@ -376,7 +355,7 @@ func waitApplicationRunning(addonName string) error {
 	defer spinner.Stop()
 
 	for {
-		err := clt.Get(ctx, types2.NamespacedName{Name: pkgaddon.Convert2AppName(addonName), Namespace: types.DefaultKubeVelaNS}, &app)
+		err := k8sClient.Get(ctx, types2.NamespacedName{Name: pkgaddon.Convert2AppName(addonName), Namespace: types.DefaultKubeVelaNS}, &app)
 		if err != nil {
 			return client.IgnoreNotFound(err)
 		}
@@ -388,7 +367,7 @@ func waitApplicationRunning(addonName string) error {
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
 		if timeConsumed > int(timeout.Seconds()) {
-			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", addonName)
+			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", pkgaddon.Convert2AppName(addonName))
 		}
 		time.Sleep(trackInterval)
 	}
@@ -417,37 +396,6 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 		}
 	}
 	return false
-}
-
-func fetchVelaUXRequestWay(ctx context.Context, cli client.Client) (string, error) {
-	ingress := v1.Ingress{}
-	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: "velaux"}, &ingress); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return "", err
-		}
-		svc := v12.Service{}
-		if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: "velaux"}, &svc); err != nil {
-			return "", err
-		}
-
-		switch svc.Spec.Type {
-		case v12.ServiceTypeClusterIP:
-			return `"Please use command: \"vela port-forward -n vela-system addon-velaux 9082:80\" and Select \"Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`, nil
-		case v12.ServiceTypeLoadBalancer:
-			if len(svc.Status.LoadBalancer.Ingress) == 0 || len(svc.Status.LoadBalancer.Ingress[0].IP) == 0 {
-				return "", fmt.Errorf("cannot fetch the EIP from velaux service")
-			}
-			return fmt.Sprintf("Please use the ExternalIP: %s to check the dashboard", svc.Status.LoadBalancer.Ingress[0].IP), nil
-		case v12.ServiceTypeNodePort:
-			if len(svc.Spec.Ports) == 0 || svc.Spec.Ports[0].NodePort == 0 {
-				return "", fmt.Errorf("cannot fetch the nodeport from velaux service")
-			}
-			return fmt.Sprintf("Please use the nodeIP: {NodeIP}:%d to check the dashboard", svc.Spec.Ports[0].NodePort), nil
-		default:
-			return "", fmt.Errorf("not support service type")
-		}
-	}
-	return fmt.Sprintf("Please use the domain: %s to check the dashboard", ingress.Spec.Rules[0].Host), nil
 }
 
 // TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times
