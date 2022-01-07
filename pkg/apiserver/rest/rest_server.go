@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var _ APIServer = &restServer{}
@@ -214,8 +215,8 @@ func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, ch
 	chain.ProcessFilter(req, resp)
 	takeTime := time.Since(start)
 	log.Logger.With(
-		"clientIP", utils.ClientIP(req.Request),
-		"path", req.Request.URL.Path,
+		"clientIP", utils2.Sanitize(utils.ClientIP(req.Request)),
+		"path", utils2.Sanitize(req.Request.URL.Path),
 		"method", req.Request.Method,
 		"status", c.StatusCode(),
 		"time", takeTime.String(),
