@@ -17,6 +17,8 @@ import (
 
 #Apply: kube.#Apply
 
+#ApplyInParallel: kube.#ApplyInParallel
+
 #Read: kube.#Read
 
 #List: kube.#List
@@ -167,6 +169,8 @@ import (
 #Load: oam.#LoadComponets
 
 #LoadInOrder: oam.#LoadComponetsInOrder
+
+#PatchK8sObject: util.#PatchK8sObject
 
 #Steps: {
 	#do: "steps"

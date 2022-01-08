@@ -21,7 +21,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 
 	"github.com/pkg/errors"
@@ -87,15 +86,13 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 		AddFunc: func(obj interface{}) {
 			lock.Lock()
 			rtCount++
-			metrics.ResourceTrackerNumberGauge.WithLabelValues(
-				metrics.ExtractMetricValuesFromObjectLabel(obj, oam.LabelAppName, oam.LabelAppNamespace)...).Set(float64(rtCount))
+			metrics.ResourceTrackerNumberGauge.WithLabelValues("application").Set(float64(rtCount))
 			lock.Unlock()
 		},
 		DeleteFunc: func(obj interface{}) {
 			lock.Lock()
 			rtCount--
-			metrics.ResourceTrackerNumberGauge.WithLabelValues(
-				metrics.ExtractMetricValuesFromObjectLabel(obj, oam.LabelAppName, oam.LabelAppNamespace)...).Set(float64(rtCount))
+			metrics.ResourceTrackerNumberGauge.WithLabelValues("application").Set(float64(rtCount))
 			lock.Unlock()
 		},
 	})

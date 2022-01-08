@@ -101,9 +101,9 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 			obj.SetName(cr.GetName())
 			obj.SetNamespace(cr.GetNamespace())
 			obj.SetLabels(cr.GetLabels())
-			r.NoError(resourcetracker.RecordManifestInResourceTracker(ctx, cli, crRT, obj, true))
+			r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, crRT, []*unstructured.Unstructured{obj}, true))
 		}
-		r.NoError(resourcetracker.RecordManifestInResourceTracker(ctx, cli, _rt, cmMaps[i], true))
+		r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, _rt, []*unstructured.Unstructured{cmMaps[i]}, true))
 	}
 
 	checkCount := func(cmCount, rtCount int, crCount int) {

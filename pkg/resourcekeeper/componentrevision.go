@@ -39,7 +39,7 @@ func (h *resourceKeeper) DispatchComponentRevision(ctx context.Context, cr *v1.C
 	obj.SetName(cr.Name)
 	obj.SetNamespace(cr.Namespace)
 	obj.SetLabels(cr.Labels)
-	if err = resourcetracker.RecordManifestInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, obj, true); err != nil {
+	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, []*unstructured.Unstructured{obj}, true); err != nil {
 		return errors.Wrapf(err, "failed to record componentrevision %s/%s/%s", oam.GetCluster(cr), cr.Namespace, cr.Name)
 	}
 	if err = h.Client.Create(multicluster.ContextWithClusterName(ctx, oam.GetCluster(cr)), cr); err != nil {
