@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/time"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
@@ -79,6 +80,8 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 	workspace.Install(providerHandlers)
 	convert.Install(providerHandlers)
 	email.Install(providerHandlers)
+	util.Install(providerHandlers)
+
 	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{

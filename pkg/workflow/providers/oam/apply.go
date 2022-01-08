@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"

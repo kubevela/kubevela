@@ -158,6 +158,7 @@ cluster: ""
 		err = result.FillObject(expected.Object)
 		Expect(err).ToNot(HaveOccurred())
 	})
+
 	It("patch & apply", func() {
 		p := &provider{
 			apply: func(ctx context.Context, _ string, _ common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
@@ -409,7 +410,6 @@ val: {
 		err = p.Apply(ctx, v, nil)
 		Expect(err).To(HaveOccurred())
 	})
-
 })
 
 func newWorkflowContextForTest() (wfContext.Context, error) {
