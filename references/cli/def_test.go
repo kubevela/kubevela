@@ -19,7 +19,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,9 +26,8 @@ import (
 	"testing"
 	"time"
 
-	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
-
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +35,7 @@ import (
 
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 

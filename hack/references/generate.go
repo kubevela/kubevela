@@ -19,10 +19,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"os"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 

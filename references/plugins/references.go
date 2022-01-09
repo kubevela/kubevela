@@ -368,9 +368,8 @@ func setDisplayFormat(format string) {
 func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string, namespace string) error {
 	var (
 		caps []types.Capability
-		err error
+		err  error
 	)
-
 
 	if ref.DefinitionName == "" {
 		caps, err = LoadAllInstalledCapability("default", c)
@@ -392,7 +391,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	for i, c := range caps {
-		if c.Type != types.TypeWorkload && c.Type !=types.TypeComponentDefinition && c.Type != types.TypeTrait {
+		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait {
 			return fmt.Errorf("the type of the capability is not right")
 		}
 
