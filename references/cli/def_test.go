@@ -203,6 +203,81 @@ func TestNewDefinitionInitCommand(t *testing.T) {
 	}
 }
 
+func TestNewDefinitionInitCommand4Terraform(t *testing.T) {
+	const defFileName = "alibaba-vswitch.yaml"
+	testcases := []struct {
+		name   string
+		args   []string
+		errMsg string
+		want   string
+	}{
+		{
+			name: "normal",
+			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch"},
+		},
+		{
+			name: "print in a file",
+			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch", "--output", defFileName},
+			want: `apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: xxx
+  creationTimestamp: null
+  labels:
+    type: terraform
+  name: alibaba-vswitch
+  namespace: vela-system
+spec:
+  schematic:
+    terraform:
+      configuration: https://github.com/kubevela-contrib/terraform-modules.git
+      path: alibaba/vswitch
+      type: remote
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+status: {}`,
+		},
+		{
+			name:   "not supported component",
+			args:   []string{"vswitch", "-t", "trait", "--provider", "alibaba"},
+			errMsg: "provider is only valid when the type of the definition is component",
+		},
+		{
+			name:   "not supported cloud provider",
+			args:   []string{"vswitch", "-t", "component", "--provider", "xxx"},
+			errMsg: "Provider `xxx` is not supported.",
+		},
+		{
+			name:   "git is not right",
+			args:   []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "test", "--git", "xxx"},
+			errMsg: "invalid git url",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := initArgs()
+			cmd := NewDefinitionInitCommand(c)
+			initCommand(cmd)
+			cmd.SetArgs(tc.args)
+			err := cmd.Execute()
+			if err != nil && !strings.Contains(err.Error(), tc.errMsg) {
+				t.Fatalf("unexpected error when executing init command: %v", err)
+			} else if tc.want != "" {
+				data, err := os.ReadFile(defFileName)
+				defer os.Remove(defFileName)
+				assert.Nil(t, err)
+				if !strings.Contains(string(data), tc.want) {
+					t.Fatalf("unexpected output: %s", string(data))
+				}
+			}
+		})
+	}
+}
+
 func TestNewDefinitionGetCommand(t *testing.T) {
 	c := initArgs()
 

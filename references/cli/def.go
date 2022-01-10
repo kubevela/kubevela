@@ -35,10 +35,14 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
@@ -154,15 +158,20 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init DEF_NAME",
 		Short: "Init a new definition",
-		Long:  "Init a new definition with given arguments or interactively\n* We support parsing a single YAML file (like kubernetes objects) into the cue-style template. However, we do not support variables in YAML file currently, which prevents users from directly feeding files like helm chart directly. We may introduce such features in the future.",
+		Long: "Init a new definition with given arguments or interactively\n* We support parsing a single YAML file (like kubernetes objects) into the cue-style template. \n" +
+			"However, we do not support variables in YAML file currently, which prevents users from directly feeding files like helm chart directly. \n" +
+			"We may introduce such features in the future.",
 		Example: "# Command below initiate an empty TraitDefinition named my-ingress\n" +
 			"> vela def init my-ingress -t trait --desc \"My ingress trait definition.\" > ./my-ingress.cue\n" +
 			"# Command below initiate a definition named my-def interactively and save it to ./my-def.cue\n" +
 			"> vela def init my-def -i --output ./my-def.cue\n" +
 			"# Command below initiate a ComponentDefinition named my-webservice with the template parsed from ./template.yaml.\n" +
-			"> vela def init my-webservice -i --template-yaml ./template.yaml",
+			"> vela def init my-webservice -i --template-yaml ./template.yaml\n" +
+			"# Command below initiate a typed ComponentDefinition named vswitch from Alibaba Cloud.\n" +
+			"> vela def init vswitch --type component --provider alibaba --desc xxx --git https://github.com/kubevela-contrib/terraform-modules.git --path alibaba/vswitch",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var defStr string
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagType)
@@ -223,29 +232,42 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			if !ok {
 				return errors.New("invalid definition type")
 			}
-			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			def.SetGVK(kind)
-			def.SetName(args[0])
-			def.SetAnnotations(map[string]string{
-				pkgdef.DescriptionKey: desc,
-			})
-			def.SetLabels(map[string]string{})
-			def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
-			if templateYAML != "" {
-				if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
-					return err
+
+			name := args[0]
+			provider, err := cmd.Flags().GetString(FlagProvider)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagProvider)
+			}
+			if provider != "" {
+				defStr, err = generateTerraformTypedComponentDefinition(cmd, name, kind, provider, desc)
+				if err != nil {
+					return errors.Wrapf(err, "failed to generate Terraform typed component definition")
+				}
+			} else {
+				def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+				def.SetGVK(kind)
+				def.SetName(name)
+				def.SetAnnotations(map[string]string{
+					pkgdef.DescriptionKey: desc,
+				})
+				def.SetLabels(map[string]string{})
+				def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
+				if templateYAML != "" {
+					if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
+						return err
+					}
+				}
+				defStr, err = def.ToCUEString()
+				if err != nil {
+					return errors.Wrapf(err, "failed to generate cue string")
 				}
 			}
-			cueString, err := def.ToCUEString()
-			if err != nil {
-				return errors.Wrapf(err, "failed to generate cue string")
-			}
 			if output != "" {
-				if err = os.WriteFile(path.Clean(output), []byte(cueString), 0600); err != nil {
+				if err = os.WriteFile(path.Clean(output), []byte(defStr), 0600); err != nil {
 					return errors.Wrapf(err, "failed to write definition into %s", output)
 				}
 				cmd.Printf("Definition written to %s\n", output)
-			} else if _, err = cmd.OutOrStdout().Write([]byte(cueString + "\n")); err != nil {
+			} else if _, err = cmd.OutOrStdout().Write([]byte(defStr + "\n")); err != nil {
 				return errors.Wrapf(err, "failed to write out cue string")
 			}
 			return nil
@@ -256,7 +278,70 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	cmd.Flags().StringP(FlagTemplateYAML, "y", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")
+	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure` are supported.")
+	cmd.Flags().StringP(FlagGit, "", "", "Specify which git repository the configuration(HCL) is stored in. Valid when --provider/-p is set.")
+	cmd.Flags().StringP(FlagPath, "", "", "Specify which path the configuration(HCL) is stored in the Git repository. Valid when --git is set.")
 	return cmd
+}
+
+func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, provider, desc string) (string, error) {
+	if kind != v1beta1.ComponentDefinitionKind {
+		return "", errors.New("provider is only valid when the type of the definition is component")
+	}
+
+	switch provider {
+	case "aws", "azure", "alibaba":
+		git, err := cmd.Flags().GetString(FlagGit)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to get `%s`", FlagGit)
+		}
+		if !strings.HasPrefix(git, "https://") || !strings.HasSuffix(git, ".git") {
+			return "", errors.Errorf("invalid git url: %s", git)
+		}
+		gitPath, err := cmd.Flags().GetString(FlagPath)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to get `%s`", FlagPath)
+		}
+		def := v1beta1.ComponentDefinition{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "core.oam.dev/v1beta1",
+				Kind:       "ComponentDefinition",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", provider, name),
+				Namespace: types.DefaultKubeVelaNS,
+				Annotations: map[string]string{
+					"definition.oam.dev/description": desc,
+				},
+				Labels: map[string]string{
+					"type": "terraform",
+				},
+			},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Workload: commontype.WorkloadTypeDescriptor{
+					Definition: commontype.WorkloadGVK{
+						APIVersion: "terraform.core.oam.dev/v1beta1",
+						Kind:       "Configuration",
+					},
+				},
+				Schematic: &commontype.Schematic{
+					Terraform: &commontype.Terraform{
+						Configuration: git,
+						Type:          "remote",
+						Path:          gitPath,
+					},
+				},
+			},
+		}
+		var out bytes.Buffer
+		err = json.NewSerializerWithOptions(json.DefaultMetaFactory, nil, nil, json.SerializerOptions{Yaml: true}).Encode(&def, &out)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to marshal component definition")
+		}
+		return out.String(), nil
+	default:
+		return "", errors.Errorf("Provider `%s` is not supported. Only `alibaba`, `aws`, `azure` are supported.", provider)
+	}
 }
 
 func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
