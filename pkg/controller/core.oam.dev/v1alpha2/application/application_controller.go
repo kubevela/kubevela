@@ -393,6 +393,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
 			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
+				// if completely equal, this update is triggered by re-sync and should not be filtered
+				if reflect.DeepEqual(e.ObjectNew, e.ObjectOld) {
+					return true
+				}
 				new, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
 				old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
 				if !isNewApp || !isOldApp {
