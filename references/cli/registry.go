@@ -54,7 +54,7 @@ func NewRegistryCommand(ioStream cmdutil.IOStreams, order string) *cobra.Command
 	cmd := &cobra.Command{
 		Use:   "registry",
 		Short: "Manage Registry",
-		Long:  "Manage Registry with config, remove, list",
+		Long:  "Manage Registry of X-Definitions for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeExtension,

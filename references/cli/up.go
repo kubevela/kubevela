@@ -38,7 +38,7 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
 		Short:                 "Apply an appfile or application from file",
-		Long:                  "Apply an appfile or application from file, vela will convert appfile to application automatically",
+		Long:                  "Create or update vela application from file, both appfile or application object format are supported.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeStart,

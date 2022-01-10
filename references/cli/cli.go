@@ -125,7 +125,7 @@ func NewVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Prints out build version information",
-		Long:  "Prints out build version information",
+		Long:  "Prints out build version information.",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf(`Version: %v
 GitRevision: %v

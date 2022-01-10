@@ -50,8 +50,8 @@ func NewLiveDiffCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 	cmd := &cobra.Command{
 		Use:                   "live-diff",
 		DisableFlagsInUseLine: true,
-		Short:                 "Dry-run an application, and do diff on a specific app revison",
-		Long:                  "Dry-run an application, and do diff on a specific app revison. The provided capability definitions will be used during Dry-run. If any capabilities used in the app are not found in the provided ones, it will try to find from cluster.",
+		Short:                 "Dry-run application locally, and diff with a deployed application version",
+		Long:                  "Dry-run application locally, and diff with a deployed application version.",
 		Example:               "vela live-diff -f app-v2.yaml -r app-v1 --context 10",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,

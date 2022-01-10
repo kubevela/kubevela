@@ -53,31 +53,33 @@ func RunHelp(cmd *cobra.Command, args []string) {
 	}
 }
 
-type printable struct {
-	order string
+// Printable is a struct for print help
+type Printable struct {
+	Order string
 	use   string
-	long  string
+	Long  string
 }
 
-type printlist []printable
+// PrintList is a list of Printable
+type PrintList []Printable
 
-func (p printlist) Len() int {
+func (p PrintList) Len() int {
 	return len(p)
 }
-func (p printlist) Swap(i, j int) {
+func (p PrintList) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }
-func (p printlist) Less(i, j int) bool {
-	return p[i].order > p[j].order
+func (p PrintList) Less(i, j int) bool {
+	return p[i].Order > p[j].Order
 }
 
 // PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	table := newUITable()
-	var pl printlist
+	var pl PrintList
 	for _, c := range all {
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			pl = append(pl, printable{order: c.Annotations[types.TagCommandOrder], use: c.Use, long: c.Long})
+			pl = append(pl, Printable{Order: c.Annotations[types.TagCommandOrder], use: c.Use, Long: c.Long})
 		}
 	}
 	if len(all) == 0 {
@@ -89,7 +91,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	sort.Sort(pl)
 
 	for _, v := range pl {
-		table.AddRow("    "+v.use, v.long)
+		table.AddRow("    "+v.use, v.Long)
 	}
 	cmd.Println(table.String())
 	cmd.Println()

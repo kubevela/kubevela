@@ -53,7 +53,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
 		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
-		Long:                  "Dry Run an application, and output the K8s resources as result to stdout, only CUE template supported for now",
+		Long:                  "Dry-run application locally, render the Kubernetes resources as result to stdout.",
 		Example:               "vela dry-run",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,

@@ -51,9 +51,10 @@ type infoCmd struct {
 // SystemCommandGroup creates `system` command and its nested children command
 func SystemCommandGroup(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "system",
-		Short: "System management utilities",
-		Long:  "System management utilities",
+		Use:    "system",
+		Short:  "System management utilities",
+		Long:   "System management utilities.",
+		Hidden: true,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
 		},

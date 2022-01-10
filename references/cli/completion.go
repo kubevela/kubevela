@@ -28,8 +28,7 @@ import (
 )
 
 const completionDesc = `Output shell completion code for the specified shell (bash or zsh). 
-The shell code must be evaluated to provide interactive completion of vela commands.
-`
+The shell code must be evaluated to provide interactive completion of vela commands.`
 
 const bashCompDesc = `Generate the autocompletion script for Vela for the bash shell.
 

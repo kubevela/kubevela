@@ -33,8 +33,9 @@ func NewCUEPackageCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Com
 	cmd := &cobra.Command{
 		Use:                   "cue-packages",
 		DisableFlagsInUseLine: true,
+		Hidden:                true,
 		Short:                 "List cue package",
-		Long:                  "List cue package",
+		Long:                  "List CUE packages available.",
 		Example:               `vela cue-packages`,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,

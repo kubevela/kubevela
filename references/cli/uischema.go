@@ -46,7 +46,8 @@ func NewUISchemaCommand(c common.Args, order string, ioStreams util.IOStreams) *
 	cmd := &cobra.Command{
 		Use:     "uischema",
 		Aliases: []string{"ui"},
-		Long:    "Manage UI schema for addons",
+		Short:   "Manage UI schema for addons.",
+		Long:    "Manage UI schema for addons.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeExtension,

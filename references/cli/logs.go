@@ -46,7 +46,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	cmd := &cobra.Command{
 		Use:   "logs APP_NAME",
 		Short: "Tail logs for application in multicluster",
-		Long:  "Tail logs for application in multicluster",
+		Long:  "Tail logs for vela application.",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			config, err := c.GetConfig()
