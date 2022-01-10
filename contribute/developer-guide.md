@@ -9,6 +9,7 @@ This guide helps you get started developing KubeVela.
 3. ginkgo 1.14.0+ (just for [E2E test](./developer-guide.md#e2e-test))
 4. golangci-lint 1.38.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 5. kubebuilder v3.1.0+ and you need to manually install the dependency tools for unit test.
+6. [Cue binary](https://github.com/cue-lang/cue/releases) v0.3.0+
 
 <details>
   <summary>Install Kubebuilder manually</summary>
