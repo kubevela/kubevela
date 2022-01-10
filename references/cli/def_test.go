@@ -186,7 +186,6 @@ func TestNewDefinitionInitCommand(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error when executing init command: %v", err)
 	}
-
 	// test interactive
 	cmd = NewDefinitionInitCommand(initArgs())
 	initCommand(cmd)
