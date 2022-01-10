@@ -320,14 +320,14 @@ func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 				Digest:     digest,
 				Tag:        tag,
 				URL:        imageURL,
-				CreateTime: time.Unix(int64(harborReq.OccurAt), 0),
+				CreateTime: time.Unix(harborReq.OccurAt, 0),
 			},
 			Repository: &model.ImageRepository{
 				Name:       harborReq.EventData.Repository.Name,
 				Namespace:  harborReq.EventData.Repository.Namespace,
 				FullName:   harborReq.EventData.Repository.RepoFullName,
 				Type:       harborReq.EventData.Repository.RepoType,
-				CreateTime: time.Unix(int64(harborReq.EventData.Repository.DateCreated), 0),
+				CreateTime: time.Unix(harborReq.EventData.Repository.DateCreated, 0),
 			},
 		},
 	})

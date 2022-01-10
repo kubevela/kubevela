@@ -20,6 +20,8 @@ import (
 	"regexp"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 )
 
 var validate = validator.New()
@@ -38,6 +40,19 @@ func init() {
 	if err := validate.RegisterValidation("checkalias", ValidateAlias); err != nil {
 		panic(err)
 	}
+	if err := validate.RegisterValidation("checkpayloadtype", ValidatePayloadType); err != nil {
+		panic(err)
+	}
+}
+
+func ValidatePayloadType(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	for _, v := range usecase.WebhookHandlers {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateName custom check name field

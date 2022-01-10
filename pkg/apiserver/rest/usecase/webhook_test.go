@@ -154,12 +154,6 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(revision.CodeInfo.User).Should(Equal("test-user"))
 
 		By("Test HandleApplicationWebhook function with ACR payload")
-		_, err = appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
-			Name:        "test-acr",
-			PayloadType: "acr",
-			Type:        "webhook",
-		})
-		Expect(err).Should(Equal(bcode.ErrApplicationComponetNotExist))
 		acrTrigger, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
 			Name:          "test-acr",
 			PayloadType:   "acr",
@@ -193,12 +187,6 @@ var _ = Describe("Test application usecase function", func() {
 		Expect((*comp.Properties)["image"]).Should(Equal("registry.test-region.aliyuncs.com/test-namespace/test-repo:test-tag"))
 
 		By("Test HandleApplicationWebhook function with harbor payload")
-		_, err = appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
-			Name:        "test-harbor",
-			PayloadType: "harbor",
-			Type:        "webhook",
-		})
-		Expect(err).Should(Equal(bcode.ErrApplicationComponetNotExist))
 		harborTrigger, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
 			Name:          "test-harbor",
 			PayloadType:   "harbor",

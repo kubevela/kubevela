@@ -346,7 +346,7 @@ type CreateApplicationTriggerRequest struct {
 	Description   string `json:"description" optional:"true"`
 	WorkflowName  string `json:"workflowName"`
 	Type          string `json:"type" validate:"oneof=webhook"`
-	PayloadType   string `json:"payloadType" validate:"oneof=custom acr harbor"`
+	PayloadType   string `json:"payloadType" validate:"checkpayloadtype"`
 	ComponentName string `json:"componentName,omitempty" optional:"true"`
 }
 
@@ -403,7 +403,7 @@ type ACRRepository struct {
 // HandleApplicationHarborReq handles application trigger harbor request
 type HandleApplicationHarborReq struct {
 	Type      string    `json:"type"`
-	OccurAt   int       `json:"occur_at"`
+	OccurAt   int64     `json:"occur_at"`
 	Operator  string    `json:"operator"`
 	EventData EventData `json:"event_data"`
 }
@@ -417,7 +417,7 @@ type Resources struct {
 
 // Repository is the repository of harbor
 type Repository struct {
-	DateCreated  int    `json:"date_created"`
+	DateCreated  int64  `json:"date_created"`
 	Name         string `json:"name"`
 	Namespace    string `json:"namespace"`
 	RepoFullName string `json:"repo_full_name"`
