@@ -29,6 +29,12 @@ spec:
               msgtype: text
               text:
                 content: Hello KubeVela
+          lark:
+            url:
+              value: <lark-url>
+            message:
+              msg_type: "text"
+              content: "{\"text\":\" Hello KubeVela\"}"
           slack:
             url:
               # use url in secret

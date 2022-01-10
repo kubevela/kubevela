@@ -12,6 +12,27 @@ import (
 template: {
 
 	parameter: {
+		lark?: {
+			// +usage=Specify the the lark url, you can either sepcify it in value or use secretRef
+			url: {
+				value: string
+			} | {
+				secretRef: {
+					// +usage=name is the name of the secret
+					name: string
+					// +usage=key is the key in the secret
+					key: string
+				}
+			}
+			// +useage=Specify the message that you want to sent
+			message: {
+				// +usage=msg_type can be text, post, image, interactive, share_chat, share_user, audio, media, file, sticker
+				msg_type: string
+				// +usage=content should be json encode string
+				content: string
+			}
+		}
+
 		dingding?: {
 			// +usage=Specify the the dingding url, you can either sepcify it in value or use secretRef
 			url: {
@@ -204,6 +225,36 @@ template: {
 				ding2:       op.#DingTalk & {
 					message: parameter.dingding.message
 					dingUrl: stringValue.str
+				}
+			}
+		}
+	}
+
+	lark: op.#Steps & {
+		if parameter.lark != _|_ {
+			if parameter.lark.url.value != _|_ {
+				lark1: op.#Lark & {
+					message: parameter.lark.message
+					larkUrl: parameter.lark.url.value
+				}
+			}
+			if parameter.lark.url.secretRef != _|_ && parameter.lark.url.value == _|_ {
+				read: op.#Read & {
+					value: {
+						apiVersion: "v1"
+						kind:       "Secret"
+						metadata: {
+							name:      parameter.lark.url.secretRef.name
+							namespace: context.namespace
+						}
+					}
+				}
+
+				decoded:     base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])
+				stringValue: op.#ConvertString & {bt: decoded}
+				lark2:       op.#Lark & {
+					message: parameter.lark.message
+					larkUrl: stringValue.str
 				}
 			}
 		}
