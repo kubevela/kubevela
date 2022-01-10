@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -79,7 +79,7 @@ var _ = BeforeSuite(func(done Done) {
 	scheme = runtime.NewScheme()
 	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
-	Expect(v1beta1.AddToScheme(scheme)).NotTo(HaveOccurred())
+	Expect(crdv1.AddToScheme(scheme)).NotTo(HaveOccurred())
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
