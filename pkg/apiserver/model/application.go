@@ -322,6 +322,8 @@ const (
 	PayloadTypeDockerhub = "dockerhub"
 	// PayloadTypeACR is the payload type acr
 	PayloadTypeACR = "acr"
+	// PayloadTypeHarbor is the payload type harbor
+	PayloadTypeHarbor = "harbor"
 
 	// ComponentTypeWebservice is the component type webservice
 	ComponentTypeWebservice = "webservice"
@@ -329,6 +331,11 @@ const (
 	ComponentTypeWorker = "worker"
 	// ComponentTypeTask is the component type task
 	ComponentTypeTask = "task"
+)
+
+const (
+	// HarborEventTypePushArtifact is the event type PUSH_ARTIFACT
+	HarborEventTypePushArtifact = "PUSH_ARTIFACT"
 )
 
 // TableName return custom table name
