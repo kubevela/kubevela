@@ -2,7 +2,7 @@ apiVersion: "v1"
 kind:       "ConfigMap"
 metadata: 
   name:      "service-endpoints-view"
-  namespace: "vela-system"
+  namespace: {{.Values.systemDefinitionNamespace}}
 data:
   template: |
       import (
