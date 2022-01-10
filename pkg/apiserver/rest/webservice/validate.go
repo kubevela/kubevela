@@ -45,6 +45,7 @@ func init() {
 	}
 }
 
+// ValidatePayloadType check PayloadType
 func ValidatePayloadType(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
 	for _, v := range usecase.WebhookHandlers {
