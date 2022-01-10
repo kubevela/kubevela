@@ -487,6 +487,42 @@ func TestPrepareTerraformOutputs(t *testing.T) {
 				t.Errorf("prepareTerraformOutputs(...): -want, +got:\n%s\n", cmp.Diff(tc.expect, content))
 			}
 		})
+	}
+}
 
+func TestMakeReadableTitle(t *testing.T) {
+	type args struct {
+		title string
+	}
+	testcases := []struct {
+		args args
+		want string
+	}{
+		{
+			args: args{
+				title: "abc",
+			},
+			want: "Abc",
+		},
+		{
+			args: args{
+				title: "abc-def",
+			},
+			want: "Abc-Def",
+		},
+		{
+			args: args{
+				title: "alibaba-def-ghi",
+			},
+			want: "Alibaba Cloud DEF-GHI",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			title := makeReadableTitle(tc.args.title)
+			if title != tc.want {
+				t.Errorf("makeReadableTitle(...): -want, +got:\n%s\n", cmp.Diff(tc.want, title))
+			}
+		})
 	}
 }

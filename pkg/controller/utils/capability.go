@@ -190,9 +190,16 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
 func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
 	tmpPath := filepath.Join("./tmp/terraform", name)
+	// Check if the directory exists. If yes, remove it.
+	if _, err := os.Stat(tmpPath); err == nil {
+		err := os.RemoveAll(tmpPath)
+		if err != nil {
+			return "", errors.Wrap(err, "failed to remove the directory")
+		}
+	}
 	_, err := git.PlainClone(tmpPath, false, &git.CloneOptions{
 		URL:      remoteURL,
-		Progress: os.Stdout,
+		Progress: nil,
 	})
 	if err != nil {
 		return "", err

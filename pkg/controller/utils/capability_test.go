@@ -377,6 +377,9 @@ variable "bbb" {
 }
 
 func TestGetTerraformConfigurationFromRemote(t *testing.T) {
+	// If you hit a panic on macOS as below, please fix it by referencing https://github.com/eisenxp/macos-golink-wrapper.
+	// panic: permission denied [recovered]
+	//    panic: permission denied
 	type want struct {
 		config string
 		err    error
@@ -419,15 +422,14 @@ variable "aaa" {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			patch := ApplyFunc(git.PlainCloneContext, func(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+				tmpPath := filepath.Join("./tmp/terraform", tc.name)
+				err := os.MkdirAll(tmpPath, os.ModePerm)
+				assert.NilError(t, err)
+				err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, "main.tf")), tc.data, 0644)
+				assert.NilError(t, err)
 				return nil, nil
 			})
 			defer patch.Reset()
-
-			tmpPath := filepath.Join("./tmp/terraform", tc.name)
-			err := os.MkdirAll(tmpPath, os.ModePerm)
-			assert.NilError(t, err)
-			err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, "main.tf")), tc.data, 0644)
-			assert.NilError(t, err)
 
 			conf, err := GetTerraformConfigurationFromRemote(tc.name, tc.url, tc.path)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
