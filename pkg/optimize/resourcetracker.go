@@ -30,6 +30,7 @@ const ResourceTrackerAppIndex = "app"
 
 type resourceTrackerOptimizer struct{
 	OptimizeListOp      bool
+	EnableDeleteOnlyTrigger bool
 	MarkWithProbability float64
 }
 

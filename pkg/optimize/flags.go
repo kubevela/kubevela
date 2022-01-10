@@ -34,4 +34,6 @@ func AddFlags() {
 	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize Application by disabling the creation and gc. Side effect: application cannot rollback.")
 	flag.BoolVar(&WorkflowOptimizer.DisableRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
 	flag.BoolVar(&WorkflowOptimizer.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to mistakes in workflow inputs/outputs.")
+	flag.BoolVar(&WorkflowOptimizer.DisableResourceApplyDoubleCheck, "optimize-disable-resource-apply-double-check", false, "Optimize workflow by ignoring resource double check after apply. Side effect: controller will not wait for resource creation.")
+	flag.BoolVar(&ResourceTrackerOptimizer.EnableDeleteOnlyTrigger, "optimize-enable-delete-only-trigger", false, "Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted. Side effect: manually non-deletion operation (such as update) on resourcetracker will be ignored.")
 }

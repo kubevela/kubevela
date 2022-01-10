@@ -26,6 +26,7 @@ import (
 type workflowOptimizer struct {
 	DisableRecorder bool
 	EnableInMemoryContext bool
+	DisableResourceApplyDoubleCheck bool
 
 	mu sync.Mutex
 	contexts map[string]*v1.ConfigMap
