@@ -346,7 +346,7 @@ type CreateApplicationTriggerRequest struct {
 	Description   string `json:"description" optional:"true"`
 	WorkflowName  string `json:"workflowName"`
 	Type          string `json:"type" validate:"oneof=webhook"`
-	PayloadType   string `json:"payloadType" validate:"oneof=custom acr"`
+	PayloadType   string `json:"payloadType" validate:"oneof=custom acr harbor"`
 	ComponentName string `json:"componentName,omitempty" optional:"true"`
 }
 
@@ -398,6 +398,36 @@ type ACRRepository struct {
 	RepoFullName           string `json:"repo_full_name"`
 	RepoOriginType         string `json:"repo_origin_type"`
 	RepoType               string `json:"repo_type"`
+}
+
+// HandleApplicationHarborReq handles application trigger harbor request
+type HandleApplicationHarborReq struct {
+	Type      string    `json:"type"`
+	OccurAt   int       `json:"occur_at"`
+	Operator  string    `json:"operator"`
+	EventData EventData `json:"event_data"`
+}
+
+// Resources is the image info of harbor
+type Resources struct {
+	Digest      string `json:"digest"`
+	Tag         string `json:"tag"`
+	ResourceURL string `json:"resource_url"`
+}
+
+// Repository is the repository of harbor
+type Repository struct {
+	DateCreated  int    `json:"date_created"`
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	RepoFullName string `json:"repo_full_name"`
+	RepoType     string `json:"repo_type"`
+}
+
+// EventData is the event info of harbor
+type EventData struct {
+	Resources  []Resources `json:"resources"`
+	Repository Repository  `json:"repository"`
 }
 
 // EnvBinding application env binding

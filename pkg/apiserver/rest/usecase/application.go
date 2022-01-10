@@ -370,7 +370,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 
 // CreateApplicationTrigger create application trigger
 func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error) {
-	if (req.PayloadType == model.PayloadTypeACR || req.PayloadType == model.PayloadTypeDockerhub) && req.ComponentName == "" {
+	if (req.PayloadType == model.PayloadTypeACR || req.PayloadType == model.PayloadTypeDockerhub || req.PayloadType == model.PayloadTypeHarbor) && req.ComponentName == "" {
 		return nil, bcode.ErrApplicationComponetNotExist
 	}
 	trigger := &model.ApplicationTrigger{

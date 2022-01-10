@@ -60,6 +60,7 @@ func NewWebhookUsecase(ds datastore.DataStore,
 func registerHandlers() {
 	new(customHandlerImpl).install()
 	new(acrHandlerImpl).install()
+	new(harborHandlerImpl).install()
 }
 
 type webhookHandler interface {
@@ -129,6 +130,11 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		}
 	case model.PayloadTypeACR:
 		handler, err = c.newACRHandler(req)
+		if err != nil {
+			return nil, err
+		}
+	case model.PayloadTypeHarbor:
+		handler, err = c.newHarborHandler(req)
 		if err != nil {
 			return nil, err
 		}
@@ -251,4 +257,78 @@ func parseTimeString(t string) time.Time {
 		return time.Time{}
 	}
 	return parsedTime
+}
+
+type harborHandlerImpl struct {
+	req apisv1.HandleApplicationHarborReq
+	w   *webhookUsecaseImpl
+}
+
+func (c *webhookUsecaseImpl) newHarborHandler(req *restful.Request) (webhookHandler, error) {
+	var harborReq apisv1.HandleApplicationHarborReq
+	if err := req.ReadEntity(&harborReq); err != nil {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	if harborReq.Type != model.HarborEventTypePushArtifact {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	return &harborHandlerImpl{
+		req: harborReq,
+		w:   c,
+	}, nil
+}
+
+func (c *harborHandlerImpl) install() {
+	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeHarbor)
+}
+
+func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+	resources := c.req.EventData.Resources
+	if len(resources) < 1 {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	imageURL := resources[0].ResourceURL
+	digest := resources[0].Digest
+	tag := resources[0].Tag
+	comp := &model.ApplicationComponent{
+		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
+	}
+	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(comps) == 0 {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
+
+	// use the first component as the target component
+	component := comps[0].(*model.ApplicationComponent)
+	harborReq := c.req
+	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
+		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, imageURL)),
+	}); err != nil {
+		return nil, err
+	}
+	return c.w.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+		WorkflowName: webhookTrigger.WorkflowName,
+		Note:         "triggered by webhook harbor",
+		TriggerType:  apisv1.TriggerTypeWebhook,
+		Force:        true,
+		ImageInfo: &model.ImageInfo{
+			Type: model.PayloadTypeHarbor,
+			Resource: &model.ImageResource{
+				Digest:     digest,
+				Tag:        tag,
+				URL:        imageURL,
+				CreateTime: time.Unix(int64(harborReq.OccurAt), 0),
+			},
+			Repository: &model.ImageRepository{
+				Name:       harborReq.EventData.Repository.Name,
+				Namespace:  harborReq.EventData.Repository.Namespace,
+				FullName:   harborReq.EventData.Repository.RepoFullName,
+				Type:       harborReq.EventData.Repository.RepoType,
+				CreateTime: time.Unix(int64(harborReq.EventData.Repository.DateCreated), 0),
+			},
+		},
+	})
 }
