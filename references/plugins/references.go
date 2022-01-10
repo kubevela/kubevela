@@ -412,7 +412,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		capName := c.Name
 		refContent = ""
-		capNameInTitle := strings.Title(capName)
+		capNameInTitle := makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
 			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
@@ -469,6 +469,15 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 	}
 	return nil
+}
+
+func makeReadableTitle(title string) string {
+	const alibabaCloud = "alibaba-"
+	if strings.HasPrefix(title, alibabaCloud) {
+		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
+		return "Alibaba Cloud " + strings.ToUpper(cloudResource)
+	}
+	return strings.Title(title)
 }
 
 // prepareParameter prepares the table content for each property
