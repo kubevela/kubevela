@@ -40,6 +40,12 @@ const (
 	FlagMessage = "message"
 	// FlagType command flag to specify which definition type to use
 	FlagType = "type"
+	// FlagProvider command flag to specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure` are supported.
+	FlagProvider = "provider"
+	// FlagGit command flag to specify which git repository the configuration(HCL) is stored in
+	FlagGit = "git"
+	// FlagPath command flag to specify which path the configuration(HCL) is stored in the Git repository
+	FlagPath = "path"
 	// FlagNamespace command flag to specify which namespace to use
 	FlagNamespace = "namespace"
 	// FlagInteractive command flag to specify the use of interactive process
