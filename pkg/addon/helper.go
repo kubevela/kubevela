@@ -75,6 +75,30 @@ func DisableAddon(ctx context.Context, cli client.Client, name string) error {
 	return nil
 }
 
+// EnableAddonByLocalDir enable an addon from local dir
+func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, applicator apply.Applicator, config *rest.Config, args map[string]interface{}) error {
+	r := localReader{dir: dir, name: name}
+	metas, err := r.ListAddonMeta()
+	if err != nil {
+		return err
+	}
+	meta, _ := metas[r.name]
+	UiData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
+	if err != nil {
+		return err
+	}
+	pkg, err := GetInstallPackageFromReader(r, &meta, UiData)
+	if err != nil {
+		return err
+	}
+	h := NewAddonInstaller(ctx, cli, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil)
+	err = h.enableAddon(pkg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetAddonStatus is genrall func for cli and apiServer get addon status
 func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
