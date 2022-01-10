@@ -43,7 +43,7 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		Use:     "component",
 		Aliases: []string{"comp", "components"},
 		Short:   "List/get components",
-		Long:    "List components & get components in registry",
+		Long:    "List component types installed and discover more in registry.",
 		Example: `vela comp`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// parse label filter

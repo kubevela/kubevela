@@ -71,7 +71,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Manage Kubernetes Clusters",
-		Long:  "Manage Kubernetes Clusters",
+		Long:  "Manage Kubernetes Clusters for Continuous Delivery.",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},

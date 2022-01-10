@@ -36,7 +36,7 @@ func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "workflow",
 		Short: "Operate application delivery workflow",
-		Long:  "Operate application delivery workflow",
+		Long:  "Operate the Workflow during Application Delivery.",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
