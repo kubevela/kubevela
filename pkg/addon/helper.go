@@ -82,12 +82,12 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return err
 	}
-	meta, _ := metas[r.name]
-	UiData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
+	meta := metas[r.name]
+	UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
 	if err != nil {
 		return err
 	}
-	pkg, err := GetInstallPackageFromReader(r, &meta, UiData)
+	pkg, err := GetInstallPackageFromReader(r, &meta, UIData)
 	if err != nil {
 		return err
 	}

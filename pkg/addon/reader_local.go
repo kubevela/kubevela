@@ -38,7 +38,7 @@ func (l localReader) ListAddonMeta() (map[string]SourceMeta, error) {
 
 func (l localReader) ReadFile(path string) (string, error) {
 	file := strings.TrimPrefix(path, l.name+"/")
-	b, err := ioutil.ReadFile(filepath.Join(l.dir, file))
+	b, err := ioutil.ReadFile(filepath.Clean(filepath.Join(l.dir, file)))
 	if err != nil {
 		return "", err
 	}
