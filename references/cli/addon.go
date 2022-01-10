@@ -62,7 +62,6 @@ const (
 const (
 	statusEnabled  = "enabled"
 	statusDisabled = "disabled"
-	addonLocalDir  = "localdir"
 )
 
 // NewAddonCommand create `addon` command
@@ -121,7 +120,6 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
 			addonArgs, err := parseToMap(args[1:])
 			if err != nil {
 				return err
@@ -134,17 +132,17 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if err != nil {
 				return err
 			}
-			localDir, err := cmd.Flags().GetString(addonLocalDir)
-			if err != nil {
-				return err
-			}
-			if len(localDir) == 0 {
-				err = enableAddon(ctx, k8sClient, config, name, addonArgs)
+			addonOrDir := args[0]
+			var name string
+			if _, err := os.Stat(addonOrDir); err == nil {
+				// args[0] is a local path install with local dir, use base dir name as addonName
+				name := filepath.Base(addonOrDir)
+				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, config, addonArgs)
 				if err != nil {
 					return err
 				}
 			} else {
-				err = enableAddonByLocal(ctx, localDir, k8sClient, config, addonArgs)
+				err = enableAddon(ctx, k8sClient, config, addonOrDir, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -164,7 +162,6 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			return nil
 		},
 	}
-	parseAddonArgsFromFlag(cmd)
 	return cmd
 }
 
@@ -180,7 +177,6 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -189,26 +185,29 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
-			if err != nil {
-				return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
-			}
 			addonArgs, err := parseToMap(args[1:])
 			if err != nil {
 				return err
 			}
-			localDir, err := cmd.Flags().GetString(addonLocalDir)
-			if err != nil {
-				return err
-			}
-
-			if len(localDir) == 0 {
-				err = enableAddon(ctx, k8sClient, config, name, addonArgs)
+			addonOrDir := args[0]
+			var name string
+			if _, err := os.Stat(addonOrDir); err == nil {
+				// args[0] is a local path install with local dir
+				name := filepath.Base(addonOrDir)
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+				if err != nil {
+					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
+				}
+				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, config, addonArgs)
 				if err != nil {
 					return err
 				}
 			} else {
-				err = enableAddonByLocal(ctx, localDir, k8sClient, config, addonArgs)
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				if err != nil {
+					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+				}
+				err = enableAddon(ctx, k8sClient, config, addonOrDir, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -221,7 +220,6 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			return nil
 		},
 	}
-	parseAddonArgsFromFlag(cmd)
 	return cmd
 }
 
@@ -288,10 +286,6 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	}
 }
 
-func parseAddonArgsFromFlag(cmd *cobra.Command) {
-	cmd.Flags().StringP(addonLocalDir, "f", "", "enable addon with a local dir path")
-}
-
 func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Config, name string, args map[string]interface{}) error {
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -316,8 +310,8 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 	return fmt.Errorf("addon: %s not found in registrys", name)
 }
 
-func enableAddonByLocal(ctx context.Context, dir string, k8sClient client.Client, config *rest.Config, args map[string]interface{}) error {
-	name := filepath.Base(dir)
+// enableAddonByLocal enable addon in local dir and return the addon name
+func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, config *rest.Config, args map[string]interface{}) error {
 	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, apply.NewAPIApplicator(k8sClient), config, args); err != nil {
 		return err
 	}
