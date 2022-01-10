@@ -396,16 +396,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Type: &v1beta1.ResourceTracker{},
 		}, ctrlHandler.Funcs{
 			CreateFunc: func(createEvent ctrlEvent.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(createEvent.Object, limitingInterface)
+				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+					handleResourceTracker(createEvent.Object, limitingInterface)
+				}
 			},
 			UpdateFunc: func(updateEvent ctrlEvent.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
+				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+					handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
+				}
 			},
 			DeleteFunc: func(deleteEvent ctrlEvent.DeleteEvent, limitingInterface workqueue.RateLimitingInterface) {
 				handleResourceTracker(deleteEvent.Object, limitingInterface)
 			},
 			GenericFunc: func(genericEvent ctrlEvent.GenericEvent, limitingInterface workqueue.RateLimitingInterface) {
-				handleResourceTracker(genericEvent.Object, limitingInterface)
+				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+					handleResourceTracker(genericEvent.Object, limitingInterface)
+				}
 			},
 		}).
 		WithOptions(controller.Options{
