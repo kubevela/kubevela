@@ -108,6 +108,19 @@ import (
 	}
 }
 
+#Lark: #Steps & {
+	message: lark.#LarkMessage
+	larkUrl: string
+	do:      http.#Do & {
+		method: "POST"
+		url:    larkUrl
+		request: {
+			body: json.Marshal(message)
+			header: "Content-Type": "application/json"
+		}
+	}
+}
+
 #Slack: #Steps & {
 	message:  slack.#SlackMessage
 	slackUrl: string
