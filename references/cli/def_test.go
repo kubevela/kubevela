@@ -26,9 +26,8 @@ import (
 	"testing"
 	"time"
 
-	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
-
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,6 +35,7 @@ import (
 
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -205,6 +205,7 @@ func TestNewDefinitionInitCommand(t *testing.T) {
 
 func TestNewDefinitionGetCommand(t *testing.T) {
 	c := initArgs()
+
 	// normal test
 	cmd := NewDefinitionGetCommand(c)
 	initCommand(cmd)
@@ -228,6 +229,15 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expect found no trait error, but not found")
 	}
+}
+
+func TestNewDefinitionGenDocCommand(t *testing.T) {
+	c := initArgs()
+	cmd := NewDefinitionGenDocCommand(c)
+	assert.NotNil(t, cmd.Execute())
+
+	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
+	assert.NotNil(t, cmd.Execute())
 }
 
 func TestNewDefinitionListCommand(t *testing.T) {

@@ -365,24 +365,21 @@ func setDisplayFormat(format string) {
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string) error {
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string, namespace string) error {
 	var (
 		caps []types.Capability
+		err  error
 	)
-	c, err := common.InitBaseRestConfig()
-	if err != nil {
-		return err
-	}
 
 	if ref.DefinitionName == "" {
 		caps, err = LoadAllInstalledCapability("default", c)
 		if err != nil {
-			return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
+			return fmt.Errorf("failed to get all capabilityes: %w", err)
 		}
 	} else {
-		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, types.DefaultKubeVelaNS)
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace)
 		if err != nil {
-			return fmt.Errorf("failed to generate reference docs for capability %s: %w", ref.DefinitionName, err)
+			return fmt.Errorf("failed to get capability capability %s: %w", ref.DefinitionName, err)
 		}
 		caps = []types.Capability{*cap}
 	}
@@ -393,28 +390,19 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRef
 // CreateMarkdown creates markdown based on capabilities
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
-	var capabilityType string
 	for i, c := range caps {
-		switch c.Type {
-		case types.TypeWorkload:
-			capabilityType = WorkloadTypePath
-		case types.TypeComponentDefinition:
-			capabilityType = ComponentDefinitionTypePath
-		case types.TypeTrait:
-			capabilityType = TraitPath
-		default:
+		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait {
 			return fmt.Errorf("the type of the capability is not right")
 		}
 
 		fileName := fmt.Sprintf("%s.md", c.Name)
-		filePath := filepath.Join(baseRefPath, capabilityType)
-		if _, err := os.Stat(filePath); err != nil && os.IsNotExist(err) {
-			if err := os.MkdirAll(filePath, 0750); err != nil {
+		if _, err := os.Stat(baseRefPath); err != nil && os.IsNotExist(err) {
+			if err := os.MkdirAll(baseRefPath, 0750); err != nil {
 				return err
 			}
 		}
 
-		markdownFile := filepath.Join(baseRefPath, capabilityType, fileName)
+		markdownFile := filepath.Join(baseRefPath, fileName)
 		f, err := os.OpenFile(filepath.Clean(markdownFile), os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", markdownFile, err)
@@ -424,7 +412,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		capName := c.Name
 		refContent = ""
-		capNameInTitle := strings.Title(capName)
+		capNameInTitle := makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
 			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
@@ -481,6 +469,15 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 	}
 	return nil
+}
+
+func makeReadableTitle(title string) string {
+	const alibabaCloud = "alibaba-"
+	if strings.HasPrefix(title, alibabaCloud) {
+		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
+		return "Alibaba Cloud " + strings.ToUpper(cloudResource)
+	}
+	return strings.Title(title)
 }
 
 // prepareParameter prepares the table content for each property

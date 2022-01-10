@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const (
@@ -73,6 +74,7 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
+		NewDefinitionGenDocCommand(c),
 	)
 	return cmd
 }
@@ -321,6 +323,40 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
+	return cmd
+}
+
+// NewDefinitionGenDocCommand create the `vela def gen-doc` command to generate documentation of definitions
+func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "gen-doc NAME",
+		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
+		Long:  "Generate documentation of definitions",
+		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
+			"> vela def gen-doc alibaba-vpc -n vela-system\n",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("please specify definition name")
+			}
+
+			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
+			}
+
+			ref := &plugins.MarkdownReference{}
+			ctx := context.Background()
+			ref.DefinitionName = args[0]
+			path := plugins.KubeVelaIOTerraformPath
+
+			if err := ref.GenerateReferenceDocs(ctx, c, path, namespace); err != nil {
+				return errors.Wrap(err, "failed to generate reference docs")
+			}
+			cmd.Printf("Generated docs for %s in ./%s/%s.md\n", args[0], path, args[0])
+			return nil
+		},
+	}
+	cmd.Flags().StringP(Namespace, "n", "", "Specify the namespace of the definition.")
 	return cmd
 }
 
