@@ -266,7 +266,7 @@ status: {}`,
 			err := cmd.Execute()
 			if err != nil && !strings.Contains(err.Error(), tc.errMsg) {
 				t.Fatalf("unexpected error when executing init command: %v", err)
-			} else {
+			} else if tc.want != "" {
 				data, err := os.ReadFile(defFileName)
 				defer os.Remove(defFileName)
 				assert.Nil(t, err)
