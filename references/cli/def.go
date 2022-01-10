@@ -59,7 +59,7 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "def",
 		Short: "Manage Definitions",
-		Long:  "Manage Definitions",
+		Long:  "Manage X-Definitions for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeExtension,
@@ -329,9 +329,10 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 // NewDefinitionGenDocCommand create the `vela def gen-doc` command to generate documentation of definitions
 func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "gen-doc NAME",
-		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
-		Long:  "Generate documentation of definitions",
+		Use:    "gen-doc NAME",
+		Short:  "Generate documentation of definitions (Only Terraform typed definitions are supported)",
+		Long:   "Generate documentation of definitions",
+		Hidden: true,
 		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
 			"> vela def gen-doc alibaba-vpc -n vela-system\n",
 		RunE: func(cmd *cobra.Command, args []string) error {

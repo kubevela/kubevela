@@ -34,7 +34,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		Use:                   "delete APP_NAME",
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete an application",
-		Long:                  "Delete an application",
+		Long:                  "Delete an application.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeApp,

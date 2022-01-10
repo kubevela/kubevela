@@ -32,7 +32,7 @@ func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command
 		Use:                   "export",
 		DisableFlagsInUseLine: true,
 		Short:                 "Export deploy manifests from appfile",
-		Long:                  "Export deploy manifests from appfile",
+		Long:                  "Export deploy manifests from appfile or application.",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
 		},

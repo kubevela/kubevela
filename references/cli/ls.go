@@ -38,7 +38,7 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
-		Long:                  "List all applications in cluster",
+		Long:                  "List all vela applications.",
 		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := c.GetClient()

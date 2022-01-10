@@ -64,8 +64,8 @@ const (
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "addon",
-		Short: "List and get addon in KubeVela",
-		Long:  "List and get addon in KubeVela",
+		Short: "Manage addons for extension.",
+		Long:  "Manage addons for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeExtension,
