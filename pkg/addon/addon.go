@@ -109,6 +109,8 @@ const (
 	ObservabilityAddonEndpointComponent = "grafana"
 	// ObservabilityAddonDomainArg is the domain argument name of the observability addon
 	ObservabilityAddonDomainArg = "domain"
+	// LocalAddonRegistryName is the addon-registry name for those installed by local dir
+	LocalAddonRegistryName = "local"
 )
 
 // ObservabilityEnvironment contains the Observability addon's domain for each cluster
@@ -949,6 +951,8 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return err
 	}
 	app.Name = appName
+
+	app.SetLabels(util.MergeMapOverrideWithDst(app.GetLabels(), map[string]string{oam.LabelAddonRegistry: h.r.Name}))
 
 	defs, err := RenderDefinitions(h.addon, h.config)
 	if err != nil {

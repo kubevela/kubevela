@@ -69,6 +69,9 @@ const (
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
 
+	// LabelAddonRegistry indicates the name of addon-registry
+	LabelAddonRegistry = "addons.oam.dev/registry"
+
 	// LabelAppEnv records the name of Env
 	LabelAppEnv = "envbinding.oam.dev/env"
 
