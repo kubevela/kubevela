@@ -24,11 +24,11 @@ import (
 )
 
 type workflowOptimizer struct {
-	DisableRecorder bool
-	EnableInMemoryContext bool
+	DisableRecorder                 bool
+	EnableInMemoryContext           bool
 	DisableResourceApplyDoubleCheck bool
 
-	mu sync.Mutex
+	mu       sync.Mutex
 	contexts map[string]*v1.ConfigMap
 }
 
@@ -55,7 +55,7 @@ func (o *workflowOptimizer) GetOrCreateInMemoryContext(cm *v1.ConfigMap) {
 }
 
 func (o *workflowOptimizer) GetInMemoryContext(name, ns string) *v1.ConfigMap {
-	return o.contexts[ns + "/" + name]
+	return o.contexts[ns+"/"+name]
 }
 
 func (o *workflowOptimizer) CreateInMemoryContext(cm *v1.ConfigMap) {
@@ -75,7 +75,5 @@ func (o *workflowOptimizer) DeleteInMemoryContext(appName string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	key := fmt.Sprintf("workflow-%s-context", appName)
-	if _, exists := o.contexts[key]; exists {
-		delete(o.contexts, key)
-	}
+	delete(o.contexts, key)
 }

@@ -202,13 +202,11 @@ func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
 	if optimize.WorkflowOptimizer.EnableInMemoryContext {
 		optimize.WorkflowOptimizer.UpdateInMemoryContext(wf.store)
-	} else {
-		if err := wf.cli.Update(ctx, wf.store); err != nil {
-			if kerrors.IsNotFound(err) {
-				return wf.cli.Create(ctx, wf.store)
-			}
-			return err
+	} else if err := wf.cli.Update(ctx, wf.store); err != nil {
+		if kerrors.IsNotFound(err) {
+			return wf.cli.Create(ctx, wf.store)
 		}
+		return err
 	}
 	return nil
 }
@@ -338,15 +336,13 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 	})
 	if optimize.WorkflowOptimizer.EnableInMemoryContext {
 		optimize.WorkflowOptimizer.GetOrCreateInMemoryContext(&store)
-	} else {
-		if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
-			if kerrors.IsNotFound(err) {
-				if err := cli.Create(ctx, &store); err != nil {
-					return nil, err
-				}
-			} else {
+	} else if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
+		if kerrors.IsNotFound(err) {
+			if err := cli.Create(ctx, &store); err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, err
 		}
 	}
 	store.Annotations = map[string]string{
@@ -371,13 +367,11 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	store.Namespace = ns
 	if optimize.WorkflowOptimizer.EnableInMemoryContext {
 		optimize.WorkflowOptimizer.GetOrCreateInMemoryContext(&store)
-	} else {
-		if err := cli.Get(context.Background(), client.ObjectKey{
-			Namespace: ns,
-			Name:      generateStoreName(app),
-		}, &store); err != nil {
-			return nil, err
-		}
+	} else if err := cli.Get(context.Background(), client.ObjectKey{
+		Namespace: ns,
+		Name:      generateStoreName(app),
+	}, &store); err != nil {
+		return nil, err
 	}
 	ctx := &WorkflowContext{
 		cli:   cli,

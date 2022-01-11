@@ -60,7 +60,7 @@ type delegatingReader struct {
 
 	uncachedStructuredGVKs map[schema.GroupVersionKind]struct{}
 	cachedUnstructuredGVKs map[schema.GroupVersionKind]struct{}
-	scheme            *runtime.Scheme
+	scheme                 *runtime.Scheme
 }
 
 func (d *delegatingReader) shouldBypassCache(ctx context.Context, obj runtime.Object) (bool, error) {

@@ -34,6 +34,7 @@ var (
 	CachedGVKs = ""
 )
 
+// DefaultNewControllerClient function for creating controller client
 func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (c client.Client, err error) {
 	rawClient, err := client.New(config, options)
 	if err != nil {
@@ -71,13 +72,13 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 		scheme: mClient.Scheme(),
 		mapper: mClient.RESTMapper(),
 		Reader: &delegatingReader{
-			CacheReader: mCache,
-			ClientReader: mClient,
-			scheme: mClient.Scheme(),
+			CacheReader:            mCache,
+			ClientReader:           mClient,
+			scheme:                 mClient.Scheme(),
 			uncachedStructuredGVKs: uncachedStructuredGVKs,
 			cachedUnstructuredGVKs: cachedUnstructuredGVKs,
 		},
-		Writer: mClient,
+		Writer:       mClient,
 		StatusClient: mClient,
 	}
 

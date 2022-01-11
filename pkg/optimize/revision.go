@@ -17,7 +17,7 @@ limitations under the License.
 package optimize
 
 type revisionOptimizer struct {
-	DisableAllComponentRevision bool
+	DisableAllComponentRevision   bool
 	DisableAllApplicationRevision bool
 }
 

@@ -26,12 +26,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+// ResourceTrackerAppIndex identify the index for resourcetracker to accelerate cache retrieval
 const ResourceTrackerAppIndex = "app"
 
-type resourceTrackerOptimizer struct{
-	OptimizeListOp      bool
+type resourceTrackerOptimizer struct {
+	OptimizeListOp          bool
 	EnableDeleteOnlyTrigger bool
-	MarkWithProbability float64
+	MarkWithProbability     float64
 }
 
 // ResourceTrackerOptimizer optimizer for ResourceTracker
