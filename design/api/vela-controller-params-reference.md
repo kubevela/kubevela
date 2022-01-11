@@ -21,7 +21,7 @@
 |       apply-once-only       | string |               false               | For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force. |
 |        disable-caps         | string |                ""                 |           To be disabled builtin capability list.            |
 |       storage-driver        | string |               Local               |         Application file save to the storage driver          |
-|  informer-re-sync-interval  |  time  |                1h                 | Controller shared informer lister full re-sync period, the interval between two routinely reconciles for one CR (like Application) if no changes made to it. |
+|  informer-re-sync-interval  |  time  |                5m                 | Controller shared informer lister full re-sync period, the interval between two routinely reconciles for one CR (like Application) if no changes made to it. Also work as the state-keep interval. |
 |      reconcile-timeout      |  time  |                3m                 |           The timeout for controller reconcile.              |
 | system-definition-namespace | string |            vela-system            |     define the namespace of the system-level definition      |
 |    concurrent-reconciles    |  int   |                 4                 | The concurrent reconcile number of the controller. You can increase the degree of concurrency if a large number of CPU cores are provided to the controller. |

@@ -62,6 +62,9 @@ affinity: {}
 rbac:
   create: true
 
+controllerArgs:
+  reSyncInterval: 5m
+
 admissionWebhooks:
   enabled: true
   failurePolicy: Fail
