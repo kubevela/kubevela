@@ -21,6 +21,7 @@ import (
 	"context"
 	j "encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -250,6 +251,9 @@ func LoadAppFile(pathOrURL string) (*api.AppFile, error) {
 
 // ReadRemoteOrLocalPath will read a path remote or locally
 func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
+	if pathOrURL == "-" {
+		return ioutil.ReadAll(os.Stdin)
+	}
 	var body []byte
 	var err error
 	if strings.HasPrefix(pathOrURL, "https://") || strings.HasPrefix(pathOrURL, "http://") {
