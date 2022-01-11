@@ -35,7 +35,7 @@ import (
 
 // WebhookUsecase webhook usecase
 type WebhookUsecase interface {
-	HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (*apisv1.ApplicationDeployResponse, error)
+	HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (interface{}, error)
 }
 
 type webhookUsecaseImpl struct {
@@ -64,7 +64,7 @@ func registerHandlers() {
 }
 
 type webhookHandler interface {
-	handle(ctx context.Context, trigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error)
+	handle(ctx context.Context, trigger *model.ApplicationTrigger, app *model.Application) (interface{}, error)
 	install()
 }
 
@@ -75,6 +75,11 @@ type customHandlerImpl struct {
 
 type acrHandlerImpl struct {
 	req apisv1.HandleApplicationTriggerACRRequest
+	w   *webhookUsecaseImpl
+}
+
+type dockerHubHandlerImpl struct {
+	req apisv1.HandleApplicationTriggerDockerHubRequest
 	w   *webhookUsecaseImpl
 }
 
@@ -100,7 +105,18 @@ func (c *webhookUsecaseImpl) newACRHandler(req *restful.Request) (webhookHandler
 	}, nil
 }
 
-func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (*apisv1.ApplicationDeployResponse, error) {
+func (c *webhookUsecaseImpl) newDockerHubHandler(req *restful.Request) (webhookHandler, error) {
+	var dockerHubReq apisv1.HandleApplicationTriggerDockerHubRequest
+	if err := req.ReadEntity(&dockerHubReq); err != nil {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	return &dockerHubHandlerImpl{
+		req: dockerHubReq,
+		w:   c,
+	}, nil
+}
+
+func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token string, req *restful.Request) (interface{}, error) {
 	webhookTrigger := &model.ApplicationTrigger{
 		Token: token,
 	}
@@ -138,6 +154,11 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		if err != nil {
 			return nil, err
 		}
+	case model.PayloadTypeDockerhub:
+		handler, err = c.newDockerHubHandler(req)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, bcode.ErrInvalidWebhookPayloadType
 	}
@@ -161,7 +182,7 @@ func (c *webhookUsecaseImpl) patchComponentProperties(ctx context.Context, compo
 	return nil
 }
 
-func (c *customHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+func (c *customHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
 	for comp, properties := range c.req.Upgrade {
 		component := &model.ApplicationComponent{
 			AppPrimaryKey: webhookTrigger.AppPrimaryKey,
@@ -190,7 +211,7 @@ func (c *customHandlerImpl) install() {
 	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeCustom)
 }
 
-func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
 	comp := &model.ApplicationComponent{
 		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
 	}
@@ -239,6 +260,75 @@ func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Appli
 
 func (c *acrHandlerImpl) install() {
 	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeACR)
+}
+
+func (c dockerHubHandlerImpl) handle(ctx context.Context, trigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
+	dockerHubReq := c.req
+	if dockerHubReq.Repository.Status != "Active" {
+		log.Logger.Debugf("receive dockerhub webhook but not create event: %v", dockerHubReq)
+		return &apisv1.ApplicationDockerhubWebhookResponse{
+			State:       "failed",
+			Description: "not create event",
+		}, nil
+	}
+
+	comp := &model.ApplicationComponent{
+		AppPrimaryKey: trigger.AppPrimaryKey,
+	}
+	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(comps) == 0 {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
+
+	// use the first component as the target component
+	component := comps[0].(*model.ApplicationComponent)
+	image := fmt.Sprintf("docker.io/%s:%s", dockerHubReq.Repository.RepoName, dockerHubReq.PushData.Tag)
+	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
+		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, image)),
+	}); err != nil {
+		return nil, err
+	}
+
+	repositoryType := "public"
+	if dockerHubReq.Repository.IsPrivate {
+		repositoryType = "private"
+	}
+
+	if _, err = c.w.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+		WorkflowName: trigger.WorkflowName,
+		Note:         "triggered by webhook dockerhub",
+		TriggerType:  apisv1.TriggerTypeWebhook,
+		Force:        true,
+		ImageInfo: &model.ImageInfo{
+			Type: model.PayloadTypeDockerhub,
+			Resource: &model.ImageResource{
+				Tag:        dockerHubReq.PushData.Tag,
+				URL:        image,
+				CreateTime: time.Unix(dockerHubReq.PushData.PushedAt, 0),
+			},
+			Repository: &model.ImageRepository{
+				Name:       dockerHubReq.Repository.Name,
+				Namespace:  dockerHubReq.Repository.Namespace,
+				FullName:   dockerHubReq.Repository.RepoName,
+				Type:       repositoryType,
+				CreateTime: time.Unix(dockerHubReq.Repository.DateCreated, 0),
+			},
+		},
+	}); err != nil {
+		return nil, err
+	}
+
+	return &apisv1.ApplicationDockerhubWebhookResponse{
+		State:       "success",
+		Description: fmt.Sprintf("update application %s/%s success", app.Name, component.Name),
+	}, nil
+}
+
+func (d dockerHubHandlerImpl) install() {
+	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeDockerhub)
 }
 
 func parseTimeString(t string) time.Time {
