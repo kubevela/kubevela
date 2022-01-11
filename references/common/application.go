@@ -26,9 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -240,33 +239,71 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) error {
 	return nil
 }
 
-func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
-	body, err := common.HTTPGet(context.Background(), url)
+// LoadAppFile will load vela appfile from remote URL or local file system.
+func LoadAppFile(pathOrURL string) (*api.AppFile, error) {
+	body, err := ReadRemoteOrLocalPath(pathOrURL)
 	if err != nil {
 		return nil, err
 	}
-	af := api.NewAppFile()
-	ext := filepath.Ext(url)
-	dest := "Appfile"
-	switch ext {
-	case ".json":
-		dest = "vela.json"
-		af, err = api.JSONToYaml(body, af)
-	case ".yaml", ".yml":
-		dest = "vela.yaml"
-		err = yaml.Unmarshal(body, af)
-	default:
-		if j.Valid(body) {
-			af, err = api.JSONToYaml(body, af)
-		} else {
-			err = yaml.Unmarshal(body, af)
+	return api.LoadFromBytes(body)
+}
+
+// ReadRemoteOrLocalPath will read a path remote or locally
+func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
+	var body []byte
+	var err error
+	if strings.HasPrefix(pathOrURL, "https://") || strings.HasPrefix(pathOrURL, "http://") {
+		body, err = common.HTTPGet(context.Background(), pathOrURL)
+		if err != nil {
+			return nil, err
+		}
+		if err = localSave(pathOrURL, body); err != nil {
+			return nil, err
+		}
+	} else {
+		body, err = os.ReadFile(filepath.Clean(pathOrURL))
+		if err != nil {
+			return nil, err
 		}
 	}
+	return body, nil
+}
+
+// IsAppfile check if a file is Appfile format or application format, return true if it's appfile, false means application object
+func IsAppfile(body []byte) bool {
+	if j.Valid(body) {
+		// we only support json format for appfile
+		return true
+	}
+	res := map[string]interface{}{}
+	err := yaml.Unmarshal(body, &res)
 	if err != nil {
-		return nil, err
+		return false
+	}
+	// appfile didn't have apiVersion
+	if _, ok := res["apiVersion"]; ok {
+		return false
+	}
+	return true
+}
+
+func localSave(url string, body []byte) error {
+	var name string
+	ext := filepath.Ext(url)
+	switch ext {
+	case ".json":
+		name = "vela.json"
+	case ".yaml", ".yml":
+		name = "vela.yaml"
+	default:
+		if j.Valid(body) {
+			name = "vela.json"
+		} else {
+			name = "vela.yaml"
+		}
 	}
 	//nolint:gosec
-	return af, os.WriteFile(dest, body, 0644)
+	return os.WriteFile(name, body, 0644)
 }
 
 // ExportFromAppFile exports Application from appfile object
@@ -279,7 +316,7 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, q
 	appHandler := appfile.NewApplication(app, tm)
 
 	// new
-	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Namespace, o.IO, appHandler.Tm, quiet)
+	retApplication, err := appHandler.ConvertToApplication(o.Namespace, o.IO, appHandler.Tm, quiet)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -294,19 +331,9 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, q
 	}
 	w.WriteByte('\n')
 
-	for _, scope := range scopes {
-		w.WriteString("---\n")
-		err = enc.Encode(scope, &w)
-		if err != nil {
-			return nil, nil, fmt.Errorf("yaml encode scope (%s) failed: %w", scope.GetName(), err)
-		}
-		w.WriteByte('\n')
-	}
-
 	result := &BuildResult{
 		appFile:     app,
 		application: retApplication,
-		scopes:      scopes,
 	}
 	return result, w.Bytes(), nil
 }
@@ -316,14 +343,10 @@ func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c common
 	var app *api.AppFile
 	var err error
 	if !quiet {
-		o.IO.Info("Parsing vela appfile ...")
+		o.IO.Info("Parsing vela application file ...")
 	}
 	if filePath != "" {
-		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
-			app, err = saveAndLoadRemoteAppfile(filePath)
-		} else {
-			app, err = api.LoadFromFile(filePath)
-		}
+		app, err = LoadAppFile(filePath)
 	} else {
 		app, err = api.Load()
 	}
@@ -383,7 +406,7 @@ func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Obj
 	if err := o.apply(app, scopes); err != nil {
 		return err
 	}
-	o.IO.Infof(o.Info(app))
+	o.IO.Infof(Info(app))
 	return nil
 }
 
@@ -395,7 +418,7 @@ func (o *AppfileOptions) apply(app *corev1beta1.Application, scopes []oam.Object
 }
 
 // Info shows the status of each service in the Appfile
-func (o *AppfileOptions) Info(app *corev1beta1.Application) string {
+func Info(app *corev1beta1.Application) string {
 	appName := app.Name
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
@@ -413,7 +436,7 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	if app.Namespace == "" {
 		app.Namespace = types.DefaultAppNamespace
 	}
-	_, err := ioStream.Out.Write([]byte("Applying an application in K8S format...\n"))
+	_, err := ioStream.Out.Write([]byte("Applying an application in vela K8s object format...\n"))
 	if err != nil {
 		return err
 	}
@@ -422,9 +445,6 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	if err != nil {
 		return err
 	}
-	_, err = ioStream.Out.Write([]byte("Successfully apply application"))
-	if err != nil {
-		return err
-	}
+	ioStream.Infof(Info(&app))
 	return nil
 }

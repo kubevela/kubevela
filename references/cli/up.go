@@ -17,9 +17,6 @@ limitations under the License.
 package cli
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
@@ -38,7 +35,7 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
 		Short:                 "Apply an appfile or application from file",
-		Long:                  "Create or update vela application from file, both appfile or application object format are supported.",
+		Long:                  "Create or update vela application from file or URL, both appfile or application object format are supported.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeStart,
@@ -52,21 +49,13 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 			if err != nil {
 				return err
 			}
-			fileContent, err := os.ReadFile(filepath.Clean(*appFilePath))
+
+			body, err := common.ReadRemoteOrLocalPath(*appFilePath)
 			if err != nil {
 				return err
 			}
-			var app corev1beta1.Application
-			err = yaml.Unmarshal(fileContent, &app)
-			if err != nil {
-				return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
-			}
-			if app.APIVersion != "" && app.Kind != "" {
-				err = common.ApplyApplication(app, ioStream, kubecli)
-				if err != nil {
-					return err
-				}
-			} else {
+
+			if common.IsAppfile(body) {
 				o := &common.AppfileOptions{
 					Kubecli:   kubecli,
 					IO:        ioStream,
@@ -74,11 +63,20 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 				}
 				return o.Run(*appFilePath, o.Namespace, c)
 			}
+			var app corev1beta1.Application
+			err = yaml.Unmarshal(body, &app)
+			if err != nil {
+				return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
+			}
+			err = common.ApplyApplication(app, ioStream, kubecli)
+			if err != nil {
+				return err
+			}
 			return nil
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile or application")
+	cmd.Flags().StringVarP(appFilePath, "file", "f", "", "specify file path for appfile or application, it could be a remote url.")
 
 	addNamespaceAndEnvArg(cmd)
 	return cmd

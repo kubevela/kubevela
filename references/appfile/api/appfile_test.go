@@ -21,13 +21,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -80,7 +78,6 @@ func TestBuildOAMApplication2(t *testing.T) {
 							Properties: &runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
-							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
 						},
 					},
 				},
@@ -114,7 +111,6 @@ func TestBuildOAMApplication2(t *testing.T) {
 							Properties: &runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
-							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
 							Traits: []common.ApplicationTrait{
 								{
 									Type: "scaler",
@@ -132,7 +128,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 
 	for _, tcase := range testCases {
 		tcase.expectApp.Namespace = expectNs
-		o, _, err := tcase.appFile.BuildOAMApplication(expectNs, cmdutil.IOStreams{
+		o, err := tcase.appFile.ConvertToApplication(expectNs, cmdutil.IOStreams{
 			In:  os.Stdin,
 			Out: os.Stdout,
 		}, tm, false)
@@ -258,9 +254,8 @@ outputs: ingress: {
 		},
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{{
-				Type:   "webservice",
-				Name:   "express-server",
-				Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+				Type: "webservice",
+				Name: "express-server",
 				Properties: &runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
@@ -282,7 +277,6 @@ outputs: ingress: {
 			Raw: []byte(`{"image":"bitnami/mongodb:3.6.20","cmd": ["mongodb"]}`),
 		},
 		Traits: []common.ApplicationTrait{},
-		Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 	})
 
 	ac3 := ac1.DeepCopy()
@@ -291,15 +285,6 @@ outputs: ingress: {
 	// TODO application 那边补测试:
 	// 2. 1对多的情况，多对1 的情况
 
-	health := &v1alpha2.HealthScope{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
-			Kind:       v1alpha2.HealthScopeKind,
-		},
-	}
-	health.Name = FormatDefaultHealthScopeName("myapp")
-	health.Namespace = "default"
-	health.Spec.WorkloadReferences = make([]corev1.ObjectReference, 0)
 	type args struct {
 		appfileData       string
 		workloadTemplates map[string]string
@@ -326,7 +311,7 @@ outputs: ingress: {
 			},
 			want: want{
 				app:  ac1,
-				objs: []oam.Object{health},
+				objs: []oam.Object{},
 			},
 		},
 		"two services should generate two components and one appconfig": {
@@ -342,7 +327,7 @@ outputs: ingress: {
 			},
 			want: want{
 				app:  ac2,
-				objs: []oam.Object{health},
+				objs: []oam.Object{},
 			},
 		},
 		"no image should fail": {
@@ -378,7 +363,7 @@ outputs: ingress: {
 				}
 			}
 
-			application, objects, err := app.BuildOAMApplication("default", io, tm, false)
+			application, err := app.ConvertToApplication("default", io, tm, false)
 			if c.want.err != nil {
 				assert.Equal(t, c.want.err, err)
 				return
@@ -411,9 +396,6 @@ outputs: ingress: {
 					}
 				}
 				assert.Equal(t, true, found, "no component found for %s", comp.Name)
-			}
-			for idx, v := range objects {
-				assert.Equal(t, c.want.objs[idx], v)
 			}
 
 		})

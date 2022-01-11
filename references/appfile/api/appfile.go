@@ -24,15 +24,11 @@ import (
 	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/builtin"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
@@ -103,20 +99,17 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	return LoadFromBytes(b)
+}
+
+// LoadFromBytes will load AppFile from bytes
+func LoadFromBytes(b []byte) (*AppFile, error) {
 	af := NewAppFile()
-	// Add JSON format appfile support
-	ext := filepath.Ext(filename)
-	switch ext {
-	case ".yaml", ".yml":
-		err = yaml.Unmarshal(b, af)
-	case ".json":
+	var err error
+	if json.Valid(b) {
 		af, err = JSONToYaml(b, af)
-	default:
-		if json.Valid(b) {
-			af, err = JSONToYaml(b, af)
-		} else {
-			err = yaml.Unmarshal(b, af)
-		}
+	} else {
+		err = yaml.Unmarshal(b, af)
 	}
 	if err != nil {
 		return nil, err
@@ -140,16 +133,15 @@ func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
 	return nil
 }
 
-// BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
-func (app *AppFile) BuildOAMApplication(namespace string, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, []oam.Object, error) {
+// ConvertToApplication renders Appfile into Application, Scopes and other K8s Resources.
+func (app *AppFile) ConvertToApplication(namespace string, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, error) {
 	if err := app.ExecuteAppfileTasks(io); err != nil {
 		if strings.Contains(err.Error(), "'image' : not found") {
-			return nil, nil, ErrImageNotDefined
+			return nil, ErrImageNotDefined
 		}
-		return nil, nil, err
+		return nil, err
 	}
 	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
-	var auxiliaryObjects []oam.Object
 	servApp := new(v1beta1.Application)
 	servApp.SetNamespace(namespace)
 	servApp.SetName(app.Name)
@@ -160,33 +152,10 @@ func (app *AppFile) BuildOAMApplication(namespace string, io cmdutil.IOStreams, 
 	for serviceName, svc := range app.GetServices() {
 		comp, err := svc.RenderServiceToApplicationComponent(tm, serviceName)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		servApp.Spec.Components = append(servApp.Spec.Components, comp)
 	}
 	servApp.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("Application"))
-	auxiliaryObjects = append(auxiliaryObjects, addDefaultHealthScopeToApplication(servApp))
-	return servApp, auxiliaryObjects, nil
-}
-
-func addDefaultHealthScopeToApplication(app *v1beta1.Application) *v1alpha2.HealthScope {
-	health := &v1alpha2.HealthScope{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
-			Kind:       v1alpha2.HealthScopeKind,
-		},
-	}
-	health.Name = FormatDefaultHealthScopeName(app.Name)
-	health.Namespace = app.Namespace
-	health.Spec.WorkloadReferences = make([]corev1.ObjectReference, 0)
-	for i := range app.Spec.Components {
-		// FIXME(wonderflow): the hardcode health scope should be fixed.
-		app.Spec.Components[i].Scopes = map[string]string{DefaultHealthScopeKey: health.Name}
-	}
-	return health
-}
-
-// FormatDefaultHealthScopeName will create a default health scope name.
-func FormatDefaultHealthScopeName(appName string) string {
-	return appName + "-default-health"
+	return servApp, nil
 }
