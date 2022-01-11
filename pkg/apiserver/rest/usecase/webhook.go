@@ -60,6 +60,7 @@ func NewWebhookUsecase(ds datastore.DataStore,
 func registerHandlers() {
 	new(customHandlerImpl).install()
 	new(acrHandlerImpl).install()
+	new(dockerHubHandlerImpl).install()
 	new(harborHandlerImpl).install()
 }
 

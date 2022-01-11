@@ -136,6 +136,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		res, err := webhookUsecase.HandleApplicationWebhook(context.TODO(), triggers[0].Token, restful.NewRequest(httpreq))
 		Expect(err).Should(BeNil())
+		appDeployRes := res.(*apisv1.ApplicationDeployResponse)
 		comp, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("test-image"))
@@ -145,7 +146,7 @@ var _ = Describe("Test application usecase function", func() {
 
 		revision := &model.ApplicationRevision{
 			AppPrimaryKey: "test-app-webhook",
-			Version:       res.Version,
+			Version:       appDeployRes.Version,
 		}
 		err = webhookUsecase.ds.Get(context.TODO(), revision)
 		Expect(err).Should(BeNil())
