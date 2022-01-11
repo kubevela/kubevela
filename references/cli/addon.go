@@ -133,21 +133,21 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return err
 			}
 			addonOrDir := args[0]
-			var name string
+			var name = addonOrDir
 			if _, err := os.Stat(addonOrDir); err == nil {
 				// args[0] is a local path install with local dir, use base dir name as addonName
-				name := filepath.Base(addonOrDir)
+				name = filepath.Base(addonOrDir)
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, config, addonArgs)
 				if err != nil {
 					return err
 				}
 			} else {
-				err = enableAddon(ctx, k8sClient, config, addonOrDir, addonArgs)
+				err = enableAddon(ctx, k8sClient, config, name, addonArgs)
 				if err != nil {
 					return err
 				}
 			}
-			fmt.Printf("Successfully enable addon:%s\n", name)
+			fmt.Printf("Addon: %s enabled Successfully.\n", name)
 			endpoints, _ := GetServiceEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, c)
 			if len(endpoints) > 0 {
 				table := tablewriter.NewWriter(os.Stdout)
@@ -213,7 +213,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				}
 			}
 
-			fmt.Printf("Successfully enable addon:%s\n", name)
+			fmt.Printf("Addon: %s\n enabled Successfully.", name)
 			if name == "velaux" {
 				fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`)
 			}
