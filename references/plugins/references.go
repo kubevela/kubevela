@@ -44,7 +44,7 @@ const (
 	// BaseRefPath is the target path for reference docs
 	BaseRefPath = "docs/en/end-user"
 	// KubeVelaIOTerraformPath is the target path for kubevela.io terraform docs
-	KubeVelaIOTerraformPath = "kubevela.io/docs/end-user/components/cloud-services/terraform"
+	KubeVelaIOTerraformPath = "../kubevela.io/docs/end-user/components/cloud-services/terraform"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
@@ -74,9 +74,17 @@ type ParseReference struct {
 	Client client.Client
 }
 
+type Language string
+
+const (
+	En Language = "English"
+	Zh Language = "Chinese"
+)
+
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
-	DefinitionName string `json:"definitionName"`
+	DefinitionName string   `json:"definitionName"`
+	I18N           Language `json:"i18n"`
 	ParseReference
 }
 
