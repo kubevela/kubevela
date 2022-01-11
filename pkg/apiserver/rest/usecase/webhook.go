@@ -328,7 +328,7 @@ func (c dockerHubHandlerImpl) handle(ctx context.Context, trigger *model.Applica
 	}, nil
 }
 
-func (d dockerHubHandlerImpl) install() {
+func (c dockerHubHandlerImpl) install() {
 	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeDockerhub)
 }
 
@@ -373,7 +373,7 @@ func (c *harborHandlerImpl) install() {
 	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeHarbor)
 }
 
-func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (*apisv1.ApplicationDeployResponse, error) {
+func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
 	resources := c.req.EventData.Resources
 	if len(resources) < 1 {
 		return nil, bcode.ErrInvalidWebhookPayloadBody

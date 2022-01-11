@@ -430,9 +430,9 @@ type EventData struct {
 	Repository Repository  `json:"repository"`
 }
 
-// HandleApplicationTriggerACRRequest application trigger DockerHub webhook request
+// HandleApplicationTriggerDockerHubRequest application trigger DockerHub webhook request
 type HandleApplicationTriggerDockerHubRequest struct {
-	CallbackUrl string              `json:"callback_url"`
+	CallbackURL string              `json:"callback_url"`
 	PushData    DockerHubData       `json:"push_data"`
 	Repository  DockerHubRepository `json:"repository"`
 }
@@ -459,7 +459,7 @@ type DockerHubRepository struct {
 	Namespace       string `json:"namespace"`
 	Owner           string `json:"owner"`
 	RepoName        string `json:"repo_name"`
-	RepoUrl         string `json:"repo_url"`
+	RepoURL         string `json:"repo_url"`
 	StartCount      int    `json:"star_count"`
 	Status          string `json:"status"`
 }
@@ -867,7 +867,7 @@ type ApplicationDockerhubWebhookResponse struct {
 	State       string `json:"state,omitempty"`
 	Description string `json:"description,omitempty"`
 	Context     string `json:"context,omitempty"`
-	TargetUrl   string `json:"target_url,omitempty"`
+	TargetURL   string `json:"target_url,omitempty"`
 }
 
 // VelaQLViewResponse query response

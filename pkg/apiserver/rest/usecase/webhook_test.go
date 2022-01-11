@@ -224,5 +224,37 @@ var _ = Describe("Test application usecase function", func() {
 		comp, err = appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("harbor.server/test-pro/test-repo:test-tag"))
+
+		By("Test HandleApplicationWebhook function with dockerhub payload")
+		dockerhubTrigger, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
+			Name:          "test-dockerhub",
+			PayloadType:   "dockerhub",
+			Type:          "webhook",
+			ComponentName: "component-name-webhook",
+		})
+		Expect(err).Should(BeNil())
+
+		dockerhubBody := apisv1.HandleApplicationTriggerDockerHubRequest{
+			PushData: apisv1.DockerHubData{
+				Tag: "test-tag",
+			},
+			Repository: apisv1.DockerHubRepository{
+				IsPrivate: true,
+				Name:      "test-repo",
+				Namespace: "test-namespace",
+				RepoName:  "test-namespace/test-repo",
+				Status:    "Active",
+			},
+		}
+		body, err = json.Marshal(dockerhubBody)
+		Expect(err).Should(BeNil())
+		httpreq, err = http.NewRequest("post", "/", bytes.NewBuffer(body))
+		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
+		Expect(err).Should(BeNil())
+		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), dockerhubTrigger.Token, restful.NewRequest(httpreq))
+		Expect(err).Should(BeNil())
+		comp, err = appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
+		Expect(err).Should(BeNil())
+		Expect((*comp.Properties)["image"]).Should(Equal("docker.io/test-namespace/test-repo:test-tag"))
 	})
 })
