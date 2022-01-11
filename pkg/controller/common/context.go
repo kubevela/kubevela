@@ -29,6 +29,8 @@ var (
 var (
 	// ReconcileTimeout timeout for controller to reconcile
 	ReconcileTimeout = time.Minute * 3
+	// ApplicationReSyncPeriod re-sync period to reconcile application
+	ApplicationReSyncPeriod = time.Minute * 5
 )
 
 // NewReconcileContext create context with default timeout (60s)

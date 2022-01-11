@@ -101,7 +101,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
 		}
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, client.IgnoreNotFound(err)
 	}
 
 	logCtx.AddTag("resource_version", app.ResourceVersion)
@@ -224,7 +224,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case common.WorkflowStateFinished:
 		logCtx.Info("Workflow state=Finished")
 		if status := app.Status.Workflow; status != nil && status.Terminated {
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, nil
 		}
 	}
 
@@ -279,9 +279,9 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
 	if phase == common.ApplicationRendering {
-		return ctrl.Result{}, r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)
+		return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)
 	}
-	return ctrl.Result{}, r.patchStatus(logCtx, handler.app, phase)
+	return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, r.patchStatus(logCtx, handler.app, phase)
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
@@ -292,13 +292,13 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			ctx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			return true, ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 		}
 	} else {
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
-				return true, ctrl.Result{}, err
+				return true, ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, err
 			}
 			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
 			if err != nil {
@@ -306,20 +306,20 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-				return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+				return true, ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
 			}
 			return true, result, err
 		}
 	}
-	return false, ctrl.Result{}, nil
+	return false, ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, nil
 }
 
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
 	if err := r.patchStatus(ctx, app, phase); err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "cannot update application status")
+		return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, errors.WithMessage(err, "cannot update application status")
 	}
-	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+	return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {

@@ -130,7 +130,7 @@ spec:
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
             {{ end }}
-            - "--informer-re-sync-interval={{ .Values.controllerArgs.reSyncInterval }}"
+            - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
