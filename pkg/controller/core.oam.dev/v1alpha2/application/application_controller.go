@@ -264,7 +264,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
 	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
-		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("application").Observe(v)
+		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("-").Observe(v)
 	}))
 	defer subCtx.Commit("finish gc resourceTrackers")
 
@@ -520,7 +520,7 @@ func timeReconcile(app *v1beta1.Application) func() {
 	t := time.Now()
 	beginPhase := string(app.Status.Phase)
 	return func() {
-		v := time.Now().Sub(t).Seconds()
+		v := time.Since(t).Seconds()
 		metrics.ApplicationReconcileTimeHistogram.WithLabelValues(beginPhase, string(app.Status.Phase)).Observe(v)
 	}
 }

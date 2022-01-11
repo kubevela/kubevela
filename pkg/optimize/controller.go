@@ -20,4 +20,5 @@ type controllerOptimizer struct {
 	EnableReconcileLoopReduction bool
 }
 
+// ControllerOptimizer optimize application controller
 var ControllerOptimizer = controllerOptimizer{}

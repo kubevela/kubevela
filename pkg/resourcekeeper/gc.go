@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -138,16 +138,16 @@ type gcHandler struct {
 	cfg *gcConfig
 }
 
-func (h *gcHandler) monitor(key metrics.VecKey) func() {
+func (h *gcHandler) monitor(stage string) func() {
 	begin := time.Now()
 	return func() {
-		v := time.Now().Sub(begin).Seconds()
-		metrics.GCResourceTrackersDurationDetailHistograms[key].WithLabelValues("application").Observe(v)
+		v := time.Since(begin).Seconds()
+		metrics.GCResourceTrackersDurationHistogram.WithLabelValues(stage).Observe(v)
 	}
 }
 
 func (h *gcHandler) Init() {
-	cb := h.monitor(metrics.GCResourceTrackersInitDuration)
+	cb := h.monitor("init")
 	defer cb()
 	h.cache.registerResourceTrackers(append(h._historyRTs, h._currentRT, h._rootRT)...)
 }
@@ -159,7 +159,7 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 	} else {
 		if h.cfg.passive {
 			inactiveRTs = []*v1beta1.ResourceTracker{}
-			if optimize.ResourceTrackerOptimizer.MarkWithProbability > 0 && rand.Float64() > optimize.ResourceTrackerOptimizer.MarkWithProbability {
+			if optimize.ResourceTrackerOptimizer.MarkWithProbability > 0 && rand.Float64() > optimize.ResourceTrackerOptimizer.MarkWithProbability { //nolint
 				return inactiveRTs
 			}
 			for _, rt := range h._historyRTs {
@@ -185,7 +185,7 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 }
 
 func (h *gcHandler) Mark(ctx context.Context) error {
-	cb := h.monitor(metrics.GCResourceTrackersMarkDuration)
+	cb := h.monitor("mark")
 	defer cb()
 	inactiveRTs := h.scan(ctx)
 	for _, rt := range inactiveRTs {
@@ -222,7 +222,7 @@ func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, 
 }
 
 func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1.ManagedResource, err error) {
-	cb := h.monitor(metrics.GCResourceTrackersSweepDuration)
+	cb := h.monitor("sweep")
 	defer cb()
 	finished = true
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
@@ -259,7 +259,7 @@ func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.Reso
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {
-	cb := h.monitor(metrics.GCResourceTrackersFinalizeDuration)
+	cb := h.monitor("finalize")
 	defer cb()
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil && meta.FinalizerExists(rt, resourcetracker.Finalizer) {
@@ -272,7 +272,7 @@ func (h *gcHandler) Finalize(ctx context.Context) error {
 }
 
 func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.Context) error {
-	cb := h.monitor(metrics.GCResourceTrackersCompRevDuration)
+	cb := h.monitor("comp-rev")
 	defer cb()
 	if h._crRT == nil {
 		return nil

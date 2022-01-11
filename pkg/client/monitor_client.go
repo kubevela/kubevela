@@ -54,7 +54,7 @@ func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 	kind = strings.TrimSuffix(kind, "List")
 	begin := time.Now()
 	return func() {
-		v := time.Now().Sub(begin).Seconds()
+		v := time.Since(begin).Seconds()
 		metrics.ClientRequestHistogram.WithLabelValues(verb, kind, o.GroupVersion().String(), un, clusterName).Observe(v)
 	}
 }

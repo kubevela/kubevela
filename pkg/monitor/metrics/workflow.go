@@ -53,9 +53,4 @@ func init() {
 			klog.Error(err)
 		}
 	}
-	for _, collector := range GCResourceTrackersDurationDetailHistograms {
-		if err := metrics.Registry.Register(collector); err != nil {
-			klog.Error(err)
-		}
-	}
 }

@@ -59,13 +59,6 @@ var (
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
-	//UpdateAppLatestRevisionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	//	Name:        "update_app_latest_revision_time_seconds",
-	//	Help:        "update app latest_revision duration distributions.",
-	//	Buckets:     histogramBuckets,
-	//	ConstLabels: prometheus.Labels{},
-	//}, []string{"application"})
-
 	// PrepareWorkflowAndPolicyDurationHistogram report the prepare workflow and policy execution duration.
 	PrepareWorkflowAndPolicyDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "prepare_workflow_and_policy_time_seconds",
@@ -80,7 +73,7 @@ var (
 		Help:        "gc resourceTrackers duration distributions.",
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
-	}, []string{"controller"})
+	}, []string{"stage"})
 
 	// ClientRequestHistogram report the client request execution duration.
 	ClientRequestHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -90,17 +83,19 @@ var (
 		ConstLabels: prometheus.Labels{},
 	}, []string{"verb", "Kind", "apiVersion", "unstructured", "cluster"})
 
+	// ApplicationReconcileTimeHistogram report the reconciling time cost of application controller with state transition recorded
 	ApplicationReconcileTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name: "application_reconcile_time_seconds",
-		Help: "application reconcile duration distributions.",
-		Buckets: histogramBuckets,
+		Name:        "application_reconcile_time_seconds",
+		Help:        "application reconcile duration distributions.",
+		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"begin_phase", "end_phase"})
 
+	// ApplyComponentTimeHistogram report the time cost of applyComponentFunc
 	ApplyComponentTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name: "apply_component_time_seconds",
-		Help: "apply component duration distributions.",
-		Buckets: histogramBuckets,
+		Name:        "apply_component_time_seconds",
+		Help:        "apply component duration distributions.",
+		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})
 )
@@ -112,25 +107,3 @@ var (
 		Help: "list resourceTrackers times.",
 	}, []string{"controller"})
 )
-
-type VecKey string
-
-var (
-	GCResourceTrackersDurationDetailHistograms = map[VecKey]*prometheus.HistogramVec{}
-	GCResourceTrackersInitDuration = VecKey("gc_rt_init")
-	GCResourceTrackersMarkDuration = VecKey("gc_rt_mark")
-	GCResourceTrackersSweepDuration = VecKey("gc_rt_sweep")
-	GCResourceTrackersFinalizeDuration = VecKey("gc_rt_finalize")
-	GCResourceTrackersCompRevDuration = VecKey("gc_rt_comp_rev")
-)
-
-func init() {
-	for _, key := range []VecKey{GCResourceTrackersInitDuration, GCResourceTrackersMarkDuration, GCResourceTrackersSweepDuration, GCResourceTrackersFinalizeDuration, GCResourceTrackersCompRevDuration} {
-		GCResourceTrackersDurationDetailHistograms[key] = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        string(key),
-			Help:        string(key),
-			Buckets:     histogramBuckets,
-			ConstLabels: prometheus.Labels{},
-		}, []string{"controller"})
-	}
-}
