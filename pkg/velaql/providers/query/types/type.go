@@ -38,6 +38,7 @@ const (
 type ServiceEndpoint struct {
 	Endpoint Endpoint               `json:"endpoint"`
 	Ref      corev1.ObjectReference `json:"ref"`
+	Cluster  string                 `json:"cluster"`
 }
 
 // String return endpoint URL

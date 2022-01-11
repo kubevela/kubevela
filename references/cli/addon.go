@@ -152,9 +152,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(endpoints) > 0 {
 				table := tablewriter.NewWriter(os.Stdout)
 				table.SetColWidth(100)
-				table.SetHeader([]string{"Ref(Kind/Namespace/Name)", "Endpoint"})
+				table.SetHeader([]string{"Cluster", "Ref(Kind/Namespace/Name)", "Endpoint"})
 				for _, endpoint := range endpoints {
-					table.Append([]string{fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
+					table.Append([]string{endpoint.Cluster, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
 				}
 				fmt.Printf("Please access the %s from the following endpoints:\n", name)
 				table.Render()

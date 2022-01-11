@@ -82,6 +82,8 @@
 			path?:        string
 		}
 		ref: {...}
+		cluster?: string
+		...
 	}]
 	...
 }
