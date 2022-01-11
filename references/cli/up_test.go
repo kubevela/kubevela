@@ -18,26 +18,19 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 func TestUp(t *testing.T) {
-	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	namespace := "up-ns"
-	o := common.AppfileOptions{
-		IO:        ioStream,
-		Namespace: namespace,
-	}
+
 	app := &v1beta1.Application{}
 	app.Name = "app-up"
-	msg := o.Info(app)
+	msg := common.Info(app)
 	assert.Contains(t, msg, "App has been deployed")
 	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", app.Name))
 }

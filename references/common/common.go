@@ -28,10 +28,10 @@ import (
 
 // BuildRun will build application and deploy from Appfile
 func BuildRun(ctx context.Context, app *api.Application, client client.Client, namespace string, io util.IOStreams) error {
-	o, scopes, err := app.BuildOAMApplication(namespace, io, app.Tm, true)
+	o, err := app.ConvertToApplication(namespace, io, app.Tm, true)
 	if err != nil {
 		return err
 	}
 
-	return appfile.Run(ctx, client, o, scopes)
+	return appfile.Run(ctx, client, o, nil)
 }
