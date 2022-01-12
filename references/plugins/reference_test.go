@@ -492,8 +492,15 @@ func TestPrepareTerraformOutputs(t *testing.T) {
 
 func TestMakeReadableTitle(t *testing.T) {
 	type args struct {
+		ref   *MarkdownReference
 		title string
 	}
+
+	ref := &MarkdownReference{}
+
+	refZh := &MarkdownReference{}
+	refZh.I18N = Zh
+
 	testcases := []struct {
 		args args
 		want string
@@ -501,25 +508,35 @@ func TestMakeReadableTitle(t *testing.T) {
 		{
 			args: args{
 				title: "abc",
+				ref:   ref,
 			},
 			want: "Abc",
 		},
 		{
 			args: args{
 				title: "abc-def",
+				ref:   ref,
 			},
 			want: "Abc-Def",
 		},
 		{
 			args: args{
 				title: "alibaba-def-ghi",
+				ref:   ref,
 			},
 			want: "Alibaba Cloud DEF-GHI",
+		},
+		{
+			args: args{
+				title: "alibaba-def-ghi",
+				ref:   refZh,
+			},
+			want: "阿里云 DEF-GHI",
 		},
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			title := makeReadableTitle(tc.args.title)
+			title := tc.args.ref.makeReadableTitle(tc.args.title)
 			if title != tc.want {
 				t.Errorf("makeReadableTitle(...): -want, +got:\n%s\n", cmp.Diff(tc.want, title))
 			}
