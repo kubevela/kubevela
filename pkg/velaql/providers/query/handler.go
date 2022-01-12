@@ -222,7 +222,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 					klog.Error(err, fmt.Sprintf("find v1 Ingress %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 					continue
 				}
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster)...)
 			} else {
 				klog.Warning("not support ingress version", "version", resource.GroupVersionKind())
 			}
@@ -233,7 +233,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP)...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
 		case helmapi.HelmReleaseGVK.Kind:
 			obj := new(unstructured.Unstructured)
 			obj.SetNamespace(resource.Namespace)
@@ -244,7 +244,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
 			}
 
 			// only support network/v1beta1
@@ -253,7 +253,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect ingres by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, ing := range ingress {
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster)...)
 			}
 		}
 	}
@@ -362,7 +362,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	})
 }
 
-func generatorFromService(service corev1.Service, selectorNodeIP func() string) []querytypes.ServiceEndpoint {
+func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster string) []querytypes.ServiceEndpoint {
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
@@ -385,6 +385,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string) 
 							APIVersion:      service.APIVersion,
 							ResourceVersion: service.ResourceVersion,
 						},
+						Cluster: cluster,
 					})
 				}
 				if ingress.IP != "" {
@@ -403,6 +404,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string) 
 							APIVersion:      service.APIVersion,
 							ResourceVersion: service.ResourceVersion,
 						},
+						Cluster: cluster,
 					})
 				}
 			}
@@ -425,6 +427,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string) 
 					APIVersion:      service.APIVersion,
 					ResourceVersion: service.ResourceVersion,
 				},
+				Cluster: cluster,
 			})
 		}
 	case corev1.ServiceTypeClusterIP, corev1.ServiceTypeExternalName:
@@ -432,7 +435,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string) 
 	return serviceEndpoints
 }
 
-func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []querytypes.ServiceEndpoint) {
+func generatorFromIngress(ingress networkv1beta1.Ingress, cluster string) (serviceEndpoints []querytypes.ServiceEndpoint) {
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
@@ -480,6 +483,7 @@ func generatorFromIngress(ingress networkv1beta1.Ingress) (serviceEndpoints []qu
 						APIVersion:      ingress.APIVersion,
 						ResourceVersion: ingress.ResourceVersion,
 					},
+					Cluster: cluster,
 				})
 			}
 		}
