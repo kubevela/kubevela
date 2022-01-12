@@ -78,6 +78,9 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	table := newUITable()
 	var pl PrintList
 	for _, c := range all {
+		if c.Hidden || c.IsAdditionalHelpTopicCommand() {
+			continue
+		}
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
 			pl = append(pl, Printable{Order: c.Annotations[types.TagCommandOrder], use: c.Use, Long: c.Long})
 		}

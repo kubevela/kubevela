@@ -62,7 +62,7 @@ var webSite bool
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
-		Short:   "Show the reference doc for a component type or trait",
+		Short:   "Show the reference doc for a component type or trait.",
 		Long:    "Show the reference doc for component or trait types.",
 		Example: `show webservice`,
 		RunE: func(cmd *cobra.Command, args []string) error {

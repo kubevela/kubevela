@@ -47,13 +47,13 @@ var _ = Describe("Addon Test", func() {
 		It("Enable addon test-addon", func() {
 			output, err := e2e.Exec("vela addon enable test-addon")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully enable addon"))
+			Expect(output).To(ContainSubstring("enabled Successfully."))
 		})
 
 		It("Upgrade addon test-addon", func() {
 			output, err := e2e.Exec("vela addon upgrade test-addon")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully enable addon"))
+			Expect(output).To(ContainSubstring("enabled Successfully."))
 		})
 
 		It("Disable addon test-addon", func() {
@@ -68,7 +68,7 @@ var _ = Describe("Addon Test", func() {
 		It("Enable addon with input", func() {
 			output, err := e2e.LongTimeExec("vela addon enable test-addon example=redis", 300*time.Second)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully enable addon"))
+			Expect(output).To(ContainSubstring("enabled Successfully."))
 		})
 
 		It("Disable addon test-addon", func() {

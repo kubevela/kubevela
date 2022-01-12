@@ -449,8 +449,8 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List definitions",
-		Long:  "List definitions in kubernetes cluster",
+		Short: "List definitions.",
+		Long:  "List definitions in kubernetes cluster.",
 		Example: "# Command below will list all definitions in all namespaces\n" +
 			"> vela def list\n" +
 			"# Command below will list all definitions in the vela-system namespace\n" +
@@ -499,8 +499,8 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit NAME",
-		Short: "Edit definition",
-		Long: "Edit definition in kubernetes. If type and namespace are not specified, the command will automatically search all possible results.\n" +
+		Short: "Edit X-Definition.",
+		Long: "Edit X-Definition in kubernetes. If type and namespace are not specified, the command will automatically search all possible results.\n" +
 			"By default, this command will use the vi editor and can be altered by setting EDITOR environment variable.",
 		Example: "# Command below will edit the ComponentDefinition (and other definitions if exists) of webservice in kubernetes\n" +
 			"> vela def edit webservice\n" +
@@ -598,8 +598,8 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "render DEFINITION.cue",
-		Short: "Render definition",
-		Long:  "Render definition with cue format into kubernetes YAML format. Could be used to check whether the cue format definition is working as expected. If a directory is used as input, all cue definitions in the directory will be rendered.",
+		Short: "Render X-Definition.",
+		Long:  "Render X-Definition with cue format into kubernetes YAML format. Could be used to check whether the cue format definition is working as expected. If a directory is used as input, all cue definitions in the directory will be rendered.",
 		Example: "# Command below will render my-webservice.cue into YAML format and print it out.\n" +
 			"> vela def render my-webservice.cue\n" +
 			"# Command below will render my-webservice.cue and save it in my-webservice.yaml.\n" +
@@ -705,8 +705,8 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply DEFINITION.cue",
-		Short: "Apply definition",
-		Long:  "Apply definition from local storage to kubernetes cluster. It will apply file to vela-system namespace by default.",
+		Short: "Apply X-Definition.",
+		Long:  "Apply X-Definition from local storage to kubernetes cluster. It will apply file to vela-system namespace by default.",
 		Example: "# Command below will apply the local my-webservice.cue file to kubernetes vela-system namespace\n" +
 			"> vela def apply my-webservice.cue\n" +
 			"# Command below will apply the ./defs/my-trait.cue file to kubernetes default namespace\n" +
@@ -787,8 +787,8 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "del DEFINITION_NAME",
-		Short: "Delete definition",
-		Long:  "Delete definition in kubernetes cluster.",
+		Short: "Delete X-Definition.",
+		Long:  "Delete X-Definition in kubernetes cluster.",
 		Example: "# Command below will delete TraitDefinition of annotations in default namespace\n" +
 			"> vela def del annotations -t trait -n default",
 		Args: cobra.ExactValidArgs(1),
@@ -852,7 +852,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "vet DEFINITION.cue",
-		Short: "Validate definition",
+		Short: "Validate X-Definition.",
 		Long: "Validate definition file by checking whether it has the valid cue format with fields set correctly\n" +
 			"* Currently, this command only checks the cue format. This function is still working in progress and we will support more functional validation mechanism in the future.",
 		Example: "# Command below will validate the my-def.cue file.\n" +

@@ -124,8 +124,8 @@ func NewCommand() *cobra.Command {
 func NewVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Prints out build version information",
-		Long:  "Prints out build version information.",
+		Short: "Prints vela build version information",
+		Long:  "Prints vela build version information.",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf(`Version: %v
 GitRevision: %v

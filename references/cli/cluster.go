@@ -110,7 +110,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "list managed clusters",
-		Long:    "list child clusters managed by KubeVela",
+		Long:    "list worker clusters managed by KubeVela.",
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT")
@@ -154,8 +154,8 @@ func ensureVelaSystemNamespaceInstalled(c client.Client, clusterName string, cre
 func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "join [KUBECONFIG]",
-		Short: "join managed cluster",
-		Long:  "join managed cluster by kubeconfig",
+		Short: "join managed cluster.",
+		Long:  "join managed cluster by kubeconfig.",
 		Example: "# Join cluster declared in my-child-cluster.kubeconfig\n" +
 			"> vela cluster join my-child-cluster.kubeconfig --name example-cluster",
 		Args: cobra.ExactValidArgs(1),
@@ -390,7 +390,8 @@ func registerClusterManagedByOCM(ioStreams cmdutil.IOStreams, hubConfig *rest.Co
 func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rename [OLD_NAME] [NEW_NAME]",
-		Short: "rename managed cluster",
+		Short: "rename managed cluster.",
+		Long:  "rename managed cluster.",
 		Args:  cobra.ExactValidArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			oldClusterName := args[0]
@@ -432,7 +433,8 @@ func NewClusterRenameCommand(c *common.Args) *cobra.Command {
 func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "detach [CLUSTER_NAME]",
-		Short: "detach managed cluster",
+		Short: "detach managed cluster.",
+		Long:  "detach managed cluster.",
 		Args:  cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
@@ -510,7 +512,8 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "probe [CLUSTER_NAME]",
-		Short: "probe managed cluster",
+		Short: "health probe managed cluster.",
+		Long:  "health probe managed cluster.",
 		Args:  cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]

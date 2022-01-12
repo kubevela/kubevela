@@ -74,6 +74,7 @@ const (
 
 // Error msg used in `status` command
 const (
+	// ErrNotLoadAppConfig display the error message load
 	ErrNotLoadAppConfig = "cannot load the application"
 )
 
@@ -87,7 +88,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "status APP_NAME",
-		Short:   "Show status of an application",
+		Short:   "Show status of an application.",
 		Long:    "Show status of vela application.",
 		Example: `vela status APP_NAME`,
 		RunE: func(cmd *cobra.Command, args []string) error {
