@@ -210,7 +210,9 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	}
 	for _, comp := range remoteApp.Status.Services {
 		compName := comp.Name
-
+		if comp.Env == "" {
+			comp.Env = "Control plane cluster"
+		}
 		ioStreams.Infof(white.Sprintf("  - Name: %s  Env: %s\n", compName, comp.Env))
 		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
 		healthColor := getHealthStatusColor(comp.Healthy)
