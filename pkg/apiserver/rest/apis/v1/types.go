@@ -430,10 +430,44 @@ type EventData struct {
 	Repository Repository  `json:"repository"`
 }
 
+// HandleApplicationTriggerDockerHubRequest application trigger DockerHub webhook request
+type HandleApplicationTriggerDockerHubRequest struct {
+	CallbackURL string              `json:"callback_url"`
+	PushData    DockerHubData       `json:"push_data"`
+	Repository  DockerHubRepository `json:"repository"`
+}
+
+// DockerHubData is the push data of dockerhub
+type DockerHubData struct {
+	Images   []string `json:"images"`
+	PushedAt int64    `json:"pushed_at"`
+	Pusher   string   `json:"pusher"`
+	Tag      string   `json:"tag"`
+}
+
+// DockerHubRepository is the repository of dockerhub
+type DockerHubRepository struct {
+	CommentCount    int    `json:"comment_count"`
+	DateCreated     int64  `json:"date_created"`
+	Description     string `json:"description"`
+	Dockerfile      string `json:"dockerfile"`
+	FullDescription string `json:"full_description"`
+	IsOfficial      bool   `json:"is_official"`
+	IsPrivate       bool   `json:"is_private"`
+	IsTrusted       bool   `json:"is_trusted"`
+	Name            string `json:"name"`
+	Namespace       string `json:"namespace"`
+	Owner           string `json:"owner"`
+	RepoName        string `json:"repo_name"`
+	RepoURL         string `json:"repo_url"`
+	StartCount      int    `json:"star_count"`
+	Status          string `json:"status"`
+}
+
 // EnvBinding application env binding
 type EnvBinding struct {
 	Name string `json:"name" validate:"checkname"`
-	//TODO: support componentsPatch
+	// TODO: support componentsPatch
 }
 
 // EnvBindingTarget the target struct in the envbinding base struct
@@ -826,6 +860,14 @@ type ApplicationDeployRequest struct {
 // ApplicationDeployResponse application deploy response body
 type ApplicationDeployResponse struct {
 	ApplicationRevisionBase
+}
+
+// ApplicationDockerhubWebhookResponse dockerhub webhook response body
+type ApplicationDockerhubWebhookResponse struct {
+	State       string `json:"state,omitempty"`
+	Description string `json:"description,omitempty"`
+	Context     string `json:"context,omitempty"`
+	TargetURL   string `json:"target_url,omitempty"`
 }
 
 // VelaQLViewResponse query response
