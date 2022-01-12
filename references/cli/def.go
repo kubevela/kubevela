@@ -414,9 +414,9 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 // NewDefinitionGenDocCommand create the `vela def doc-gen` command to generate documentation of definitions
 func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "doc-gen NAME",
-		Short:  "Generate documentation of definitions (Only Terraform typed definitions are supported)",
-		Long:   "Generate documentation of definitions",
+		Use:   "doc-gen NAME",
+		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
+		Long:  "Generate documentation of definitions",
 		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
 			"> vela def doc-gen alibaba-vpc -n vela-system\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
