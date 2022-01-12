@@ -113,7 +113,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd := &cobra.Command{
 		Use:     "enable",
 		Short:   "enable an addon",
-		Long:    "enable an addon in cluster",
+		Long:    "enable an addon in cluster.",
 		Example: "vela addon enable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -133,36 +133,45 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				return err
 			}
 			addonOrDir := args[0]
-			var name string
+			var name = addonOrDir
 			if _, err := os.Stat(addonOrDir); err == nil {
 				// args[0] is a local path install with local dir, use base dir name as addonName
-				name := filepath.Base(addonOrDir)
+				name = filepath.Base(addonOrDir)
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, config, addonArgs)
 				if err != nil {
 					return err
 				}
 			} else {
-				err = enableAddon(ctx, k8sClient, config, addonOrDir, addonArgs)
+				err = enableAddon(ctx, k8sClient, config, name, addonArgs)
 				if err != nil {
 					return err
 				}
 			}
-			fmt.Printf("Successfully enable addon:%s\n", name)
-			endpoints, _ := GetServiceEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, c)
-			if len(endpoints) > 0 {
-				table := tablewriter.NewWriter(os.Stdout)
-				table.SetColWidth(100)
-				table.SetHeader([]string{"Cluster", "Ref(Kind/Namespace/Name)", "Endpoint"})
-				for _, endpoint := range endpoints {
-					table.Append([]string{endpoint.Cluster, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
-				}
-				fmt.Printf("Please access the %s from the following endpoints:\n", name)
-				table.Render()
-			}
+			fmt.Printf("Addon: %s enabled Successfully.\n", name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
 			return nil
 		},
 	}
 	return cmd
+}
+
+// AdditionalEndpointPrinter will print endpoints
+func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string) {
+	endpoints, _ := GetServiceEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, c)
+	if len(endpoints) > 0 {
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetColWidth(100)
+		table.SetHeader([]string{"Cluster", "Ref(Kind/Namespace/Name)", "Endpoint"})
+		for _, endpoint := range endpoints {
+			table.Append([]string{endpoint.Cluster, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
+		}
+		fmt.Printf("Please access the %s from the following endpoints:\n", name)
+		table.Render()
+		return
+	}
+	if name == "velaux" {
+		fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard.`)
+	}
 }
 
 // NewAddonUpgradeCommand create addon upgrade command
@@ -171,7 +180,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 	cmd := &cobra.Command{
 		Use:     "upgrade",
 		Short:   "upgrade an addon",
-		Long:    "upgrade an addon in cluster",
+		Long:    "upgrade an addon in cluster.",
 		Example: "vela addon upgrade <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -213,10 +222,8 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				}
 			}
 
-			fmt.Printf("Successfully enable addon:%s\n", name)
-			if name == "velaux" {
-				fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard`)
-			}
+			fmt.Printf("Addon: %s\n enabled Successfully.", name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
 			return nil
 		},
 	}
@@ -244,7 +251,7 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 	return &cobra.Command{
 		Use:     "disable",
 		Short:   "disable an addon",
-		Long:    "disable an addon in cluster",
+		Long:    "disable an addon in cluster.",
 		Example: "vela addon disable <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -269,8 +276,8 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "status",
-		Short:   "get an addon's status",
-		Long:    "get an addon's status from cluster",
+		Short:   "get an addon's status.",
+		Long:    "get an addon's status from cluster.",
 		Example: "vela addon status <addon-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -307,7 +314,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, config *rest.Conf
 		}
 		return nil
 	}
-	return fmt.Errorf("addon: %s not found in registrys", name)
+	return fmt.Errorf("addon: %s not found in registries", name)
 }
 
 // enableAddonByLocal enable addon in local dir and return the addon name

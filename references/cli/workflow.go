@@ -35,7 +35,7 @@ import (
 func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Operate application delivery workflow",
+		Short: "Operate application delivery workflow.",
 		Long:  "Operate the Workflow during Application Delivery.",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
@@ -55,8 +55,8 @@ func NewWorkflowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "suspend",
-		Short:   "Suspend an application workflow",
-		Long:    "Suspend an application workflow in cluster",
+		Short:   "Suspend an application workflow.",
+		Long:    "Suspend an application workflow in cluster.",
 		Example: "vela workflow suspend <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -95,8 +95,8 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resume",
-		Short:   "Resume a suspend application workflow",
-		Long:    "Resume a suspend application workflow in cluster",
+		Short:   "Resume a suspend application workflow.",
+		Long:    "Resume a suspend application workflow in cluster.",
 		Example: "vela workflow resume <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -143,8 +143,8 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "terminate",
-		Short:   "Terminate an application workflow",
-		Long:    "Terminate an application workflow in cluster",
+		Short:   "Terminate an application workflow.",
+		Long:    "Terminate an application workflow in cluster.",
 		Example: "vela workflow terminate <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -183,8 +183,8 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "restart",
-		Short:   "Restart an application workflow",
-		Long:    "Restart an application workflow in cluster",
+		Short:   "Restart an application workflow.",
+		Long:    "Restart an application workflow in cluster.",
 		Example: "vela workflow restart <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -224,8 +224,8 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback",
-		Short:   "Rollback an application workflow to the latest revision",
-		Long:    "Rollback an application workflow to the latest revision",
+		Short:   "Rollback an application workflow to the latest revision.",
+		Long:    "Rollback an application workflow to the latest revision.",
 		Example: "vela workflow rollback <application-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

@@ -107,7 +107,7 @@ func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 	cmd := &cobra.Command{
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete an environment",
+		Short:                 "Delete an environment.",
 		Long:                  "Delete an environment.",
 		Example:               `vela env delete test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -135,7 +135,7 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Use:                   "set",
 		Aliases:               []string{"sw"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Set an environment",
+		Short:                 "Set an environment.",
 		Long:                  "Set an environment as the default one for running vela applications.",
 		Example:               `vela env set test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
