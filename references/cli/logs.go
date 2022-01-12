@@ -58,6 +58,11 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
 			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)
 			if err != nil {
 				return err
@@ -80,6 +85,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	}
 
 	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
+	cmd.Flags().StringVarP(&largs.Container, "container", "c", "", "specify container name for output")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -89,6 +95,7 @@ type Args struct {
 	Output    string
 	Args      common.Args
 	Namespace string
+	Container string
 	App       *v1beta1.Application
 }
 
@@ -104,7 +111,6 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-
 	selectedRes, err := common.AskToChooseOneEnvResource(l.App)
 	if err != nil {
 		return err
@@ -125,12 +131,14 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if selectedRes.Cluster != "" && selectedRes.Cluster != "local" {
 		ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
 	}
-
 	pod, err := regexp.Compile(selectedRes.Name + "-.*")
 	if err != nil {
 		return fmt.Errorf("fail to compile '%s' for logs query", selectedRes.Name+".*")
 	}
 	container := regexp.MustCompile(".*")
+	if l.Container != "" {
+		container = regexp.MustCompile(l.Container + ".*")
+	}
 	namespace := selectedRes.Namespace
 	added, removed, err := stern.Watch(ctx, clientSet.CoreV1().Pods(namespace), pod, container, nil, []stern.ContainerState{stern.RUNNING, stern.TERMINATED}, labelSelector)
 	if err != nil {
