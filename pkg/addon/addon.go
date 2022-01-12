@@ -42,6 +42,7 @@ import (
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -1010,21 +1011,26 @@ func (h *Installer) continueOrRestartWorkflow() error {
 	// this case means user add a new cluster and user want to restart workflow to dispatch addon resources to new cluster
 	// re-apply app won't help app restart workflow
 	case app.Status.Phase == common2.ApplicationRunning:
-		app.Status.Workflow = nil
-
-		if err := h.cli.Status().Update(context.TODO(), app); err != nil {
-			return err
-		}
-		return nil
-	// this case means addon last installation meet some error and workflow has been suspend by app controller
+		// we can use retry on conflict here in CLI, because we want to update the status in this CLI operation.
+		return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+			if err = h.cli.Get(h.ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+				return
+			}
+			app.Status.Workflow = nil
+			return h.cli.Status().Update(h.ctx, app)
+		})
+	// this case means addon last installation meet some error and workflow has been suspended by app controller
 	// re-apply app won't help app workflow continue
 	case app.Status.Workflow != nil && app.Status.Workflow.Suspend:
-		mergePatch := client.MergeFrom(app.DeepCopy())
-		app.Status.Workflow.Suspend = false
-		if err := h.cli.Status().Patch(h.ctx, app, mergePatch); err != nil {
-			return err
-		}
-		return nil
+		// we can use retry on conflict here in CLI, because we want to update the status in this CLI operation.
+		return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+			if err = h.cli.Get(h.ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+				return
+			}
+			mergePatch := client.MergeFrom(app.DeepCopy())
+			app.Status.Workflow.Suspend = false
+			return h.cli.Status().Patch(h.ctx, app, mergePatch)
+		})
 	}
 	return nil
 }

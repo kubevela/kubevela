@@ -50,7 +50,7 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	cmd := &cobra.Command{
 		Use:     "trait",
 		Aliases: []string{"traits"},
-		Short:   "List/get traits",
+		Short:   "List/get traits.",
 		Long:    "List trait types installed and discover more in registry.",
 		Example: `vela trait`,
 		RunE: func(cmd *cobra.Command, args []string) error {

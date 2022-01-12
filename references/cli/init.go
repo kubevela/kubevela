@@ -61,7 +61,7 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 	cmd := &cobra.Command{
 		Use:                   "init",
 		DisableFlagsInUseLine: true,
-		Short:                 "Create scaffold for an application",
+		Short:                 "Create scaffold for an application.",
 		Long:                  "Create scaffold for vela application.",
 		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {

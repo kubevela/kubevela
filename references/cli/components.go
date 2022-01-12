@@ -97,7 +97,7 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:     "get <component>",
 		Short:   "get component from registry",
-		Long:    "get component from registry",
+		Long:    "get/download/install component from registry.",
 		Example: "vela comp get <component>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

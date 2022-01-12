@@ -44,8 +44,8 @@ const (
 func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "registry",
-		Short: "Manage addon registry",
-		Long:  "Manage addon registry",
+		Short: "Manage addon registry.",
+		Long:  "Manage addon registry.",
 	}
 	cmd.AddCommand(
 		NewAddAddonRegistryCommand(c, ioStreams),
@@ -61,9 +61,9 @@ func NewAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.
 func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add",
-		Short:   "Add an addon registry",
-		Long:    "Add an addon registry",
-		Example: `"vela addon registry add my-repo --type OSS --endpoint=xxxxx --bucket=xxxx or vela addon registry add my-repo --type git --endpoint=xxxxx --path=xxxx --gitToken=xxx"`,
+		Short:   "Add an addon registry.",
+		Long:    "Add an addon registry.",
+		Example: `"vela addon registry add <my-registry-name> --type OSS --endpoint=<URL> --bucket=<bukect-name> or vela addon registry add my-repo --type git --endpoint=<URL> --path=<OSS-ptah> --gitToken=<git token>"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -83,9 +83,9 @@ func NewAddAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "get",
-		Short:   "Get an addon registry",
-		Long:    "Get an addon registry",
-		Example: "vela addon registry get my-repo ",
+		Short:   "Get an addon registry.",
+		Long:    "Get an addon registry.",
+		Example: "vela addon registry get <registry name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return errors.New("must specify the registry name")
@@ -104,8 +104,8 @@ func NewGetAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cob
 func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
-		Short:   "List addon registries",
-		Long:    "List addon registries",
+		Short:   "List addon registries.",
+		Long:    "List addon registries.",
 		Example: "vela addon registry list",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := listAddonRegistry(context.Background(), c); err != nil {
@@ -120,9 +120,9 @@ func NewListAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *co
 func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update",
-		Short:   "Update an addon registry",
-		Long:    "Update an addon registry",
-		Example: "vela addon registry update my-repo --type OSS --endpoint=xxxxx --bucket=xxxx",
+		Short:   "Update an addon registry.",
+		Long:    "Update an addon registry.",
+		Example: "vela addon registry update <registry-name> --type OSS --endpoint=<URL> --bucket=<bucket name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
@@ -144,7 +144,7 @@ func NewDeleteAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *
 		Use:     "delete",
 		Short:   "Delete an addon registry",
 		Long:    "Delete an addon registry",
-		Example: "vela addon registry delete my-repo ",
+		Example: "vela addon registry delete <registry-name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return errors.New("must specify the registry name")
@@ -261,8 +261,8 @@ func updateAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.R
 func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonRegistryType, "", "", "specify the addon registry type")
 	cmd.Flags().StringP(addonEndpoint, "", "", "specify the addon registry endpoint")
-	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket")
-	cmd.Flags().StringP(addonPath, "", "", "specify the repo path")
+	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
+	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry OSS path")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
 }
 
