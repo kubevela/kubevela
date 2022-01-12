@@ -43,6 +43,12 @@ func TestCreateRefTestDir(t *testing.T) {
 }
 
 func TestCreateMarkdown(t *testing.T) {
+	ctx := context.Background()
+	ref := &MarkdownReference{}
+
+	refZh := &MarkdownReference{}
+	refZh.I18N = Zh
+
 	workloadName := "workload1"
 	traitName := "trait1"
 	scopeName := "scope1"
@@ -86,11 +92,13 @@ variable "acl" {
 
 	cases := map[string]struct {
 		reason       string
+		ref          *MarkdownReference
 		capabilities []types.Capability
 		want         error
 	}{
 		"WorkloadTypeAndTraitCapability": {
 			reason: "valid capabilities",
+			ref:    ref,
 			capabilities: []types.Capability{
 				{
 					Name:        workloadName,
@@ -115,6 +123,7 @@ variable "acl" {
 		},
 		"ScopeTypeCapability": {
 			reason: "invalid capabilities",
+			ref:    ref,
 			capabilities: []types.Capability{
 				{
 					Name: scopeName,
@@ -123,12 +132,24 @@ variable "acl" {
 			},
 			want: fmt.Errorf("the type of the capability is not right"),
 		},
+		"TerraformCapabilityInChinese": {
+			reason: "terraform capability",
+			ref:    refZh,
+			capabilities: []types.Capability{
+				{
+					Name:                   workloadName2,
+					TerraformConfiguration: configuration,
+					Type:                   types.TypeWorkload,
+					Category:               types.TerraformCategory,
+				},
+			},
+			want: nil,
+		},
 	}
-	ref := &MarkdownReference{}
-	ctx := context.Background()
+
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, ReferenceSourcePath)
+			got := tc.ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, ReferenceSourcePath)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nCreateMakrdown(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
