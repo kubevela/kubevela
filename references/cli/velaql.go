@@ -37,7 +37,7 @@ func GetServiceEndpoints(ctx context.Context, client client.Client, appName stri
 	if err != nil {
 		return nil, err
 	}
-	queryView, err := velaql.ParseVelaQL(fmt.Sprintf("service-endpoints-view{appName=%s,appNs=%s}.endpoints", appName, namespace))
+	queryView, err := velaql.ParseVelaQL(fmt.Sprintf("service-endpoints-view{appName=%s,appNs=%s}.status", appName, namespace))
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +49,15 @@ func GetServiceEndpoints(ctx context.Context, client client.Client, appName stri
 	if err != nil {
 		return nil, err
 	}
-	var endpoints []querytypes.ServiceEndpoint
-	if err := queryValue.CueValue().Decode(&endpoints); err != nil {
+	var response = struct {
+		Endpoints []querytypes.ServiceEndpoint `json:"endpoints"`
+		Error     string                       `json:"error"`
+	}{}
+	if err := queryValue.CueValue().Decode(&response); err != nil {
 		return nil, err
 	}
-	return endpoints, nil
+	if response.Error != "" {
+		return nil, fmt.Errorf(response.Error)
+	}
+	return response.Endpoints, nil
 }

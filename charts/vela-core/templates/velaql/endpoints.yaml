@@ -29,7 +29,9 @@ data:
           }
       }
       if resources.err == _|_ {
-          endpoints: resources.list
+          status: {
+              endpoints: resources.list
+          }
       }
       if resources.err != _|_ {
           status: {
