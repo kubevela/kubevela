@@ -945,3 +945,13 @@ type ListRevisionsResponse struct {
 type DetailRevisionResponse struct {
 	model.ApplicationRevision
 }
+
+// SystemInfoResponse get SystemInfo
+type SystemInfoResponse struct {
+	model.SystemInfo
+}
+
+// SystemInfoRequest request by enable/disable SystemInfo
+type SystemInfoRequest struct {
+	InstallID string
+}
