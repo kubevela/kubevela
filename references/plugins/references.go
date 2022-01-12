@@ -45,6 +45,8 @@ const (
 	BaseRefPath = "docs/en/end-user"
 	// KubeVelaIOTerraformPath is the target path for kubevela.io terraform docs
 	KubeVelaIOTerraformPath = "../kubevela.io/docs/end-user/components/cloud-services/terraform"
+	// KubeVelaIOTerraformPathZh is the target path for kubevela.io terraform docs in Chinese
+	KubeVelaIOTerraformPathZh = "../kubevela.io/i18n/zh/docusaurus-plugin-content-docs/current/end-user/components/cloud-services/terraform"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
@@ -72,6 +74,7 @@ type Reference interface {
 // ParseReference is used to include the common function `parseParameter`
 type ParseReference struct {
 	Client client.Client
+	I18N   Language `json:"i18n"`
 }
 
 type Language string
@@ -83,8 +86,7 @@ const (
 
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
-	DefinitionName string   `json:"definitionName"`
-	I18N           Language `json:"i18n"`
+	DefinitionName string `json:"definitionName"`
 	ParseReference
 }
 
@@ -301,6 +303,7 @@ spec:
                 name: bar
                 key: bar
 `,
+
 	"worker": `
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -331,6 +334,23 @@ spec:
 
         writeConnectionSecretToRef:
           name: vpc-conn
+`,
+
+	"alibaba-rds": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rds-cloud-source
+spec:
+  components:
+    - name: sample-db
+      type: alibaba-rds
+      properties:
+        instance_name: sample-db
+        account_name: oamtest
+        password: U34rfwefwefffaked
+        writeConnectionSecretToRef:
+          name: db-conn
 `,
 }
 
@@ -399,6 +419,11 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	for i, c := range caps {
+		var (
+			description   string
+			sample        string
+			specification string
+		)
 		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait {
 			return fmt.Errorf("the type of the capability is not right")
 		}
@@ -420,7 +445,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		capName := c.Name
 		refContent = ""
-		capNameInTitle := makeReadableTitle(capName)
+		capNameInTitle := ref.makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
 			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
@@ -456,14 +481,22 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
 		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
-
-		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
-		var sample string
 		sampleContent := ref.generateSample(capName)
-		if sampleContent != "" {
-			sample = fmt.Sprintf("\n\n## Samples\n\n%s", sampleContent)
+
+		switch ref.I18N {
+		case Zh:
+			description = fmt.Sprintf("\n\n## 描述\n\n%s", c.Description)
+			if sampleContent != "" {
+				sample = fmt.Sprintf("\n\n## 示例\n\n%s", sampleContent)
+			}
+			specification = fmt.Sprintf("\n\n## 参数说明\n%s", refContent)
+		case En, "":
+			description = fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
+			if sampleContent != "" {
+				sample = fmt.Sprintf("\n\n## Samples\n\n%s", sampleContent)
+			}
+			specification = fmt.Sprintf("\n\n## Specification\n%s", refContent)
 		}
-		specification := fmt.Sprintf("\n\n## Specification\n%s", refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
@@ -479,11 +512,18 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 	return nil
 }
 
-func makeReadableTitle(title string) string {
+func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	const alibabaCloud = "alibaba-"
+	var AlibabaCloudTitle string
+	switch ref.I18N {
+	case Zh:
+		AlibabaCloudTitle = "阿里云"
+	case En, "":
+		AlibabaCloudTitle = "Alibaba Cloud"
+	}
 	if strings.HasPrefix(title, alibabaCloud) {
 		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
-		return "Alibaba Cloud " + strings.ToUpper(cloudResource)
+		return fmt.Sprintf("%s %s", AlibabaCloudTitle, strings.ToUpper(cloudResource))
 	}
 	return strings.Title(title)
 }
@@ -491,8 +531,13 @@ func makeReadableTitle(title string) string {
 // prepareParameter prepares the table content for each property
 func (ref *MarkdownReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) string {
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	refContent += "Name | Description | Type | Required | Default \n"
-	refContent += "------------ | ------------- | ------------- | ------------- | ------------- \n"
+	switch ref.I18N {
+	case Zh:
+		refContent += " 名字 | 描述 | 类型 | 是否必须 | 默认值 \n"
+	case En, "":
+		refContent += " Name | Description | Type | Required | Default \n"
+	}
+	refContent += " ------------ | ------------- | ------------- | ------------- | ------------- \n"
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
@@ -527,8 +572,13 @@ func (ref *MarkdownReference) prepareTerraformOutputs(tableName string, paramete
 		return ""
 	}
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	refContent += "Name | Description\n"
-	refContent += "------------ | ------------- \n"
+	switch ref.I18N {
+	case Zh:
+		refContent += " 名字 | 描述 \n"
+	case En, "":
+		refContent += " Name | Description \n"
+	}
+	refContent += " ------------ | ------------- \n"
 
 	for _, p := range parameterList {
 		refContent += fmt.Sprintf(" %s | %s\n", p.Name, p.Usage)
@@ -792,7 +842,17 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		err                                          error
 		outputsList                                  []ReferenceParameter
 		outputsTables                                []ReferenceParameterTable
+		propertiesTitle                              string
+		outputsTableName                             string
 	)
+	switch ref.I18N {
+	case Zh:
+		propertiesTitle = "属性"
+		outputsTableName = fmt.Sprintf("%s %s\n\n如果设置了 `writeConnectionSecretToRef`，一个 Kubernetes Secret 将会被创建，并且，它的数据里有这些键（key）：", strings.Repeat("#", 3), "输出")
+	case En, "":
+		propertiesTitle = "Properties"
+		outputsTableName = fmt.Sprintf("%s %s\n\nIf `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:", strings.Repeat("#", 3), "Outputs")
+	}
 
 	writeConnectionSecretToRefReferenceParameter.Name = terraform.TerraformWriteConnectionSecretToRefName
 	writeConnectionSecretToRefReferenceParameter.PrintableType = terraform.TerraformWriteConnectionSecretToRefType
@@ -822,7 +882,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), "Properties")
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), propertiesTitle)
 	tables = append(tables, ReferenceParameterTable{
 		Name:       propertiesTableName,
 		Parameters: refParameterList,
@@ -859,8 +919,6 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		refParam.Usage = v.Description
 		outputsList = append(outputsList, refParam)
 	}
-
-	outputsTableName := fmt.Sprintf("%s %s\n\nIf `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:", strings.Repeat("#", 3), "Outputs")
 
 	outputsTables = append(outputsTables, ReferenceParameterTable{
 		Name:       outputsTableName,
