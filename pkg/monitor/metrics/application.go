@@ -16,7 +16,10 @@
 
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
 var (
 	// CreateAppHandlerDurationHistogram report the create appHandler execution duration.
@@ -107,3 +110,23 @@ var (
 		Help: "list resourceTrackers times.",
 	}, []string{"controller"})
 )
+
+var (
+	// ResourceTrackerNumberGauge report the number of resourceTracker
+	ResourceTrackerNumberGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "resourcetracker_number",
+		Help: "resourceTracker number.",
+	}, []string{"application", "namespace"})
+)
+
+// ExtractMetricValuesFromObjectLabel extract metric values from k8s object's labels
+func ExtractMetricValuesFromObjectLabel(obj interface{}, labelKeys ...string) (values []string) {
+	if resource, ok := obj.(client.Object); ok {
+		for _, labelKey := range labelKeys {
+			values = append(values, resource.GetLabels()[labelKey])
+		}
+	} else {
+		values = make([]string, len(labelKeys))
+	}
+	return
+}

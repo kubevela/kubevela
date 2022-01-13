@@ -17,21 +17,31 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"strings"
+	"sync"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	cache2 "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/optimize"
 )
 
 var (
 	// CachedGVKs identifies the GVKs of resources to be cached during dispatching
 	CachedGVKs = ""
+
+	rtCount = 0
+	lock    = sync.Mutex{}
 )
 
 // DefaultNewControllerClient function for creating controller client
@@ -67,6 +77,28 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 			cachedUnstructuredGVKs[*gvk] = struct{}{}
 		}
 	}
+
+	informer, err := cache.GetInformerForKind(context.Background(), v1beta1.ResourceTrackerKindVersionKind)
+	if err != nil {
+		return nil, err
+	}
+
+	informer.AddEventHandler(cache2.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			lock.Lock()
+			rtCount++
+			metrics.ResourceTrackerNumberGauge.WithLabelValues(
+				metrics.ExtractMetricValuesFromObjectLabel(obj, oam.LabelAppName, oam.LabelAppNamespace)...).Set(float64(rtCount))
+			lock.Unlock()
+		},
+		DeleteFunc: func(obj interface{}) {
+			lock.Lock()
+			rtCount--
+			metrics.ResourceTrackerNumberGauge.WithLabelValues(
+				metrics.ExtractMetricValuesFromObjectLabel(obj, oam.LabelAppName, oam.LabelAppNamespace)...).Set(float64(rtCount))
+			lock.Unlock()
+		},
+	})
 
 	dClient := &delegatingClient{
 		scheme: mClient.Scheme(),
