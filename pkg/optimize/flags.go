@@ -26,14 +26,14 @@ func AddOptimizeFlags() {
 	flag.BoolVar(&ResourceTrackerOptimizer.OptimizeListOp, "optimize-resource-tracker-list-op", false, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker.")
 
 	// optimize controller reconcile loop
-	flag.BoolVar(&ControllerOptimizer.EnableReconcileLoopReduction, "optimize-controller-reconcile-loop-reduction", false, "Optimize ApplicationController reconcile by reducing the number loops to reconcile application.")
+	flag.BoolVar(&ControllerOptimizer.EnableReconcileLoopReduction, "optimize-controller-reconcile-loop-reduction", false, "Optimize ApplicationController reconcile by reducing the number loops to reconcile application. In detail, reconciles after finalizer patching and workflow finished will not return immediately but will continue running.")
 
 	// optimize functions
 	flag.Float64Var(&ResourceTrackerOptimizer.MarkWithProbability, "optimize-mark-with-prob", 0.0, "Optimize ResourceTracker GC by only run mark with probability. Default to 0.0 means not enable it. Side effect: outdated ResourceTracker might not be able to be removed immediately.")
-	flag.BoolVar(&RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used.")
+	flag.BoolVar(&RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used. If you don't rely on component revision, you can use this optimization.")
 	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize ApplicationRevision by disabling the creation and gc. Side effect: application cannot rollback.")
 	flag.BoolVar(&WorkflowOptimizer.DisableRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
-	flag.BoolVar(&WorkflowOptimizer.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to mistakes in workflow inputs/outputs.")
+	flag.BoolVar(&WorkflowOptimizer.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to workflow run again from scratch and possible to cause mistakes in workflow inputs/outputs. You can use this optimization when you don't use input/output feature of workflow.")
 	flag.BoolVar(&WorkflowOptimizer.DisableResourceApplyDoubleCheck, "optimize-disable-resource-apply-double-check", false, "Optimize workflow by ignoring resource double check after apply. Side effect: controller will not wait for resource creation.")
 	flag.BoolVar(&ResourceTrackerOptimizer.EnableDeleteOnlyTrigger, "optimize-enable-delete-only-trigger", false, "Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted. Side effect: manually non-deletion operation (such as update) on resourcetracker will be ignored.")
 }

@@ -215,7 +215,7 @@ func main() {
 		// of controller-runtime. Additionally, set this value will affect not only application
 		// controller but also all other controllers like definition controller. Therefore, for
 		// functionalities like state-keep, they should be invented in other ways.
-		NewClient:                  ctrlClient.DefaultNewControllerClient,
+		NewClient: ctrlClient.DefaultNewControllerClient,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
