@@ -208,7 +208,12 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:      []client.Object{&appsv1.ControllerRevision{}},
+		// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
+		// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
+		// of controller-runtime. Additionally, set this value will affect not only application
+		// controller but also all other controllers like definition controller. Therefore, for
+		// functionalities like state-keep, they should be invented in other ways.
+		ClientDisableCacheFor: []client.Object{&appsv1.ControllerRevision{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
