@@ -31,7 +31,7 @@ func AddFlags() {
 	// optimize functions
 	flag.Float64Var(&ResourceTrackerOptimizer.MarkWithProbability, "optimize-mark-with-prob", 0.0, "Optimize ResourceTracker GC by only run mark with probability. Default to 0.0 means not enable it. Side effect: outdated ResourceTracker might not be able to be removed immediately.")
 	flag.BoolVar(&RevisionOptimizer.DisableAllComponentRevision, "optimize-disable-component-revision", false, "Optimize ComponentRevision by disabling the creation and gc. Side effect: rollout cannot be used.")
-	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize Application by disabling the creation and gc. Side effect: application cannot rollback.")
+	flag.BoolVar(&RevisionOptimizer.DisableAllApplicationRevision, "optimize-disable-application-revision", false, "Optimize ApplicationRevision by disabling the creation and gc. Side effect: application cannot rollback.")
 	flag.BoolVar(&WorkflowOptimizer.DisableRecorder, "optimize-disable-workflow-recorder", false, "Optimize workflow recorder by disabling the creation and gc. Side effect: workflow will not record application after finished running.")
 	flag.BoolVar(&WorkflowOptimizer.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to mistakes in workflow inputs/outputs.")
 	flag.BoolVar(&WorkflowOptimizer.DisableResourceApplyDoubleCheck, "optimize-disable-resource-apply-double-check", false, "Optimize workflow by ignoring resource double check after apply. Side effect: controller will not wait for resource creation.")
