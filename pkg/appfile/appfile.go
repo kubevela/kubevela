@@ -81,6 +81,7 @@ type Workload struct {
 	Ctx                process.Context
 	Patch              *value.Value
 	engine             definition.AbstractEngine
+	SkipApplyWorkload  bool
 }
 
 // EvalContext eval workload template and set result to context
@@ -90,12 +91,17 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
+	// if the  standard workload is managed by trait always return empty message
+	if wl.SkipApplyWorkload {
+		return "", nil
+	}
 	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	if wl.FullTemplate.Health == "" {
+	// if health of template is not set or standard workload is managed by trait always return true
+	if wl.FullTemplate.Health == "" || wl.SkipApplyWorkload {
 		return true, nil
 	}
 	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
