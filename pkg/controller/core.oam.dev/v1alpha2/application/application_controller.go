@@ -101,7 +101,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
 		}
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return r.result(client.IgnoreNotFound(err)).ret()
 	}
 
 	logCtx.AddTag("resource_version", app.ResourceVersion)
@@ -211,7 +211,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case common.WorkflowStateExecuting:
 		logCtx.Info("Workflow return state=Executing")
 		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
-		return reconcile.Result{RequeueAfter: wf.GetBackoffWaitTime()}, err
+		return r.result(err).requeue(wf.GetBackoffWaitTime()).ret()
 	case common.WorkflowStateSucceeded:
 		logCtx.Info("Workflow return state=Succeeded")
 		if err := r.doWorkflowFinish(app, wf); err != nil {
@@ -224,7 +224,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case common.WorkflowStateFinished:
 		logCtx.Info("Workflow state=Finished")
 		if status := app.Status.Workflow; status != nil && status.Terminated {
-			return ctrl.Result{}, nil
+			return r.result(nil).ret()
 		}
 	}
 
@@ -275,13 +275,41 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return ctrl.Result{RequeueAfter: baseGCBackoffWaitTime}, r.patchStatus(logCtx, handler.app, phase)
+		return r.result(r.patchStatus(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
 	if phase == common.ApplicationRendering {
-		return ctrl.Result{}, r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)
+		return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)).ret()
 	}
-	return ctrl.Result{}, r.patchStatus(logCtx, handler.app, phase)
+	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
+}
+
+type reconcileResult struct {
+	time.Duration
+	err error
+}
+
+func (r *reconcileResult) requeue(d time.Duration) *reconcileResult {
+	r.Duration = d
+	return r
+}
+
+func (r *reconcileResult) ret() (ctrl.Result, error) {
+	if r.Duration.Seconds() != 0 {
+		return ctrl.Result{RequeueAfter: r.Duration}, r.err
+	} else if r.err != nil {
+		return ctrl.Result{}, r.err
+	}
+	return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, nil
+}
+
+func (r *reconcileResult) end(endReconcile bool) (bool, ctrl.Result, error) {
+	ret, err := r.ret()
+	return endReconcile, ret, err
+}
+
+func (r *Reconciler) result(err error) *reconcileResult {
+	return &reconcileResult{err: err}
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
@@ -292,13 +320,13 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			ctx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 		}
 	} else {
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
-				return true, ctrl.Result{}, err
+				return r.result(err).end(true)
 			}
 			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
 			if err != nil {
@@ -306,20 +334,20 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
-				return true, ctrl.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			return true, result, err
 		}
 	}
-	return false, ctrl.Result{}, nil
+	return r.result(nil).end(false)
 }
 
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
 	if err := r.patchStatus(ctx, app, phase); err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "cannot update application status")
+		return r.result(errors.WithMessage(err, "cannot update application status")).ret()
 	}
-	return ctrl.Result{}, fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)
+	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).ret()
 }
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
@@ -471,6 +499,7 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 		return true
 	}
 	new.ManagedFields = old.ManagedFields
+	new.ResourceVersion = old.ResourceVersion
 	return !reflect.DeepEqual(new, old)
 }
 

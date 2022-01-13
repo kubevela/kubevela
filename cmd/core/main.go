@@ -74,7 +74,6 @@ func main() {
 	var healthAddr string
 	var disableCaps string
 	var storageDriver string
-	var syncPeriod time.Duration
 	var applyOnceOnly string
 	var qps float64
 	var burst int
@@ -110,8 +109,8 @@ func main() {
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
-	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
-		"controller shared informer lister full re-sync period")
+	flag.DurationVar(&commonconfig.ApplicationReSyncPeriod, "application-re-sync-period", 5*time.Minute,
+		"Re-sync period for application to re-sync, also known as the state-keep interval.")
 	flag.DurationVar(&commonconfig.ReconcileTimeout, "reconcile-timeout", time.Minute*3,
 		"the timeout for controller reconcile")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
@@ -205,12 +204,16 @@ func main() {
 		Port:                       webhookPort,
 		CertDir:                    certDir,
 		HealthProbeBindAddress:     healthAddr,
-		SyncPeriod:                 &syncPeriod,
 		LeaderElectionResourceLock: leaderElectionResourceLock,
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
-		ClientDisableCacheFor:      []client.Object{&appsv1.ControllerRevision{}},
+		// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
+		// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
+		// of controller-runtime. Additionally, set this value will affect not only application
+		// controller but also all other controllers like definition controller. Therefore, for
+		// functionalities like state-keep, they should be invented in other ways.
+		ClientDisableCacheFor: []client.Object{&appsv1.ControllerRevision{}},
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
