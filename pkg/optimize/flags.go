@@ -20,8 +20,8 @@ import (
 	"flag"
 )
 
-// AddFlags add flags
-func AddFlags() {
+// AddOptimizeFlags add flags
+func AddOptimizeFlags() {
 	// optimize client
 	flag.BoolVar(&ResourceTrackerOptimizer.OptimizeListOp, "optimize-resource-tracker-list-op", false, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker.")
 
