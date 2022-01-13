@@ -162,8 +162,8 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if err != nil {
 			return nil, nil, false, err
 		}
-		skipStandardWorkload := skipApplyWorkload(wl)
-		if !skipStandardWorkload {
+		checkSkipApplyWorkload(wl)
+		if !wl.SkipApplyWorkload {
 			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyWorkload); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
 			}
@@ -181,7 +181,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if !isHealth {
 			return nil, nil, false, nil
 		}
-		workload, traits, err := getComponentResources(ctx, manifest, skipStandardWorkload, h.r.Client)
+		workload, traits, err := getComponentResources(ctx, manifest, wl.SkipApplyWorkload, h.r.Client)
 		return workload, traits, true, err
 	}
 }
@@ -231,13 +231,13 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 	return readyWorkload, readyTraits, nil
 }
 
-func skipApplyWorkload(wl *appfile.Workload) bool {
+func checkSkipApplyWorkload(wl *appfile.Workload) {
 	for _, trait := range wl.Traits {
 		if trait.FullTemplate.TraitDefinition.Spec.ManageWorkload {
-			return true
+			wl.SkipApplyWorkload = true
+			break
 		}
 	}
-	return false
 }
 
 func getComponentResources(ctx context.Context, manifest *types.ComponentManifest, skipStandardWorkload bool, cli client.Client) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {

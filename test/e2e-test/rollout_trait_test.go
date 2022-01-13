@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -52,26 +51,6 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 	var rollout v1alpha1.Rollout
 	var targerDeploy, sourceDeploy v1.Deployment
 	var err error
-
-	createAllDef := func() {
-		By("install all related definition")
-		var cd v1beta1.ComponentDefinition
-		Expect(yaml.Unmarshal([]byte(rolloutTestWd), &cd))
-		// create the componentDefinition if not exist
-		cd.Namespace = namespaceName
-		Eventually(
-			func() error {
-				return k8sClient.Create(ctx, &cd)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		var td v1beta1.TraitDefinition
-		Expect(yaml.Unmarshal([]byte(rolloutTestTd), &td)).Should(BeNil())
-		td.Namespace = namespaceName
-		Eventually(func() error {
-			return k8sClient.Create(ctx, &td)
-		},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	}
 
 	createNamespace := func() {
 		ns = corev1.Namespace{
@@ -155,7 +134,6 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		namespaceName = randomNamespaceName("rollout-trait-e2e-test")
 		app = v1beta1.Application{}
 		createNamespace()
-		createAllDef()
 		componentName = "express-server"
 	})
 
@@ -211,7 +189,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"express-server-v2","firstBatchReplicas":1,"secondBatchReplicas":1}`)
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"express-server-v2","rolloutBatches":[{"replicas":1},{"replicas":1}],"targetSize":2}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -223,8 +201,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"targetRevision":"express-server-v2","targetSize":4,"firstBatchReplicas":1,"secondBatchReplicas":1}`)
+			checkApp.Spec.Components[0].Traits[0].Properties.Raw = []byte(`{"targetRevision":"express-server-v2","targetSize":4,"rolloutBatches":[{"replicas":1},{"replicas":1}]}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -239,7 +216,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			}
 			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.3"}`)
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4}`)
+				[]byte(`{"rolloutBatches":[{"replicas":2},{"replicas":2}],"targetSize":4}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -251,9 +228,9 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if err = k8sClient.Get(ctx, appKey, checkApp); err != nil {
 				return err
 			}
-			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.5"}`)
+			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.31"}`)
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4,"batchPartition":0}`)
+				[]byte(`{"rolloutBatches":[{"replicas":2},{"replicas":2}],"targetSize":4,"batchPartition":0}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -291,7 +268,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 				return err
 			}
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4,"batchPartition":1}`)
+				[]byte(`{"rolloutBatches":[{"replicas":2},{"replicas":2}],"targetSize":4,"batchPartition":1}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -362,7 +339,7 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			}
 			checkApp.Spec.Components[0].Properties.Raw = []byte(`{"image":"stefanprodan/podinfo:4.0.3","cpu":"0.1"}`)
 			checkApp.Spec.Components[0].Traits[0].Properties.Raw =
-				[]byte(`{"firstBatchReplicas":2,"secondBatchReplicas":2,"targetSize":4}`)
+				[]byte(`{"rolloutBatches":[{"replicas":2},{"replicas":2}],"targetSize":4}`)
 			if err = k8sClient.Update(ctx, checkApp); err != nil {
 				return err
 			}
@@ -441,99 +418,3 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 	})
 })
-
-const (
-	rolloutTestWd = `# Code generated by KubeVela templates. DO NOT EDIT.
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: webservice
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    cue:
-      template: |
-        output: {
-                        	apiVersion: "apps/v1"
-                        	kind:       "Deployment"
-                        	spec: {
-                        		selector: matchLabels: {
-                        			"app.oam.dev/component": context.name
-                        		}
-
-                        		template: {
-                        			metadata: labels: {
-                        				"app.oam.dev/component": context.name
-                        				}
-                        				spec: {
-                        					containers: [{
-                        						name:  context.name
-                                    image: parameter.image
-                                    if parameter["cpu"] != _|_ {
-                                           resources: {
-                                           limits:
-                                              cpu: parameter.cpu
-                                           requests: cpu: "0"
-                                           }
-                                           }
-                                     }]
-                                }
-                        			}
-
-
-                        	}
-                        }
-                        parameter: {
-                        	// +usage=Which image would you like to use for your service
-                        	// +short=i
-                        	image: string
-
-                        	cpu?: 0.5|string
-                        }
-
-`
-	rolloutTestTd = `apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  name: rollout
-spec:
-  manageWorkload: true
-  schematic:
-    cue:
-      template: |
-        outputs: rollout: {
-                	apiVersion: "standard.oam.dev/v1alpha1"
-                	kind:       "Rollout"
-                	metadata: {
-                		 name:  context.name
-                         namespace: context.namespace
-                	}
-                	spec: {
-                           targetRevisionName: parameter.targetRevision
-                           componentName: context.name
-                           rolloutPlan: {
-                           	rolloutStrategy: "DecreaseFirst"
-                            if parameter.firstBatchReplicas != _|_ && parameter.secondBatchReplicas != _|_ {
-                                rolloutBatches:[
-                            	{ replicas: parameter.firstBatchReplicas},
-                            	{ replicas: parameter.secondBatchReplicas}]
-                            }
-                            targetSize: parameter.targetSize
-                             if parameter["batchPartition"] != _|_ {
-                                 batchPartition:  parameter.batchPartition
-                              }
-                            }
-                		 }
-                	}
-
-                 parameter: {
-                     targetRevision: *context.revision|string
-                     targetSize: *2|int
-                     firstBatchReplicas?: int
-                     secondBatchReplicas?: int
-                     batchPartition?: int
-                 }`
-)
