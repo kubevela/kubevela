@@ -50,23 +50,15 @@ func (u systemInfoWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
-	// Get
+	// Delete
 	ws.Route(ws.DELETE("/").To(u.deleteSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.SystemInfoResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
-	// Get
-	ws.Route(ws.POST("/enable").To(u.enableSystemInfo).
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Reads(apis.SystemInfoRequest{}).
-		Returns(200, "", apis.SystemInfoResponse{}).
-		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.SystemInfoResponse{}))
-
-	// Get
-	ws.Route(ws.POST("/disable").To(u.disableSystemInfo).
+	// Post
+	ws.Route(ws.PUT("/").To(u.updateSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.SystemInfoRequest{}).
 		Returns(200, "", apis.SystemInfoResponse{}).
@@ -88,20 +80,23 @@ func (u systemInfoWebService) getSystemInfo(req *restful.Request, res *restful.R
 	}
 }
 
-func (u systemInfoWebService) enableSystemInfo(req *restful.Request, res *restful.Response) {
-	info, err := u.useCase.EnableCollection(req.Request.Context())
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
+func (u systemInfoWebService) updateSystemInfo(req *restful.Request, res *restful.Response) {
+	var systemInfoReq apis.SystemInfoRequest
+	var args []byte
+	_, err := req.Request.Body.Read(args)
+	if err == nil {
+		err := req.ReadEntity(&systemInfoReq)
+		if err != nil {
+			bcode.ReturnError(req, res, err)
+			return
+		}
+		if err = validate.Struct(&systemInfoReq); err != nil {
+			bcode.ReturnError(req, res, err)
+			return
+		}
 	}
-	if err := res.WriteEntity(info); err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-}
 
-func (u systemInfoWebService) disableSystemInfo(req *restful.Request, res *restful.Response) {
-	info, err := u.useCase.DisableCollection(req.Request.Context())
+	info, err := u.useCase.UpdateSystemInfo(req.Request.Context(), systemInfoReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

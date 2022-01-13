@@ -949,9 +949,16 @@ type DetailRevisionResponse struct {
 // SystemInfoResponse get SystemInfo
 type SystemInfoResponse struct {
 	model.SystemInfo
+	SystemVersion SystemVersion
 }
 
-// SystemInfoRequest request by enable/disable SystemInfo
+// SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
-	InstallID string
+	EnableCollection bool
+}
+
+// SystemVersion contains KubeVela version
+type SystemVersion struct {
+	KubeVelaVersion string `json:"KubeVelaVersion"`
+	GitVersion      string `json:"gitVersion"`
 }

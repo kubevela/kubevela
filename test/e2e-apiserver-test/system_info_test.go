@@ -17,6 +17,7 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 
@@ -25,6 +26,20 @@ import (
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
+
+func put(path string, body interface{}) *http.Response {
+	b, err := json.Marshal(body)
+	Expect(err).Should(BeNil())
+
+	req, err := http.NewRequest(http.MethodPut, baseURL+path, bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	Expect(err).Should(BeNil())
+	Expect(res).ShouldNot(BeNil())
+	Expect(res.StatusCode).Should(Equal(200))
+	return res
+}
 
 var _ = Describe("Test system info  rest api", func() {
 	BeforeEach(func() {
@@ -80,10 +95,7 @@ var _ = Describe("Test system info  rest api", func() {
 		Expect(info.EnableCollection).Should(BeEquivalentTo(true))
 		installID := info.InstallID
 
-		response = post("/api/v1/system_info/disable", apisv1.SystemInfoRequest{InstallID: installID})
-		Expect(response).ShouldNot(BeNil())
-		Expect(response.StatusCode).Should(Equal(200))
-
+		response = put("/api/v1/system_info/", apisv1.SystemInfoRequest{EnableCollection: false})
 		info = apisv1.SystemInfoResponse{}
 		err = json.NewDecoder(response.Body).Decode(&info)
 		Expect(err).Should(BeNil())
@@ -101,16 +113,16 @@ var _ = Describe("Test system info  rest api", func() {
 		Expect(checkInfo.InstallID).Should(BeEquivalentTo(installID))
 		Expect(checkInfo.EnableCollection).Should(BeEquivalentTo(false))
 
-		response = post("/api/v1/system_info/enable", apisv1.SystemInfoRequest{InstallID: installID})
+		response = put("/api/v1/system_info/", apisv1.SystemInfoRequest{EnableCollection: true})
 		Expect(response).ShouldNot(BeNil())
 		Expect(response.StatusCode).Should(Equal(200))
 
-		var ebableInfo apisv1.SystemInfoResponse
-		err = json.NewDecoder(response.Body).Decode(&ebableInfo)
+		var enableInfo apisv1.SystemInfoResponse
+		err = json.NewDecoder(response.Body).Decode(&enableInfo)
 		Expect(err).Should(BeNil())
-		Expect(len(ebableInfo.InstallID)).ShouldNot(BeEquivalentTo(0))
-		Expect(ebableInfo.EnableCollection).Should(BeEquivalentTo(true))
-		Expect(ebableInfo.InstallID).Should(BeEquivalentTo(installID))
+		Expect(len(enableInfo.InstallID)).ShouldNot(BeEquivalentTo(0))
+		Expect(enableInfo.EnableCollection).Should(BeEquivalentTo(true))
+		Expect(enableInfo.InstallID).Should(BeEquivalentTo(installID))
 
 		getAgainRes := get("/api/v1/system_info/")
 		Expect(getRes).ShouldNot(BeNil())

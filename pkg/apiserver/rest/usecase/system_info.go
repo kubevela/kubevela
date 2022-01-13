@@ -19,6 +19,8 @@ package usecase
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/version"
+
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -31,9 +33,8 @@ import (
 // SystemInfoUsecase is usecase for systemInfoCollection
 type SystemInfoUsecase interface {
 	GetSystemInfo(ctx context.Context) (*v1.SystemInfoResponse, error)
-	EnableCollection(ctx context.Context) (*v1.SystemInfoResponse, error)
-	DisableCollection(ctx context.Context) (*v1.SystemInfoResponse, error)
 	DeleteSystemInfo(ctx context.Context) error
+	UpdateSystemInfo(ctx context.Context, sysInfo v1.SystemInfoRequest) (*v1.SystemInfoResponse, error)
 }
 
 type systemInfoUsecaseImpl struct {
@@ -54,7 +55,7 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	}
 	if len(entities) != 0 {
 		info := entities[0].(*model.SystemInfo)
-		return &v1.SystemInfoResponse{SystemInfo: *info}, nil
+		return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 	}
 	installID := rand.String(16)
 	info.InstallID = installID
@@ -63,39 +64,20 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SystemInfoResponse{SystemInfo: *info}, nil
+	return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 }
 
-func (u systemInfoUsecaseImpl) EnableCollection(ctx context.Context) (*v1.SystemInfoResponse, error) {
+func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.SystemInfoRequest) (*v1.SystemInfoResponse, error) {
 	info, err := u.GetSystemInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if info.EnableCollection {
-		return info, nil
-	}
-	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: true}
+	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: sysInfo.EnableCollection}
 	err = u.ds.Put(ctx, &modifiedInfo)
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo}, nil
-}
-
-func (u systemInfoUsecaseImpl) DisableCollection(ctx context.Context) (*v1.SystemInfoResponse, error) {
-	info, err := u.GetSystemInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !info.EnableCollection {
-		return info, nil
-	}
-	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: false}
-	err = u.ds.Put(ctx, &modifiedInfo)
-	if err != nil {
-		return nil, err
-	}
-	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo}, nil
+	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 }
 
 func (u systemInfoUsecaseImpl) DeleteSystemInfo(ctx context.Context) error {
