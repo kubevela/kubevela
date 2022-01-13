@@ -45,6 +45,7 @@ var collectorGroup = []prometheus.Collector{
 	ClientRequestHistogram,
 	ApplicationReconcileTimeHistogram,
 	ApplyComponentTimeHistogram,
+	ResourceTrackerNumberGauge,
 }
 
 func init() {
