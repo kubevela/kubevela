@@ -1,4 +1,14 @@
-package i18n
+package plugins
+
+// Language is used to define the language
+type Language string
+
+const (
+	// En is English, the default language
+	En Language = "English"
+	// Zh is Chinese
+	Zh Language = "Chinese"
+)
 
 // Definitions are all the words and phrases for internationalization in cli and docs
 var Definitions = map[string]map[Language]string{
@@ -45,5 +55,9 @@ var Definitions = map[string]map[Language]string{
 	"Properties": {
 		Zh: "属性",
 		En: "Properties",
+	},
+	"Terraform_configuration_for_Alibaba_Cloud_ACK_cluster": {
+		Zh: "用于部署阿里云 ACK 集群的组件说明",
+		En: "Terraform configuration for Alibaba Cloud ACK cluster",
 	},
 }

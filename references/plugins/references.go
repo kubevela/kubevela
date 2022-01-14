@@ -38,7 +38,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
-	. "github.com/oam-dev/kubevela/references/i18n" // nolint:golint
 )
 
 const (
@@ -346,6 +345,21 @@ spec:
         writeConnectionSecretToRef:
           name: db-conn
 `,
+
+	"alibaba-ack": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ack-cloud-source
+spec:
+  components:
+    - name: ack-cluster
+      type: alibaba-ack
+      properties:
+        writeConnectionSecretToRef:
+          name: ack-conn
+          namespace: vela-system
+`,
 }
 
 // BaseOpenAPIV3Template is Standard OpenAPIV3 Template
@@ -481,7 +495,12 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
 		sampleContent := ref.generateSample(capName)
 
-		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], c.Description)
+		descriptionI18N := c.Description
+		des := strings.ReplaceAll(c.Description, " ", "_")
+		if v, ok := Definitions[des]; ok {
+			descriptionI18N = v[lang]
+		}
+		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], descriptionI18N)
 		if sampleContent != "" {
 			sample = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Samples"][lang], sampleContent)
 		}
@@ -518,7 +537,7 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 	if lang == "" {
 		lang = En
 	}
-	refContent += fmt.Sprintf(" %s | %s | %s | %s | %s \n", Definitions["Name"][lang], Definitions["Type"][lang], Definitions["Description"][lang], Definitions["Required"][lang], Definitions["Default"][lang])
+	refContent += fmt.Sprintf(" %s | %s | %s | %s | %s \n", Definitions["Name"][lang], Definitions["Description"][lang], Definitions["Type"][lang], Definitions["Required"][lang], Definitions["Default"][lang])
 	refContent += " ------------ | ------------- | ------------- | ------------- | ------------- \n"
 	switch category {
 	case types.CUECategory:
