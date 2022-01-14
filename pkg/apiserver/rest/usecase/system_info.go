@@ -55,7 +55,7 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	}
 	if len(entities) != 0 {
 		info := entities[0].(*model.SystemInfo)
-		return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
+		return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 	}
 	installID := rand.String(16)
 	info.InstallID = installID
@@ -64,7 +64,7 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
+	return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 }
 
 func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.SystemInfoRequest) (*v1.SystemInfoResponse, error) {
@@ -72,12 +72,12 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	if err != nil {
 		return nil, err
 	}
-	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: sysInfo.EnableCollection}
+	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: sysInfo.EnableCollection, BaseModel: model.BaseModel{CreateTime: info.CreateTime}}
 	err = u.ds.Put(ctx, &modifiedInfo)
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo, SystemVersion: v1.SystemVersion{KubeVelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
+	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo, SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 }
 
 func (u systemInfoUsecaseImpl) DeleteSystemInfo(ctx context.Context) error {
