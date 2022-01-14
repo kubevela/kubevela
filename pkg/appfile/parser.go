@@ -32,6 +32,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -75,6 +77,12 @@ func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryM
 
 // GenerateAppFile converts an application to an Appfile
 func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
+	if ctx, ok := ctx.(monitorContext.Context); ok {
+		subCtx := ctx.Fork("generate-app-file", monitorContext.DurationMetric(func(v float64) {
+			metrics.ParseAppFileDurationHistogram.WithLabelValues("application").Observe(v)
+		}))
+		defer subCtx.Commit("finish generate appFile")
+	}
 	ns := app.Namespace
 	appName := app.Name
 

@@ -42,6 +42,11 @@ import (
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
+var (
+	// DisableRecorder optimize workflow by disable recorder
+	DisableRecorder = false
+)
+
 const (
 	// minWorkflowBackoffWaitTime is the min time to wait before reconcile workflow again
 	minWorkflowBackoffWaitTime = 1
@@ -179,6 +184,9 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
+	if DisableRecorder {
+		return nil
+	}
 	data, err := json.Marshal(w.app)
 	if err != nil {
 		return err
@@ -440,7 +448,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
 			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
 				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
-					metrics.StepDurationSummary.WithLabelValues(e.app.Namespace+"/"+e.app.Name, e.status.AppRevision, stepStatus.Name, stepStatus.Type).Observe(v)
+					metrics.StepDurationHistogram.WithLabelValues("application", stepStatus.Type).Observe(v)
 				}))
 			},
 		})

@@ -19,10 +19,12 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,10 +34,16 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	version2 "github.com/oam-dev/kubevela/version"
+)
+
+var (
+	// MarkWithProbability optimize ResourceTracker gc for legacy resource by reducing the frequency of outdated rt check
+	MarkWithProbability = 0.1
 )
 
 // GCOption option for gc
@@ -134,7 +142,17 @@ type gcHandler struct {
 	cfg *gcConfig
 }
 
+func (h *gcHandler) monitor(stage string) func() {
+	begin := time.Now()
+	return func() {
+		v := time.Since(begin).Seconds()
+		metrics.GCResourceTrackersDurationHistogram.WithLabelValues(stage).Observe(v)
+	}
+}
+
 func (h *gcHandler) Init() {
+	cb := h.monitor("init")
+	defer cb()
 	h.cache.registerResourceTrackers(append(h._historyRTs, h._currentRT, h._rootRT)...)
 }
 
@@ -145,6 +163,9 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 	} else {
 		if h.cfg.passive {
 			inactiveRTs = []*v1beta1.ResourceTracker{}
+			if rand.Float64() > MarkWithProbability { //nolint
+				return inactiveRTs
+			}
 			for _, rt := range h._historyRTs {
 				if rt != nil {
 					inactive := true
@@ -168,6 +189,8 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 }
 
 func (h *gcHandler) Mark(ctx context.Context) error {
+	cb := h.monitor("mark")
+	defer cb()
 	inactiveRTs := h.scan(ctx)
 	for _, rt := range inactiveRTs {
 		if rt != nil && rt.GetDeletionTimestamp() == nil {
@@ -203,6 +226,8 @@ func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, 
 }
 
 func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1.ManagedResource, err error) {
+	cb := h.monitor("sweep")
+	defer cb()
 	finished = true
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil {
@@ -238,6 +263,8 @@ func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.Reso
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {
+	cb := h.monitor("finalize")
+	defer cb()
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil && meta.FinalizerExists(rt, resourcetracker.Finalizer) {
 			if err := h.recycleResourceTracker(ctx, rt); err != nil {
@@ -249,6 +276,8 @@ func (h *gcHandler) Finalize(ctx context.Context) error {
 }
 
 func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.Context) error {
+	cb := h.monitor("comp-rev")
+	defer cb()
 	if h._crRT == nil {
 		return nil
 	}
@@ -326,7 +355,7 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 	for cluster := range clusters {
 		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
 		rts := &unstructured.UnstructuredList{}
-		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTracker"))
+		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTrackerList"))
 		if err = h.Client.List(_ctx, rts, client.MatchingLabels(map[string]string{
 			oam.LabelAppName:      h.app.Name,
 			oam.LabelAppNamespace: h.app.Namespace,

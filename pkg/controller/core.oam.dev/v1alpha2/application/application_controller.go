@@ -22,6 +22,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,10 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/pkg/errors"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -49,12 +48,14 @@ import (
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -68,6 +69,13 @@ const (
 
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
+)
+
+var (
+	// EnableReconcileLoopReduction optimize application reconcile loop by fusing phase transition
+	EnableReconcileLoopReduction = false
+	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
+	EnableResourceTrackerDeleteOnlyTrigger = true
 )
 
 // Reconciler reconciles an Application object
@@ -91,8 +99,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	defer cancel()
 
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Reconcile application")
-	defer logCtx.Commit("Reconcile application")
+	logCtx.Info("Start reconcile application")
+	defer logCtx.Commit("End reconcile application")
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -104,7 +112,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
 
-	logCtx.AddTag("resource_version", app.ResourceVersion)
+	timeReporter := timeReconcile(app)
+	defer timeReporter()
+
+	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
@@ -128,7 +139,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
 	if err != nil {
-		logCtx.Error(err, "Failed to parse application")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
 	}
@@ -156,7 +166,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully apply application revision")
 
-	externalPolicies, err := appFile.PrepareWorkflowAndPolicy()
+	externalPolicies, err := appFile.PrepareWorkflowAndPolicy(logCtx)
 	if err != nil {
 		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
@@ -220,7 +230,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		logCtx.Info("Application manifests has applied by workflow successfully")
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+		if !EnableReconcileLoopReduction {
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+		}
 	case common.WorkflowStateFinished:
 		logCtx.Info("Workflow state=Finished")
 		if status := app.Status.Workflow; status != nil && status.Terminated {
@@ -258,6 +270,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
+	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
+		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("-").Observe(v)
+	}))
+	defer subCtx.Commit("finish gc resourceTrackers")
+
 	var options []resourcekeeper.GCOption
 	if !gcOutdated {
 		options = append(options, resourcekeeper.DisableMarkStageGCOption{}, resourcekeeper.DisableGCComponentRevisionOption{}, resourcekeeper.DisableLegacyGCOption{})
@@ -318,12 +335,21 @@ func (r *Reconciler) result(err error) *reconcileResult {
 func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) (bool, ctrl.Result, error) {
 	if app.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
+				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "add").Observe(v)
+			}))
+			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
-			ctx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
+			subCtx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
+			endReconcile := !EnableReconcileLoopReduction
+			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
 		if meta.FinalizerExists(app, resourceTrackerFinalizer) {
+			subCtx := ctx.Fork("handle-finalizers", monitorContext.DurationMetric(func(v float64) {
+				metrics.HandleFinalizersDurationHistogram.WithLabelValues("application", "remove").Observe(v)
+			}))
+			defer subCtx.Commit("finish remove finalizers")
 			rootRT, currentRT, historyRTs, cvRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return r.result(err).end(true)
@@ -335,6 +361,9 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && cvRT == nil {
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
+			}
+			if wfContext.EnableInMemoryContext {
+				wfContext.MemStore.DeleteInMemoryContext(app.Name)
 			}
 			return true, result, err
 		}
@@ -506,6 +535,9 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLimitingInterface) {
 	rt, ok := obj.(*v1beta1.ResourceTracker)
 	if ok {
+		if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
+			return
+		}
 		if labels := rt.Labels; labels != nil {
 			var request reconcile.Request
 			request.Name = labels[oam.LabelAppName]
@@ -514,5 +546,14 @@ func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLi
 				limitingInterface.Add(request)
 			}
 		}
+	}
+}
+
+func timeReconcile(app *v1beta1.Application) func() {
+	t := time.Now()
+	beginPhase := string(app.Status.Phase)
+	return func() {
+		v := time.Since(t).Seconds()
+		metrics.ApplicationReconcileTimeHistogram.WithLabelValues(beginPhase, string(app.Status.Phase)).Observe(v)
 	}
 }

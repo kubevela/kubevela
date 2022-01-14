@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,6 +101,7 @@ func CreateComponentRevisionResourceTracker(ctx context.Context, cli client.Clie
 
 // ListApplicationResourceTrackers list resource trackers for application with all historyRTs sorted by version number
 func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
+	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
 	rts := v1beta1.ResourceTrackerList{}
 	if err = cli.List(ctx, &rts, client.MatchingLabels{
 		oam.LabelAppName:      app.Name,
@@ -141,12 +144,16 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 
 // RecordManifestInResourceTracker records resources in ResourceTracker
 func RecordManifestInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifest *unstructured.Unstructured, metaOnly bool) error {
-	rt.AddManagedResource(manifest, metaOnly)
+	if updated := rt.AddManagedResource(manifest, metaOnly); !updated {
+		return nil
+	}
 	return cli.Update(ctx, rt)
 }
 
 // DeletedManifestInResourceTracker marks resources as deleted in resourcetracker, if remove is true, resources will be removed from resourcetracker
 func DeletedManifestInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifest *unstructured.Unstructured, remove bool) error {
-	rt.DeleteManagedResource(manifest, remove)
+	if updated := rt.DeleteManagedResource(manifest, remove); !updated {
+		return nil
+	}
 	return cli.Update(ctx, rt)
 }

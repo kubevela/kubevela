@@ -38,6 +38,7 @@ import (
 )
 
 func TestResourceKeeperGarbageCollect(t *testing.T) {
+	MarkWithProbability = 1.0
 	r := require.New(t)
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	ctx := context.Background()
