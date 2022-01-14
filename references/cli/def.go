@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	. "github.com/oam-dev/kubevela/references/i18n" // nolint:golint
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -433,14 +434,14 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			ctx := context.Background()
 			ref.DefinitionName = args[0]
 			pathEn := plugins.KubeVelaIOTerraformPath
-			ref.I18N = plugins.En
+			ref.I18N = En
 			if err := ref.GenerateReferenceDocs(ctx, c, pathEn, namespace); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
 			cmd.Printf("Generated docs in English for %s in %s/%s.md\n", args[0], pathEn, args[0])
 
 			pathZh := plugins.KubeVelaIOTerraformPathZh
-			ref.I18N = plugins.Zh
+			ref.I18N = Zh
 			if err := ref.GenerateReferenceDocs(ctx, c, pathZh, namespace); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}

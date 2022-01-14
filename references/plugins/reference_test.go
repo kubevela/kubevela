@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	. "github.com/oam-dev/kubevela/references/i18n"
 )
 
 var RefTestDir = filepath.Join(TestDir, "ref")

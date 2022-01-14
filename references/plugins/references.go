@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
+	. "github.com/oam-dev/kubevela/references/i18n" // nolint:golint
 )
 
 const (
@@ -76,16 +77,6 @@ type ParseReference struct {
 	Client client.Client
 	I18N   Language `json:"i18n"`
 }
-
-// Language is used to define the language
-type Language string
-
-const (
-	// En is English, the default language
-	En Language = "English"
-	// Zh is Chinese
-	Zh Language = "Chinese"
-)
 
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
@@ -448,6 +439,10 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		capName := c.Name
 		refContent = ""
+		lang := ref.I18N
+		if lang == "" {
+			lang = En
+		}
 		capNameInTitle := ref.makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
@@ -486,20 +481,11 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
 		sampleContent := ref.generateSample(capName)
 
-		switch ref.I18N {
-		case Zh:
-			description = fmt.Sprintf("\n\n## 描述\n\n%s", c.Description)
-			if sampleContent != "" {
-				sample = fmt.Sprintf("\n\n## 示例\n\n%s", sampleContent)
-			}
-			specification = fmt.Sprintf("\n\n## 参数说明\n%s", refContent)
-		case En, "":
-			description = fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
-			if sampleContent != "" {
-				sample = fmt.Sprintf("\n\n## Samples\n\n%s", sampleContent)
-			}
-			specification = fmt.Sprintf("\n\n## Specification\n%s", refContent)
+		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], c.Description)
+		if sampleContent != "" {
+			sample = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Samples"][lang], sampleContent)
 		}
+		specification = fmt.Sprintf("\n\n## %s\n%s", Definitions["Specification"][lang], refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
@@ -517,13 +503,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 
 func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	const alibabaCloud = "alibaba-"
-	var AlibabaCloudTitle string
-	switch ref.I18N {
-	case Zh:
-		AlibabaCloudTitle = "阿里云"
-	case En, "":
-		AlibabaCloudTitle = "Alibaba Cloud"
-	}
+	var AlibabaCloudTitle = Definitions["AlibabaCloud"][ref.I18N]
 	if strings.HasPrefix(title, alibabaCloud) {
 		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
 		return fmt.Sprintf("%s %s", AlibabaCloudTitle, strings.ToUpper(cloudResource))
@@ -534,12 +514,11 @@ func (ref *MarkdownReference) makeReadableTitle(title string) string {
 // prepareParameter prepares the table content for each property
 func (ref *MarkdownReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) string {
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	switch ref.I18N {
-	case Zh:
-		refContent += " 名字 | 描述 | 类型 | 是否必须 | 默认值 \n"
-	case En, "":
-		refContent += " Name | Description | Type | Required | Default \n"
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
 	}
+	refContent += fmt.Sprintf(" %s | %s | %s | %s | %s \n", Definitions["Name"][lang], Definitions["Type"][lang], Definitions["Description"][lang], Definitions["Required"][lang], Definitions["Default"][lang])
 	refContent += " ------------ | ------------- | ------------- | ------------- | ------------- \n"
 	switch category {
 	case types.CUECategory:
@@ -575,12 +554,11 @@ func (ref *MarkdownReference) prepareTerraformOutputs(tableName string, paramete
 		return ""
 	}
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	switch ref.I18N {
-	case Zh:
-		refContent += " 名字 | 描述 \n"
-	case En, "":
-		refContent += " Name | Description \n"
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
 	}
+	refContent += fmt.Sprintf(" %s | %s \n", Definitions["Name"][lang], Definitions["Description"][lang])
 	refContent += " ------------ | ------------- \n"
 
 	for _, p := range parameterList {
@@ -848,14 +826,12 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		propertiesTitle                              string
 		outputsTableName                             string
 	)
-	switch ref.I18N {
-	case Zh:
-		propertiesTitle = "属性"
-		outputsTableName = fmt.Sprintf("%s %s\n\n如果设置了 `writeConnectionSecretToRef`，一个 Kubernetes Secret 将会被创建，并且，它的数据里有这些键（key）：", strings.Repeat("#", 3), "输出")
-	case En, "":
-		propertiesTitle = "Properties"
-		outputsTableName = fmt.Sprintf("%s %s\n\nIf `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:", strings.Repeat("#", 3), "Outputs")
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
 	}
+	outputsTableName = fmt.Sprintf("%s %s\n\n%s", strings.Repeat("#", 3), Definitions["Outputs"][lang], Definitions["WriteConnectionSecretToRefIntroduction"][lang])
+	propertiesTitle = Definitions["Properties"][lang]
 
 	writeConnectionSecretToRefReferenceParameter.Name = terraform.TerraformWriteConnectionSecretToRefName
 	writeConnectionSecretToRefReferenceParameter.PrintableType = terraform.TerraformWriteConnectionSecretToRefType
