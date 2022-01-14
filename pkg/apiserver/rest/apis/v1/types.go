@@ -987,3 +987,20 @@ type ListRevisionsResponse struct {
 type DetailRevisionResponse struct {
 	model.ApplicationRevision
 }
+
+// SystemInfoResponse get SystemInfo
+type SystemInfoResponse struct {
+	model.SystemInfo
+	SystemVersion SystemVersion
+}
+
+// SystemInfoRequest request by update SystemInfo
+type SystemInfoRequest struct {
+	EnableCollection bool
+}
+
+// SystemVersion contains KubeVela version
+type SystemVersion struct {
+	KubeVelaVersion string `json:"KubeVelaVersion"`
+	GitVersion      string `json:"gitVersion"`
+}
