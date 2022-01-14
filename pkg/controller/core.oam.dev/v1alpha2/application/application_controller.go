@@ -431,22 +431,16 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Type: &v1beta1.ResourceTracker{},
 		}, ctrlHandler.Funcs{
 			CreateFunc: func(createEvent ctrlEvent.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !EnableResourceTrackerDeleteOnlyTrigger {
-					handleResourceTracker(createEvent.Object, limitingInterface)
-				}
+				handleResourceTracker(createEvent.Object, limitingInterface)
 			},
 			UpdateFunc: func(updateEvent ctrlEvent.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !EnableResourceTrackerDeleteOnlyTrigger {
-					handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
-				}
+				handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
 			},
 			DeleteFunc: func(deleteEvent ctrlEvent.DeleteEvent, limitingInterface workqueue.RateLimitingInterface) {
 				handleResourceTracker(deleteEvent.Object, limitingInterface)
 			},
 			GenericFunc: func(genericEvent ctrlEvent.GenericEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !EnableResourceTrackerDeleteOnlyTrigger {
-					handleResourceTracker(genericEvent.Object, limitingInterface)
-				}
+				handleResourceTracker(genericEvent.Object, limitingInterface)
 			},
 		}).
 		WithOptions(controller.Options{
@@ -541,6 +535,9 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 func handleResourceTracker(obj client.Object, limitingInterface workqueue.RateLimitingInterface) {
 	rt, ok := obj.(*v1beta1.ResourceTracker)
 	if ok {
+		if EnableResourceTrackerDeleteOnlyTrigger && rt.GetDeletionTimestamp() == nil {
+			return
+		}
 		if labels := rt.Labels; labels != nil {
 			var request reconcile.Request
 			request.Name = labels[oam.LabelAppName]
