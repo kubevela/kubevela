@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -47,6 +46,11 @@ import (
 	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+)
+
+var (
+	// DisableResourceApplyDoubleCheck optimize applyComponentFunc by disable post resource existing check after dispatch
+	DisableResourceApplyDoubleCheck = false
 )
 
 // GenerateApplicationSteps generate application steps.
@@ -187,7 +191,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if !isHealth {
 			return nil, nil, false, nil
 		}
-		if optimize.WorkflowOptimizer.DisableResourceApplyDoubleCheck {
+		if DisableResourceApplyDoubleCheck {
 			return readyWorkload, readyTraits, true, nil
 		}
 		workload, traits, err := getComponentResources(ctx, manifest, wl.SkipApplyWorkload, h.r.Client)

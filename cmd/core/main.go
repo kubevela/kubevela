@@ -46,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
@@ -130,8 +129,7 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
-	flag.StringVar(&ctrlClient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --cached-resources=Deployment.v1.apps,Job.v1.batch")
-	optimize.AddOptimizeFlags()
+	standardcontroller.AddOptimizeFlags()
 
 	flag.Parse()
 	// setup logging

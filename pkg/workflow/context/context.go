@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 )
 
 const (
@@ -200,8 +199,8 @@ func (wf *WorkflowContext) writeToStore() error {
 
 func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
-	if optimize.WorkflowOptimizer.EnableInMemoryContext {
-		optimize.WorkflowOptimizer.UpdateInMemoryContext(wf.store)
+	if EnableInMemoryContext {
+		MemStore.UpdateInMemoryContext(wf.store)
 	} else if err := wf.cli.Update(ctx, wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
 			return wf.cli.Create(ctx, wf.store)
@@ -334,8 +333,8 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 			Controller: pointer.BoolPtr(true),
 		},
 	})
-	if optimize.WorkflowOptimizer.EnableInMemoryContext {
-		optimize.WorkflowOptimizer.GetOrCreateInMemoryContext(&store)
+	if EnableInMemoryContext {
+		MemStore.GetOrCreateInMemoryContext(&store)
 	} else if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
 		if kerrors.IsNotFound(err) {
 			if err := cli.Create(ctx, &store); err != nil {
@@ -365,8 +364,8 @@ func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	var store corev1.ConfigMap
 	store.Name = generateStoreName(app)
 	store.Namespace = ns
-	if optimize.WorkflowOptimizer.EnableInMemoryContext {
-		optimize.WorkflowOptimizer.GetOrCreateInMemoryContext(&store)
+	if EnableInMemoryContext {
+		MemStore.GetOrCreateInMemoryContext(&store)
 	} else if err := cli.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
 		Name:      generateStoreName(app),

@@ -52,10 +52,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -69,6 +69,13 @@ const (
 
 	// resourceTrackerFinalizer is to delete the resource tracker of the latest app revision.
 	resourceTrackerFinalizer = "app.oam.dev/resource-tracker-finalizer"
+)
+
+var (
+	// EnableReconcileLoopReduction optimize application reconcile loop by fusing phase transition
+	EnableReconcileLoopReduction = false
+	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
+	EnableResourceTrackerDeleteOnlyTrigger = true
 )
 
 // Reconciler reconciles an Application object
@@ -223,7 +230,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		logCtx.Info("Application manifests has applied by workflow successfully")
-		if !optimize.ControllerOptimizer.EnableReconcileLoopReduction {
+		if !EnableReconcileLoopReduction {
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
 		}
 	case common.WorkflowStateFinished:
@@ -334,7 +341,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			defer subCtx.Commit("finish add finalizers")
 			meta.AddFinalizer(app, resourceTrackerFinalizer)
 			subCtx.Info("Register new finalizer for application", "finalizer", resourceTrackerFinalizer)
-			endReconcile := !optimize.ControllerOptimizer.EnableReconcileLoopReduction
+			endReconcile := !EnableReconcileLoopReduction
 			return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(endReconcile)
 		}
 	} else {
@@ -355,8 +362,8 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				meta.RemoveFinalizer(app, resourceTrackerFinalizer)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
-			if optimize.WorkflowOptimizer.EnableInMemoryContext {
-				optimize.WorkflowOptimizer.DeleteInMemoryContext(app.Name)
+			if wfContext.EnableInMemoryContext {
+				wfContext.MemStore.DeleteInMemoryContext(app.Name)
 			}
 			return true, result, err
 		}
@@ -424,12 +431,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Type: &v1beta1.ResourceTracker{},
 		}, ctrlHandler.Funcs{
 			CreateFunc: func(createEvent ctrlEvent.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+				if !EnableResourceTrackerDeleteOnlyTrigger {
 					handleResourceTracker(createEvent.Object, limitingInterface)
 				}
 			},
 			UpdateFunc: func(updateEvent ctrlEvent.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+				if !EnableResourceTrackerDeleteOnlyTrigger {
 					handleResourceTracker(updateEvent.ObjectNew, limitingInterface)
 				}
 			},
@@ -437,7 +444,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				handleResourceTracker(deleteEvent.Object, limitingInterface)
 			},
 			GenericFunc: func(genericEvent ctrlEvent.GenericEvent, limitingInterface workqueue.RateLimitingInterface) {
-				if !optimize.ResourceTrackerOptimizer.EnableDeleteOnlyTrigger {
+				if !EnableResourceTrackerDeleteOnlyTrigger {
 					handleResourceTracker(genericEvent.Object, limitingInterface)
 				}
 			},

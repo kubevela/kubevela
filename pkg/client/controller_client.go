@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 )
 
 var (
@@ -52,7 +52,7 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	}
 
 	mClient := &monitorClient{rawClient}
-	if err := optimize.ResourceTrackerOptimizer.AddResourceTrackerCacheIndex(cache); err != nil {
+	if err := resourcetracker.AddResourceTrackerCacheIndex(cache); err != nil {
 		return nil, errors.Wrapf(err, "failed to add app index to ResourceTracker cache")
 	}
 	mCache := &monitorCache{cache}

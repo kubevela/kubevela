@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package optimize
+package resourcetracker
 
 import (
 	"context"
@@ -26,20 +26,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// ResourceTrackerAppIndex identify the index for resourcetracker to accelerate cache retrieval
-const ResourceTrackerAppIndex = "app"
+// appIndex identify the index for resourcetracker to accelerate cache retrieval
+const appIndex = "app"
 
-type resourceTrackerOptimizer struct {
-	OptimizeListOp          bool
-	EnableDeleteOnlyTrigger bool
-	MarkWithProbability     float64
-}
+var (
+	// OptimizeListOp optimize ResourceTracker List Op by adding index
+	OptimizeListOp = true
+)
 
-// ResourceTrackerOptimizer optimizer for ResourceTracker
-var ResourceTrackerOptimizer = resourceTrackerOptimizer{}
-
-func (o *resourceTrackerOptimizer) ExtendResourceTrackerListOption(list client.ObjectList, opts []client.ListOption) []client.ListOption {
-	if !o.OptimizeListOp {
+// ExtendResourceTrackerListOption wraps list rt options by adding indexing fields
+func ExtendResourceTrackerListOption(list client.ObjectList, opts []client.ListOption) []client.ListOption {
+	if !OptimizeListOp {
 		return opts
 	}
 	if _, ok := list.(*v1beta1.ResourceTrackerList); ok {
@@ -49,7 +46,7 @@ func (o *resourceTrackerOptimizer) ExtendResourceTrackerListOption(list client.O
 				appNs := ml[oam.LabelAppNamespace]
 				if appName != "" {
 					opts = append(opts, client.MatchingFields(map[string]string{
-						ResourceTrackerAppIndex: appNs + "/" + appName,
+						appIndex: appNs + "/" + appName,
 					}))
 				}
 			}
@@ -58,11 +55,12 @@ func (o *resourceTrackerOptimizer) ExtendResourceTrackerListOption(list client.O
 	return opts
 }
 
-func (o *resourceTrackerOptimizer) AddResourceTrackerCacheIndex(cache cache.Cache) error {
-	if !o.OptimizeListOp {
+// AddResourceTrackerCacheIndex add indexing configuration for cache
+func AddResourceTrackerCacheIndex(cache cache.Cache) error {
+	if !OptimizeListOp {
 		return nil
 	}
-	return cache.IndexField(context.Background(), &v1beta1.ResourceTracker{}, ResourceTrackerAppIndex, func(obj client.Object) []string {
+	return cache.IndexField(context.Background(), &v1beta1.ResourceTracker{}, appIndex, func(obj client.Object) []string {
 		if labels := obj.GetLabels(); labels != nil {
 			return []string{labels[oam.LabelAppNamespace] + "/" + labels[oam.LabelAppName]}
 		}

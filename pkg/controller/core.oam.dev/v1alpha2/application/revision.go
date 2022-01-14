@@ -49,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 )
 
@@ -68,6 +67,13 @@ const (
 	ManifestKeyScopes = "Scopes"
 	// ComponentRevisionNamespaceContextKey is the key in context that defines the override namespace of component revision
 	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
+)
+
+var (
+	// DisableAllComponentRevision disable component revision creation
+	DisableAllComponentRevision = false
+	// DisableAllApplicationRevision disable application revision creation
+	DisableAllApplicationRevision = false
 )
 
 func contextWithComponentRevisionNamespace(ctx context.Context, ns string) context.Context {
@@ -251,7 +257,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 }
 
 func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
-	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+	if DisableAllApplicationRevision {
 		return nil
 	}
 	if h.app.Status.LatestRevision == nil || len(h.app.Status.LatestRevision.Name) == 0 {
@@ -440,7 +446,7 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 // 1. if update component create a new component Revision
 // 2. check all componentTrait  rely on componentRevName, if yes fill it
 func (h *AppHandler) HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error {
-	if optimize.RevisionOptimizer.DisableAllComponentRevision {
+	if DisableAllComponentRevision {
 		return nil
 	}
 
@@ -668,7 +674,7 @@ func componentManifest2Component(cm *types.ComponentManifest) (*v1alpha2.Compone
 
 // FinalizeAndApplyAppRevision finalise AppRevision object and apply it
 func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
-	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+	if DisableAllApplicationRevision {
 		return nil
 	}
 
@@ -713,7 +719,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 // UpdateAppLatestRevisionStatus only call to update app's latest revision status after applying manifests successfully
 // otherwise it will override previous revision which is used during applying to do GC jobs
 func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
-	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+	if DisableAllApplicationRevision {
 		return nil
 	}
 	if !h.isNewRevision {
@@ -739,7 +745,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context) error {
 
 // cleanUpApplicationRevision check all appRevisions of the application, remove them if the number of them exceed the limit
 func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
-	if optimize.RevisionOptimizer.DisableAllApplicationRevision {
+	if DisableAllApplicationRevision {
 		return nil
 	}
 	listOpts := []client.ListOption{
@@ -826,7 +832,7 @@ func (h historiesByRevision) Less(i, j int) bool {
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
-	if optimize.RevisionOptimizer.DisableAllComponentRevision {
+	if DisableAllComponentRevision {
 		return nil
 	}
 	// collect component revision in use

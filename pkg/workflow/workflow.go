@@ -37,10 +37,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/optimize"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+)
+
+var (
+	// DisableRecorder optimize workflow by disable recorder
+	DisableRecorder = false
 )
 
 const (
@@ -180,7 +184,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 // Trace record the workflow execute history.
 func (w *workflow) Trace() error {
-	if optimize.WorkflowOptimizer.DisableRecorder {
+	if DisableRecorder {
 		return nil
 	}
 	data, err := json.Marshal(w.app)

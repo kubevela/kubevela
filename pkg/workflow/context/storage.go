@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package optimize
+package context
 
 import (
 	"fmt"
@@ -23,21 +23,22 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type workflowOptimizer struct {
-	DisableRecorder                 bool
-	EnableInMemoryContext           bool
-	DisableResourceApplyDoubleCheck bool
+var (
+	// EnableInMemoryContext optimize workflow context storage by storing it in memory instead of etcd
+	EnableInMemoryContext = false
+)
 
+type inMemoryContextStorage struct {
 	mu       sync.Mutex
 	contexts map[string]*v1.ConfigMap
 }
 
-// WorkflowOptimizer optimizer for Workflow
-var WorkflowOptimizer = &workflowOptimizer{
+// MemStore store in-memory context
+var MemStore = &inMemoryContextStorage{
 	contexts: map[string]*v1.ConfigMap{},
 }
 
-func (o *workflowOptimizer) getKey(cm *v1.ConfigMap) string {
+func (o *inMemoryContextStorage) getKey(cm *v1.ConfigMap) string {
 	ns := cm.GetNamespace()
 	if ns == "" {
 		ns = "default"
@@ -46,7 +47,7 @@ func (o *workflowOptimizer) getKey(cm *v1.ConfigMap) string {
 	return ns + "/" + name
 }
 
-func (o *workflowOptimizer) GetOrCreateInMemoryContext(cm *v1.ConfigMap) {
+func (o *inMemoryContextStorage) GetOrCreateInMemoryContext(cm *v1.ConfigMap) {
 	if obj := o.GetInMemoryContext(cm.Name, cm.Namespace); obj != nil {
 		obj.DeepCopyInto(cm)
 	} else {
@@ -54,24 +55,24 @@ func (o *workflowOptimizer) GetOrCreateInMemoryContext(cm *v1.ConfigMap) {
 	}
 }
 
-func (o *workflowOptimizer) GetInMemoryContext(name, ns string) *v1.ConfigMap {
+func (o *inMemoryContextStorage) GetInMemoryContext(name, ns string) *v1.ConfigMap {
 	return o.contexts[ns+"/"+name]
 }
 
-func (o *workflowOptimizer) CreateInMemoryContext(cm *v1.ConfigMap) {
+func (o *inMemoryContextStorage) CreateInMemoryContext(cm *v1.ConfigMap) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	cm.Data = map[string]string{}
 	o.contexts[o.getKey(cm)] = cm
 }
 
-func (o *workflowOptimizer) UpdateInMemoryContext(cm *v1.ConfigMap) {
+func (o *inMemoryContextStorage) UpdateInMemoryContext(cm *v1.ConfigMap) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.contexts[o.getKey(cm)] = cm
 }
 
-func (o *workflowOptimizer) DeleteInMemoryContext(appName string) {
+func (o *inMemoryContextStorage) DeleteInMemoryContext(appName string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	key := fmt.Sprintf("workflow-%s-context", appName)
