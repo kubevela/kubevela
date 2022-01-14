@@ -30,13 +30,12 @@ import (
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -130,6 +129,7 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
+	standardcontroller.AddOptimizeFlags()
 
 	flag.Parse()
 	// setup logging
@@ -213,7 +213,7 @@ func main() {
 		// of controller-runtime. Additionally, set this value will affect not only application
 		// controller but also all other controllers like definition controller. Therefore, for
 		// functionalities like state-keep, they should be invented in other ways.
-		ClientDisableCacheFor: []client.Object{&appsv1.ControllerRevision{}},
+		NewClient: ctrlClient.DefaultNewControllerClient,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")

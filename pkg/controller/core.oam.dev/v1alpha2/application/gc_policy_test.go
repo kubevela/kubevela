@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
 var _ = Describe("Test Application with GC options", func() {
@@ -107,6 +108,7 @@ var _ = Describe("Test Application with GC options", func() {
 		}
 
 		It("Each update will create a new workload and trait object", func() {
+			resourcekeeper.MarkWithProbability = 1.0
 			app := baseApp.DeepCopy()
 			app.SetNamespace(ns.Name)
 			app.SetName("app-with-worker-ingress")
@@ -391,6 +393,7 @@ var _ = Describe("Test Application with GC options", func() {
 		})
 
 		It("Each update will only update workload", func() {
+			resourcekeeper.MarkWithProbability = 1.0
 			app := baseApp.DeepCopy()
 			app.Spec.Components[0].Traits = nil
 			app.Spec.Components[0].Name = "only-work"

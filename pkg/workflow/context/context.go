@@ -199,7 +199,9 @@ func (wf *WorkflowContext) writeToStore() error {
 
 func (wf *WorkflowContext) sync() error {
 	ctx := context.Background()
-	if err := wf.cli.Update(ctx, wf.store); err != nil {
+	if EnableInMemoryContext {
+		MemStore.UpdateInMemoryContext(wf.store)
+	} else if err := wf.cli.Update(ctx, wf.store); err != nil {
 		if kerrors.IsNotFound(err) {
 			return wf.cli.Create(ctx, wf.store)
 		}
@@ -331,7 +333,9 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 			Controller: pointer.BoolPtr(true),
 		},
 	})
-	if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
+	if EnableInMemoryContext {
+		MemStore.GetOrCreateInMemoryContext(&store)
+	} else if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
 		if kerrors.IsNotFound(err) {
 			if err := cli.Create(ctx, &store); err != nil {
 				return nil, err
@@ -358,7 +362,11 @@ func newContext(cli client.Client, ns, app string, appUID types.UID) (*WorkflowC
 // LoadContext load workflow context from store.
 func LoadContext(cli client.Client, ns, app string) (Context, error) {
 	var store corev1.ConfigMap
-	if err := cli.Get(context.Background(), client.ObjectKey{
+	store.Name = generateStoreName(app)
+	store.Namespace = ns
+	if EnableInMemoryContext {
+		MemStore.GetOrCreateInMemoryContext(&store)
+	} else if err := cli.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
 		Name:      generateStoreName(app),
 	}, &store); err != nil {
