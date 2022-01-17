@@ -257,7 +257,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("docker.io/test-namespace/test-repo:test-tag"))
 
-		By("Test HandleApplicationWebhook function with jfrog payload without header of imageURL")
+		By("Test HandleApplicationWebhook function with jfrog payload without header of X-JFrogURL")
 		jfrogTrigger, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, apisv1.CreateApplicationTriggerRequest{
 			Name:          "test-jfrog",
 			PayloadType:   "jfrog",
@@ -286,11 +286,11 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect((*comp.Properties)["image"]).Should(Equal("test-repo/test-image:test-tag"))
 
-		By("Test HandleApplicationWebhook function with jfrog payload with header of imageURL")
+		By("Test HandleApplicationWebhook function with jfrog payload with header of X-JFrogURL")
 		httpreq, err = http.NewRequest("post", "/", bytes.NewBuffer(body))
 		Expect(err).Should(BeNil())
 		httpreq.Header.Add(restful.HEADER_ContentType, "application/json")
-		httpreq.Header.Add("imageURL", "test-addr")
+		httpreq.Header.Add("X-JFrogURL", "test-addr")
 		_, err = webhookUsecase.HandleApplicationWebhook(context.TODO(), jfrogTrigger.Token, restful.NewRequest(httpreq))
 		Expect(err).Should(BeNil())
 		comp, err = appUsecase.GetApplicationComponent(context.TODO(), appModel, "component-name-webhook")
