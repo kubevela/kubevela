@@ -23,6 +23,7 @@
 		disable?: bool
 		properties: {...}
 	}]
+	externalRevision?: string
 }
 
 #ReadPlacementDecisions: {

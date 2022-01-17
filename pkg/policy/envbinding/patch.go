@@ -66,6 +66,11 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 		return nil, errors.Wrapf(err, "failed to merge component properties")
 	}
 
+	// merge component external revision
+	if patch.ExternalRevision != "" {
+		newComponent.ExternalRevision = patch.ExternalRevision
+	}
+
 	// prepare traits
 	traitMaps := map[string]*common.ApplicationTrait{}
 	var traitOrders []string
