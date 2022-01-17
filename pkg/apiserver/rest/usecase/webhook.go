@@ -444,7 +444,7 @@ func (c *webhookUsecaseImpl) newJFrogHandler(req *restful.Request) (webhookHandl
 		return nil, bcode.ErrInvalidWebhookPayloadBody
 	}
 	// jfrog should use request header to give URL, it is not exist in request body
-	jfrogReq.Data.URL = req.HeaderParameter("imageURL")
+	jfrogReq.Data.URL = req.HeaderParameter("X-JFrogURL")
 	return &jfrogHandlerImpl{
 		req: jfrogReq,
 		w:   c,
