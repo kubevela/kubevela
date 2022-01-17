@@ -41,6 +41,9 @@ var (
 
 	// ErrIndexInvalid Error that entity index is invalid
 	ErrIndexInvalid = NewDBError(fmt.Errorf("entity index is invalid"))
+
+	// ErrEntityInvalid Error that entity is invalid
+	ErrEntityInvalid = NewDBError(fmt.Errorf("entity is invalid"))
 )
 
 // DBError datastore error

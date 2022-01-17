@@ -37,6 +37,9 @@ type mongodb struct {
 	database string
 }
 
+// PrimaryKey primary key
+const PrimaryKey = "_name"
+
 // New new mongodb datastore instance
 func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error) {
 	if !strings.HasPrefix(cfg.URL, "mongodb://") {
@@ -67,8 +70,13 @@ func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
 	if err := m.Get(ctx, entity); err == nil {
 		return datastore.ErrRecordExist
 	}
+	model, err := convertToMap(entity)
+	if err != nil {
+		return datastore.ErrEntityInvalid
+	}
+	model[PrimaryKey] = entity.PrimaryKey()
 	collection := m.client.Database(m.database).Collection(entity.TableName())
-	_, err := collection.InsertOne(ctx, entity)
+	_, err = collection.InsertOne(ctx, model)
 	if err != nil {
 		return datastore.NewDBError(err)
 	}
@@ -203,7 +211,7 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 	if entity.Index() != nil {
 		for k, v := range entity.Index() {
 			filter = append(filter, bson.E{
-				Key:   k,
+				Key:   strings.ToLower(k),
 				Value: v,
 			})
 		}
@@ -279,9 +287,21 @@ func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOpti
 }
 
 func makeNameFilter(name string) bson.D {
-	return bson.D{{Key: "name", Value: name}}
+	return bson.D{{Key: PrimaryKey, Value: name}}
 }
 
 func makeEntityUpdate(entity interface{}) bson.M {
 	return bson.M{"$set": entity}
+}
+
+func convertToMap(model interface{}) (bson.M, error) {
+	b, err := bson.Marshal(model)
+	if err != nil {
+		return nil, err
+	}
+	var re = make(bson.M)
+	if err := bson.Unmarshal(b, &re); err != nil {
+		return nil, err
+	}
+	return re, nil
 }
