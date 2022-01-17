@@ -522,6 +522,9 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 
 func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	const alibabaCloud = "alibaba-"
+	if ref.I18N == "" {
+		ref.I18N = En
+	}
 	var AlibabaCloudTitle = Definitions["AlibabaCloud"][ref.I18N]
 	if strings.HasPrefix(title, alibabaCloud) {
 		cloudResource := strings.Replace(title, alibabaCloud, "", 1)

@@ -497,7 +497,7 @@ func TestPrepareTerraformOutputs(t *testing.T) {
 				tableName:     "abc",
 				parameterList: []ReferenceParameter{param},
 			},
-			expect: "\n\nabc\n\nName | Description\n------------ | ------------- \n ID | Identity of the cloud resource\n",
+			expect: "\n\nabc\n\n Name | Description \n ------------ | ------------- \n ID | Identity of the cloud resource\n",
 		},
 	}
 	ref := &MarkdownReference{}
