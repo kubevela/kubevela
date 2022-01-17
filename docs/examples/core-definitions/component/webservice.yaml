@@ -14,8 +14,13 @@ spec:
         ports:
           - port: 8000
           - port: 8001
+            name: exposeport1
             protocol: UDP
-            expose: true 
+            expose: true
+          - port: 8002
+            name: exposeport2
+            protocol: UDP
+            expose: true
         volumeMounts:
           pvc:
             - name: my-mount
