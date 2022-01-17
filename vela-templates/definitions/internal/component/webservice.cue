@@ -186,6 +186,9 @@ template: {
 								{
 									containerPort: v.port
 									protocol:      v.protocol
+									if v.name != _|_ {
+										name: v.name
+									}
 								}}]
 						}
 
