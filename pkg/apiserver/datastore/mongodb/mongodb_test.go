@@ -65,6 +65,8 @@ var _ = Describe("Test mongodb datastore driver", func() {
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 			&model.Application{Name: "kubevela-app-3", Description: "this is demo 3"},
 			&model.Application{Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Workflow{Name: "kubevela-app-workflow", AppPrimaryKey: "kubevela-app-2", Description: "this is workflow"},
+			&model.ApplicationTrigger{Name: "kubevela-app-trigger", AppPrimaryKey: "kubevela-app-2", Token: "token-test", Description: "this is demo 4"},
 		}
 		err := mongodbDriver.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
@@ -83,6 +85,12 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		err := mongodbDriver.Get(context.TODO(), app)
 		Expect(err).Should(BeNil())
 		diff := cmp.Diff(app.Description, "default")
+		Expect(diff).Should(BeEmpty())
+
+		workflow := &model.Workflow{Name: "kubevela-app-workflow", AppPrimaryKey: "kubevela-app-2"}
+		err = mongodbDriver.Get(context.TODO(), workflow)
+		Expect(err).Should(BeNil())
+		diff = cmp.Diff(workflow.Description, "this is workflow")
 		Expect(diff).Should(BeEmpty())
 	})
 
@@ -110,6 +118,14 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		list, err = mongodbDriver.List(context.TODO(), &app, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 4)
+		Expect(diff).Should(BeEmpty())
+
+		var workflow = model.Workflow{
+			AppPrimaryKey: "kubevela-app-2",
+		}
+		list, err = mongodbDriver.List(context.TODO(), &workflow, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 1)
 		Expect(diff).Should(BeEmpty())
 	})
 
