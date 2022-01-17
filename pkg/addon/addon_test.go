@@ -226,6 +226,17 @@ func TestRenderApp(t *testing.T) {
 	assert.Equal(t, len(app.Spec.Components), 2)
 }
 
+func TestRenderAppWithNeedNamespace(t *testing.T) {
+	addon := baseAddon
+	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS)
+	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err, "render app fail")
+	assert.Equal(t, len(app.Spec.Components), 2)
+	for _, c := range app.Spec.Components {
+		assert.NotEqual(t, types.DefaultKubeVelaNS+"-namespace", c.Name, "namespace vela-system should not be rendered")
+	}
+}
+
 func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	addonDeployToRuntime := baseAddon
 	addonDeployToRuntime.Meta.DeployTo = &DeployTo{

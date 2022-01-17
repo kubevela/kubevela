@@ -467,6 +467,10 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 	}
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
 	for _, namespace := range addon.NeedNamespace {
+		// vela-system must exist before rendering vela addon
+		if namespace == types.DefaultKubeVelaNS {
+			continue
+		}
 		comp := common2.ApplicationComponent{
 			Type:       "raw",
 			Name:       fmt.Sprintf("%s-namespace", namespace),
