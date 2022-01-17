@@ -26,6 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -35,7 +37,11 @@ var mongodbDriver datastore.DataStore
 var _ = BeforeSuite(func(done Done) {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping mongodb test environment")
-	var err error
+	clientOpts := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOpts)
+	Expect(err).ToNot(HaveOccurred())
+	client.Database("kubevela").Drop(context.TODO())
+
 	mongodbDriver, err = New(context.TODO(), datastore.Config{
 		URL:      "mongodb://localhost:27017",
 		Database: "kubevela",
@@ -229,5 +235,13 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		err = mongodbDriver.Delete(context.TODO(), &app)
 		equal := cmp.Equal(err, datastore.ErrRecordNotExist, cmpopts.EquateErrors())
 		Expect(equal).Should(BeTrue())
+
+		workflow := model.Workflow{Name: "kubevela-app-workflow", AppPrimaryKey: "kubevela-app-2", Description: "this is workflow"}
+		err = mongodbDriver.Delete(context.TODO(), &workflow)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		trigger := model.ApplicationTrigger{Name: "kubevela-app-trigger", AppPrimaryKey: "kubevela-app-2", Token: "token-test", Description: "this is demo 4"}
+		err = mongodbDriver.Delete(context.TODO(), &trigger)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
