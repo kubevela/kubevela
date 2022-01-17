@@ -48,6 +48,9 @@ func (g *gitReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	}
 	for _, item := range items {
 		// single addon
+		if item.GetType() != DirType {
+			continue
+		}
 		addonName := path.Base(item.GetPath())
 		addonMeta, err := g.listAddonMeta(g.RelativePath(item))
 		if err != nil {
