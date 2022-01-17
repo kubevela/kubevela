@@ -15,8 +15,8 @@
 }
 
 #Component: {
-	name: string
-	type: string
+	name?: string
+	type?: string
 	properties?: {...}
 	traits?: [...{
 		type:     string
