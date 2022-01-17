@@ -19,7 +19,7 @@ package envbinding
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -29,111 +29,68 @@ import (
 )
 
 func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
-	testcases := []struct {
+	testCases := map[string]struct {
 		baseApp     *v1beta1.Application
 		envName     string
 		envPatch    v1alpha1.EnvPatch
 		expectedApp *v1beta1.Application
 		selector    *v1alpha1.EnvSelector
-	}{{
-		baseApp: baseApp,
-		envName: "prod",
-		envPatch: v1alpha1.EnvPatch{
-			Components: []v1alpha1.EnvComponentPatch{{
-				Name: "express-server",
-				Type: "webservice",
-				Properties: util.Object2RawExtension(map[string]interface{}{
-					"image": "busybox",
-				}),
-				Traits: []v1alpha1.EnvTraitPatch{{
-					Type: "ingress-1-20",
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"domain": "newTestsvc.example.com",
-					}),
-				}},
-			}},
-		},
-		expectedApp: &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1beta1",
-				Kind:       "Application",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
+	}{
+		"normal-test": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
 					Name: "express-server",
 					Type: "webservice",
 					Properties: util.Object2RawExtension(map[string]interface{}{
 						"image": "busybox",
-						"port":  8000,
 					}),
-					Traits: []common.ApplicationTrait{{
+					Traits: []v1alpha1.EnvTraitPatch{{
 						Type: "ingress-1-20",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"domain": "newTestsvc.example.com",
-							"http": map[string]interface{}{
-								"/": 8000,
-							},
 						}),
 					}},
 				}},
 			},
-		},
-	}, {
-		baseApp: baseApp,
-		envName: "prod",
-		envPatch: v1alpha1.EnvPatch{
-			Components: []v1alpha1.EnvComponentPatch{{
-				Name: "express-server",
-				Type: "webservice",
-				Traits: []v1alpha1.EnvTraitPatch{{
-					Type: "labels",
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"test": "label",
-					}),
-				}},
-			}, {
-				Name: "new-server",
-				Type: "worker",
-				Properties: util.Object2RawExtension(map[string]interface{}{
-					"image": "busybox",
-					"cmd":   []string{"sleep", "1000"},
-				}),
-				Traits: []v1alpha1.EnvTraitPatch{{
-					Type: "labels",
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"test": "label",
-					}),
-				}},
-			}},
-		},
-		expectedApp: &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1beta1",
-				Kind:       "Application",
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+							"port":  8000,
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "newTestsvc.example.com",
+								"http": map[string]interface{}{
+									"/": 8000,
+								},
+							}),
+						}},
+					}},
+				},
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
+		},
+		"add-component": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
 					Name: "express-server",
 					Type: "webservice",
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"image": "crccheck/hello-world",
-						"port":  8000,
-					}),
-					Traits: []common.ApplicationTrait{{
-						Type: "ingress-1-20",
-						Properties: util.Object2RawExtension(map[string]interface{}{
-							"domain": "testsvc.example.com",
-							"http": map[string]interface{}{
-								"/": 8000,
-							},
-						}),
-					}, {
+					Traits: []v1alpha1.EnvTraitPatch{{
 						Type: "labels",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"test": "label",
@@ -146,7 +103,7 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 						"image": "busybox",
 						"cmd":   []string{"sleep", "1000"},
 					}),
-					Traits: []common.ApplicationTrait{{
+					Traits: []v1alpha1.EnvTraitPatch{{
 						Type: "labels",
 						Properties: util.Object2RawExtension(map[string]interface{}{
 							"test": "label",
@@ -154,67 +111,92 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 					}},
 				}},
 			},
-		},
-	}, {
-		// Test Disable Trait
-		baseApp: baseApp,
-		envName: "prod",
-		envPatch: v1alpha1.EnvPatch{
-			Components: []v1alpha1.EnvComponentPatch{{
-				Name: "express-server",
-				Type: "webservice",
-				Traits: []v1alpha1.EnvTraitPatch{{
-					Type:    "ingress-1-20",
-					Disable: true,
-				}},
-			}},
-		},
-		expectedApp: &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1beta1",
-				Kind:       "Application",
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+							"port":  8000,
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "testsvc.example.com",
+								"http": map[string]interface{}{
+									"/": 8000,
+								},
+							}),
+						}, {
+							Type: "labels",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"test": "label",
+							}),
+						}},
+					}, {
+						Name: "new-server",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+							"cmd":   []string{"sleep", "1000"},
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "labels",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"test": "label",
+							}),
+						}},
+					}},
+				},
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
+		},
+		"disable-trait": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
 					Name: "express-server",
 					Type: "webservice",
-					Properties: util.Object2RawExtension(map[string]interface{}{
-						"image": "crccheck/hello-world",
-						"port":  8000,
-					}),
-					Traits: []common.ApplicationTrait{},
+					Traits: []v1alpha1.EnvTraitPatch{{
+						Type:    "ingress-1-20",
+						Disable: true,
+					}},
 				}},
 			},
-		},
-	}, {
-		// Test component selector
-		baseApp: baseApp,
-		envName: "prod",
-		envPatch: v1alpha1.EnvPatch{
-			Components: []v1alpha1.EnvComponentPatch{{
-				Name: "new-server",
-				Type: "worker",
-				Properties: util.Object2RawExtension(map[string]interface{}{
-					"image": "busybox",
-				}),
-			}},
-		},
-		selector: &v1alpha1.EnvSelector{
-			Components: []string{"new-server"},
-		},
-		expectedApp: &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1beta1",
-				Kind:       "Application",
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+							"port":  8000,
+						}),
+						Traits: []common.ApplicationTrait{},
+					}},
+				},
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{
+		},
+		"component-selector": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
 					Name: "new-server",
 					Type: "worker",
 					Properties: util.Object2RawExtension(map[string]interface{}{
@@ -222,41 +204,105 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 					}),
 				}},
 			},
-		},
-	}, {
-		// Test empty component selector
-		baseApp: baseApp,
-		envName: "prod",
-		envPatch: v1alpha1.EnvPatch{
-			Components: []v1alpha1.EnvComponentPatch{{
-				Name: "new-server",
-				Type: "worker",
-				Properties: util.Object2RawExtension(map[string]interface{}{
-					"image": "busybox",
-				}),
-			}},
-		},
-		selector: &v1alpha1.EnvSelector{
-			Components: []string{},
-		},
-		expectedApp: &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1beta1",
-				Kind:       "Application",
+			selector: &v1alpha1.EnvSelector{
+				Components: []string{"new-server"},
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{},
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "new-server",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+						}),
+					}},
+				},
 			},
 		},
-	}}
+		"empty-component-selector": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
+					Name: "new-server",
+					Type: "worker",
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"image": "busybox",
+					}),
+				}},
+			},
+			selector: &v1alpha1.EnvSelector{
+				Components: []string{},
+			},
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{},
+				},
+			},
+		},
+		"patch-external-revision": {
+			baseApp: baseApp,
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
+					Name:             "express-server",
+					Type:             "webservice",
+					ExternalRevision: "external-rev",
+				}},
+			},
+			expectedApp: &v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1beta1",
+					Kind:       "Application",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+							"port":  8000,
+						}),
+						ExternalRevision: "external-rev",
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "testsvc.example.com",
+								"http": map[string]interface{}{
+									"/": 8000,
+								},
+							}),
+						}},
+					}},
+				},
+			},
+		},
+	}
 
-	for _, testcase := range testcases {
-		app, err := PatchApplication(testcase.baseApp, &testcase.envPatch, testcase.selector)
-		assert.NoError(t, err)
-		assert.Equal(t, testcase.expectedApp, app)
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			app, err := PatchApplication(tc.baseApp, &tc.envPatch, tc.selector)
+			r := require.New(t)
+			r.NoError(err)
+			r.Equal(tc.expectedApp, app)
+		})
 	}
 }
 

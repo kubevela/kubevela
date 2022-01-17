@@ -45,10 +45,11 @@ func (in *EnvTraitPatch) ToApplicationTrait() *common.ApplicationTrait {
 
 // EnvComponentPatch is the patch to component
 type EnvComponentPatch struct {
-	Name       string                `json:"name"`
-	Type       string                `json:"type"`
-	Properties *runtime.RawExtension `json:"properties,omitempty"`
-	Traits     []EnvTraitPatch       `json:"traits,omitempty"`
+	Name             string                `json:"name"`
+	Type             string                `json:"type"`
+	Properties       *runtime.RawExtension `json:"properties,omitempty"`
+	Traits           []EnvTraitPatch       `json:"traits,omitempty"`
+	ExternalRevision string                `json:"externalRevision,omitempty"`
 }
 
 // ToApplicationComponent convert EnvComponentPatch into ApplicationComponent
