@@ -245,7 +245,7 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 		}
 		table.AddRow(capa.Name, capa.AppliesTo)
 	}
-	io.Infof(table.String())
+	io.Info(table.String())
 	return nil
 }
 
