@@ -44,7 +44,9 @@ const (
 	// BaseRefPath is the target path for reference docs
 	BaseRefPath = "docs/en/end-user"
 	// KubeVelaIOTerraformPath is the target path for kubevela.io terraform docs
-	KubeVelaIOTerraformPath = "kubevela.io/docs/end-user/components/cloud-services/terraform"
+	KubeVelaIOTerraformPath = "../kubevela.io/docs/end-user/components/cloud-services/terraform"
+	// KubeVelaIOTerraformPathZh is the target path for kubevela.io terraform docs in Chinese
+	KubeVelaIOTerraformPathZh = "../kubevela.io/i18n/zh/docusaurus-plugin-content-docs/current/end-user/components/cloud-services/terraform"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
@@ -72,6 +74,7 @@ type Reference interface {
 // ParseReference is used to include the common function `parseParameter`
 type ParseReference struct {
 	Client client.Client
+	I18N   Language `json:"i18n"`
 }
 
 // MarkdownReference is the struct for capability information in
@@ -293,6 +296,7 @@ spec:
                 name: bar
                 key: bar
 `,
+
 	"worker": `
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -323,6 +327,38 @@ spec:
 
         writeConnectionSecretToRef:
           name: vpc-conn
+`,
+
+	"alibaba-rds": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: rds-cloud-source
+spec:
+  components:
+    - name: sample-db
+      type: alibaba-rds
+      properties:
+        instance_name: sample-db
+        account_name: oamtest
+        password: U34rfwefwefffaked
+        writeConnectionSecretToRef:
+          name: db-conn
+`,
+
+	"alibaba-ack": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ack-cloud-source
+spec:
+  components:
+    - name: ack-cluster
+      type: alibaba-ack
+      properties:
+        writeConnectionSecretToRef:
+          name: ack-conn
+          namespace: vela-system
 `,
 }
 
@@ -391,6 +427,11 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	for i, c := range caps {
+		var (
+			description   string
+			sample        string
+			specification string
+		)
 		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait {
 			return fmt.Errorf("the type of the capability is not right")
 		}
@@ -412,7 +453,11 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		}
 		capName := c.Name
 		refContent = ""
-		capNameInTitle := makeReadableTitle(capName)
+		lang := ref.I18N
+		if lang == "" {
+			lang = En
+		}
+		capNameInTitle := ref.makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
 			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
@@ -448,14 +493,18 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
 		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
-
-		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
-		var sample string
 		sampleContent := ref.generateSample(capName)
-		if sampleContent != "" {
-			sample = fmt.Sprintf("\n\n## Samples\n\n%s", sampleContent)
+
+		descriptionI18N := c.Description
+		des := strings.ReplaceAll(c.Description, " ", "_")
+		if v, ok := Definitions[des]; ok {
+			descriptionI18N = v[lang]
 		}
-		specification := fmt.Sprintf("\n\n## Specification\n%s", refContent)
+		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], descriptionI18N)
+		if sampleContent != "" {
+			sample = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Samples"][lang], sampleContent)
+		}
+		specification = fmt.Sprintf("\n\n## %s\n%s", Definitions["Specification"][lang], refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
@@ -471,11 +520,15 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 	return nil
 }
 
-func makeReadableTitle(title string) string {
+func (ref *MarkdownReference) makeReadableTitle(title string) string {
 	const alibabaCloud = "alibaba-"
+	if ref.I18N == "" {
+		ref.I18N = En
+	}
+	var AlibabaCloudTitle = Definitions["AlibabaCloud"][ref.I18N]
 	if strings.HasPrefix(title, alibabaCloud) {
 		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
-		return "Alibaba Cloud " + strings.ToUpper(cloudResource)
+		return fmt.Sprintf("%s %s", AlibabaCloudTitle, strings.ToUpper(cloudResource))
 	}
 	return strings.Title(title)
 }
@@ -483,8 +536,12 @@ func makeReadableTitle(title string) string {
 // prepareParameter prepares the table content for each property
 func (ref *MarkdownReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) string {
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	refContent += "Name | Description | Type | Required | Default \n"
-	refContent += "------------ | ------------- | ------------- | ------------- | ------------- \n"
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
+	}
+	refContent += fmt.Sprintf(" %s | %s | %s | %s | %s \n", Definitions["Name"][lang], Definitions["Description"][lang], Definitions["Type"][lang], Definitions["Required"][lang], Definitions["Default"][lang])
+	refContent += " ------------ | ------------- | ------------- | ------------- | ------------- \n"
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
@@ -519,8 +576,12 @@ func (ref *MarkdownReference) prepareTerraformOutputs(tableName string, paramete
 		return ""
 	}
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
-	refContent += "Name | Description\n"
-	refContent += "------------ | ------------- \n"
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
+	}
+	refContent += fmt.Sprintf(" %s | %s \n", Definitions["Name"][lang], Definitions["Description"][lang])
+	refContent += " ------------ | ------------- \n"
 
 	for _, p := range parameterList {
 		refContent += fmt.Sprintf(" %s | %s\n", p.Name, p.Usage)
@@ -784,7 +845,15 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		err                                          error
 		outputsList                                  []ReferenceParameter
 		outputsTables                                []ReferenceParameterTable
+		propertiesTitle                              string
+		outputsTableName                             string
 	)
+	lang := ref.I18N
+	if lang == "" {
+		lang = En
+	}
+	outputsTableName = fmt.Sprintf("%s %s\n\n%s", strings.Repeat("#", 3), Definitions["Outputs"][lang], Definitions["WriteConnectionSecretToRefIntroduction"][lang])
+	propertiesTitle = Definitions["Properties"][lang]
 
 	writeConnectionSecretToRefReferenceParameter.Name = terraform.TerraformWriteConnectionSecretToRefName
 	writeConnectionSecretToRefReferenceParameter.PrintableType = terraform.TerraformWriteConnectionSecretToRefType
@@ -814,7 +883,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), "Properties")
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), propertiesTitle)
 	tables = append(tables, ReferenceParameterTable{
 		Name:       propertiesTableName,
 		Parameters: refParameterList,
@@ -851,8 +920,6 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		refParam.Usage = v.Description
 		outputsList = append(outputsList, refParam)
 	}
-
-	outputsTableName := fmt.Sprintf("%s %s\n\nIf `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:", strings.Repeat("#", 3), "Outputs")
 
 	outputsTables = append(outputsTables, ReferenceParameterTable{
 		Name:       outputsTableName,
