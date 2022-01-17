@@ -57,7 +57,7 @@ jobs:
 
       - name: Build & Pushing vela-core for ACR
         run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
+          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
           docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing vela-core for Dockerhub and GHCR
@@ -79,7 +79,7 @@ jobs:
 
       - name: Build & Pushing vela-apiserver for ACR
         run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.apiserver .
+          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }} -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.apiserver .
           docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing vela-apiserver for Dockerhub and GHCR
@@ -101,7 +101,7 @@ jobs:
 
       - name: Build & Pushing vela runtime rollout for ACR
         run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }} .
+          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }} .
           docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout for Dockerhub and GHCR
