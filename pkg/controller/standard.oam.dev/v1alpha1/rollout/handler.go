@@ -221,10 +221,8 @@ func (h *handler) handleRolloutModified() {
 
 // setWorkloadBaseInfo set base workload base info, which is such as workload name and component revision label
 func (h *handler) setWorkloadBaseInfo() {
-	if len(h.targetWorkload.GetNamespace()) == 0 {
-		h.targetWorkload.SetNamespace(h.rollout.Namespace)
-	}
-	if h.sourceWorkload != nil && len(h.sourceWorkload.GetNamespace()) == 0 {
+	h.targetWorkload.SetNamespace(h.rollout.Namespace)
+	if h.sourceWorkload != nil {
 		h.sourceWorkload.SetNamespace(h.rollout.Namespace)
 	}
 
