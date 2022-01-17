@@ -324,6 +324,8 @@ const (
 	PayloadTypeACR = "acr"
 	// PayloadTypeHarbor is the payload type harbor
 	PayloadTypeHarbor = "harbor"
+	// PayloadTypeJFrog is the payload type jfrog
+	PayloadTypeJFrog = "jfrog"
 
 	// ComponentTypeWebservice is the component type webservice
 	ComponentTypeWebservice = "webservice"
@@ -336,6 +338,10 @@ const (
 const (
 	// HarborEventTypePushArtifact is the event type PUSH_ARTIFACT
 	HarborEventTypePushArtifact = "PUSH_ARTIFACT"
+	// JFrogEventTypePush is push event type of jfrog webhook
+	JFrogEventTypePush = "pushed"
+	// JFrogDomainDocker is webhook domain of jfrog docker
+	JFrogDomainDocker = "docker"
 )
 
 // TableName return custom table name
