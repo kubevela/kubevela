@@ -64,6 +64,26 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
 	})
 
+	It("Test generate step id", func() {
+		step := oamcore.WorkflowStep{
+			Name: "test",
+		}
+		try1, err := generateStepID(0, step, nil)
+		Expect(err).Should(BeNil())
+		try2, err := generateStepID(0, step, nil)
+		Expect(err).Should(BeNil())
+		Expect(try1).Should(Equal(try2))
+
+		try3, err := generateStepID(1, step, nil)
+		Expect(err).Should(BeNil())
+		Expect(try1).Should(Not(Equal(try3)))
+
+		step.Type = "test"
+		try4, err := generateStepID(0, step, nil)
+		Expect(err).Should(BeNil())
+		Expect(try1).Should(Not(Equal(try4)))
+	})
+
 	It("Test generate application workflow with inputs and outputs", func() {
 		app := &oamcore.Application{
 			TypeMeta: metav1.TypeMeta{

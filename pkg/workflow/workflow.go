@@ -148,7 +148,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateExecuting, err
 	}
 	w.wfCtx = wfCtx
-	w.checkDuplicateID(ctx)
 
 	e := &engine{
 		status:     wfStatus,
@@ -283,22 +282,6 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 		return err
 	}
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
-}
-
-func (w *workflow) checkDuplicateID(ctx monitorContext.Context) {
-	if len(w.app.Status.Workflow.Steps) > 0 {
-		return
-	}
-	ctxCM := w.wfCtx.GetStore()
-	found := false
-	for k := range ctxCM.Data {
-		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
-			found = true
-		}
-	}
-	if found {
-		w.CleanupCountersInContext(ctx)
-	}
 }
 
 func getBackoffWaitTime(wfCtx wfContext.Context) int {

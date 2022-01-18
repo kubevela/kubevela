@@ -18,6 +18,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -31,13 +32,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	controllerUtils "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
@@ -71,9 +72,13 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
 	var tasks []wfTypes.TaskRunner
-	for _, step := range af.WorkflowSteps {
+	for i, step := range af.WorkflowSteps {
+		stepID, err := generateStepID(i, step, app.Status.Workflow)
+		if err != nil {
+			return nil, err
+		}
 		options := &wfTypes.GeneratorOptions{
-			ID: generateStepID(step.Name, app.Status.Workflow),
+			ID: stepID,
 		}
 		generatorName := step.Type
 		if generatorName == "apply-component" {
@@ -276,17 +281,22 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 	return workload, traits, nil
 }
 
-func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {
+func generateStepID(i int, step v1beta1.WorkflowStep, wfStatus *common.WorkflowStatus) (string, error) {
 	var id string
+	var err error
 	if wfStatus != nil {
 		for _, status := range wfStatus.Steps {
-			if status.Name == stepName {
+			if status.Name == step.Name {
 				id = status.ID
 			}
 		}
 	}
 	if id == "" {
-		id = utils.RandomString(10)
+		step.Name = fmt.Sprintf("%s-%d", step.Name, i)
+		id, err = controllerUtils.ComputeSpecHash(step)
+		if err != nil {
+			return "", err
+		}
 	}
-	return id
+	return id, nil
 }
