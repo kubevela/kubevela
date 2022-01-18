@@ -464,6 +464,24 @@ type DockerHubRepository struct {
 	Status          string `json:"status"`
 }
 
+// HandleApplicationTriggerJFrogRequest application trigger JFrog webhook request
+type HandleApplicationTriggerJFrogRequest struct {
+	Domain    string           `json:"domain"`
+	EventType string           `json:"event_type"`
+	Data      JFrogWebhookData `json:"data"`
+}
+
+// JFrogWebhookData is the data of JFrog webhook request
+type JFrogWebhookData struct {
+	URL       string
+	ImageName string `json:"image_name"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	RepoKey   string `json:"repo_key"`
+	Digest    string `json:"sha256"`
+	Tag       string `json:"tag"`
+}
+
 // EnvBinding application env binding
 type EnvBinding struct {
 	Name string `json:"name" validate:"checkname"`

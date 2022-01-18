@@ -62,6 +62,7 @@ func registerHandlers() {
 	new(acrHandlerImpl).install()
 	new(dockerHubHandlerImpl).install()
 	new(harborHandlerImpl).install()
+	new(jfrogHandlerImpl).install()
 }
 
 type webhookHandler interface {
@@ -157,6 +158,11 @@ func (c *webhookUsecaseImpl) HandleApplicationWebhook(ctx context.Context, token
 		}
 	case model.PayloadTypeDockerhub:
 		handler, err = c.newDockerHubHandler(req)
+		if err != nil {
+			return nil, err
+		}
+	case model.PayloadTypeJFrog:
+		handler, err = c.newJFrogHandler(req)
 		if err != nil {
 			return nil, err
 		}
@@ -422,4 +428,75 @@ func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 			},
 		},
 	})
+}
+
+type jfrogHandlerImpl struct {
+	req apisv1.HandleApplicationTriggerJFrogRequest
+	w   *webhookUsecaseImpl
+}
+
+func (c *webhookUsecaseImpl) newJFrogHandler(req *restful.Request) (webhookHandler, error) {
+	var jfrogReq apisv1.HandleApplicationTriggerJFrogRequest
+	if err := req.ReadEntity(&jfrogReq); err != nil {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	if jfrogReq.Domain != model.JFrogDomainDocker || jfrogReq.EventType != model.JFrogEventTypePush {
+		return nil, bcode.ErrInvalidWebhookPayloadBody
+	}
+	// jfrog should use request header to give URL, it is not exist in request body
+	jfrogReq.Data.URL = req.HeaderParameter("X-JFrogURL")
+	return &jfrogHandlerImpl{
+		req: jfrogReq,
+		w:   c,
+	}, nil
+}
+
+func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
+	jfrogReq := j.req
+	comp := &model.ApplicationComponent{
+		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
+	}
+	comps, err := j.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(comps) == 0 {
+		return nil, bcode.ErrApplicationComponetNotExist
+	}
+
+	// use the first component as the target component
+	component := comps[0].(*model.ApplicationComponent)
+	image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName, jfrogReq.Data.Tag)
+	if jfrogReq.Data.URL != "" {
+		image = fmt.Sprintf("%s/%s", jfrogReq.Data.URL, image)
+	}
+	if err := j.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
+		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, image)),
+	}); err != nil {
+		return nil, err
+	}
+
+	return j.w.applicationUsecase.Deploy(ctx, app, apisv1.ApplicationDeployRequest{
+		WorkflowName: webhookTrigger.WorkflowName,
+		Note:         "triggered by webhook jfrog",
+		TriggerType:  apisv1.TriggerTypeWebhook,
+		Force:        true,
+		ImageInfo: &model.ImageInfo{
+			Type: model.PayloadTypeHarbor,
+			Resource: &model.ImageResource{
+				Digest: jfrogReq.Data.Digest,
+				Tag:    jfrogReq.Data.Tag,
+				URL:    image,
+			},
+			Repository: &model.ImageRepository{
+				Name:      jfrogReq.Data.ImageName,
+				Namespace: jfrogReq.Data.RepoKey,
+				FullName:  fmt.Sprintf("%s/%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName),
+			},
+		},
+	})
+}
+
+func (j *jfrogHandlerImpl) install() {
+	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeJFrog)
 }
