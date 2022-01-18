@@ -11,6 +11,10 @@ spec:
   schematic:
     cue:
       template: |
+        import (
+        	"strconv"
+        )
+
         mountsArray: {
         	pvc: *[
         		for v in parameter.volumeMounts.pvc {
@@ -155,6 +159,9 @@ spec:
         								if v.name != _|_ {
         									name: v.name
         								}
+        								if v.name == _|_ {
+        									name: "port-" + strconv.FormatInt(v.port, 10)
+        								}
         							}}]
         					}
 
@@ -267,6 +274,9 @@ spec:
         		targetPort: v.port
         		if v.name != _|_ {
         			name: v.name
+        		}
+        		if v.name == _|_ {
+        			name: "port-" + strconv.FormatInt(v.port, 10)
         		}
         	},
         ]
