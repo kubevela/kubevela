@@ -146,8 +146,17 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 	var errs errors2.ErrorList
 	var err error
 	for _, comp := range patch.Components {
-		if baseComp, exists := compMaps[comp.Name]; exists {
-			if baseComp.Type != comp.Type {
+		if comp.Name == "" {
+			for compName, baseComp := range compMaps {
+				if comp.Type == "" || comp.Type == baseComp.Type {
+					compMaps[compName], err = MergeComponent(baseComp, comp.DeepCopy())
+					if err != nil {
+						errs = append(errs, errors.Wrapf(err, "failed to merge component %s", compName))
+					}
+				}
+			}
+		} else if baseComp, exists := compMaps[comp.Name]; exists {
+			if baseComp.Type != comp.Type && comp.Type != "" {
 				compMaps[comp.Name] = comp.ToApplicationComponent()
 			} else {
 				compMaps[comp.Name], err = MergeComponent(baseComp, comp.DeepCopy())
