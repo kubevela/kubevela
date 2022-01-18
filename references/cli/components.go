@@ -244,6 +244,6 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 		}
 		table.AddRow(capa.Name, capa.CrdName)
 	}
-	io.Infof(table.String())
+	io.Info(table.String())
 	return nil
 }
