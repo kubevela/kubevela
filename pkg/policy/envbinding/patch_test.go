@@ -294,6 +294,240 @@ func Test_EnvBindApp_GenerateConfiguredApplication(t *testing.T) {
 				},
 			},
 		},
+		"patch-all-comp": {
+			baseApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+					}},
+				},
+			},
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
+					Name: "",
+					Type: "",
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"image": "busybox",
+					}),
+					Traits: []v1alpha1.EnvTraitPatch{{
+						Type: "ingress",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"domain": "b.example.com",
+						}),
+					}},
+				}},
+			},
+			expectedApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "b.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "b.example.com",
+							}),
+						}},
+					}},
+				},
+			},
+		},
+		"patch-type-comp": {
+			baseApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+					}},
+				},
+			},
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
+					Name: "",
+					Type: "webservice",
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"image": "busybox",
+					}),
+					Traits: []v1alpha1.EnvTraitPatch{{
+						Type: "ingress",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"domain": "b.example.com",
+						}),
+					}},
+				}},
+			},
+			expectedApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "b.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+					}},
+				},
+			},
+		},
+		"patch-without-type-specified": {
+			baseApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+					}},
+				},
+			},
+			envName: "prod",
+			envPatch: v1alpha1.EnvPatch{
+				Components: []v1alpha1.EnvComponentPatch{{
+					Name: "express-worker",
+					Type: "",
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"image": "busybox",
+					}),
+					Traits: []v1alpha1.EnvTraitPatch{{
+						Type: "ingress",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"domain": "b.example.com",
+						}),
+					}},
+				}},
+			},
+			expectedApp: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "express-server",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "crccheck/hello-world",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a.example.com",
+							}),
+						}, {
+							Type: "ingress-1-20",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "a-1-20.example.com",
+							}),
+						}},
+					}, {
+						Name: "express-worker",
+						Type: "worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "ingress",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"domain": "b.example.com",
+							}),
+						}},
+					}},
+				},
+			},
+		},
 	}
 
 	for name, tc := range testCases {
