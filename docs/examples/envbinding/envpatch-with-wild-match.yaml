@@ -1,0 +1,74 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-app
+  namespace: default
+spec:
+  components:
+    - name: podinfo
+      type: webservice
+      properties:
+        image: stefanprodan/podinfo
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+    - name: hello-world
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+    - name: nginx
+      type: worker
+      properties:
+        image: nginx
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+  policies:
+    - name: example-multi-env-policy
+      type: env-binding
+      properties:
+        envs:
+          - name: test
+            placement:
+              clusterSelector:
+                name: local
+              namespaceSelector:
+                name: test
+            patch:
+              components:
+                - name: podinfo # patch to component named podinfo, no type check
+                  traits:
+                    - type: scaler
+                      properties:
+                        replicas: 2
+
+          - name: staging
+            placement:
+              clusterSelector:
+                name: remote
+            patch:
+              components: # patch to all webservice components
+                - type: webservice
+                  traits:
+                    - type: scaler
+                      properties:
+                        replicas: 3
+
+          - name: prod
+            placement:
+              clusterSelector:
+                name: remote
+              namespaceSelector:
+                name: prod
+            patch:
+              components: # patch to all components
+                - traits:
+                    - type: scaler
+                      properties:
+                        replicas: 3
