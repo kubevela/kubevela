@@ -18,7 +18,6 @@ spec:
             protocol: UDP
             expose: true
           - port: 8002
-            name: exposeport2
             protocol: UDP
             expose: true
         volumeMounts:

@@ -1,3 +1,7 @@
+import (
+	"strconv"
+)
+
 webservice: {
 	type: "component"
 	annotations: {}
@@ -189,6 +193,9 @@ template: {
 									if v.name != _|_ {
 										name: v.name
 									}
+									if v.name == _|_ {
+										name: "port-" + strconv.FormatInt(v.port, 10)
+									}
 								}}]
 						}
 
@@ -302,6 +309,9 @@ template: {
 			targetPort: v.port
 			if v.name != _|_ {
 				name: v.name
+			}
+			if v.name == _|_ {
+				name: "port-" + strconv.FormatInt(v.port, 10)
 			}
 		},
 	]
