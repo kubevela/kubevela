@@ -1,3 +1,7 @@
+import (
+	"strconv"
+)
+
 webservice: {
 	type: "component"
 	annotations: {}
@@ -186,6 +190,12 @@ template: {
 								{
 									containerPort: v.port
 									protocol:      v.protocol
+									if v.name != _|_ {
+										name: v.name
+									}
+									if v.name == _|_ {
+										name: "port-" + strconv.FormatInt(v.port, 10)
+									}
 								}}]
 						}
 
@@ -297,6 +307,12 @@ template: {
 		for v in parameter.ports if v.expose == true {
 			port:       v.port
 			targetPort: v.port
+			if v.name != _|_ {
+				name: v.name
+			}
+			if v.name == _|_ {
+				name: "port-" + strconv.FormatInt(v.port, 10)
+			}
 		},
 	]
 
@@ -341,6 +357,8 @@ template: {
 		ports?: [...{
 			// +usage=Number of port to expose on the pod's IP address
 			port: int
+			// +usage=Name of the port
+			name?: string
 			// +usage=Protocol for port. Must be UDP, TCP, or SCTP
 			protocol: *"TCP" | "UDP" | "SCTP"
 			// +usage=Specify if the port should be exposed
