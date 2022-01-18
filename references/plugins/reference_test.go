@@ -554,6 +554,20 @@ func TestMakeReadableTitle(t *testing.T) {
 			},
 			want: "阿里云 DEF-GHI",
 		},
+		{
+			args: args{
+				title: "aws-jk",
+				ref:   refZh,
+			},
+			want: "AWS JK",
+		},
+		{
+			args: args{
+				title: "azure-jk",
+				ref:   refZh,
+			},
+			want: "Azure JK",
+		},
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {

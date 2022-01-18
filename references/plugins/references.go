@@ -360,6 +360,156 @@ spec:
           name: ack-conn
           namespace: vela-system
 `,
+	"alibaba-eip": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: provision-cloud-resource-eip
+spec:
+  components:
+    - name: sample-eip
+      type: alibaba-eip
+      properties:
+        writeConnectionSecretToRef:
+          name: eip-conn
+`,
+
+	"alibaba-oss": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: oss-cloud-source
+spec:
+  components:
+    - name: sample-oss
+      type: alibaba-oss
+      properties:
+        bucket: vela-website
+        acl: private
+        writeConnectionSecretToRef:
+          name: oss-conn
+`,
+
+	"alibaba-redis": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: redis-cloud-source
+spec:
+  components:
+    - name: sample-redis
+      type: alibaba-redis
+      properties:
+        instance_name: oam-redis
+        account_name: oam
+        password: Xyfff83jfewGGfaked
+        writeConnectionSecretToRef:
+          name: redis-conn
+`,
+
+	"aws-s3": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: s3-cloud-source
+spec:
+  components:
+    - name: sample-s3
+      type: aws-s3
+      properties:
+        bucket: vela-website-20211019
+        acl: private
+
+        writeConnectionSecretToRef:
+          name: s3-conn
+`,
+
+	"azure-database-mariadb": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: mariadb-backend
+spec:
+  components:
+    - name: mariadb-backend
+      type: azure-database-mariadb
+      properties:
+        resource_group: "kubevela-group"
+        location: "West Europe"
+        server_name: "kubevela"
+        db_name: "backend"
+        username: "acctestun"
+        password: "H@Sh1CoR3!Faked"
+        writeConnectionSecretToRef:
+          name: azure-db-conn
+          namespace: vela-system
+`,
+
+	"azure-storage-account": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: storage-account-dev
+spec:
+  components:
+    - name: storage-account-dev
+      type: azure-storage-account
+      properties:
+        create_rsg: false
+        resource_group_name: "weursgappdev01"
+        location: "West Europe"
+        name: "appdev01"
+        tags: |
+          {
+            ApplicationName       = "Application01"
+            Terraform             = "Yes"
+          } 
+        static_website: |
+          [{
+            index_document = "index.html"
+            error_404_document = "index.html"
+          }]
+
+        writeConnectionSecretToRef:
+          name: storage-account-dev
+          namespace: vela-system
+`,
+
+	"alibaba-sls-project": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-sls-project-sample
+spec:
+  components:
+    - name: sample-sls-project
+      type: alibaba-sls-project
+      properties:
+        name: kubevela-1112
+        description: "Managed by KubeVela"
+
+        writeConnectionSecretToRef:
+          name: sls-project-conn
+`,
+
+	"alibaba-sls-store": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-sls-store-sample
+spec:
+  components:
+    - name: sample-sls-store
+      type: alibaba-sls-store
+      properties:
+        store_name: kubevela-1111
+        store_retention_period: 30
+        store_shard_count: 2
+        store_max_split_shard_count: 2
+
+        writeConnectionSecretToRef:
+          name: sls-store-conn
+`,
 }
 
 // BaseOpenAPIV3Template is Standard OpenAPIV3 Template
@@ -521,16 +671,26 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 }
 
 func (ref *MarkdownReference) makeReadableTitle(title string) string {
-	const alibabaCloud = "alibaba-"
 	if ref.I18N == "" {
 		ref.I18N = En
 	}
-	var AlibabaCloudTitle = Definitions["AlibabaCloud"][ref.I18N]
-	if strings.HasPrefix(title, alibabaCloud) {
-		cloudResource := strings.Replace(title, alibabaCloud, "", 1)
-		return fmt.Sprintf("%s %s", AlibabaCloudTitle, strings.ToUpper(cloudResource))
+	if !strings.Contains(title, "-") {
+		return strings.Title(title)
 	}
-	return strings.Title(title)
+	var name string
+	provider := strings.Split(title, "-")[0]
+	switch provider {
+	case "alibaba":
+		name = "AlibabaCloud"
+	case "aws":
+		name = "AWS"
+	case "azure":
+		name = "Azure"
+	default:
+		return strings.Title(title)
+	}
+	cloudResource := strings.Replace(title, provider+"-", "", 1)
+	return fmt.Sprintf("%s %s", Definitions[name][ref.I18N], strings.ToUpper(cloudResource))
 }
 
 // prepareParameter prepares the table content for each property
