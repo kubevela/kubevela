@@ -216,6 +216,10 @@ func TestNewDefinitionInitCommand4Terraform(t *testing.T) {
 			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch"},
 		},
 		{
+			name: "normal from local",
+			args: []string{"vswitch", "-t", "component", "--provider", "tencent", "--desc", "xxx", "--local", "test-data/redis.tf"},
+		},
+		{
 			name: "print in a file",
 			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch", "--output", defFileName},
 			want: `apiVersion: core.oam.dev/v1beta1
@@ -254,6 +258,16 @@ status: {}`,
 			name:   "git is not right",
 			args:   []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "test", "--git", "xxx"},
 			errMsg: "invalid git url",
+		},
+		{
+			name:   "git and local could be set at the same time",
+			args:   []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "test", "--git", "xxx", "--local", "yyy"},
+			errMsg: "only one of --git and --local can be set",
+		},
+		{
+			name:   "local file doesn't exist",
+			args:   []string{"vswitch", "-t", "component", "--provider", "tencent", "--desc", "xxx", "--local", "test-data/redis2.tf"},
+			errMsg: "failed to read Terraform configuration from file",
 		},
 	}
 

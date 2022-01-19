@@ -44,6 +44,8 @@ const (
 	FlagProvider = "provider"
 	// FlagGit command flag to specify which git repository the configuration(HCL) is stored in
 	FlagGit = "git"
+	// FlagLocal command flag to specify the local path of Terraform module or resource HCL file
+	FlagLocal = "local"
 	// FlagPath command flag to specify which path the configuration(HCL) is stored in the Git repository
 	FlagPath = "path"
 	// FlagNamespace command flag to specify which namespace to use
