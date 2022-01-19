@@ -81,12 +81,17 @@ var (
 // Reconciler reconciles an Application object
 type Reconciler struct {
 	client.Client
-	dm                   discoverymapper.DiscoveryMapper
-	pd                   *packages.PackageDiscover
-	Scheme               *runtime.Scheme
-	Recorder             event.Recorder
+	dm       discoverymapper.DiscoveryMapper
+	pd       *packages.PackageDiscover
+	Scheme   *runtime.Scheme
+	Recorder event.Recorder
+	options
+}
+
+type options struct {
 	appRevisionLimit     int
 	concurrentReconciles int
+	disableStatusUpdate  bool
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -121,6 +126,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationKubeVelaVersion])
+
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
 	if err != nil {
@@ -286,7 +293,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
 	}
 	if !finished {
-		logCtx.Info("GarbageCollecting resourcetrackers")
+		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
 		cond := condition.Deleting()
 		if len(waiting) > 0 {
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
@@ -388,7 +395,15 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return r.Status().Update(ctx, app)
+
+	if !r.disableStatusUpdate {
+		return r.Status().Update(ctx, app)
+	}
+	obj, err := app.Unstructured()
+	if err != nil {
+		return err
+	}
+	return r.Status().Update(ctx, obj)
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
@@ -501,13 +516,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, args core.Args) error {
 	reconciler := Reconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		Recorder:             event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		dm:                   args.DiscoveryMapper,
-		pd:                   args.PackageDiscover,
-		appRevisionLimit:     args.AppRevisionLimit,
-		concurrentReconciles: args.ConcurrentReconciles,
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		dm:       args.DiscoveryMapper,
+		pd:       args.PackageDiscover,
+		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -555,5 +569,13 @@ func timeReconcile(app *v1beta1.Application) func() {
 	return func() {
 		v := time.Since(t).Seconds()
 		metrics.ApplicationReconcileTimeHistogram.WithLabelValues(beginPhase, string(app.Status.Phase)).Observe(v)
+	}
+}
+
+func parseOptions(args core.Args) options {
+	return options{
+		disableStatusUpdate:  args.EnableCompatibility,
+		appRevisionLimit:     args.AppRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
 	}
 }
