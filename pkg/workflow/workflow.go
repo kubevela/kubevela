@@ -171,6 +171,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	err = e.run(taskRunners)
 	if err != nil {
 		ctx.Error(err, "run steps")
+		StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 		wfStatus.Message = string(common.WorkflowStateExecuting)
 		return common.WorkflowStateExecuting, err
 	}
