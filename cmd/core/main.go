@@ -129,7 +129,7 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
-	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-3025", false, "prune")
+	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	standardcontroller.AddOptimizeFlags()
 
 	flag.Parse()
