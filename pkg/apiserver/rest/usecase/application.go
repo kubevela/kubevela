@@ -1639,8 +1639,11 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	if err != nil {
 		return buff, err
 	}
-
-	dm, err := discoverymapper.New(c.Config)
+	config, err := c.GetConfig()
+	if err != nil {
+		return buff, err
+	}
+	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return buff, err
 	}
@@ -1711,12 +1714,20 @@ func compare(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.A
 	if err != nil {
 		return nil, buff, err
 	}
-	dm, err := discoverymapper.New(cmdArgs.Config)
+	config, err := cmdArgs.GetConfig()
+	if err != nil {
+		return nil, buff, err
+	}
+	dm, err := discoverymapper.New(config)
 	if err != nil {
 		return nil, buff, err
 	}
 	var objs []oam.Object
-	liveDiffOption := dryrun.NewLiveDiffOption(cmdArgs.Client, dm, pd, objs)
+	client, err := cmdArgs.GetClient()
+	if err != nil {
+		return nil, buff, err
+	}
+	liveDiffOption := dryrun.NewLiveDiffOption(client, dm, pd, objs)
 	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
 	if err != nil {
 		return nil, buff, err
