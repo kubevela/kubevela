@@ -338,6 +338,7 @@ func NewContext(cli client.Client, ns, app string, appUID types.UID) (Context, e
 	return wfCtx, wfCtx.Commit()
 }
 
+// CleanupMemoryStore cleans up memory store.
 func CleanupMemoryStore(app, ns string) {
 	workflowMemoryCache.Delete(fmt.Sprintf("%s-%s", app, ns))
 }
