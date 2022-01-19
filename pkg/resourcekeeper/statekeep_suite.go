@@ -53,7 +53,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					if err != nil {
 						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 					}
-					if err = h.applicator.Apply(multicluster.ContextWithClusterName(ctx, mr.Cluster), manifest, apply.MustBeControlledByApp(h.app)); err != nil {
+					if err = h.applicator.Apply(multicluster.ContextWithClusterName(ctx, mr.Cluster), manifest, apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
 				}
