@@ -249,42 +249,57 @@ var _ = Describe("Test Workflow", func() {
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
 		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
+		StepStatusCache.Store("app-default", 1)
 		_, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
+		app.Status.Workflow.Steps = []common.WorkflowStepStatus{
+			{
+				ID:    "test-step-id",
+				Phase: common.WorkflowStepPhaseRunning,
+			},
+		}
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		e := &engine{
+			status: app.Status.Workflow,
+			wfCtx:  wfCtx,
+		}
+		interval := e.getBackoffWaitTime()
+		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 
 		By("Test get backoff time")
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 4; i++ {
 			_, err = wf.ExecuteSteps(ctx, revision, runners)
 			Expect(err).ToNot(HaveOccurred())
-			wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
-			Expect(err).ToNot(HaveOccurred())
-			interval := getBackoffWaitTime(wfCtx)
+			interval := e.getBackoffWaitTime()
 			Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 		}
 
 		for i := 0; i < 9; i++ {
 			_, err = wf.ExecuteSteps(ctx, revision, runners)
 			Expect(err).ToNot(HaveOccurred())
-			wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
-			Expect(err).ToNot(HaveOccurred())
-			interval := getBackoffWaitTime(wfCtx)
+			interval := e.getBackoffWaitTime()
 			Expect(interval).Should(BeEquivalentTo(int(0.05 * math.Pow(2, float64(i+5)))))
 		}
 
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
-		Expect(err).ToNot(HaveOccurred())
-		interval := getBackoffWaitTime(wfCtx)
+		interval = e.getBackoffWaitTime()
 		Expect(interval).Should(BeEquivalentTo(maxWorkflowBackoffWaitTime))
 
 		By("Test get backoff time after clean")
-		wf.CleanupCountersInContext(ctx)
+		wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err = wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
 		Expect(err).ToNot(HaveOccurred())
-		interval = getBackoffWaitTime(wfCtx)
+		e = &engine{
+			status: app.Status.Workflow,
+			wfCtx:  wfCtx,
+		}
+		interval = e.getBackoffWaitTime()
 		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 	})
 

@@ -245,6 +245,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if status := app.Status.Workflow; status != nil && status.Terminated {
 			return r.result(nil).ret()
 		}
+	case common.WorkflowStateSkipping:
+		logCtx.Info("Skip this reconcile")
+		return ctrl.Result{}, nil
 	}
 
 	var phase = common.ApplicationRunning
@@ -373,6 +376,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				wfContext.MemStore.DeleteInMemoryContext(app.Name)
 			}
 			workflow.StepStatusCache.Delete(fmt.Sprintf("%s-%s", app.Name, app.Namespace))
+			wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 			return true, result, err
 		}
 	}

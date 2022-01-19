@@ -85,9 +85,22 @@ func (c ViewContext) GetMutableValue(paths ...string) string {
 func (c ViewContext) SetMutableValue(data string, paths ...string) {
 }
 
-// IncreaseMutableCountValue increase mutable count in workflow context.
-func (c ViewContext) IncreaseMutableCountValue(paths ...string) int {
+// IncreaseCountValueInMemory increase count in workflow context memory store.
+func (c ViewContext) IncreaseCountValueInMemory(paths ...string) int {
 	return 0
+}
+
+// SetValueInMemory set data in workflow context memory store.
+func (c ViewContext) SetValueInMemory(data interface{}, paths ...string) {
+}
+
+// GetValueInMemory get data in workflow context memory store.
+func (c ViewContext) GetValueInMemory(paths ...string) (interface{}, bool) {
+	return "", true
+}
+
+// DeleteValueInMemory delete data in workflow context memory store.
+func (c ViewContext) DeleteValueInMemory(paths ...string) {
 }
 
 // DeleteMutableValue delete mutable data in workflow context.
