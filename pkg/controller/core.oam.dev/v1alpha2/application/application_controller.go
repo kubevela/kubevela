@@ -394,7 +394,12 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	return r.Status().Patch(ctx, app, client.Merge)
+	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
+		// set to -1 to re-run workflow if status is failed to patch
+		workflow.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
+		return err
+	}
+	return nil
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
@@ -408,7 +413,12 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	if err != nil {
 		return err
 	}
-	return r.Status().Update(ctx, obj)
+	if err := r.Status().Update(ctx, obj); err != nil {
+		// set to -1 to re-run workflow if status is failed to update
+		workflow.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
+		return err
+	}
+	return nil
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
