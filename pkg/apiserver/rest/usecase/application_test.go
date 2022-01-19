@@ -575,10 +575,8 @@ var _ = Describe("Test application usecase function", func() {
 		compareResponse, err = appUsecase.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
-
 		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{Name: testApp}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
-
 	})
 
 	It("Test ResetAppToLatestRevision function", func() {
@@ -591,6 +589,33 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		expectProperties := "{\"image\":\"nginx\"}"
 		Expect(cmp.Diff(component.Properties.JSON(), expectProperties)).Should(BeEmpty())
+	})
+
+	It("Test DryRun with app function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		resetResponse, err := appUsecase.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "APP"})
+		Expect(err).Should(BeNil())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
+	})
+
+	It("Test DryRun with env revision function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		resetResponse, err := appUsecase.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision", Env: "app-dev"})
+		Expect(err).Should(BeNil())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
+	})
+
+	It("Test DryRun with last revision function", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		resetResponse, err := appUsecase.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision"})
+		Expect(err).Should(BeNil())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
+		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
 	})
 
 	It("Test DeleteApplication function", func() {
