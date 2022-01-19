@@ -80,4 +80,7 @@ type Args struct {
 
 	// OAMSpecVer is the oam spec version controller want to setup
 	OAMSpecVer string
+
+	// EnableCompatibility indicates that will change some functions of controller to adapt to multiple platforms, such as asi.
+	EnableCompatibility bool
 }
