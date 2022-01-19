@@ -213,6 +213,8 @@ const (
 	WorkflowStateFinished WorkflowState = "finished"
 	// WorkflowStateExecuting means workflow is still running or waiting some steps.
 	WorkflowStateExecuting WorkflowState = "executing"
+	// WorkflowStateSkipping means it will skip this reconcile and let next reconcile to handle it.
+	WorkflowStateSkipping WorkflowState = "skipping"
 )
 
 // ApplicationComponentStatus record the health status of App component

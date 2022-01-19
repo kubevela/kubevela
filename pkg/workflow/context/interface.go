@@ -32,8 +32,11 @@ type Context interface {
 	GetStore() *corev1.ConfigMap
 	GetMutableValue(path ...string) string
 	SetMutableValue(data string, path ...string)
-	IncreaseMutableCountValue(paths ...string) int
 	DeleteMutableValue(paths ...string)
+	IncreaseCountValueInMemory(paths ...string) int
+	SetValueInMemory(data interface{}, paths ...string)
+	GetValueInMemory(paths ...string) (interface{}, bool)
+	DeleteValueInMemory(paths ...string)
 	Commit() error
 	MakeParameter(parameter interface{}) (*value.Value, error)
 	StoreRef() *corev1.ObjectReference

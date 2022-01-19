@@ -20,14 +20,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -159,10 +156,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	if cacheValue, ok := StepStatusCache.Load(cacheKey); ok {
 		// handle cache resource
 		if len(wfStatus.Steps) < cacheValue.(int) {
-			if err := w.cli.Get(ctx, types.NamespacedName{Namespace: w.app.Namespace, Name: w.app.Name}, w.app); err != nil {
-				return common.WorkflowStateExecuting, err
-			}
-			wfStatus = w.app.Status.Workflow
+			return common.WorkflowStateSkipping, nil
 		}
 	}
 
@@ -184,11 +178,11 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	if wfStatus.Terminated {
-		w.CleanupCountersInContext(ctx)
+		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
-		w.CleanupCountersInContext(ctx)
+		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateSuspended, nil
 	}
 	if w.allDone(taskRunners) {
@@ -211,31 +205,13 @@ func (w *workflow) Trace() error {
 	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
 }
 
-func (w *workflow) CleanupCountersInContext(ctx monitorContext.Context) {
-	ctxCM := w.wfCtx.GetStore()
-
-	for k := range ctxCM.Data {
-		if strings.HasPrefix(k, wfTypes.ContextPrefixFailedTimes) ||
-			strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) ||
-			strings.HasPrefix(k, wfTypes.ContextKeyLastExecuteTime) ||
-			strings.HasPrefix(k, wfTypes.ContextKeyNextExecuteTime) {
-			delete(ctxCM.Data, k)
-		}
-	}
-
-	if err := w.wfCtx.Commit(); err != nil {
-		ctx.Error(err, "failed to commit workflow context", "application", w.app.Name, "config map", ctxCM.Name)
-	}
-
-}
-
 func (w *workflow) GetBackoffWaitTime() time.Duration {
-	nextTime := w.wfCtx.GetMutableValue(wfTypes.ContextKeyNextExecuteTime)
-	if nextTime == "" {
+	nextTime, ok := w.wfCtx.GetValueInMemory(wfTypes.ContextKeyNextExecuteTime)
+	if !ok {
 		return time.Second
 	}
-	unix, err := strconv.ParseInt(nextTime, 10, 64)
-	if err != nil {
+	unix, ok := nextTime.(int64)
+	if !ok {
 		return time.Second
 	}
 	next := time.Unix(unix, 0)
@@ -302,16 +278,15 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func getBackoffWaitTime(wfCtx wfContext.Context) int {
-	ctxCM := wfCtx.GetStore()
+func (e *engine) getBackoffWaitTime() int {
 	// the default value of min times reaches the max workflow backoff wait time
 	minTimes := 15
 	found := false
-	for k, v := range ctxCM.Data {
-		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
+	for _, step := range e.status.Steps {
+		if v, ok := e.wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffTimes, step.ID); ok {
 			found = true
-			times, err := strconv.Atoi(v)
-			if err != nil {
+			times, ok := v.(int)
+			if !ok {
 				times = 0
 			}
 			if times < minTimes {
@@ -334,19 +309,19 @@ func getBackoffWaitTime(wfCtx wfContext.Context) int {
 }
 
 func (e *engine) setNextExecuteTime() {
-	interval := getBackoffWaitTime(e.wfCtx)
-	lastExecuteTime := e.wfCtx.GetMutableValue(wfTypes.ContextKeyLastExecuteTime)
-	if lastExecuteTime == "" {
+	interval := e.getBackoffWaitTime()
+	lastExecuteTime, ok := e.wfCtx.GetValueInMemory(wfTypes.ContextKeyLastExecuteTime)
+	if !ok {
 		e.monitorCtx.Error(fmt.Errorf("failed to get last execute time"), "application", e.app.Name)
 	}
 
-	last, err := strconv.ParseInt(lastExecuteTime, 10, 64)
-	if err != nil {
-		e.monitorCtx.Error(err, "failed to parse last execute time", "lastExecuteTime", lastExecuteTime)
+	last, ok := lastExecuteTime.(int64)
+	if !ok {
+		e.monitorCtx.Error(fmt.Errorf("failed to parse last execute time to int64"), "lastExecuteTime", lastExecuteTime)
 	}
 
 	next := last + int64(interval)
-	e.wfCtx.SetMutableValue(strconv.FormatInt(next, 10), wfTypes.ContextKeyNextExecuteTime)
+	e.wfCtx.SetValueInMemory(next, wfTypes.ContextKeyNextExecuteTime)
 	if err := e.wfCtx.Commit(); err != nil {
 		e.monitorCtx.Error(err, "failed to commit next execute time", "nextExecuteTime", next)
 	}
@@ -377,7 +352,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 			}
 			todoTasks = append(todoTasks, tRunner)
 		} else {
-			wfCtx.DeleteMutableValue(wfTypes.ContextPrefixBackoffTimes, stepID)
+			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, stepID)
 		}
 	}
 	if done {
@@ -462,7 +437,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
 		e.waiting = e.waiting || operation.Waiting
 		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			wfCtx.IncreaseMutableCountValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
 			if err := wfCtx.Commit(); err != nil {
 				return errors.WithMessage(err, "commit workflow context")
 			}
@@ -472,7 +447,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 			e.checkFailedAfterRetries()
 			return nil
 		}
-		wfCtx.DeleteMutableValue(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
 		if err := wfCtx.Commit(); err != nil {
 			return errors.WithMessage(err, "commit workflow context")
 		}
@@ -512,7 +487,7 @@ func (e *engine) updateStepStatus(status common.WorkflowStepStatus) {
 		now              = metav1.NewTime(time.Now())
 	)
 
-	e.wfCtx.SetMutableValue(strconv.FormatInt(now.Unix(), 10), wfTypes.ContextKeyLastExecuteTime)
+	e.wfCtx.SetValueInMemory(now.Unix(), wfTypes.ContextKeyLastExecuteTime)
 	status.LastExecuteTime = now
 	for i := range e.status.Steps {
 		if e.status.Steps[i].Name == status.Name {
