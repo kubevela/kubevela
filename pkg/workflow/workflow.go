@@ -22,10 +22,12 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -45,6 +47,8 @@ import (
 var (
 	// DisableRecorder optimize workflow by disable recorder
 	DisableRecorder = false
+	// StepStatusCache cache the step status
+	StepStatusCache sync.Map
 )
 
 const (
@@ -127,7 +131,10 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 
 	wfStatus := w.app.Status.Workflow
+	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
+
 	if wfStatus.Finished {
+		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
 	if wfStatus.Terminated {
@@ -148,7 +155,16 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		return common.WorkflowStateExecuting, err
 	}
 	w.wfCtx = wfCtx
-	w.checkDuplicateID(ctx)
+
+	if cacheValue, ok := StepStatusCache.Load(cacheKey); ok {
+		// handle cache resource
+		if len(wfStatus.Steps) < cacheValue.(int) {
+			if err := w.cli.Get(ctx, types.NamespacedName{Namespace: w.app.Namespace, Name: w.app.Name}, w.app); err != nil {
+				return common.WorkflowStateExecuting, err
+			}
+			wfStatus = w.app.Status.Workflow
+		}
+	}
 
 	e := &engine{
 		status:     wfStatus,
@@ -166,6 +182,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 
 	e.checkWorkflowStatusMessage(wfStatus)
+	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	if wfStatus.Terminated {
 		w.CleanupCountersInContext(ctx)
 		return common.WorkflowStateTerminated, nil
@@ -283,22 +300,6 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 		return err
 	}
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
-}
-
-func (w *workflow) checkDuplicateID(ctx monitorContext.Context) {
-	if len(w.app.Status.Workflow.Steps) > 0 {
-		return
-	}
-	ctxCM := w.wfCtx.GetStore()
-	found := false
-	for k := range ctxCM.Data {
-		if strings.HasPrefix(k, wfTypes.ContextPrefixBackoffTimes) {
-			found = true
-		}
-	}
-	if found {
-		w.CleanupCountersInContext(ctx)
-	}
 }
 
 func getBackoffWaitTime(wfCtx wfContext.Context) int {
