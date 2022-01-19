@@ -188,8 +188,13 @@ template: {
 						if parameter["ports"] != _|_ {
 							ports: [ for v in parameter.ports {
 								{
-									containerPort: v.port
-									protocol:      v.protocol
+									if v.containerPort == _|_ {
+										containerPort: v.port
+									}
+									if v.containerPort != _|_ {
+										containerPort: v.containerPort
+									}
+									protocol: v.protocol
 									if v.name != _|_ {
 										name: v.name
 									}
@@ -305,8 +310,13 @@ template: {
 
 	exposePorts: [
 		for v in parameter.ports if v.expose == true {
-			port:       v.port
-			targetPort: v.port
+			port: v.port
+			if v.containerPort == _|_ {
+				targetPort: v.port
+			}
+			if v.containerPort != _|_ {
+				targetPort: v.containerPort
+			}
 			if v.name != _|_ {
 				name: v.name
 			}
@@ -356,7 +366,9 @@ template: {
 		// +usage=Which ports do you want customer traffic sent to, defaults to 80
 		ports?: [...{
 			// +usage=Number of port to expose on the pod's IP address
-			port: int
+			port: *80 | int
+			// +usage=Port the image container, by default, it's equal to the exposed port
+			containerPort?: int
 			// +usage=Name of the port
 			name?: string
 			// +usage=Protocol for port. Must be UDP, TCP, or SCTP
