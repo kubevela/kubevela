@@ -292,7 +292,7 @@ func TestMemoryValue(t *testing.T) {
 	r.Equal(v.(string), "value")
 
 	wfCtx.DeleteValueInMemory("test", "key")
-	v, ok = wfCtx.GetValueInMemory("test", "key")
+	_, ok = wfCtx.GetValueInMemory("test", "key")
 	r.Equal(ok, false)
 
 	wfCtx.SetValueInMemory("value", "test", "key")
