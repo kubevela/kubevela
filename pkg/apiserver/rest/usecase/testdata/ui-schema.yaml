@@ -102,23 +102,6 @@
   label: ReadinessProbe
   sort: 13
   subParameters:
-  - description: Number of seconds after the container is started before the first
-      probe is initiated.
-    jsonKey: initialDelaySeconds
-    label: InitialDelaySeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 0
-      required: true
-  - description: How often, in seconds, to execute the probe.
-    jsonKey: periodSeconds
-    label: PeriodSeconds
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 10
-      required: true
   - description: Minimum consecutive successes for the probe to be considered successful
       after having failed.
     jsonKey: successThreshold
@@ -230,6 +213,23 @@
         required: true
     uiType: Group
     validate: {}
+  - description: Number of seconds after the container is started before the first
+      probe is initiated.
+    jsonKey: initialDelaySeconds
+    label: InitialDelaySeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 0
+      required: true
+  - description: How often, in seconds, to execute the probe.
+    jsonKey: periodSeconds
+    label: PeriodSeconds
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 10
+      required: true
   uiType: Group
   validate: {}
 - description: Instructions for assessing whether the container is alive.
@@ -237,15 +237,6 @@
   label: LivenessProbe
   sort: 15
   subParameters:
-  - description: Number of consecutive failures required to determine the container
-      is not alive (liveness probe) or not ready (readiness probe).
-    jsonKey: failureThreshold
-    label: FailureThreshold
-    sort: 100
-    uiType: Number
-    validate:
-      defaultValue: 3
-      required: true
   - description: Instructions for assessing container health by executing an HTTP
       GET request. Either this attribute or the exec attribute or the tcpSocket attribute
       MUST be specified. This attribute is mutually exclusive with both the exec attribute
@@ -365,17 +356,25 @@
         required: true
     uiType: Group
     validate: {}
+  - description: Number of consecutive failures required to determine the container
+      is not alive (liveness probe) or not ready (readiness probe).
+    jsonKey: failureThreshold
+    label: FailureThreshold
+    sort: 100
+    uiType: Number
+    validate:
+      defaultValue: 3
+      required: true
   uiType: Group
   validate: {}
-- description: If addRevisionLabel is true, the appRevision label will be added to
-    the underlying pods
+- description: Which port do you want customer traffic sent to
   disable: true
-  jsonKey: addRevisionLabel
-  label: AddRevisionLabel
+  jsonKey: port
+  label: Port
   sort: 100
-  uiType: Switch
+  uiType: Number
   validate:
-    defaultValue: false
+    defaultValue: 80
     required: true
 - description: Declare volumes and volumeMounts
   disable: true
@@ -383,13 +382,6 @@
   label: Volumes
   sort: 100
   subParameters:
-  - description: ""
-    jsonKey: mountPath
-    label: MountPath
-    sort: 100
-    uiType: Input
-    validate:
-      required: true
   - description: ""
     jsonKey: name
     label: Name
@@ -413,16 +405,24 @@
       - label: EmptyDir
         value: emptyDir
       required: true
+  - description: ""
+    jsonKey: mountPath
+    label: MountPath
+    sort: 100
+    uiType: Input
+    validate:
+      required: true
   uiType: Structs
   validate: {}
-- description: Which port do you want customer traffic sent to
+- description: If addRevisionLabel is true, the appRevision label will be added to
+    the underlying pods
   disable: true
-  jsonKey: port
-  label: Port
+  jsonKey: addRevisionLabel
+  label: AddRevisionLabel
   sort: 100
-  uiType: Number
+  uiType: Switch
   validate:
-    defaultValue: 80
+    defaultValue: false
     required: true
 - description: Specify image pull secrets for your service
   jsonKey: imagePullSecrets
