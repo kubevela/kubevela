@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -167,8 +168,10 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			"> vela def init my-def -i --output ./my-def.cue\n" +
 			"# Command below initiate a ComponentDefinition named my-webservice with the template parsed from ./template.yaml.\n" +
 			"> vela def init my-webservice -i --template-yaml ./template.yaml\n" +
-			"# Command below initiate a typed ComponentDefinition named vswitch from Alibaba Cloud.\n" +
-			"> vela def init vswitch --type component --provider alibaba --desc xxx --git https://github.com/kubevela-contrib/terraform-modules.git --path alibaba/vswitch",
+			"# Initiate a Terraform ComponentDefinition named vswitch from Github for Alibaba Cloud.\n" +
+			"> vela def init vswitch --type component --provider alibaba --desc xxx --git https://github.com/kubevela-contrib/terraform-modules.git --path alibaba/vswitch\n" +
+			"# Initiate a Terraform ComponentDefinition named redis from local file for AWS.\n" +
+			"> vela def init redis --type component --provider aws --desc \"Terraform configuration for AWS Redis\" --local redis.tf",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var defStr string
@@ -280,6 +283,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")
 	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure` are supported.")
 	cmd.Flags().StringP(FlagGit, "", "", "Specify which git repository the configuration(HCL) is stored in. Valid when --provider/-p is set.")
+	cmd.Flags().StringP(FlagLocal, "", "", "Specify the local path of the configuration(HCL) file. Valid when --provider/-p is set.")
 	cmd.Flags().StringP(FlagPath, "", "", "Specify which path the configuration(HCL) is stored in the Git repository. Valid when --git is set.")
 	return cmd
 }
@@ -290,17 +294,41 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 	}
 
 	switch provider {
-	case "aws", "azure", "alibaba":
+	case "aws", "azure", "alibaba", "tencent":
+		var terraform *commontype.Terraform
+
 		git, err := cmd.Flags().GetString(FlagGit)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to get `%s`", FlagGit)
 		}
-		if !strings.HasPrefix(git, "https://") || !strings.HasSuffix(git, ".git") {
-			return "", errors.Errorf("invalid git url: %s", git)
+		local, err := cmd.Flags().GetString(FlagLocal)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to get `%s`", FlagLocal)
+		}
+		if git != "" && local != "" {
+			return "", errors.New("only one of --git and --local can be set")
 		}
 		gitPath, err := cmd.Flags().GetString(FlagPath)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to get `%s`", FlagPath)
+		}
+		if git != "" {
+			if !strings.HasPrefix(git, "https://") || !strings.HasSuffix(git, ".git") {
+				return "", errors.Errorf("invalid git url: %s", git)
+			}
+			terraform = &commontype.Terraform{
+				Configuration: git,
+				Type:          "remote",
+				Path:          gitPath,
+			}
+		} else if local != "" {
+			hcl, err := ioutil.ReadFile(filepath.Clean(local))
+			if err != nil {
+				return "", errors.Wrapf(err, "failed to read Terraform configuration from file %s", local)
+			}
+			terraform = &commontype.Terraform{
+				Configuration: string(hcl),
+			}
 		}
 		def := v1beta1.ComponentDefinition{
 			TypeMeta: metav1.TypeMeta{
@@ -325,11 +353,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 					},
 				},
 				Schematic: &commontype.Schematic{
-					Terraform: &commontype.Terraform{
-						Configuration: git,
-						Type:          "remote",
-						Path:          gitPath,
-					},
+					Terraform: terraform,
 				},
 			},
 		}
