@@ -68,6 +68,10 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 			if err != nil {
 				return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
 			}
+			// override namespace if namespace flag is set
+			if namespace != "" {
+				app.SetNamespace(namespace)
+			}
 			err = common.ApplyApplication(app, ioStream, kubecli)
 			if err != nil {
 				return err
