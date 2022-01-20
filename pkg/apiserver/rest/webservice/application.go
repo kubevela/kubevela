@@ -505,6 +505,33 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
+	ws.Route(ws.POST("/{name}/compare").To(c.compareAppWithLatestRevision).
+		Doc("compare application with env latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.ApplicationBase{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppCompareResponse{}))
+
+	ws.Route(ws.POST("/{name}/reset").To(c.resetAppToLatestRevision).
+		Doc("reset application to latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.AppResetResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppResetResponse{}))
+
+	ws.Route(ws.POST("/{name}/dry-run").To(c.dryRunAppOrRevision).
+		Doc("dry-run application to latest revision").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.appCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Returns(200, "", apis.AppDryRunResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.AppDryRunResponse{}))
+
 	return ws
 }
 
@@ -1082,6 +1109,71 @@ func (c *applicationWebService) listApplicationRecords(req *restful.Request, res
 		return
 	}
 	if err := res.WriteEntity(records); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	// Verify the validity of parameters
+	var compareReq apis.AppCompareReq
+	if err := req.ReadEntity(&compareReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&compareReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	base, err := c.applicationUsecase.CompareAppWithLatestRevision(req.Request.Context(), app, compareReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) resetAppToLatestRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+
+	base, err := c.applicationUsecase.ResetAppToLatestRevision(req.Request.Context(), app.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *applicationWebService) dryRunAppOrRevision(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	// Verify the validity of parameters
+	var dryRunReq apis.AppDryRunReq
+	if err := req.ReadEntity(&dryRunReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&dryRunReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if dryRunReq.AppName == "" {
+		dryRunReq.AppName = app.Name
+	}
+
+	base, err := c.applicationUsecase.DryRunAppOrRevision(req.Request.Context(), app, dryRunReq)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
