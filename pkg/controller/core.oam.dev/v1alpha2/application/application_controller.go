@@ -375,8 +375,6 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			if wfContext.EnableInMemoryContext {
 				wfContext.MemStore.DeleteInMemoryContext(app.Name)
 			}
-			workflow.StepStatusCache.Delete(fmt.Sprintf("%s-%s", app.Name, app.Namespace))
-			wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 			return true, result, err
 		}
 	}

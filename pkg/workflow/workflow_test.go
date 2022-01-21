@@ -142,7 +142,6 @@ var _ = Describe("Test Workflow", func() {
 				Phase: common.WorkflowStepPhaseSucceeded,
 			}},
 		})).Should(BeEquivalentTo(""))
-
 	})
 
 	It("Workflow test for failed after retries", func() {
@@ -237,7 +236,6 @@ var _ = Describe("Test Workflow", func() {
 				Phase: common.WorkflowStepPhaseSucceeded,
 			}},
 		})).Should(BeEquivalentTo(""))
-
 	})
 
 	It("Test get backoff time and clean", func() {
@@ -249,15 +247,8 @@ var _ = Describe("Test Workflow", func() {
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
 		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
-		StepStatusCache.Store("app-default", 1)
 		_, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
-		app.Status.Workflow.Steps = []common.WorkflowStepStatus{
-			{
-				ID:    "test-step-id",
-				Phase: common.WorkflowStepPhaseRunning,
-			},
-		}
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		wfCtx, err := wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
