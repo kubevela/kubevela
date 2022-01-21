@@ -24,6 +24,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -34,14 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Test application usecase function", func() {
@@ -631,7 +632,6 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
 	})
-
 })
 
 func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion, wfName, recordName string, kubeClient client.Client) (*v1beta1.Application, error) {
