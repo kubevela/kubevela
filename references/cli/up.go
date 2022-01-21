@@ -68,6 +68,12 @@ func NewUpCommand(c common2.Args, order string, ioStream cmdutil.IOStreams) *cob
 			if err != nil {
 				return errors.Wrap(err, "File format is illegal, only support vela appfile format or OAM Application object yaml")
 			}
+
+			// Override namespace if namespace flag is set. We should check if namespace is `default` or not
+			// since GetFlagNamespaceOrEnv returns default namespace when failed to get current env.
+			if namespace != "" && namespace != types.DefaultAppNamespace {
+				app.SetNamespace(namespace)
+			}
 			err = common.ApplyApplication(app, ioStream, kubecli)
 			if err != nil {
 				return err
