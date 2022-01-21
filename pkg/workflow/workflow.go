@@ -124,6 +124,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 			}
 		}
 		w.app.Status.Conditions = reservedConditions
+		StepStatusCache.Delete(fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace))
+		wfContext.CleanupMemoryStore(w.app.Name, w.app.Namespace)
 		return common.WorkflowStateInitializing, nil
 	}
 
