@@ -243,6 +243,7 @@ close({
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		case "failed-after-retries":
+			wfContext.CleanupMemoryStore("app-v1", "default")
 			newCtx := newWorkflowContextForTest(t)
 			for i := 0; i < MaxErrorTimes; i++ {
 				status, operation, err = run.Run(newCtx, &types.TaskRunOptions{})
