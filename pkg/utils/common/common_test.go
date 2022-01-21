@@ -127,7 +127,7 @@ output: {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := GetCUEParameterValue(tc.cueStr)
+			_, err := GetCUEParameterValue(tc.cueStr, nil)
 			if tc.want.err != nil {
 				if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -162,7 +162,7 @@ name
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := GetCUEParameterValue(tc.cueStr)
+			_, err := GetCUEParameterValue(tc.cueStr, nil)
 			if diff := cmp.Diff(tc.want.errMsg, err.Error(), test.EquateConditions()); diff != "" {
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
 			}

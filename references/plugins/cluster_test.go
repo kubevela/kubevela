@@ -227,15 +227,15 @@ var _ = Describe("test GetCapabilityByName", func() {
 
 	It("get capability", func() {
 		Context("ComponentDefinition is in the current namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, component1, ns)
+			_, err := GetCapabilityByName(ctx, c, component1, ns, nil)
 			Expect(err).Should(BeNil())
 		})
 		Context("ComponentDefinition is in the default namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, component2, ns)
+			_, err := GetCapabilityByName(ctx, c, component2, ns, nil)
 			Expect(err).Should(BeNil())
 		})
 		Context("ComponentDefinition is in the default namespace", func() {
-			cap, err := GetCapabilityByName(ctx, c, component3, ns)
+			cap, err := GetCapabilityByName(ctx, c, component3, ns, nil)
 			Expect(err).Should(BeNil())
 			jsontmp, err := json.Marshal(cap.KubeParameter)
 			Expect(err).Should(BeNil())
@@ -245,20 +245,20 @@ var _ = Describe("test GetCapabilityByName", func() {
 			Expect(string(jsontmp)).Should(ContainSubstring("the specific container port num which can accept external request."))
 		})
 		Context("ComponentDefinition's workload type is AutoDetectWorkloadDefinition", func() {
-			_, err := GetCapabilityByName(ctx, c, component4, ns)
+			_, err := GetCapabilityByName(ctx, c, component4, ns, nil)
 			Expect(err).Should(BeNil())
 		})
 
 		Context("TraitDefinition is in the current namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, trait1, ns)
+			_, err := GetCapabilityByName(ctx, c, trait1, ns, nil)
 			Expect(err).Should(BeNil())
 		})
 		Context("TraitDefinition is in the default namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, trait2, ns)
+			_, err := GetCapabilityByName(ctx, c, trait2, ns, nil)
 			Expect(err).Should(BeNil())
 		})
 		Context("TraitDefinition is in the default namespace", func() {
-			cap, err := GetCapabilityByName(ctx, c, trait3, ns)
+			cap, err := GetCapabilityByName(ctx, c, trait3, ns, nil)
 			Expect(err).Should(BeNil())
 			jsontmp, err := json.Marshal(cap.KubeParameter)
 			Expect(err).Should(BeNil())
@@ -267,7 +267,7 @@ var _ = Describe("test GetCapabilityByName", func() {
 		})
 
 		Context("capability cloud not be found", func() {
-			_, err := GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns)
+			_, err := GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns, nil)
 			Expect(err).Should(HaveOccurred())
 		})
 	})

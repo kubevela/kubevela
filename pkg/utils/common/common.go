@@ -30,6 +30,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
@@ -62,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -146,11 +148,26 @@ func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 }
 
 // GetCUEParameterValue converts definitions to cue format
-func GetCUEParameterValue(cueStr string) (cue.Value, error) {
-	r := cue.Runtime{}
-	template, err := r.Compile("", cueStr+velacue.BaseTemplate)
-	if err != nil {
-		return cue.Value{}, err
+func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
+	var template *cue.Instance
+	var err error
+	if pd != nil {
+		bi := build.NewContext().NewInstance("", nil)
+		err := bi.AddFile("-", cueStr+velacue.BaseTemplate)
+		if err != nil {
+			return cue.Value{}, err
+		}
+
+		template, err = pd.ImportPackagesAndBuildInstance(bi)
+		if err != nil {
+			return cue.Value{}, err
+		}
+	} else {
+		r := cue.Runtime{}
+		template, err = r.Compile("", cueStr+velacue.BaseTemplate)
+		if err != nil {
+			return cue.Value{}, err
+		}
 	}
 	tempStruct, err := template.Value().Struct()
 	if err != nil {
