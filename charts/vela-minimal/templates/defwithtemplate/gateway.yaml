@@ -67,7 +67,7 @@ spec:
         	// +usage=Specify the class of ingress to use
         	class: *"nginx" | string
 
-        	// +usage=Set ingress class to '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
+        	// +usage=Set ingress class in '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
         	classInSpec: *false | bool
         }
   status:
