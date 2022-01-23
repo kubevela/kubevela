@@ -1038,7 +1038,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		refParam.Name = v.Name
 		refParam.PrintableType = v.Type
 		refParam.Usage = v.Description
-		refParam.Required = true
+		refParam.Required = v.Required
 		refParameterList = append(refParameterList, refParam)
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
