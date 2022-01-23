@@ -213,7 +213,9 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 		}
 	}
 	conf, err := ioutil.ReadFile(filepath.Clean(tfPath))
-
+	if err != nil {
+		return "", errors.Wrap(err, "failed to read Terraform configuration")
+	}
 	if err := os.RemoveAll(tmpPath); err != nil {
 		return "", err
 	}
