@@ -1,4 +1,4 @@
-"gateway": {
+gateway: {
 	type: "trait"
 	annotations: {}
 	labels: {}
@@ -49,22 +49,29 @@ template: {
 		metadata: {
 			name: context.name
 			annotations: {
-				"kubernetes.io/ingress.class": parameter.class
+				if !parameter.classInSpec {
+					"kubernetes.io/ingress.class": parameter.class
+				}
 			}
 		}
-		spec: rules: [{
-			host: parameter.domain
-			http: paths: [
-				for k, v in parameter.http {
-					path:     k
-					pathType: "ImplementationSpecific"
-					backend: service: {
-						name: context.name
-						port: number: v
-					}
-				},
-			]
-		}]
+		spec: {
+			if parameter.classInSpec {
+				ingressClassName: parameter.class
+			}
+			rules: [{
+				host: parameter.domain
+				http: paths: [
+					for k, v in parameter.http {
+						path:     k
+						pathType: "ImplementationSpecific"
+						backend: service: {
+							name: context.name
+							port: number: v
+						}
+					},
+				]
+			}]
+		}
 	}
 
 	parameter: {
@@ -76,5 +83,8 @@ template: {
 
 		// +usage=Specify the class of ingress to use
 		class: *"nginx" | string
+
+		// +usage=Set ingress class to '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
+		classInSpec: *false | bool
 	}
 }
