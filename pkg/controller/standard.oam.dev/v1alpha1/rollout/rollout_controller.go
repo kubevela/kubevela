@@ -131,12 +131,13 @@ func (r *reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 		// this is a scale operation, if user don't fill rolloutBatches, fill it with default value
-		if len(h.sourceRevName) == 0 && len(rollout.Spec.RolloutPlan.RolloutBatches) == 0 {
+		if (len(h.sourceRevName) == 0 && len(rollout.Spec.RolloutPlan.RolloutBatches) == 0) || (rollout.GetAnnotations()[oam.AnnotationRolloutBatchesAutoComplete] == "true" && len(rollout.Spec.RolloutPlan.RolloutBatches) <= 1) {
 			// logic reach here means cannot get an error, so ignore it
 			replicas, _ := getWorkloadReplicasNum(*h.targetWorkload)
 			rollout.Spec.RolloutPlan.RolloutBatches = []v1alpha1.RolloutBatch{{
 				Replicas: intstr.FromInt(int(math.Abs(float64(*rollout.Spec.RolloutPlan.TargetSize - replicas))))},
 			}
+			rollout.Annotations[oam.AnnotationRolloutBatchesAutoComplete] = "false"
 			klog.InfoS("rollout controller set default rollout  batches ", h.rollout.GetName(),
 				" namespace: ", rollout.Namespace, "targetSize", rollout.Spec.RolloutPlan.TargetSize)
 			return ctrl.Result{}, h.Update(ctx, rollout)
