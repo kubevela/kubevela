@@ -465,7 +465,7 @@ variable "aaa" {
 
 			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path)
 			if tc.want.errMsg != "" {
-				if !strings.Contains(err.Error(), tc.want.errMsg) {
+				if err != nil && !strings.Contains(err.Error(), tc.want.errMsg) {
 					t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error %v, +got error:%s", name, err, tc.want.errMsg)
 				}
 			} else {
