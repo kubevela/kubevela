@@ -205,12 +205,17 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 		return "", err
 	}
 
-	tfPath := filepath.Join(tmpPath, remotePath, "main.tf")
+	tfPath := filepath.Join(tmpPath, remotePath, "variables.tf")
+	if _, err := os.Stat(tfPath); err != nil {
+		tfPath = filepath.Join(tmpPath, remotePath, "main.tf")
+		if _, err := os.Stat(tfPath); err != nil {
+			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
+		}
+	}
 	conf, err := ioutil.ReadFile(filepath.Clean(tfPath))
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "failed to read Terraform configuration")
 	}
-
 	if err := os.RemoveAll(tmpPath); err != nil {
 		return "", err
 	}
