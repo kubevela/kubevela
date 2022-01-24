@@ -78,4 +78,29 @@ var _ = Describe("addon usecase test", func() {
 			}
 		}
 	})
+
+	It("Test render without ui-schema", func() {
+		addonName := "test-without-schema"
+		defaultSchema := []*utils.UIParameter{
+			{
+				JSONKey: "version",
+				Sort:    3,
+			},
+			{
+				JSONKey: "domain",
+				Sort:    8,
+			},
+		}
+		res := renderAddonCustomUISchema(ctx, k8sClient, addonName, defaultSchema)
+		Expect(len(res)).Should(BeEquivalentTo(2))
+		for _, re := range res {
+			if re.JSONKey == "version" {
+				Expect(re.Validate).Should(BeNil())
+				Expect(re.Sort).Should(BeEquivalentTo(3))
+			}
+			if re.JSONKey == "domain" {
+				Expect(re.Sort).Should(BeEquivalentTo(8))
+			}
+		}
+	})
 })
