@@ -181,5 +181,5 @@ const (
 	AnnotationWorkloadName = "trait.oam.dev/workload-name"
 
 	// AnnotationRolloutBatchesAutoComplete is used to enable rollout batches auto complete
-	AnnotationRolloutBatchesAutoComplete = "rollout.trait.oam.dev/rolloutBatchesAutoComplete"
+	AnnotationRolloutBatchesAutoComplete = "rollout.trait.oam.dev/rollout-batches-auto-complete"
 )
