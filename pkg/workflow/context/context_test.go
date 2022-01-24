@@ -275,14 +275,33 @@ func TestMutableValue(t *testing.T) {
 	wfCtx.DeleteMutableValue("test", "key")
 	v = wfCtx.GetMutableValue("test", "key")
 	r.Equal(v, "")
+}
 
-	wfCtx.SetMutableValue("value", "test", "key")
-	count := wfCtx.IncreaseMutableCountValue("test", "key")
+func TestMemoryValue(t *testing.T) {
+	cli := newCliForTest(t, nil)
+	r := require.New(t)
+
+	wfCtx, err := NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	err = wfCtx.Commit()
+	r.NoError(err)
+
+	wfCtx.SetValueInMemory("value", "test", "key")
+	v, ok := wfCtx.GetValueInMemory("test", "key")
+	r.Equal(ok, true)
+	r.Equal(v.(string), "value")
+
+	wfCtx.DeleteValueInMemory("test", "key")
+	_, ok = wfCtx.GetValueInMemory("test", "key")
+	r.Equal(ok, false)
+
+	wfCtx.SetValueInMemory("value", "test", "key")
+	count := wfCtx.IncreaseCountValueInMemory("test", "key")
 	r.Equal(count, 0)
-	count = wfCtx.IncreaseMutableCountValue("notfound", "key")
+	count = wfCtx.IncreaseCountValueInMemory("notfound", "key")
 	r.Equal(count, 0)
-	wfCtx.SetMutableValue("10", "number", "key")
-	count = wfCtx.IncreaseMutableCountValue("number", "key")
+	wfCtx.SetValueInMemory(10, "number", "key")
+	count = wfCtx.IncreaseCountValueInMemory("number", "key")
 	r.Equal(count, 11)
 }
 
