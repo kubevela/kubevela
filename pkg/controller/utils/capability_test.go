@@ -428,18 +428,10 @@ variable "aaa" {
 		},
 		"working path exists": {
 			args: args{
+				variableFile:    "main.tf",
 				mockWorkingPath: true,
 			},
 			want: want{
-				config: `
-variable "aaa" {
-	type = list(object({
-		type = string
-		sourceArn = string
-		config = string
-	}))
-	default = []
-}`,
 				errMsg: "failed to remove the directory",
 			},
 		},
@@ -448,8 +440,17 @@ variable "aaa" {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			if tc.args.mockWorkingPath {
-				err := os.MkdirAll("./tmp/terraform", 0100)
+				err := os.MkdirAll("./tmp/terraform", 0755)
 				assert.NilError(t, err)
+				defer os.RemoveAll("./tmp/terraform")
+				patch1 := ApplyFunc(os.Remove, func(_ string) error {
+					return errors.New("failed")
+				})
+				defer patch1.Reset()
+				patch2 := ApplyFunc(os.Open, func(_ string) (*os.File, error) {
+					return nil, errors.New("failed")
+				})
+				defer patch2.Reset()
 			}
 
 			patch := ApplyFunc(git.PlainCloneContext, func(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
@@ -463,8 +464,10 @@ variable "aaa" {
 			defer patch.Reset()
 
 			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path)
-			if tc.want.errMsg != "" && !strings.Contains(err.Error(), tc.want.errMsg) {
-				t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error %v, +got error:%s", name, err, tc.want.errMsg)
+			if tc.want.errMsg != "" {
+				if !strings.Contains(err.Error(), tc.want.errMsg) {
+					t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error %v, +got error:%s", name, err, tc.want.errMsg)
+				}
 			} else {
 				assert.Equal(t, tc.want.config, conf)
 			}
