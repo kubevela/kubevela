@@ -32,6 +32,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -356,6 +357,12 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 					Terraform: terraform,
 				},
 			},
+		}
+		if provider != "alibaba" {
+			def.Spec.Schematic.Terraform.ProviderReference = &crossplane.Reference{
+				Name:      provider,
+				Namespace: "default",
+			}
 		}
 		var out bytes.Buffer
 		err = json.NewSerializerWithOptions(json.DefaultMetaFactory, nil, nil, json.SerializerOptions{Yaml: true}).Encode(&def, &out)
