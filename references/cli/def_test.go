@@ -204,10 +204,14 @@ func TestNewDefinitionInitCommand(t *testing.T) {
 }
 
 func TestNewDefinitionInitCommand4Terraform(t *testing.T) {
-	const defFileName = "alibaba-vswitch.yaml"
+	const (
+		defVswitchFileName = "alibaba-vswitch.yaml"
+		defRedisFileName   = "tencent-redis.yaml"
+	)
 	testcases := []struct {
 		name   string
 		args   []string
+		output string
 		errMsg string
 		want   string
 	}{
@@ -216,12 +220,95 @@ func TestNewDefinitionInitCommand4Terraform(t *testing.T) {
 			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch"},
 		},
 		{
-			name: "normal from local",
-			args: []string{"vswitch", "-t", "component", "--provider", "tencent", "--desc", "xxx", "--local", "test-data/redis.tf"},
+			name:   "normal from local",
+			args:   []string{"vswitch", "-t", "component", "--provider", "tencent", "--desc", "xxx", "--local", "test-data/redis.tf", "--output", defRedisFileName},
+			output: defRedisFileName,
+			want: `apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: xxx
+  creationTimestamp: null
+  labels:
+    type: terraform
+  name: tencent-vswitch
+  namespace: vela-system
+spec:
+  schematic:
+    terraform:
+      configuration: |
+        terraform {
+          required_providers {
+            tencentcloud = {
+              source = "tencentcloudstack/tencentcloud"
+            }
+          }
+        }
+
+        resource "tencentcloud_redis_instance" "main" {
+          type_id           = 8
+          availability_zone = var.availability_zone
+          name              = var.instance_name
+          password          = var.user_password
+          mem_size          = var.mem_size
+          port              = var.port
+        }
+
+        output "DB_IP" {
+          value = tencentcloud_redis_instance.main.ip
+        }
+
+        output "DB_PASSWORD" {
+          value = var.user_password
+        }
+
+        output "DB_PORT" {
+          value = var.port
+        }
+
+        variable "availability_zone" {
+          description = "The available zone ID of an instance to be created."
+          type        = string
+          default = "ap-chengdu-1"
+        }
+
+        variable "instance_name" {
+          description = "redis instance name"
+          type        = string
+          default     = "sample"
+        }
+
+        variable "user_password" {
+          description = "redis instance password"
+          type        = string
+          default     = "IEfewjf2342rfwfwYYfaked"
+        }
+
+        variable "mem_size" {
+          description = "redis instance memory size"
+          type        = number
+          default     = 1024
+        }
+
+        variable "port" {
+          description = "The port used to access a redis instance."
+          type        = number
+          default     = 6379
+        }
+      providerRef:
+        name: tencent
+        namespace: default
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+status: {}
+`,
 		},
 		{
-			name: "print in a file",
-			args: []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch", "--output", defFileName},
+			name:   "print in a file",
+			args:   []string{"vswitch", "-t", "component", "--provider", "alibaba", "--desc", "xxx", "--git", "https://github.com/kubevela-contrib/terraform-modules.git", "--path", "alibaba/vswitch", "--output", defVswitchFileName},
+			output: defVswitchFileName,
 			want: `apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
@@ -281,8 +368,8 @@ status: {}`,
 			if err != nil && !strings.Contains(err.Error(), tc.errMsg) {
 				t.Fatalf("unexpected error when executing init command: %v", err)
 			} else if tc.want != "" {
-				data, err := os.ReadFile(defFileName)
-				defer os.Remove(defFileName)
+				data, err := os.ReadFile(tc.output)
+				defer os.Remove(tc.output)
 				assert.Nil(t, err)
 				if !strings.Contains(string(data), tc.want) {
 					t.Fatalf("unexpected output: %s", string(data))
