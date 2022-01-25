@@ -234,11 +234,11 @@ func parseToMap(args []string) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	for _, pair := range args {
 		line := strings.Split(pair, "=")
-		if len(line) != 2 {
+		if len(line) < 2 {
 			return nil, fmt.Errorf("parameter format should be foo=bar, %s not match", pair)
 		}
 		k := strings.TrimSpace(line[0])
-		v := strings.TrimSpace(line[1])
+		v := strings.TrimSpace(strings.Join(line[1:], "="))
 		if k != "" && v != "" {
 			res[k] = v
 		}
