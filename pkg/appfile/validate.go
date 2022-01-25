@@ -35,7 +35,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace)
 		if err != nil {
-			return errors.WithMessage(err, "cannot create validationg process context")
+			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
 		for _, tr := range wl.Traits {
 			if tr.CapabilityCategory != types.CUECategory {
