@@ -18,12 +18,15 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -155,7 +159,9 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 	if addon == nil {
 		return nil, bcode.ErrAddonNotExist
 	}
-	addon.UISchema = renderDefaultUISchema(addon.APISchema)
+
+	addon.UISchema = renderAddonCustomUISchema(ctx, u.kubeClient, name, renderDefaultUISchema(addon.APISchema))
+
 	a, err := AddonImpl2AddonRes(addon)
 	if err != nil {
 		return nil, err
@@ -453,6 +459,29 @@ func convertAppStateToAddonPhase(state common2.ApplicationPhase) apis.AddonPhase
 	default:
 		return apis.AddonPhaseEnabling
 	}
+}
+
+func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
+	var cm v1.ConfigMap
+	if err := cli.Get(ctx, k8stypes.NamespacedName{
+		Namespace: types.DefaultKubeVelaNS,
+		Name:      fmt.Sprintf("addon-uischema-%s", addonName),
+	}, &cm); err != nil {
+		if !errors2.IsNotFound(err) {
+			log.Logger.Errorf("find uischema configmap from cluster failure %s", err.Error())
+		}
+		return defaultSchema
+	}
+	data, ok := cm.Data[types.UISchema]
+	if !ok {
+		return defaultSchema
+	}
+	schema := []*utils.UIParameter{}
+	if err := json.Unmarshal([]byte(data), &schema); err != nil {
+		log.Logger.Errorf("unmarshal ui schema failure %s", err.Error())
+		return defaultSchema
+	}
+	return patchSchema(defaultSchema, schema)
 }
 
 // ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistry
