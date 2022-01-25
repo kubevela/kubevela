@@ -28,7 +28,7 @@ import (
 
 func TestGetParameter(t *testing.T) {
 	data, _ := os.ReadFile("testdata/workloads/metrics.cue")
-	params, err := GetParameters(string(data))
+	params, err := GetParameters(string(data), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, params, []types.Parameter{
 		{Name: "format", Required: false, Default: "prometheus", Usage: "format of the metrics, " +
@@ -38,7 +38,7 @@ func TestGetParameter(t *testing.T) {
 		{Name: "selector", Required: false, Usage: "the label selector for the pods, default is the workload labels", Type: cue.StructKind},
 	})
 	data, _ = os.ReadFile("testdata/workloads/deployment.cue")
-	params, err = GetParameters(string(data))
+	params, err = GetParameters(string(data), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
@@ -50,7 +50,7 @@ func TestGetParameter(t *testing.T) {
 		params)
 
 	data, _ = os.ReadFile("testdata/workloads/test-param.cue")
-	params, err = GetParameters(string(data))
+	params, err = GetParameters(string(data), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
@@ -61,13 +61,13 @@ func TestGetParameter(t *testing.T) {
 		{Name: "fval", Default: 64.3, Type: cue.FloatKind},
 		{Name: "nval", Default: float64(0), Required: true, Type: cue.NumberKind}}, params)
 	data, _ = os.ReadFile("testdata/workloads/empty.cue")
-	params, err = GetParameters(string(data))
+	params, err = GetParameters(string(data), nil)
 	assert.NoError(t, err)
 	var exp []types.Parameter
 	assert.Equal(t, exp, params)
 
 	data, _ = os.ReadFile("testdata/workloads/webservice.cue") // test cue parameter with "// +ignore" annotation
-	params, err = GetParameters(string(data))                  // Only test for func RetrieveComments
+	params, err = GetParameters(string(data), nil)             // Only test for func RetrieveComments
 	assert.NoError(t, err)
 	var flag bool
 	for _, para := range params {
