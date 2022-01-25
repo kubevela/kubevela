@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
 )
@@ -55,6 +56,8 @@ const (
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
 	TraitPath = "traits"
+	// WorkflowStepPath is the URL path for workflow step typed capability
+	WorkflowStepPath = "workflowsteps"
 )
 
 // Int64Type is int64 type
@@ -556,6 +559,14 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		caps []types.Capability
 		err  error
 	)
+	config, err := c.GetConfig()
+	if err != nil {
+		return err
+	}
+	pd, err := packages.NewPackageDiscover(config)
+	if err != nil {
+		return err
+	}
 
 	if ref.DefinitionName == "" {
 		caps, err = LoadAllInstalledCapability("default", c)
@@ -563,18 +574,18 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 			return fmt.Errorf("failed to get all capabilityes: %w", err)
 		}
 	} else {
-		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace)
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace, pd)
 		if err != nil {
 			return fmt.Errorf("failed to get capability capability %s: %w", ref.DefinitionName, err)
 		}
 		caps = []types.Capability{*cap}
 	}
 
-	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath)
+	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, pd)
 }
 
 // CreateMarkdown creates markdown based on capabilities
-func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
+func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string, pd *packages.PackageDiscover) error {
 	setDisplayFormat("markdown")
 	for i, c := range caps {
 		var (
@@ -610,7 +621,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 		capNameInTitle := ref.makeReadableTitle(capName)
 		switch c.Category {
 		case types.CUECategory:
-			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
+			cueValue, err := common.GetCUEParameterValue(c.CueTemplate, pd)
 			if err != nil {
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
@@ -821,7 +832,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
-				if subField, _ := val.Struct(); subField.Len() == 0 { // err cannot be not nil,so ignore it
+				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
 						// In the future we could recursive call to surpport complex map-value(struct or list)
 						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
@@ -932,11 +943,11 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 }
 
 // GenerateCUETemplateProperties get all properties of a capability
-func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability) ([]ConsoleReference, error) {
+func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability, pd *packages.PackageDiscover) ([]ConsoleReference, error) {
 	setDisplayFormat("console")
 	capName := capability.Name
 
-	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate)
+	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate, pd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -62,8 +63,8 @@ var webSite bool
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
-		Short:   "Show the reference doc for a component type or trait.",
-		Long:    "Show the reference doc for component or trait types.",
+		Short:   "Show the reference doc for a component, trait or workflow.",
+		Long:    "Show the reference doc for component, trait or workflow types.",
 		Example: `show webservice`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -126,7 +127,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		}
 	}
 	if !capabilityIsValid {
-		return fmt.Errorf("%s is not a valid component type or trait", capabilityName)
+		return fmt.Errorf("%s is not a valid component, trait or workflow", capabilityName)
 	}
 
 	cli, err := c.GetClient()
@@ -139,7 +140,15 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		},
 	}
 
-	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
+	config, err := c.GetConfig()
+	if err != nil {
+		return err
+	}
+	pd, err := packages.NewPackageDiscover(config)
+	if err != nil {
+		return err
+	}
+	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, plugins.ReferenceSourcePath, pd); err != nil {
 		return err
 	}
 
@@ -171,6 +180,8 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	case types.TypeScope:
 	case types.TypeComponentDefinition:
 		capabilityPath = plugins.ComponentDefinitionTypePath
+	case types.TypeWorkflowStep:
+		capabilityPath = plugins.WorkflowStepPath
 	default:
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
@@ -216,7 +227,7 @@ func launch(server *http.Server, errChan chan<- error) {
 
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
-	components, traits := getComponentsAndTraits(capabilities)
+	components, traits, workflowsteps := getDefinitions(capabilities)
 	f, err := os.Create(sideBar)
 	if err != nil {
 		return err
@@ -234,6 +245,14 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	}
 	for _, t := range traits {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.TraitPath, t)); err != nil {
+			return err
+		}
+	}
+	if _, err := f.WriteString("- Workflow Steps\n"); err != nil {
+		return err
+	}
+	for _, t := range workflowsteps {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.WorkflowStepPath, t)); err != nil {
 			return err
 		}
 	}
@@ -303,12 +322,12 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.WriteString("# KubeVela Reference Docs for Component Types and Traits\n" +
-		"Click the navigation bar on the left or the links below to look into the detailed referennce of a Workload type or a Trait.\n"); err != nil {
+	if _, err := f.WriteString("# KubeVela Reference Docs for Component Types, Traits and WorkflowSteps\n" +
+		"Click the navigation bar on the left or the links below to look into the detailed reference of a Workload type, Trait or Workflow Step.\n"); err != nil {
 		return err
 	}
 
-	workloads, traits := getComponentsAndTraits(capabilities)
+	workloads, traits, workflowsteps := getDefinitions(capabilities)
 
 	if _, err := f.WriteString("## Component Types\n"); err != nil {
 		return err
@@ -328,28 +347,47 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 			return err
 		}
 	}
+
+	if _, err := f.WriteString("## Workflow Steps\n"); err != nil {
+		return err
+	}
+	for _, t := range workflowsteps {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.WorkflowStepPath, t)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string) {
-	var components, traits []string
+func getDefinitions(capabilities []types.Capability) ([]string, []string, []string) {
+	var components, traits, workflowSteps []string
 	for _, c := range capabilities {
 		switch c.Type {
 		case types.TypeComponentDefinition:
 			components = append(components, c.Name)
 		case types.TypeTrait:
 			traits = append(traits, c.Name)
+		case types.TypeWorkflowStep:
+			workflowSteps = append(workflowSteps, c.Name)
 		case types.TypeScope:
 		case types.TypeWorkload:
 		default:
 		}
 	}
-	return components, traits
+	return components, traits, workflowSteps
 }
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
-	capability, err := plugins.GetCapabilityByName(ctx, c, capabilityName, ns)
+	config, err := c.GetConfig()
+	if err != nil {
+		return err
+	}
+	pd, err := packages.NewPackageDiscover(config)
+	if err != nil {
+		return err
+	}
+	capability, err := plugins.GetCapabilityByName(ctx, c, capabilityName, ns, pd)
 	if err != nil {
 		return err
 	}
@@ -377,7 +415,7 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 			return err
 		}
 	case types.CUECategory:
-		propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
+		propertyConsole, err = ref.GenerateCUETemplateProperties(capability, pd)
 		if err != nil {
 			return err
 		}
