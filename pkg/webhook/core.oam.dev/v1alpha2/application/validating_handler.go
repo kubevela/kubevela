@@ -18,9 +18,11 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -67,6 +69,23 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 	return nil
 }
 
+func simplifyError(err error) error {
+	switch e := err.(type) { // nolint
+	case *field.Error:
+		return fmt.Errorf("field \"%s\": %s error encountered, %s. ", e.Field, e.Type, e.Detail)
+	default:
+		return err
+	}
+}
+
+func mergeErrors(errs field.ErrorList) error {
+	s := ""
+	for _, err := range errs {
+		s += fmt.Sprintf("field \"%s\": %s error encountered, %s. ", err.Field, err.Type, err.Detail)
+	}
+	return fmt.Errorf(s)
+}
+
 // Handle validate Application Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	app := &v1beta1.Application{}
@@ -77,16 +96,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	switch req.Operation {
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+			return admission.Errored(http.StatusUnprocessableEntity, mergeErrors(allErrs))
 		}
 	case admissionv1.Update:
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
-			return admission.Errored(http.StatusBadRequest, err)
+			return admission.Errored(http.StatusBadRequest, simplifyError(err))
 		}
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
 			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
-				return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+				return admission.Errored(http.StatusUnprocessableEntity, mergeErrors(allErrs))
 			}
 		}
 	default:
