@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -43,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -256,7 +256,7 @@ func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
 	}
 	var body []byte
 	var err error
-	if strings.HasPrefix(pathOrURL, "https://") || strings.HasPrefix(pathOrURL, "http://") {
+	if utils.IsValidURL(pathOrURL) {
 		body, err = common.HTTPGet(context.Background(), pathOrURL)
 		if err != nil {
 			return nil, err

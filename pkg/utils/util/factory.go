@@ -48,6 +48,14 @@ func NewRestConfigGetter(namespace string) genericclioptions.RESTClientGetter {
 	}
 }
 
+// NewRestConfigGetterByConfig new rest config getter
+func NewRestConfigGetterByConfig(config *rest.Config, namespace string) genericclioptions.RESTClientGetter {
+	return &restConfigGetter{
+		config:    config,
+		namespace: namespace,
+	}
+}
+
 type restConfigGetter struct {
 	config    *rest.Config
 	namespace string

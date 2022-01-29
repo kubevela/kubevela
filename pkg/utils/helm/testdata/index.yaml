@@ -1,0 +1,24 @@
+apiVersion: v1
+entries:
+  autoscalertrait:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2021-03-13T23:42:30.9837659+09:00"
+    description: A Helm chart for kubevela autoscalertrait controller
+    digest: 33c4b9eeabf6c26e6aa8c4edaaf0e4a5d2a2f1fd857ffe32b6d3be97d6d971f0
+    name: autoscalertrait
+    type: application
+    urls:
+    - https://charts.kubevela.net/example/autoscalertrait-0.1.0.tgz
+    version: 0.1.0
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2021-03-13T23:42:30.9837659+09:00"
+    description: A Helm chart for kubevela autoscalertrait controller
+    digest: 33c4b9eeabf6c26e6aa8c4edaaf0e4a5d2a2f1fd857ffe32b6d3be97d6d971f0
+    name: autoscalertrait
+    type: application
+    urls:
+    - https://charts.kubevela.net/example/autoscalertrait-0.1.0.tgz
+    version: 0.2.0
+generated: "2021-03-13T23:42:30.9832644+09:00"

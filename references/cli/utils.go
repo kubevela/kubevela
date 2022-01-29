@@ -17,10 +17,15 @@ limitations under the License.
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"strings"
 
+	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -65,4 +70,48 @@ func getCompNameFromClusterObjectReference(ctx context.Context, k8sClient client
 		return r.Name, nil
 	}
 	return labels[oam.LabelAppComponent], nil
+}
+
+// UserInput user input in command
+type UserInput struct {
+	Writer io.Writer
+	Reader *bufio.Reader
+}
+
+// UserInputOptions user input options
+type UserInputOptions struct {
+	AssumeYes bool
+}
+
+// NewUserInput new user input util
+func NewUserInput() *UserInput {
+	return &UserInput{
+		Writer: os.Stdout,
+		Reader: bufio.NewReader(os.Stdin),
+	}
+}
+
+// AskBool format the answer to bool type
+func (ui *UserInput) AskBool(question string, opts *UserInputOptions) bool {
+	fmt.Fprintf(ui.Writer, "%s (y/n)", question)
+	if opts.AssumeYes {
+		return true
+	}
+	line, err := ui.read()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	if input := strings.TrimSpace(strings.ToLower(line)); input == "y" || input == "yes" {
+		return true
+	}
+	return false
+}
+
+func (ui *UserInput) read() (string, error) {
+	line, err := ui.Reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	resultStr := strings.TrimSuffix(line, "\n")
+	return resultStr, err
 }

@@ -22,15 +22,19 @@ import (
 	"os"
 	"runtime"
 
+	gov "github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/version"
 )
+
+var assumeYes bool
 
 // NewCommand will contain all commands
 func NewCommand() *cobra.Command {
@@ -45,7 +49,6 @@ func NewCommand() *cobra.Command {
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
 			PrintHelpByTag(cmd, allCommands, types.TypeCD)
-
 			PrintHelpByTag(cmd, allCommands, types.TypeExtension)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 			cmd.Println("Flags:")
@@ -98,10 +101,12 @@ func NewCommand() *cobra.Command {
 		NewComponentsCommand(commandArgs, ioStream),
 
 		// System
+		NewInstallCommand(commandArgs, "1", ioStream),
+		NewUnInstallCommand(commandArgs, "2", ioStream),
 		NewExportCommand(commandArgs, ioStream),
 		NewCUEPackageCommand(commandArgs, ioStream),
 		SystemCommandGroup(commandArgs, ioStream),
-		NewVersionCommand(),
+		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
 
 		// helper
@@ -117,12 +122,14 @@ func NewCommand() *cobra.Command {
 	klog.InitFlags(fset)
 	_ = fset.Set("v", "-1")
 
+	// init global flags
+	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")
 	return cmds
 }
 
 // NewVersionCommand print client version
-func NewVersionCommand() *cobra.Command {
-	return &cobra.Command{
+func NewVersionCommand(ioStream util.IOStreams) *cobra.Command {
+	version := &cobra.Command{
 		Use:   "version",
 		Short: "Prints vela build version information",
 		Long:  "Prints vela build version information.",
@@ -139,4 +146,47 @@ GolangVersion: %v
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
+	version.AddCommand(NewVersionListCommand(ioStream))
+	return version
+}
+
+// NewVersionListCommand show all versions command
+func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
+	var showAll bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all available versions",
+		Long:  "Query all available versions from remote server.",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helmHelper := helm.NewHelper()
+			versions, err := helmHelper.ListVersions(kubevelaInstallerHelmRepoURL, kubeVelaChartName)
+			if err != nil {
+				return err
+			}
+			currentV, err := gov.NewVersion(version.VelaVersion)
+			if err != nil && !showAll {
+				return fmt.Errorf("can not parse current version %s", version.VelaVersion)
+			}
+			for _, chartV := range versions {
+				if chartV != nil {
+					v, err := gov.NewVersion(chartV.Version)
+					if err != nil {
+						continue
+					}
+					if v.GreaterThan(currentV) {
+						ioStream.Info("Newer Version:", v.String())
+					} else if showAll {
+						ioStream.Info("Older Version:", v.String())
+					}
+				}
+			}
+			return nil
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
+		},
+	}
+	cmd.PersistentFlags().BoolVarP(&showAll, "all", "a", false, "List all available versions, if not, only list newer version")
+	return cmd
 }
