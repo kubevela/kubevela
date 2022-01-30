@@ -322,12 +322,6 @@ var _ = Describe("rollout related e2e-test,rollout trait test", func() {
 			if *checkRollout.Spec.RolloutPlan.TargetSize != 4 {
 				return fmt.Errorf("rollout targetSize haven't update")
 			}
-			if len(checkRollout.Spec.RolloutPlan.RolloutBatches) != 1 {
-				return fmt.Errorf("fail to fill rollout batches")
-			}
-			if checkRollout.Spec.RolloutPlan.RolloutBatches[0].Replicas != intstr.FromInt(2) {
-				return fmt.Errorf("fill rollout batches missmatch")
-			}
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		verifySuccess("express-server-v1")
