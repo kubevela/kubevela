@@ -426,6 +426,34 @@ variable "aaa" {
 }`,
 			},
 		},
+		"configuration is remote with path": {
+			args: args{
+				name: "aws-subnet",
+				url:  "https://github.com/kubevela-contrib/terraform-modules.git",
+				path: "aws/subnet",
+				data: []byte(`
+variable "aaa" {
+	type = list(object({
+		type = string
+		sourceArn = string
+		config = string
+	}))
+	default = []
+}`),
+				variableFile: "variables.tf",
+			},
+			want: want{
+				config: `
+variable "aaa" {
+	type = list(object({
+		type = string
+		sourceArn = string
+		config = string
+	}))
+	default = []
+}`,
+			},
+		},
 		"working path exists": {
 			args: args{
 				variableFile:    "main.tf",
@@ -454,7 +482,12 @@ variable "aaa" {
 			}
 
 			patch := ApplyFunc(git.PlainCloneContext, func(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
-				tmpPath := filepath.Join("./tmp/terraform", tc.args.name)
+				var tmpPath string
+				if tc.args.path != "" {
+					tmpPath = filepath.Join("./tmp/terraform", tc.args.name, tc.args.path)
+				} else {
+					tmpPath = filepath.Join("./tmp/terraform", tc.args.name)
+				}
 				err := os.MkdirAll(tmpPath, os.ModePerm)
 				assert.NilError(t, err)
 				err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
