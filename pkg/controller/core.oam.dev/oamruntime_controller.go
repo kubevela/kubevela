@@ -83,4 +83,7 @@ type Args struct {
 
 	// EnableCompatibility indicates that will change some functions of controller to adapt to multiple platforms, such as asi.
 	EnableCompatibility bool
+
+	// IgnoreAppWithoutControllerRequirement indicates that application controller will not process the app without 'app.oam.dev/controller-version-require' annotation.
+	IgnoreAppWithoutControllerRequirement bool
 }
