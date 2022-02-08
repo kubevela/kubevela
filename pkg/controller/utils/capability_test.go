@@ -20,6 +20,7 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -326,8 +327,38 @@ variable "name" {
   default = "abc"
 }`,
 			want: want{
-				subStr: "",
-				err:    errors.New("null type variable is NOT supported, please specify a type for the variable: name"),
+				subStr: "abc",
+				err:    nil,
+			},
+		},
+		"null type variable, while default value is a slice": {
+			configuration: `
+variable "name" {
+  default = [123]
+}`,
+			want: want{
+				subStr: "123",
+				err:    nil,
+			},
+		},
+		"null type variable, while default value is a map": {
+			configuration: `
+variable "name" {
+  default = {a = 1}
+}`,
+			want: want{
+				subStr: "a",
+				err:    nil,
+			},
+		},
+		"null type variable, while default value is number": {
+			configuration: `
+variable "name" {
+  default = 123
+}`,
+			want: want{
+				subStr: "123",
+				err:    nil,
 			},
 		},
 		"complicated list variable": {
@@ -354,6 +385,38 @@ variable "bbb" {
     config = string
   })
   default = []
+}`,
+			want: want{
+				subStr: "bbb",
+				err:    nil,
+			},
+		},
+		"not supported complicated variable": {
+			configuration: `
+variable "bbb" {
+  type = xxxxx(string)
+}`,
+			want: want{
+				subStr: "",
+				err:    fmt.Errorf("the type `%s` of variable %s is NOT supported", "xxxxx(string)", "bbb"),
+			},
+		},
+		"any type, slice default": {
+			configuration: `
+variable "bbb" {
+  type = any
+  default = []
+}`,
+			want: want{
+				subStr: "bbb",
+				err:    nil,
+			},
+		},
+		"any type, map default": {
+			configuration: `
+variable "bbb" {
+  type = any
+  default = {}
 }`,
 			want: want{
 				subStr: "bbb",
