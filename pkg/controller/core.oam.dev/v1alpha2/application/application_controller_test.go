@@ -2275,7 +2275,51 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 		}, checkWeb)).Should(BeNil())
 		Expect(*(checkWeb.Spec.Replicas)).Should(BeEquivalentTo(int32(0)))
+	})
 
+	It("app apply resource in parallel", func() {
+		wfDef := &v1beta1.WorkflowStepDefinition{}
+		wfDefJson, _ := yaml.YAMLToJSON([]byte(applyInParallelWorkflowDefinitionYaml))
+		Expect(json.Unmarshal(wfDefJson, wfDef)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, wfDef.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-apply-in-parallel",
+			},
+		}
+		app := appwithNoTrait.DeepCopy()
+		app.Name = "vela-test-app"
+		app.SetNamespace(ns.Name)
+		app.Spec.Workflow = &v1beta1.Workflow{
+			Steps: []v1beta1.WorkflowStep{{
+				Name:       "apply-in-parallel",
+				Type:       "apply-test",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"parallelism": 20}`)},
+			}},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		_, err := testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+
+		deployList := new(v1.DeploymentList)
+		Expect(k8sClient.List(ctx, deployList, client.InNamespace(app.Namespace))).Should(BeNil())
+		Expect(len(deployList.Items)).Should(Equal(20))
+
+		checkApp := new(v1beta1.Application)
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(Succeed())
+		rt := new(v1beta1.ResourceTracker)
+		expectRTName := fmt.Sprintf("%s-%s", checkApp.Status.LatestRevision.Name, checkApp.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, rt)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		Expect(len(rt.Spec.ManagedResources)).Should(Equal(20))
 	})
 })
 
@@ -3184,6 +3228,46 @@ spec:
           }
         }
         parameter: objects: [...{}]
+`
+	applyInParallelWorkflowDefinitionYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: apply-test
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+                "vela/op"
+                "list"
+        )
+
+        components:      op.#LoadInOrder & {}
+        targetComponent: components.value[0]
+        resources:       op.#RenderComponent & {
+                value: targetComponent
+        }
+        workload:       resources.output
+        arr:            list.Range(0, parameter.parallelism, 1)
+        patchWorkloads: op.#Steps & {
+                for idx in arr {
+                        "\(idx)": op.#PatchK8sObject & {
+                                value: workload
+                                patch: {
+                                        // +patchStrategy=retainKeys
+                                        metadata: name: "\(targetComponent.name)-\(idx)"
+                                }
+                        }
+                }
+        }
+        workloads: [ for patchResult in patchWorkloads {patchResult.result}]
+        apply: op.#ApplyInParallel & {
+                value: workloads
+        }
+        parameter: parallelism: int
+
 `
 )
 

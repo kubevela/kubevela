@@ -142,12 +142,15 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 	return rootRT, currentRT, historyRTs, crRT, nil
 }
 
-// RecordManifestInResourceTracker records resources in ResourceTracker
-func RecordManifestInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifest *unstructured.Unstructured, metaOnly bool) error {
-	if updated := rt.AddManagedResource(manifest, metaOnly); !updated {
-		return nil
+// RecordManifestsInResourceTracker records resources in ResourceTracker
+func RecordManifestsInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifests []*unstructured.Unstructured, metaOnly bool) error {
+	if len(manifests) != 0 {
+		for _, manifest := range manifests {
+			rt.AddManagedResource(manifest, metaOnly)
+		}
+		return cli.Update(ctx, rt)
 	}
-	return cli.Update(ctx, rt)
+	return nil
 }
 
 // DeletedManifestInResourceTracker marks resources as deleted in resourcetracker, if remove is true, resources will be removed from resourcetracker

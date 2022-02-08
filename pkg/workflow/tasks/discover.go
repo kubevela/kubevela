@@ -30,11 +30,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/convert"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/email"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/time"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
@@ -77,8 +77,9 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
-	convert.Install(providerHandlers)
 	email.Install(providerHandlers)
+	util.Install(providerHandlers)
+
 	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
@@ -123,7 +124,6 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 	time.Install(handlerProviders)
 	kube.Install(handlerProviders, cli, apply, delete)
 	http.Install(handlerProviders, cli, viewNs)
-	convert.Install(handlerProviders)
 	email.Install(handlerProviders)
 
 	templateLoader := template.NewViewTemplateLoader(cli, viewNs)

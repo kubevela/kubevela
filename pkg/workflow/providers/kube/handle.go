@@ -91,6 +91,40 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	return v.FillObject(workload.Object, "value")
 }
 
+// ApplyInParallel create or update CRs in parallel.
+func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("value")
+	if err != nil {
+		return err
+	}
+	iter, err := val.CueValue().List()
+	if err != nil {
+		return err
+	}
+	workloadNum := 0
+	for iter.Next() {
+		workloadNum++
+	}
+	var workloads = make([]*unstructured.Unstructured, workloadNum)
+	if err = val.UnmarshalTo(&workloads); err != nil {
+		return err
+	}
+	for i := range workloads {
+		if workloads[i].GetNamespace() == "" {
+			workloads[i].SetNamespace("default")
+		}
+	}
+	cluster, err := v.GetString("cluster")
+	if err != nil {
+		return err
+	}
+	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
+		return v.FillObject(err, "err")
+	}
+	return nil
+}
+
 // Read get CR from cluster.
 func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
@@ -188,9 +222,10 @@ func Install(p providers.Providers, cli client.Client, apply Dispatcher, deleter
 		cli:    cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"apply":  prd.Apply,
-		"read":   prd.Read,
-		"list":   prd.List,
-		"delete": prd.Delete,
+		"apply":             prd.Apply,
+		"apply-in-parallel": prd.ApplyInParallel,
+		"read":              prd.Read,
+		"list":              prd.List,
+		"delete":            prd.Delete,
 	})
 }

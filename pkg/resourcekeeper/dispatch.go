@@ -18,16 +18,20 @@ package resourcekeeper
 
 import (
 	"context"
+	"sync"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
+
+// MaxDispatchConcurrent is the max dispatch concurrent number
+var MaxDispatchConcurrent = 10
 
 // DispatchOption option for dispatch
 type DispatchOption interface {
@@ -52,6 +56,21 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
 		options = append(options, MetaOnlyOption{})
 	}
+	// 1. record manifests in resourcetracker
+	if err = h.record(ctx, manifests, options...); err != nil {
+		return err
+	}
+	// 2. apply manifests
+	if err = h.dispatch(ctx, manifests); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
+	var rootManifests []*unstructured.Unstructured
+	var versionManifests []*unstructured.Unstructured
+
 	for _, manifest := range manifests {
 		if manifest != nil {
 			_options := options
@@ -61,34 +80,61 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 				}
 			}
 			cfg := newDispatchConfig(_options...)
-			if err = h.dispatch(ctx, manifest, cfg); err != nil {
-				return err
+			if !cfg.skipRT {
+				if cfg.useRoot {
+					rootManifests = append(rootManifests, manifest)
+				} else {
+					versionManifests = append(versionManifests, manifest)
+				}
 			}
 		}
+	}
+
+	cfg := newDispatchConfig(options...)
+	if len(rootManifests) != 0 {
+		rt, err := h.getRootRT(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get resourcetracker")
+		}
+		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly); err != nil {
+			return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
+		}
+	}
+
+	rt, err := h.getCurrentRT(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get resourcetracker")
+	}
+	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly); err != nil {
+		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
 	return nil
 }
 
-func (h *resourceKeeper) dispatch(ctx context.Context, manifest *unstructured.Unstructured, cfg *dispatchConfig) (err error) {
-	// 1. record manifests in resourcetracker
-	if !cfg.skipRT {
-		var rt *v1beta1.ResourceTracker
-		if cfg.useRoot {
-			rt, err = h.getRootRT(ctx)
-		} else {
-			rt, err = h.getCurrentRT(ctx)
-		}
-		if err != nil {
-			return errors.Wrapf(err, "failed to get resourcetracker")
-		}
-		if err = resourcetracker.RecordManifestInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, manifest, cfg.metaOnly); err != nil {
-			return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
-		}
-	}
-	// 2. apply manifests
+func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured) error {
+	var errs []error
+	var l sync.Mutex
+	var wg sync.WaitGroup
+
+	ch := make(chan struct{}, MaxDispatchConcurrent)
 	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
-	if err := h.applicator.Apply(multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest)), manifest, applyOpts...); err != nil {
-		return errors.Wrapf(err, "cannot apply manifest, name: %s apiVersion: %s kind: %s", manifest.GetName(), manifest.GetAPIVersion(), manifest.GetKind())
+
+	for i := 0; i < len(manifests); i++ {
+		ch <- struct{}{}
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			manifest := manifests[index]
+			applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+			err := h.applicator.Apply(applyCtx, manifest, applyOpts...)
+			if err != nil {
+				l.Lock()
+				errs = append(errs, err)
+				l.Unlock()
+			}
+			<-ch
+		}(i)
 	}
-	return nil
+	wg.Wait()
+	return kerrors.NewAggregate(errs)
 }

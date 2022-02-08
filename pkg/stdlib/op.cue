@@ -17,6 +17,8 @@ import (
 
 #Apply: kube.#Apply
 
+#ApplyInParallel: kube.#ApplyInParallel
+
 #Read: kube.#Read
 
 #List: kube.#List
@@ -156,7 +158,7 @@ import (
 
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
-#ConvertString: convert.#String
+#ConvertString: util.#String
 
 #DateToTimestamp: time.#DateToTimestamp
 
@@ -167,6 +169,8 @@ import (
 #Load: oam.#LoadComponets
 
 #LoadInOrder: oam.#LoadComponetsInOrder
+
+#PatchK8sObject: util.#PatchK8sObject
 
 #Steps: {
 	#do: "steps"
