@@ -41,6 +41,8 @@ const (
 	ContextCompRevisionName = "revision"
 	// ContextComponents is the components of app
 	ContextComponents = "components"
+	// ContextComponentType is the component type of current trait binding with
+	ContextComponentType = "componentType"
 	// ComponentRevisionPlaceHolder is the component revision name placeHolder, this field will be replace with real value
 	// after component be created
 	ComponentRevisionPlaceHolder = "KUBEVELA_COMPONENT_REVISION_PLACEHOLDER"
