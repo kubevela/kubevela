@@ -63,6 +63,7 @@ type InstallArgs struct {
 	Version       string
 	ChartFilePath string
 	Detail        bool
+	ReuseValues   bool
 }
 
 // NewInstallCommand creates `install` command to install vela core
@@ -143,9 +144,13 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				}
 			}
 			// Step3: Prepare the values for chart
+			imageTag := installArgs.Version
+			if !strings.HasPrefix(imageTag, "v") {
+				imageTag = "v" + imageTag
+			}
 			var values = map[string]interface{}{
 				"image": map[string]interface{}{
-					"tag":        installArgs.Version,
+					"tag":        imageTag,
 					"pullPolicy": "IfNotPresent",
 				},
 			}
@@ -159,10 +164,11 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			// Step4: Install or upgrade helm release
 			release, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,
 				helm.UpgradeChartOptions{
-					Config:  restConfig,
-					Detail:  installArgs.Detail,
-					Logging: ioStreams,
-					Wait:    true,
+					Config:      restConfig,
+					Detail:      installArgs.Detail,
+					Logging:     ioStreams,
+					Wait:        true,
+					ReuseValues: installArgs.ReuseValues,
 				})
 			if err != nil {
 				msg := fmt.Sprintf("Could not install KubeVela control plane installation: %s", err.Error())
@@ -193,6 +199,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 	cmd.Flags().StringVarP(&installArgs.Namespace, "namespace", "n", "vela-system", "namespace scope for installing KubeVela Core")
 	cmd.Flags().StringVarP(&installArgs.Version, "version", "v", innerVersion.VelaVersion, "")
 	cmd.Flags().BoolVarP(&installArgs.Detail, "detail", "d", true, "show detail log of installation")
+	cmd.Flags().BoolVarP(&installArgs.ReuseValues, "reuse", "r", true, "will re-use the user's last supplied values.")
 	cmd.Flags().StringVarP(&installArgs.ChartFilePath, "file", "f", "", "custom the chart path of KubeVela control plane")
 	return cmd
 }
