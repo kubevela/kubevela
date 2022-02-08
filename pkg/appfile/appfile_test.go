@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -1321,4 +1322,48 @@ spec:
 		t.Fatalf("cannot get service trait")
 	}
 
+}
+
+func TestBaseGenerateComponent(t *testing.T) {
+	var appName = "test-app"
+	var ns = "test-ns"
+	var traitName = "mytrait"
+	var wlName = "my-wl-1"
+	pContext := NewBasicContext(appName, wlName, "rev-1", ns, nil)
+	base := `
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	spec: {
+		template: {
+			spec: containers: [{
+				image: "nginx"
+			}]
+		}
+	}
+`
+	var r cue.Runtime
+	inst, err := r.Compile("-", base)
+	assert.NilError(t, err)
+	bs, _ := model.NewBase(inst.Value())
+	err = pContext.SetBase(bs)
+	assert.NilError(t, err)
+	tr := &Trait{
+		Name:   traitName,
+		engine: definition.NewTraitAbstractEngine(traitName, nil),
+		Template: `outputs:mytrait:{
+if context.componentType == "stateless" {
+             kind:  			"Deployment"
+	}
+	if context.componentType  == "stateful" {
+             kind:  			"StatefulSet"
+	}
+	name:                   context.name
+	envSourceContainerName: context.name
+}`,
+	}
+	wl := &Workload{Type: "stateful", Traits: []*Trait{tr}}
+	cm, err := baseGenerateComponent(pContext, wl, appName, ns)
+	assert.NilError(t, err)
+	assert.Equal(t, cm.Traits[0].Object["kind"], "StatefulSet")
+	assert.Equal(t, cm.Traits[0].Object["name"], wlName)
 }

@@ -504,6 +504,7 @@ func generateComponentFromTerraformModule(wl *Workload, appName, ns string) (*ty
 
 func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
 	var err error
+	pCtx.PushData(model.ContextComponentType, wl.Type)
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
