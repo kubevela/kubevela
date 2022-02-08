@@ -82,10 +82,11 @@ func (h *Helper) LoadCharts(chartRepoURL string) (*chart.Chart, error) {
 
 // UpgradeChartOptions options for upgrade chart
 type UpgradeChartOptions struct {
-	Config  *rest.Config
-	Detail  bool
-	Logging cmdutil.IOStreams
-	Wait    bool
+	Config      *rest.Config
+	Detail      bool
+	Logging     cmdutil.IOStreams
+	Wait        bool
+	ReuseValues bool
 }
 
 // UpgradeChart install or upgrade helm chart
@@ -131,7 +132,7 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 		install.Namespace = namespace
 		install.Wait = config.Wait
 		install.Timeout = time.Duration(timeoutInMinutes) * time.Minute
-		install.ReuseValues = true
+		install.ReuseValues = config.ReuseValues
 		newRelease, err = install.Run(releaseName, ch, values)
 	}
 	// check if install/upgrade worked
