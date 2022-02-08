@@ -17,12 +17,14 @@
 package util
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 func TestPatchK8sObject(t *testing.T) {
@@ -151,4 +153,50 @@ spec: template: metadata: {
 			assert.Equal(t, expectResult, patchResult)
 		})
 	}
+}
+
+func TestConvertString(t *testing.T) {
+	testCases := map[string]struct {
+		from        string
+		expected    string
+		expectedErr error
+	}{
+		"success": {
+			from:     `bt: 'test'`,
+			expected: "test",
+		},
+		"fail": {
+			from:        `bt: 123`,
+			expectedErr: errors.New("bt: cannot use value 123 (type int) as string|bytes"),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := value.NewValue(tc.from, nil, "")
+			r.NoError(err)
+			prd := &provider{}
+			err = prd.String(nil, v, nil)
+			if tc.expectedErr != nil {
+				r.Equal(tc.expectedErr.Error(), err.Error())
+				return
+			}
+			r.NoError(err)
+			expected, err := v.LookupValue("str")
+			r.NoError(err)
+			ret, err := expected.CueValue().String()
+			r.NoError(err)
+			r.Equal(ret, tc.expected)
+		})
+	}
+}
+
+func TestInstall(t *testing.T) {
+	p := providers.NewProviders()
+	Install(p)
+	h, ok := p.GetHandler("util", "string")
+	r := require.New(t)
+	r.Equal(ok, true)
+	r.Equal(h != nil, true)
 }

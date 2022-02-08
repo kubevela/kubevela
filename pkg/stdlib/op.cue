@@ -158,7 +158,7 @@ import (
 
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
-#ConvertString: convert.#String
+#ConvertString: util.#String
 
 #DateToTimestamp: time.#DateToTimestamp
 
