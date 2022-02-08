@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
@@ -132,6 +133,7 @@ func main() {
 	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	flag.BoolVar(&controllerArgs.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", false, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
 	standardcontroller.AddOptimizeFlags()
+	flag.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
 
 	flag.Parse()
 	// setup logging
