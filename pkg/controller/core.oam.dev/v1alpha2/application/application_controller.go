@@ -92,6 +92,8 @@ type options struct {
 	appRevisionLimit     int
 	concurrentReconciles int
 	disableStatusUpdate  bool
+	ignoreAppNoCtrlReq   bool
+	controllerVersion    string
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -100,6 +102,7 @@ type options struct {
 // Reconcile process app event
 // nolint:gocyclo
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
 	ctx, cancel := context.WithTimeout(ctx, common2.ReconcileTimeout)
 	defer cancel()
 
@@ -115,6 +118,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logCtx.Error(err, "get application")
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
+	}
+
+	if !r.matchControllerRequirement(app) {
+		logCtx.Info("skip app: not match the controller requirement of app")
+		return ctrl.Result{}, nil
 	}
 
 	timeReporter := timeReconcile(app)
@@ -590,5 +598,19 @@ func parseOptions(args core.Args) options {
 		disableStatusUpdate:  args.EnableCompatibility,
 		appRevisionLimit:     args.AppRevisionLimit,
 		concurrentReconciles: args.ConcurrentReconciles,
+		ignoreAppNoCtrlReq:   args.IgnoreAppWithoutControllerRequirement,
+		controllerVersion:    version.VelaVersion,
 	}
+}
+
+func (r *Reconciler) matchControllerRequirement(app *v1beta1.Application) bool {
+	if app.Annotations != nil {
+		if requireVersion, ok := app.Annotations[oam.AnnotationControllerRequirement]; ok {
+			return requireVersion == r.controllerVersion
+		}
+	}
+	if r.ignoreAppNoCtrlReq {
+		return false
+	}
+	return true
 }
