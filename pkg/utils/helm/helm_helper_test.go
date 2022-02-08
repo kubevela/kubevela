@@ -41,12 +41,14 @@ var _ = Describe("Test helm helper", func() {
 		helper := NewHelper()
 		chart, err := helper.LoadCharts("./testdata/autoscalertrait-0.1.0.tgz")
 		Expect(err).Should(BeNil())
-		_, err = helper.UpgradeChart(chart, "autoscalertrait", "default", nil, UpgradeChartOptions{
+		release, err := helper.UpgradeChart(chart, "autoscalertrait", "default", nil, UpgradeChartOptions{
 			Config:  cfg,
 			Detail:  false,
 			Logging: util.IOStreams{Out: os.Stdout, ErrOut: os.Stderr},
 			Wait:    false,
 		})
+		crds := GetCRDFromChart(release.Chart)
+		Expect(cmp.Diff(len(crds), 1)).Should(BeEmpty())
 		Expect(err).Should(BeNil())
 	})
 

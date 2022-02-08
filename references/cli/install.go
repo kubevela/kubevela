@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -155,7 +157,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				}
 			}
 			// Step4: Install or upgrade helm release
-			manifest, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,
+			release, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,
 				helm.UpgradeChartOptions{
 					Config:  restConfig,
 					Detail:  installArgs.Detail,
@@ -166,7 +168,12 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 				msg := fmt.Sprintf("Could not install KubeVela control plane installation: %s", err.Error())
 				return errors.New(msg)
 			}
-			err = waitKubeVelaControllerRunning(kubeClient, installArgs.Namespace, manifest)
+			// Step5: apply new CRDs
+			if err := upgradeCRDs(cmd.Context(), kubeClient, release.Chart); err != nil {
+				return errors.New(fmt.Sprintf("upgrade CRD failure %s", err.Error()))
+			}
+
+			err = waitKubeVelaControllerRunning(kubeClient, installArgs.Namespace, release.Manifest)
 			if err != nil {
 				msg := fmt.Sprintf("Could not complete KubeVela control plane installation: %s \nFor troubleshooting, please check the status of the kubevela deployment by executing the following command: \n\nkubectl get pods -n %s\n", err.Error(), installArgs.Namespace)
 				return errors.New(msg)
@@ -295,4 +302,15 @@ func waitKubeVelaControllerRunning(kubeClient client.Client, namespace, manifest
 		}
 		time.Sleep(trackInterval)
 	}
+}
+
+func upgradeCRDs(ctx context.Context, kubeClient client.Client, chart *chart.Chart) error {
+	crds := helm.GetCRDFromChart(chart)
+	apply := apply.NewAPIApplicator(kubeClient)
+	for _, crd := range crds {
+		if err := apply.Apply(ctx, crd); err != nil {
+			return err
+		}
+	}
+	return nil
 }

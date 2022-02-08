@@ -38,6 +38,7 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	appsv1 "k8s.io/api/apps/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -88,15 +89,15 @@ type UpgradeChartOptions struct {
 }
 
 // UpgradeChart install or upgrade helm chart
-func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, values map[string]interface{}, config UpgradeChartOptions) (string, error) {
+func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, values map[string]interface{}, config UpgradeChartOptions) (*release.Release, error) {
 	if ch == nil || len(ch.Templates) == 0 {
-		return "", fmt.Errorf("empty chart provided for %s", releaseName)
+		return nil, fmt.Errorf("empty chart provided for %s", releaseName)
 	}
 	config.Logging.Infof("Start upgrading Helm Chart %s in namespace %s\n", releaseName, namespace)
 
 	cfg, err := newActionConfig(config.Config, namespace, config.Detail, config.Logging)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	histClient := action.NewHistory(cfg)
 	var newRelease *release.Release
@@ -112,7 +113,7 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 			install.Timeout = time.Duration(timeoutInMinutes) * time.Minute
 			newRelease, err = install.Run(ch, values)
 		} else {
-			return "", fmt.Errorf("could not retrieve history of releases associated to %s: %w", releaseName, err)
+			return nil, fmt.Errorf("could not retrieve history of releases associated to %s: %w", releaseName, err)
 		}
 	} else {
 		config.Logging.Infof("Found existing installation, overwriting...")
@@ -121,7 +122,7 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 		for _, r := range releases {
 			if r.Info.Status == release.StatusPendingInstall || r.Info.Status == release.StatusPendingUpgrade ||
 				r.Info.Status == release.StatusPendingRollback {
-				return "", fmt.Errorf("previous installation (e.g., using vela install or helm upgrade) is still in progress. Please try again in %d minutes", timeoutInMinutes)
+				return nil, fmt.Errorf("previous installation (e.g., using vela install or helm upgrade) is still in progress. Please try again in %d minutes", timeoutInMinutes)
 			}
 		}
 
@@ -135,13 +136,13 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 	}
 	// check if install/upgrade worked
 	if err != nil {
-		return "", fmt.Errorf("error when installing/upgrading Helm Chart %s in namespace %s: %w",
+		return nil, fmt.Errorf("error when installing/upgrading Helm Chart %s in namespace %s: %w",
 			releaseName, namespace, err)
 	}
 	if newRelease == nil {
-		return "", fmt.Errorf("failed to install release %s", releaseName)
+		return nil, fmt.Errorf("failed to install release %s", releaseName)
 	}
-	return newRelease.Manifest, nil
+	return newRelease, nil
 }
 
 // UninstallRelease uninstalls the provided release
@@ -208,6 +209,20 @@ func GetDeploymentsFromManifest(helmManifest string) []*appsv1.Deployment {
 		}
 	}
 	return deployments
+}
+
+// GetCRDFromChart get crd from helm chart
+func GetCRDFromChart(chart *chart.Chart) []*crdv1.CustomResourceDefinition {
+	crds := []*crdv1.CustomResourceDefinition{}
+	for _, crdFile := range chart.CRDs() {
+		var crd crdv1.CustomResourceDefinition
+		err := kyaml.Unmarshal(crdFile.Data, &crd)
+		if err != nil {
+			continue
+		}
+		crds = append(crds, &crd)
+	}
+	return crds
 }
 
 func newActionConfig(config *rest.Config, namespace string, showDetail bool, logging cmdutil.IOStreams) (*action.Configuration, error) {
