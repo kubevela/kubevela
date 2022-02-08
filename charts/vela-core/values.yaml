@@ -76,6 +76,7 @@ admissionWebhooks:
       repository: oamdev/kube-webhook-certgen
       tag: v2.3
       pullPolicy: IfNotPresent
+    nodeSelector: {}
     affinity: {}
     tolerations: []
   certManager:
