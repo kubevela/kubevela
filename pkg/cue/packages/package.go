@@ -107,18 +107,17 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 
 // ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
 func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
+	var r cue.Runtime
+	if pd == nil {
+		return r.Build(bi)
+	}
 	pd.ImportBuiltinPackagesFor(bi)
 	if err := stdlib.AddImportsFor(bi, ""); err != nil {
 		return nil, err
 	}
-	var r cue.Runtime
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()
-	cueInst, err := r.Build(bi)
-	if err != nil {
-		return nil, err
-	}
-	return cueInst, err
+	return r.Build(bi)
 }
 
 // ListPackageKinds list packages and their kinds
