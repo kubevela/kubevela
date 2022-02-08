@@ -61,11 +61,13 @@ const (
 	TerraformVariableMap    string = "map"
 	TerraformVariableObject string = "object"
 	TerraformVariableNull   string = ""
+	TerraformVariableAny    string = "any"
 
 	TerraformListTypePrefix   string = "list("
 	TerraformTupleTypePrefix  string = "tuple("
 	TerraformMapTypePrefix    string = "map("
 	TerraformObjectTypePrefix string = "object("
+	TerraformSetTypePrefix    string = "set("
 
 	typeTraitDefinition        = "trait"
 	typeComponentDefinition    = "component"
@@ -157,17 +159,38 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 			schema = openapi3.NewArraySchema()
 		case TerraformVariableMap, TerraformVariableObject:
 			schema = openapi3.NewObjectSchema()
+		case TerraformVariableAny:
+			switch v.Default.(type) {
+			case []interface{}:
+				schema = openapi3.NewArraySchema()
+			case map[string]interface{}:
+				schema = openapi3.NewObjectSchema()
+			}
 		case TerraformVariableNull:
-			return nil, fmt.Errorf("null type variable is NOT supported, please specify a type for the variable: %s", v.Name)
+			switch v.Default.(type) {
+			case nil, string:
+				schema = openapi3.NewStringSchema()
+			case []interface{}:
+				schema = openapi3.NewArraySchema()
+			case map[string]interface{}:
+				schema = openapi3.NewObjectSchema()
+			case int, float64:
+				schema = openapi3.NewFloat64Schema()
+			default:
+				return nil, fmt.Errorf("null type variable is NOT supported, please specify a type for the variable: %s", v.Name)
+			}
 		}
 
 		// To identify unusual list type
 		if schema == nil {
 			switch {
-			case strings.HasPrefix(v.Type, TerraformListTypePrefix) || strings.HasPrefix(v.Type, TerraformTupleTypePrefix):
+			case strings.HasPrefix(v.Type, TerraformListTypePrefix) || strings.HasPrefix(v.Type, TerraformTupleTypePrefix) ||
+				strings.HasPrefix(v.Type, TerraformSetTypePrefix):
 				schema = openapi3.NewArraySchema()
 			case strings.HasPrefix(v.Type, TerraformMapTypePrefix) || strings.HasPrefix(v.Type, TerraformObjectTypePrefix):
 				schema = openapi3.NewObjectSchema()
+			default:
+				return nil, fmt.Errorf("the type `%s` of variable %s is NOT supported", v.Type, v.Name)
 			}
 		}
 		schema.Title = k
