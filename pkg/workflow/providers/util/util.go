@@ -59,10 +59,24 @@ func (p *provider) PatchK8sObject(ctx wfContext.Context, v *value.Value, act typ
 	return v.FillObject(workload.Object, "result")
 }
 
+// String convert byte to string
+func (p *provider) String(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	b, err := v.LookupValue("bt")
+	if err != nil {
+		return err
+	}
+	s, err := b.CueValue().Bytes()
+	if err != nil {
+		return err
+	}
+	return v.FillObject(string(s), "str")
+}
+
 // Install register handlers to provider discover.
 func Install(p providers.Providers) {
 	prd := &provider{}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"patch-k8s-object": prd.PatchK8sObject,
+		"string":           prd.String,
 	})
 }

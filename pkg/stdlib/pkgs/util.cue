@@ -6,3 +6,12 @@
 	result: {...}
 	...
 }
+
+#String: {
+	#do:       "string"
+	#provider: "util"
+
+	bt:   bytes
+	str?: string
+	...
+}
