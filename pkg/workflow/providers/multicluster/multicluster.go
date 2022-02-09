@@ -159,6 +159,13 @@ func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTyp
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 
+func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policiesRaw, err := v.LookupValue("inputs", "policies")
+	if err != nil {
+		
+	}
+}
+
 // Install register handlers to provider discover.
 func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
 	prd := &provider{Client: c, app: app}

@@ -138,11 +138,15 @@ import (
 
 #ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
+#HandleDeployPolicies: multicluster.#HandleDeployPolicies
+
 #DeployCloudResource: terraform.#DeployCloudResource
 
 #ShareCloudResource: terraform.#ShareCloudResource
 
 #LoadPolicies: oam.#LoadPolicies
+
+#LoadPoliciesInOrder: oam.#LoadPoliciesInOrder
 
 #ListClusters: multicluster.#ListClusters
 

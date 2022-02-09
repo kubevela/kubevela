@@ -17,11 +17,13 @@ limitations under the License.
 package oam
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -48,6 +50,7 @@ type provider struct {
 	render ComponentRender
 	apply  ComponentApply
 	app    *v1beta1.Application
+	cli    client.Client
 }
 
 // RenderComponent render component
@@ -146,10 +149,46 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 	return comp, patcher, clusterName, overrideNamespace, env, nil
 }
 
+func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
+	switch comp.Type {
+	case "ref-objects":
+		_comp := comp.DeepCopy()
+		props := &struct {
+			Objects []*unstructured.Unstructured `json:"objects"`
+		}{}
+		if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
+			return nil, errors.Wrapf(err, "invalid properties for ref-objects")
+		}
+		for _, un := range props.Objects {
+			if name := un.GetName(); name == "" {
+				un.SetName(comp.Name)
+			}
+			if namespace := un.GetNamespace(); namespace == "" {
+				un.SetNamespace(p.app.GetNamespace())
+			}
+			if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
+				return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
+			}
+			un.SetResourceVersion("")
+			un.SetGeneration(0)
+			un.SetOwnerReferences(nil)
+			un.SetDeletionTimestamp(nil)
+			un.SetUID("")
+		}
+		bs, err := json.Marshal(props)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
+		}
+		_comp.Properties.Raw = bs
+		return _comp, nil
+	}
+	return comp, nil
+}
+
 // LoadComponent load component describe info in application.
 func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
-	// if specify `app`, use specified application otherwise use default application fron provider
+	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
 	if err != nil {
 		if strings.Contains(err.Error(), "not exist") {
@@ -162,7 +201,11 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 			return err
 		}
 	}
-	for _, comp := range app.Spec.Components {
+	for _, _comp := range app.Spec.Components {
+		comp, err := p.loadDynamicComponent(_comp.DeepCopy())
+		if err != nil {
+			return err
+		}
 		comp.Inputs = nil
 		comp.Outputs = nil
 		jt, err := json.Marshal(comp)
@@ -212,18 +255,47 @@ func (p *provider) LoadPolicies(ctx wfContext.Context, v *value.Value, act wfTyp
 	return nil
 }
 
+func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policyMap := map[string]v1beta1.AppPolicy{}
+	var specifiedPolicyNames []string
+	specifiedPolicyNamesRaw, err := v.LookupValue("inputs")
+	if err != nil {
+		return err
+	}
+	if specifiedPolicyNamesRaw == nil {
+		for _, policy := range p.app.Spec.Policies {
+			specifiedPolicyNames = append(specifiedPolicyNames, policy.Name)
+		}
+	}
+	for _, policy := range p.app.Spec.Policies {
+		policyMap[policy.Name] = policy
+	}
+	var specifiedPolicies []v1beta1.AppPolicy
+	for _, policyName := range specifiedPolicyNames {
+		if policy, found := policyMap[policyName]; found {
+			specifiedPolicies = append(specifiedPolicies, policy)
+		} else {
+			// TODO: support external policy
+			return errors.Errorf("policy %s not found", policyName)
+		}
+	}
+	return v.FillObject(specifiedPolicies, "outputs")
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, app *v1beta1.Application, apply ComponentApply, render ComponentRender) {
+func Install(p providers.Providers, app *v1beta1.Application, cli client.Client, apply ComponentApply, render ComponentRender) {
 	prd := &provider{
 		render: render,
 		apply:  apply,
 		app:    app.DeepCopy(),
+		cli:    cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"component-render":    prd.RenderComponent,
 		"component-apply":     prd.ApplyComponent,
 		"load":                prd.LoadComponent,
 		"load-policies":       prd.LoadPolicies,
+		"load-policies-in-order": prd.LoadPoliciesInOrder,
 		"load-comps-in-order": prd.LoadComponentInOrder,
 	})
 }

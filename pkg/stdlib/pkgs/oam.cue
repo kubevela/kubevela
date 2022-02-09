@@ -34,6 +34,14 @@
 	...
 }
 
+#LoadPoliciesInOrder: {
+	#provider: "oam"
+	#do:       "load-policies-in-order"
+	input?:    [...string]
+	output?:   [...{...}]
+	...
+}
+
 #LoadComponetsInOrder: {
 	#provider: "oam"
 	#do:       "load-comps-in-order"
