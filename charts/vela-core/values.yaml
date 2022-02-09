@@ -118,7 +118,7 @@ multicluster:
     image:
       repository: oamdev/cluster-gateway
       tag: v1.1.7
-      pullPolicy: Always
+      pullPolicy: IfNotPresent
     resources:
       limits:
         cpu: 100m

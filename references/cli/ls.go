@@ -30,6 +30,9 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
+// AllNamespace list app in all namespaces
+var AllNamespace bool
+
 // NewListCommand creates `ls` command and its nested children command
 func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
@@ -49,6 +52,9 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 			if err != nil {
 				return err
 			}
+			if AllNamespace {
+				namespace = ""
+			}
 			return printApplicationList(ctx, newClient, namespace, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -57,12 +63,17 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
+	cmd.Flags().BoolVarP(&AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
 	return cmd
 }
 
 func printApplicationList(ctx context.Context, c client.Reader, namespace string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
-	table.AddRow("APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME")
+	header := []interface{}{"APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME"}
+	if AllNamespace {
+		header = append([]interface{}{"NAMESPACE"}, header...)
+	}
+	table.AddRow(header...)
 	applist := v1beta1.ApplicationList{}
 	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -94,7 +105,11 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 			for _, tr := range cmp.Traits {
 				traits = append(traits, tr.Type)
 			}
-			table.AddRow(appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+			if AllNamespace {
+				table.AddRow(a.Namespace, appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+			} else {
+				table.AddRow(appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+			}
 		}
 	}
 	ioStreams.Info(table.String())

@@ -16,8 +16,31 @@ limitations under the License.
 
 package version
 
+import "github.com/hashicorp/go-version"
+
 // GitRevision is the commit of repo
 var GitRevision = "UNKNOWN"
 
 // VelaVersion is the version of cli.
 var VelaVersion = "UNKNOWN"
+
+// IsOfficialKubeVelaVersion checks whether the provided version string follows a KubeVela version pattern
+func IsOfficialKubeVelaVersion(versionStr string) bool {
+	_, err := version.NewSemver(versionStr)
+	return err == nil
+}
+
+// GetOfficialKubeVelaVersion extracts the KubeVela version from the provided string
+// More precisely, this method returns the segments and prerelease info w/o metadata
+func GetOfficialKubeVelaVersion(versionStr string) (string, error) {
+	s, err := version.NewSemver(versionStr)
+	if err != nil {
+		return "", err
+	}
+	v := s.String()
+	metadata := s.Metadata()
+	if metadata != "" {
+		metadata = "+" + metadata
+	}
+	return v[:len(v)-len(metadata)], nil
+}
