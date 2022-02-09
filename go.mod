@@ -1,6 +1,6 @@
 module github.com/oam-dev/kubevela
 
-go 1.16
+go 1.17
 
 require (
 	cuelang.org/go v0.2.2
