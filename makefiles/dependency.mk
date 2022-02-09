@@ -37,7 +37,7 @@ goimports:
 ifeq (, $(shell which goimports))
 	@{ \
 	set -e ;\
-	GO111MODULE=off go get -u golang.org/x/tools/cmd/goimports ;\
+	go install golang.org/x/tools/cmd/goimports@latest ;\
 	}
 GOIMPORTS=$(GOBIN)/goimports
 else
@@ -49,7 +49,7 @@ installcue:
 ifeq (, $(shell which cue))
 	@{ \
 	set -e ;\
-	GO111MODULE=off go get -u cuelang.org/go/cmd/cue ;\
+	go install cuelang.org/go/cmd/cue@latest ;\
 	}
 CUE=$(GOBIN)/cue
 else
