@@ -4,7 +4,7 @@ This guide helps you get started developing KubeVela.
 
 ## Prerequisites
 
-1. Golang version 1.16+
+1. Golang version 1.17+
 2. Kubernetes version v1.18+ with `~/.kube/config` configured.
 3. ginkgo 1.14.0+ (just for [E2E test](./developer-guide.md#e2e-test))
 4. golangci-lint 1.38.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
@@ -15,6 +15,7 @@ This guide helps you get started developing KubeVela.
   <summary>Install Kubebuilder manually</summary>
 
 linux:
+
 ```
 wget https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.21.2-linux-amd64.tar.gz
 tar -zxvf  kubebuilder-tools-1.21.2-linux-amd64.tar.gz
@@ -23,6 +24,7 @@ sudo mv kubebuilder/bin/* /usr/local/kubebuilder/bin
 ```
 
 macOS:
+
 ```
 wget https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.21.2-darwin-amd64.tar.gz
 tar -zxvf  kubebuilder-tools-1.21.2-darwin-amd64.tar.gz
@@ -30,14 +32,15 @@ mkdir -p /usr/local/kubebuilder/bin
 sudo mv kubebuilder/bin/* /usr/local/kubebuilder/bin
 ```
 
-For other OS or system architecture, please refer to https://storage.googleapis.com/kubebuilder-tools/ 
+For other OS or system architecture, please refer to https://storage.googleapis.com/kubebuilder-tools/
+
 </details>
 
 You may also be interested with KubeVela's [design](https://github.com/oam-dev/kubevela/tree/master/design/vela-core) before diving into its code.
 
 ## Build
 
-* Clone this project
+- Clone this project
 
 ```shell script
 git clone git@github.com:oam-dev/kubevela.git
@@ -50,7 +53,7 @@ KubeVela includes two parts, `vela core` and `vela cli`.
 
 For local development, we probably need to build both of them.
 
-* Build Vela CLI
+- Build Vela CLI
 
 ```shell script
 make
@@ -58,7 +61,7 @@ make
 
 After the vela cli built successfully, `make` command will create `vela` binary to `bin/` under the project.
 
-* Configure `vela` binary to System PATH
+- Configure `vela` binary to System PATH
 
 ```shell script
 export PATH=$PATH:/your/path/to/project/kubevela/bin
@@ -66,13 +69,13 @@ export PATH=$PATH:/your/path/to/project/kubevela/bin
 
 Then you can use `vela` command directly.
 
-* Build Vela Core
+- Build Vela Core
 
 ```shell script
 make manager
 ```
 
-* Run Vela Core
+- Run Vela Core
 
 Firstly make sure your cluster has CRDs, below is the command that can help install all CRDs.
 
@@ -82,11 +85,13 @@ make core-install
 
 To ensure you have created vela-system namespace and install definitions of necessary module.
 you can run the command:
+
 ```shell script
 make def-install
 ```
 
 And then run locally:
+
 ```shell script
 make core-run
 ```
@@ -182,8 +187,7 @@ mv ~/.kube/config.save  ~/.kube/config
 make e2e-apiserver-test
 ```
 
-
 ## Next steps
 
-* Read our [code conventions](coding-conventions.md)
-* Learn how to [Create a pull request](create-pull-request.md)
+- Read our [code conventions](coding-conventions.md)
+- Learn how to [Create a pull request](create-pull-request.md)
