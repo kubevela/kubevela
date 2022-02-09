@@ -23,6 +23,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	apierror "k8s.io/apimachinery/pkg/api/errors"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -87,6 +89,23 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			}
 			if err := deleteNamespace(kubeClient, unInstallArgs.Namespace); err != nil {
 				return err
+			}
+			var namespace corev1.Namespace
+			var namespaceExists = true
+			if err := kubeClient.Get(cmd.Context(), apitypes.NamespacedName{Name: "kubevela"}, &namespace); err != nil {
+				if !apierror.IsNotFound(err) {
+					return fmt.Errorf("failed to check if namespace kubevela already exists: %w", err)
+				}
+				namespaceExists = false
+			}
+			if namespaceExists {
+				fmt.Printf("The namespace kubevela is exist, it is the default database of the velaux\n\n")
+				userConfirmation := unInstallArgs.userInput.AskBool("Do you want to delete it?", &UserInputOptions{assumeYes})
+				if userConfirmation {
+					if err := deleteNamespace(kubeClient, "kubevela"); err != nil {
+						return err
+					}
+				}
 			}
 			ioStreams.Info("Successfully uninstalled KubeVela")
 			ioStreams.Info("Please delete all CRD from cluster using \"kubectl get crd |grep oam | awk '{print $1}' | xargs kubectl delete crd\"")
