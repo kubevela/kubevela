@@ -9,9 +9,12 @@ include makefiles/e2e.mk
 all: build
 
 # Run tests
-test: vet lint staticcheck unit-test-core
+test: vet lint staticcheck unit-test-core test-cli-gen
 	@$(OK) unit-tests pass
 
+test-cli-gen: 
+	mkdir -p ./bin/doc
+	go run ./hack/docgen/gen.go ./bin/doc
 unit-test-core:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver)
 	go test $(shell go list ./references/... | grep -v apiserver)

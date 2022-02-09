@@ -279,7 +279,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify the type of the new definition. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(FlagDescription, "d", "", "Specify the description of the new definition.")
-	cmd.Flags().StringP(FlagTemplateYAML, "y", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
+	cmd.Flags().StringP(FlagTemplateYAML, "f", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")
 	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure` are supported.")
