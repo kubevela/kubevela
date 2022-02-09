@@ -161,7 +161,11 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 					}
 				}
 			}
-			// Step4: Install or upgrade helm release
+			// Step4: apply new CRDs
+			if err := upgradeCRDs(cmd.Context(), kubeClient, chart); err != nil {
+				return errors.New(fmt.Sprintf("upgrade CRD failure %s", err.Error()))
+			}
+			// Step5: Install or upgrade helm release
 			release, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,
 				helm.UpgradeChartOptions{
 					Config:      restConfig,
@@ -173,10 +177,6 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			if err != nil {
 				msg := fmt.Sprintf("Could not install KubeVela control plane installation: %s", err.Error())
 				return errors.New(msg)
-			}
-			// Step5: apply new CRDs
-			if err := upgradeCRDs(cmd.Context(), kubeClient, release.Chart); err != nil {
-				return errors.New(fmt.Sprintf("upgrade CRD failure %s", err.Error()))
 			}
 
 			err = waitKubeVelaControllerRunning(kubeClient, installArgs.Namespace, release.Manifest)
