@@ -30,7 +30,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
-	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -740,7 +740,7 @@ func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 
 // ConvertOpenAPISchema2SwaggerObject converts OpenAPI v2 JSON schema to Swagger Object
 func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(data)
+	swagger, err := openapi3.NewLoader().LoadFromData(data)
 	if err != nil {
 		return nil, err
 	}

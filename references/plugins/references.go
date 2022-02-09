@@ -992,7 +992,7 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 		return nil, nil, errors.Errorf("configMap doesn't have openapi-v3-json-schema data")
 	}
 	parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, data)
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
+	swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
 	if err != nil {
 		return nil, nil, err
 	}

@@ -31,7 +31,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
-	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4"
 	"gotest.tools/assert"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -219,7 +219,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
+			swagger, _ := openapi3.NewLoader().LoadFromFile(filepath.Join(TestDir, tc.inputFile))
 			schema := swagger.Components.Schemas[model.ParameterFieldName].Value
 			FixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()

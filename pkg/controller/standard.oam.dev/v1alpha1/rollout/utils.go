@@ -29,9 +29,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -39,7 +39,7 @@ import (
 // GetWorkloadReplicasPath get replicas path of workload
 func GetWorkloadReplicasPath(u unstructured.Unstructured) (string, error) {
 	switch u.GetKind() {
-	case reflect.TypeOf(v1alpha1.CloneSet{}).Name(), reflect.TypeOf(appsv1.Deployment{}).Name(), reflect.TypeOf(appsv1.StatefulSet{}).Name():
+	case kruiseapi.CloneSet, reflect.TypeOf(appsv1.Deployment{}).Name(), reflect.TypeOf(appsv1.StatefulSet{}).Name():
 		return "spec.replicas", nil
 	default:
 		return "", fmt.Errorf("rollout meet a workload we cannot support yet Kind  %s name %s", u.GetKind(), u.GetName())
@@ -58,8 +58,8 @@ func WorkloadName(rolloutComp string) assemble.WorkloadOption {
 		// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 		// we support is cloneset/statefulset for now. We can easily add more later.
 		supportInplaceUpgrade := false
-		if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
-			if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() {
+		if w.GroupVersionKind().Group == kruiseapi.GroupVersion.Group {
+			if w.GetKind() == kruiseapi.CloneSet {
 				supportInplaceUpgrade = true
 			}
 		} else if w.GroupVersionKind().Group == appsv1.GroupName {

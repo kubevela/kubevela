@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	kruisev1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout/workloads"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -335,9 +335,9 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		source.Name = r.sourceWorkload.GetName()
 	}
 
-	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
+	if r.targetWorkload.GroupVersionKind().Group == kruiseapi.GroupVersion.Group {
 		// check if the target workload is CloneSet
-		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
+		if r.targetWorkload.GetKind() == kruiseapi.CloneSet {
 			// check whether current rollout plan is for workload rolling or scaling
 			if r.sourceWorkload != nil {
 				klog.InfoS("using cloneset rollout controller for this rolloutplan", "source workload name", source.Name, "namespace",

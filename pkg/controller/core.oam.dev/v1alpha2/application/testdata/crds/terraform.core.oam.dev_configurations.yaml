@@ -1,20 +1,13 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.5
+    controller-gen.kubebuilder.io/version: v0.6.0
   creationTimestamp: null
   name: configurations.terraform.core.oam.dev
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .status.state
-    name: STATE
-    type: string
-  - JSONPath: .metadata.creationTimestamp
-    name: AGE
-    type: date
   group: terraform.core.oam.dev
   names:
     kind: Configuration
@@ -22,93 +15,145 @@ spec:
     plural: configurations
     singular: configuration
   scope: Namespaced
-  subresources:
-    status: {}
-  validation:
-    openAPIV3Schema:
-      description: Configuration is the Schema for the configurations API
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: ConfigurationSpec defines the desired state of Configuration
-          properties:
-            JSON:
-              description: JSON is the Terraform JSON syntax configuration
-              type: string
-            backend:
-              description: Backend stores the state in a Kubernetes secret with locking
-                done using a Lease resource. TODO(zzxwill) If a backend exists in
-                HCL/JSON, this can be optional. Currently, if Backend is not set by
-                users, it still will set by the controller, ignoring the settings
-                in HCL/JSON backend
-              properties:
-                inClusterConfig:
-                  description: InClusterConfig Used to authenticate to the cluster
-                    from inside a pod. Only `true` is allowed
-                  type: boolean
-                secretSuffix:
-                  description: 'SecretSuffix used when creating secrets. Secrets will
-                    be named in the format: tfstate-{workspace}-{secretSuffix}'
-                  type: string
-              type: object
-            hcl:
-              description: HCL is the Terraform HCL type configuration
-              type: string
-            variable:
-              type: object
-              x-kubernetes-preserve-unknown-fields: true
-            writeConnectionSecretToRef:
-              description: WriteConnectionSecretToReference specifies the namespace
-                and name of a Secret to which any connection details for this managed
-                resource should be written. Connection details frequently include
-                the endpoint, username, and password required to connect to the managed
-                resource.
-              properties:
-                name:
-                  description: Name of the secret.
-                  type: string
-                namespace:
-                  description: Namespace of the secret.
-                  type: string
-              required:
-              - name
-              type: object
-          type: object
-        status:
-          description: ConfigurationStatus defines the observed state of Configuration
-          properties:
-            message:
-              type: string
-            outputs:
-              additionalProperties:
-                properties:
-                  type:
-                    type: string
-                  value:
-                    type: string
-                type: object
-              type: object
-            state:
-              description: A ResourceState represents the status of a resource
-              type: string
-          type: object
-      type: object
-  version: v1beta1
   versions:
-  - name: v1beta1
-    served: true
-    storage: true
+    - additionalPrinterColumns:
+        - jsonPath: .status.apply.state
+          name: STATE
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: AGE
+          type: date
+      name: v1beta1
+      schema:
+        openAPIV3Schema:
+          description: Configuration is the Schema for the configurations API
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: ConfigurationSpec defines the desired state of Configuration
+              properties:
+                JSON:
+                  description: 'JSON is the Terraform JSON syntax configuration. Deprecated:
+                  after v0.3.1, use HCL instead.'
+                  type: string
+                backend:
+                  description: Backend stores the state in a Kubernetes secret with
+                    locking done using a Lease resource. TODO(zzxwill) If a backend
+                    exists in HCL/JSON, this can be optional. Currently, if Backend
+                    is not set by users, it still will set by the controller, ignoring
+                    the settings in HCL/JSON backend
+                  properties:
+                    inClusterConfig:
+                      description: InClusterConfig Used to authenticate to the cluster
+                        from inside a pod. Only `true` is allowed
+                      type: boolean
+                    secretSuffix:
+                      description: 'SecretSuffix used when creating secrets. Secrets
+                      will be named in the format: tfstate-{workspace}-{secretSuffix}'
+                      type: string
+                  type: object
+                deleteResource:
+                  default: true
+                  description: DeleteResource will determine whether provisioned cloud
+                    resources will be deleted when CR is deleted
+                  type: boolean
+                hcl:
+                  description: HCL is the Terraform HCL type configuration
+                  type: string
+                path:
+                  description: Path is the sub-directory of remote git repository.
+                  type: string
+                providerRef:
+                  description: ProviderReference specifies the reference to Provider
+                  properties:
+                    name:
+                      description: Name of the referenced object.
+                      type: string
+                    namespace:
+                      default: default
+                      description: Namespace of the referenced object.
+                      type: string
+                  required:
+                    - name
+                  type: object
+                region:
+                  description: Region is cloud provider's region. It will override the
+                    region in the region field of ProviderReference
+                  type: string
+                remote:
+                  description: Remote is a git repo which contains hcl files. Currently,
+                    only public git repos are supported.
+                  type: string
+                variable:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                writeConnectionSecretToRef:
+                  description: WriteConnectionSecretToReference specifies the namespace
+                    and name of a Secret to which any connection details for this managed
+                    resource should be written. Connection details frequently include
+                    the endpoint, username, and password required to connect to the
+                    managed resource.
+                  properties:
+                    name:
+                      description: Name of the secret.
+                      type: string
+                    namespace:
+                      description: Namespace of the secret.
+                      type: string
+                  required:
+                    - name
+                  type: object
+              type: object
+            status:
+              description: ConfigurationStatus defines the observed state of Configuration
+              properties:
+                apply:
+                  description: ConfigurationApplyStatus is the status for Configuration
+                    apply
+                  properties:
+                    message:
+                      type: string
+                    outputs:
+                      additionalProperties:
+                        description: Property is the property for an output
+                        properties:
+                          type:
+                            type: string
+                          value:
+                            type: string
+                        type: object
+                      type: object
+                    state:
+                      description: A ConfigurationState represents the status of a resource
+                      type: string
+                  type: object
+                destroy:
+                  description: ConfigurationDestroyStatus is the status for Configuration
+                    destroy
+                  properties:
+                    message:
+                      type: string
+                    state:
+                      description: A ConfigurationState represents the status of a resource
+                      type: string
+                  type: object
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
 status:
   acceptedNames:
     kind: ""

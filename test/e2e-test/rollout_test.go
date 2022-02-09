@@ -21,29 +21,23 @@ import (
 	"fmt"
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
-
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-
-	appsv1 "k8s.io/api/apps/v1"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("rollout related e2e-test,Cloneset component rollout tests", func() {

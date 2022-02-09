@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-version"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -38,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -182,7 +182,7 @@ var standardWorkloads = []schema.GroupVersionKind{
 	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
 	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.DaemonSet{}).Name()),
 	batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
-	kruise.SchemeGroupVersion.WithKind(reflect.TypeOf(kruise.CloneSet{}).Name()),
+	kruiseapi.SchemeGroupVersion.WithKind(kruiseapi.CloneSet),
 }
 
 var podCollectorMap = map[schema.GroupVersionKind]PodCollector{

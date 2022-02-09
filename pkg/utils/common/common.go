@@ -38,7 +38,6 @@ import (
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -64,6 +63,7 @@ import (
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -90,7 +90,7 @@ func init() {
 	_ = oamstandard.AddToScheme(Scheme)
 	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
-	_ = kruise.AddToScheme(Scheme)
+	_ = kruiseapi.AddToScheme(Scheme)
 	_ = terraformv1beta1.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
 	_ = ocmclusterv1.Install(Scheme)

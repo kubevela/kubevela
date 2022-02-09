@@ -22,10 +22,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +31,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // WorkloadOptionFn implement interface WorkloadOption
@@ -136,9 +135,9 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 		// TODO: we can get the workloadDefinition name from workload.GetLabels()["oam.WorkloadTypeLabel"]
 		// and use a special field like "disablePath" in the definition to allow configurable behavior
 		// we hard code the behavior depends on the known assembledWorkload.group/kind for now.
-		if assembledWorkload.GroupVersionKind().Group == kruisev1alpha1.GroupVersion.Group {
+		if assembledWorkload.GroupVersionKind().Group == kruiseapi.GroupVersion.Group {
 			switch assembledWorkload.GetKind() {
-			case reflect.TypeOf(kruisev1alpha1.CloneSet{}).Name():
+			case kruiseapi.CloneSet:
 				err := pv.SetBool(cloneSetDisablePath, true)
 				if err != nil {
 					return err
@@ -146,7 +145,7 @@ func PrepareWorkloadForRollout(rolloutComp string) WorkloadOption {
 				klog.InfoS("we render a CloneSet assembledWorkload.paused on the first time",
 					"kind", assembledWorkload.GetKind(), "instance name", assembledWorkload.GetName())
 				return nil
-			case reflect.TypeOf(kruisev1alpha1.StatefulSet{}).Name():
+			case kruiseapi.StatefulSet:
 				err := pv.SetBool(advancedStatefulSetDisablePath, true)
 				if err != nil {
 					return err

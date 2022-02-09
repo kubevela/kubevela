@@ -22,12 +22,12 @@ import (
 	"strconv"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -51,9 +51,9 @@ func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructur
 
 	// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 	// we support is cloneset/statefulset for now. We can easily add more later.
-	if w.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
-		if w.GetKind() == reflect.TypeOf(v1alpha1.CloneSet{}).Name() ||
-			w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
+	if w.GroupVersionKind().Group == kruiseapi.GroupVersion.Group {
+		if w.GetKind() == kruiseapi.CloneSet ||
+			w.GetKind() == kruiseapi.StatefulSet {
 			// we use the component name alone for those resources that do support in-place upgrade
 			klog.InfoS("we reuse the component name for resources that support in-place upgrade",
 				"GVK", w.GroupVersionKind(), "instance name", componentName)
@@ -79,9 +79,9 @@ func prepWorkloadInstanceForRollout(workload *unstructured.Unstructured) error {
 	// and use a special field like "disablePath" in the definition to allow configurable behavior
 
 	// we hard code the behavior depends on the known workload group/kind for now.
-	if workload.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
+	if workload.GroupVersionKind().Group == kruiseapi.GroupVersion.Group {
 		switch workload.GetKind() {
-		case reflect.TypeOf(v1alpha1.CloneSet{}).Name():
+		case kruiseapi.CloneSet:
 			err := pv.SetBool(cloneSetDisablePath, true)
 			if err != nil {
 				return err
@@ -89,7 +89,7 @@ func prepWorkloadInstanceForRollout(workload *unstructured.Unstructured) error {
 			klog.InfoS("we render a CloneSet workload paused on the first time",
 				"kind", workload.GetKind(), "instance name", workload.GetName())
 			return nil
-		case reflect.TypeOf(v1alpha1.StatefulSet{}).Name():
+		case kruiseapi.StatefulSet:
 			err := pv.SetBool(advancedStatefulSetDisablePath, true)
 			if err != nil {
 				return err

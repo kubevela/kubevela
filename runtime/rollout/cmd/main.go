@@ -30,9 +30,8 @@ import (
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/version"
-
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 )
 
 var (
@@ -50,7 +49,7 @@ func init() {
 	// need request controllerRevision and deployment
 	_ = clientgoscheme.AddToScheme(scheme)
 	// need request cloneset
-	_ = kruise.AddToScheme(scheme)
+	_ = kruiseapi.AddToScheme(scheme)
 }
 
 func main() {

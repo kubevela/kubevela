@@ -360,7 +360,7 @@ func TestWalkParameterSchema(t *testing.T) {
 	for _, cases := range testcases {
 		commonRefs = make([]CommonReference, 0)
 		parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, cases.data)
-		swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
+		swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
 		WalkParameterSchema(parameters, "Properties", 0)

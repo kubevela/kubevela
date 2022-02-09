@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -39,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/dependency/kruiseapi"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -60,7 +60,7 @@ var _ = Describe("Test WorkloadOption", func() {
 		It("test rollout OpenKruise CloneSet", func() {
 			By("Use openkruise CloneSet as workload")
 			cs := &unstructured.Unstructured{}
-			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.CloneSet{}).Name()))
+			cs.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(kruiseapi.CloneSet))
 			cs.SetLabels(map[string]string{oam.LabelAppComponent: compName})
 			comp := types.ComponentManifest{
 				Name:             compName,
@@ -85,7 +85,7 @@ var _ = Describe("Test WorkloadOption", func() {
 		It("test rollout OpenKruise StatefulSet", func() {
 			By("Use openkruise CloneSet as workload")
 			sts := &unstructured.Unstructured{}
-			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(reflect.TypeOf(v1alpha1.StatefulSet{}).Name()))
+			sts.SetGroupVersionKind(v1alpha1.SchemeGroupVersion.WithKind(kruiseapi.StatefulSet))
 			sts.SetLabels(map[string]string{oam.LabelAppComponent: compName})
 			comp := types.ComponentManifest{
 				Name:             compName,
