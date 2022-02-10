@@ -33,7 +33,7 @@ From the perspective of users, the direct new-incoming capabilities include:
 There are several *ResourceTrackers* maintained for one Application.
 - **Versioned ResourceTracker**: Each ResourceTracker keeps the record for the resources of one Application generation. Most resources are kept here. When application spec is updated, new versioned ResourceTracker will be created and used. 
 - **Root ResourceTracker**: This ResourceTracker keeps the record of the resources that shares the life-cycle with the Application instead of a single version. Resources recorded here will not be recycled until Application is deleted.
-- **ControllerRevision ResourceTracker**: This ResourceTracker tracks all the dispatched component revisions. When some components are not in use in new versions, this ResourceTracker can elegantly recycle the revisions for those components. 
+- **ComponentRevision(ControllerRevision) ResourceTracker**: This ResourceTracker tracks all the dispatched component revisions. When some components are not in use in new versions, this ResourceTracker can elegantly recycle the revisions for those components. 
 
 ### ResourceKeeper
 
