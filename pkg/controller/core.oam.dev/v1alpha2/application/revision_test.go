@@ -245,6 +245,28 @@ var _ = Describe("test generate revision ", func() {
 		verifyDeepEqualRevision()
 	})
 
+	It("Test application revision compare", func() {
+		By("Apply the application")
+		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
+		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
+		Expect(err).Should(Succeed())
+		comps, err = generatedAppfile.GenerateComponentManifests()
+		Expect(err).Should(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		Expect(handler.FinalizeAndApplyAppRevision(ctx)).Should(Succeed())
+		prevHash := generatedAppfile.AppRevisionHash
+		handler.app.Status.LatestRevision = &common.Revision{Name: generatedAppfile.AppRevisionName, Revision: 1, RevisionHash: generatedAppfile.AppRevisionHash}
+		generatedAppfile.Workloads[0].FullTemplate.ComponentDefinition = nil
+		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		nonChangeHash := generatedAppfile.AppRevisionHash
+		handler.app.Annotations = map[string]string{oam.AnnotationAutoUpdate: "true"}
+		Expect(handler.PrepareCurrentAppRevision(ctx, generatedAppfile)).Should(Succeed())
+		changedHash := generatedAppfile.AppRevisionHash
+		Expect(nonChangeHash).Should(Equal(prevHash))
+		Expect(changedHash).ShouldNot(Equal(prevHash))
+	})
+
 	It("Test apply success for none rollout case", func() {
 		By("Apply the application")
 		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
