@@ -384,6 +384,7 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
+		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
 		return false, false, nil
