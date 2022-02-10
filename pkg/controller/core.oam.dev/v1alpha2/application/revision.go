@@ -374,11 +374,17 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		return true, true, nil
 	}
 
+	isLatestRev := deepEqualAppInRevision(h.latestAppRev, h.currentAppRev)
+	if metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationAutoUpdate) {
+		isLatestRev = h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev)
+	}
+
 	// diff the latest revision first
-	if h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev) {
+	if isLatestRev {
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
+		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
 		return false, false, nil
@@ -444,6 +450,10 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 			return false
 		}
 	}
+	return deepEqualAppInRevision(old, new)
+}
+
+func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
 		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
 }
