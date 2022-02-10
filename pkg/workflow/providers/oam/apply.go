@@ -22,10 +22,13 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -277,8 +280,14 @@ func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, ac
 		if policy, found := policyMap[policyName]; found {
 			specifiedPolicies = append(specifiedPolicies, policy)
 		} else {
-			// TODO: support external policy
-			return errors.Errorf("policy %s not found", policyName)
+			po := &v1alpha1.Policy{}
+			if err = p.cli.Get(context.Background(), types.NamespacedName{Namespace: p.app.GetNamespace(), Name: policyName}, po); err != nil {
+				if errors2.IsNotFound(err) {
+					return errors.Errorf("policy %s not found", policyName)
+				}
+				return errors.Wrapf(err, "failed to search policy %s in namespace %s", policyName, p.app.GetNamespace())
+			}
+			specifiedPolicies = append(specifiedPolicies, v1beta1.AppPolicy{Name: policyName, Type: po.Type, Properties: po.Properties})
 		}
 	}
 	return v.FillObject(specifiedPolicies, "output")

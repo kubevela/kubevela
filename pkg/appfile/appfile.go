@@ -215,6 +215,8 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 	}
 
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
+		&step.RefWorkflowStepGenerator{Client: af.parser.client, Context: ctx},
+		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},
 	).Generate(af.app, af.WorkflowSteps)

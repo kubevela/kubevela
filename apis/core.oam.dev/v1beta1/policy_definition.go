@@ -61,7 +61,7 @@ func (d *PolicyDefinition) GetCondition(conditionType condition.ConditionType) c
 // +kubebuilder:object:root=true
 
 // PolicyDefinition is the Schema for the policydefinitions API
-// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=policy
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=policy-def
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +genclient
