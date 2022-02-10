@@ -17,9 +17,10 @@ limitations under the License.
 package cli
 
 import (
+	"testing"
+
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
-	"testing"
 
 	"gotest.tools/assert"
 )
