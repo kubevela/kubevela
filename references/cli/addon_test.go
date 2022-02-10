@@ -76,10 +76,6 @@ func TestAddonEnableCmdWithErrLocalPath(t *testing.T) {
 			errMsg: "addon directory a_local_path/ not found in local",
 		},
 		{
-			args:   []string{"/a_local_path"},
-			errMsg: "addon directory /a_local_path not found in local",
-		},
-		{
 			args:   []string{"a_local_path"},
 			errMsg: "addon: a_local_path not found in registries",
 		},
@@ -108,10 +104,6 @@ func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
 		{
 			args:   []string{"a_local_path/"},
 			errMsg: "addon directory a_local_path/ not found in local",
-		},
-		{
-			args:   []string{"/a_local_path"},
-			errMsg: "addon directory /a_local_path not found in local",
 		},
 	}
 
