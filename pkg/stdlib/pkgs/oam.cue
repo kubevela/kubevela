@@ -37,8 +37,8 @@
 #LoadPoliciesInOrder: {
 	#provider: "oam"
 	#do:       "load-policies-in-order"
-	input?:    [...string]
-	output?:   [...{...}]
+	input?: [...string]
+	output?: [...{...}]
 	...
 }
 

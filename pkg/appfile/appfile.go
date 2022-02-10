@@ -203,6 +203,8 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 		case v1alpha1.ApplyOncePolicyType:
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.EnvBindingPolicyType:
+		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.OverridePolicyType:
 		default:
 			un, err := af.generateUnstructured(policy)
 			if err != nil {

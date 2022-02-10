@@ -150,8 +150,7 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 }
 
 func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
-	switch comp.Type {
-	case "ref-objects":
+	if comp.Type == "ref-objects" {
 		_comp := comp.DeepCopy()
 		props := &struct {
 			Objects []*unstructured.Unstructured `json:"objects"`
@@ -258,7 +257,7 @@ func (p *provider) LoadPolicies(ctx wfContext.Context, v *value.Value, act wfTyp
 func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policyMap := map[string]v1beta1.AppPolicy{}
 	var specifiedPolicyNames []string
-	specifiedPolicyNamesRaw, err := v.LookupValue("inputs")
+	specifiedPolicyNamesRaw, err := v.LookupValue("input")
 	if err != nil {
 		return err
 	}
@@ -266,6 +265,9 @@ func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, ac
 		for _, policy := range p.app.Spec.Policies {
 			specifiedPolicyNames = append(specifiedPolicyNames, policy.Name)
 		}
+	}
+	if err = specifiedPolicyNamesRaw.UnmarshalTo(&specifiedPolicyNames); err != nil {
+		return errors.Wrapf(err, "failed to parse specified policy names")
 	}
 	for _, policy := range p.app.Spec.Policies {
 		policyMap[policy.Name] = policy
@@ -279,7 +281,7 @@ func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, ac
 			return errors.Errorf("policy %s not found", policyName)
 		}
 	}
-	return v.FillObject(specifiedPolicies, "outputs")
+	return v.FillObject(specifiedPolicies, "output")
 }
 
 // Install register handlers to provider discover.
@@ -291,11 +293,11 @@ func Install(p providers.Providers, app *v1beta1.Application, cli client.Client,
 		cli:    cli,
 	}
 	p.Register(ProviderName, map[string]providers.Handler{
-		"component-render":    prd.RenderComponent,
-		"component-apply":     prd.ApplyComponent,
-		"load":                prd.LoadComponent,
-		"load-policies":       prd.LoadPolicies,
+		"component-render":       prd.RenderComponent,
+		"component-apply":        prd.ApplyComponent,
+		"load":                   prd.LoadComponent,
+		"load-policies":          prd.LoadPolicies,
 		"load-policies-in-order": prd.LoadPoliciesInOrder,
-		"load-comps-in-order": prd.LoadComponentInOrder,
+		"load-comps-in-order":    prd.LoadComponentInOrder,
 	})
 }

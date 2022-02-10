@@ -250,6 +250,10 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.ApplyOncePolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		case v1alpha1.TopologyPolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		case v1alpha1.OverridePolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		default:
 			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		}

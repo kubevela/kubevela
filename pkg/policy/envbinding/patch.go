@@ -113,10 +113,10 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 	return newComponent, nil
 }
 
-func filterComponents(components []string, selector *v1alpha1.EnvSelector) []string {
+func filterComponents(components []string, selector []string) []string {
 	if selector != nil {
 		filter := map[string]bool{}
-		for _, compName := range selector.Components {
+		for _, compName := range selector {
 			filter[compName] = true
 		}
 		var _comps []string
@@ -133,11 +133,17 @@ func filterComponents(components []string, selector *v1alpha1.EnvSelector) []str
 // PatchApplication patch base application with patch and selector
 func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selector *v1alpha1.EnvSelector) (*v1beta1.Application, error) {
 	newApp := base.DeepCopy()
+	var err error
+	newApp.Spec.Components, err = PatchComponents(base.Spec.Components, patch.Components, selector.Components)
+	return newApp, err
+}
 
+// PatchComponents patch base components with patch and selector
+func PatchComponents(baseComponents []common.ApplicationComponent, patchComponents []v1alpha1.EnvComponentPatch, selector []string) ([]common.ApplicationComponent, error) {
 	// init components
 	compMaps := map[string]*common.ApplicationComponent{}
 	var compOrders []string
-	for _, comp := range base.Spec.Components {
+	for _, comp := range baseComponents {
 		compMaps[comp.Name] = comp.DeepCopy()
 		compOrders = append(compOrders, comp.Name)
 	}
@@ -145,7 +151,7 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 	// patch components
 	var errs errors2.ErrorList
 	var err error
-	for _, comp := range patch.Components {
+	for _, comp := range patchComponents {
 		if comp.Name == "" {
 			for compName, baseComp := range compMaps {
 				if comp.Type == "" || comp.Type == baseComp.Type {
@@ -172,16 +178,16 @@ func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selec
 	if errs.HasError() {
 		return nil, errors.Wrapf(err, "failed to merge application components")
 	}
-	newApp.Spec.Components = []common.ApplicationComponent{}
 
 	// if selector is enabled, filter
 	compOrders = filterComponents(compOrders, selector)
 
 	// fill in new application
+	var newComponents []common.ApplicationComponent
 	for _, compName := range compOrders {
-		newApp.Spec.Components = append(newApp.Spec.Components, *compMaps[compName])
+		newComponents = append(newComponents, *compMaps[compName])
 	}
-	return newApp, nil
+	return newComponents, nil
 }
 
 // PatchApplicationByEnvBindingEnv get patched application directly through policyName and envName

@@ -218,7 +218,7 @@
 }
 
 #ExpandTopology: {
-	#provider: "mulicluster"
+	#provider: "multicluster"
 	#do:       "expand-topology"
 	inputs: {
 		policies: [...{...}]
@@ -229,7 +229,7 @@
 }
 
 #OverrideConfiguration: {
-	#provider: "mulicluster"
+	#provider: "multicluster"
 	#do:       "override-configuration"
 	inputs: {
 		policies: [...{...}]
@@ -245,15 +245,20 @@
 		policies: [...{...}]
 		components: [...#Component]
 	}
-	_inputs: inputs
+	_inputs:        inputs
 	expandTopology: #ExpandTopology & {
-		inputs: _inputs
-	} @step(1)
+		inputs: {
+			policies: _inputs.policies
+		}
+	}                      @step(1)
 	overrideConfiguration: #OverrideConfiguration & {
-		inputs: _inputs
+		inputs: {
+			policies:   _inputs.policies
+			components: _inputs.components
+		}
 	} @step(2)
 	outputs: {
-		decisions: expandTopology.outputs.decisions
+		decisions:  expandTopology.outputs.decisions
 		components: overrideConfiguration.outputs.components
 	}
 }

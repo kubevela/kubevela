@@ -11,22 +11,22 @@ import (
 template: {
 	deploy: op.#Steps & {
 		load: op.#Load @step(1)
-		_components: load.value
+		_components: [ for k, v in load.value {v}]
 		loadPoliciesInOrder: op.#LoadPoliciesInOrder & {
 			if parameter.policies != _|_ {
-				inputs: parameter.policies
-			}
-		} @step(2)
-		policies: loadPoliciesInOrder.output.policies
+						input: parameter.policies
+					}
+		}                     @step(2)
+		_policies:            loadPoliciesInOrder.output
 		handleDeployPolicies: op.#HandleDeployPolicies & {
 			inputs: {
 				components: _components
-				policies: _policies
+				policies:   _policies
 			}
-		} @step(3)
-		_decisions: handleDeployPolicies.outputs.decisions
+		}                   @step(3)
+		_decisions:         handleDeployPolicies.outputs.decisions
 		_patchedComponents: handleDeployPolicies.outputs.components
-		deploy: op.#Steps & {
+		deploy:             op.#Steps & {
 			for decision in _decisions {
 				for key, comp in _patchedComponents {
 					"\(decision.cluster)-\(decision.namespace)-\(key)": op.#ApplyComponent & {
