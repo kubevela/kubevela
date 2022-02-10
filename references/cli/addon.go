@@ -142,8 +142,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 					return err
 				}
 			} else {
-				if filepath.IsAbs(name) || strings.HasPrefix(name, ".") {
-					return fmt.Errorf("addon directory %s not found in local", name)
+				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
+					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
 
 				err = enableAddon(ctx, k8sClient, config, name, addonArgs)
@@ -216,8 +216,8 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 					return err
 				}
 			} else {
-				if filepath.IsAbs(name) || strings.HasPrefix(name, ".") {
-					return fmt.Errorf("addon directory %s not found in local", name)
+				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
+					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
 
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
