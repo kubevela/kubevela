@@ -165,6 +165,9 @@ const (
 	// AnnotationPublishVersion is annotation that record the application workflow version.
 	AnnotationPublishVersion = "app.oam.dev/publishVersion"
 
+	// AnnotationAutoUpdate is annotation that let application auto update when it finds definition changes
+	AnnotationAutoUpdate = "app.oam.dev/autoUpdate"
+
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
 
