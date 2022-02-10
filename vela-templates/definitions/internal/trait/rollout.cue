@@ -1,9 +1,6 @@
 rollout: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Rollout the component."
 	attributes: {
 		manageWorkload: true
@@ -26,7 +23,7 @@ template: {
 			namespace: context.namespace
 		}
 		spec: {
-			targetRevisionName: parameter.targetRevision
+			targetRevisionName?: parameter.targetRevision
 			componentName:      context.name
 			rolloutPlan: {
 				rolloutStrategy: "IncreaseFirst"
