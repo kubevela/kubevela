@@ -43,9 +43,23 @@ func TestParseMap(t *testing.T) {
 			nilError: true,
 		},
 		{
-			args:     []string{"errorparameter"},
-			res:      nil,
-			nilError: false,
+			args: []string{"imagePullSecrets={a,b,c}"},
+			res: map[string]interface{}{
+				"imagePullSecrets": []interface{}{
+					"a", "b", "c",
+				},
+			},
+			nilError: true,
+		},
+		{
+			args: []string{"image.repo=www.test.com", "image.tag=1.1"},
+			res: map[string]interface{}{
+				"image": map[string]interface{}{
+					"repo": "www.test.com",
+					"tag":  "1.1",
+				},
+			},
+			nilError: true,
 		},
 	}
 	for _, s := range testcase {
@@ -53,8 +67,6 @@ func TestParseMap(t *testing.T) {
 		assert.DeepEqual(t, s.res, r)
 		if s.nilError {
 			assert.NilError(t, err)
-		} else {
-			assert.Error(t, err, "parameter format should be foo=bar, errorparameter not match")
 		}
 	}
 }
