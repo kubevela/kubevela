@@ -156,10 +156,10 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 	if comp.Type == "ref-objects" {
 		_comp := comp.DeepCopy()
 		props := &struct {
-			Objects []struct{
+			Objects []struct {
 				APIVersion string `json:"apiVersion"`
-				Kind string `json:"kind"`
-				Name string `json:"name"`
+				Kind       string `json:"kind"`
+				Name       string `json:"name"`
 			} `json:"objects"`
 		}{}
 		if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {

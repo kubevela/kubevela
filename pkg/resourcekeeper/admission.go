@@ -34,6 +34,7 @@ var (
 	AllowResourceTypes = ""
 )
 
+// AdmissionCheck check whether resources dispatch/deletion is admitted
 func (h *resourceKeeper) AdmissionCheck(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	for _, handler := range []ResourceAdmissionHandler{
 		&NamespaceAdmissionHandler{app: h.app},
@@ -46,14 +47,17 @@ func (h *resourceKeeper) AdmissionCheck(ctx context.Context, manifests []*unstru
 	return nil
 }
 
+// ResourceAdmissionHandler defines the handler to validate the admission of resource operation
 type ResourceAdmissionHandler interface {
 	Validate(ctx context.Context, manifests []*unstructured.Unstructured) error
 }
 
+// NamespaceAdmissionHandler defines the handler to validate if the resource namespace is valid to be dispatch/delete
 type NamespaceAdmissionHandler struct {
 	app *v1beta1.Application
 }
 
+// Validate check if cross namespace is available
 func (h *NamespaceAdmissionHandler) Validate(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	if !AllowCrossNamespaceResource {
 		for _, manifest := range manifests {
@@ -65,12 +69,14 @@ func (h *NamespaceAdmissionHandler) Validate(ctx context.Context, manifests []*u
 	return nil
 }
 
+// ResourceTypeAdmissionHandler defines the handler to validate if the resource type is valid to be dispatch/delete
 type ResourceTypeAdmissionHandler struct {
-	initialized bool
-	isWhiteList bool
+	initialized     bool
+	isWhiteList     bool
 	resourceTypeMap map[string]struct{}
 }
 
+// Validate check if resource type is valid
 func (h *ResourceTypeAdmissionHandler) Validate(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	if AllowResourceTypes != "" {
 		if !h.initialized {
