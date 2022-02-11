@@ -559,6 +559,9 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 			if err != nil {
 				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
 			}
+			if def.Unstructured.GetNamespace() == "" {
+				def.Unstructured.SetNamespace(types.DefaultKubeVelaNS)
+			}
 			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
 				Name:       cueDef.Name,
 				Type:       "raw",
@@ -604,6 +607,9 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 			err := def.FromCUEString(cueDef.Data, config)
 			if err != nil {
 				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+			}
+			if def.GetNamespace() == "" {
+				def.SetNamespace(types.DefaultKubeVelaNS)
 			}
 			defObjs = append(defObjs, &def.Unstructured)
 		}
