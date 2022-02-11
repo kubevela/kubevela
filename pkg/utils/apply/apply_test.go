@@ -140,7 +140,7 @@ func TestAPIApplicator(t *testing.T) {
 				creator: creatorFn(func(_ context.Context, _ *applyAction, _ client.Client, _ client.Object, _ ...ApplyOption) (client.Object, error) {
 					return tc.args.existing, tc.args.creatorErr
 				}),
-				patcher: patcherFn(func(c, m client.Object) (client.Patch, error) {
+				patcher: patcherFn(func(c, m client.Object, a *applyAction) (client.Patch, error) {
 					return nil, tc.args.patcherErr
 				}),
 				c: tc.c,
