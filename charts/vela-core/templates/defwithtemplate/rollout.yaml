@@ -20,8 +20,8 @@ spec:
         		namespace: context.namespace
         	}
         	spec: {
-        		targetRevisionName?: parameter.targetRevision
-        		componentName:       context.name
+        		targetRevisionName: parameter.targetRevision
+        		componentName:      context.name
         		rolloutPlan: {
         			rolloutStrategy: "IncreaseFirst"
         			if parameter.rolloutBatches != _|_ {
@@ -35,8 +35,8 @@ spec:
         	}
         }
         parameter: {
-        	targetRevision: *context.revision | string
-        	targetSize:     int
+        	targetRevision?: *context.revision | string
+        	targetSize:      int
         	rolloutBatches?: [...rolloutBatch]
         	batchPartition?: int
         }
