@@ -56,6 +56,10 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
 		options = append(options, MetaOnlyOption{})
 	}
+	// 0. check admission
+	if err = h.AdmissionCheck(ctx, manifests); err != nil {
+		return err
+	}
 	// 1. record manifests in resourcetracker
 	if err = h.record(ctx, manifests, options...); err != nil {
 		return err

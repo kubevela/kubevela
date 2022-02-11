@@ -68,7 +68,7 @@ func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSt
 	if len(existingSteps) > 0 {
 		return existingSteps, nil
 	}
-	if app.Spec.Workflow.Ref != "" {
+	if app.Spec.Workflow != nil && app.Spec.Workflow.Ref != "" {
 		wf := &v1alpha1.Workflow{}
 		if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
 			return
