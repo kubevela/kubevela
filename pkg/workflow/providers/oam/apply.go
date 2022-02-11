@@ -156,17 +156,24 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 	if comp.Type == "ref-objects" {
 		_comp := comp.DeepCopy()
 		props := &struct {
-			Objects []*unstructured.Unstructured `json:"objects"`
+			Objects []struct{
+				APIVersion string `json:"apiVersion"`
+				Kind string `json:"kind"`
+				Name string `json:"name"`
+			} `json:"objects"`
 		}{}
 		if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
 			return nil, errors.Wrapf(err, "invalid properties for ref-objects")
 		}
-		for _, un := range props.Objects {
-			if name := un.GetName(); name == "" {
+		var objects []*unstructured.Unstructured
+		for _, obj := range props.Objects {
+			un := &unstructured.Unstructured{}
+			un.SetAPIVersion(obj.APIVersion)
+			un.SetKind(obj.Kind)
+			un.SetName(obj.Name)
+			un.SetNamespace(p.app.GetNamespace())
+			if obj.Name == "" {
 				un.SetName(comp.Name)
-			}
-			if namespace := un.GetNamespace(); namespace == "" {
-				un.SetNamespace(p.app.GetNamespace())
 			}
 			if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
 				return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
@@ -176,8 +183,9 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 			un.SetOwnerReferences(nil)
 			un.SetDeletionTimestamp(nil)
 			un.SetUID("")
+			objects = append(objects, un)
 		}
-		bs, err := json.Marshal(props)
+		bs, err := json.Marshal(map[string]interface{}{"objects": objects})
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
 		}
@@ -228,7 +236,7 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 // LoadComponentInOrder load component describe info in application output will be a list with order defined in application.
 func (p *provider) LoadComponentInOrder(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	app := &v1beta1.Application{}
-	// if specify `app`, use specified application otherwise use default application fron provider
+	// if specify `app`, use specified application otherwise use default application from provider
 	appSettings, err := v.LookupValue("app")
 	if err != nil {
 		if strings.Contains(err.Error(), "not exist") {

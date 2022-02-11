@@ -91,7 +91,10 @@ func (h *ResourceTypeAdmissionHandler) Validate(ctx context.Context, manifests [
 		}
 		for _, manifest := range manifests {
 			gvk := manifest.GetObjectKind().GroupVersionKind()
-			resourceType := fmt.Sprintf("%s.%s.%s", manifest.GetKind(), gvk.Version, gvk.Group)
+			resourceType := fmt.Sprintf("%s.%s", manifest.GetKind(), gvk.Version)
+			if gvk.Group != "" {
+				resourceType += "." + gvk.Group
+			}
 			_, found := h.resourceTypeMap[resourceType]
 			if h.isWhiteList != found {
 				return errors.Errorf("forbidden resource: type (%s) of resource %s/%s is not allowed", manifest.GetKind(), manifest.GetNamespace(), manifest.GetName())
