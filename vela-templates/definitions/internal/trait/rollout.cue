@@ -23,8 +23,13 @@ template: {
 			namespace: context.namespace
 		}
 		spec: {
-			targetRevisionName: parameter.targetRevision
-			componentName:      context.name
+			if parameter.targetRevision != _|_ {
+				targetRevisionName: parameter.targetRevision
+			}
+			if parameter.targetRevision == _|_ {
+				targetRevisionName: context.revision
+			}
+			componentName: context.name
 			rolloutPlan: {
 				rolloutStrategy: "IncreaseFirst"
 				if parameter.rolloutBatches != _|_ {
@@ -39,7 +44,7 @@ template: {
 	}
 
 	parameter: {
-		targetRevision?: *context.revision | string
+		targetRevision?: string
 		targetSize:      int
 		rolloutBatches?: [...rolloutBatch]
 		batchPartition?: int
