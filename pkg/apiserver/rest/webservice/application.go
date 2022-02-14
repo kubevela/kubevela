@@ -113,16 +113,6 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationStatisticsResponse{}))
 
-	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
-		Doc("update one application ").
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Reads(apis.UpdateApplicationRequest{}).
-		Returns(200, "", apis.ApplicationBase{}).
-		Returns(400, "", bcode.Bcode{}).
-		Writes(apis.ApplicationBase{}))
-
 	ws.Route(ws.POST("/{name}/triggers").To(c.createApplicationTrigger).
 		Doc("create one application trigger").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
