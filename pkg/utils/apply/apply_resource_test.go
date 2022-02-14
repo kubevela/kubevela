@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -84,6 +85,22 @@ var _ = Describe("Test apply", func() {
 			By("Unsetted fields shoulde be removed or set to default value")
 			Expect(*resultDeploy.Spec.Replicas).Should(Equal(int32(1)))
 			Expect(len(resultDeploy.Spec.Template.Spec.Volumes)).Should(Equal(0))
+
+			deployUpdate := basicTestDeployment()
+			deployUpdate.Name = deploy.Name + "-no-update"
+			Expect(k8sApplicator.Apply(ctx, deployUpdate, DisableUpdateAnnotation())).Should(Succeed())
+			Expect(len(deployUpdate.Annotations[oam.AnnotationLastAppliedConfig])).Should(Equal(0))
+
+			deployUpdate = basicTestDeployment()
+			deployUpdate.Spec.Replicas = &int32_3
+			deployUpdate.Spec.Template.Spec.Volumes = []corev1.Volume{{Name: "test"}}
+			Expect(k8sApplicator.Apply(ctx, deployUpdate)).Should(Succeed())
+			resultDeploy = basicTestDeployment()
+			resultDeploy.Name = deploy.Name + "-no-update"
+			Expect(rawClient.Get(ctx, deployKey, resultDeploy)).Should(Succeed())
+			Expect(*resultDeploy.Spec.Replicas).Should(Equal(int32_3))
+			Expect(len(resultDeploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
+			Expect(rawClient.Delete(ctx, deployUpdate)).Should(SatisfyAny(Succeed(), &oamutil.NotFoundMatcher{}))
 		})
 
 		It("Test multiple appliers", func() {
