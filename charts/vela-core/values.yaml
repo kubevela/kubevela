@@ -6,7 +6,7 @@ replicaCount: 1
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-disableCaps: ""
+disableCaps: "rollout"
 
 imageRegistry: ""
 image:

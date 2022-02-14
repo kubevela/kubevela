@@ -83,7 +83,7 @@ endif
 
 
 # load docker image to the kind cluster
-kind-load:
+kind-load: kind-load-runtime-cluster
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
