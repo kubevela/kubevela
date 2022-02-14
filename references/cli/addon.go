@@ -140,7 +140,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof("enable addon by local dir: %s", addonOrDir)
+				ioStream.Infof("enable addon by local dir: %s \n", addonOrDir)
 				// args[0] is a local path install with local dir, use base dir name as addonName
 				name = filepath.Base(addonOrDir)
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, config, addonArgs)
@@ -210,7 +210,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof("enable addon by local dir: %s", addonOrDir)
+				ioStream.Infof("enable addon by local dir: %s \n", addonOrDir)
 				// args[0] is a local path install with local dir
 				name := filepath.Base(addonOrDir)
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)

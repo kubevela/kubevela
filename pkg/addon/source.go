@@ -169,7 +169,6 @@ func (r *Registry) BuildReader() (AsyncReader, error) {
 		return NewAsyncReader(g.URL, "", g.Path, g.Token, gitType)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
-
 }
 
 // GetUIData get UIData of an addon
