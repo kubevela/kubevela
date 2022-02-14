@@ -295,7 +295,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 	}
 
 	switch provider {
-	case "aws", "azure", "alibaba", "tencent":
+	case "aws", "azure", "alibaba", "tencent", "gcp", "baidu":
 		var terraform *commontype.Terraform
 
 		git, err := cmd.Flags().GetString(FlagGit)
