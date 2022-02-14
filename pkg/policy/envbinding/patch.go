@@ -134,7 +134,15 @@ func filterComponents(components []string, selector []string) []string {
 func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selector *v1alpha1.EnvSelector) (*v1beta1.Application, error) {
 	newApp := base.DeepCopy()
 	var err error
-	newApp.Spec.Components, err = PatchComponents(base.Spec.Components, patch.Components, selector.Components)
+	var compSelector []string
+	if selector != nil {
+		compSelector = selector.Components
+	}
+	var compPatch []v1alpha1.EnvComponentPatch
+	if patch != nil {
+		compPatch = patch.Components
+	}
+	newApp.Spec.Components, err = PatchComponents(base.Spec.Components, compPatch, compSelector)
 	return newApp, err
 }
 
@@ -183,7 +191,7 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 	compOrders = filterComponents(compOrders, selector)
 
 	// fill in new application
-	var newComponents []common.ApplicationComponent
+	newComponents := []common.ApplicationComponent{}
 	for _, compName := range compOrders {
 		newComponents = append(newComponents, *compMaps[compName])
 	}
