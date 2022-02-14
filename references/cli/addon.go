@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"helm.sh/helm/v3/pkg/strvals"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
@@ -240,15 +242,9 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 
 func parseToMap(args []string) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
-	for _, pair := range args {
-		line := strings.Split(pair, "=")
-		if len(line) < 2 {
-			return nil, fmt.Errorf("parameter format should be foo=bar, %s not match", pair)
-		}
-		k := strings.TrimSpace(line[0])
-		v := strings.TrimSpace(strings.Join(line[1:], "="))
-		if k != "" && v != "" {
-			res[k] = v
+	for _, arg := range args {
+		if err := strvals.ParseIntoString(arg, res); err != nil {
+			return nil, err
 		}
 	}
 	return res, nil
