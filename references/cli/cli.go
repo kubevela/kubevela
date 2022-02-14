@@ -23,6 +23,7 @@ import (
 	"runtime"
 
 	gov "github.com/hashicorp/go-version"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
@@ -105,7 +106,6 @@ func NewCommand() *cobra.Command {
 		NewUnInstallCommand(commandArgs, "2", ioStream),
 		NewExportCommand(commandArgs, ioStream),
 		NewCUEPackageCommand(commandArgs, ioStream),
-		SystemCommandGroup(commandArgs, ioStream),
 		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
 
@@ -134,11 +134,14 @@ func NewVersionCommand(ioStream util.IOStreams) *cobra.Command {
 		Short: "Prints vela build version information",
 		Long:  "Prints vela build version information.",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf(`Version: %v
+			clusterVersion, _ := GetOAMReleaseVersion(types.DefaultKubeVelaNS)
+			fmt.Printf(`CLI Version: %v
+Core Version: %s
 GitRevision: %v
 GolangVersion: %v
 `,
 				version.VelaVersion,
+				clusterVersion,
 				version.GitRevision,
 				runtime.Version())
 		},
@@ -164,9 +167,13 @@ func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			currentV, err := gov.NewVersion(version.VelaVersion)
+			clusterVersion, err := GetOAMReleaseVersion(types.DefaultKubeVelaNS)
+			if err != nil {
+				clusterVersion = version.VelaVersion
+			}
+			currentV, err := gov.NewVersion(clusterVersion)
 			if err != nil && !showAll {
-				return fmt.Errorf("can not parse current version %s", version.VelaVersion)
+				return fmt.Errorf("can not parse current version %s", clusterVersion)
 			}
 			for _, chartV := range versions {
 				if chartV != nil {
@@ -189,4 +196,19 @@ func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolVarP(&showAll, "all", "a", false, "List all available versions, if not, only list newer version")
 	return cmd
+}
+
+// GetOAMReleaseVersion gets version of vela-core runtime helm release
+func GetOAMReleaseVersion(ns string) (string, error) {
+	results, err := helm.GetHelmRelease(ns)
+	if err != nil {
+		return "", err
+	}
+
+	for _, result := range results {
+		if result.Chart.ChartFullPath() == types.DefaultKubeVelaChartName {
+			return result.Chart.AppVersion(), nil
+		}
+	}
+	return "", errors.New("kubevela chart not found in your kubernetes cluster,  refer to 'https://kubevela.io/docs/install' for installation")
 }
