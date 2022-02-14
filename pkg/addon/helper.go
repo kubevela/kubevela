@@ -92,6 +92,14 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 		return err
 	}
 	h := NewAddonInstaller(ctx, cli, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil)
+	needEnableAddonNames, err := h.checkDependency(pkg)
+	if err != nil {
+		return err
+	}
+	if len(needEnableAddonNames) > 0 {
+		return fmt.Errorf("you must first enable dependencies: %v", needEnableAddonNames)
+	}
+
 	err = h.enableAddon(pkg)
 	if err != nil {
 		return err

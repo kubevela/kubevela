@@ -951,6 +951,26 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	return nil
 }
 
+// checkDependency checks if addon's dependency
+func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
+	var app v1beta1.Application
+	var needEnable []string
+	for _, dep := range addon.Dependencies {
+		err := h.cli.Get(h.ctx, client.ObjectKey{
+			Namespace: types.DefaultKubeVelaNS,
+			Name:      Convert2AppName(dep.Name),
+		}, &app)
+		if err == nil {
+			continue
+		}
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		needEnable = append(needEnable, dep.Name)
+	}
+	return needEnable, nil
+}
+
 func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	app, err := RenderApp(h.ctx, addon, h.config, h.cli, h.args)
 	if err != nil {
