@@ -219,6 +219,7 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},
+		&step.DeployPreApproveWorkflowStepGenerator{},
 	).Generate(af.app, af.WorkflowSteps)
 
 	if err != nil {

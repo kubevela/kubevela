@@ -156,3 +156,27 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 	}
 	return
 }
+
+// DeployPreApproveWorkflowStepGenerator generate suspend workflow steps before all deploy steps
+type DeployPreApproveWorkflowStepGenerator struct{}
+
+// Generate generate workflow steps
+func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
+	lastSuspend := false
+	for _, step := range existingSteps {
+		if step.Type == "deploy" && !lastSuspend {
+			cfg := struct {
+				Auto bool `json:"auto,omitempty"`
+			}{}
+			if _ = json.Unmarshal(step.Properties.Raw, &cfg); !cfg.Auto {
+				steps = append(steps, v1beta1.WorkflowStep{
+					Name: "manual-approve-" + step.Name,
+					Type: "suspend",
+				})
+			}
+		}
+		lastSuspend = step.Type == "suspend"
+		steps = append(steps, step)
+	}
+	return steps, nil
+}

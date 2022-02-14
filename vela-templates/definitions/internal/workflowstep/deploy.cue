@@ -43,6 +43,7 @@ template: {
 		} @step(4)
 	}
 	parameter: {
+		auto: *false | bool
 		policies?: [...string]
 	}
 }
