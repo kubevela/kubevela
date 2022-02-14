@@ -5,8 +5,6 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Rollout the component.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: rollout
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
@@ -22,8 +20,13 @@ spec:
         		namespace: context.namespace
         	}
         	spec: {
-        		targetRevisionName: parameter.targetRevision
-        		componentName:      context.name
+        		if parameter.targetRevision != _|_ {
+        			targetRevisionName: parameter.targetRevision
+        		}
+        		if parameter.targetRevision == _|_ {
+        			targetRevisionName: context.revision
+        		}
+        		componentName: context.name
         		rolloutPlan: {
         			rolloutStrategy: "IncreaseFirst"
         			if parameter.rolloutBatches != _|_ {
@@ -37,8 +40,8 @@ spec:
         	}
         }
         parameter: {
-        	targetRevision: *context.revision | string
-        	targetSize:     int
+        	targetRevision?: string
+        	targetSize:      int
         	rolloutBatches?: [...rolloutBatch]
         	batchPartition?: int
         }

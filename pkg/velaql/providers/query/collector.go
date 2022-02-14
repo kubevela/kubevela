@@ -203,9 +203,7 @@ func NewPodCollector(gvk schema.GroupVersionKind) PodCollector {
 	if collector, ok := podCollectorMap[gvk]; ok {
 		return collector
 	}
-	return func(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-		return nil, nil
-	}
+	return velaComponentPodCollector
 }
 
 // standardWorkloadPodCollector collect pods created by standard workload
@@ -400,6 +398,35 @@ func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, 
 		collectedPods = append(collectedPods, podsList[i]...)
 	}
 	return collectedPods, nil
+}
+
+func velaComponentPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
+	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
+
+	listOpts := []client.ListOption{
+		client.MatchingLabels(map[string]string{"app.oam.dev/component": obj.GetName()}),
+		client.InNamespace(obj.GetNamespace()),
+	}
+
+	podList := corev1.PodList{}
+	if err := cli.List(ctx, &podList, listOpts...); err != nil {
+		return nil, err
+	}
+
+	pods := make([]*unstructured.Unstructured, len(podList.Items))
+	for i := range podList.Items {
+		pod, err := oamutil.Object2Unstructured(podList.Items[i])
+		if err != nil {
+			return nil, err
+		}
+		pod.SetGroupVersionKind(
+			corev1.SchemeGroupVersion.WithKind(
+				reflect.TypeOf(corev1.Pod{}).Name(),
+			),
+		)
+		pods[i] = pod
+	}
+	return pods, nil
 }
 
 func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
