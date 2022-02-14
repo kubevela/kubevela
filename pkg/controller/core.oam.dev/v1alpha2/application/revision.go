@@ -370,7 +370,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 // currentAppRevIsNew check application revision already exist or not
 func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error) {
 	// the last revision doesn't exist.
-	if h.app.Status.LatestRevision == nil {
+	if h.app.Status.LatestRevision == nil || DisableAllApplicationRevision {
 		return true, true, nil
 	}
 
