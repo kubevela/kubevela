@@ -35,9 +35,8 @@ var (
 
 // emoji used in vela cmd for printing
 var (
-	emojiSucceed   = emoji.Sprint(":check_mark_button:")
-	emojiFail      = emoji.Sprint(":cross_mark:")
-	emojiLightBulb = emoji.Sprint(":light_bulb:")
+	emojiSucceed = emoji.Sprint(":check_mark_button:")
+	emojiFail    = emoji.Sprint(":cross_mark:")
 )
 
 // newUITable creates a new table with fixed MaxColWidth
