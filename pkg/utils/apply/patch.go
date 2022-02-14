@@ -42,7 +42,7 @@ func init() {
 // threeWayMergePatch creates a patch by computing a three way diff based on
 // its current state, modified state, and last-applied-state recorded in the
 // annotation.
-func threeWayMergePatch(currentObj, modifiedObj client.Object) (client.Patch, error) {
+func threeWayMergePatch(currentObj, modifiedObj client.Object, a *applyAction) (client.Patch, error) {
 	current, err := json.Marshal(currentObj)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func threeWayMergePatch(currentObj, modifiedObj client.Object) (client.Patch, er
 	if err != nil {
 		return nil, err
 	}
-	modified, err := getModifiedConfiguration(modifiedObj, true)
+	modified, err := getModifiedConfiguration(modifiedObj, a.updateAnnotation)
 	if err != nil {
 		return nil, err
 	}

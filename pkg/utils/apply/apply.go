@@ -50,7 +50,8 @@ type Applicator interface {
 }
 
 type applyAction struct {
-	skipUpdate bool
+	skipUpdate       bool
+	updateAnnotation bool
 }
 
 // ApplyOption is called before applying state to the object.
@@ -80,13 +81,13 @@ func (fn creatorFn) createOrGetExisting(ctx context.Context, act *applyAction, c
 }
 
 type patcher interface {
-	patch(c, m client.Object) (client.Patch, error)
+	patch(c, m client.Object, a *applyAction) (client.Patch, error)
 }
 
-type patcherFn func(c, m client.Object) (client.Patch, error)
+type patcherFn func(c, m client.Object, a *applyAction) (client.Patch, error)
 
-func (fn patcherFn) patch(c, m client.Object) (client.Patch, error) {
-	return fn(c, m)
+func (fn patcherFn) patch(c, m client.Object, a *applyAction) (client.Patch, error) {
+	return fn(c, m, a)
 }
 
 // APIApplicator implements Applicator
@@ -112,7 +113,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	if err != nil {
 		return err
 	}
-	applyAct := new(applyAction)
+	applyAct := &applyAction{updateAnnotation: true}
 	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
 	if err != nil {
 		return err
@@ -132,7 +133,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	loggingApply("patching object", desired)
-	patch, err := a.patcher.patch(existing, desired)
+	patch, err := a.patcher.patch(existing, desired, applyAct)
 	if err != nil {
 		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
 	}
@@ -169,8 +170,10 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 		if err := executeApplyOptions(act, nil, desired, ao); err != nil {
 			return nil, err
 		}
-		if err := addLastAppliedConfigAnnotation(desired); err != nil {
-			return nil, err
+		if act.updateAnnotation {
+			if err := addLastAppliedConfigAnnotation(desired); err != nil {
+				return nil, err
+			}
 		}
 		loggingApply("creating object", desired)
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
@@ -273,5 +276,13 @@ func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
 func MakeCustomApplyOption(f func(existing, desired client.Object) error) ApplyOption {
 	return func(act *applyAction, existing, desired client.Object) error {
 		return f(existing, desired)
+	}
+}
+
+// DisableUpdateAnnotation disable write last config to annotation
+func DisableUpdateAnnotation() ApplyOption {
+	return func(a *applyAction, existing, _ client.Object) error {
+		a.updateAnnotation = false
+		return nil
 	}
 }
