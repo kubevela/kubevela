@@ -159,31 +159,50 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 			Objects []struct {
 				APIVersion string `json:"apiVersion"`
 				Kind       string `json:"kind"`
-				Name       string `json:"name"`
+				Name       string `json:"name,omitempty"`
+				Selector   map[string]string `json:"selector,omitempty"`
 			} `json:"objects"`
 		}{}
 		if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
 			return nil, errors.Wrapf(err, "invalid properties for ref-objects")
 		}
 		var objects []*unstructured.Unstructured
-		for _, obj := range props.Objects {
-			un := &unstructured.Unstructured{}
-			un.SetAPIVersion(obj.APIVersion)
-			un.SetKind(obj.Kind)
-			un.SetName(obj.Name)
-			un.SetNamespace(p.app.GetNamespace())
-			if obj.Name == "" {
-				un.SetName(comp.Name)
-			}
-			if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
-				return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
-			}
+		addObj := func(un *unstructured.Unstructured) {
 			un.SetResourceVersion("")
 			un.SetGeneration(0)
 			un.SetOwnerReferences(nil)
 			un.SetDeletionTimestamp(nil)
 			un.SetUID("")
 			objects = append(objects, un)
+		}
+		for _, obj := range props.Objects {
+			if obj.Name != "" && obj.Selector != nil {
+				return nil, errors.Errorf("invalid properties for ref-objects, name and selector cannot be both set")
+			}
+			if obj.Name == "" && obj.Selector != nil {
+				uns := &unstructured.UnstructuredList{}
+				uns.SetAPIVersion(obj.APIVersion)
+				uns.SetKind(obj.Kind)
+				if err := p.cli.List(context.Background(), uns, client.InNamespace(p.app.GetNamespace()), client.MatchingLabels(obj.Selector)); err != nil {
+					return nil, errors.Wrapf(err, "failed to load ref object %s with selector", obj.Kind)
+				}
+				for _, _un := range uns.Items {
+					addObj(_un.DeepCopy())
+				}
+			} else if obj.Selector == nil {
+				un := &unstructured.Unstructured{}
+				un.SetAPIVersion(obj.APIVersion)
+				un.SetKind(obj.Kind)
+				un.SetName(obj.Name)
+				un.SetNamespace(p.app.GetNamespace())
+				if obj.Name == "" {
+					un.SetName(comp.Name)
+				}
+				if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
+					return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
+				}
+				addObj(un)
+			}
 		}
 		bs, err := json.Marshal(map[string]interface{}{"objects": objects})
 		if err != nil {
