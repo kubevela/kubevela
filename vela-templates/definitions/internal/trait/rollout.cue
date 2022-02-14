@@ -1,9 +1,6 @@
 rollout: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Rollout the component."
 	attributes: {
 		manageWorkload: true
@@ -26,8 +23,13 @@ template: {
 			namespace: context.namespace
 		}
 		spec: {
-			targetRevisionName: parameter.targetRevision
-			componentName:      context.name
+			if parameter.targetRevision != _|_ {
+				targetRevisionName: parameter.targetRevision
+			}
+			if parameter.targetRevision == _|_ {
+				targetRevisionName: context.revision
+			}
+			componentName: context.name
 			rolloutPlan: {
 				rolloutStrategy: "IncreaseFirst"
 				if parameter.rolloutBatches != _|_ {
@@ -42,8 +44,8 @@ template: {
 	}
 
 	parameter: {
-		targetRevision: *context.revision | string
-		targetSize:     int
+		targetRevision?: string
+		targetSize:      int
 		rolloutBatches?: [...rolloutBatch]
 		batchPartition?: int
 	}
