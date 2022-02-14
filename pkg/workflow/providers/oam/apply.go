@@ -157,9 +157,9 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 		_comp := comp.DeepCopy()
 		props := &struct {
 			Objects []struct {
-				APIVersion string `json:"apiVersion"`
-				Kind       string `json:"kind"`
-				Name       string `json:"name,omitempty"`
+				APIVersion string            `json:"apiVersion"`
+				Kind       string            `json:"kind"`
+				Name       string            `json:"name,omitempty"`
 				Selector   map[string]string `json:"selector,omitempty"`
 			} `json:"objects"`
 		}{}

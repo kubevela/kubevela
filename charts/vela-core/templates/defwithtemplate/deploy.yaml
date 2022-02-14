@@ -48,5 +48,8 @@ spec:
         		}
         	} @step(4)
         }
-        parameter: policies?: [...string]
+        parameter: {
+        	auto: *false | bool
+        	policies?: [...string]
+        }
 
