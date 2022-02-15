@@ -1,5 +1,4 @@
 Reviewers:
-
 - Ghostbaby
 - StevenLeiZhang
 - chwetion
@@ -8,7 +7,6 @@ Reviewers:
 - reetasingh
 
 Approvers:
-
 - zzxwill (Cloud Resource)
 - Somefive (Multi-Cluster)
 - chivalryq (Vela CLI)
