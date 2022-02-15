@@ -1,4 +1,4 @@
-Reviewers
+Reviewers:
 
 - Ghostbaby
 - StevenLeiZhang
@@ -7,7 +7,7 @@ Reviewers
 - zxbyoyoyo
 - reetasingh
 
-Approvers
+Approvers:
 
 - zzxwill (Cloud Resource)
 - Somefive (Multi-Cluster)
@@ -18,7 +18,7 @@ Approvers
 - wangyikewxgm (Addon)
 - yangsoon (VelaQL）
 
-Maintainers
+Maintainers:
 - wonderflow
 - hongchaodeng
 - captainroy-hy
@@ -26,14 +26,30 @@ Maintainers
 - barnettZQG
 - leejanee
 
-Emeritus Members
-  - ryanzhang-oss
-  - Fei-Guo
-  - szihai
-  - xiaoyuaiheshui
-  - wenxinnnnn
-  - silenceper
-  - erdun
-  - mosesyou
-  - artursouza
-  - woshilanren11
+Emeritus Members:
+- ryanzhang-oss
+- Fei-Guo
+- szihai
+- xiaoyuaiheshui
+- wenxinnnnn
+- silenceper
+- erdun
+- mosesyou
+- artursouza
+- woshilanren11
+
+bootstrap-contributors:     # thank you for bootstrapping KubeVela at the very early stage!
+- xiaoyuaiheshui
+- Ghostbaby
+- wenxinnnnn
+- silenceper
+- erdun
+- sunny0826
+- mosesyou
+- artursouza
+- wonderflow
+- hongchaodeng
+- ryanzhang-oss
+- woshilanren11
+- hanxie-crypto
+- zzxwill
