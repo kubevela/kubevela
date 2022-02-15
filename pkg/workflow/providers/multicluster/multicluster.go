@@ -194,7 +194,7 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 					addCluster(cluster)
 				}
 			} else if topologySpec.ClusterSelector != nil {
-				clusters, err := clustermanager.GetRegisteredClusters(p, client.MatchingLabels(topologySpec.ClusterSelector))
+				clusters, err := clustermanager.GetRegisteredClustersWithLabels(p, topologySpec.ClusterSelector)
 				if err != nil {
 					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
