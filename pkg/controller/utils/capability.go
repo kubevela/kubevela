@@ -194,7 +194,9 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 			}
 		}
 		schema.Title = k
-		required = append(required, k)
+		if v.Required {
+			required = append(required, k)
+		}
 		if v.Default != nil {
 			schema.Default = v.Default
 		}
