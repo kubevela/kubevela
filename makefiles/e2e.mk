@@ -4,7 +4,10 @@ e2e-setup-core:
 	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
+	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 	go run ./e2e/addon/mock &
+	sleep 5
+	bin/vela addon enable rollout
 
 .PHONY: setup-runtime-e2e-cluster
 setup-runtime-e2e-cluster:
@@ -19,6 +22,7 @@ e2e-setup:
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 
 	go run ./e2e/addon/mock &
+	sleep 5
 	bin/vela addon enable fluxcd
 	bin/vela addon enable terraform
 	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing

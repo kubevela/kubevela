@@ -84,9 +84,8 @@ jobs:
       - name: Cleanup for e2e tests
         run: |
           make e2e-cleanup
-          make e2e-setup-core
-
           make vela-cli
+          make e2e-setup-core
           bin/vela addon enable fluxcd
           timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $? -eq 0 ] ; then break; else sleep 5; fi;done'
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
