@@ -22,7 +22,7 @@ e2e-setup:
 	bin/vela addon enable fluxcd
 	bin/vela addon enable terraform
 	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
-	bin/vela addon enable rollout values.image.repository=vela-rollout-test values.image.tag=$(GIT_COMMIT)
+	bin/vela addon enable rollout
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
