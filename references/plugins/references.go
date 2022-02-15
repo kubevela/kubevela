@@ -1047,8 +1047,8 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	for _, v := range variables {
 		var refParam ReferenceParameter
 		refParam.Name = v.Name
-		refParam.PrintableType = v.Type
-		refParam.Usage = v.Description
+		refParam.PrintableType = strings.ReplaceAll(v.Type, "\n", `\n`)
+		refParam.Usage = strings.ReplaceAll(v.Description, "\n", `\n`)
 		refParam.Required = v.Required
 		refParameterList = append(refParameterList, refParam)
 	}
