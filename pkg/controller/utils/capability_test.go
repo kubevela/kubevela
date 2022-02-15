@@ -317,7 +317,7 @@ variable "mapVar" {
   type = "map"
 }`,
 			want: want{
-				subStr: "account_name",
+				subStr: `"required":["intVar","boolVar","listVar","mapVar"]`,
 				err:    nil,
 			},
 		},
