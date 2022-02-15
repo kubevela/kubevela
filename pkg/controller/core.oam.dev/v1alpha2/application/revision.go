@@ -247,6 +247,12 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			appRev.Spec.PolicyDefinitions[p.FullTemplate.PolicyDefinition.Name] = *pd
 		}
 	}
+	for name, def := range af.RelatedComponentDefinitions {
+		appRev.Spec.ComponentDefinitions[name] = *def
+	}
+	for name, def := range af.RelatedTraitDefinitions {
+		appRev.Spec.TraitDefinitions[name] = *def
+	}
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {

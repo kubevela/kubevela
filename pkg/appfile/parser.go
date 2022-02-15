@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	policypkg "github.com/oam-dev/kubevela/pkg/policy"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -104,10 +105,17 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Components = app.Spec.Components
 
 	var err error
-
-	appfile.Policies, err = p.parsePolicies(ctx, app.Spec.Policies)
+	var extraComponentDefinitions []*v1beta1.ComponentDefinition
+	var extraTraitDefinitions []*v1beta1.TraitDefinition
+	appfile.Policies, extraComponentDefinitions, extraTraitDefinitions, err = p.parsePolicies(ctx, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+	}
+	for _, def := range extraComponentDefinitions {
+		appfile.RelatedComponentDefinitions[def.Name] = def
+	}
+	for _, def := range extraTraitDefinitions {
+		appfile.RelatedTraitDefinitions[def.Name] = def
 	}
 
 	for _, w := range wds {
@@ -240,11 +248,15 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	return appfile, nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy) ([]*Workload, error) {
+func (p *Parser) parsePolicies(ctx context.Context, app *v1beta1.Application) ([]*Workload, []*v1beta1.ComponentDefinition, []*v1beta1.TraitDefinition, error) {
 	ws := []*Workload{}
-	for _, policy := range policies {
+	var compDefs []*v1beta1.ComponentDefinition
+	var traitDefs []*v1beta1.TraitDefinition
+	for _, policy := range app.Spec.Policies {
 		var w *Workload
 		var err error
+		var _compDefs []*v1beta1.ComponentDefinition
+		var _traitDefs []*v1beta1.TraitDefinition
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
@@ -254,15 +266,20 @@ func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.OverridePolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+			if err == nil {
+				_compDefs, _traitDefs, err = policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, app, policy)
+			}
 		default:
 			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		ws = append(ws, w)
+		compDefs = append(compDefs, _compDefs...)
+		traitDefs = append(traitDefs, _traitDefs...)
 	}
-	return ws, nil
+	return ws, compDefs, traitDefs, nil
 }
 
 func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev *v1beta1.ApplicationRevision) ([]*Workload, error) {
