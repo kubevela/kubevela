@@ -19,6 +19,7 @@ package envbinding
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -161,6 +162,9 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 	var err error
 	for _, comp := range patchComponents {
 		if comp.Name == "" {
+			// when no component name specified in the patch
+			// 1. if no type name specified in the patch, it will merge all components
+			// 2. if type name specified, it will merge components with the specified type
 			for compName, baseComp := range compMaps {
 				if comp.Type == "" || comp.Type == baseComp.Type {
 					compMaps[compName], err = MergeComponent(baseComp, comp.DeepCopy())
@@ -169,18 +173,32 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 					}
 				}
 			}
-		} else if baseComp, exists := compMaps[comp.Name]; exists {
-			if baseComp.Type != comp.Type && comp.Type != "" {
-				compMaps[comp.Name] = comp.ToApplicationComponent()
-			} else {
-				compMaps[comp.Name], err = MergeComponent(baseComp, comp.DeepCopy())
-				if err != nil {
-					errs = append(errs, errors.Wrapf(err, "failed to merge component %s", comp.Name))
+		} else {
+			// when component name (pattern) specified in the patch, it will find the component with the matched name
+			// 1. if the component type is not specified in the patch, the matched component will be merged with the patch
+			// 2. if the matched component uses the same type, the matched component will be merged with the patch
+			// 3. if the matched component uses a different type, the matched component will be overridden by the patch
+			// 4. if no component matches, and the component name is a valid kubernetes name, a new component will be added
+			addComponent := regexp.MustCompile("[a-z]([a-z-]{0,61}[a-z])?").MatchString(comp.Name)
+			if re, err := regexp.Compile(comp.Name); err == nil {
+				for compName, baseComp := range compMaps {
+					if re.MatchString(compName) {
+						addComponent = false
+						if baseComp.Type != comp.Type && comp.Type != "" {
+							compMaps[compName] = comp.ToApplicationComponent()
+						} else {
+							compMaps[compName], err = MergeComponent(baseComp, comp.DeepCopy())
+							if err != nil {
+								errs = append(errs, errors.Wrapf(err, "failed to merge component %s", comp.Name))
+							}
+						}
+					}
 				}
 			}
-		} else {
-			compMaps[comp.Name] = comp.ToApplicationComponent()
-			compOrders = append(compOrders, comp.Name)
+			if addComponent {
+				compMaps[comp.Name] = comp.ToApplicationComponent()
+				compOrders = append(compOrders, comp.Name)
+			}
 		}
 	}
 	if errs.HasError() {
