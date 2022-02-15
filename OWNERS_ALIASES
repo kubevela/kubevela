@@ -1,44 +1,53 @@
-aliases:
-  kubevela-devex:
-  - hongchaodeng
-  - wonderflow
+Reviewers:
+- Ghostbaby
+- StevenLeiZhang
+- chwetion
+- yue9944882
+- zxbyoyoyo
+- reetasingh
 
-  kubevela-dashboard-approver:
-  - zzxwill
-  - hongchaodeng
+Approvers:
+- Somefive (Multi-Cluster)
+- chivalryq (Vela CLI)
+- sunny0826 (kubevela.io)
+- hanxie-crypto (VelaUX)
+- FogDong (Workflow)
+- wangyikewxgm (Addon)
+- yangsoon (VelaQL）
 
-  kubevela-dashboard-reviewer:
-  - sunny0826 
-  - hanxie-crypto
+Maintainers:
+- wonderflow
+- hongchaodeng
+- captainroy-hy
+- resouer
+- barnettZQG
+- leejanee
+- zzxwill
 
-  kubevela-controller:
-  - resouer
-  - wonderflow
-  - hongchaodeng
-  - zzxwill
-  - ryanzhang-oss
-  - captainroy-hy
+Emeritus Members:
+- ryanzhang-oss
+- Fei-Guo
+- szihai
+- xiaoyuaiheshui
+- wenxinnnnn
+- silenceper
+- erdun
+- mosesyou
+- artursouza
+- woshilanren11
 
-  oam-spec:                   # inherit from https://github.com/oam-dev/spec/blob/master/OWNERS.md
-  - hongchaodeng
-  - resouer
-
-  community-collaborators:
-  - Fei-Guo
-  - szihai
-
-  bootstrap-contributors:     # thank you for bootstrapping KubeVela at the very early stage!
-  - xiaoyuaiheshui
-  - Ghostbaby
-  - wenxinnnnn
-  - silenceper
-  - erdun
-  - sunny0826
-  - mosesyou
-  - artursouza
-  - wonderflow
-  - hongchaodeng
-  - ryanzhang-oss
-  - woshilanren11
-  - hanxie-crypto
-  - zzxwill
+bootstrap-contributors:     # thank you for bootstrapping KubeVela at the very early stage!
+- xiaoyuaiheshui
+- Ghostbaby
+- wenxinnnnn
+- silenceper
+- erdun
+- sunny0826
+- mosesyou
+- artursouza
+- wonderflow
+- hongchaodeng
+- ryanzhang-oss
+- woshilanren11
+- hanxie-crypto
+- zzxwill
