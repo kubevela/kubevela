@@ -165,10 +165,11 @@ func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Applicatio
 	lastSuspend := false
 	for _, step := range existingSteps {
 		if step.Type == "deploy" && !lastSuspend {
-			cfg := struct {
-				Auto bool `json:"auto,omitempty"`
-			}{}
-			if _ = json.Unmarshal(step.Properties.Raw, &cfg); !cfg.Auto {
+			cfg := map[string]interface{}{}
+			_ = json.Unmarshal(step.Properties.Raw, &cfg)
+			_auto, found := cfg["auto"]
+			auto, isBool := _auto.(bool)
+			if found && isBool && !auto {
 				steps = append(steps, v1beta1.WorkflowStep{
 					Name: "manual-approve-" + step.Name,
 					Type: "suspend",

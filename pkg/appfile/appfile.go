@@ -49,7 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // constant error information
@@ -167,11 +166,12 @@ type Appfile struct {
 	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
 	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 
-	Policies      []*Workload
-	WorkflowSteps []v1beta1.WorkflowStep
-	Components    []common.ApplicationComponent
-	Artifacts     []*types.ComponentManifest
-	WorkflowMode  common.WorkflowMode
+	Policies        []v1beta1.AppPolicy
+	PolicyWorkloads []*Workload
+	WorkflowSteps   []v1beta1.WorkflowStep
+	Components      []common.ApplicationComponent
+	Artifacts       []*types.ComponentManifest
+	WorkflowMode    common.WorkflowMode
 
 	parser *Parser
 	app    *v1beta1.Application
@@ -193,9 +193,7 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 	}
 
 	var externalPolicies []*unstructured.Unstructured
-	var err error
-
-	for _, policy := range af.Policies {
+	for _, policy := range af.PolicyWorkloads {
 		if policy == nil {
 			continue
 		}
@@ -214,17 +212,6 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 		}
 	}
 
-	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
-		&step.RefWorkflowStepGenerator{Client: af.parser.client, Context: ctx},
-		&step.DeployWorkflowStepGenerator{},
-		&step.Deploy2EnvWorkflowStepGenerator{},
-		&step.ApplyComponentWorkflowStepGenerator{},
-		&step.DeployPreApproveWorkflowStepGenerator{},
-	).Generate(af.app, af.WorkflowSteps)
-
-	if err != nil {
-		return nil, err
-	}
 	return externalPolicies, nil
 }
 

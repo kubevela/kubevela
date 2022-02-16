@@ -64,7 +64,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
-	oamProvider.Install(handlerProviders, app, h.r.Client, h.applyComponentFunc(
+	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))

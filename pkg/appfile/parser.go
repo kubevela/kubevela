@@ -18,12 +18,14 @@ package appfile
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -105,17 +108,25 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Components = app.Spec.Components
 
 	var err error
-	var extraComponentDefinitions []*v1beta1.ComponentDefinition
-	var extraTraitDefinitions []*v1beta1.TraitDefinition
-	appfile.Policies, extraComponentDefinitions, extraTraitDefinitions, err = p.parsePolicies(ctx, app)
+	// parse workflow steps
+	appfile.WorkflowMode = common.WorkflowModeDAG
+	if wfSpec := app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
+		appfile.WorkflowMode = common.WorkflowModeStep
+		appfile.WorkflowSteps = wfSpec.Steps
+	}
+	appfile.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
+		&step.RefWorkflowStepGenerator{Client: p.client, Context: ctx},
+		&step.DeployWorkflowStepGenerator{},
+		&step.Deploy2EnvWorkflowStepGenerator{},
+		&step.ApplyComponentWorkflowStepGenerator{},
+		&step.DeployPreApproveWorkflowStepGenerator{},
+	).Generate(appfile.app, appfile.WorkflowSteps)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = p.parsePolicies(ctx, appfile); err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
-	}
-	for _, def := range extraComponentDefinitions {
-		appfile.RelatedComponentDefinitions[def.Name] = def
-	}
-	for _, def := range extraTraitDefinitions {
-		appfile.RelatedTraitDefinitions[def.Name] = def
 	}
 
 	for _, w := range wds {
@@ -143,12 +154,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 			}
 			appfile.RelatedScopeDefinitions[s.Name] = s.DeepCopy()
 		}
-	}
-
-	appfile.WorkflowMode = common.WorkflowModeDAG
-	if wfSpec := app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
-		appfile.WorkflowMode = common.WorkflowModeStep
-		appfile.WorkflowSteps = wfSpec.Steps
 	}
 
 	return appfile, nil
@@ -226,7 +231,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	appfile.Components = app.Spec.Components
 
 	var err error
-	appfile.Policies, err = p.parsePoliciesFromRevision(app.Spec.Policies, appRev)
+	appfile.PolicyWorkloads, err = p.parsePoliciesFromRevision(app.Spec.Policies, appRev)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
@@ -248,11 +253,41 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	return appfile, nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, app *v1beta1.Application) ([]*Workload, []*v1beta1.ComponentDefinition, []*v1beta1.TraitDefinition, error) {
+func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
 	ws := []*Workload{}
+
+	policies := af.app.Spec.Policies
+	policyMap := map[string]struct{}{}
+	for _, policy := range policies {
+		policyMap[policy.Name] = struct{}{}
+	}
+
+	for _, _step := range af.WorkflowSteps {
+		if _step.Type == "deploy" && _step.Properties != nil {
+			props := struct {
+				Policies []string `json:"policies,omitempty"`
+			}{}
+			if err := json.Unmarshal(_step.Properties.Raw, &props); err == nil {
+				for _, policyName := range props.Policies {
+					if _, found := policyMap[policyName]; !found {
+						po := &v1alpha1.Policy{}
+						if err = p.client.Get(ctx, types2.NamespacedName{Namespace: af.app.GetNamespace(), Name: policyName}, po); err != nil {
+							if kerrors.IsNotFound(err) {
+								return errors.Errorf("external policy %s not found", policyName)
+							}
+							return errors.Wrapf(err, "failed to load external policy %s in namespace %s", policyName, af.app.GetNamespace())
+						}
+						policies = append(policies, v1beta1.AppPolicy{Name: policyName, Type: po.Type, Properties: po.Properties})
+						policyMap[policyName] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
 	var compDefs []*v1beta1.ComponentDefinition
 	var traitDefs []*v1beta1.TraitDefinition
-	for _, policy := range app.Spec.Policies {
+	for _, policy := range policies {
 		var w *Workload
 		var err error
 		var _compDefs []*v1beta1.ComponentDefinition
@@ -267,19 +302,28 @@ func (p *Parser) parsePolicies(ctx context.Context, app *v1beta1.Application) ([
 		case v1alpha1.OverridePolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 			if err == nil {
-				_compDefs, _traitDefs, err = policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, app, policy)
+				_compDefs, _traitDefs, err = policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, af.app, policy)
 			}
 		default:
 			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		}
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
 		ws = append(ws, w)
 		compDefs = append(compDefs, _compDefs...)
 		traitDefs = append(traitDefs, _traitDefs...)
 	}
-	return ws, compDefs, traitDefs, nil
+
+	for _, def := range compDefs {
+		af.RelatedComponentDefinitions[def.Name] = def
+	}
+	for _, def := range traitDefs {
+		af.RelatedTraitDefinitions[def.Name] = def
+	}
+	af.Policies = policies
+	af.PolicyWorkloads = ws
+	return nil
 }
 
 func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev *v1beta1.ApplicationRevision) ([]*Workload, error) {

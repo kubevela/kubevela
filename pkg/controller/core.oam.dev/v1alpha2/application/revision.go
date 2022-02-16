@@ -237,7 +237,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			appRev.Spec.ScopeGVK[s.ResourceVersion] = s.GVK
 		}
 	}
-	for _, p := range af.Policies {
+	for _, p := range af.PolicyWorkloads {
 		if p == nil || p.FullTemplate == nil {
 			continue
 		}

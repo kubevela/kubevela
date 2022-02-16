@@ -396,7 +396,7 @@ wait: op.#ConditionalWait & {
 })
 
 var _ = Describe("Test Policy", func() {
-	It("test generate Policies", func() {
+	It("test generate PolicyWorkloads", func() {
 		testAppfile := &Appfile{
 			Name:      "test-app",
 			Namespace: "default",
@@ -431,7 +431,7 @@ spec:
 					},
 				},
 			},
-			Policies: []*Workload{
+			PolicyWorkloads: []*Workload{
 				{
 					Name: "test-policy",
 					Type: "test-policy",
