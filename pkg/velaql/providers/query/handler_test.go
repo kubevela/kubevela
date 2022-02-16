@@ -24,8 +24,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	istiov1beta1 "istio.io/api/networking/v1beta1"
-	istio "istio.io/client-go/pkg/apis/networking/v1beta1"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
@@ -518,14 +516,12 @@ options: {
 				},
 			},
 			{
-				"name": "istio-service",
+				"name":      "ambassador",
+				"namespace": "vela-system",
 				"ports": []corev1.ServicePort{
 					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
 				},
 				"type": corev1.ServiceTypeLoadBalancer,
-				"labels": map[string]string{
-					"istio": "ingressgateway",
-				},
 				"status": corev1.ServiceStatus{
 					LoadBalancer: corev1.LoadBalancerStatus{
 						Ingress: []corev1.LoadBalancerIngress{
@@ -537,11 +533,21 @@ options: {
 				},
 			},
 		}
+		err = k8sClient.Create(context.TODO(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-system",
+			},
+		})
+		Expect(err).Should(BeNil())
 		for _, s := range testServicelist {
+			ns := "default"
+			if s["namespace"] != nil {
+				ns = s["namespace"].(string)
+			}
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      s["name"].(string),
-					Namespace: "default",
+					Namespace: ns,
 				},
 				Spec: corev1.ServiceSpec{
 					Ports: s["ports"].([]corev1.ServicePort),
@@ -702,26 +708,6 @@ options: {
 			Expect(err).Should(BeNil())
 		}
 
-		err = k8sClient.Create(context.TODO(), &istio.VirtualService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "sdep",
-				Namespace: "default",
-			},
-			Spec: istiov1beta1.VirtualService{
-				Http: []*istiov1beta1.HTTPRoute{
-					{
-						Match: []*istiov1beta1.HTTPMatchRequest{
-							{
-								Uri: &istiov1beta1.StringMatch{
-									MatchType: &istiov1beta1.StringMatch_Prefix{Prefix: "/seldon/test"},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-		Expect(err).Should(BeNil())
 		opt := `app: {
 			name: "endpoints-app"
 			namespace: "default"

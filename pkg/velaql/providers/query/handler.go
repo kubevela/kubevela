@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	istio "istio.io/client-go/pkg/apis/networking/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -257,51 +256,30 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster)...)
 			}
 		case "SeldonDeployment":
-			var vs istio.VirtualService
-			if err := findResource(&vs, resource.Name, resource.Namespace, resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1alpha3 VirtualService %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
+			// seldon use ambassador to expose service
+			var service corev1.Service
+			if err := findResource(&service, "ambassador", "vela-system", resource.Cluster); err != nil {
+				klog.Error(err, fmt.Sprintf("find v1 Service ambassador/vela-system from cluster %s failure", resource.Cluster))
 				continue
 			}
-			if vs.Spec.Http == nil || vs.Spec.Http[0].Match == nil {
-				klog.Error(fmt.Sprintf("find VirtualService %s/%s from cluster %s empty prefix", resource.Name, resource.Namespace, resource.Cluster))
-				continue
-			}
-			// get istio service from label here since the seldon's gateway is predefined
-			var istioService corev1.ServiceList
-			labels := &v1.LabelSelector{
-				MatchLabels: map[string]string{
-					"istio": "ingressgateway",
-				},
-			}
-			selector, err := v1.LabelSelectorAsSelector(labels)
-			if err != nil {
-				return err
-			}
-			if err := h.cli.List(ctx, &istioService, &client.ListOptions{
-				LabelSelector: selector,
-			}); err != nil || len(istioService.Items) == 0 {
-				klog.Error(err, fmt.Sprintf("find istio service from cluster %s failure", resource.Cluster))
-				continue
-			}
-			service := istioService.Items[0]
 			if service.Status.LoadBalancer.Ingress == nil {
-				klog.Error(fmt.Sprintf("find istio service from cluster %s empty ingress", resource.Cluster))
+				klog.Error("ambassador service not ready", "service", service.Name, "namespace", service.Namespace, "cluster", resource.Cluster)
 				continue
 			}
 			serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
 				Endpoint: querytypes.Endpoint{
 					Host:     service.Status.LoadBalancer.Ingress[0].IP,
 					Port:     80,
-					Path:     vs.Spec.Http[0].Match[0].Uri.GetPrefix(),
+					Path:     fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name),
 					Protocol: corev1.ProtocolTCP,
 				},
 				Ref: corev1.ObjectReference{
-					Kind:            "VirtualService",
-					Namespace:       vs.ObjectMeta.Namespace,
-					Name:            vs.ObjectMeta.Name,
-					UID:             vs.UID,
-					APIVersion:      vs.APIVersion,
-					ResourceVersion: vs.ResourceVersion,
+					Kind:            "Service",
+					Namespace:       service.Namespace,
+					Name:            service.Name,
+					UID:             service.UID,
+					APIVersion:      service.APIVersion,
+					ResourceVersion: service.ResourceVersion,
 				},
 				Cluster: cluster,
 			})
