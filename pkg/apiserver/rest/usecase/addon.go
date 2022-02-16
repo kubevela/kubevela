@@ -204,10 +204,11 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	if err != nil && !errors2.IsNotFound(err) {
 		return nil, bcode.ErrAddonSecretGet
 	} else if errors2.IsNotFound(err) {
-		res.Args = make(map[string]string, len(sec.Data))
-		for k, v := range sec.Data {
-			res.Args[k] = string(v)
-		}
+		return &res, nil
+	}
+	res.Args = make(map[string]string, len(sec.Data))
+	for k, v := range sec.Data {
+		res.Args[k] = string(v)
 	}
 
 	return &res, nil
