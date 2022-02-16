@@ -6,7 +6,7 @@ e2e-setup-core:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 	go run ./e2e/addon/mock &
-	sleep 5
+	sleep 15
 	bin/vela addon enable rollout
 
 .PHONY: setup-runtime-e2e-cluster
@@ -22,7 +22,7 @@ e2e-setup:
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 
 	go run ./e2e/addon/mock &
-	sleep 5
+	sleep 15
 	bin/vela addon enable fluxcd
 	bin/vela addon enable terraform
 	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
