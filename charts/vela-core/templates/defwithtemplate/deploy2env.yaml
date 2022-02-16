@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Deploy env binding component to target env
   name: deploy2env
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   schematic:
     cue:

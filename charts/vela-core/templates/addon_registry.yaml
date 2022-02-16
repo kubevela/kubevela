@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vela-addon-registry
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 data:
   registries: '{
   "KubeVela":{

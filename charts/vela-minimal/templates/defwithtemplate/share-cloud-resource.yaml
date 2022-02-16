@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Sync secrets created by terraform component to runtime clusters so that runtime clusters can share the created cloud resource.
   name: share-cloud-resource
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   schematic:
     cue:

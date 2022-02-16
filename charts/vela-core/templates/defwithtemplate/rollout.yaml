@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Rollout the component.
   name: rollout
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   manageWorkload: true
   schematic:
