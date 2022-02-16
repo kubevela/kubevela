@@ -19,6 +19,9 @@ package cli
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
+
 	"gotest.tools/assert"
 )
 
@@ -68,5 +71,57 @@ func TestParseMap(t *testing.T) {
 		if s.nilError {
 			assert.NilError(t, err)
 		}
+	}
+}
+
+func TestAddonEnableCmdWithErrLocalPath(t *testing.T) {
+	testcase := []struct {
+		args   []string
+		errMsg string
+	}{
+		{
+			args:   []string{"./a_local_path"},
+			errMsg: "addon directory ./a_local_path not found in local",
+		},
+		{
+			args:   []string{"a_local_path/"},
+			errMsg: "addon directory a_local_path/ not found in local",
+		},
+	}
+
+	ioStream := util.IOStreams{}
+	commandArgs := common.Args{}
+	cmd := NewAddonEnableCommand(commandArgs, ioStream)
+
+	for _, s := range testcase {
+		cmd.SetArgs(s.args)
+		err := cmd.Execute()
+		assert.Error(t, err, s.errMsg)
+	}
+}
+
+func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
+	testcase := []struct {
+		args   []string
+		errMsg string
+	}{
+		{
+			args:   []string{"./a_local_path"},
+			errMsg: "addon directory ./a_local_path not found in local",
+		},
+		{
+			args:   []string{"a_local_path/"},
+			errMsg: "addon directory a_local_path/ not found in local",
+		},
+	}
+
+	ioStream := util.IOStreams{}
+	commandArgs := common.Args{}
+	cmd := NewAddonUpgradeCommand(commandArgs, ioStream)
+
+	for _, s := range testcase {
+		cmd.SetArgs(s.args)
+		err := cmd.Execute()
+		assert.Error(t, err, s.errMsg)
 	}
 }

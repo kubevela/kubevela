@@ -157,7 +157,6 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-
 				err = enableAddon(ctx, k8sClient, dc, config, name, addonArgs)
 				if err != nil {
 					return err
