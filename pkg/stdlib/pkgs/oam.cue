@@ -9,6 +9,21 @@
 	...
 }
 
+#ApplyComponents: {
+	#provider:   "oam"
+	#do:         "components-apply"
+	parallelism: *5 | int
+	components: [string]: {
+		cluster:     *"" | string
+		env:         *"" | string
+		waitHealthy: *true | bool
+		value: {...}
+		patch?: {...}
+		...
+	}
+	...
+}
+
 #RenderComponent: {
 	#provider: "oam"
 	#do:       "component-render"

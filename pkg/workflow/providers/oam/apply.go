@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -119,6 +121,49 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 		act.Wait("wait healthy")
 	}
 
+	return nil
+}
+
+// ApplyComponents apply components in parallel.
+func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	components, err := v.LookupValue("components")
+	if err != nil {
+		return err
+	}
+	parallelism, err := v.GetInt64("parallelism")
+	if err != nil {
+		return err
+	}
+	if parallelism <= 0 {
+		return errors.Errorf("parallelism cannot be smaller than 1")
+	}
+	var l sync.Mutex
+	var wg sync.WaitGroup
+	ch := make(chan struct{}, parallelism)
+	var errs errors2.ErrorList
+	err = components.StepByFields(func(name string, in *value.Value) (bool, error) {
+		ch <- struct{}{}
+		wg.Add(1)
+		go func(_name string, _in *value.Value) {
+			defer func() {
+				wg.Done()
+				<-ch
+			}()
+			if err := p.ApplyComponent(ctx, _in, act); err != nil {
+				l.Lock()
+				errs = append(errs, errors.Wrapf(err, "failed to apply component %s", _name))
+				l.Unlock()
+			}
+		}(name, in)
+		return false, nil
+	})
+	wg.Wait()
+	if err != nil {
+		return errors.Wrapf(err, "failed to looping over components")
+	}
+	if errs.HasError() {
+		return errs
+	}
 	return nil
 }
 
@@ -324,6 +369,7 @@ func Install(p providers.Providers, app *v1beta1.Application, af *appfile.Appfil
 	p.Register(ProviderName, map[string]providers.Handler{
 		"component-render":       prd.RenderComponent,
 		"component-apply":        prd.ApplyComponent,
+		"components-apply":       prd.ApplyComponents,
 		"load":                   prd.LoadComponent,
 		"load-policies":          prd.LoadPolicies,
 		"load-policies-in-order": prd.LoadPoliciesInOrder,

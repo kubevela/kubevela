@@ -177,14 +177,14 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			return nil, nil, false, err
 		}
 		checkSkipApplyWorkload(wl)
+
+		dispatchResources := readyTraits
 		if !wl.SkipApplyWorkload {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyWorkload); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
-			}
+			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 
-		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyTraits...); err != nil {
-			return nil, nil, false, errors.WithMessage(err, "DispatchTraits")
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "Dispatch")
 		}
 
 		_, isHealth, err := h.collectHealthStatus(wl, appRev, overrideNamespace)

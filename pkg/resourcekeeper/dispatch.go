@@ -72,6 +72,8 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 }
 
 func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	var rootManifests []*unstructured.Unstructured
 	var versionManifests []*unstructured.Unstructured
 

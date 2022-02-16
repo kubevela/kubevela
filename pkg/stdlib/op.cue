@@ -53,6 +53,8 @@ import (
 
 #ApplyComponent: oam.#ApplyComponent
 
+#ApplyComponents: oam.#ApplyComponents
+
 #RenderComponent: oam.#RenderComponent
 
 #ApplyComponentRemaining: #Steps & {

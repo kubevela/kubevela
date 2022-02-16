@@ -26,18 +26,21 @@ template: {
 		}                   @step(3)
 		_decisions:         handleDeployPolicies.outputs.decisions
 		_patchedComponents: handleDeployPolicies.outputs.components
-		deploy:             op.#Steps & {
-			for decision in _decisions {
-				for key, comp in _patchedComponents {
-					"\(decision.cluster)-\(decision.namespace)-\(key)": op.#ApplyComponent & {
-						value: comp
-						if decision.cluster != _|_ {
-							cluster: decision.cluster
+		deploy:             op.#ApplyComponents & {
+			parallelism: parameter.parallelism
+			components: {
+				for decision in _decisions {
+					for key, comp in _patchedComponents {
+						"\(decision.cluster)-\(decision.namespace)-\(key)": {
+							value: comp
+							if decision.cluster != _|_ {
+								cluster: decision.cluster
+							}
+							if decision.namespace != _|_ {
+								namespace: decision.namespace
+							}
 						}
-						if decision.namespace != _|_ {
-							namespace: decision.namespace
-						}
-					} @step(1)
+					}
 				}
 			}
 		} @step(4)
@@ -45,5 +48,6 @@ template: {
 	parameter: {
 		auto: *true | bool
 		policies?: [...string]
+		parallelism: *5 | int
 	}
 }
