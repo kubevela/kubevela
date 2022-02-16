@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Sync secrets created by terraform component to runtime clusters
   name: bind-cloud-resource
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: pure-ingress
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads: []
   conflictsWith: []

@@ -4,7 +4,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "autodetects.core.oam.dev is the default workload type of ComponentDefinition"
   name: autodetects.core.oam.dev
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   definitionRef:
     name: autodetects.core.oam.dev

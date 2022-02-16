@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/deprecated: "true"
   name: configmap
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
     - '*'

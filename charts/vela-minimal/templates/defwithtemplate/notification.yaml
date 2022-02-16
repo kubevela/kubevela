@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Send message to webhook
   name: notification
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

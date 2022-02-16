@@ -92,6 +92,8 @@ logFilePath: ""
 #If the value is 0, the maximum file size is unlimited.
 logFileMaxSize: 1024
 
+systemDefinitionNamespace: oam-runtime-system
+
 # concurrentReconciles is the concurrent reconcile number of the controller
 concurrentReconciles: 4
 

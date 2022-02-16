@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Provides differentiated configuration and environment scheduling policies for application.
   name: env-binding
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

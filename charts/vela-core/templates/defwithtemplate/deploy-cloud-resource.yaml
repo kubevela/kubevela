@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Deploy cloud resource and bind secret to clusters
   name: deploy-cloud-resource
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Manually scale K8s pod for your workload which follows the pod spec in path 'spec.template'.
   name: scaler
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
     - '*'

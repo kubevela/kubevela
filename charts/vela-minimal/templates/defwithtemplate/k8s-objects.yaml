@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: K8s-objects allow users to specify raw K8s objects in properties
   name: k8s-objects
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

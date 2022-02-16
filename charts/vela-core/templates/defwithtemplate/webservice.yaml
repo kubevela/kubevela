@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
   name: webservice
-  namespace: {{ .Release.Namespace }}
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   schematic:
     cue:

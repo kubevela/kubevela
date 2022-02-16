@@ -91,6 +91,8 @@ logFilePath: ""
 #If the value is 0, the maximum file size is unlimited.
 logFileMaxSize: 1024
 
+systemDefinitionNamespace: vela-system
+
 applicationRevisionLimit: 10
 
 definitionRevisionLimit: 20
