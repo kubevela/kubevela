@@ -24,6 +24,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	istiov1beta1 "istio.io/api/networking/v1beta1"
+	istio "istio.io/client-go/pkg/apis/networking/v1beta1"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
@@ -454,6 +456,14 @@ options: {
 							Name:      "helmRelease",
 						},
 					},
+					{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							Kind:      "SeldonDeployment",
+							Namespace: "default",
+							Name:      "sdep",
+						},
+					},
 				},
 			},
 		}
@@ -505,6 +515,25 @@ options: {
 				"labels": map[string]string{
 					"helm.toolkit.fluxcd.io/name":      "helmRelease",
 					"helm.toolkit.fluxcd.io/namespace": "default",
+				},
+			},
+			{
+				"name": "istio-service",
+				"ports": []corev1.ServicePort{
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
+				},
+				"type": corev1.ServiceTypeLoadBalancer,
+				"labels": map[string]string{
+					"istio": "ingressgateway",
+				},
+				"status": corev1.ServiceStatus{
+					LoadBalancer: corev1.LoadBalancerStatus{
+						Ingress: []corev1.LoadBalancerIngress{
+							{
+								IP: "1.1.1.1",
+							},
+						},
+					},
 				},
 			},
 		}
@@ -672,6 +701,27 @@ options: {
 			err := k8sClient.Create(context.TODO(), ing)
 			Expect(err).Should(BeNil())
 		}
+
+		err = k8sClient.Create(context.TODO(), &istio.VirtualService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sdep",
+				Namespace: "default",
+			},
+			Spec: istiov1beta1.VirtualService{
+				Http: []*istiov1beta1.HTTPRoute{
+					{
+						Match: []*istiov1beta1.HTTPMatchRequest{
+							{
+								Uri: &istiov1beta1.StringMatch{
+									MatchType: &istiov1beta1.StringMatch_Prefix{Prefix: "/seldon/test"},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		Expect(err).Should(BeNil())
 		opt := `app: {
 			name: "endpoints-app"
 			namespace: "default"
@@ -712,6 +762,7 @@ options: {
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
+			"tcp://1.1.1.1:80/seldon/test",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())
