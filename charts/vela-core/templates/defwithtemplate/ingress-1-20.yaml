@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/deprecated: "true"
   name: ingress-1-20
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 spec:
   podDisruptive: false
   schematic:

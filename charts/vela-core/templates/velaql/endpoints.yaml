@@ -2,7 +2,7 @@ apiVersion: "v1"
 kind:       "ConfigMap"
 metadata: 
   name:      "service-endpoints-view"
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 data:
   template: |
       import (

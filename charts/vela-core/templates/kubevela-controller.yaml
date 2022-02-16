@@ -127,7 +127,7 @@ spec:
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
-            - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
+            - "--system-definition-namespace={{ .Release.Namespace }}"
             - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             - "--oam-spec-ver={{ .Values.OAMSpecVer }}"

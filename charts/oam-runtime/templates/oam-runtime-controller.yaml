@@ -124,7 +124,7 @@ spec:
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
-            - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
+            - "--system-definition-namespace={{ .Release.Namespace }}"
             - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}

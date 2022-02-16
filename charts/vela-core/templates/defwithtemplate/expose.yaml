@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: expose
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 spec:
   podDisruptive: false
   schematic:

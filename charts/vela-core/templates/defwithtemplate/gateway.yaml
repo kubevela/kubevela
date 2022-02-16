@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Enable public web traffic for the component, the ingress API matches K8s v1.20+.
   name: gateway
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 spec:
   podDisruptive: false
   schematic:

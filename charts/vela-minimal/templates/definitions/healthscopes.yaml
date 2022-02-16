@@ -2,7 +2,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ScopeDefinition
 metadata:
   name: healthscopes.core.oam.dev
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 spec:
   workloadRefsPath: spec.workloadRefs
   allowComponentOverlap: true

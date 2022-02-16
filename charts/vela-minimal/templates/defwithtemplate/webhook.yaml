@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Send webhook request to the url
   name: webhook
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ .Release.Namespace }}
 spec:
   schematic:
     cue:
