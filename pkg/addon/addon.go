@@ -995,7 +995,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
-	err = h.apply.Apply(h.ctx, app)
+	err = h.apply.Apply(h.ctx, app, apply.DisableUpdateAnnotation())
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
 		return errors.Wrap(err, "fail to create application")
@@ -1003,7 +1003,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	for _, def := range defs {
 		addOwner(def, app)
-		err = h.apply.Apply(h.ctx, def)
+		err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}
@@ -1011,7 +1011,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	for _, schema := range schemas {
 		addOwner(schema, app)
-		err = h.apply.Apply(h.ctx, schema)
+		err = h.apply.Apply(h.ctx, schema, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}
@@ -1020,7 +1020,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if h.args != nil && len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
-		err = h.apply.Apply(h.ctx, sec)
+		err = h.apply.Apply(h.ctx, sec, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}
