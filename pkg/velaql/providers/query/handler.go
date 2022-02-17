@@ -262,7 +262,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service ambassador/vela-system from cluster %s failure", resource.Cluster))
 				continue
 			}
-			if service.Status.LoadBalancer.Ingress == nil {
+			if len(service.Status.LoadBalancer.Ingress) > 0 {
 				klog.Error("ambassador service not ready", "service", service.Name, "namespace", service.Namespace, "cluster", resource.Cluster)
 				continue
 			}
