@@ -590,29 +590,28 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructured.Unstructured, error) {
 	defObjs := make([]*unstructured.Unstructured, 0)
 
-	if isDeployToRuntimeOnly(addon) {
-		// Runtime cluster mode needs to deploy definitions to control plane k8s.
-		for _, def := range addon.Definitions {
-			obj, err := renderObject(def)
-			if err != nil {
-				return nil, err
-			}
-			// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
-			obj.SetNamespace(types.DefaultKubeVelaNS)
-			defObjs = append(defObjs, obj)
+	// No matter runtime mode or control mode , definition only needs to control plane k8s.
+	for _, def := range addon.Definitions {
+		obj, err := renderObject(def)
+		if err != nil {
+			return nil, err
 		}
-
-		for _, cueDef := range addon.CUEDefinitions {
-			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
-			err := def.FromCUEString(cueDef.Data, config)
-			if err != nil {
-				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
-			}
-			// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
-			def.SetNamespace(types.DefaultKubeVelaNS)
-			defObjs = append(defObjs, &def.Unstructured)
-		}
+		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
+		obj.SetNamespace(types.DefaultKubeVelaNS)
+		defObjs = append(defObjs, obj)
 	}
+
+	for _, cueDef := range addon.CUEDefinitions {
+		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
+		err := def.FromCUEString(cueDef.Data, config)
+		if err != nil {
+			return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+		}
+		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
+		def.SetNamespace(types.DefaultKubeVelaNS)
+		defObjs = append(defObjs, &def.Unstructured)
+	}
+
 	return defObjs, nil
 }
 
@@ -740,20 +739,6 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 	return u
 }
 
-// renderRawComponent will return a component in raw type from string
-func renderRawComponent(elem ElementFile) (*common2.ApplicationComponent, error) {
-	baseRawComponent := common2.ApplicationComponent{
-		Type: "raw",
-		Name: strings.ReplaceAll(elem.Name, ".", "-"),
-	}
-	obj, err := renderObject(elem)
-	if err != nil {
-		return nil, err
-	}
-	baseRawComponent.Properties = util.Object2RawExtension(obj)
-	return &baseRawComponent, nil
-}
-
 func renderK8sObjectsComponent(elems []ElementFile, addonName string) (*common2.ApplicationComponent, error) {
 	var objects []*unstructured.Unstructured
 	for _, elem := range elems {
@@ -764,14 +749,14 @@ func renderK8sObjectsComponent(elems []ElementFile, addonName string) (*common2.
 		objects = append(objects, obj)
 	}
 	properties := map[string]interface{}{"objects": objects}
-	propJson, err := json.Marshal(properties)
+	propJSON, err := json.Marshal(properties)
 	if err != nil {
 		return nil, err
 	}
 	baseRawComponent := common2.ApplicationComponent{
 		Type:       "k8s-objects",
 		Name:       addonName + "-resources",
-		Properties: &runtime.RawExtension{Raw: propJson},
+		Properties: &runtime.RawExtension{Raw: propJSON},
 	}
 	return &baseRawComponent, nil
 }
@@ -1006,7 +991,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	app.SetLabels(util.MergeMapOverrideWithDst(app.GetLabels(), map[string]string{oam.LabelAddonRegistry: h.r.Name}))
 
-	defs, err := RenderDefinitions(h.addon, h.config)
+	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
 	}
