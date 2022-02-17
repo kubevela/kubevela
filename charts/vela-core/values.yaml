@@ -3,8 +3,6 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-# Valid applyOnceOnly values: true/false/on/off/force
-applyOnceOnly: "off"
 
 disableCaps: ""
 
@@ -81,8 +79,6 @@ admissionWebhooks:
   certManager:
     enabled: false
     revisionHistoryLimit: 3
-  # If autoGenWorkloadDefinition is true, webhook will auto generated workloadDefinition which componentDefinition refers to
-  autoGenWorkloadDefinition: true
 
 #Enable debug logs for development purpose
 logDebug: false

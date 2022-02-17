@@ -120,10 +120,8 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
-            - "--autogen-workload-definition={{ .Values.admissionWebhooks.autoGenWorkloadDefinition }}"
             {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
-            - "--apply-once-only={{ .Values.applyOnceOnly }}"
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
