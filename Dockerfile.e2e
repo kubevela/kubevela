@@ -18,6 +18,7 @@ COPY cmd/ cmd/
 COPY apis/ apis/
 COPY pkg/ pkg/
 COPY version/ version/
+COPY references/ references/
 
 # Build
 ARG TARGETARCH

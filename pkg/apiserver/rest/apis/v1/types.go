@@ -305,6 +305,37 @@ type ApplicationBase struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 }
 
+// AppCompareResponse application compare result
+type AppCompareResponse struct {
+	IsDiff     bool   `json:"isDiff"`
+	DiffReport string `json:"diffReport"`
+	NewAppYAML string `json:"newAppYAML"`
+	OldAppYAML string `json:"oldAppYAML"`
+}
+
+// AppResetResponse application reset result
+type AppResetResponse struct {
+	IsReset bool `json:"isReset"`
+}
+
+// AppCompareReq  application compare req
+type AppCompareReq struct {
+	Env string `json:"env"`
+}
+
+// AppDryRunReq application dry-run req
+type AppDryRunReq struct {
+	AppName    string `json:"appName"`
+	DryRunType string `json:"dryRunType"`
+	Env        string `json:"env"`
+	Version    string `json:"version"`
+}
+
+// AppDryRunResponse application dry-run result
+type AppDryRunResponse struct {
+	YAML string `json:"yaml"`
+}
+
 // ApplicationStatusResponse application status response body
 type ApplicationStatusResponse struct {
 	EnvName string            `json:"envName"`

@@ -398,7 +398,7 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 
 	var app v1beta1.Application
 	// check addon application whether exist
-	err := u.kubeClient.Get(context.Background(), client.ObjectKey{
+	err := u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      pkgaddon.Convert2AppName(name),
 	}, &app)
