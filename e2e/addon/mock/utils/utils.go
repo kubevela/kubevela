@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
@@ -63,12 +65,25 @@ func ApplyMockServerConfig() error {
 		return err
 	}
 
+	otherRegistry := cm.DeepCopy()
+
 	err = k8sClient.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, &originCm)
 	if err != nil && apierrors.IsNotFound(err) {
-		err = k8sClient.Create(ctx, &cm)
+		if err = k8sClient.Create(ctx, &cm); err != nil {
+			return err
+		}
 	} else {
 		cm.ResourceVersion = originCm.ResourceVersion
-		err = k8sClient.Update(ctx, &cm)
+		if err = k8sClient.Update(ctx, &cm); err != nil {
+			return err
+		}
 	}
-	return err
+	if err := k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-vela"}}); err != nil {
+		return err
+	}
+	otherRegistry.SetNamespace("test-vela")
+	if err := k8sClient.Create(ctx, otherRegistry); err != nil {
+		return err
+	}
+	return nil
 }
