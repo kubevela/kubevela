@@ -29,6 +29,12 @@ import (
 	"text/template"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
+	version2 "github.com/oam-dev/kubevela/version"
+
+	"github.com/hashicorp/go-version"
+
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
@@ -883,6 +889,11 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Appli
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
 	h.addon = addon
+	err = checkAddonVersionMeetRequired(h.ctx, addon.RequireVersions, h.cli)
+	if err != nil {
+		return err
+	}
+
 	if err = h.installDependency(addon); err != nil {
 		return err
 	}
@@ -1103,4 +1114,78 @@ func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName stri
 		}
 	}
 	return app, nil
+}
+
+// checkAddonVersionMeetRequired will check the version of cli/ux and kubevela-core-controller whether meet the addon requirement, if not will return an error
+// please notice that this func is for check production environment which vela cli/ux or vela core is officalVersion
+// if version is for test or debug eg: latest/commit-id/branch-name this func will return nil error
+func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions, k8sClient client.Client) error {
+	if require == nil {
+		return nil
+	}
+
+	if !version2.IsOfficialKubeVelaVersion(version2.VelaVersion) {
+		//bypass {branch name/git commit id/UNKNOWN} for test
+		return nil
+	}
+
+	res, err := checkSemVer(version2.VelaVersion, require.VelaVersion)
+	if err != nil {
+		return err
+	}
+	if !res {
+		return fmt.Errorf("vela cli/ux version: %s cannot meet require", version2.VelaVersion)
+	}
+
+	// check vela core controller version
+	imageVersion, err := fetchVelaCoreImageTag(ctx, k8sClient)
+	if err != nil {
+		return err
+	}
+
+	if !version2.IsOfficialKubeVelaVersion(imageVersion) {
+		//bypass {branch name/git commit id/UNKNOWN} for test
+		return nil
+	}
+
+	res, err = checkSemVer(imageVersion, require.VelaVersion)
+	if err != nil {
+		return err
+	}
+	if !res {
+		return fmt.Errorf("the vela core controller: %s cannot meet require ", imageVersion)
+	}
+	return nil
+}
+
+func checkSemVer(actual string, require string) (bool, error) {
+	if len(require) == 0 {
+		return true, nil
+	}
+	smeVer := strings.TrimPrefix(actual, "v")
+	l := strings.Split(require, "v")
+	constraint, err := version.NewConstraint(strings.Join(l, " "))
+	if err != nil {
+		return false, err
+	}
+	v, err := version.NewVersion(smeVer)
+	if err != nil {
+		return false, err
+	}
+	return constraint.Check(v), nil
+}
+
+func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string, error) {
+	deploy := &appsv1.Deployment{}
+	if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: types.KubeVelaControllerDeployment}, deploy); err != nil {
+		return "", err
+	}
+	var tag string
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		if c.Name == types.DefaultKubeVelaReleaseName {
+			// a valid image tag must contain ":"
+			tag = strings.Split(c.Image, ":")[1]
+		}
+	}
+	return tag, nil
 }

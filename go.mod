@@ -34,7 +34,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
-	github.com/hashicorp/go-version v1.3.0
+	github.com/hashicorp/go-version v1.4.0
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
