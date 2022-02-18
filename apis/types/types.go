@@ -19,8 +19,6 @@ package types
 import "github.com/oam-dev/kubevela/pkg/oam"
 
 const (
-	// DefaultKubeVelaNS defines the default KubeVela namespace in Kubernetes
-	DefaultKubeVelaNS = "vela-system"
 	// DefaultKubeVelaReleaseName defines the default name of KubeVela Release
 	DefaultKubeVelaReleaseName = "kubevela"
 	// DefaultKubeVelaChartName defines the default chart name of KubeVela, this variable MUST align to the chart name of this repo
@@ -34,6 +32,9 @@ const (
 	// AutoDetectWorkloadDefinition defines the default workload type for ComponentDefinition which doesn't specify a workload
 	AutoDetectWorkloadDefinition = "autodetects.core.oam.dev"
 )
+
+// DefaultKubeVelaNS defines the default KubeVela namespace in Kubernetes
+var DefaultKubeVelaNS = "vela-system"
 
 const (
 	// AnnoDefinitionDescription is the annotation which describe what is the capability used for in a WorkloadDefinition/TraitDefinition Object
