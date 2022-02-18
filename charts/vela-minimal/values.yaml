@@ -105,6 +105,12 @@ dependCheckWait: 30s
 # OAMSpecVer is the oam spec version controller want to setup
 OAMSpecVer: "minimal"
 
+kubeClient:
+  # the qps for reconcile clients, default is 50
+  qps: 50
+  # the burst for reconcile clients, default is 100
+  brust: 100
+
 multicluster:
   enabled: false
   clusterGateway:
