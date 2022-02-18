@@ -258,6 +258,39 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
 }
 
+func TestRenderDefinitions(t *testing.T) {
+	addonDeployToRuntime := baseAddon
+	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
+		DisableControlPlane: false,
+		RuntimeCluster:      false,
+	}
+	defs, err := RenderDefinitions(&addonDeployToRuntime, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, len(defs), 1)
+	def := defs[0]
+	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
+	assert.Equal(t, def.GetKind(), "TraitDefinition")
+
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err)
+	// addon which app work on no-runtime-cluster mode workflow is nil
+	assert.Nil(t, app.Spec.Workflow)
+}
+
+func TestRenderK8sObjects(t *testing.T) {
+	addonMultiYaml := multiYamlAddon
+	addonMultiYaml.Meta.DeployTo = &DeployTo{
+		DisableControlPlane: false,
+		RuntimeCluster:      false,
+	}
+
+	app, err := RenderApp(ctx, &addonMultiYaml, nil, nil, map[string]interface{}{})
+	assert.NoError(t, err)
+	assert.Equal(t, len(app.Spec.Components), 1)
+	comp := app.Spec.Components[0]
+	assert.Equal(t, comp.Type, "k8s-objects")
+}
+
 func TestGetAddonStatus(t *testing.T) {
 	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		switch key.Name {
@@ -402,6 +435,22 @@ var baseAddon = InstallPackage{
 	},
 }
 
+var multiYamlAddon = InstallPackage{
+	Meta: Meta{
+		Name: "test-render-multi-yaml-addon",
+	},
+	YAMLTemplates: []ElementFile{
+		{
+			Data: testYamlObject1,
+			Name: "test-object-1",
+		},
+		{
+			Data: testYamlObject2,
+			Name: "test-object-2",
+		},
+	},
+}
+
 var testCueDef = `annotations: {
 	type: "trait"
 	annotations: {}
@@ -431,6 +480,53 @@ template: {
 	}
 	parameter: [string]: string
 }
+`
+
+var testYamlObject1 = `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+`
+var testYamlObject2 = `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment-2
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
 `
 
 func TestRenderApp4Observability(t *testing.T) {
