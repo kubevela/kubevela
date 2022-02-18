@@ -2321,6 +2321,74 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(len(rt.Spec.ManagedResources)).Should(Equal(20))
 	})
+
+	It("test controller requirement", func() {
+
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-controller-requirement",
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), &ns)).Should(BeNil())
+
+		appWithoutCtrlReq := appwithNoTrait.DeepCopy()
+		appWithoutCtrlReq.SetNamespace(ns.Name)
+		appWithoutCtrlReq.SetName("app-no-ctrl-req")
+		Expect(k8sClient.Create(context.Background(), appWithoutCtrlReq)).Should(BeNil())
+
+		appWithCtrlReqV1 := appwithNoTrait.DeepCopy()
+		appWithCtrlReqV1.SetNamespace(ns.Name)
+		appWithCtrlReqV1.SetName("app-with-ctrl-v1")
+		appWithCtrlReqV1.Annotations = map[string]string{
+			oam.AnnotationControllerRequirement: "v1",
+		}
+		Expect(k8sClient.Create(context.Background(), appWithCtrlReqV1)).Should(BeNil())
+
+		appWithCtrlReqV2 := appwithNoTrait.DeepCopy()
+		appWithCtrlReqV2.SetNamespace(ns.Name)
+		appWithCtrlReqV2.SetName("app-with-ctrl-v2")
+		appWithCtrlReqV2.Annotations = map[string]string{
+			oam.AnnotationControllerRequirement: "v2",
+		}
+		Expect(k8sClient.Create(context.Background(), appWithCtrlReqV2)).Should(BeNil())
+
+		v1OREmptyReconciler := *reconciler
+		v1OREmptyReconciler.ignoreAppNoCtrlReq = false
+		v1OREmptyReconciler.controllerVersion = "v1"
+
+		v2OnlyReconciler := *reconciler
+		v2OnlyReconciler.ignoreAppNoCtrlReq = true
+		v2OnlyReconciler.controllerVersion = "v2"
+
+		check := func(r reconcile.Reconciler, app *v1beta1.Application, do bool) {
+			testutil.ReconcileOnceAfterFinalizer(r, reconcile.Request{NamespacedName: client.ObjectKey{
+				Name:      app.Name,
+				Namespace: app.Namespace,
+			}})
+			checkApp := &v1beta1.Application{}
+			Expect(k8sClient.Get(context.Background(), client.ObjectKey{
+				Name:      app.Name,
+				Namespace: app.Namespace,
+			}, checkApp)).Should(BeNil())
+
+			if do {
+				Expect(checkApp.Annotations[oam.AnnotationKubeVelaVersion]).ShouldNot(BeEmpty())
+			} else {
+				if checkApp.Annotations == nil {
+					return
+				}
+				Expect(checkApp.Annotations[oam.AnnotationKubeVelaVersion]).Should(BeEmpty())
+			}
+		}
+
+		check(&v2OnlyReconciler, appWithoutCtrlReq, false)
+		check(&v2OnlyReconciler, appWithCtrlReqV1, false)
+		check(&v1OREmptyReconciler, appWithCtrlReqV2, false)
+
+		check(&v1OREmptyReconciler, appWithoutCtrlReq, true)
+		check(&v1OREmptyReconciler, appWithCtrlReqV1, true)
+		check(&v2OnlyReconciler, appWithCtrlReqV2, true)
+	})
 })
 
 const (
