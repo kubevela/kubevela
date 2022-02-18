@@ -683,7 +683,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
-				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{.Values.systemDefinitionNamespace}}") + "\n"
+				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
 					cmd.Print(s)

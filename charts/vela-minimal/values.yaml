@@ -91,7 +91,8 @@ logFilePath: ""
 #If the value is 0, the maximum file size is unlimited.
 logFileMaxSize: 1024
 
-systemDefinitionNamespace: vela-system
+#System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`.
+systemDefinitionNamespace:
 
 applicationRevisionLimit: 10
 

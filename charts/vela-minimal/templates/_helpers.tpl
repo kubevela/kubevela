@@ -66,3 +66,14 @@ Create the name of the service account to use
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+systemDefinitionNamespace value defaulter
+*/}}
+{{- define "systemDefinitionNamespace" -}}
+{{- if .Values.systemDefinitionNamespace -}}
+    {{ .Values.systemDefinitionNamespace }}
+{{- else -}}
+    {{ .Release.Namespace }}
+{{- end -}}
+{{- end -}}
