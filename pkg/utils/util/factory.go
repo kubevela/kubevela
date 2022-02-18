@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/version"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
@@ -166,4 +168,9 @@ func computeDiscoverCacheDir(parentDir, host string) string {
 	// now do a simple collapse of non-AZ09 characters.  Collisions are possible but unlikely.  Even if we do collide the problem is short lived
 	safeHost := overlyCautiousIllegalFileCharacters.ReplaceAllString(schemelessHost, "_")
 	return filepath.Join(parentDir, safeHost)
+}
+
+// GenerateLeaderElectionID returns the Leader Election ID.
+func GenerateLeaderElectionID(name string, versionedDeploy bool) string {
+	return name + "-" + strings.ToLower(strings.ReplaceAll(version.VelaVersion, ".", "z"))
 }

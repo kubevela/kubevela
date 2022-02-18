@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/util"
+
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -199,12 +201,14 @@ func main() {
 		}
 	}
 	ctrl.SetLogger(klogr.New())
+
+	leaderElectionID := util.GenerateLeaderElectionID(kubevelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,
 		LeaderElection:             enableLeaderElection,
 		LeaderElectionNamespace:    leaderElectionNamespace,
-		LeaderElectionID:           kubevelaName,
+		LeaderElectionID:           leaderElectionID,
 		Port:                       webhookPort,
 		CertDir:                    certDir,
 		HealthProbeBindAddress:     healthAddr,
