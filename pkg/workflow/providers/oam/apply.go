@@ -216,6 +216,7 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 			un.SetGeneration(0)
 			un.SetOwnerReferences(nil)
 			un.SetDeletionTimestamp(nil)
+			un.SetManagedFields(nil)
 			un.SetUID("")
 			objects = append(objects, un)
 		}
@@ -312,7 +313,17 @@ func (p *provider) LoadComponentInOrder(ctx wfContext.Context, v *value.Value, a
 			return err
 		}
 	}
-	if err := v.FillObject(app.Spec.Components, "value"); err != nil {
+	comps := make([]common.ApplicationComponent, len(app.Spec.Components))
+	for idx, _comp := range app.Spec.Components {
+		comp, err := p.loadDynamicComponent(_comp.DeepCopy())
+		if err != nil {
+			return err
+		}
+		comp.Inputs = nil
+		comp.Outputs = nil
+		comps[idx] = *comp
+	}
+	if err := v.FillObject(comps, "value"); err != nil {
 		return err
 	}
 	return nil

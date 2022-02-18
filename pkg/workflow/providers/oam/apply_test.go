@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
 
@@ -136,6 +138,37 @@ outputs: {
 `)
 }
 
+//func TestApplyComponents(t *testing.T) {
+//	r := require.New(t)
+//	testcases := map[string]struct{
+//		Input string
+//		Error string
+//	}{
+//		"normal": {
+//			Input:
+//		},
+//	}
+//	p := &provider{apply: simpleComponentApplyForTest}
+//	for name, tt := range testcases {
+//		t.Run(name, func(t *testing.T) {
+//			act := &mock.Action{}
+//			v, err := value.NewValue("", nil, "")
+//			r.NoError(err)
+//			err = p.ApplyComponents(nil, v, act)
+//			//r.Equal(err.Error(), "var(path=value) not exist")
+//			v.FillObject(map[string]interface{}{}, "value")
+//			err = p.ApplyComponent(nil, v, act)
+//			if tt.Error != "" {
+//				r.NotNil(err)
+//				r.Contains(err.Error(), tt.Error)
+//			} else {
+//				r.NoError(err)
+//				r.Equal(output, tt.Output)
+//			}
+//		})
+//	}
+//}
+
 func TestLoadComponent(t *testing.T) {
 	r := require.New(t)
 	p := &provider{
@@ -191,6 +224,83 @@ func TestLoadComponent(t *testing.T) {
 	r.NoError(err)
 	_, err = overrideValue.LookupValue("value", "c2")
 	r.NoError(err)
+}
+
+func TestLoadDynamicComponent(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithRuntimeObjects(&unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind": "Deployment",
+			"metadata": map[string]interface{}{
+				"name": "dynamic",
+				"namespace": "test",
+			},
+		},
+	}).Build()
+	testcases := map[string]struct{
+		Input *common.ApplicationComponent
+		Output *common.ApplicationComponent
+		Error string
+	}{
+		"normal": {
+			Input: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"dynamic"}]}`)},
+			},
+			Output: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"dynamic","namespace":"test"}}]}`)},
+			},
+		},
+		"bad-properties": {
+			Input: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{bad}`)},
+			},
+			Error: "invalid properties for ref-objects",
+		},
+		"name-and-selector-both-set": {
+			Input: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"dynamic","selector":{"key":"value"}}]}`)},
+			},
+			Error: "invalid properties for ref-objects, name and selector cannot be both set",
+		},
+		"empty-ref-object-name": {
+			Input: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Name: "dynamic",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment"}]}`)},
+			},
+			Output: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Name: "dynamic",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"dynamic","namespace":"test"}}]}`)},
+			},
+		},
+		"cannot-find-ref-object": {
+			Input: &common.ApplicationComponent{
+				Type: "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"static"}]}`)},
+			},
+			Error: "failed to load ref object",
+		},
+	}
+	p := provider{app: &v1beta1.Application{}, cli: cli}
+	p.app.SetNamespace("test")
+	for name, tt := range testcases {
+		t.Run(name, func(t *testing.T) {
+			output, err := p.loadDynamicComponent(tt.Input)
+			if tt.Error != "" {
+				r.NotNil(err)
+				r.Contains(err.Error(), tt.Error)
+			} else {
+				r.NoError(err)
+				r.Equal(output, tt.Output)
+			}
+		})
+	}
 }
 
 func TestLoadComponentInOrder(t *testing.T) {
