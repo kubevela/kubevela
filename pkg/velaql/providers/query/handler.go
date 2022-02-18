@@ -55,6 +55,9 @@ const (
 	ProviderName = "query"
 	// HelmReleaseKind is the kind of HelmRelease
 	HelmReleaseKind = "HelmRelease"
+
+	annoAmbassadorServiceName      = "ambassador.service/name"
+	annoAmbassadorServiceNamespace = "ambassador.service/namespace"
 )
 
 var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Version: "v2beta1"}
@@ -233,7 +236,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
 		case helmapi.HelmReleaseGVK.Kind:
 			obj := new(unstructured.Unstructured)
 			obj.SetNamespace(resource.Namespace)
@@ -244,7 +247,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
 			}
 
 			// only support network/v1beta1
@@ -256,33 +259,33 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster)...)
 			}
 		case "SeldonDeployment":
-			// seldon use ambassador to expose service
-			var service corev1.Service
-			if err := findResource(&service, "ambassador", "vela-system", resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1 Service ambassador/vela-system from cluster %s failure", resource.Cluster))
-				continue
-			}
-			if len(service.Status.LoadBalancer.Ingress) > 0 {
-				klog.Error("ambassador service not ready", "service", service.Name, "namespace", service.Namespace, "cluster", resource.Cluster)
-				continue
-			}
-			serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-				Endpoint: querytypes.Endpoint{
-					Host:     service.Status.LoadBalancer.Ingress[0].IP,
-					Port:     80,
-					Path:     fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name),
-					Protocol: corev1.ProtocolTCP,
-				},
-				Ref: corev1.ObjectReference{
-					Kind:            "Service",
-					Namespace:       service.Namespace,
-					Name:            service.Name,
-					UID:             service.UID,
-					APIVersion:      service.APIVersion,
-					ResourceVersion: service.ResourceVersion,
-				},
-				Cluster: cluster,
+			obj := new(unstructured.Unstructured)
+			obj.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "machinelearning.seldon.io",
+				Version: "v1",
+				Kind:    "SeldonDeployment",
 			})
+			if err := findResource(obj, resource.Name, resource.Namespace, resource.Cluster); err != nil {
+				klog.Error(err, fmt.Sprintf("find v1 Seldon Deployment %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
+				continue
+			}
+			anno := obj.GetAnnotations()
+			serviceName := "ambassador"
+			serviceNS := "vela-system"
+			if anno != nil {
+				if anno[annoAmbassadorServiceName] != "" {
+					serviceName = anno[annoAmbassadorServiceName]
+				}
+				if anno[annoAmbassadorServiceNamespace] != "" {
+					serviceNS = anno[annoAmbassadorServiceNamespace]
+				}
+			}
+			var service corev1.Service
+			if err := findResource(&service, serviceName, serviceNS, resource.Cluster); err != nil {
+				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", serviceName, serviceNS, resource.Cluster))
+				continue
+			}
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
 	return v.FillObject(serviceEndpoints, "list")
@@ -390,7 +393,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	})
 }
 
-func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster string) []querytypes.ServiceEndpoint {
+func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster, path string) []querytypes.ServiceEndpoint {
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
@@ -404,6 +407,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							AppProtocol: &judgeAppProtocol,
 							Host:        ingress.Hostname,
 							Port:        int(port.Port),
+							Path:        path,
 						},
 						Ref: corev1.ObjectReference{
 							Kind:            "Service",
@@ -423,6 +427,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							AppProtocol: &judgeAppProtocol,
 							Host:        ingress.IP,
 							Port:        int(port.Port),
+							Path:        path,
 						},
 						Ref: corev1.ObjectReference{
 							Kind:            "Service",
@@ -446,6 +451,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 					Port:        int(port.NodePort),
 					AppProtocol: &judgeAppProtocol,
 					Host:        selectorNodeIP(),
+					Path:        path,
 				},
 				Ref: corev1.ObjectReference{
 					Kind:            "Service",
