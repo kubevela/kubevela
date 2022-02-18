@@ -135,6 +135,7 @@ spec:
             - "--enable-cluster-gateway"
             {{ end }}
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
+            - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
