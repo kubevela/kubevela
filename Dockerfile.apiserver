@@ -17,6 +17,7 @@ COPY cmd/apiserver/main.go cmd/apiserver/main.go
 COPY apis/ apis/
 COPY pkg/ pkg/
 COPY version/ version/
+COPY references/ references/
 
 # Build
 ARG TARGETARCH
