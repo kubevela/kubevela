@@ -303,21 +303,9 @@ variable "password" {
 
 variable "intVar" {
   type = "number"
-}
-
-variable "boolVar" {
-  type = "bool"
-}
-
-variable "listVar" {
-  type = "list"
-}
-
-variable "mapVar" {
-  type = "map"
 }`,
 			want: want{
-				subStr: `"required":["intVar","boolVar","listVar","mapVar"]`,
+				subStr: `"required":["intVar"]`,
 				err:    nil,
 			},
 		},
