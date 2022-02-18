@@ -101,6 +101,12 @@ definitionRevisionLimit: 20
 # concurrentReconciles is the concurrent reconcile number of the controller
 concurrentReconciles: 4
 
+kubeClient:
+  # the qps for reconcile clients, default is 50
+  qps: 50
+  # the burst for reconcile clients, default is 100
+  brust: 100
+
 # dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s
 
