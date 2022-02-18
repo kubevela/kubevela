@@ -29,6 +29,7 @@ import (
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -516,8 +517,7 @@ options: {
 				},
 			},
 			{
-				"name":      "ambassador",
-				"namespace": "vela-system",
+				"name": "seldon-ambassador",
 				"ports": []corev1.ServicePort{
 					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
 				},
@@ -707,6 +707,21 @@ options: {
 			err := k8sClient.Create(context.TODO(), ing)
 			Expect(err).Should(BeNil())
 		}
+
+		obj := &unstructured.Unstructured{}
+		obj.SetName("sdep")
+		obj.SetNamespace("default")
+		obj.SetAnnotations(map[string]string{
+			annoAmbassadorServiceName:      "seldon-ambassador",
+			annoAmbassadorServiceNamespace: "default",
+		})
+		obj.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "machinelearning.seldon.io",
+			Version: "v1",
+			Kind:    "SeldonDeployment",
+		})
+		err = k8sClient.Create(context.TODO(), obj)
+		Expect(err).Should(BeNil())
 
 		opt := `app: {
 			name: "endpoints-app"
