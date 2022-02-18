@@ -345,7 +345,7 @@ var _ = Describe("Test velaQL", func() {
 		}
 		velaQL, err := ioutil.ReadFile("../../charts/vela-core/templates/velaql/endpoints.yaml")
 		Expect(err).Should(BeNil())
-		velaQLYaml := strings.Replace(string(velaQL), "{{.Values.systemDefinitionNamespace}}", types.DefaultKubeVelaNS, 1)
+		velaQLYaml := strings.Replace(string(velaQL), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var cm corev1.ConfigMap
 		err = yaml.Unmarshal([]byte(velaQLYaml), &cm)
 		Expect(err).Should(BeNil())

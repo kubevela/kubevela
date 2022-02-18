@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Apply periodical health checking to the application.
   name: health
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   manageHealthCheck: true
   schematic:
