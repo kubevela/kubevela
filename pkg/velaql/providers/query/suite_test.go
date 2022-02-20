@@ -44,7 +44,7 @@ var _ = BeforeSuite(func(done Done) {
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
-		CRDDirectoryPaths:        []string{"../../../../charts/vela-core/crds", "./testdata/virtual_service.yaml"},
+		CRDDirectoryPaths:        []string{"../../../../charts/vela-core/crds", "./testdata/machinelearning.seldon.io_seldondeployments.yaml"},
 	}
 
 	By("start kube test env")
