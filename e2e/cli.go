@@ -80,6 +80,22 @@ func asyncExec(cli string) (*gexec.Session, error) {
 	return session, err
 }
 
+func LongTimeExecWithEnv(cli string, timeout time.Duration, env []string) (string, error) {
+	var output []byte
+	c := strings.Fields(cli)
+	commandName := path.Join(rudrPath, c[0])
+	command := exec.Command(commandName, c[1:]...)
+	command.Env = os.Environ()
+	command.Env = append(command.Env, env...)
+
+	session, err := gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+	if err != nil {
+		return string(output), err
+	}
+	s := session.Wait(timeout)
+	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
+}
+
 // InteractiveExec executes a command with interactive input
 func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error) {
 	var output []byte

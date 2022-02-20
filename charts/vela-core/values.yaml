@@ -135,3 +135,5 @@ test:
   k8s:
     repository: oamdev/alpine-k8s
     tag: 1.18.2
+
+enableFluxcdAddon: false

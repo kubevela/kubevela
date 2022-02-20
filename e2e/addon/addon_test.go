@@ -80,6 +80,27 @@ var _ = Describe("Addon Test", func() {
 			}, 60*time.Second).Should(Succeed())
 		})
 
+		It("Test Change default namespace can work", func() {
+			output, err := e2e.LongTimeExecWithEnv("vela addon list", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("test-addon"))
+			Expect(output).To(ContainSubstring("disabled"))
+
+			output, err = e2e.LongTimeExecWithEnv("vela addon enable test-addon", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("enabled Successfully."))
+
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "test-vela"}, &v1beta1.Application{})).Should(BeNil())
+			}, 60*time.Second).Should(Succeed())
+
+			output, err = e2e.LongTimeExecWithEnv("vela addon disable test-addon", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully disable addon"))
+			Eventually(func(g Gomega) {
+				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "test-vela"}, &v1beta1.Application{}))).Should(BeTrue())
+			}, 60*time.Second).Should(Succeed())
+		})
 	})
 
 	Context("Addon registry test", func() {
