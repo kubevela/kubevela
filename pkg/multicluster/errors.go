@@ -26,6 +26,8 @@ import (
 var (
 	// ErrClusterExists cluster already exists
 	ErrClusterExists = ClusterManagementError(fmt.Errorf("cluster already exists"))
+	// ErrClusterNotExists cluster not exists
+	ErrClusterNotExists = ClusterManagementError(fmt.Errorf("no such cluster"))
 	// ErrReservedLocalClusterName reserved cluster name is used
 	ErrReservedLocalClusterName = ClusterManagementError(fmt.Errorf("cluster name `local` is reserved for kubevela hub cluster"))
 )

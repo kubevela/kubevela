@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2020-2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package multicluster
 
 import (
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
@@ -48,6 +49,7 @@ var _ = BeforeSuite(func(done Done) {
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
 		UseExistingCluster:       pointer.BoolPtr(false),
+		CRDDirectoryPaths:        []string{"./testdata"},
 	}
 
 	By("start kube test env")
@@ -58,6 +60,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
+	Expect(v1alpha1.AddToScheme(common.Scheme)).Should(Succeed())
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
