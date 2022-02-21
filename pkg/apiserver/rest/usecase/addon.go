@@ -365,10 +365,14 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 			return nil
 		}
 
-		if err != nil && errors.As(err, &pkgaddon.ErrNotExist) {
+		// if reach this line error must is not nil
+		if errors.Is(err, pkgaddon.ErrNotExist) {
 			// one registry return addon not exist error, should not break other registry func
 			continue
 		}
+
+		// except `addon not found`, other errors should return directly
+		return err
 	}
 	return bcode.ErrAddonNotExist
 }

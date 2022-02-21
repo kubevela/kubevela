@@ -1131,7 +1131,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s cannot meet require", version2.VelaVersion)
+			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
 		}
 	}
 
@@ -1148,7 +1148,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s cannot meet require ", imageVersion)
+			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
 		}
 	}
 
@@ -1169,7 +1169,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s cannot meet require", k8sVersion.GitVersion)
+			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
 		}
 	}
 
@@ -1201,8 +1201,12 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 	var tag string
 	for _, c := range deploy.Spec.Template.Spec.Containers {
 		if c.Name == types.DefaultKubeVelaReleaseName {
-			// a valid image tag must contain ":"
-			tag = strings.Split(c.Image, ":")[1]
+			l := strings.Split(c.Image, ":")
+			if len(l) == 1 {
+				// if tag is empty mean use latest image
+				return "latest", nil
+			}
+			tag = l[1]
 		}
 	}
 	return tag, nil
