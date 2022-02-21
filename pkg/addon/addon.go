@@ -1124,17 +1124,15 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		return nil
 	}
 
-	if !version2.IsOfficialKubeVelaVersion(version2.VelaVersion) {
-		// bypass {branch name/git commit id/UNKNOWN} for test
-		return nil
-	}
-
-	res, err := checkSemVer(version2.VelaVersion, require.VelaVersion)
-	if err != nil {
-		return err
-	}
-	if !res {
-		return fmt.Errorf("vela cli/ux version: %s cannot meet require", version2.VelaVersion)
+	// if not semver version, bypass check cli/ux. eg: {branch name/git commit id/UNKNOWN}
+	if version2.IsOfficialKubeVelaVersion(version2.VelaVersion) {
+		res, err := checkSemVer(version2.VelaVersion, require.VelaVersion)
+		if err != nil {
+			return err
+		}
+		if !res {
+			return fmt.Errorf("vela cli/ux version: %s cannot meet require", version2.VelaVersion)
+		}
 	}
 
 	// check vela core controller version
@@ -1143,35 +1141,38 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		return err
 	}
 
-	if !version2.IsOfficialKubeVelaVersion(imageVersion) {
-		// bypass {branch name/git commit id/UNKNOWN} for test
-		return nil
+	// if not semver version, bypass check vela-core.
+	if version2.IsOfficialKubeVelaVersion(imageVersion) {
+		res, err := checkSemVer(imageVersion, require.VelaVersion)
+		if err != nil {
+			return err
+		}
+		if !res {
+			return fmt.Errorf("the vela core controller: %s cannot meet require ", imageVersion)
+		}
 	}
 
-	res, err = checkSemVer(imageVersion, require.VelaVersion)
-	if err != nil {
-		return err
-	}
-	if !res {
-		return fmt.Errorf("the vela core controller: %s cannot meet require ", imageVersion)
+	// discovery client is nil so bypass check kubernetes version
+	if dc == nil {
+		return nil
 	}
 
 	k8sVersion, err := dc.ServerVersion()
 	if err != nil {
 		return err
 	}
-	if !version2.IsOfficialKubeVelaVersion(k8sVersion.GitVersion) {
-		return nil
+	// if not semver version, bypass check kubernetes version.
+	if version2.IsOfficialKubeVelaVersion(k8sVersion.GitVersion) {
+		res, err := checkSemVer(k8sVersion.GitVersion, require.KubernetesVersion)
+		if err != nil {
+			return err
+		}
+
+		if !res {
+			return fmt.Errorf("the kubernetes version %s cannot meet require", k8sVersion.GitVersion)
+		}
 	}
 
-	res, err = checkSemVer(k8sVersion.GitVersion, require.KubernetesVersion)
-	if err != nil {
-		return err
-	}
-
-	if !res {
-		return fmt.Errorf("the kubernetes version %s cannot meet require", k8sVersion.GitVersion)
-	}
 	return nil
 }
 
