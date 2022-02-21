@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/version"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
@@ -34,6 +32,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/oam-dev/kubevela/version"
 )
 
 var defaultCacheDir = filepath.Join(homedir.HomeDir(), ".kube", "http-cache")
@@ -172,5 +172,8 @@ func computeDiscoverCacheDir(parentDir, host string) string {
 
 // GenerateLeaderElectionID returns the Leader Election ID.
 func GenerateLeaderElectionID(name string, versionedDeploy bool) string {
-	return name + "-" + strings.ToLower(strings.ReplaceAll(version.VelaVersion, ".", "z"))
+	if versionedDeploy {
+		return name + "-" + strings.ToLower(strings.ReplaceAll(version.VelaVersion, ".", "-"))
+	}
+	return name
 }
