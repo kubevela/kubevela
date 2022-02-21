@@ -889,7 +889,7 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
 	h.addon = addon
-	err = checkAddonVersionMeetRequired(h.ctx, addon.RequireVersions, h.cli, h.dc)
+	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
 		return err
 	}
@@ -1119,7 +1119,7 @@ func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName stri
 // checkAddonVersionMeetRequired will check the version of cli/ux and kubevela-core-controller whether meet the addon requirement, if not will return an error
 // please notice that this func is for check production environment which vela cli/ux or vela core is officalVersion
 // if version is for test or debug eg: latest/commit-id/branch-name this func will return nil error
-func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions, k8sClient client.Client, dc *discovery.DiscoveryClient) error {
+func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequirements, k8sClient client.Client, dc *discovery.DiscoveryClient) error {
 	if require == nil {
 		return nil
 	}
@@ -1180,8 +1180,8 @@ func checkSemVer(actual string, require string) (bool, error) {
 		return true, nil
 	}
 	smeVer := strings.TrimPrefix(actual, "v")
-	l := strings.Split(require, "v")
-	constraint, err := version.NewConstraint(strings.Join(l, " "))
+	l := strings.ReplaceAll(require, "v", " ")
+	constraint, err := version.NewConstraint(l)
 	if err != nil {
 		return false, err
 	}

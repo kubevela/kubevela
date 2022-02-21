@@ -702,6 +702,26 @@ func TestCheckSemVer(t *testing.T) {
 			require: "",
 			res:     true,
 		},
+		{
+			actual:  "v1.2.2",
+			require: "<=v1.2.3, >=v1.2.1",
+			res:     true,
+		},
+		{
+			actual:  "v1.2.0",
+			require: "v1.2.0, <=v1.2.3",
+			res:     true,
+		},
+		{
+			actual:  "1.2.2",
+			require: "v1.2.2",
+			res:     true,
+		},
+		{
+			actual:  "1.2.02",
+			require: "v1.2.2",
+			res:     true,
+		},
 	}
 	for _, testCase := range testCases {
 		result, err := checkSemVer(testCase.actual, testCase.require)
@@ -717,13 +737,13 @@ func TestCheckAddonVersionMeetRequired(t *testing.T) {
 		}),
 	}
 	ctx := context.Background()
-	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil))
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 
 	version2.VelaVersion = "v1.2.3"
-	if err := checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil); err == nil {
+	if err := checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil); err == nil {
 		assert.Error(t, fmt.Errorf("should meet error"))
 	}
 
 	version2.VelaVersion = "v1.2.4"
-	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil))
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 }

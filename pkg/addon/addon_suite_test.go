@@ -211,13 +211,13 @@ var _ = Describe("Addon func test", func() {
 
 	It("checkAddonVersionMeetRequired func test", func() {
 		deploy = appsv1.Deployment{}
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
 		deploy.SetNamespace(types.DefaultKubeVelaNS)
 		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
 
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(BeNil())
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.4"}, k8sClient, dc)).ShouldNot(BeNil())
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(BeNil())
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.4"}, k8sClient, dc)).ShouldNot(BeNil())
 	})
 })
 
