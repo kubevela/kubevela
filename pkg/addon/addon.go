@@ -29,17 +29,13 @@ import (
 	"text/template"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-
-	version2 "github.com/oam-dev/kubevela/version"
-
-	"github.com/hashicorp/go-version"
-
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,6 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -66,6 +63,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	version2 "github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -871,10 +869,11 @@ type Installer struct {
 	registryMeta map[string]SourceMeta
 	args         map[string]interface{}
 	cache        *Cache
+	dc           *discovery.DiscoveryClient
 }
 
 // NewAddonInstaller will create an installer for addon
-func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
+func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
 	return Installer{
 		ctx:    ctx,
 		config: config,
@@ -883,13 +882,14 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Appli
 		r:      r,
 		args:   args,
 		cache:  cache,
+		dc:     discoveryClient,
 	}
 }
 
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
 	h.addon = addon
-	err = checkAddonVersionMeetRequired(h.ctx, addon.RequireVersions, h.cli)
+	err = checkAddonVersionMeetRequired(h.ctx, addon.RequireVersions, h.cli, h.dc)
 	if err != nil {
 		return err
 	}
@@ -1119,13 +1119,13 @@ func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName stri
 // checkAddonVersionMeetRequired will check the version of cli/ux and kubevela-core-controller whether meet the addon requirement, if not will return an error
 // please notice that this func is for check production environment which vela cli/ux or vela core is officalVersion
 // if version is for test or debug eg: latest/commit-id/branch-name this func will return nil error
-func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions, k8sClient client.Client) error {
+func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions, k8sClient client.Client, dc *discovery.DiscoveryClient) error {
 	if require == nil {
 		return nil
 	}
 
 	if !version2.IsOfficialKubeVelaVersion(version2.VelaVersion) {
-		//bypass {branch name/git commit id/UNKNOWN} for test
+		// bypass {branch name/git commit id/UNKNOWN} for test
 		return nil
 	}
 
@@ -1144,7 +1144,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions
 	}
 
 	if !version2.IsOfficialKubeVelaVersion(imageVersion) {
-		//bypass {branch name/git commit id/UNKNOWN} for test
+		// bypass {branch name/git commit id/UNKNOWN} for test
 		return nil
 	}
 
@@ -1154,6 +1154,23 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *RequireVersions
 	}
 	if !res {
 		return fmt.Errorf("the vela core controller: %s cannot meet require ", imageVersion)
+	}
+
+	k8sVersion, err := dc.ServerVersion()
+	if err != nil {
+		return err
+	}
+	if !version2.IsOfficialKubeVelaVersion(k8sVersion.GitVersion) {
+		return nil
+	}
+
+	res, err = checkSemVer(k8sVersion.GitVersion, require.KubernetesVersion)
+	if err != nil {
+		return err
+	}
+
+	if !res {
+		return fmt.Errorf("the kubernetes version %s cannot meet require", k8sVersion.GitVersion)
 	}
 	return nil
 }

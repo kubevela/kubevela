@@ -717,13 +717,13 @@ func TestCheckAddonVersionMeetRequired(t *testing.T) {
 		}),
 	}
 	ctx := context.Background()
-	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient))
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 
 	version2.VelaVersion = "v1.2.3"
-	if err := checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient); err == nil {
+	if err := checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil); err == nil {
 		assert.Error(t, fmt.Errorf("should meet error"))
 	}
 
 	version2.VelaVersion = "v1.2.4"
-	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient))
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 }

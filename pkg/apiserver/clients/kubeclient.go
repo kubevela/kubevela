@@ -17,6 +17,7 @@ limitations under the License.
 package clients
 
 import (
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -83,4 +84,17 @@ func GetPackageDiscover() (*packages.PackageDiscover, error) {
 		}
 	}
 	return pd, nil
+}
+
+// GetDiscoveryClient return a discovery client
+func GetDiscoveryClient() (*discovery.DiscoveryClient, error) {
+	conf, err := GetKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(conf)
+	if err != nil {
+		return nil, err
+	}
+	return dc, nil
 }

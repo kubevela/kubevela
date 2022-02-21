@@ -64,7 +64,7 @@ type Meta struct {
 	Dependencies    []*Dependency    `json:"dependencies,omitempty"`
 	NeedNamespace   []string         `json:"needNamespace,omitempty"`
 	Invisible       bool             `json:"invisible"`
-	RequireVersions *RequireVersions `json:"require,omitempty"`
+	RequireVersions *RequireVersions `json:"system,omitempty"`
 }
 
 // DeployTo defines where the addon to deploy to

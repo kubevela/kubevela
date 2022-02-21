@@ -21,9 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/oam-dev/kubevela/apis/types"
 	appsv1 "k8s.io/api/apps/v1"
 
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -35,6 +32,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Addon test", func() {
@@ -212,13 +211,13 @@ var _ = Describe("Addon func test", func() {
 
 	It("checkAddonVersionMeetRequired func test", func() {
 		deploy = appsv1.Deployment{}
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient)).Should(util.NotFoundMatcher{})
+		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
 		deploy.SetNamespace(types.DefaultKubeVelaNS)
 		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
 
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient)).Should(BeNil())
-		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.4"}, k8sClient)).ShouldNot(BeNil())
+		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(BeNil())
+		Expect(checkAddonVersionMeetRequired(ctx, &RequireVersions{VelaVersion: ">=v1.2.4"}, k8sClient, dc)).ShouldNot(BeNil())
 	})
 })
 
