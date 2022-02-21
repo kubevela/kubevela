@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
@@ -58,6 +59,13 @@ func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryC
 	pkg, err := h.loadInstallPackage(name)
 	if err != nil {
 		return err
+	}
+	if strings.HasPrefix(pkg.Meta.Name, "terraform-") {
+		if len(args) > 0 {
+			return fmt.Errorf("%s addon does not support args, please set args in `vela provider`", pkg.Meta.Name)
+		}
+		pkg.Parameters = ""
+		pkg.CUETemplates = nil
 	}
 	err = h.enableAddon(pkg)
 	if err != nil {
