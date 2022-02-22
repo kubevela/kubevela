@@ -18,7 +18,7 @@ FAIL=false
 
 for file in $(git ls-files | grep "\.go$" | grep -v vendor/); do
   echo -n "Header check: $file... "
-  if [[ -z $(cat ${file} | grep  "Copyright [0-9]\{4\}.\? The KubeVela Authors") && -z $(cat ${file} | grep "Copyright [0-9]\{4\} The Crossplane Authors") ]]; then
+  if [[ -z $(cat ${file} | grep  "Copyright [0-9]\{4\}\(-[0-9]\{4\}\)\?.\? The KubeVela Authors") && -z $(cat ${file} | grep "Copyright [0-9]\{4\} The Crossplane Authors") ]]; then
       ERR=true
   fi
   if [ $ERR == true ]; then

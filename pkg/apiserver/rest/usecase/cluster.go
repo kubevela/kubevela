@@ -33,6 +33,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -198,14 +199,14 @@ func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client,
 	defer func() {
 		_ = os.Remove(tmpFileName)
 	}()
-	cluster, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName)
+	clusterConfig, err := multicluster.JoinClusterByKubeConfig(ctx, k8sClient, tmpFileName, clusterName, multicluster.JoinClusterCreateNamespaceOption(velatypes.DefaultKubeVelaNS))
 	if err != nil {
 		if errors.Is(err, multicluster.ErrClusterExists) {
 			return "", bcode.ErrClusterExistsInKubernetes
 		}
 		return "", errors.Wrapf(err, "failed to join cluster")
 	}
-	return cluster.Server, nil
+	return clusterConfig.Cluster.Server, nil
 }
 
 func createClusterModelFromRequest(req apis.CreateClusterRequest, oldCluster *model.Cluster) (newCluster *model.Cluster) {
