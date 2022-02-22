@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Ref-objects allow users to specify ref objects to use. Notice that this component type have special handle logic.
   name: ref-objects
-  namespace: {{.Values.systemDefinitionNamespace}}
+  namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   schematic:
     cue:
