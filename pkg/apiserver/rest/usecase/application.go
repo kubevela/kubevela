@@ -1343,7 +1343,7 @@ func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Appl
 	return &apisv1.ApplicationStatisticsResponse{
 		EnvCount:      int64(len(envbinding)),
 		TargetCount:   int64(len(targetMap)),
-		RevisonCount:  count,
+		RevisionCount: count,
 		WorkflowCount: c.workflowUsecase.CountWorkflow(ctx, app),
 	}, nil
 }
