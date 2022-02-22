@@ -188,13 +188,13 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 			}
 			if topologySpec.Clusters != nil {
 				for _, cluster := range topologySpec.Clusters {
-					if err = clustermanager.EnsureClusterExists(p, cluster); err != nil {
+					if _, err = multicluster.GetVirtualCluster(context.Background(), p, cluster); err != nil {
 						return errors.Wrapf(err, "failed to get cluster %s in topology %s", cluster, policy.Name)
 					}
 					addCluster(cluster)
 				}
 			} else if topologySpec.ClusterSelector != nil {
-				clusters, err := clustermanager.GetRegisteredClustersWithLabels(p, topologySpec.ClusterSelector)
+				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, topologySpec.ClusterSelector)
 				if err != nil {
 					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
