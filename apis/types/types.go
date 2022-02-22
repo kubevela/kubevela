@@ -114,11 +114,3 @@ var DefaultFilterAnnots = []string{
 	oam.AnnotationFilterAnnotationKeys,
 	oam.AnnotationLastAppliedConfiguration,
 }
-
-// Cluster contains base info of cluster
-type Cluster struct {
-	Name     string
-	Type     string
-	EndPoint string
-	Accepted bool
-}
