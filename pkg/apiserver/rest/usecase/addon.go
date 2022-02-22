@@ -371,6 +371,10 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 			continue
 		}
 
+		// wrap this error with special bcode
+		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+			return bcode.ErrAddonSystemVersionMismatch
+		}
 		// except `addon not found`, other errors should return directly
 		return err
 	}
@@ -428,9 +432,17 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 		if err == nil {
 			return nil
 		}
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-			return bcode.WrapGithubRateLimitErr(err)
+
+		if errors.Is(err, pkgaddon.ErrNotExist) {
+			continue
 		}
+
+		// wrap this error with special bcode
+		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+			return bcode.ErrAddonSystemVersionMismatch
+		}
+		// except `addon not found`, other errors should return directly
+		return err
 	}
 	return bcode.ErrAddonNotExist
 }

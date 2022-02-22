@@ -35,6 +35,9 @@ var (
 
 	// ErrNotExist  means addon not exists
 	ErrNotExist = NewAddonError("addon not exist")
+
+	// ErrVersionMismatch  means addon version requirement mismatch
+	ErrVersionMismatch = NewAddonError("addon version requirements mismatch")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

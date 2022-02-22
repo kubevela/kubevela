@@ -891,7 +891,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	h.addon = addon
 	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
-		return err
+		return ErrVersionMismatch
 	}
 
 	if err = h.installDependency(addon); err != nil {
