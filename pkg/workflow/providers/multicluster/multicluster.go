@@ -18,7 +18,6 @@ package multicluster
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -183,7 +183,7 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 	for _, policy := range *policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
 			topologySpec := &v1alpha1.TopologyPolicySpec{}
-			if err := json.Unmarshal(policy.Properties.Raw, topologySpec); err != nil {
+			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
 				return errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
 			}
 			if topologySpec.Clusters != nil {
@@ -227,7 +227,7 @@ func (p *provider) OverrideConfiguration(ctx wfContext.Context, v *value.Value, 
 	for _, policy := range *policies {
 		if policy.Type == v1alpha1.OverridePolicyType {
 			overrideSpec := &v1alpha1.OverridePolicySpec{}
-			if err := json.Unmarshal(policy.Properties.Raw, overrideSpec); err != nil {
+			if err = utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
 				return errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
 			}
 			components, err = envbinding.PatchComponents(components, overrideSpec.Components, overrideSpec.Selector)

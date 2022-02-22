@@ -10,8 +10,8 @@
 }
 template: {
 	parameter: {
-		container: *"" | string
-		image: string
+		container:       *"" | string
+		image:           string
 		imagePullPolicy: *"IfNotPresent" | "Always" | "Never"
 	}
 	// +patchStrategy=retainKeys
@@ -24,8 +24,9 @@ template: {
 			if parameter.container == "" {
 				name: context.name
 			}
+
 			// +patchStrategy=retainKeys
-			image: parameter.image
+			image:           parameter.image
 			imagePullPolicy: parameter.imagePullPolicy
 		}]
 	}

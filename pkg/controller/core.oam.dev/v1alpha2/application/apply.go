@@ -253,8 +253,12 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, namespace); !ok || err != nil {
 			isHealth = false
 			traitStatus.Healthy = false
+			status.Healthy = false
 		}
 		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, namespace)
+		if status.Message == "" && traitStatus.Message != "" {
+			status.Message = traitStatus.Message
+		}
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
 		}

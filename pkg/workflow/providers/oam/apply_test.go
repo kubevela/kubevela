@@ -231,57 +231,57 @@ func TestLoadDynamicComponent(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithRuntimeObjects(&unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "apps/v1",
-			"kind": "Deployment",
+			"kind":       "Deployment",
 			"metadata": map[string]interface{}{
-				"name": "dynamic",
+				"name":      "dynamic",
 				"namespace": "test",
 			},
 		},
 	}).Build()
-	testcases := map[string]struct{
-		Input *common.ApplicationComponent
+	testcases := map[string]struct {
+		Input  *common.ApplicationComponent
 		Output *common.ApplicationComponent
-		Error string
+		Error  string
 	}{
 		"normal": {
 			Input: &common.ApplicationComponent{
-				Type: "ref-objects",
+				Type:       "ref-objects",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"dynamic"}]}`)},
 			},
 			Output: &common.ApplicationComponent{
-				Type: "ref-objects",
+				Type:       "ref-objects",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"dynamic","namespace":"test"}}]}`)},
 			},
 		},
 		"bad-properties": {
 			Input: &common.ApplicationComponent{
-				Type: "ref-objects",
+				Type:       "ref-objects",
 				Properties: &runtime.RawExtension{Raw: []byte(`{bad}`)},
 			},
 			Error: "invalid properties for ref-objects",
 		},
 		"name-and-selector-both-set": {
 			Input: &common.ApplicationComponent{
-				Type: "ref-objects",
+				Type:       "ref-objects",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"dynamic","selector":{"key":"value"}}]}`)},
 			},
 			Error: "invalid properties for ref-objects, name and selector cannot be both set",
 		},
 		"empty-ref-object-name": {
 			Input: &common.ApplicationComponent{
-				Type: "ref-objects",
-				Name: "dynamic",
+				Type:       "ref-objects",
+				Name:       "dynamic",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment"}]}`)},
 			},
 			Output: &common.ApplicationComponent{
-				Type: "ref-objects",
-				Name: "dynamic",
+				Type:       "ref-objects",
+				Name:       "dynamic",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"dynamic","namespace":"test"}}]}`)},
 			},
 		},
 		"cannot-find-ref-object": {
 			Input: &common.ApplicationComponent{
-				Type: "ref-objects",
+				Type:       "ref-objects",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"static"}]}`)},
 			},
 			Error: "failed to load ref object",
