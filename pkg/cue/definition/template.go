@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
@@ -346,6 +347,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		p, err := model.NewOther(patcher)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
+		}
+		if sets.IsOpenPatch(patcher) {
+			if err := base.Open(); err != nil {
+				return errors.WithMessagef(err, "cannot convert base to open struct")
+			}
 		}
 		if err := base.Unify(p); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)

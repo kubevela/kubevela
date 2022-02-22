@@ -37,6 +37,7 @@ type Instance interface {
 	IsBase() bool
 	Unify(other Instance) error
 	Compile() ([]byte, error)
+	Open() error
 }
 
 type instance struct {
@@ -94,6 +95,16 @@ func (inst *instance) Unify(other Instance) error {
 		return err
 	}
 	inst.v = pv
+	return nil
+}
+
+// Open convert instance value to open
+func (inst *instance) Open() error {
+	open, err := sets.OpenBaiscLit(inst.v)
+	if err != nil {
+		return err
+	}
+	inst.v = open
 	return nil
 }
 

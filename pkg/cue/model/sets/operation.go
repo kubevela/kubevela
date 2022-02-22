@@ -33,6 +33,8 @@ const (
 
 	// StrategyRetainKeys notes on the strategic merge patch using the retainKeys strategy
 	StrategyRetainKeys = "retainKeys"
+	// StrategyOpen notes on the strategic merge patch will allow any merge
+	StrategyOpen = "open"
 )
 
 var (
@@ -171,6 +173,17 @@ func isStrategyRetainKeys(node *ast.Field) bool {
 	tags := findCommentTag(node.Comments())
 	for tk, tv := range tags {
 		if tk == TagPatchStrategy && tv == StrategyRetainKeys {
+			return true
+		}
+	}
+	return false
+}
+
+// IsOpenPatch check if patcher has open annotation
+func IsOpenPatch(patcher cue.Value) bool {
+	tags := findCommentTag(patcher.Doc())
+	for tk, tv := range tags {
+		if tk == TagPatchStrategy && tv == StrategyOpen {
 			return true
 		}
 	}

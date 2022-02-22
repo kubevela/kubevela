@@ -237,6 +237,19 @@ func TestLoadDynamicComponent(t *testing.T) {
 				"namespace": "test",
 			},
 		},
+	}, &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"name":       "dynamic",
+				"namespace":  "test",
+				"generation": int64(5),
+			},
+			"spec": map[string]interface{}{
+				"clusterIP": "something",
+			},
+		},
 	}).Build()
 	testcases := map[string]struct {
 		Input  *common.ApplicationComponent
@@ -285,6 +298,16 @@ func TestLoadDynamicComponent(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"apps/v1","kind":"Deployment","name":"static"}]}`)},
 			},
 			Error: "failed to load ref object",
+		},
+		"modify-service": {
+			Input: &common.ApplicationComponent{
+				Type:       "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"Service","name":"dynamic"}]}`)},
+			},
+			Output: &common.ApplicationComponent{
+				Type:       "ref-objects",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"Service","metadata":{"name":"dynamic","namespace":"test"},"spec":{}}]}`)},
+			},
 		},
 	}
 	p := provider{app: &v1beta1.Application{}, cli: cli}
