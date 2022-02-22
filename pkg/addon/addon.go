@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -84,6 +83,9 @@ const (
 
 	// DefSchemaName is the addon definition schemas dir name
 	DefSchemaName string = "schemas"
+
+	// AddonParameterDataKey is the key of parameter in addon args secrets
+	AddonParameterDataKey string = "addonParameterDataKey"
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
@@ -828,14 +830,9 @@ func Convert2AppName(name string) string {
 
 // RenderArgsSecret render addon enable argument to secret
 func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstructured.Unstructured {
-	data := make(map[string]string)
-	for k, v := range args {
-		switch v := v.(type) {
-		case bool:
-			data[k] = strconv.FormatBool(v)
-		default:
-			data[k] = fmt.Sprintf("%v", v)
-		}
+	argsByte, err := json.Marshal(args)
+	if err != nil {
+		return nil
 	}
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
@@ -843,8 +840,10 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 			Name:      Convert2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
-		StringData: data,
-		Type:       v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			AddonParameterDataKey: argsByte,
+		},
+		Type: v1.SecretTypeOpaque,
 	}
 	u, err := util.Object2Unstructured(sec)
 	if err != nil {
