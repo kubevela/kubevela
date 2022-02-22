@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -218,6 +219,14 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 			un.SetDeletionTimestamp(nil)
 			un.SetManagedFields(nil)
 			un.SetUID("")
+			unstructured.RemoveNestedField(un.Object, "status")
+			// TODO(somefive): make the following logic more generalizable
+			if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
+				if clusterIP, exist, _ := unstructured.NestedString(un.Object, "spec", "clusterIP"); exist && clusterIP != corev1.ClusterIPNone {
+					unstructured.RemoveNestedField(un.Object, "spec", "clusterIP")
+					unstructured.RemoveNestedField(un.Object, "spec", "clusterIPs")
+				}
+			}
 			objects = append(objects, un)
 		}
 		for _, obj := range props.Objects {

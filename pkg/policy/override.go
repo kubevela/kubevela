@@ -27,7 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ParseOverridePolicyRelatedDefinitions get definitions inside override policy
@@ -49,7 +49,7 @@ func ParseOverridePolicyRelatedDefinitions(ctx context.Context, cli client.Clien
 		}
 	}
 	getDef := func(name string, _type string, obj client.Object) error {
-		err = cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: name}, obj)
+		err = cli.Get(ctx, types.NamespacedName{Namespace: oam.SystemDefinitonNamespace, Name: name}, obj)
 		if err != nil && errors2.IsNotFound(err) {
 			err = cli.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: name}, obj)
 		}
