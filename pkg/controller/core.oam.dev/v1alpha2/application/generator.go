@@ -67,7 +67,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
-	pCtx := process.NewContext(app.Namespace, app.Name, app.Name, appRev.Name, app.Annotations)
+	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
 	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm, pCtx)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
@@ -293,4 +293,18 @@ func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {
 		id = utils.RandomString(10)
 	}
 	return id
+}
+
+func generateContextDataFromApp(app *v1beta1.Application, appRev string) process.ContextData {
+	data := process.ContextData{
+		Namespace:       app.Namespace,
+		AppName:         app.Name,
+		CompName:        app.Name,
+		AppRevisionName: appRev,
+	}
+	if app.Annotations != nil {
+		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
+		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	return data
 }

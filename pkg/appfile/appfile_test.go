@@ -874,7 +874,12 @@ variable "password" {
 			revision: "v1",
 		}
 
-		pCtx := NewBasicContext(args.appName, args.wl.Name, args.revision, ns, args.wl.Params, nil)
+		ctxData := GenerateContextDataWithCtx(context.Background(), &Appfile{
+			Name:            args.appName,
+			Namespace:       ns,
+			AppRevisionName: args.revision,
+		}, args.wl.Name)
+		pCtx := NewBasicContext(ctxData, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
@@ -1332,10 +1337,15 @@ func TestBaseGenerateComponent(t *testing.T) {
 	var wlName = "my-wl-1"
 	var workflowName = "my-wf"
 	var publishVersion = "123"
-	pContext := NewBasicContext(appName, wlName, "rev-1", ns, nil, map[string]string{
-		oam.AnnotationWorkflowName:   workflowName,
-		oam.AnnotationPublishVersion: publishVersion,
-	})
+	ctxData := GenerateContextDataWithCtx(context.Background(), &Appfile{
+		Name:      appName,
+		Namespace: ns,
+		AppAnnotations: map[string]string{
+			oam.AnnotationWorkflowName:   workflowName,
+			oam.AnnotationPublishVersion: publishVersion,
+		},
+	}, wlName)
+	pContext := NewBasicContext(ctxData, nil)
 	base := `
 	apiVersion: "apps/v1"
 	kind:       "Deployment"

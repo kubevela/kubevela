@@ -47,7 +47,12 @@ func TestDiscover(t *testing.T) {
 			return "", makeErr(name)
 		}
 	}
-	pCtx := process.NewContext("default", "test", "test", "test-v1", nil)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,

@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -33,7 +34,8 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		if wl.CapabilityCategory != types.CUECategory {
 			continue
 		}
-		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace, a.app.Annotations)
+		ctxData := GenerateContextDataWithCtx(context.Background(), a, wl.Name)
+		pCtx, err := newValidationProcessContext(wl, ctxData)
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
@@ -49,7 +51,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 	return nil
 }
 
-func newValidationProcessContext(wl *Workload, appName, revisionName, ns string, anno map[string]string) (process.Context, error) {
+func newValidationProcessContext(wl *Workload, ctxData process.ContextData) (process.Context, error) {
 	baseHooks := []process.BaseHook{
 		// add more hook funcs here to validate CUE base
 	}
@@ -58,9 +60,11 @@ func newValidationProcessContext(wl *Workload, appName, revisionName, ns string,
 		validateAuxiliaryNameUnique(),
 	}
 
-	pCtx := process.NewContextWithHooks(ns, wl.Name, appName, revisionName, baseHooks, auxiliaryHooks, anno)
+	ctxData.BaseHooks = baseHooks
+	ctxData.AuxiliaryHooks = auxiliaryHooks
+	pCtx := process.NewContext(ctxData)
 	if err := wl.EvalContext(pCtx); err != nil {
-		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
+		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
 	return pCtx, nil
 }

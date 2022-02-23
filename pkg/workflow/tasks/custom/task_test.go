@@ -76,7 +76,12 @@ myIP: value: "1.1.1.1"
 		},
 	})
 
-	pCtx := process.NewContext("default", "test", "test", "test-v1", nil)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
 	steps := []v1beta1.WorkflowStep{
@@ -180,7 +185,12 @@ close({
 			return errors.New("mock error")
 		},
 	})
-	pCtx := process.NewContext("default", "test", "test", "test-v1", nil)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
 	steps := []v1beta1.WorkflowStep{
@@ -417,7 +427,12 @@ func TestPendingInputCheck(t *testing.T) {
 			ParameterKey: "score",
 		}},
 	}
-	pCtx := process.NewContext("default", "test", "test", "test-v1", nil)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
@@ -447,7 +462,12 @@ func TestPendingDependsOnCheck(t *testing.T) {
 		Type:      "ok",
 		DependsOn: []string{"depend"},
 	}
-	pCtx := process.NewContext("default", "test", "test", "test-v1", nil)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)

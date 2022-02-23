@@ -83,7 +83,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		Outputs:    queryKey.Outputs,
 	}
 
-	pCtx := process.NewContext("", "", "", "", nil)
+	pCtx := process.NewContext(process.ContextData{})
 	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.cfg, handler.dispatch, handler.delete, handler.namespace, 3, pCtx)
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, handler.viewTask.Type)
 	if err != nil {

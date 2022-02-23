@@ -23,7 +23,6 @@ import (
 	"github.com/bmizerany/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestContext(t *testing.T) {
@@ -101,9 +100,13 @@ image: "myserver"
 		},
 	}
 
-	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1", map[string]string{
-		oam.AnnotationWorkflowName:   "myworkflow",
-		oam.AnnotationPublishVersion: "mypublishversion",
+	ctx := NewContext(ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+		WorkflowName:    "myworkflow",
+		PublishVersion:  "mypublishversion",
 	})
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
