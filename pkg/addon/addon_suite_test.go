@@ -23,6 +23,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -219,6 +221,53 @@ var _ = Describe("Addon func test", func() {
 		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(BeNil())
 		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.4"}, k8sClient, dc)).ShouldNot(BeNil())
 	})
+})
+
+var _ = Describe("Test addon util func", func() {
+
+	It("test render and fetch args", func() {
+		i := InstallPackage{Meta: Meta{Name: "test-addon"}}
+		args := map[string]interface{}{
+			"imagePullSecrets": []string{
+				"myreg", "myreg1",
+			},
+		}
+		u := RenderArgsSecret(&i, args)
+		secName := u.GetName()
+		secNs := u.GetNamespace()
+		Expect(k8sClient.Create(ctx, u)).Should(BeNil())
+
+		sec := v1.Secret{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: secNs, Name: secName}, &sec)).Should(BeNil())
+		res, err := FetchArgsFromSecret(&sec)
+		Expect(err).Should(BeNil())
+		Expect(res).Should(BeEquivalentTo(map[string]interface{}{"imagePullSecrets": []interface{}{"myreg", "myreg1"}}))
+	})
+
+	It("test render and fetch args backward compatibility", func() {
+		secArgs := v1.Secret{
+			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      Convert2SecName("test-addon-old-args"),
+				Namespace: types.DefaultKubeVelaNS,
+			},
+			StringData: map[string]string{
+				"repo": "www.test.com",
+				"tag":  "v1.3.1",
+			},
+			Type: v1.SecretTypeOpaque,
+		}
+		secName := secArgs.GetName()
+		secNs := secArgs.GetNamespace()
+		Expect(k8sClient.Create(ctx, &secArgs)).Should(BeNil())
+
+		sec := v1.Secret{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: secNs, Name: secName}, &sec)).Should(BeNil())
+		res, err := FetchArgsFromSecret(&sec)
+		Expect(err).Should(BeNil())
+		Expect(res).Should(BeEquivalentTo(map[string]interface{}{"repo": "www.test.com", "tag": "v1.3.1"}))
+	})
+
 })
 
 const (
