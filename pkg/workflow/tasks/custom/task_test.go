@@ -77,10 +77,10 @@ myIP: value: "1.1.1.1"
 	})
 
 	pCtx := process.NewContext(process.ContextData{
-		AppName:         "myapp",
-		CompName:        "mycomp",
+		AppName:         "app",
+		CompName:        "app",
 		Namespace:       "default",
-		AppRevisionName: "myapp-v1",
+		AppRevisionName: "app-v1",
 	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
@@ -186,10 +186,10 @@ close({
 		},
 	})
 	pCtx := process.NewContext(process.ContextData{
-		AppName:         "myapp",
-		CompName:        "mycomp",
+		AppName:         "app",
+		CompName:        "app",
 		Namespace:       "default",
-		AppRevisionName: "myapp-v1",
+		AppRevisionName: "app-v1",
 	})
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 

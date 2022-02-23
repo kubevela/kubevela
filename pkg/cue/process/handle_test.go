@@ -103,7 +103,7 @@ image: "myserver"
 	ctx := NewContext(ContextData{
 		AppName:         "myapp",
 		CompName:        "mycomp",
-		Namespace:       "default",
+		Namespace:       "myns",
 		AppRevisionName: "myapp-v1",
 		WorkflowName:    "myworkflow",
 		PublishVersion:  "mypublishversion",
