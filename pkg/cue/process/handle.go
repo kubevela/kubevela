@@ -42,7 +42,6 @@ type Context interface {
 	PushData(key string, data interface{})
 	GetCtx() context.Context
 	SetCtx(context.Context)
-	SetHooks(baseHooks []BaseHook, auxHooks []AuxiliaryHook)
 }
 
 // Auxiliary are objects rendered by definition template.
@@ -287,15 +286,6 @@ func (ctx *templateContext) SetCtx(newContext context.Context) {
 		return
 	}
 	ctx.ctx = newContext
-}
-
-func (ctx *templateContext) SetHooks(baseHooks []BaseHook, auxHooks []AuxiliaryHook) {
-	ctx.baseHooks = baseHooks
-	ctx.auxiliaryHooks = auxHooks
-}
-
-func (ctx *templateContext) SetComponents(components []common.ApplicationComponent) {
-	ctx.components = components
 }
 
 func structMarshal(v string) string {
