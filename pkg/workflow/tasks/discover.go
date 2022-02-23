@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -74,7 +75,7 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 }
 
 // NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper) types.TaskDiscover {
+func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	email.Install(providerHandlers)
@@ -85,7 +86,7 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers, 0),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers, 0, pCtx),
 		templateLoader:     templateLoader,
 	}
 }
@@ -116,7 +117,7 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 }
 
 // NewViewTaskDiscover will create a client for load task generator.
-func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string, logLevel int) types.TaskDiscover {
+func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string, logLevel int, pCtx process.Context) types.TaskDiscover {
 	handlerProviders := providers.NewProviders()
 
 	// install builtin provider
@@ -128,7 +129,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 
 	templateLoader := template.NewViewTemplateLoader(cli, viewNs)
 	return &taskDiscover{
-		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel),
+		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
 		templateLoader:     templateLoader,
 	}
 }
