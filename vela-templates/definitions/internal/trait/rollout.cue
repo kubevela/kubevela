@@ -44,13 +44,9 @@ template: {
 	}
 
 	parameter: {
-		// +usage=Specify the target revision, it should be set if you want to rollback. such as: componentname-v1
 		targetRevision?: string
-		// +usage=Specify the count of replicas.
-		targetSize: int
-		// +usage=Specify the rollout batches, The total number of replicas of all batches needs to be equal to number of targetSize.
+		targetSize:      int
 		rolloutBatches?: [...rolloutBatch]
-		// +usage=Specify the batch partition in current deploying. It is used to control batch processes.
 		batchPartition?: int
 	}
 

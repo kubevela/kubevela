@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: oamdev/vela-rollout
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
