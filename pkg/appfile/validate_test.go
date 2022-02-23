@@ -17,6 +17,8 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
@@ -58,7 +60,13 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			},
 			engine: definition.NewWorkloadAbstractEngine("myweb", pd),
 		}
-		pCtx, err := newValidationProcessContext(wl, "myapp", "myapp-v1", "test-ns", nil)
+
+		ctxData := GenerateContextDataWithCtx(context.Background(), &Appfile{
+			Name:            "myapp",
+			Namespace:       "test-ns",
+			AppRevisionName: "myapp-v1",
+		}, wl.Name)
+		pCtx, err := newValidationProcessContext(wl, ctxData)
 		Expect(err).Should(BeNil())
 		Eventually(func() string {
 			for _, tr := range wl.Traits {

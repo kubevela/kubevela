@@ -224,7 +224,8 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 }
 
 func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
-	un, err := generateUnstructuredFromCUEModule(workload, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts, af.AppAnnotations)
+	ctxData := GenerateContextDataWithCtx(context.Background(), af, workload.Name)
+	un, err := generateUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
 	if err != nil {
 		return nil, err
 	}
@@ -235,13 +236,13 @@ func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstr
 	return un, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest, anno map[string]string) (*unstructured.Unstructured, error) {
-	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components, anno)
+func generateUnstructuredFromCUEModule(wl *Workload, artifacts []*types.ComponentManifest, ctxData process.ContextData) (*unstructured.Unstructured, error) {
+	pCtx := process.NewContext(ctxData)
 	pCtx.PushData(model.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
-		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
+		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
-	return makeWorkloadWithContext(pCtx, wl, ns, appName)
+	return makeWorkloadWithContext(pCtx, wl, ctxData.Namespace, ctxData.AppName)
 }
 
 // artifacts contains resources in unstructured shape of all components
@@ -292,17 +293,18 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
+	ctxData := GenerateContextDataWithCtx(context.Background(), af, wl.Name)
 	// generate context here to avoid nil pointer panic
-	wl.Ctx = NewBasicContext(af.Name, wl.Name, af.AppRevisionName, af.Namespace, wl.Params, af.AppAnnotations)
+	wl.Ctx = NewBasicContext(GenerateContextDataWithCtx(context.Background(), af, wl.Name), wl.Params)
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
+		return generateComponentFromHelmModule(wl, ctxData)
 	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
+		return generateComponentFromKubeModule(wl, ctxData)
 	case types.TerraformCategory:
 		return generateComponentFromTerraformModule(wl, af.Name, af.Namespace)
 	default:
-		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
+		return generateComponentFromCUEModule(wl, ctxData)
 	}
 }
 
@@ -471,31 +473,31 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 }
 
 // PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string, anno map[string]string) (process.Context, error) {
+func PrepareProcessContext(wl *Workload, ctxData process.ContextData) (process.Context, error) {
 	if wl.Ctx == nil {
-		wl.Ctx = NewBasicContext(applicationName, wl.Name, revision, namespace, wl.Params, anno)
+		wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	}
 	if err := wl.EvalContext(wl.Ctx); err != nil {
-		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
+		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
 	return wl.Ctx, nil
 }
 
 // NewBasicContext prepares a basic DSL process Context
-func NewBasicContext(applicationName, workloadName, revision, namespace string, params map[string]interface{}, anno map[string]string) process.Context {
-	pCtx := process.NewContext(namespace, workloadName, applicationName, revision, anno)
+func NewBasicContext(contextData process.ContextData, params map[string]interface{}) process.Context {
+	pCtx := process.NewContext(contextData)
 	if params != nil {
 		pCtx.SetParameters(params)
 	}
 	return pCtx
 }
 
-func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
-	pCtx, err := PrepareProcessContext(wl, appName, revision, ns, anno)
+func generateComponentFromCUEModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
+	pCtx, err := PrepareProcessContext(wl, ctxData)
 	if err != nil {
 		return nil, err
 	}
-	return baseGenerateComponent(pCtx, wl, appName, ns)
+	return baseGenerateComponent(pCtx, wl, ctxData.AppName, ctxData.Namespace)
 }
 
 func generateComponentFromTerraformModule(wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
@@ -664,7 +666,7 @@ output: {
 	return templateStr, nil
 }
 
-func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
+func generateComponentFromKubeModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -672,7 +674,7 @@ func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string,
 	wl.FullTemplate.TemplateStr = templateStr
 
 	// re-use the way CUE module generates comp & acComp
-	compManifest, err := generateComponentFromCUEModule(wl, appName, revision, ns, anno)
+	compManifest, err := generateComponentFromCUEModule(wl, ctxData)
 	if err != nil {
 		return nil, err
 	}
@@ -839,7 +841,7 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 	return nil
 }
 
-func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
+func generateComponentFromHelmModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -849,22 +851,39 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string,
 	// re-use the way CUE module generates comp & acComp
 	compManifest := &types.ComponentManifest{
 		Name:             wl.Name,
-		Namespace:        ns,
+		Namespace:        ctxData.Namespace,
 		ExternalRevision: wl.ExternalRevision,
 		StandardWorkload: &unstructured.Unstructured{},
 	}
 
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
-		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns, anno)
+		compManifest, err = generateComponentFromCUEModule(wl, ctxData)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	rls, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)
+	rls, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, ctxData.AppName, ctxData.Namespace, wl.Params)
 	if err != nil {
 		return nil, err
 	}
 	compManifest.PackagedWorkloadResources = []*unstructured.Unstructured{rls, repo}
 	return compManifest, nil
+}
+
+// GenerateContextDataWithCtx generates process context data with context and appfile
+func GenerateContextDataWithCtx(ctx context.Context, appfile *Appfile, wlName string) process.ContextData {
+	data := process.ContextData{
+		Namespace:       appfile.Namespace,
+		AppName:         appfile.Name,
+		CompName:        wlName,
+		AppRevisionName: appfile.AppRevisionName,
+		Ctx:             ctx,
+		Components:      appfile.Components,
+	}
+	if appfile.AppAnnotations != nil {
+		data.WorkflowName = appfile.AppAnnotations[oam.AnnotationWorkflowName]
+		data.PublishVersion = appfile.AppAnnotations[oam.AnnotationPublishVersion]
+	}
+	return data
 }

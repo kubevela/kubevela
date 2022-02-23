@@ -27,7 +27,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -44,7 +43,6 @@ type Context interface {
 	GetCtx() context.Context
 	SetCtx(context.Context)
 	SetHooks(baseHooks []BaseHook, auxHooks []AuxiliaryHook)
-	SetComponents(components []common.ApplicationComponent)
 }
 
 // Auxiliary are objects rendered by definition template.
@@ -99,43 +97,41 @@ type RequiredSecrets struct {
 	Data        map[string]interface{}
 }
 
+// ContextData is the core data of process context
+type ContextData struct {
+	Namespace       string
+	AppName         string
+	CompName        string
+	AppRevisionName string
+	WorkflowName    string
+	PublishVersion  string
+
+	Ctx            context.Context
+	BaseHooks      []BaseHook
+	AuxiliaryHooks []AuxiliaryHook
+	Components     []common.ApplicationComponent
+}
+
 // NewContext create render templateContext
-func NewContext(namespace, name, appName, appRevision string, anno map[string]string) Context {
+func NewContext(data ContextData) Context {
 	ctx := &templateContext{
-		name:        name,
-		appName:     appName,
-		appRevision: appRevision,
+		namespace:      data.Namespace,
+		name:           data.CompName,
+		appName:        data.AppName,
+		appRevision:    data.AppRevisionName,
+		workflowName:   data.WorkflowName,
+		publishVersion: data.PublishVersion,
+
 		configs:     []map[string]string{},
 		auxiliaries: []Auxiliary{},
-		namespace:   namespace,
 		parameters:  map[string]interface{}{},
-	}
-	if anno != nil {
-		ctx.workflowName = anno[oam.AnnotationWorkflowName]
-		ctx.publishVersion = anno[oam.AnnotationPublishVersion]
+
+		ctx:            data.Ctx,
+		baseHooks:      data.BaseHooks,
+		auxiliaryHooks: data.AuxiliaryHooks,
+		components:     data.Components,
 	}
 	return ctx
-}
-
-// NewProcessContextWithCtx create render templateContext with ctx
-func NewProcessContextWithCtx(ctx context.Context, namespace, name, appName, appRevision string, anno map[string]string) Context {
-	pCtx := NewContext(namespace, name, appName, appRevision, anno)
-	pCtx.SetCtx(ctx)
-	return pCtx
-}
-
-// NewContextWithHooks create render templateContext with hooks for validation
-func NewContextWithHooks(namespace, name, appName, appRevision string, baseHooks []BaseHook, auxHooks []AuxiliaryHook, anno map[string]string) Context {
-	pCtx := NewContext(namespace, name, appName, appRevision, anno)
-	pCtx.SetHooks(baseHooks, auxHooks)
-	return pCtx
-}
-
-// NewPolicyContext create Application Scope templateContext for Policy
-func NewPolicyContext(namespace, name, appName, appRevision string, components []common.ApplicationComponent, anno map[string]string) Context {
-	pCtx := NewContext(namespace, name, appName, appRevision, anno)
-	pCtx.SetComponents(components)
-	return pCtx
 }
 
 // SetParameters sets templateContext parameters
