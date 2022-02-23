@@ -76,13 +76,17 @@ jobs:
       - name: Load Image to kind cluster (Hub)
         run: make kind-load
 
+      - name: Load Image to kind cluster (Worker)
+        run: |
+          make kind-load-runtime-cluster
+
       - name: Cleanup for e2e tests
         run: |
           make e2e-cleanup
-          make vela-cli
           make e2e-setup-core
           make
           make setup-runtime-e2e-cluster
+          make vela-cli
 
       - name: Run e2e multicluster tests
         run: |

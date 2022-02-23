@@ -4,7 +4,7 @@
 
 replicaCount: 1
 
-disableCaps: "rollout"
+disableCaps: ""
 
 imageRegistry: ""
 image:
