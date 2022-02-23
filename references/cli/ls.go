@@ -20,10 +20,13 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gosuri/uitable"
+
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -68,6 +71,15 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 }
 
 func printApplicationList(ctx context.Context, c client.Reader, namespace string, ioStreams cmdutil.IOStreams) error {
+	table, err := buildApplicationListTable(ctx, c, namespace)
+	if err != nil {
+		return err
+	}
+	ioStreams.Info(table.String())
+	return nil
+}
+
+func buildApplicationListTable(ctx context.Context, c client.Reader, namespace string) (*uitable.Table, error) {
 	table := newUITable()
 	header := []interface{}{"APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME"}
 	if AllNamespace {
@@ -77,13 +89,17 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 	applist := v1beta1.ApplicationList{}
 	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
-			ioStreams.Info(table.String())
-			return nil
+			return table, nil
 		}
-		return err
+		return nil, err
 	}
 
 	for _, a := range applist.Items {
+		service := map[string]commontypes.ApplicationComponentStatus{}
+		for _, s := range a.Status.Services {
+			service[s.Name] = s
+		}
+
 		for idx, cmp := range a.Spec.Components {
 			var appName = a.Name
 			if idx > 0 {
@@ -92,15 +108,13 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 					appName = "└─"
 				}
 			}
+
 			var healthy, status string
-			if len(a.Status.Services) > idx {
-				if a.Status.Services[idx].Healthy {
-					healthy = "healthy"
-				} else {
-					healthy = "unhealthy"
-				}
-				status = a.Status.Services[idx].Message
+			if s, ok := service[cmp.Name]; ok {
+				healthy = getHealthString(s.Healthy)
+				status = s.Message
 			}
+
 			var traits []string
 			for _, tr := range cmp.Traits {
 				traits = append(traits, tr.Type)
@@ -112,6 +126,12 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 			}
 		}
 	}
-	ioStreams.Info(table.String())
-	return nil
+	return table, nil
+}
+
+func getHealthString(healthy bool) string {
+	if healthy {
+		return "healthy"
+	}
+	return "unhealthy"
 }
