@@ -23,6 +23,7 @@ import (
 	"github.com/bmizerany/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestContext(t *testing.T) {
@@ -100,7 +101,10 @@ image: "myserver"
 		},
 	}
 
-	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
+	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1", map[string]string{
+		oam.AnnotationWorkflowName:   "myworkflow",
+		oam.AnnotationPublishVersion: "mypublishversion",
+	})
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 	ctx.AppendAuxiliaries(svcAuxWithAbnormalName)
@@ -129,6 +133,14 @@ image: "myserver"
 	myAppRevisionNum, err := ctxInst.Lookup("context", model.ContextAppRevisionNum).Int64()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(1), myAppRevisionNum)
+
+	myWorkflowName, err := ctxInst.Lookup("context", model.ContextWorkflowName).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "myworkflow", myWorkflowName)
+
+	myPublishVersion, err := ctxInst.Lookup("context", model.ContextPublishVersion).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "mypublishversion", myPublishVersion)
 
 	inputJs, err := ctxInst.Lookup("context", model.OutputFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)

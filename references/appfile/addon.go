@@ -198,7 +198,7 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 
 // getTerraformJSONFiles gets Terraform JSON files or modules from workload
 func getTerraformJSONFiles(wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
-	pCtx, err := appfile.PrepareProcessContext(wl, applicationName, revisionName, namespace)
+	pCtx, err := appfile.PrepareProcessContext(wl, applicationName, revisionName, namespace, nil)
 	if err != nil {
 		return nil, err
 	}

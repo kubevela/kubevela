@@ -33,7 +33,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		if wl.CapabilityCategory != types.CUECategory {
 			continue
 		}
-		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace)
+		pCtx, err := newValidationProcessContext(wl, a.Name, a.AppRevisionName, a.Namespace, a.app.Annotations)
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
@@ -49,7 +49,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 	return nil
 }
 
-func newValidationProcessContext(wl *Workload, appName, revisionName, ns string) (process.Context, error) {
+func newValidationProcessContext(wl *Workload, appName, revisionName, ns string, anno map[string]string) (process.Context, error) {
 	baseHooks := []process.BaseHook{
 		// add more hook funcs here to validate CUE base
 	}
@@ -58,7 +58,7 @@ func newValidationProcessContext(wl *Workload, appName, revisionName, ns string)
 		validateAuxiliaryNameUnique(),
 	}
 
-	pCtx := process.NewContextWithHooks(ns, wl.Name, appName, revisionName, baseHooks, auxiliaryHooks)
+	pCtx := process.NewContextWithHooks(ns, wl.Name, appName, revisionName, baseHooks, auxiliaryHooks, anno)
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
 	}

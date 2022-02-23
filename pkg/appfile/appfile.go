@@ -224,7 +224,7 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 }
 
 func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
-	un, err := generateUnstructuredFromCUEModule(workload, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts)
+	un, err := generateUnstructuredFromCUEModule(workload, af.Name, af.AppRevisionName, af.Namespace, af.Components, af.Artifacts, af.AppAnnotations)
 	if err != nil {
 		return nil, err
 	}
@@ -235,8 +235,8 @@ func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstr
 	return un, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest) (*unstructured.Unstructured, error) {
-	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components)
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string, components []common.ApplicationComponent, artifacts []*types.ComponentManifest, anno map[string]string) (*unstructured.Unstructured, error) {
+	pCtx := process.NewPolicyContext(ns, wl.Name, appName, revision, components, anno)
 	pCtx.PushData(model.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", appName, ns)
@@ -293,16 +293,16 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 		af.Namespace = corev1.NamespaceDefault
 	}
 	// generate context here to avoid nil pointer panic
-	wl.Ctx = NewBasicContext(af.Name, wl.Name, af.AppRevisionName, af.Namespace, wl.Params)
+	wl.Ctx = NewBasicContext(af.Name, wl.Name, af.AppRevisionName, af.Namespace, wl.Params, af.AppAnnotations)
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
-		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace)
+		return generateComponentFromHelmModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
 	case types.KubeCategory:
-		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace)
+		return generateComponentFromKubeModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
 	case types.TerraformCategory:
 		return generateComponentFromTerraformModule(wl, af.Name, af.Namespace)
 	default:
-		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace)
+		return generateComponentFromCUEModule(wl, af.Name, af.AppRevisionName, af.Namespace, af.AppAnnotations)
 	}
 }
 
@@ -471,9 +471,9 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 }
 
 // PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
+func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string, anno map[string]string) (process.Context, error) {
 	if wl.Ctx == nil {
-		wl.Ctx = NewBasicContext(applicationName, wl.Name, revision, namespace, wl.Params)
+		wl.Ctx = NewBasicContext(applicationName, wl.Name, revision, namespace, wl.Params, anno)
 	}
 	if err := wl.EvalContext(wl.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
@@ -482,16 +482,16 @@ func PrepareProcessContext(wl *Workload, applicationName, revision, namespace st
 }
 
 // NewBasicContext prepares a basic DSL process Context
-func NewBasicContext(applicationName, workloadName, revision, namespace string, params map[string]interface{}) process.Context {
-	pCtx := process.NewContext(namespace, workloadName, applicationName, revision)
+func NewBasicContext(applicationName, workloadName, revision, namespace string, params map[string]interface{}, anno map[string]string) process.Context {
+	pCtx := process.NewContext(namespace, workloadName, applicationName, revision, anno)
 	if params != nil {
 		pCtx.SetParameters(params)
 	}
 	return pCtx
 }
 
-func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
-	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns, anno)
 	if err != nil {
 		return nil, err
 	}
@@ -664,7 +664,7 @@ output: {
 	return templateStr, nil
 }
 
-func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
+func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -672,7 +672,7 @@ func generateComponentFromKubeModule(wl *Workload, appName, revision, ns string)
 	wl.FullTemplate.TemplateStr = templateStr
 
 	// re-use the way CUE module generates comp & acComp
-	compManifest, err := generateComponentFromCUEModule(wl, appName, revision, ns)
+	compManifest, err := generateComponentFromCUEModule(wl, appName, revision, ns, anno)
 	if err != nil {
 		return nil, err
 	}
@@ -839,7 +839,7 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 	return nil
 }
 
-func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string) (*types.ComponentManifest, error) {
+func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string, anno map[string]string) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -855,7 +855,7 @@ func generateComponentFromHelmModule(wl *Workload, appName, revision, ns string)
 	}
 
 	if wl.FullTemplate.Reference.Type != types.AutoDetectWorkloadDefinition {
-		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns)
+		compManifest, err = generateComponentFromCUEModule(wl, appName, revision, ns, anno)
 		if err != nil {
 			return nil, err
 		}

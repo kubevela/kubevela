@@ -58,7 +58,7 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			},
 			engine: definition.NewWorkloadAbstractEngine("myweb", pd),
 		}
-		pCtx, err := newValidationProcessContext(wl, "myapp", "myapp-v1", "test-ns")
+		pCtx, err := newValidationProcessContext(wl, "myapp", "myapp-v1", "test-ns", nil)
 		Expect(err).Should(BeNil())
 		Eventually(func() string {
 			for _, tr := range wl.Traits {

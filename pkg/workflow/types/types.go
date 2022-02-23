@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	monitorCtx "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
@@ -41,6 +42,7 @@ type TaskDiscover interface {
 // TaskRunOptions is the options for task run.
 type TaskRunOptions struct {
 	Data          *value.Value
+	PCtx          process.Context
 	PreStartHooks []TaskPreStartHook
 	PostStopHooks []TaskPostStopHook
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
