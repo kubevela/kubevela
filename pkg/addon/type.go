@@ -54,16 +54,17 @@ type InstallPackage struct {
 
 // Meta defines the format for a single addon
 type Meta struct {
-	Name          string        `json:"name" validate:"required"`
-	Version       string        `json:"version"`
-	Description   string        `json:"description"`
-	Icon          string        `json:"icon"`
-	URL           string        `json:"url,omitempty"`
-	Tags          []string      `json:"tags,omitempty"`
-	DeployTo      *DeployTo     `json:"deployTo,omitempty"`
-	Dependencies  []*Dependency `json:"dependencies,omitempty"`
-	NeedNamespace []string      `json:"needNamespace,omitempty"`
-	Invisible     bool          `json:"invisible"`
+	Name               string              `json:"name" validate:"required"`
+	Version            string              `json:"version"`
+	Description        string              `json:"description"`
+	Icon               string              `json:"icon"`
+	URL                string              `json:"url,omitempty"`
+	Tags               []string            `json:"tags,omitempty"`
+	DeployTo           *DeployTo           `json:"deployTo,omitempty"`
+	Dependencies       []*Dependency       `json:"dependencies,omitempty"`
+	NeedNamespace      []string            `json:"needNamespace,omitempty"`
+	Invisible          bool                `json:"invisible"`
+	SystemRequirements *SystemRequirements `json:"system,omitempty"`
 }
 
 // DeployTo defines where the addon to deploy to
@@ -83,4 +84,10 @@ type Dependency struct {
 type ElementFile struct {
 	Data string
 	Name string
+}
+
+// SystemRequirements is this addon need version
+type SystemRequirements struct {
+	VelaVersion       string `json:"vela,omitempty"`
+	KubernetesVersion string `json:"kubernetes,omitempty"`
 }

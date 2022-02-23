@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,6 +32,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Addon test", func() {
@@ -176,6 +180,47 @@ var _ = Describe("Addon test", func() {
 	})
 })
 
+var _ = Describe("Addon func test", func() {
+	var deploy appsv1.Deployment
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &deploy))
+	})
+
+	It("fetchVelaCoreImageTag func test", func() {
+		deploy = appsv1.Deployment{}
+		tag, err := fetchVelaCoreImageTag(ctx, k8sClient)
+		Expect(err).Should(util.NotFoundMatcher{})
+		Expect(tag).Should(BeEquivalentTo(""))
+
+		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
+		deploy.SetNamespace(types.DefaultKubeVelaNS)
+		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
+
+		Eventually(func() error {
+			tag, err := fetchVelaCoreImageTag(ctx, k8sClient)
+			if err != nil {
+				return err
+			}
+			if tag != "v1.2.3" {
+				return fmt.Errorf("tag missmatch want %s actual %s", "v1.2.3", tag)
+			}
+			return err
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+	})
+
+	It("checkAddonVersionMeetRequired func test", func() {
+		deploy = appsv1.Deployment{}
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
+		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
+		deploy.SetNamespace(types.DefaultKubeVelaNS)
+		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
+
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(BeNil())
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.4"}, k8sClient, dc)).ShouldNot(BeNil())
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -201,4 +246,56 @@ spec:
         image: crccheck/hello-world
         port: 8000
 `
+	deployYaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubevela-vela-core
+  namespace: vela-system
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: kubevela
+      app.kubernetes.io/name: vela-core
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      labels:
+        app.kubernetes.io/instance: kubevela
+        app.kubernetes.io/name: vela-core
+    spec:
+      containers:
+      - args:
+        image: oamdev/vela-core:v1.2.3
+        imagePullPolicy: Always
+        name: kubevela
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        - containerPort: 9440
+          name: healthz
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 50m
+            memory: 20Mi
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30`
 )
