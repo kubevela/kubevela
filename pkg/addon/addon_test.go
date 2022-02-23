@@ -20,12 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	version2 "github.com/oam-dev/kubevela/version"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
@@ -650,4 +653,97 @@ func TestGetPatternFromItem(t *testing.T) {
 func TestGitLabReaderNotPanic(t *testing.T) {
 	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
 	assert.EqualError(t, err, "git type repository only support github for now")
+}
+
+func TestCheckSemVer(t *testing.T) {
+	testCases := []struct {
+		actual   string
+		require  string
+		nilError bool
+		res      bool
+	}{
+		{
+			actual:  "v1.2.1",
+			require: "<=v1.2.1",
+			res:     true,
+		},
+		{
+			actual:  "v1.2.1",
+			require: ">v1.2.1",
+			res:     false,
+		},
+		{
+			actual:  "v1.2.1",
+			require: "<=v1.2.3",
+			res:     true,
+		},
+		{
+			actual:  "v1.2",
+			require: "<=v1.2.3",
+			res:     true,
+		},
+		{
+			actual:  "v1.2.1",
+			require: ">v1.2.3",
+			res:     false,
+		},
+		{
+			actual:  "v1.2.1",
+			require: "=v1.2.1",
+			res:     true,
+		},
+		{
+			actual:  "1.2.1",
+			require: "=v1.2.1",
+			res:     true,
+		},
+		{
+			actual:  "1.2.1",
+			require: "",
+			res:     true,
+		},
+		{
+			actual:  "v1.2.2",
+			require: "<=v1.2.3, >=v1.2.1",
+			res:     true,
+		},
+		{
+			actual:  "v1.2.0",
+			require: "v1.2.0, <=v1.2.3",
+			res:     true,
+		},
+		{
+			actual:  "1.2.2",
+			require: "v1.2.2",
+			res:     true,
+		},
+		{
+			actual:  "1.2.02",
+			require: "v1.2.2",
+			res:     true,
+		},
+	}
+	for _, testCase := range testCases {
+		result, err := checkSemVer(testCase.actual, testCase.require)
+		assert.NoError(t, err)
+		assert.Equal(t, result, testCase.res)
+	}
+}
+
+func TestCheckAddonVersionMeetRequired(t *testing.T) {
+	k8sClient := &test.MockClient{
+		MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
+			return nil
+		}),
+	}
+	ctx := context.Background()
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
+
+	version2.VelaVersion = "v1.2.3"
+	if err := checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil); err == nil {
+		assert.Error(t, fmt.Errorf("should meet error"))
+	}
+
+	version2.VelaVersion = "v1.2.4"
+	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 }

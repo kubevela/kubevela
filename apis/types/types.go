@@ -31,6 +31,8 @@ const (
 	DefaultAppNamespace = "default"
 	// AutoDetectWorkloadDefinition defines the default workload type for ComponentDefinition which doesn't specify a workload
 	AutoDetectWorkloadDefinition = "autodetects.core.oam.dev"
+	// KubeVelaControllerDeployment defines the KubeVela controller's deployment name
+	KubeVelaControllerDeployment = "kubevela-vela-core"
 )
 
 // DefaultKubeVelaNS defines the default KubeVela namespace in Kubernetes

@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/discovery"
+
 	v12 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,6 +51,7 @@ var testEnv *envtest.Environment
 var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var testns string
+var dc *discovery.DiscoveryClient
 
 func TestAddon(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -79,6 +82,11 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+
+	dc, err = discovery.NewDiscoveryClientForConfig(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(dc).ShouldNot(BeNil())
+
 	dm, err = discoverymapper.New(cfg)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(dm).ToNot(BeNil())
