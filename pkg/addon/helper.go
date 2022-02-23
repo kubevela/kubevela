@@ -49,7 +49,7 @@ const (
 	enabling = "enabling"
 	// disabling indicates the addon related app is deleting
 	disabling = "disabling"
-	// suspend indicates the addon related app is suspend
+	// suspend indicates the addon related app is suspended
 	suspend = "suspend"
 )
 
@@ -61,11 +61,18 @@ func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryC
 		return err
 	}
 	if strings.HasPrefix(pkg.Meta.Name, "terraform-") {
-		if len(args) > 0 {
+		if len(args) > 1 {
 			return fmt.Errorf("%s addon does not support args, please set args in `vela provider`", pkg.Meta.Name)
 		}
 		pkg.Parameters = ""
 		pkg.CUETemplates = nil
+
+		pkg.YAMLTemplates = []ElementFile{
+			{
+				Name: pkg.Meta.Name,
+				Data: fmt.Sprintf(terraformProviderConfigMap, addonAppPrefix+pkg.Meta.Name, pkg.AppTemplate.Namespace),
+			},
+		}
 	}
 	err = h.enableAddon(pkg)
 	if err != nil {

@@ -95,6 +95,14 @@ const (
 	DefaultGiteeURL string = "https://gitee.com/api/v5/"
 )
 
+const terraformProviderConfigMap = `
+apiVersion: v1
+kind: Secret
+metadata: 
+  name: %s
+  namespace: %s
+`
+
 // ParameterFileName is the addon resources/parameter.cue file name
 var ParameterFileName = strings.Join([]string{"resources", "parameter.cue"}, "/")
 
