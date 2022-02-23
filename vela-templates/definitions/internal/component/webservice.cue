@@ -19,22 +19,24 @@ webservice: {
 			customStatus: #"""
 				import "strconv"
 				ready: {
-					if context.output.status.readyReplicas == _|_ {
-						replica: "0"
+					if (context.output.status.updatedReplicas == context.output.spec.replicas) && (context.output.status.replicas == context.output.spec.replicas) && (context.output.status.availableReplicas == context.output.spec.replicas) && (context.output.status.readyReplicas != _|_) {
+						replica: strconv.FormatInt(context.output.status.readyReplicas, 10)
 					}
-					if context.output.status.readyReplicas != _|_ {
-						replica:  strconv.FormatInt(context.output.status.readyReplicas, 10)
+
+					if (context.output.status.updatedReplicas != context.output.spec.replicas) || (context.output.status.replicas != context.output.spec.replicas) || (context.output.status.availableReplicas != context.output.spec.replicas) || (context.output.status.readyReplicas == _|_) {
+						replica: "0"
 					}
 				}
 				message: "Ready:" + ready.replica + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
 				"""#
 			healthPolicy: #"""
 				ready: {
-					if context.output.status.readyReplicas == _|_ {
-						replica: 0
+					if (context.output.status.updatedReplicas == context.output.spec.replicas) && (context.output.status.replicas == context.output.spec.replicas) && (context.output.status.availableReplicas == context.output.spec.replicas) && (context.output.status.readyReplicas != _|_) {
+						replica: context.output.status.readyReplicas
 					}
-					if context.output.status.readyReplicas != _|_ {
-						replica:  context.output.status.readyReplicas
+
+					if (context.output.status.updatedReplicas != context.output.spec.replicas) || (context.output.status.replicas != context.output.spec.replicas) || (context.output.status.availableReplicas != context.output.spec.replicas) || (context.output.status.readyReplicas == _|_) {
+						replica: 0
 					}
 				}
 				isHealth: context.output.spec.replicas == ready.replica
