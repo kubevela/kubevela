@@ -214,18 +214,10 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	} else if errors2.IsNotFound(err) {
 		return &res, nil
 	}
-	if args, ok := sec.Data[pkgaddon.AddonParameterDataKey]; ok {
-		err := json.Unmarshal(args, &res.Args)
-		if err != nil {
-			return nil, err
-		}
-		return &res, nil
-	}
 
-	// this is backward compatibility code for old way to storage parameter
-	res.Args = make(map[string]interface{}, len(sec.Data))
-	for k, v := range sec.Data {
-		res.Args[k] = string(v)
+	res.Args, err = pkgaddon.FetchArgsFromSecret(&sec)
+	if err != nil {
+		return nil, err
 	}
 
 	return &res, nil

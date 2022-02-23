@@ -852,6 +852,25 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 	return u
 }
 
+// FetchArgsFromSecret fetch addon args from secrets
+func FetchArgsFromSecret(sec *v1.Secret) (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	if args, ok := sec.Data[AddonParameterDataKey]; ok {
+		err := json.Unmarshal(args, &res)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+
+	// this is backward compatibility code for old way to storage parameter
+	res = make(map[string]interface{}, len(sec.Data))
+	for k, v := range sec.Data {
+		res[k] = string(v)
+	}
+	return res, nil
+}
+
 // Convert2SecName generate addon argument secret name
 func Convert2SecName(name string) string {
 	return addonSecPrefix + name
