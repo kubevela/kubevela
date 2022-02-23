@@ -596,6 +596,8 @@ spec:
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string
+                  resetBackoff:
+                    type: boolean
                   startTime:
                     format: date-time
                     type: string
@@ -1118,6 +1120,8 @@ spec:
                   mode:
                     description: WorkflowMode describes the mode of workflow
                     type: string
+                  resetBackoff:
+                    type: boolean
                   startTime:
                     format: date-time
                     type: string

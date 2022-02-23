@@ -35,4 +35,7 @@ type Workflow interface {
 
 	// GetBackoffWaitTime returns the wait time for next retry.
 	GetBackoffWaitTime() time.Duration
+
+	// UsePatch returns true if the workflow should use patch to update the resources.
+	UsePatch() bool
 }

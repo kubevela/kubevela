@@ -63,10 +63,11 @@ const (
 )
 
 type workflow struct {
-	app     *oamcore.Application
-	cli     client.Client
-	wfCtx   wfContext.Context
-	dagMode bool
+	app      *oamcore.Application
+	cli      client.Client
+	wfCtx    wfContext.Context
+	dagMode  bool
+	usePatch bool
 }
 
 // NewWorkflow returns a Workflow implementation.
@@ -76,9 +77,10 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 		dagMode = true
 	}
 	return &workflow{
-		app:     app,
-		cli:     cli,
-		dagMode: dagMode,
+		app:      app,
+		cli:      cli,
+		dagMode:  dagMode,
+		usePatch: true,
 	}
 }
 
@@ -126,11 +128,18 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		w.app.Status.Conditions = reservedConditions
 		StepStatusCache.Delete(fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace))
 		wfContext.CleanupMemoryStore(w.app.Name, w.app.Namespace)
+		w.usePatch = false
 		return common.WorkflowStateInitializing, nil
 	}
 
 	wfStatus := w.app.Status.Workflow
 	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
+
+	if wfStatus.ResetBackoff {
+		wfStatus.ResetBackoff = false
+		wfContext.CleanupMemoryStore(w.app.Name, w.app.Namespace)
+		w.usePatch = false
+	}
 
 	if wfStatus.Finished {
 		StepStatusCache.Delete(cacheKey)
@@ -206,6 +215,10 @@ func (w *workflow) Trace() error {
 		return err
 	}
 	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
+}
+
+func (w *workflow) UsePatch() bool {
+	return w.usePatch
 }
 
 func (w *workflow) GetBackoffWaitTime() time.Duration {

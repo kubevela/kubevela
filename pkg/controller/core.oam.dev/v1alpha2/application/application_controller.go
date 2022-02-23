@@ -220,22 +220,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
+	usePatch := wf.UsePatch()
 	switch workflowState {
 	case common.WorkflowStateInitializing:
 		logCtx.Info("Workflow return state=Initializing")
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, usePatch)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, usePatch)
 	case common.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
 		if err := r.doWorkflowFinish(app, wf); err != nil {
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, usePatch)
 	case common.WorkflowStateExecuting:
 		logCtx.Info("Workflow return state=Executing")
-		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, usePatch)
 		return r.result(err).requeue(wf.GetBackoffWaitTime()).ret()
 	case common.WorkflowStateSucceeded:
 		logCtx.Info("Workflow return state=Succeeded")
@@ -246,7 +247,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		logCtx.Info("Application manifests has applied by workflow successfully")
 		if !EnableReconcileLoopReduction {
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false)
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false, usePatch)
 		}
 	case common.WorkflowStateFinished:
 		logCtx.Info("Workflow state=Finished")
@@ -284,10 +285,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Reason:             condition.ReasonReconcileSuccess,
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return r.gcResourceTrackers(logCtx, handler, phase, true)
+	return r.gcResourceTrackers(logCtx, handler, phase, true, usePatch)
 }
 
-func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
+func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated, usePatch bool) (ctrl.Result, error) {
 	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
 		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("-").Observe(v)
 	}))
@@ -313,8 +314,8 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(r.patchStatus(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	if phase == common.ApplicationRendering {
-		return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)).ret()
+	if !usePatch {
+		return r.result(r.updateStatus(logCtx, handler.app, phase)).ret()
 	}
 	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
 }
@@ -372,7 +373,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			if err != nil {
 				return r.result(err).end(true)
 			}
-			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true)
+			result, err := r.gcResourceTrackers(ctx, handler, common.ApplicationDeleting, true, true)
 			if err != nil {
 				return true, result, err
 			}

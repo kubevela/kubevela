@@ -292,6 +292,31 @@ var _ = Describe("Test Workflow", func() {
 		}
 		interval = e.getBackoffWaitTime()
 		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
+
+		for i := 0; i < 5; i++ {
+			_, err = wf.ExecuteSteps(ctx, revision, runners)
+			Expect(err).ToNot(HaveOccurred())
+			interval := e.getBackoffWaitTime()
+			Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
+		}
+
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		interval = e.getBackoffWaitTime()
+		Expect(interval).Should(BeEquivalentTo(3))
+
+		app.Status.Workflow.ResetBackoff = true
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		wfCtx, err = wfContext.LoadContext(k8sClient, app.Namespace, app.Name)
+		Expect(err).ToNot(HaveOccurred())
+		e = &engine{
+			status: app.Status.Workflow,
+			wfCtx:  wfCtx,
+		}
+		interval = e.getBackoffWaitTime()
+		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 	})
 
 	It("test for suspend", func() {

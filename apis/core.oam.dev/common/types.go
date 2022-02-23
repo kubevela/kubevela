@@ -327,9 +327,10 @@ type PolicyStatus struct {
 
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppRevision string       `json:"appRevision,omitempty"`
-	Mode        WorkflowMode `json:"mode"`
-	Message     string       `json:"message,omitempty"`
+	AppRevision  string       `json:"appRevision,omitempty"`
+	Mode         WorkflowMode `json:"mode"`
+	Message      string       `json:"message,omitempty"`
+	ResetBackoff bool         `json:"resetBackoff,omitempty"`
 
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
