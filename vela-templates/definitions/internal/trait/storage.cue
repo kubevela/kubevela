@@ -165,7 +165,7 @@ template: {
 						}
 
 						if v.resources.requests.storage == _|_ {
-							resources: requests: storage: "1Gi"
+							resources: requests: storage: "8Gi"
 						}
 						if v.resources.requests.storage != _|_ {
 							resources: requests: storage: v.resources.requests.storage

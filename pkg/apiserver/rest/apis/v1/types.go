@@ -127,8 +127,8 @@ type AddonBaseStatus struct {
 type DetailAddonResponse struct {
 	addon.Meta
 
-	APISchema *openapi3.Schema     `json:"schema"`
-	UISchema  []*utils.UIParameter `json:"uiSchema"`
+	APISchema *openapi3.Schema `json:"schema"`
+	UISchema  utils.UISchema   `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
 	Detail       string             `json:"detail,omitempty"`
@@ -315,7 +315,7 @@ type ApplicationStatusResponse struct {
 type ApplicationStatisticsResponse struct {
 	EnvCount      int64 `json:"envCount"`
 	TargetCount   int64 `json:"targetCount"`
-	RevisonCount  int64 `json:"revisonCount"`
+	RevisionCount int64 `json:"revisionCount"`
 	WorkflowCount int64 `json:"workflowCount"`
 }
 
