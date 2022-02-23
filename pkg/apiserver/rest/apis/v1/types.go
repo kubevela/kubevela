@@ -147,9 +147,9 @@ type AddonDefinition struct {
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
 	AddonBaseStatus
-	Args             map[string]string `json:"args"`
-	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
-	AppStatus        common.AppStatus  `json:"appStatus,omitempty"`
+	Args             map[string]interface{} `json:"args"`
+	EnablingProgress *EnablingProgress      `json:"enabling_progress,omitempty"`
+	AppStatus        common.AppStatus       `json:"appStatus,omitempty"`
 	// the status of multiple clusters
 	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
 }

@@ -214,9 +214,10 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	} else if errors2.IsNotFound(err) {
 		return &res, nil
 	}
-	res.Args = make(map[string]string, len(sec.Data))
-	for k, v := range sec.Data {
-		res.Args[k] = string(v)
+
+	res.Args, err = pkgaddon.FetchArgsFromSecret(&sec)
+	if err != nil {
+		return nil, err
 	}
 
 	return &res, nil
