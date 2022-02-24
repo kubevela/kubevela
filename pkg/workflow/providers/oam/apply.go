@@ -362,15 +362,11 @@ func (p *provider) LoadPoliciesInOrder(ctx wfContext.Context, v *value.Value, ac
 	policyMap := map[string]v1beta1.AppPolicy{}
 	var specifiedPolicyNames []string
 	specifiedPolicyNamesRaw, err := v.LookupValue("input")
-	if err != nil {
-		return err
-	}
-	if specifiedPolicyNamesRaw == nil {
+	if err != nil || specifiedPolicyNamesRaw == nil {
 		for _, policy := range p.app.Spec.Policies {
 			specifiedPolicyNames = append(specifiedPolicyNames, policy.Name)
 		}
-	}
-	if err = specifiedPolicyNamesRaw.UnmarshalTo(&specifiedPolicyNames); err != nil {
+	} else if err = specifiedPolicyNamesRaw.UnmarshalTo(&specifiedPolicyNames); err != nil {
 		return errors.Wrapf(err, "failed to parse specified policy names")
 	}
 	for _, policy := range p.af.Policies {

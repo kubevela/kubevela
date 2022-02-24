@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -278,6 +279,57 @@ func TestLoadComponentInOrder(t *testing.T) {
 	}
 }]
 `)
+}
+
+func TestLoadPolicyInOrder(t *testing.T) {
+	r := require.New(t)
+	p := &provider{af: &appfile.Appfile{
+		Policies: []v1beta1.AppPolicy{{Name: "policy-1"}, {Name: "policy-2"}, {Name: "policy-3"}},
+	}, app: &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{Name: "policy-1"}, {Name: "policy-2"}}},
+	}}
+	testcases := map[string]struct {
+		Input  string
+		Output []v1beta1.AppPolicy
+		Error  string
+	}{
+		"normal": {
+			Input:  `{input:["policy-3","policy-1"]}`,
+			Output: []v1beta1.AppPolicy{{Name: "policy-3"}, {Name: "policy-1"}},
+		},
+		"empty-input": {
+			Input:  `{}`,
+			Output: []v1beta1.AppPolicy{{Name: "policy-1"}, {Name: "policy-2"}},
+		},
+		"invalid-input": {
+			Input: `{input:{"name":"policy"}}`,
+			Error: "failed to parse specified policy name",
+		},
+		"policy-not-found": {
+			Input: `{input:["policy-4","policy-1"]}`,
+			Error: "not found",
+		},
+	}
+	for name, tt := range testcases {
+		t.Run(name, func(t *testing.T) {
+			act := &mock.Action{}
+			v, err := value.NewValue("", nil, "")
+			r.NoError(err)
+			r.NoError(v.FillRaw(tt.Input))
+			err = p.LoadPoliciesInOrder(nil, v, act)
+			if tt.Error != "" {
+				r.NotNil(err)
+				r.Contains(err.Error(), tt.Error)
+			} else {
+				r.NoError(err)
+				v, err = v.LookupValue("output")
+				r.NoError(err)
+				var outputPolicies []v1beta1.AppPolicy
+				r.NoError(v.UnmarshalTo(&outputPolicies))
+				r.Equal(tt.Output, outputPolicies)
+			}
+		})
+	}
 }
 
 var testHealthy bool
