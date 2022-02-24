@@ -17,27 +17,51 @@ worker: {
 			customStatus: #"""
 				import "strconv"
 				ready: {
-					if (context.output.status.updatedReplicas == context.output.spec.replicas) && (context.output.status.replicas == context.output.spec.replicas) && (context.output.status.availableReplicas == context.output.spec.replicas) && (context.output.status.readyReplicas != _|_) {
-						replica: strconv.FormatInt(context.output.status.readyReplicas, 10)
+					if context.output.status.readyReplicas == _|_ {
+						readyReplicas: "0"
 					}
 
-					if (context.output.status.updatedReplicas != context.output.spec.replicas) || (context.output.status.replicas != context.output.spec.replicas) || (context.output.status.availableReplicas != context.output.spec.replicas) || (context.output.status.readyReplicas == _|_) {
-						replica: "0"
+					if context.output.status.readyReplicas != _|_ {
+						readyReplicas: strconv.FormatInt(context.output.status.readyReplicas, 10)
 					}
 				}
-				message: "Ready:" + ready.replica + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
+
+				message: "Ready:" + ready.readyReplicas + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
 				"""#
 			healthPolicy: #"""
 				ready: {
-					if (context.output.status.updatedReplicas == context.output.spec.replicas) && (context.output.status.replicas == context.output.spec.replicas) && (context.output.status.availableReplicas == context.output.spec.replicas) && (context.output.status.readyReplicas != _|_) {
-						replica: context.output.status.readyReplicas
+					if context.output.status.updatedReplicas == _|_  {
+						updatedReplicas : 0
 					}
 
-					if (context.output.status.updatedReplicas != context.output.spec.replicas) || (context.output.status.replicas != context.output.spec.replicas) || (context.output.status.availableReplicas != context.output.spec.replicas) || (context.output.status.readyReplicas == _|_) {
-						replica: 0
+					if context.output.status.updatedReplicas != _|_  {
+						updatedReplicas : context.output.status.updatedReplicas
+					}
+
+					if context.output.status.readyReplicas == _|_ {
+						readyReplicas: 0
+					}
+
+					if context.output.status.readyReplicas != _|_ {
+						readyReplicas: context.output.status.readyReplicas
+					}
+
+					if context.output.status.replicas == _|_ {
+						replicas: 0
+					}
+					if context.output.status.replicas != _|_ {
+						replicas: context.output.status.replicas
+					}
+
+					if context.output.status.observedGeneration != _|_ {
+						observedGeneration: context.output.status.observedGeneration
+					}
+
+					if context.output.status.observedGeneration == _|_ {
+						observedGeneration: 0
 					}
 				}
-				isHealth: context.output.spec.replicas == ready.replica
+					isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
 				"""#
 		}
 	}
