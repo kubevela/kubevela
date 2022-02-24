@@ -87,8 +87,7 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 	return nil
 }
 
-// ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
 	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v)
 	if err != nil {
 		return err
@@ -96,6 +95,11 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
+	}
+
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
 	}
 
 	if workload != nil {
@@ -125,6 +129,11 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	return nil
 }
 
+// ApplyComponent apply component.
+func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	return p.applyComponent(ctx, v, act, nil)
+}
+
 // ApplyComponents apply components in parallel.
 func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	components, err := v.LookupValue("components")
@@ -138,7 +147,7 @@ func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wf
 	if parallelism <= 0 {
 		return errors.Errorf("parallelism cannot be smaller than 1")
 	}
-	var l sync.Mutex
+	mu := &sync.Mutex{}
 	var wg sync.WaitGroup
 	ch := make(chan struct{}, parallelism)
 	var errs errors2.ErrorList
@@ -150,10 +159,10 @@ func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wf
 				wg.Done()
 				<-ch
 			}()
-			if err := p.ApplyComponent(ctx, _in, act); err != nil {
-				l.Lock()
+			if err := p.applyComponent(ctx, _in, act, mu); err != nil {
+				mu.Lock()
 				errs = append(errs, errors.Wrapf(err, "failed to apply component %s", _name))
-				l.Unlock()
+				mu.Unlock()
 			}
 		}(name, in)
 		return false, nil
@@ -219,6 +228,7 @@ func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*com
 			un.SetDeletionTimestamp(nil)
 			un.SetManagedFields(nil)
 			un.SetUID("")
+			unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
 			unstructured.RemoveNestedField(un.Object, "status")
 			// TODO(somefive): make the following logic more generalizable
 			if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
