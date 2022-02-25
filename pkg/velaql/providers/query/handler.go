@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	istio "istio.io/client-go/pkg/apis/networking/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,6 +55,9 @@ const (
 	ProviderName = "query"
 	// HelmReleaseKind is the kind of HelmRelease
 	HelmReleaseKind = "HelmRelease"
+
+	annoAmbassadorServiceName      = "ambassador.service/name"
+	annoAmbassadorServiceNamespace = "ambassador.service/namespace"
 )
 
 var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Version: "v2beta1"}
@@ -234,7 +236,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
 		case helmapi.HelmReleaseGVK.Kind:
 			obj := new(unstructured.Unstructured)
 			obj.SetNamespace(resource.Namespace)
@@ -245,7 +247,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
 			}
 
 			// only support network/v1beta1
@@ -257,54 +259,33 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster)...)
 			}
 		case "SeldonDeployment":
-			var vs istio.VirtualService
-			if err := findResource(&vs, resource.Name, resource.Namespace, resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1alpha3 VirtualService %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
-				continue
-			}
-			if vs.Spec.Http == nil || vs.Spec.Http[0].Match == nil {
-				klog.Error(fmt.Sprintf("find VirtualService %s/%s from cluster %s empty prefix", resource.Name, resource.Namespace, resource.Cluster))
-				continue
-			}
-			// get istio service from label here since the seldon's gateway is predefined
-			var istioService corev1.ServiceList
-			labels := &v1.LabelSelector{
-				MatchLabels: map[string]string{
-					"istio": "ingressgateway",
-				},
-			}
-			selector, err := v1.LabelSelectorAsSelector(labels)
-			if err != nil {
-				return err
-			}
-			if err := h.cli.List(ctx, &istioService, &client.ListOptions{
-				LabelSelector: selector,
-			}); err != nil || len(istioService.Items) == 0 {
-				klog.Error(err, fmt.Sprintf("find istio service from cluster %s failure", resource.Cluster))
-				continue
-			}
-			service := istioService.Items[0]
-			if service.Status.LoadBalancer.Ingress == nil {
-				klog.Error(fmt.Sprintf("find istio service from cluster %s empty ingress", resource.Cluster))
-				continue
-			}
-			serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-				Endpoint: querytypes.Endpoint{
-					Host:     service.Status.LoadBalancer.Ingress[0].IP,
-					Port:     80,
-					Path:     vs.Spec.Http[0].Match[0].Uri.GetPrefix(),
-					Protocol: corev1.ProtocolTCP,
-				},
-				Ref: corev1.ObjectReference{
-					Kind:            "VirtualService",
-					Namespace:       vs.ObjectMeta.Namespace,
-					Name:            vs.ObjectMeta.Name,
-					UID:             vs.UID,
-					APIVersion:      vs.APIVersion,
-					ResourceVersion: vs.ResourceVersion,
-				},
-				Cluster: cluster,
+			obj := new(unstructured.Unstructured)
+			obj.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "machinelearning.seldon.io",
+				Version: "v1",
+				Kind:    "SeldonDeployment",
 			})
+			if err := findResource(obj, resource.Name, resource.Namespace, resource.Cluster); err != nil {
+				klog.Error(err, fmt.Sprintf("find v1 Seldon Deployment %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
+				continue
+			}
+			anno := obj.GetAnnotations()
+			serviceName := "ambassador"
+			serviceNS := "vela-system"
+			if anno != nil {
+				if anno[annoAmbassadorServiceName] != "" {
+					serviceName = anno[annoAmbassadorServiceName]
+				}
+				if anno[annoAmbassadorServiceNamespace] != "" {
+					serviceNS = anno[annoAmbassadorServiceNamespace]
+				}
+			}
+			var service corev1.Service
+			if err := findResource(&service, serviceName, serviceNS, resource.Cluster); err != nil {
+				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", serviceName, serviceNS, resource.Cluster))
+				continue
+			}
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
 	return v.FillObject(serviceEndpoints, "list")
@@ -412,7 +393,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	})
 }
 
-func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster string) []querytypes.ServiceEndpoint {
+func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster, path string) []querytypes.ServiceEndpoint {
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
@@ -426,6 +407,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							AppProtocol: &judgeAppProtocol,
 							Host:        ingress.Hostname,
 							Port:        int(port.Port),
+							Path:        path,
 						},
 						Ref: corev1.ObjectReference{
 							Kind:            "Service",
@@ -445,6 +427,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							AppProtocol: &judgeAppProtocol,
 							Host:        ingress.IP,
 							Port:        int(port.Port),
+							Path:        path,
 						},
 						Ref: corev1.ObjectReference{
 							Kind:            "Service",
@@ -468,6 +451,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 					Port:        int(port.NodePort),
 					AppProtocol: &judgeAppProtocol,
 					Host:        selectorNodeIP(),
+					Path:        path,
 				},
 				Ref: corev1.ObjectReference{
 					Kind:            "Service",

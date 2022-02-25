@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -62,9 +61,6 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
-	By("new kube client success")
-	clients.SetKubeClient(k8sClient)
-	Expect(err).Should(BeNil())
 	close(done)
 }, 240)
 

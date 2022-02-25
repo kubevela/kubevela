@@ -273,6 +273,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 				ObjectMeta: v12.ObjectMeta{
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
 					Name:      testCase.PreAddCluster,
+					Labels:    map[string]string{v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate)},
 				},
 			}))
 		}

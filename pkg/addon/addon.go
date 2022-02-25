@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -32,8 +31,10 @@ import (
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/google/go-github/v32/github"
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -60,6 +62,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	version2 "github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -80,6 +83,9 @@ const (
 
 	// DefSchemaName is the addon definition schemas dir name
 	DefSchemaName string = "schemas"
+
+	// AddonParameterDataKey is the key of parameter in addon args secrets
+	AddonParameterDataKey string = "addonParameterDataKey"
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
@@ -466,6 +472,10 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		}
 	}
 	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+
+	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
+	app.SetNamespace(types.DefaultKubeVelaNS)
+
 	for _, namespace := range addon.NeedNamespace {
 		// vela-system must exist before rendering vela addon
 		if namespace == types.DefaultKubeVelaNS {
@@ -479,13 +489,14 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		app.Spec.Components = append(app.Spec.Components, comp)
 	}
 
-	for _, tmpl := range addon.YAMLTemplates {
-		comp, err := renderRawComponent(tmpl)
+	if len(addon.YAMLTemplates) != 0 {
+		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
 		if err != nil {
 			return nil, err
 		}
 		app.Spec.Components = append(app.Spec.Components, *comp)
 	}
+
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
 		if err != nil {
@@ -546,13 +557,6 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, workflowSteps...)
 
 	default:
-		for _, def := range addon.Definitions {
-			comp, err := renderRawComponent(def)
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Components = append(app.Spec.Components, *comp)
-		}
 		for _, cueDef := range addon.CUEDefinitions {
 			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
 			err := def.FromCUEString(cueDef.Data, config)
@@ -592,28 +596,28 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructured.Unstructured, error) {
 	defObjs := make([]*unstructured.Unstructured, 0)
 
-	if isDeployToRuntimeOnly(addon) {
-		// Runtime cluster mode needs to deploy definitions to control plane k8s.
-		for _, def := range addon.Definitions {
-			obj, err := renderObject(def)
-			if err != nil {
-				return nil, err
-			}
-			defObjs = append(defObjs, obj)
+	// No matter runtime mode or control mode , definition only needs to control plane k8s.
+	for _, def := range addon.Definitions {
+		obj, err := renderObject(def)
+		if err != nil {
+			return nil, err
 		}
-
-		for _, cueDef := range addon.CUEDefinitions {
-			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
-			err := def.FromCUEString(cueDef.Data, config)
-			if err != nil {
-				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
-			}
-			if def.GetNamespace() == "" {
-				def.SetNamespace(types.DefaultKubeVelaNS)
-			}
-			defObjs = append(defObjs, &def.Unstructured)
-		}
+		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
+		obj.SetNamespace(types.DefaultKubeVelaNS)
+		defObjs = append(defObjs, obj)
 	}
+
+	for _, cueDef := range addon.CUEDefinitions {
+		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
+		err := def.FromCUEString(cueDef.Data, config)
+		if err != nil {
+			return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+		}
+		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
+		def.SetNamespace(types.DefaultKubeVelaNS)
+		defObjs = append(defObjs, &def.Unstructured)
+	}
+
 	return defObjs, nil
 }
 
@@ -741,17 +745,25 @@ func renderNamespace(namespace string) *unstructured.Unstructured {
 	return u
 }
 
-// renderRawComponent will return a component in raw type from string
-func renderRawComponent(elem ElementFile) (*common2.ApplicationComponent, error) {
-	baseRawComponent := common2.ApplicationComponent{
-		Type: "raw",
-		Name: strings.ReplaceAll(elem.Name, ".", "-"),
+func renderK8sObjectsComponent(elems []ElementFile, addonName string) (*common2.ApplicationComponent, error) {
+	var objects []*unstructured.Unstructured
+	for _, elem := range elems {
+		obj, err := renderObject(elem)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, obj)
 	}
-	obj, err := renderObject(elem)
+	properties := map[string]interface{}{"objects": objects}
+	propJSON, err := json.Marshal(properties)
 	if err != nil {
 		return nil, err
 	}
-	baseRawComponent.Properties = util.Object2RawExtension(obj)
+	baseRawComponent := common2.ApplicationComponent{
+		Type:       "k8s-objects",
+		Name:       addonName + "-resources",
+		Properties: &runtime.RawExtension{Raw: propJSON},
+	}
 	return &baseRawComponent, nil
 }
 
@@ -818,14 +830,9 @@ func Convert2AppName(name string) string {
 
 // RenderArgsSecret render addon enable argument to secret
 func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstructured.Unstructured {
-	data := make(map[string]string)
-	for k, v := range args {
-		switch v := v.(type) {
-		case bool:
-			data[k] = strconv.FormatBool(v)
-		default:
-			data[k] = fmt.Sprintf("%v", v)
-		}
+	argsByte, err := json.Marshal(args)
+	if err != nil {
+		return nil
 	}
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
@@ -833,14 +840,35 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 			Name:      Convert2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
-		StringData: data,
-		Type:       v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			AddonParameterDataKey: argsByte,
+		},
+		Type: v1.SecretTypeOpaque,
 	}
 	u, err := util.Object2Unstructured(sec)
 	if err != nil {
 		return nil
 	}
 	return u
+}
+
+// FetchArgsFromSecret fetch addon args from secrets
+func FetchArgsFromSecret(sec *v1.Secret) (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	if args, ok := sec.Data[AddonParameterDataKey]; ok {
+		err := json.Unmarshal(args, &res)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+
+	// this is backward compatibility code for old way to storage parameter
+	res = make(map[string]interface{}, len(sec.Data))
+	for k, v := range sec.Data {
+		res[k] = string(v)
+	}
+	return res, nil
 }
 
 // Convert2SecName generate addon argument secret name
@@ -859,10 +887,11 @@ type Installer struct {
 	registryMeta map[string]SourceMeta
 	args         map[string]interface{}
 	cache        *Cache
+	dc           *discovery.DiscoveryClient
 }
 
 // NewAddonInstaller will create an installer for addon
-func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
+func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
 	return Installer{
 		ctx:    ctx,
 		config: config,
@@ -871,12 +900,18 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, apply apply.Appli
 		r:      r,
 		args:   args,
 		cache:  cache,
+		dc:     discoveryClient,
 	}
 }
 
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
 	h.addon = addon
+	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
+	if err != nil {
+		return ErrVersionMismatch
+	}
+
 	if err = h.installDependency(addon); err != nil {
 		return err
 	}
@@ -985,7 +1020,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	app.SetLabels(util.MergeMapOverrideWithDst(app.GetLabels(), map[string]string{oam.LabelAddonRegistry: h.r.Name}))
 
-	defs, err := RenderDefinitions(h.addon, h.config)
+	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
 	}
@@ -1097,4 +1132,100 @@ func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName stri
 		}
 	}
 	return app, nil
+}
+
+// checkAddonVersionMeetRequired will check the version of cli/ux and kubevela-core-controller whether meet the addon requirement, if not will return an error
+// please notice that this func is for check production environment which vela cli/ux or vela core is officalVersion
+// if version is for test or debug eg: latest/commit-id/branch-name this func will return nil error
+func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequirements, k8sClient client.Client, dc *discovery.DiscoveryClient) error {
+	if require == nil {
+		return nil
+	}
+
+	// if not semver version, bypass check cli/ux. eg: {branch name/git commit id/UNKNOWN}
+	if version2.IsOfficialKubeVelaVersion(version2.VelaVersion) {
+		res, err := checkSemVer(version2.VelaVersion, require.VelaVersion)
+		if err != nil {
+			return err
+		}
+		if !res {
+			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
+		}
+	}
+
+	// check vela core controller version
+	imageVersion, err := fetchVelaCoreImageTag(ctx, k8sClient)
+	if err != nil {
+		return err
+	}
+
+	// if not semver version, bypass check vela-core.
+	if version2.IsOfficialKubeVelaVersion(imageVersion) {
+		res, err := checkSemVer(imageVersion, require.VelaVersion)
+		if err != nil {
+			return err
+		}
+		if !res {
+			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
+		}
+	}
+
+	// discovery client is nil so bypass check kubernetes version
+	if dc == nil {
+		return nil
+	}
+
+	k8sVersion, err := dc.ServerVersion()
+	if err != nil {
+		return err
+	}
+	// if not semver version, bypass check kubernetes version.
+	if version2.IsOfficialKubeVelaVersion(k8sVersion.GitVersion) {
+		res, err := checkSemVer(k8sVersion.GitVersion, require.KubernetesVersion)
+		if err != nil {
+			return err
+		}
+
+		if !res {
+			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
+		}
+	}
+
+	return nil
+}
+
+func checkSemVer(actual string, require string) (bool, error) {
+	if len(require) == 0 {
+		return true, nil
+	}
+	smeVer := strings.TrimPrefix(actual, "v")
+	l := strings.ReplaceAll(require, "v", " ")
+	constraint, err := version.NewConstraint(l)
+	if err != nil {
+		return false, err
+	}
+	v, err := version.NewVersion(smeVer)
+	if err != nil {
+		return false, err
+	}
+	return constraint.Check(v), nil
+}
+
+func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string, error) {
+	deploy := &appsv1.Deployment{}
+	if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: types.KubeVelaControllerDeployment}, deploy); err != nil {
+		return "", err
+	}
+	var tag string
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		if c.Name == types.DefaultKubeVelaReleaseName {
+			l := strings.Split(c.Image, ":")
+			if len(l) == 1 {
+				// if tag is empty mean use latest image
+				return "latest", nil
+			}
+			tag = l[1]
+		}
+	}
+	return tag, nil
 }

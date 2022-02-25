@@ -127,8 +127,8 @@ type AddonBaseStatus struct {
 type DetailAddonResponse struct {
 	addon.Meta
 
-	APISchema *openapi3.Schema     `json:"schema"`
-	UISchema  []*utils.UIParameter `json:"uiSchema"`
+	APISchema *openapi3.Schema `json:"schema"`
+	UISchema  utils.UISchema   `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
 	Detail       string             `json:"detail,omitempty"`
@@ -147,9 +147,9 @@ type AddonDefinition struct {
 // AddonStatusResponse defines the format of addon status response
 type AddonStatusResponse struct {
 	AddonBaseStatus
-	Args             map[string]string `json:"args"`
-	EnablingProgress *EnablingProgress `json:"enabling_progress,omitempty"`
-	AppStatus        common.AppStatus  `json:"appStatus,omitempty"`
+	Args             map[string]interface{} `json:"args"`
+	EnablingProgress *EnablingProgress      `json:"enabling_progress,omitempty"`
+	AppStatus        common.AppStatus       `json:"appStatus,omitempty"`
 	// the status of multiple clusters
 	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
 }
@@ -346,7 +346,7 @@ type ApplicationStatusResponse struct {
 type ApplicationStatisticsResponse struct {
 	EnvCount      int64 `json:"envCount"`
 	TargetCount   int64 `json:"targetCount"`
-	RevisonCount  int64 `json:"revisonCount"`
+	RevisionCount int64 `json:"revisionCount"`
 	WorkflowCount int64 `json:"workflowCount"`
 }
 

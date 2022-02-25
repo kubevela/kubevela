@@ -19,6 +19,8 @@ package common
 import (
 	"fmt"
 
+	"k8s.io/client-go/discovery"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/flowcontrol"
@@ -36,6 +38,7 @@ type Args struct {
 	client client.Client
 	dm     discoverymapper.DiscoveryMapper
 	pd     *packages.PackageDiscover
+	dc     *discovery.DiscoveryClient
 }
 
 // SetConfig insert kubeconfig into Args
@@ -121,4 +124,21 @@ func (a *Args) GetPackageDiscover() (*packages.PackageDiscover, error) {
 	}
 	a.pd = pd
 	return pd, nil
+}
+
+// GetDiscoveryClient return a discovery client from cli args
+func (a *Args) GetDiscoveryClient() (*discovery.DiscoveryClient, error) {
+	if a.dc != nil {
+		return a.dc, nil
+	}
+	cfg, err := a.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return dc, nil
 }

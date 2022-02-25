@@ -21,6 +21,9 @@ import (
 	"strings"
 )
 
+// UISchema ui schema
+type UISchema []*UIParameter
+
 // UIParameter Structured import table simple UI model
 type UIParameter struct {
 	Sort        uint      `json:"sort"`
@@ -29,12 +32,19 @@ type UIParameter struct {
 	Validate    *Validate `json:"validate,omitempty"`
 	JSONKey     string    `json:"jsonKey"`
 	UIType      string    `json:"uiType"`
+	Style       *Style    `json:"style,omitempty"`
 	// means disable parameter in ui
 	Disable                 *bool          `json:"disable,omitempty"`
 	SubParameterGroupOption []GroupOption  `json:"subParameterGroupOption,omitempty"`
 	SubParameters           []*UIParameter `json:"subParameters,omitempty"`
 	AdditionalParameter     *UIParameter   `json:"additionalParameter,omitempty"`
 	Additional              *bool          `json:"additional,omitempty"`
+}
+
+// Style ui style
+type Style struct {
+	// ColSpan the width of a responsive layout
+	ColSpan int `json:"colSpan"`
 }
 
 // GroupOption define multiple data structure composition options.
@@ -53,19 +63,14 @@ type Validate struct {
 	Pattern      string      `json:"pattern,omitempty"`
 	Options      []Option    `json:"options,omitempty"`
 	DefaultValue interface{} `json:"defaultValue,omitempty"`
+	// the parameter cannot be changed twice.
+	Immutable bool `json:"immutable"`
 }
 
 // Option select option
 type Option struct {
 	Label string      `json:"label"`
 	Value interface{} `json:"value"`
-}
-
-// ParseUIParameterFromDefinition cue of parameter in Definitions was analyzed to obtain the form description model.
-func ParseUIParameterFromDefinition(definition []byte) ([]*UIParameter, error) {
-	var params []*UIParameter
-
-	return params, nil
 }
 
 // FirstUpper Sets the first letter of the string to upper.

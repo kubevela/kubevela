@@ -130,10 +130,11 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring(showTdResult))
 		})
 		It("Test show componentDefinition use Helm Charts as Workload", func() {
-			cdName := "test-webapp-chart"
-			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("Properties"))
+			Eventually(func() string {
+				cdName := "test-webapp-chart"
+				output, _ := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
+				return output
+			}, 20*time.Second).Should(ContainSubstring("Properties"))
 		})
 		It("Test show componentDefinition def with raw Kube mode", func() {
 			cdName := "kube-worker"

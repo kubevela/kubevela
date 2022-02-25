@@ -32,6 +32,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/oam-dev/kubevela/version"
 )
 
 var defaultCacheDir = filepath.Join(homedir.HomeDir(), ".kube", "http-cache")
@@ -166,4 +168,12 @@ func computeDiscoverCacheDir(parentDir, host string) string {
 	// now do a simple collapse of non-AZ09 characters.  Collisions are possible but unlikely.  Even if we do collide the problem is short lived
 	safeHost := overlyCautiousIllegalFileCharacters.ReplaceAllString(schemelessHost, "_")
 	return filepath.Join(parentDir, safeHost)
+}
+
+// GenerateLeaderElectionID returns the Leader Election ID.
+func GenerateLeaderElectionID(name string, versionedDeploy bool) string {
+	if versionedDeploy {
+		return name + "-" + strings.ToLower(strings.ReplaceAll(version.VelaVersion, ".", "-"))
+	}
+	return name
 }

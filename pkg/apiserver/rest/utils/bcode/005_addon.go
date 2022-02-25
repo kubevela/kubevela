@@ -61,6 +61,9 @@ var (
 
 	// ErrAddonDependencyNotSatisfy means addon's dependencies is not enabled
 	ErrAddonDependencyNotSatisfy = NewBcode(500, 50017, "addon's dependencies is not enabled")
+
+	// ErrAddonSystemVersionMismatch means addon's version required mismatch
+	ErrAddonSystemVersionMismatch = NewBcode(400, 50018, "addon's system version requirement mismatch")
 )
 
 // isGithubRateLimit check if error is github rate limit

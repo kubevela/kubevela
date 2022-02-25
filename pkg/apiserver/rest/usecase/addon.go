@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/discovery"
+
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
@@ -101,6 +103,10 @@ func NewAddonUsecase(cacheTime time.Duration) AddonHandler {
 	if err != nil {
 		panic(err)
 	}
+	dc, err := clients.GetDiscoveryClient()
+	if err != nil {
+		panic(err)
+	}
 	ds := pkgaddon.NewRegistryDataStore(kubecli)
 	cache := pkgaddon.NewCache(ds)
 
@@ -114,6 +120,7 @@ func NewAddonUsecase(cacheTime time.Duration) AddonHandler {
 		config:             config,
 		apply:              apply.NewAPIApplicator(kubecli),
 		mutex:              new(sync.RWMutex),
+		discoveryClient:    dc,
 	}
 }
 
@@ -123,6 +130,7 @@ type defaultAddonHandler struct {
 	kubeClient         client.Client
 	config             *rest.Config
 	apply              apply.Applicator
+	discoveryClient    *discovery.DiscoveryClient
 
 	mutex *sync.RWMutex
 }
@@ -206,9 +214,10 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	} else if errors2.IsNotFound(err) {
 		return &res, nil
 	}
-	res.Args = make(map[string]string, len(sec.Data))
-	for k, v := range sec.Data {
-		res.Args[k] = string(v)
+
+	res.Args, err = pkgaddon.FetchArgsFromSecret(&sec)
+	if err != nil {
+		return nil, err
 	}
 
 	return &res, nil
@@ -352,15 +361,23 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 		return err
 	}
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}
 
-		if err != nil && errors.As(err, &pkgaddon.ErrNotExist) {
+		// if reach this line error must is not nil
+		if errors.Is(err, pkgaddon.ErrNotExist) {
 			// one registry return addon not exist error, should not break other registry func
 			continue
 		}
+
+		// wrap this error with special bcode
+		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+			return bcode.ErrAddonSystemVersionMismatch
+		}
+		// except `addon not found`, other errors should return directly
+		return err
 	}
 	return bcode.ErrAddonNotExist
 }
@@ -412,13 +429,21 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 	}
 
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-			return bcode.WrapGithubRateLimitErr(err)
+
+		if errors.Is(err, pkgaddon.ErrNotExist) {
+			continue
 		}
+
+		// wrap this error with special bcode
+		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+			return bcode.ErrAddonSystemVersionMismatch
+		}
+		// except `addon not found`, other errors should return directly
+		return err
 	}
 	return bcode.ErrAddonNotExist
 }

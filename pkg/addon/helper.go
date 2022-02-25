@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"k8s.io/client-go/discovery"
+
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
@@ -49,8 +51,8 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, name string, cli client.Client, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
-	h := NewAddonInstaller(ctx, cli, apply, config, &r, args, cache)
+func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
+	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache)
 	pkg, err := h.loadInstallPackage(name)
 	if err != nil {
 		return err
@@ -76,7 +78,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string) error {
 }
 
 // EnableAddonByLocalDir enable an addon from local dir
-func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, applicator apply.Applicator, config *rest.Config, args map[string]interface{}) error {
+func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}) error {
 	r := localReader{dir: dir, name: name}
 	metas, err := r.ListAddonMeta()
 	if err != nil {
@@ -91,7 +93,7 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return err
 	}
-	h := NewAddonInstaller(ctx, cli, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil)
+	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil)
 	needEnableAddonNames, err := h.checkDependency(pkg)
 	if err != nil {
 		return err
