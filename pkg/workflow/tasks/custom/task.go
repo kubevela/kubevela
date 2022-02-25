@@ -240,6 +240,8 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, p
 	}
 	contextTempl += "\n" + pCtx.ExtendedContextFile()
 
+	fmt.Println("=================", contextTempl)
+
 	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }
 

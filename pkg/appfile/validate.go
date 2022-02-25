@@ -17,7 +17,6 @@ limitations under the License.
 package appfile
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -34,7 +33,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		if wl.CapabilityCategory != types.CUECategory {
 			continue
 		}
-		ctxData := GenerateContextDataWithCtx(context.Background(), a, wl.Name)
+		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
 		pCtx, err := newValidationProcessContext(wl, ctxData)
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
