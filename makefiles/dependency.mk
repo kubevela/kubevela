@@ -71,3 +71,16 @@ KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
 endif
+
+.PHONY: helmdoc
+helmdoc:
+ifeq (, $(shell which readme-generator))
+	@{ \
+	set -e ;\
+	echo 'installing readme-generator-for-helm' ;\
+	npm install -g readme-generator-for-helm ;\
+	}
+else
+	@$(OK) readme-generator-for-helm is already installed
+HELMDOC=$(shell which readme-generator)
+endif

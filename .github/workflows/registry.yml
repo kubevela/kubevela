@@ -142,6 +142,13 @@ jobs:
         uses: azure/setup-helm@v1
         with:
           version: v3.4.0
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Generate helm doc
+        run: |
+          make helm-doc-gen
       - name: Prepare legacy chart
         run: |
           rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
@@ -187,10 +194,9 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
       - name: add artifacthub stuff to the repo
         run: |
-          rsync README.md $HELM_CHART/README.md
-          rsync README.md $LEGACY_HELM_CHART/README.md
-          rsync README.md $OAM_RUNTIME_HELM_CHART/README.md
-          rsync README.md $VELA_ROLLOUT_HELM_CHART/README.md
+          rsync $HELM_CHART/README.md $LEGACY_HELM_CHART/README.md
+          rsync $HELM_CHART/README.md $OAM_RUNTIME_HELM_CHART/README.md
+          rsync $HELM_CHART/README.md $VELA_ROLLOUT_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
       - name: Package helm charts
