@@ -4436,7 +4436,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: helm-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               replicas: 1
               selector:
@@ -4503,7 +4503,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: image-automation-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               replicas: 1
               selector:
@@ -4573,7 +4573,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: image-reflector-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               replicas: 1
               selector:
@@ -4647,7 +4647,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: kustomize-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               replicas: 1
               selector:
@@ -4717,7 +4717,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: flux-source-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               replicas: 1
               selector:
@@ -4802,10 +4802,10 @@ spec:
             subjects:
               - kind: ServiceAccount
                 name: sa-kustomize-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-helm-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: rbac.authorization.k8s.io/v1
             kind: ClusterRoleBinding
             metadata:
@@ -4819,22 +4819,22 @@ spec:
             subjects:
               - kind: ServiceAccount
                 name: sa-kustomize-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-helm-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-source-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-notification-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-image-reflector-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
               - kind: ServiceAccount
                 name: sa-image-automation-controller
-                namespace: flux-system
+                namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: rbac.authorization.k8s.io/v1
             kind: ClusterRole
             metadata:
@@ -4912,35 +4912,35 @@ spec:
               labels:
                 app.kubernetes.io/instance: flux-system
               name: sa-helm-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: v1
             kind: ServiceAccount
             metadata:
               labels:
                 app.kubernetes.io/instance: flux-system
               name: sa-image-automation-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: v1
             kind: ServiceAccount
             metadata:
               labels:
                 app.kubernetes.io/instance: flux-system
               name: sa-image-reflector-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: v1
             kind: ServiceAccount
             metadata:
               labels:
                 app.kubernetes.io/instance: flux-system
               name: sa-kustomize-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: v1
             kind: ServiceAccount
             metadata:
               labels:
                 app.kubernetes.io/instance: flux-system
               name: sa-source-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
           - apiVersion: v1
             kind: Service
             metadata:
@@ -4948,7 +4948,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: source-controller
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               ports:
                 - name: http
@@ -4965,7 +4965,7 @@ spec:
                 app.kubernetes.io/instance: flux-system
                 control-plane: controller
               name: webhook-receiver
-              namespace: flux-system
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               ports:
                 - name: http
