@@ -130,3 +130,7 @@ check-license-header:
 def-install:
 	./hack/utils/installdefinition.sh
 
+helm-doc-gen:
+	@echo -e "\033[33m Please make sure the readme-generator is installed, refer to https://github.com/bitnami-labs/readme-generator-for-helm \033[0m"
+	readme-generator -v charts/vela-core/values.yaml -r charts/vela-core/README.md
+	readme-generator -v charts/vela-minimal/values.yaml -r charts/vela-minimal/README.md

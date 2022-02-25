@@ -17,35 +17,17 @@
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4602/badge)](https://bestpractices.coreinfrastructure.org/projects/4602)
 
-# KubeVela Minimal helm chart
+# KubeVela helm chart
 
-KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster.
-
-KubeVela Minimal is the minimal version of KubeVela, it only contains the minimal components to run KubeVela and do not support features like multi clusters and env binding. For more complete experience, please install the [full version of KubeVela]((https://kubevela.io/docs/install)).
-
-KubeVela Minimal contains the following CRDs:
-
-CRD Name | Usage
------------- | -------------
-applications.core.oam.dev  | KubeVela Core Application Object
-applicationrevisions.core.oam.dev | The revision CRD of Application
-componentdefinitions.core.oam.dev | ComponentDefinition Object
-traitdefinitions.core.oam.dev  | TraitDefinition Object
-workflowstepdefinitions.core.oam.dev | Workflowstep Object
-scopedefinitions.core.oam.dev | ScopeDefinition Object
-policydefinitions.core.oam.dev | PolicyDefinition Object
- workloaddefinitions.core.oam.dev  | WorkloadDefinition Object
-definitionrevisions.core.oam.dev | The revision CRD for all definition objects
-rollouts.standard.oam.dev | Rollout feature trait
-resourcetrackers.core.oam.dev | Garbage Collection feature
-healthscopes.core.oam.dev | Health Check feature
+KubeVela is a modern application platform that makes it easier and faster to deliver and manage applications across hybrid,
+multi-cloud environments. At the mean time, it is highly extensible and programmable, which can adapt to your needs as they grow.
 
 ## TL;DR
 
 ```bash
 helm repo add kubevela https://charts.kubevela.net/core
 helm repo update
-helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --wait
+helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wait
 ```
 
 ## Prerequisites
@@ -56,18 +38,17 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`                                                        |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`                                                         |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`                                                         |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`                                                          |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                                                         |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`                                                    |
-| `disableCaps`                 | Disable capability                                                                            | `manualscalertrait,containerizedwokrload,envbinding,rollout` |
-| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                                                        |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`                                                      |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                                                        |
+| Name                          | Description                                                                                   | Value     |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | --------- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`     |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`      |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`      |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`       |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`      |
+| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3`    |
+| `disableCaps`                 | Disable capability                                                                            | `rollout` |
+| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`   |
+| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
 
 
 ### KubeVela controller parameters
