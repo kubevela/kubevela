@@ -16,7 +16,7 @@ function check_install() {
   for file in *.yaml ;
     do
       echo "Info: changing "$DEF_PATH"/"$file
-      sed -i.bak "s#namespace: {{.Values.systemDefinitionNamespace}}#namespace: vela-system#g" $file
+      sed -i.bak "s#namespace: {{ include "systemDefinitionNamespace" . }}#namespace: vela-system#g" $file
       kubectl apply -f $file
       rm $file
       mv $file".bak" $file

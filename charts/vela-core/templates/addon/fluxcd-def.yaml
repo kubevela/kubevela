@@ -18,7 +18,7 @@ spec:
                 definition.oam.dev/description: helm release is a group of K8s resources
                   from either git repository or helm repo
               name: helm
-              namespace: {{.Values.systemDefinitionNamespace}}
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               schematic:
                 cue:
@@ -100,7 +100,7 @@ spec:
               annotations:
                 definition.oam.dev/description: A list of JSON6902 patch to selected target
               name: kustomize-json-patch
-              namespace: {{.Values.systemDefinitionNamespace}}
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               schematic:
                 cue:
@@ -123,7 +123,7 @@ spec:
                 definition.oam.dev/description: A list of StrategicMerge or JSON6902 patch
                   to selected target
               name: kustomize-patch
-              namespace: {{.Values.systemDefinitionNamespace}}
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               schematic:
                 cue:
@@ -144,7 +144,7 @@ spec:
                 definition.oam.dev/description: kustomize can fetching, building, updating
                   and applying Kustomize manifests from git repo.
               name: kustomize
-              namespace: {{.Values.systemDefinitionNamespace}}
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               schematic:
                 cue:
@@ -256,7 +256,7 @@ spec:
                 definition.oam.dev/description: A list of strategic merge to kustomize
                   config
               name: kustomize-strategy-merge
-              namespace: {{.Values.systemDefinitionNamespace}}
+              namespace: {{ include "systemDefinitionNamespace" . }}
             spec:
               schematic:
                 cue:
