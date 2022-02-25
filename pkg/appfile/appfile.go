@@ -224,7 +224,7 @@ func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructure
 }
 
 func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
-	ctxData := GenerateContextDataWithCtx(context.Background(), af, workload.Name)
+	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
 	un, err := generateUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
 	if err != nil {
 		return nil, err
@@ -293,9 +293,9 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentMani
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
-	ctxData := GenerateContextDataWithCtx(context.Background(), af, wl.Name)
+	ctxData := GenerateContextDataFromAppFile(af, wl.Name)
 	// generate context here to avoid nil pointer panic
-	wl.Ctx = NewBasicContext(GenerateContextDataWithCtx(context.Background(), af, wl.Name), wl.Params)
+	wl.Ctx = NewBasicContext(GenerateContextDataFromAppFile(af, wl.Name), wl.Params)
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
 		return generateComponentFromHelmModule(wl, ctxData)
@@ -871,14 +871,13 @@ func generateComponentFromHelmModule(wl *Workload, ctxData process.ContextData) 
 	return compManifest, nil
 }
 
-// GenerateContextDataWithCtx generates process context data with context and appfile
-func GenerateContextDataWithCtx(ctx context.Context, appfile *Appfile, wlName string) process.ContextData {
+// GenerateContextDataFromAppFile generates process context data from app file
+func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.ContextData {
 	data := process.ContextData{
 		Namespace:       appfile.Namespace,
 		AppName:         appfile.Name,
 		CompName:        wlName,
 		AppRevisionName: appfile.AppRevisionName,
-		Ctx:             ctx,
 		Components:      appfile.Components,
 	}
 	if appfile.AppAnnotations != nil {

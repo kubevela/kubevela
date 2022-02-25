@@ -874,7 +874,7 @@ variable "password" {
 			revision: "v1",
 		}
 
-		ctxData := GenerateContextDataWithCtx(context.Background(), &Appfile{
+		ctxData := GenerateContextDataFromAppFile(&Appfile{
 			Name:            args.appName,
 			Namespace:       ns,
 			AppRevisionName: args.revision,
@@ -1337,7 +1337,7 @@ func TestBaseGenerateComponent(t *testing.T) {
 	var wlName = "my-wl-1"
 	var workflowName = "my-wf"
 	var publishVersion = "123"
-	ctxData := GenerateContextDataWithCtx(context.Background(), &Appfile{
+	ctxData := GenerateContextDataFromAppFile(&Appfile{
 		Name:      appName,
 		Namespace: ns,
 		AppAnnotations: map[string]string{

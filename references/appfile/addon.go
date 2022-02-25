@@ -81,7 +81,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 			name := wl.Name
 			ioStream.Infof("\nApplying cloud resources %s\n", name)
 
-			tf, err := getTerraformJSONFiles(wl, appfile.GenerateContextDataWithCtx(ctx, appFile, wl.Name))
+			tf, err := getTerraformJSONFiles(wl, appfile.GenerateContextDataFromAppFile(appFile, wl.Name))
 			if err != nil {
 				return nil, fmt.Errorf("failed to get Terraform JSON files from workload %s: %w", name, err)
 			}
