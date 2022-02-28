@@ -130,3 +130,6 @@ check-license-header:
 def-install:
 	./hack/utils/installdefinition.sh
 
+helm-doc-gen: helmdoc
+	readme-generator -v charts/vela-core/values.yaml -r charts/vela-core/README.md
+	readme-generator -v charts/vela-minimal/values.yaml -r charts/vela-minimal/README.md

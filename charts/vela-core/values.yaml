@@ -2,20 +2,132 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+## @section KubeVela core parameters
 
+## @param systemDefinitionNamespace System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`.
+systemDefinitionNamespace:
+
+## @param applicationRevisionLimit Application revision limit
+applicationRevisionLimit: 10
+
+## @param definitionRevisionLimit Definition revision limit
+definitionRevisionLimit: 20
+
+## @param concurrentReconciles concurrentReconciles is the concurrent reconcile number of the controller
+concurrentReconciles: 4
+
+## @param controllerArgs.reSyncPeriod The period for resync the applications
+controllerArgs:
+  reSyncPeriod: 5m
+
+## @param OAMSpecVer OAMSpecVer is the oam spec version controller want to setup
+OAMSpecVer: "v0.3"
+
+## @param disableCaps Disable capability
 disableCaps: "rollout"
 
+## @param enableFluxcdAddon Whether to enable fluxcd addon
+enableFluxcdAddon: false
+
+## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
+dependCheckWait: 30s
+
+
+## @section KubeVela controller parameters
+
+## @param replicaCount KubeVela controller replica count
+replicaCount: 1
+
+## @param imageRegistry Image registry
 imageRegistry: ""
+## @param image.repository Image repository
+## @param image.tag Image tag
+## @param image.pullPolicy Image pull policy
 image:
   repository: oamdev/vela-core
   tag: latest
   pullPolicy: Always
 
+## @param resources.limits.cpu KubeVela controller's cpu limit
+## @param resources.limits.memory KubeVela controller's memory limit
+## @param resources.requests.cpu KubeVela controller's cpu request
+## @param resources.requests.memory KubeVela controller's memory request
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 50m
+    memory: 20Mi
+
+## @param webhookService.type KubeVela webhook service type
+## @param webhookService.port KubeVela webhook service port
+webhookService:
+  type: ClusterIP
+  port: 9443
+
+## @param healthCheck.port KubeVela health check port
+healthCheck:
+  port: 9440
+
+
+## @section MultiCluster parameters
+
+## @param multicluster.enabled Whether to enable multi-cluster
+## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
+## @param multicluster.clusterGateway.port ClusterGateway port
+## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
+## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
+## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
+## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
+## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
+## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
+## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
+multicluster:
+  enabled: true
+  clusterGateway:
+    replicaCount: 1
+    port: 9443
+    image:
+      repository: oamdev/cluster-gateway
+      tag: v1.1.7
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 100m
+        memory: 200Mi
+    secureTLS:
+      enabled: true
+      certPath: /etc/k8s-cluster-gateway-certs
+
+
+## @section Test parameters
+
+## @param test.app.repository Test app repository
+## @param test.app.tag Test app tag
+## @param test.k8s.repository Test k8s repository
+## @param test.k8s.tag Test k8s tag
+test:
+  app:
+    repository: oamdev/hello-world
+    tag: v1
+  k8s:
+    repository: oamdev/alpine-k8s
+    tag: 1.18.2
+
+
+## @section Common parameters
+
+## @param imagePullSecrets Image pull secrets
 imagePullSecrets: []
+## @param nameOverride Override name
 nameOverride: ""
+## @param fullnameOverride Fullname override
 fullnameOverride: ""
 
+## @param serviceAccount.create Specifies whether a service account should be created
+## @param serviceAccount.annotations Annotations to add to the service account
+## @param serviceAccount.name The name of the service account to use. If not set and create is true, a name is generated using the fullname template
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -25,9 +137,11 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name:
 
+## @skip podSecurityContext
 podSecurityContext: {}
   # fsGroup: 2000
 
+## @skip securityContext
 securityContext: {}
   # capabilities:
   #   drop:
@@ -36,33 +150,29 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
-resources:
-  limits:
-    cpu: 500m
-    memory: 1Gi
-  requests:
-    cpu: 50m
-    memory: 20Mi
-
-webhookService:
-  type: ClusterIP
-  port: 9443
-
-healthCheck:
-  port: 9440
-
+## @param nodeSelector Node selector
 nodeSelector: {}
 
+## @param tolerations Tolerations
 tolerations: []
 
+## @param affinity Affinity
 affinity: {}
 
+## @param rbac.create Specifies whether a RBAC role should be created
 rbac:
   create: true
 
-controllerArgs:
-  reSyncPeriod: 5m
+## @param logDebug Enable debug logs for development purpose
+logDebug: false
 
+## @param logFilePath If non-empty, write log files in this path
+logFilePath: ""
+
+## @param logFileMaxSize Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited.
+logFileMaxSize: 1024
+
+## @skip admissionWebhooks
 admissionWebhooks:
   enabled: true
   failurePolicy: Fail
@@ -81,61 +191,8 @@ admissionWebhooks:
     enabled: false
     revisionHistoryLimit: 3
 
-#Enable debug logs for development purpose
-logDebug: false
-
-#If non-empty, write log files in this path
-logFilePath: ""
-
-#Defines the maximum size a log file can grow to. Unit is megabytes.
-#If the value is 0, the maximum file size is unlimited.
-logFileMaxSize: 1024
-
-#System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`.
-systemDefinitionNamespace:
-
-applicationRevisionLimit: 10
-
-definitionRevisionLimit: 20
-
-# concurrentReconciles is the concurrent reconcile number of the controller
-concurrentReconciles: 4
-
+## @param kubeClient.qps The qps for reconcile clients, default is 50
+## @param kubeClient.brust The burst for reconcile clients, default is 100
 kubeClient:
-  # the qps for reconcile clients, default is 50
   qps: 50
-  # the burst for reconcile clients, default is 100
   brust: 100
-
-# dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
-dependCheckWait: 30s
-
-# OAMSpecVer is the oam spec version controller want to setup
-OAMSpecVer: "v0.3"
-
-multicluster:
-  enabled: true
-  clusterGateway:
-    replicaCount: 1
-    port: 9443
-    image:
-      repository: oamdev/cluster-gateway
-      tag: v1.1.7
-      pullPolicy: IfNotPresent
-    resources:
-      limits:
-        cpu: 100m
-        memory: 200Mi
-    secureTLS:
-      enabled: true
-      certPath: /etc/k8s-cluster-gateway-certs
-
-test:
-  app:
-    repository: oamdev/hello-world
-    tag: v1
-  k8s:
-    repository: oamdev/alpine-k8s
-    tag: 1.18.2
-
-enableFluxcdAddon: false
