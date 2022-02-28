@@ -73,6 +73,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
 	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
+	helmUsecase := usecase.NewHelmUsecase()
 
 	// init for default values
 
@@ -97,4 +98,6 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))
 
 	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase))
+
+	RegisterWebService(NewHelmWebService(helmUsecase))
 }

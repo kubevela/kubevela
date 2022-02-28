@@ -165,6 +165,14 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 
 // ListVersions list available versions from repo
 func (h *Helper) ListVersions(repoURL string, chartName string) (repo.ChartVersions, error) {
+	i, err := h.getIndexInfo(repoURL)
+	if err != nil {
+		return nil, err
+	}
+	return i.Entries[chartName], nil
+}
+
+func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
 	var body []byte
 	if utils.IsValidURL(repoURL) {
 		parsedURL, err := url.Parse(repoURL)
@@ -189,7 +197,7 @@ func (h *Helper) ListVersions(repoURL string, chartName string) (repo.ChartVersi
 	if err := yaml.UnmarshalStrict(body, i); err != nil {
 		return nil, fmt.Errorf("parse index file from %s failure %w", repoURL, err)
 	}
-	return i.Entries[chartName], nil
+	return i, nil
 }
 
 // GetDeploymentsFromManifest get deployment from helm manifest
@@ -249,4 +257,45 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 		KubeClient:       kubeClient,
 		Log:              log,
 	}, nil
+}
+
+// ListChartsFromRepo list available helm charts in a repo
+func (h *Helper) ListChartsFromRepo(repoURL string) ([]string, error) {
+	i, err := h.getIndexInfo(repoURL)
+	if err != nil {
+		return nil, err
+	}
+	res := make([]string, len(i.Entries))
+	j := 0
+	for s := range i.Entries {
+		res[j] = s
+		j++
+	}
+	return res, nil
+}
+
+// GetValuesFromChart will extract the parameter from a helm chart
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string) (map[string]interface{}, error) {
+	i, err := h.getIndexInfo(repoURL)
+	if err != nil {
+		return nil, err
+	}
+	chartVersions, ok := i.Entries[chartName]
+	if !ok {
+		return nil, fmt.Errorf("cannot find chart %s in this repo", chartName)
+	}
+	var urls []string
+	for _, chartVersion := range chartVersions {
+		if chartVersion.Version == version {
+			urls = chartVersion.URLs
+		}
+	}
+	for _, u := range urls {
+		c, err := h.LoadCharts(u)
+		if err != nil {
+			continue
+		}
+		return c.Values, nil
+	}
+	return nil, fmt.Errorf("cannot load chart from chart repo")
 }
