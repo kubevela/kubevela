@@ -18,14 +18,12 @@ package appfile
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -256,33 +254,9 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
 	ws := []*Workload{}
 
-	policies := af.app.Spec.Policies
-	policyMap := map[string]struct{}{}
-	for _, policy := range policies {
-		policyMap[policy.Name] = struct{}{}
-	}
-
-	for _, _step := range af.WorkflowSteps {
-		if _step.Type == "deploy" && _step.Properties != nil {
-			props := struct {
-				Policies []string `json:"policies,omitempty"`
-			}{}
-			if err := json.Unmarshal(_step.Properties.Raw, &props); err == nil {
-				for _, policyName := range props.Policies {
-					if _, found := policyMap[policyName]; !found {
-						po := &v1alpha1.Policy{}
-						if err = p.client.Get(ctx, types2.NamespacedName{Namespace: af.app.GetNamespace(), Name: policyName}, po); err != nil {
-							if kerrors.IsNotFound(err) {
-								return errors.Errorf("external policy %s not found", policyName)
-							}
-							return errors.Wrapf(err, "failed to load external policy %s in namespace %s", policyName, af.app.GetNamespace())
-						}
-						policies = append(policies, v1beta1.AppPolicy{Name: policyName, Type: po.Type, Properties: po.Properties})
-						policyMap[policyName] = struct{}{}
-					}
-				}
-			}
-		}
+	policies, err := step.LoadExternalPoliciesForWorkflow(ctx, p.client, af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	if err != nil {
+		return err
 	}
 
 	var compDefs []*v1beta1.ComponentDefinition

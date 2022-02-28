@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podinfo-2
+  labels:
+    app: podinfo
+data:
+  version: "2"
