@@ -217,7 +217,12 @@ parameter: {
 	}
 
 	for _, v := range testCases {
-		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        "test",
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+		})
 		wt := NewWorkloadAbstractEngine("testWorkload", &packages.PackageDiscover{})
 		err := wt.Complete(ctx, v.workloadTemplate, v.params)
 		hasError := err != nil
@@ -918,7 +923,12 @@ parameter: [string]: string`,
 	}
 
 `
-		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        "test",
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+		})
 		wt := NewWorkloadAbstractEngine("-", &packages.PackageDiscover{})
 		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,
@@ -1017,7 +1027,12 @@ outputs: service :{
 	}
 	for k, v := range testcases {
 		wd := NewWorkloadAbstractEngine(k, &packages.PackageDiscover{})
-		ctx := process.NewContext("default", k, "myapp", "myapp-v1")
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        k,
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+		})
 		err := wd.Complete(ctx, v.template, map[string]interface{}{})
 		assert.NoError(t, err)
 		_, assists := ctx.Output()
@@ -1095,7 +1110,12 @@ outputs: abc :{
 	}
 	for k, v := range testcases {
 		td := NewTraitAbstractEngine(k, &packages.PackageDiscover{})
-		ctx := process.NewContext("default", k, "myapp", "myapp-v1")
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "myapp",
+			CompName:        k,
+			Namespace:       "default",
+			AppRevisionName: "myapp-v1",
+		})
 		err := td.Complete(ctx, v.template, map[string]interface{}{})
 		assert.NoError(t, err)
 		_, assists := ctx.Output()

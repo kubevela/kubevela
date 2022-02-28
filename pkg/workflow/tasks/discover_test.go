@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -46,11 +47,17 @@ func TestDiscover(t *testing.T) {
 			return "", makeErr(name)
 		}
 	}
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
 		},
-		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil, 0),
+		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil, 0, pCtx),
 	}
 
 	_, err := discover.GetTaskGenerator(context.Background(), "suspend")

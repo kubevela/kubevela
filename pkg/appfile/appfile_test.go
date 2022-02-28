@@ -43,6 +43,7 @@ import (
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -873,7 +874,12 @@ variable "password" {
 			revision: "v1",
 		}
 
-		pCtx := NewBasicContext(args.appName, args.wl.Name, args.revision, ns, args.wl.Params)
+		ctxData := GenerateContextDataFromAppFile(&Appfile{
+			Name:            args.appName,
+			Namespace:       ns,
+			AppRevisionName: args.revision,
+		}, args.wl.Name)
+		pCtx := NewBasicContext(ctxData, args.wl.Params)
 		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
@@ -1329,7 +1335,17 @@ func TestBaseGenerateComponent(t *testing.T) {
 	var ns = "test-ns"
 	var traitName = "mytrait"
 	var wlName = "my-wl-1"
-	pContext := NewBasicContext(appName, wlName, "rev-1", ns, nil)
+	var workflowName = "my-wf"
+	var publishVersion = "123"
+	ctxData := GenerateContextDataFromAppFile(&Appfile{
+		Name:      appName,
+		Namespace: ns,
+		AppAnnotations: map[string]string{
+			oam.AnnotationWorkflowName:   workflowName,
+			oam.AnnotationPublishVersion: publishVersion,
+		},
+	}, wlName)
+	pContext := NewBasicContext(ctxData, nil)
 	base := `
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -1359,11 +1375,14 @@ if context.componentType == "stateless" {
 	}
 	name:                   context.name
 	envSourceContainerName: context.name
+  workflowName:           context.workflowName
+  publishVersion:         context.publishVersion
 }`,
 	}
 	wl := &Workload{Type: "stateful", Traits: []*Trait{tr}}
 	cm, err := baseGenerateComponent(pContext, wl, appName, ns)
 	assert.NilError(t, err)
 	assert.Equal(t, cm.Traits[0].Object["kind"], "StatefulSet")
-	assert.Equal(t, cm.Traits[0].Object["name"], wlName)
+	assert.Equal(t, cm.Traits[0].Object["workflowName"], workflowName)
+	assert.Equal(t, cm.Traits[0].Object["publishVersion"], publishVersion)
 }

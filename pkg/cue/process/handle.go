@@ -62,10 +62,12 @@ type templateContext struct {
 	// appName is the name of Application
 	appName string
 	// appRevision is the revision name of Application
-	appRevision string
-	configs     []map[string]string
-	base        model.Instance
-	auxiliaries []Auxiliary
+	appRevision    string
+	workflowName   string
+	publishVersion string
+	configs        []map[string]string
+	base           model.Instance
+	auxiliaries    []Auxiliary
 	// namespace is the namespace of Application which is used to set the namespace for Crossplane connection secret,
 	// ComponentDefinition/TratiDefinition OpenAPI v3 schema
 	namespace string
@@ -94,57 +96,41 @@ type RequiredSecrets struct {
 	Data        map[string]interface{}
 }
 
+// ContextData is the core data of process context
+type ContextData struct {
+	Namespace       string
+	AppName         string
+	CompName        string
+	AppRevisionName string
+	WorkflowName    string
+	PublishVersion  string
+
+	Ctx            context.Context
+	BaseHooks      []BaseHook
+	AuxiliaryHooks []AuxiliaryHook
+	Components     []common.ApplicationComponent
+}
+
 // NewContext create render templateContext
-func NewContext(namespace, name, appName, appRevision string) Context {
-	return &templateContext{
-		name:        name,
-		appName:     appName,
-		appRevision: appRevision,
+func NewContext(data ContextData) Context {
+	ctx := &templateContext{
+		namespace:      data.Namespace,
+		name:           data.CompName,
+		appName:        data.AppName,
+		appRevision:    data.AppRevisionName,
+		workflowName:   data.WorkflowName,
+		publishVersion: data.PublishVersion,
+
 		configs:     []map[string]string{},
 		auxiliaries: []Auxiliary{},
-		namespace:   namespace,
 		parameters:  map[string]interface{}{},
-	}
-}
 
-// NewProcessContextWithCtx create render templateContext with ctx
-func NewProcessContextWithCtx(ctx context.Context, namespace, name, appName, appRevision string) Context {
-	return &templateContext{
-		name:        name,
-		appName:     appName,
-		appRevision: appRevision,
-		configs:     []map[string]string{},
-		auxiliaries: []Auxiliary{},
-		namespace:   namespace,
-		parameters:  map[string]interface{}{},
-		ctx:         ctx,
+		ctx:            data.Ctx,
+		baseHooks:      data.BaseHooks,
+		auxiliaryHooks: data.AuxiliaryHooks,
+		components:     data.Components,
 	}
-}
-
-// NewContextWithHooks create render templateContext with hooks for validation
-func NewContextWithHooks(namespace, name, appName, appRevision string, baseHooks []BaseHook, auxHooks []AuxiliaryHook) Context {
-	return &templateContext{
-		name:           name,
-		appName:        appName,
-		appRevision:    appRevision,
-		configs:        []map[string]string{},
-		auxiliaries:    []Auxiliary{},
-		namespace:      namespace,
-		parameters:     map[string]interface{}{},
-		baseHooks:      baseHooks,
-		auxiliaryHooks: auxHooks,
-	}
-}
-
-// NewPolicyContext create Application Scope templateContext for Policy
-func NewPolicyContext(namespace, name, appName, appRevision string, components []common.ApplicationComponent) Context {
-	return &templateContext{
-		name:        name,
-		appName:     appName,
-		appRevision: appRevision,
-		namespace:   namespace,
-		components:  components,
-	}
+	return ctx
 }
 
 // SetParameters sets templateContext parameters
@@ -185,6 +171,8 @@ func (ctx *templateContext) BaseContextFile() string {
 	buff += fmt.Sprintf(model.ContextAppRevisionNum+": %d\n", revNum)
 	buff += fmt.Sprintf(model.ContextNamespace+": \"%s\"\n", ctx.namespace)
 	buff += fmt.Sprintf(model.ContextCompRevisionName+": \"%s\"\n", model.ComponentRevisionPlaceHolder)
+	buff += fmt.Sprintf(model.ContextWorkflowName+": \"%s\"\n", ctx.workflowName)
+	buff += fmt.Sprintf(model.ContextPublishVersion+": \"%s\"\n", ctx.publishVersion)
 
 	if ctx.base != nil {
 		buff += fmt.Sprintf(model.OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
