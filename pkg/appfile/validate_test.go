@@ -58,7 +58,13 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			},
 			engine: definition.NewWorkloadAbstractEngine("myweb", pd),
 		}
-		pCtx, err := newValidationProcessContext(wl, "myapp", "myapp-v1", "test-ns")
+
+		ctxData := GenerateContextDataFromAppFile(&Appfile{
+			Name:            "myapp",
+			Namespace:       "test-ns",
+			AppRevisionName: "myapp-v1",
+		}, wl.Name)
+		pCtx, err := newValidationProcessContext(wl, ctxData)
 		Expect(err).Should(BeNil())
 		Eventually(func() string {
 			for _, tr := range wl.Traits {

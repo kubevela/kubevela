@@ -100,7 +100,14 @@ image: "myserver"
 		},
 	}
 
-	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
+	ctx := NewContext(ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "myns",
+		AppRevisionName: "myapp-v1",
+		WorkflowName:    "myworkflow",
+		PublishVersion:  "mypublishversion",
+	})
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 	ctx.AppendAuxiliaries(svcAuxWithAbnormalName)
@@ -129,6 +136,14 @@ image: "myserver"
 	myAppRevisionNum, err := ctxInst.Lookup("context", model.ContextAppRevisionNum).Int64()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(1), myAppRevisionNum)
+
+	myWorkflowName, err := ctxInst.Lookup("context", model.ContextWorkflowName).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "myworkflow", myWorkflowName)
+
+	myPublishVersion, err := ctxInst.Lookup("context", model.ContextPublishVersion).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "mypublishversion", myPublishVersion)
 
 	inputJs, err := ctxInst.Lookup("context", model.OutputFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)

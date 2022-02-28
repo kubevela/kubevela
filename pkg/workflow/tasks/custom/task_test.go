@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -75,7 +76,13 @@ myIP: value: "1.1.1.1"
 		},
 	})
 
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "app",
+		CompName:        "app",
+		Namespace:       "default",
+		AppRevisionName: "app-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
 	steps := []v1beta1.WorkflowStep{
 		{
@@ -178,7 +185,13 @@ close({
 			return errors.New("mock error")
 		},
 	})
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "app",
+		CompName:        "app",
+		Namespace:       "default",
+		AppRevisionName: "app-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
 	steps := []v1beta1.WorkflowStep{
 		{
@@ -414,7 +427,13 @@ func TestPendingInputCheck(t *testing.T) {
 			ParameterKey: "score",
 		}},
 	}
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
@@ -443,7 +462,13 @@ func TestPendingDependsOnCheck(t *testing.T) {
 		Type:      "ok",
 		DependsOn: []string{"depend"},
 	}
-	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})

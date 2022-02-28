@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
@@ -197,7 +198,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
 
-			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID)
+			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 			if err != nil {
 				exec.err(ctx, err, StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
@@ -227,7 +228,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 	}, nil
 }
 
-func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string) (*value.Value, error) {
+func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, pCtx process.Context) (*value.Value, error) {
 	var contextTempl string
 	meta, _ := ctx.GetVar(wfTypes.ContextKeyMetadata)
 	if meta != nil {
@@ -237,6 +238,7 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string) (
 		}
 		contextTempl = fmt.Sprintf("\ncontext: {%s}\ncontext: stepSessionID: \"%s\"", ms, id)
 	}
+	contextTempl += "\n" + pCtx.ExtendedContextFile()
 
 	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }
@@ -415,7 +417,7 @@ func getLabel(v *value.Value, label string) string {
 }
 
 // NewTaskLoader create a tasks loader.
-func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers, logLevel int) *TaskLoader {
+func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, handlers providers.Providers, logLevel int, pCtx process.Context) *TaskLoader {
 	return &TaskLoader{
 		loadTemplate: lt,
 		pd:           pkgDiscover,
@@ -423,6 +425,7 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 		runOptionsProcess: func(options *wfTypes.TaskRunOptions) {
 			options.PreStartHooks = append(options.PreStartHooks, hooks.Input)
 			options.PostStopHooks = append(options.PostStopHooks, hooks.Output)
+			options.PCtx = pCtx
 		},
 		logLevel: logLevel,
 	}

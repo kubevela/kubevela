@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -60,16 +61,19 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
 	appRev *v1beta1.ApplicationRevision) ([]wfTypes.TaskRunner, error) {
+
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
 	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm)
+	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
+	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm, pCtx)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
+
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
 		options := &wfTypes.GeneratorOptions{
@@ -289,4 +293,18 @@ func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {
 		id = utils.RandomString(10)
 	}
 	return id
+}
+
+func generateContextDataFromApp(app *v1beta1.Application, appRev string) process.ContextData {
+	data := process.ContextData{
+		Namespace:       app.Namespace,
+		AppName:         app.Name,
+		CompName:        app.Name,
+		AppRevisionName: appRev,
+	}
+	if app.Annotations != nil {
+		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
+		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	return data
 }
