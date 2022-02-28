@@ -207,75 +207,75 @@ func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, s
 }
 
 func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
-	if comp.Type == "ref-objects" {
-		_comp := comp.DeepCopy()
-		props := &struct {
-			Objects []struct {
-				APIVersion string            `json:"apiVersion"`
-				Kind       string            `json:"kind"`
-				Name       string            `json:"name,omitempty"`
-				Selector   map[string]string `json:"selector,omitempty"`
-			} `json:"objects"`
-		}{}
-		if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
-			return nil, errors.Wrapf(err, "invalid properties for ref-objects")
-		}
-		var objects []*unstructured.Unstructured
-		addObj := func(un *unstructured.Unstructured) {
-			un.SetResourceVersion("")
-			un.SetGeneration(0)
-			un.SetOwnerReferences(nil)
-			un.SetDeletionTimestamp(nil)
-			un.SetManagedFields(nil)
-			un.SetUID("")
-			unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
-			unstructured.RemoveNestedField(un.Object, "status")
-			// TODO(somefive): make the following logic more generalizable
-			if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
-				if clusterIP, exist, _ := unstructured.NestedString(un.Object, "spec", "clusterIP"); exist && clusterIP != corev1.ClusterIPNone {
-					unstructured.RemoveNestedField(un.Object, "spec", "clusterIP")
-					unstructured.RemoveNestedField(un.Object, "spec", "clusterIPs")
-				}
-			}
-			objects = append(objects, un)
-		}
-		for _, obj := range props.Objects {
-			if obj.Name != "" && obj.Selector != nil {
-				return nil, errors.Errorf("invalid properties for ref-objects, name and selector cannot be both set")
-			}
-			if obj.Name == "" && obj.Selector != nil {
-				uns := &unstructured.UnstructuredList{}
-				uns.SetAPIVersion(obj.APIVersion)
-				uns.SetKind(obj.Kind)
-				if err := p.cli.List(context.Background(), uns, client.InNamespace(p.app.GetNamespace()), client.MatchingLabels(obj.Selector)); err != nil {
-					return nil, errors.Wrapf(err, "failed to load ref object %s with selector", obj.Kind)
-				}
-				for _, _un := range uns.Items {
-					addObj(_un.DeepCopy())
-				}
-			} else if obj.Selector == nil {
-				un := &unstructured.Unstructured{}
-				un.SetAPIVersion(obj.APIVersion)
-				un.SetKind(obj.Kind)
-				un.SetName(obj.Name)
-				un.SetNamespace(p.app.GetNamespace())
-				if obj.Name == "" {
-					un.SetName(comp.Name)
-				}
-				if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
-					return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
-				}
-				addObj(un)
-			}
-		}
-		bs, err := json.Marshal(map[string]interface{}{"objects": objects})
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
-		}
-		_comp.Properties.Raw = bs
-		return _comp, nil
+	if comp.Type != "ref-objects" {
+		return comp, nil
 	}
-	return comp, nil
+	_comp := comp.DeepCopy()
+	props := &struct {
+		Objects []struct {
+			APIVersion string            `json:"apiVersion"`
+			Kind       string            `json:"kind"`
+			Name       string            `json:"name,omitempty"`
+			Selector   map[string]string `json:"selector,omitempty"`
+		} `json:"objects"`
+	}{}
+	if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
+		return nil, errors.Wrapf(err, "invalid properties for ref-objects")
+	}
+	var objects []*unstructured.Unstructured
+	addObj := func(un *unstructured.Unstructured) {
+		un.SetResourceVersion("")
+		un.SetGeneration(0)
+		un.SetOwnerReferences(nil)
+		un.SetDeletionTimestamp(nil)
+		un.SetManagedFields(nil)
+		un.SetUID("")
+		unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
+		unstructured.RemoveNestedField(un.Object, "status")
+		// TODO(somefive): make the following logic more generalizable
+		if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
+			if clusterIP, exist, _ := unstructured.NestedString(un.Object, "spec", "clusterIP"); exist && clusterIP != corev1.ClusterIPNone {
+				unstructured.RemoveNestedField(un.Object, "spec", "clusterIP")
+				unstructured.RemoveNestedField(un.Object, "spec", "clusterIPs")
+			}
+		}
+		objects = append(objects, un)
+	}
+	for _, obj := range props.Objects {
+		if obj.Name != "" && obj.Selector != nil {
+			return nil, errors.Errorf("invalid properties for ref-objects, name and selector cannot be both set")
+		}
+		if obj.Name == "" && obj.Selector != nil {
+			uns := &unstructured.UnstructuredList{}
+			uns.SetAPIVersion(obj.APIVersion)
+			uns.SetKind(obj.Kind)
+			if err := p.cli.List(context.Background(), uns, client.InNamespace(p.app.GetNamespace()), client.MatchingLabels(obj.Selector)); err != nil {
+				return nil, errors.Wrapf(err, "failed to load ref object %s with selector", obj.Kind)
+			}
+			for _, _un := range uns.Items {
+				addObj(_un.DeepCopy())
+			}
+		} else if obj.Selector == nil {
+			un := &unstructured.Unstructured{}
+			un.SetAPIVersion(obj.APIVersion)
+			un.SetKind(obj.Kind)
+			un.SetName(obj.Name)
+			un.SetNamespace(p.app.GetNamespace())
+			if obj.Name == "" {
+				un.SetName(comp.Name)
+			}
+			if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
+				return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
+			}
+			addObj(un)
+		}
+	}
+	bs, err := json.Marshal(map[string]interface{}{"objects": objects})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
+	}
+	_comp.Properties.Raw = bs
+	return _comp, nil
 }
 
 // LoadComponent load component describe info in application.
