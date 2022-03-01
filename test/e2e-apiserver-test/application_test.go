@@ -266,6 +266,16 @@ var _ = Describe("Test application rest api", func() {
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
+	It("Test delete component", func() {
+		defer GinkgoRecover()
+		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/components/test2", nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		res, err := http.DefaultClient.Do(req)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(res).ShouldNot(BeNil())
+		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+	})
+
 	It("Test create application policy", func() {
 		defer GinkgoRecover()
 		var req = apisv1.CreatePolicyRequest{
