@@ -106,10 +106,10 @@ func GetSuitableDeployWay(ctx context.Context, kubeClient client.Client, ds data
 			// using Deploy2Env by default
 		}
 		if definition != nil {
-			if definition.Spec.Workload.Type == TerraformWorkfloadType {
+			if definition.Spec.Workload.Type == TerraformWorkloadType {
 				return DeployCloudResource
 			}
-			if definition.Spec.Workload.Definition.Kind == TerraformWorkfloadKind {
+			if definition.Spec.Workload.Definition.Kind == TerraformWorkloadKind {
 				return DeployCloudResource
 			}
 		}
