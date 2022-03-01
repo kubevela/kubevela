@@ -29,7 +29,7 @@ metadata:
     "helm.sh/hook": test
     helm.sh/hook-delete-policy: hook-succeeded
 spec:
-  serviceAccountName: kubevela-vela-core
+  serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
   containers:
     - name: {{ .Release.Name }}-application-test
       image: {{ .Values.imageRegistry }}{{ .Values.test.k8s.repository }}:{{ .Values.test.k8s.tag }}
