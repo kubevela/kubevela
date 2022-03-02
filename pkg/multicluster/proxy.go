@@ -51,7 +51,7 @@ func (rt *secretMultiClusterRoundTripper) RoundTrip(req *http.Request) (*http.Re
 	if !ok || clusterName == "" || clusterName == ClusterLocalName {
 		return rt.rt.RoundTrip(req)
 	}
-
+	req = req.Clone(ctx)
 	req.URL.Path = FormatProxyURL(clusterName, req.URL.Path)
 	return rt.rt.RoundTrip(req)
 }
@@ -85,7 +85,9 @@ type secretMultiClusterRoundTripperForCluster struct {
 
 // RoundTrip is the main function for the re-write API path logic
 func (rt *secretMultiClusterRoundTripperForCluster) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
 	if rt.clusterName != "" && rt.clusterName != ClusterLocalName {
+		req = req.Clone(ctx)
 		req.URL.Path = FormatProxyURL(rt.clusterName, req.URL.Path)
 	}
 	return rt.rt.RoundTrip(req)
