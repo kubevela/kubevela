@@ -161,6 +161,9 @@ var _ = Describe("Test namespace usecase functions", func() {
 		err = ioutil.WriteFile("./testdata/ui-schema.yaml", outdata, 0755)
 		Expect(err).Should(Succeed())
 	})
+
+	It("Test sortDefaultUISchema", testSortDefaultUISchema)
+
 })
 
 func TestAddDefinitionUISchema(t *testing.T) {
@@ -183,5 +186,126 @@ func TestAddDefinitionUISchema(t *testing.T) {
 			}
 			t.Logf("create ui schema %s for %s definition", definitionName, typeNames[0])
 		}
+	}
+}
+func testSortDefaultUISchema() {
+	var params = []*utils.UIParameter{
+		{
+			Label: "P1",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "P1S1"},
+			},
+			Sort: 100,
+		}, {
+			Label: "T2",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "T2S1"},
+				{Label: "T2S2"},
+				{Label: "T2S3"},
+			},
+			Sort: 100,
+		}, {
+			Label: "T3",
+			Validate: &utils.Validate{
+				Required: false,
+			},
+			Sort: 100,
+		}, {
+			Label: "P4",
+			Validate: &utils.Validate{
+				Required: false,
+			},
+			Sort: 100,
+		}, {
+			Label: "T5",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "T5S1"},
+				{Label: "T5S2"},
+			},
+			Sort: 100,
+		}, {
+			Label: "P6",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "P6S1"},
+				{Label: "P6S2"},
+				{Label: "P6S3"},
+			},
+			Sort: 100,
+		},
+	}
+
+	var expectedParams = []*utils.UIParameter{
+		{
+			Label: "P1",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "P1S1"},
+			},
+			Sort: 100,
+		}, {
+			Label: "T5",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "T5S1"},
+				{Label: "T5S2"},
+			},
+			Sort: 101,
+		}, {
+			Label: "P6",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "P6S1"},
+				{Label: "P6S2"},
+				{Label: "P6S3"},
+			},
+			Sort: 102,
+		}, {
+			Label: "T2",
+			Validate: &utils.Validate{
+				Required: true,
+			},
+			SubParameters: []*utils.UIParameter{
+				{Label: "T2S1"},
+				{Label: "T2S2"},
+				{Label: "T2S3"},
+			},
+			Sort: 103,
+		}, {
+			Label: "P4",
+			Validate: &utils.Validate{
+				Required: false,
+			},
+			Sort: 104,
+		}, {
+			Label: "T3",
+			Validate: &utils.Validate{
+				Required: false,
+			},
+			Sort: 105,
+		},
+	}
+
+	sortDefaultUISchema(params)
+	for i, param := range params {
+		Expect(param.Label).Should(Equal(expectedParams[i].Label))
+		Expect(param.Sort).Should(Equal(expectedParams[i].Sort))
 	}
 }
