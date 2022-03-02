@@ -11,6 +11,15 @@ spec:
   schematic:
     cue:
       template: |
+        #K8sObject: {
+        	apiVersion: string
+        	kind:       string
+        	metadata: {
+        		name: string
+        		...
+        	}
+        	...
+        }
         output: parameter.objects[0]
         outputs: {
         	for i, v in parameter.objects {
@@ -19,7 +28,7 @@ spec:
         		}
         	}
         }
-        parameter: objects: [...{}]
+        parameter: objects: [...#K8sObject]
   workload:
     type: autodetects.core.oam.dev
 

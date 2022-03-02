@@ -65,17 +65,17 @@ type RefWorkflowStepGenerator struct {
 
 // Generate generate workflow steps
 func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
-	if len(existingSteps) > 0 {
+	if app.Spec.Workflow == nil || app.Spec.Workflow.Ref == "" {
 		return existingSteps, nil
 	}
-	if app.Spec.Workflow != nil && app.Spec.Workflow.Ref != "" {
-		wf := &v1alpha1.Workflow{}
-		if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
-			return
-		}
-		return wf.Steps, nil
+	if app.Spec.Workflow.Steps != nil {
+		return nil, errors.Errorf("cannot set steps and ref in workflow at the same time")
 	}
-	return
+	wf := &v1alpha1.Workflow{}
+	if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
+		return
+	}
+	return wf.Steps, nil
 }
 
 // ApplyComponentWorkflowStepGenerator generate apply-component workflow steps for all components in the application

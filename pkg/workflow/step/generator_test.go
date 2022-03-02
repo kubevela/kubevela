@@ -216,6 +216,27 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				Type: "deploy",
 			}},
 		},
+		"ref-workflow-conflict": {
+			input: []v1beta1.WorkflowStep{{
+				Name: "deploy",
+				Type: "deploy",
+			}},
+			app: &v1beta1.Application{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "test",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Workflow: &v1beta1.Workflow{
+						Ref: "ref-wf",
+						Steps: []v1beta1.WorkflowStep{{
+							Name: "deploy",
+							Type: "deploy",
+						}},
+					},
+				},
+			},
+			hasError: true,
+		},
 		"ref-workflow-not-found": {
 			input: nil,
 			app: &v1beta1.Application{

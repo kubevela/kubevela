@@ -6,6 +6,16 @@
 	attributes: workload: type: "autodetects.core.oam.dev"
 }
 template: {
+	#K8sObject: {
+		apiVersion: string
+		kind:       string
+		metadata: {
+			name: string
+			...
+		}
+		...
+	}
+
 	output: parameter.objects[0]
 
 	outputs: {
@@ -16,6 +26,6 @@ template: {
 		}
 	}
 	parameter: {
-		objects: [...{}]
+		objects: [...#K8sObject]
 	}
 }
