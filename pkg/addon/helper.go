@@ -66,7 +66,6 @@ func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryC
 		}
 		pkg.Parameters = ""
 		pkg.CUETemplates = nil
-
 		pkg.YAMLTemplates = []ElementFile{
 			{
 				Name: pkg.Meta.Name,
