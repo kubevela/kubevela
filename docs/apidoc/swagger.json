@@ -692,6 +692,44 @@
 				}
 			}
 		},
+		"/api/v1/applications/{name}/compare": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "compare application with env latest revision",
+				"operationId": "compareAppWithLatestRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.ApplicationBase"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/applications/{name}/components": {
 			"get": {
 				"consumes": [
@@ -928,6 +966,54 @@
 					},
 					"404": {
 						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "delete a component",
+				"operationId": "deleteComponent",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the component",
+						"name": "compName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"404": {
 						"schema": {
 							"$ref": "#/definitions/bcode.Bcode"
 						}
@@ -1185,6 +1271,44 @@
 					},
 					"400": {
 						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/dry-run": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "dry-run application to latest revision",
+				"operationId": "dryRunAppOrRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AppDryRunResponse"
+						}
+					},
+					"400": {
 						"schema": {
 							"$ref": "#/definitions/bcode.Bcode"
 						}
@@ -1773,6 +1897,44 @@
 					},
 					"400": {
 						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/applications/{name}/reset": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"application"
+				],
+				"summary": "reset application to latest revision",
+				"operationId": "resetAppToLatestRevision",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the application ",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.AppResetResponse"
+						}
+					},
+					"400": {
 						"schema": {
 							"$ref": "#/definitions/bcode.Bcode"
 						}
@@ -3465,6 +3627,31 @@
 				}
 			}
 		},
+		"/api/v1/payload_types": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"payload_types"
+				],
+				"summary": "list application trigger payload types",
+				"operationId": "ListPayloadTypes",
+				"responses": {
+					"200": {},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/policy_definitions": {
 			"get": {
 				"consumes": [
@@ -3683,6 +3870,96 @@
 				}
 			}
 		},
+		"/api/v1/system_info": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"systemInfo"
+				],
+				"operationId": "getSystemInfo",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"systemInfo"
+				],
+				"operationId": "updateSystemInfo",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.SystemInfoRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"systemInfo"
+				],
+				"operationId": "deleteSystemInfo",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.SystemInfoResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/targets": {
 			"get": {
 				"consumes": [
@@ -3716,7 +3993,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.SimpleResponse"
+							"$ref": "#/definitions/map[string]string"
 						}
 					},
 					"500": {
@@ -3752,7 +4029,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.SimpleResponse"
+							"$ref": "#/definitions/map[string]string"
 						}
 					},
 					"400": {
@@ -6970,12 +7247,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"workflowAlias",
+				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
-				"workflowAlias",
-				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
