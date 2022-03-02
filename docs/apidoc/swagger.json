@@ -5342,8 +5342,8 @@
 		},
 		"model.SystemInfo": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"installID",
 				"enableCollection"
 			],
@@ -5795,12 +5795,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"triggerType",
-				"envName",
 				"createTime",
 				"version",
+				"note",
 				"status",
-				"note"
+				"envName",
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -6030,7 +6030,6 @@
 		},
 		"v1.ApplicationTrait": {
 			"required": [
-				"name",
 				"type",
 				"properties",
 				"createTime",
@@ -6045,9 +6044,6 @@
 					"format": "date-time"
 				},
 				"description": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"properties": {
@@ -6232,11 +6228,11 @@
 				"description",
 				"componentType",
 				"main",
-				"envNames",
 				"dependsOn",
 				"deployVersion",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"traits"
 			],
 			"properties": {
 				"alias": {
@@ -6264,14 +6260,14 @@
 				"description": {
 					"type": "string"
 				},
-				"envNames": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
 				"icon": {
 					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
 				},
 				"labels": {
 					"type": "object",
@@ -6284,6 +6280,18 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationTrait"
+					}
 				},
 				"updateTime": {
 					"type": "string",
@@ -6624,6 +6632,12 @@
 				"icon": {
 					"type": "string"
 				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
 				"labels": {
 					"type": "object",
 					"additionalProperties": {
@@ -6632,6 +6646,12 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
 				},
 				"properties": {
 					"type": "string"
@@ -6787,11 +6807,12 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
 				"invisible",
 				"version",
 				"icon",
 				"name",
+				"version",
+				"description",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -6864,13 +6885,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"alias",
+				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
-				"alias",
-				"project",
 				"policies",
 				"envBindings",
 				"status",
@@ -6932,6 +6953,17 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"status",
+				"kubeConfigSecret",
+				"alias",
+				"labels",
+				"createTime",
+				"updateTime",
+				"description",
+				"reason",
+				"provider",
+				"apiServerURL",
+				"kubeConfig",
 				"name",
 				"description",
 				"alias",
@@ -6939,13 +6971,7 @@
 				"kubeConfigSecret",
 				"createTime",
 				"icon",
-				"labels",
-				"kubeConfig",
-				"updateTime",
-				"status",
-				"reason",
-				"provider",
-				"apiServerURL",
+				"dashboardURL",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7003,14 +7029,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"name",
-				"updateTime",
 				"main",
-				"createTime",
-				"creator",
 				"alias",
-				"type"
+				"createTime",
+				"name",
+				"type",
+				"creator",
+				"updateTime",
+				"appPrimaryKey"
 			],
 			"properties": {
 				"alias": {
@@ -7144,17 +7170,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"version",
+				"reason",
+				"envName",
+				"note",
+				"createTime",
+				"appPrimaryKey",
+				"status",
 				"deployUser",
 				"workflowName",
-				"envName",
-				"appPrimaryKey",
-				"reason",
-				"triggerType",
-				"createTime",
-				"status",
-				"note",
-				"version",
-				"updateTime"
+				"updateTime",
+				"triggerType"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7304,14 +7330,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"enable",
-				"default",
-				"updateTime",
 				"name",
+				"enable",
+				"updateTime",
 				"alias",
-				"createTime",
 				"description",
-				"envName"
+				"default",
+				"envName",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -7907,8 +7933,8 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"installID",
 				"enableCollection",
 				"systemVersion"
