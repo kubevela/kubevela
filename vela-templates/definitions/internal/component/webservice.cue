@@ -20,15 +20,15 @@ webservice: {
 				import "strconv"
 				ready: {
 					if context.output.status.readyReplicas == _|_ {
-						readyReplicas: "0"
+						readyReplicas: 0
 					}
 
 					if context.output.status.readyReplicas != _|_ {
-						readyReplicas: strconv.FormatInt(context.output.status.readyReplicas, 10)
+						readyReplicas: context.output.status.readyReplicas
 					}
 				}
 
-				message: "Ready:" + ready.readyReplicas + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
+				message: "Ready:" + strconv.FormatInt(ready.readyReplicas, 10) + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
 				"""#
 			healthPolicy: #"""
 				ready: {
