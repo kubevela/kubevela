@@ -157,7 +157,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", apis.ApplicationDeployRequest{}).
+		Reads(apis.ApplicationDeployRequest{}).
+		Returns(200, "", apis.ApplicationDeployResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
 
