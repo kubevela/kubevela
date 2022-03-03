@@ -350,8 +350,10 @@ func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUETemplates = append(a.CUETemplates, file)
-	default:
+	case ".yaml", ".yml":
 		a.YAMLTemplates = append(a.YAMLTemplates, file)
+	default:
+		// skip other file formats
 	}
 	return nil
 }
@@ -377,8 +379,10 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUEDefinitions = append(a.CUEDefinitions, file)
-	default:
+	case ".yaml", ".yml":
 		a.Definitions = append(a.Definitions, file)
+	default:
+		// skip other file formats
 	}
 	return nil
 }
