@@ -108,6 +108,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
       - name: Cache Go Dependencies
         uses: actions/cache@v2
         with:

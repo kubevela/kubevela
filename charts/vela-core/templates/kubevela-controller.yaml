@@ -136,6 +136,9 @@ spec:
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
             - "--kube-api-burst={{ .Values.kubeClient.brust }}"
+            - "--max-workflow-wait-backoff-time={{ .Values.maxWorkflowWaitBackoffTime }}"
+            - "--max-workflow-failed-backoff-time={{ .Values.maxWorkflowFailedBackoffTime }}"
+            - "--max-workflow-step-error-retry-times={{ .Values.maxWorkflowStepErrorRetryTimes }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

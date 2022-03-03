@@ -38,17 +38,20 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value     |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | --------- |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`     |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`      |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`      |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`       |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`      |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3`    |
-| `disableCaps`                 | Disable capability                                                                            | `rollout` |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`   |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
+| Name                             | Description                                                                                   | Value     |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | --------- |
+| `systemDefinitionNamespace`      | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`     |
+| `applicationRevisionLimit`       | Application revision limit                                                                    | `10`      |
+| `definitionRevisionLimit`        | Definition revision limit                                                                     | `20`      |
+| `concurrentReconciles`           | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`       |
+| `maxWorkflowWaitBackoffTime`     | is the max backoff time of workflow in a wait condition                                       | `60`      |
+| `maxWorkflowFailedBackoffTime`   | is the max backoff time of workflow in a failed condition                                     | `300`     |
+| `maxWorkflowStepErrorRetryTimes` | is the max retry times of a failed workflow step                                              | `10`      |
+| `controllerArgs.reSyncPeriod`    | The period for resync the applications                                                        | `5m`      |
+| `OAMSpecVer`                     | OAMSpecVer is the oam spec version controller want to setup                                   | `v0.3`    |
+| `disableCaps`                    | Disable capability                                                                            | `rollout` |
+| `enableFluxcdAddon`              | Whether to enable fluxcd addon                                                                | `false`   |
+| `dependCheckWait`                | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
 
 
 ### KubeVela controller parameters
