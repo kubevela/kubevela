@@ -89,7 +89,7 @@ const (
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
-var ParameterFileName = filepath.Join("resources", "parameter.cue")
+var ParameterFileName = strings.Join([]string{"resources", "parameter.cue"}, "/")
 
 // ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
@@ -182,7 +182,7 @@ var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Va
 func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 	relativePath := r.RelativePath(it)
 	for _, p := range Patterns {
-		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
+		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
 			return p.Value
 		}
 	}
