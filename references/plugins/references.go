@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -544,6 +546,31 @@ type ReferenceParameterTable struct {
 	Depth      *int
 }
 
+// ParseLocalDefinition stores the information of the definition parsed from local file
+type ParseLocalDefinition struct {
+	APIVersion string `yaml:"apiVersion"`
+	Kind       string `yaml:"kind"`
+	Metadata   struct {
+		Name      string `yaml:"name"`
+		Namespace string `yaml:"namespace"`
+		Labels    struct {
+			Type	string 	`yaml:"type"`
+		} `yaml:"labels"`
+		Annotations struct {
+			Description string `yaml:"definition.oam.dev/description"`
+		} `yaml:"annotations"`
+	} `yaml:"metadata"`
+	Spec struct {
+		Schematic struct {
+			Terraform struct{
+				Configuration string `yaml:"configuration"`
+				Type string `yaml:"type"`
+				Path string `yaml:"path"`
+			} `yaml:"terraform"`
+		} `yaml:"schematic"`
+	} `yaml:"spec"`
+}
+
 var refContent string
 var propertyConsole []ConsoleReference
 var displayFormat *string
@@ -582,6 +609,102 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	}
 
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, pd)
+}
+
+// GenerateReferenceDocsFromLocalFile generates reference docs from local file
+func (ref *MarkdownReference) GenerateReferenceDocsFromLocalFile(ctx context.Context, c common.Args, baseRefPath string, local string) error {
+	lc, err := ParseLocalFile(local)
+	if err!=nil{
+		return fmt.Errorf("failed to parse local file: %w",err)
+	}
+
+	if ref.DefinitionName == "" {
+		return fmt.Errorf("failed to generate docs for all capabilityes from local file")
+	} else {
+		setDisplayFormat("markdown")
+		var (
+			description   string
+			sample        string
+			specification string
+		)
+
+		fileName := fmt.Sprintf("%s.md", lc.Name)
+		if _, err := os.Stat(baseRefPath); err != nil && os.IsNotExist(err) {
+			if err := os.MkdirAll(baseRefPath, 0750); err != nil {
+				return err
+			}
+		}
+
+		markdownFile := filepath.Join(baseRefPath, fileName)
+		f, err := os.OpenFile(filepath.Clean(markdownFile), os.O_WRONLY|os.O_CREATE, 0600)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", markdownFile, err)
+		}
+		if err = os.Truncate(markdownFile, 0); err != nil {
+			return fmt.Errorf("failed to truncate file %s: %w", markdownFile, err)
+		}
+		capName := lc.Name
+		refContent = ""
+		lang := ref.I18N
+		if lang == "" {
+			lang = En
+		}
+		capNameInTitle := ref.makeReadableTitle(capName)
+
+		refContent, err = ref.GenerateTerraformCapabilityPropertiesAndOutputs(*lc)
+		if err != nil {
+			return err
+		}
+
+		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
+		sampleContent := ref.generateSample(capName)
+
+		descriptionI18N := lc.Description
+		des := strings.ReplaceAll(lc.Description, " ", "_")
+		if v, ok := Definitions[des]; ok {
+			descriptionI18N = v[lang]
+		}
+		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], descriptionI18N)
+		if sampleContent != "" {
+			sample = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Samples"][lang], sampleContent)
+		}
+		specification = fmt.Sprintf("\n\n## %s\n%s", Definitions["Specification"][lang], refContent)
+
+		// it's fine if the conflict info files not found
+		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, ReferenceSourcePath)
+
+		refContent = title + description + sample + conflictWithAndMoreSection + specification
+		if _, err := f.WriteString(refContent); err != nil {
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+// ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
+func ParseLocalFile(filePath string) (*types.Capability, error){
+	var localDefinition ParseLocalDefinition
+
+	yamlFile, err := ioutil.ReadFile(filePath)
+	if err != nil{
+		return nil, errors.Wrap(err, "failed to read local file")
+	}
+
+	err = yaml.Unmarshal(yamlFile, &localDefinition)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse local file")
+	}
+
+	return &types.Capability{
+		Name					: localDefinition.Metadata.Name,
+		Description				: localDefinition.Metadata.Annotations.Description,
+		TerraformConfiguration	: localDefinition.Spec.Schematic.Terraform.Configuration,
+		ConfigurationType		: localDefinition.Spec.Schematic.Terraform.Type,
+		Path					: localDefinition.Spec.Schematic.Terraform.Path,
+	},nil
 }
 
 // CreateMarkdown creates markdown based on capabilities
