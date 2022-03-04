@@ -476,7 +476,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			ref.DefinitionName = args[0]
 			pathEn := plugins.KubeVelaIOTerraformPath
 			ref.I18N = plugins.En
-			switch method{
+			switch method {
 			case Local:
 				err = ref.GenerateReferenceDocsFromLocalFile(ctx, c, pathEn, local)
 			case Namespace:
@@ -491,7 +491,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 
 			pathZh := plugins.KubeVelaIOTerraformPathZh
 			ref.I18N = plugins.Zh
-			switch method{
+			switch method {
 			case Local:
 				err = ref.GenerateReferenceDocsFromLocalFile(ctx, c, pathZh, local)
 			case Namespace:

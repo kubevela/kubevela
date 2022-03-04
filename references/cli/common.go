@@ -27,7 +27,7 @@ const (
 	App       = "app"
 	Service   = "svc"
 	Namespace = "namespace"
-	Local	  = "local"
+	Local     = "local"
 
 	// FlagDescription command flag to specify the description of the definition
 	FlagDescription = "desc"

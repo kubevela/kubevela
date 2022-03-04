@@ -554,7 +554,7 @@ type ParseLocalDefinition struct {
 		Name      string `yaml:"name"`
 		Namespace string `yaml:"namespace"`
 		Labels    struct {
-			Type	string 	`yaml:"type"`
+			Type string `yaml:"type"`
 		} `yaml:"labels"`
 		Annotations struct {
 			Description string `yaml:"definition.oam.dev/description"`
@@ -562,10 +562,10 @@ type ParseLocalDefinition struct {
 	} `yaml:"metadata"`
 	Spec struct {
 		Schematic struct {
-			Terraform struct{
+			Terraform struct {
 				Configuration string `yaml:"configuration"`
-				Type string `yaml:"type"`
-				Path string `yaml:"path"`
+				Type          string `yaml:"type"`
+				Path          string `yaml:"path"`
 			} `yaml:"terraform"`
 		} `yaml:"schematic"`
 	} `yaml:"spec"`
@@ -614,8 +614,8 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 // GenerateReferenceDocsFromLocalFile generates reference docs from local file
 func (ref *MarkdownReference) GenerateReferenceDocsFromLocalFile(ctx context.Context, c common.Args, baseRefPath string, local string) error {
 	lc, err := ParseLocalFile(local)
-	if err!=nil{
-		return fmt.Errorf("failed to parse local file: %w",err)
+	if err != nil {
+		return fmt.Errorf("failed to parse local file: %w", err)
 	}
 
 	if ref.DefinitionName == "" {
@@ -685,11 +685,11 @@ func (ref *MarkdownReference) GenerateReferenceDocsFromLocalFile(ctx context.Con
 }
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
-func ParseLocalFile(filePath string) (*types.Capability, error){
+func ParseLocalFile(filePath string) (*types.Capability, error) {
 	var localDefinition ParseLocalDefinition
 
 	yamlFile, err := ioutil.ReadFile(filePath)
-	if err != nil{
+	if err != nil {
 		return nil, errors.Wrap(err, "failed to read local file")
 	}
 
@@ -699,12 +699,12 @@ func ParseLocalFile(filePath string) (*types.Capability, error){
 	}
 
 	return &types.Capability{
-		Name					: localDefinition.Metadata.Name,
-		Description				: localDefinition.Metadata.Annotations.Description,
-		TerraformConfiguration	: localDefinition.Spec.Schematic.Terraform.Configuration,
-		ConfigurationType		: localDefinition.Spec.Schematic.Terraform.Type,
-		Path					: localDefinition.Spec.Schematic.Terraform.Path,
-	},nil
+		Name:                   localDefinition.Metadata.Name,
+		Description:            localDefinition.Metadata.Annotations.Description,
+		TerraformConfiguration: localDefinition.Spec.Schematic.Terraform.Configuration,
+		ConfigurationType:      localDefinition.Spec.Schematic.Terraform.Type,
+		Path:                   localDefinition.Spec.Schematic.Terraform.Path,
+	}, nil
 }
 
 // CreateMarkdown creates markdown based on capabilities
