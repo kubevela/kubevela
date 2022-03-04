@@ -50,15 +50,15 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("create an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateAddonRegistryRequest{}).
-		Returns(200, "", apis.AddonRegistry{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonRegistry{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
 	ws.Route(ws.GET("/").To(s.listAddonRegistry).
 		Doc("list all addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.ListAddonRegistryResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.ListAddonRegistryResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonRegistryResponse{}))
 
 	// Delete
@@ -66,8 +66,8 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("delete an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
-		Returns(200, "", apis.AddonRegistry{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonRegistry{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
 	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
@@ -75,8 +75,8 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateAddonRegistryRequest{}).
 		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
-		Returns(200, "", apis.AddonRegistry{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonRegistry{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
 	return ws

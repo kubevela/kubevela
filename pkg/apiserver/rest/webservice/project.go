@@ -47,14 +47,14 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.listprojects).
 		Doc("list all projects").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.ListProjectResponse{}).
+		Returns(200, "OK", apis.ListProjectResponse{}).
 		Writes(apis.ListProjectResponse{}))
 
 	ws.Route(ws.POST("/").To(n.createproject).
 		Doc("create a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateProjectRequest{}).
-		Returns(200, "", apis.ProjectBase{}).
+		Returns(200, "OK", apis.ProjectBase{}).
 		Writes(apis.ProjectBase{}))
 	return ws
 }

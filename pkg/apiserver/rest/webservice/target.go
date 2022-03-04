@@ -63,7 +63,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer")).
-		Returns(200, "", apis.ListTargetResponse{}).
+		Returns(200, "OK", apis.ListTargetResponse{}).
 		Writes(apis.ListTargetResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.POST("/").To(dt.createTarget).
@@ -88,7 +88,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Filter(dt.targetCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the Target").DataType("string")).
 		Reads(apis.UpdateTargetRequest{}).
-		Returns(200, "", apis.DetailTargetResponse{}).
+		Returns(200, "OK", apis.DetailTargetResponse{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.DELETE("/{name}").To(dt.deleteTarget).
@@ -96,7 +96,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the Target").DataType("string")).
-		Returns(200, "", apis.EmptyResponse{}).
+		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
 	return ws

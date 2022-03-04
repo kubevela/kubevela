@@ -50,10 +50,10 @@ func (c *webhookWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{token}").To(c.handleApplicationWebhook).
 		Doc("handle application webhook request").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("token", "webhook token").DataType("string")).
 		Reads(apis.HandleApplicationTriggerWebhookRequest{}).
-		Returns(200, "", apis.ApplicationDeployResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.ApplicationDeployResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
 	return ws
 }

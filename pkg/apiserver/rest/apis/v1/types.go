@@ -1054,3 +1054,8 @@ type SystemVersion struct {
 	VelaVersion string `json:"velaVersion"`
 	GitVersion  string `json:"gitVersion"`
 }
+
+// SimpleResponse simple response model for temporary
+type SimpleResponse struct {
+	Status string `json:"status"`
+}
