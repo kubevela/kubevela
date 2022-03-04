@@ -160,9 +160,9 @@ For example, if the workflow is `waiting`, the first ten reconciliation will be 
 | 10 | 512 | 25.6 | 25 |
 | ... | ... | ... | ... |
 
-If the workflow step is `waiting`, the max backoff time is `60s`, you can change it by setting `maxWorkflowWaitBackoffTime`.
+If the workflow step is `waiting`, the max backoff time is `60s`, you can change it by setting `MaxWorkflowWaitBackoffTime`.
 
-If the workflow step is `failed`, the max backoff time is `300s`, you can change it by setting `maxWorkflowFailedBackoffTime`.
+If the workflow step is `failed`, the max backoff time is `300s`, you can change it by setting `MaxWorkflowFailedBackoffTime`.
 
 #### Failed Workflow Steps
 
@@ -170,7 +170,7 @@ If the workflow step is `failed`, it means that there may be some error in the w
 
 > Note that if the workflow step is unhealthy, the workflow step will be marked as `wait` but not `failed` and it will wait for healthy.
 
-For this case, we will retry the workflow step 10 times by default, and if the workflow step is still `failed`, we will suspend this workflow, and it's message will be `The workflow suspends automatically because the failed times of steps have reached the limit`. You can change the retry times by setting `maxWorkflowStepErrorRetryTimes`.
+For this case, we will retry the workflow step 10 times by default, and if the workflow step is still `failed`, we will suspend this workflow, and it's message will be `The workflow suspends automatically because the failed times of steps have reached the limit`. You can change the retry times by setting `MaxWorkflowStepErrorRetryTimes`.
 
 After the workflow is suspended, we can change the workflow step to make it work, and then use `vela workflow resume <workflow-name>` to resume it.
 

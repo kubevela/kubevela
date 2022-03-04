@@ -16,13 +16,6 @@ definitionRevisionLimit: 20
 ## @param concurrentReconciles concurrentReconciles is the concurrent reconcile number of the controller
 concurrentReconciles: 4
 
-## @param maxWorkflowWaitBackoffTime is the max backoff time of workflow in a wait condition
-maxWorkflowWaitBackoffTime: 60
-## @param maxWorkflowFailedBackoffTime is the max backoff time of workflow in a failed condition
-maxWorkflowFailedBackoffTime: 300
-## @param maxWorkflowStepErrorRetryTimes is the max retry times of a failed workflow step
-maxWorkflowStepErrorRetryTimes: 10
-
 ## @param controllerArgs.reSyncPeriod The period for resync the applications
 controllerArgs:
   reSyncPeriod: 5m
@@ -38,6 +31,20 @@ enableFluxcdAddon: false
 
 ## @param dependCheckWait dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready
 dependCheckWait: 30s
+
+
+## @section KubeVela workflow parameters
+
+## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
+## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
+## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
+workflow:
+  backoff:
+    maxTime:
+      waitState: 60
+      failedState: 300
+  step:
+    errorRetryTimes: 10
 
 
 ## @section KubeVela controller parameters
