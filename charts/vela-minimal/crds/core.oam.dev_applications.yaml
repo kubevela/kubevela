@@ -12,7 +12,7 @@ spec:
       clientConfig:
         service:
           name: vela-core-webhook
-          namespace: vela-system
+          namespace: vela-system # this namespace replaced by the namespace set in helm parameter `systemDefinitionNamespace`
           path: /convert
           port: 443
       conversionReviewVersions:
