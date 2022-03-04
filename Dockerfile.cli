@@ -1,0 +1,9 @@
+FROM alpine:latest
+
+ARG KUBUVELA_CLI=./bin/vela
+
+COPY $KUBUVELA_CLI /usr/local/bin/vela
+
+WORKDIR /vela
+
+ENTRYPOINT [ "/usr/local/bin/vela" ]
