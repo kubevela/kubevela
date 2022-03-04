@@ -268,7 +268,7 @@ var _ = Describe("Test Workflow", func() {
 			Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
 		}
 
-		for i := 0; i < 9; i++ {
+		for i := 0; i < 6; i++ {
 			_, err = wf.ExecuteSteps(ctx, revision, runners)
 			Expect(err).ToNot(HaveOccurred())
 			interval := e.getBackoffWaitTime()
