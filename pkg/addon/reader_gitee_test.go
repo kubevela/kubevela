@@ -108,11 +108,3 @@ func TestGiteeReader(t *testing.T) {
 
 	testReaderFunc(t, r)
 }
-
-/*// Int is a helper routine that allocates a new int value
-// to store v and returns a pointer to it.
-func Int(v int) *int { return &v }
-
-// String is a helper routine that allocates a new string value
-// to store v and returns a pointer to it.
-func String(v string) *string { return &v }*/
