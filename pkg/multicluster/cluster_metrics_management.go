@@ -50,7 +50,7 @@ func (cmm *ClusterMetricsMgr) Refresh() error {
 	clusters, _ := ListVirtualClusters(context.Background(), cmm.kubeClient)
 	m := make(map[string]*ClusterMetrics)
 
-	// request metrics api by cluster-gateway
+	// retrieves metrics by cluster-gateway
 	for _, cluster := range clusters {
 		isConnected := true
 		clusterInfo, err := GetClusterInfo(context.Background(), cmm.kubeClient, cluster.Name)
