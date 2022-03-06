@@ -37,8 +37,9 @@ const registriesKey = "registries"
 type Registry struct {
 	Name string `json:"name"`
 
-	Git *GitAddonSource `json:"git,omitempty"`
-	OSS *OSSAddonSource `json:"oss,omitempty"`
+	Git   *GitAddonSource   `json:"git,omitempty"`
+	OSS   *OSSAddonSource   `json:"oss,omitempty"`
+	Gitee *GiteeAddonSource `json:"gitee,omitempty"`
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

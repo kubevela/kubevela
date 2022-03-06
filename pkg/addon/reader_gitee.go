@@ -18,29 +18,43 @@ package addon
 
 import (
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/pkg/errors"
+	"net/http"
+	"net/url"
 	"path"
 	"strings"
-
-	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
-
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-var _ AsyncReader = &gitReader{}
+var _ AsyncReader = &giteeReader{}
 
-// gitHelper helps get addon's file by git
-type gitHelper struct {
-	Client *github.Client
+// giteeHelper helps get addon's file by git
+type giteeHelper struct {
+	Client *Client
 	Meta   *utils.Content
 }
 
-type gitReader struct {
-	h *gitHelper
+type Client struct {
+	Client  *http.Client
+	BaseURL *url.URL
+}
+
+type giteeReader struct {
+	h *giteeHelper
+}
+
+func NewGiteeClient(httpClient *http.Client, baseURL *url.URL) *Client {
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+	if baseURL == nil {
+		baseURL, _ = baseURL.Parse(DefaultGiteeURL)
+	}
+	return &Client{httpClient, baseURL}
 }
 
 // ListAddonMeta relative path to repoURL/basePath
-func (g *gitReader) ListAddonMeta() (map[string]SourceMeta, error) {
+func (g *giteeReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	subItems := make(map[string]SourceMeta)
 	_, items, err := g.h.readRepo("")
 	if err != nil {
@@ -61,7 +75,7 @@ func (g *gitReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	return subItems, nil
 }
 
-func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
+func (g *giteeReader) listAddonMeta(dirPath string) ([]Item, error) {
 	_, items, err := g.h.readRepo(dirPath)
 	if err != nil {
 		return nil, err
@@ -83,7 +97,7 @@ func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
 }
 
 // ReadFile read file content from github
-func (g *gitReader) ReadFile(relativePath string) (content string, err error) {
+func (g *giteeReader) ReadFile(relativePath string) (content string, err error) {
 	file, _, err := g.h.readRepo(relativePath)
 	if err != nil {
 		return
@@ -94,11 +108,11 @@ func (g *gitReader) ReadFile(relativePath string) (content string, err error) {
 	return file.GetContent()
 }
 
-func (g *gitReader) RelativePath(item Item) string {
+func (g *giteeReader) RelativePath(item Item) string {
 	absPath := strings.Split(item.GetPath(), "/")
-	if g.h.Meta.GithubContent.Path == "" {
+	if g.h.Meta.GiteeContent.Path == "" {
 		return path.Join(absPath...)
 	}
-	base := strings.Split(g.h.Meta.GithubContent.Path, "/")
+	base := strings.Split(g.h.Meta.GiteeContent.Path, "/")
 	return path.Join(absPath[len(base):]...)
 }

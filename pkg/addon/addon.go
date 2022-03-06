@@ -21,6 +21,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -86,6 +89,9 @@ const (
 
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
+
+	// DefaultGiteeURL is the addon repository of gitee api
+	DefaultGiteeURL string = "https://gitee.com/api/v5/"
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
@@ -418,13 +424,67 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 	}
 }
 
+func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
+	var ts oauth2.TokenSource
+	if token != "" {
+		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	}
+	tc := oauth2.NewClient(context.Background(), ts)
+	tc.Timeout = time.Second * 20
+	cli := NewGiteeClient(tc, nil)
+	return &giteeHelper{
+		Client: cli,
+		Meta:   content,
+	}
+}
+
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.Owner, h.Meta.Repo, path.Join(h.Meta.Path, relativePath), nil)
+	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}
 	return file, items, nil
+}
+
+// readRepo will read relative path (relative to Meta.Path)
+func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
+	if err != nil {
+		return nil, nil, WrapErrRateLimit(err)
+	}
+	return file, items, nil
+}
+
+func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
+	escapedPath := (&url.URL{Path: path}).String()
+	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
+	if ref != "" {
+		u = fmt.Sprintf(u+"?ref=%s", ref)
+	}
+
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	response, err := c.Client.Do(req.WithContext(ctx))
+	defer response.Body.Close()
+	if err != nil {
+		return nil, nil, err
+	}
+	content, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+	fileUnmarshalError := json.Unmarshal(content, &fileContent)
+	if fileUnmarshalError == nil {
+		return fileContent, nil, nil
+	}
+	directoryUnmarshalError := json.Unmarshal(content, &directoryContent)
+	if directoryUnmarshalError == nil {
+		return nil, directoryContent, nil
+	}
+	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %s", fileUnmarshalError, directoryUnmarshalError)
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
