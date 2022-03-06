@@ -21,6 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -468,7 +470,12 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 		return nil, nil, err
 	}
 	response, err := c.Client.Do(req.WithContext(ctx))
-	defer response.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Logger.Errorf(err.Error())
+		}
+	}(response.Body)
 	if err != nil {
 		return nil, nil, err
 	}
