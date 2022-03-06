@@ -33,6 +33,9 @@ const TypeOss = "oss"
 // TypeGithub represents github
 const TypeGithub = "github"
 
+// TypeGitee represents gitee
+const TypeGitee = "gitee"
+
 // TypeUnknown represents parse failed
 const TypeUnknown = "unknown"
 
@@ -40,6 +43,7 @@ const TypeUnknown = "unknown"
 type Content struct {
 	OssContent
 	GithubContent
+	GiteeContent
 	LocalContent
 }
 
@@ -56,6 +60,14 @@ type OssContent struct {
 
 // GithubContent for cap center
 type GithubContent struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	Path  string `json:"path"`
+	Ref   string `json:"ref"`
+}
+
+// GiteeContent for cap center
+type GiteeContent struct {
 	Owner string `json:"owner"`
 	Repo  string `json:"repo"`
 	Path  string `json:"path"`
@@ -114,6 +126,37 @@ func Parse(addr string) (string, *Content, error) {
 						Repo:  l[2],
 						Path:  l[4],
 						Ref:   URL.Query().Get("ref"),
+					},
+				},
+				nil
+		case "gitee.com":
+			// We support two valid format:
+			// 1. https://gitee.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+			// 2. https://gitee.com/<owner>/<repo>/<path-to-dir>
+			if len(l) < 3 {
+				return "", nil, errors.New("invalid format " + addr)
+			}
+			if l[2] == "tree" {
+				// https://gitee.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+				if len(l) < 5 {
+					return "", nil, errors.New("invalid format " + addr)
+				}
+				return TypeGitee, &Content{
+					GiteeContent: GiteeContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[4:], "/"),
+						Ref:   l[3],
+					},
+				}, nil
+			}
+			// https://gitee.com/<owner>/<repo>/<path-to-dir>
+			return TypeGitee, &Content{
+					GiteeContent: GiteeContent{
+						Owner: l[0],
+						Repo:  l[1],
+						Path:  strings.Join(l[2:], "/"),
+						Ref:   "", // use default branch
 					},
 				},
 				nil

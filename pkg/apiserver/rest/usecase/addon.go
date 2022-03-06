@@ -296,9 +296,10 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 	}
 
 	return &apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
+		Name:  r.Name,
+		Git:   r.Git,
+		OSS:   r.OSS,
+		Gitee: r.Gitee,
 	}, nil
 }
 
@@ -450,9 +451,10 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) pkgaddon.Registry {
 	return pkgaddon.Registry{
-		Name: req.Name,
-		Git:  req.Git,
-		OSS:  req.Oss,
+		Name:  req.Name,
+		Git:   req.Git,
+		OSS:   req.Oss,
+		Gitee: req.Gitee,
 	}
 }
 
