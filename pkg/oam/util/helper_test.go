@@ -591,7 +591,7 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 		Version: "v1",
 	}, ref)
 
-	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
+	_, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
 		Kind: "Deployment"})
 	assert.Error(t, err)
 
