@@ -46,6 +46,7 @@ type VirtualCluster struct {
 	EndPoint string
 	Accepted bool
 	Labels   map[string]string
+	Metrics  *ClusterMetrics
 }
 
 // NewVirtualClusterFromSecret extract virtual cluster from cluster secret
@@ -68,6 +69,7 @@ func NewVirtualClusterFromSecret(secret *corev1.Secret) (*VirtualCluster, error)
 		EndPoint: endpoint,
 		Accepted: true,
 		Labels:   labels,
+		Metrics:  metricsMap[secret.Name],
 	}, nil
 }
 
@@ -82,6 +84,7 @@ func NewVirtualClusterFromManagedCluster(managedCluster *clusterv1.ManagedCluste
 		EndPoint: "-",
 		Accepted: managedCluster.Spec.HubAcceptsClient,
 		Labels:   managedCluster.GetLabels(),
+		Metrics:  metricsMap[managedCluster.Name],
 	}, nil
 }
 
@@ -168,6 +171,7 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 	for _, secret := range secrets.Items {
 		vc, err := NewVirtualClusterFromSecret(secret.DeepCopy())
 		if err == nil {
+			vc.Metrics = metricsMap[vc.Name]
 			clusters = append(clusters, *vc)
 		}
 	}
@@ -179,6 +183,7 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 	for _, managedCluster := range managedClusters.Items {
 		vc, err := NewVirtualClusterFromManagedCluster(managedCluster.DeepCopy())
 		if err == nil {
+			vc.Metrics = metricsMap[vc.Name]
 			clusters = append(clusters, *vc)
 		}
 	}

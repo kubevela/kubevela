@@ -22,10 +22,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"gotest.tools/assert"
+
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -36,76 +38,102 @@ import (
 const (
 	NormalClusterName       = "normal-cluster"
 	DisconnectedClusterName = "disconnected-cluster"
+
+	NodeName1 = "node-1"
+	NodeName2 = "node-2"
 )
 
 func TestRefresh(t *testing.T) {
 	fakeClient := NewFakeClient(fake.NewClientBuilder().
 		WithScheme(common.Scheme).
 		WithRuntimeObjects(FakeManagedCluster("managed-cluster")).
-		WithObjects(FakeSecret("normal-cluster"), FakeSecret("disconnected-cluster")).
+		WithObjects(FakeSecret(NormalClusterName), FakeSecret(DisconnectedClusterName)).
 		Build())
 
 	normalCluster := fake.NewClientBuilder().
 		WithScheme(common.Scheme).
-		WithObjects(FakeNode("node-1", "8", strconv.FormatInt(16*1024*1024*1024, 10)), FakeNode("node-2", "7", strconv.FormatInt(32*1024*1024*1024, 10))).
+		WithObjects(FakeNode(NodeName1, "8", strconv.FormatInt(16*1024*1024*1024, 10)),
+			FakeNode(NodeName2, "7", strconv.FormatInt(32*1024*1024*1024, 10)),
+			FakeNodeMetrics(NodeName1, "4", strconv.FormatInt(8*1024*1024*1024, 10)),
+			FakeNodeMetrics(NodeName2, "1", strconv.FormatInt(3*1024*1024*1024, 10))).
 		Build()
 
 	disconnectedCluster := &disconnectedClient{}
 
-	fakeClient.AddCluster("normal-cluster", normalCluster)
-	fakeClient.AddCluster("disconnected-cluster", disconnectedCluster)
-	mgr := NewClusterMetricsMgr(fakeClient)
-	err := mgr.Refresh()
+	fakeClient.AddCluster(NormalClusterName, normalCluster)
+	fakeClient.AddCluster(DisconnectedClusterName, disconnectedCluster)
+
+	mgr, err := NewClusterMetricsMgr(fakeClient)
 	assert.NilError(t, err)
 
-	var clusterName []string
-	var detail MetricsDetail
-
-	// assert isConnected
-	clusterName, detail, err = mgr.IsConnected()
+	err = mgr.Refresh()
 	assert.NilError(t, err)
-	assert.Equal(t, clusterName[0], DisconnectedClusterName)
-	assert.Equal(t, clusterName[1], NormalClusterName)
-	assert.Equal(t, detail.value[0], "false")
-	assert.Equal(t, detail.value[1], "true")
-	assert.Equal(t, detail.description, IsConnectedDescription)
 
-	// assert cpu
-	clusterName, detail, err = mgr.CPUResources()
+	clusters, err := ListVirtualClusters(context.Background(), fakeClient)
 	assert.NilError(t, err)
-	assert.Equal(t, clusterName[0], DisconnectedClusterName)
-	assert.Equal(t, clusterName[1], NormalClusterName)
-	assert.Equal(t, detail.value[0], "0")
-	assert.Equal(t, detail.value[1], "15000")
-	assert.Equal(t, detail.description, CPUResourceDescription)
 
-	// assert memory
-	clusterName, detail, err = mgr.MemoryResources()
+	for _, cluster := range clusters {
+		assertClusterMetrics(t, &cluster)
+	}
+
+	disCluster, err := GetVirtualCluster(context.Background(), fakeClient, DisconnectedClusterName)
 	assert.NilError(t, err)
-	assert.Equal(t, clusterName[0], DisconnectedClusterName)
-	assert.Equal(t, clusterName[1], NormalClusterName)
-	assert.Equal(t, detail.value[0], "0")
-	assert.Equal(t, detail.value[1], strconv.FormatInt(48*1024, 10))
-	assert.Equal(t, detail.description, MemoryResourceDescription)
+	assertClusterMetrics(t, disCluster)
+
+	norCluster, err := GetVirtualCluster(context.Background(), fakeClient, NormalClusterName)
+	assert.NilError(t, err)
+	assertClusterMetrics(t, norCluster)
+}
+
+func assertClusterMetrics(t *testing.T, cluster *VirtualCluster) {
+	metrics := cluster.Metrics
+	switch cluster.Name {
+	case DisconnectedClusterName:
+		assert.Equal(t, metrics.IsConnected, false)
+		assert.Assert(t, metrics.ClusterInfo == nil)
+		assert.Assert(t, metrics.ClusterUsageMetrics == nil)
+	case NormalClusterName:
+		assert.Equal(t, metrics.IsConnected, true)
+
+		assert.Assert(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUCapacity))
+		assert.Assert(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryCapacity))
+		assert.Assert(t, resource.MustParse("15").Equal(metrics.ClusterInfo.CPUAllocatable))
+		assert.Assert(t, resource.MustParse(strconv.FormatInt(48*1024*1024*1024, 10)).Equal(metrics.ClusterInfo.MemoryAllocatable))
+
+		assert.Assert(t, resource.MustParse("5").Equal(metrics.ClusterUsageMetrics.CPUUsage))
+		assert.Assert(t, resource.MustParse(strconv.FormatInt(11*1024*1024*1024, 10)).Equal(metrics.ClusterUsageMetrics.MemoryUsage))
+	}
+}
+
+func FakeNodeMetrics(name string, cpu string, memory string) *metricsV1beta1api.NodeMetrics {
+	nodeMetrics := &metricsV1beta1api.NodeMetrics{}
+	nodeMetrics.Name = name
+	nodeMetrics.Usage = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse(cpu),
+		corev1.ResourceMemory: resource.MustParse(memory),
+	}
+	return nodeMetrics
 }
 
 func FakeNode(name string, cpu string, memory string) *corev1.Node {
 	node := &corev1.Node{}
 	node.Name = name
-	node.Kind = "node"
-	node.APIVersion = "v1"
-	node.Status = corev1.NodeStatus{Allocatable: map[corev1.ResourceName]resource.Quantity{
-		corev1.ResourceCPU:    resource.MustParse(cpu),
-		corev1.ResourceMemory: resource.MustParse(memory),
-	}}
+	node.Status = corev1.NodeStatus{
+		Allocatable: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceCPU:    resource.MustParse(cpu),
+			corev1.ResourceMemory: resource.MustParse(memory),
+		},
+		Capacity: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceCPU:    resource.MustParse(cpu),
+			corev1.ResourceMemory: resource.MustParse(memory),
+		},
+	}
 	return node
 }
 
 func FakeSecret(name string) *corev1.Secret {
 	secret := &corev1.Secret{}
 	secret.Name = name
-	secret.Kind = "Secret"
-	secret.APIVersion = "v1"
 	secret.Labels = map[string]string{
 		v1alpha1.LabelKeyClusterCredentialType: "ServiceAccountToken",
 	}
@@ -115,8 +143,6 @@ func FakeSecret(name string) *corev1.Secret {
 func FakeManagedCluster(name string) *clusterv1.ManagedCluster {
 	managedCluster := &clusterv1.ManagedCluster{}
 	managedCluster.Name = name
-	managedCluster.Kind = "ManagedCluster"
-	managedCluster.APIVersion = "v1"
 	return managedCluster
 }
 
