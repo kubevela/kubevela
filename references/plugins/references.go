@@ -35,6 +35,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -547,31 +548,6 @@ type ReferenceParameterTable struct {
 	Depth      *int
 }
 
-// ParseLocalDefinition stores the information of the definition parsed from local file
-type ParseLocalDefinition struct {
-	APIVersion string `yaml:"apiVersion"`
-	Kind       string `yaml:"kind"`
-	Metadata   struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-		Labels    struct {
-			Type string `yaml:"type"`
-		} `yaml:"labels"`
-		Annotations struct {
-			Description string `yaml:"definition.oam.dev/description"`
-		} `yaml:"annotations"`
-	} `yaml:"metadata"`
-	Spec struct {
-		Schematic struct {
-			Terraform struct {
-				Configuration string `yaml:"configuration"`
-				Type          string `yaml:"type"`
-				Path          string `yaml:"path"`
-			} `yaml:"terraform"`
-		} `yaml:"schematic"`
-	} `yaml:"spec"`
-}
-
 var refContent string
 var propertyConsole []ConsoleReference
 var displayFormat *string
@@ -628,7 +604,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
 func ParseLocalFile(filePath string) (*types.Capability, error) {
-	var localDefinition ParseLocalDefinition
+	var localDefinition v1beta1.ComponentDefinition
 
 	yamlFile, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -640,9 +616,11 @@ func ParseLocalFile(filePath string) (*types.Capability, error) {
 		return nil, errors.Wrap(err, "failed to parse local file")
 	}
 
+	desc, _ := localDefinition.ObjectMeta.Annotations["definition.oam.dev/description"]
+
 	return &types.Capability{
-		Name:                   localDefinition.Metadata.Name,
-		Description:            localDefinition.Metadata.Annotations.Description,
+		Name:                   localDefinition.ObjectMeta.Name,
+		Description:            desc,
 		TerraformConfiguration: localDefinition.Spec.Schematic.Terraform.Configuration,
 		ConfigurationType:      localDefinition.Spec.Schematic.Terraform.Type,
 		Path:                   localDefinition.Spec.Schematic.Terraform.Path,

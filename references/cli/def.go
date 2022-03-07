@@ -457,7 +457,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 				return fmt.Errorf("please specify definition name or a definition file")
 			}
 
-			namespace := ""
+			var namespace string
 			if !strings.HasSuffix(args[0], ".yaml") {
 				var err error
 				namespace, err = cmd.Flags().GetString(FlagNamespace)
@@ -471,16 +471,14 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			ref.DefinitionName = args[0]
 			pathEn := plugins.KubeVelaIOTerraformPath
 			ref.I18N = plugins.En
-			err := ref.GenerateReferenceDocs(ctx, c, pathEn, namespace)
-			if err != nil {
+			if err := ref.GenerateReferenceDocs(ctx, c, pathEn, namespace); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
 			cmd.Printf("Generated docs in English for %s in %s/%s.md\n", args[0], pathEn, args[0])
 
 			pathZh := plugins.KubeVelaIOTerraformPathZh
 			ref.I18N = plugins.Zh
-			err = ref.GenerateReferenceDocs(ctx, c, pathZh, namespace)
-			if err != nil {
+			if err := ref.GenerateReferenceDocs(ctx, c, pathZh, namespace); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
 			cmd.Printf("Generated docs in Chinese for %s in %s/%s.md\n", args[0], pathZh, args[0])
