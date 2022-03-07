@@ -578,3 +578,86 @@ func TestMakeReadableTitle(t *testing.T) {
 		})
 	}
 }
+
+func equals(a types.Capability, b types.Capability) bool {
+	return a.Name == b.Name && a.Description == b.Description && a.TerraformConfiguration == b.TerraformConfiguration && a.ConfigurationType == b.ConfigurationType && a.Path == b.Path
+}
+
+func TestParseLocalFile(t *testing.T) {
+	testcases := []struct {
+		localFilePath string
+		want          types.Capability
+	}{
+		{
+			localFilePath: "testdata/terraform-alibaba-ask.yaml",
+			want: types.Capability{
+				Name:                   "alibaba-ask",
+				Description:            "Terraform configuration for Alibaba Cloud Serverless Kubernetes (ASK)",
+				TerraformConfiguration: "https://github.com/kubevela-contrib/terraform-modules.git",
+				ConfigurationType:      "remote",
+				Path:                   "alibaba/cs/serverless-kubernetes",
+			},
+		},
+		{
+			localFilePath: "testdata/terraform-aws-elb.yaml",
+			want: types.Capability{
+				Name:                   "aws-elb",
+				Description:            "Terraform module which creates ELB resources on",
+				TerraformConfiguration: "https://github.com/terraform-aws-modules/terraform-aws-elb.git",
+				ConfigurationType:      "remote",
+				Path:                   "",
+			},
+		},
+		{
+			localFilePath: "testdata/terraform-azure-database-mariadb.yaml",
+			want: types.Capability{
+				Name:                   "azure-database-mariadb",
+				Description:            "Terraform configuration for Azure Database Mariadb",
+				TerraformConfiguration: "|\n        # Configure the Microsoft Azure Provider\n        provider \"azurerm\" {\n          features {}\n        }\n\n        resource \"azurerm_resource_group\" \"example\" {\n          name = var.resource_group\n          location = var.location\n        }\n\n        resource \"azurerm_mariadb_server\" \"example\" {\n          name = var.server_name\n          location = var.location\n          resource_group_name = azurerm_resource_group.example.name\n\n          sku_name = \"B_Gen5_2\"\n\n          storage_mb = 51200\n          backup_retention_days = 7\n          geo_redundant_backup_enabled = false\n\n          administrator_login = var.username\n          administrator_login_password = var.password\n          version = \"10.2\"\n          ssl_enforcement_enabled = true\n        }\n\n        resource \"azurerm_mariadb_database\" \"example\" {\n          name = var.db_name\n          resource_group_name = azurerm_resource_group.example.name\n          server_name = azurerm_mariadb_server.example.name\n          charset = \"utf8\"\n          collation = \"utf8_general_ci\"\n        }\n\n        variable \"server_name\" {\n          type = string\n          description = \"mariadb server name\"\n          default = \"mariadb-svr-sample\"\n        }\n\n        variable \"db_name\" {\n          default = \"backend\"\n          type = string\n          description = \"Database instance name\"\n        }\n\n        variable \"username\" {\n          default = \"acctestun\"\n          type = string\n          description = \"Database instance username\"\n        }\n\n        variable \"password\" {\n          default = \"H@Sh1CoR3!faked\"\n          type = string\n          description = \"Database instance password\"\n        }\n\n        variable \"location\" {\n          description = \"Azure location\"\n          type = string\n          default = \"West Europe\"\n        }\n\n        variable \"resource_group\" {\n          description = \"Resource group\"\n          type = string\n          default = \"kubevela-group\"\n        }\n\n        output \"SERVER_NAME\" {\n          value = var.server_name\n          description = \"mariadb server name\"\n        }\n\n        output \"DB_NAME\" {\n          value = var.db_name\n          description = \"Database instance name\"\n        }\n        output \"DB_USER\" {\n          value = var.username\n          description = \"Database instance username\"\n        }\n        output \"DB_PASSWORD\" {\n          sensitive = true\n          value = var.password\n          description = \"Database instance password\"\n        }\n        output \"DB_PORT\" {\n          value = \"3306\"\n          description = \"Database instance port\"\n        }\n        output \"DB_HOST\" {\n          value = azurerm_mariadb_server.example.fqdn\n          description = \"Database instance host\"\n        }",
+				ConfigurationType:      "",
+				Path:                   "",
+			},
+		},
+		{
+			localFilePath: "testdata/terraform-baidu-vpc.yaml",
+			want: types.Capability{
+				Name:                   "baidu-vpc",
+				Description:            "Baidu Cloud VPC",
+				TerraformConfiguration: "|-\n        terraform {\n          required_providers {\n            baiducloud = {\n              source = \"baidubce/baiducloud\"\n              version = \"1.12.0\"\n            }\n          }\n        }\n\n        resource \"baiducloud_vpc\" \"default\" {\n          name        = var.name\n          description = var.description\n          cidr        = var.cidr\n        }\n\n        variable \"name\" {\n          default = \"terraform-vpc\"\n          description = \"The name of the VPC\"\n          type = string\n        }\n\n        variable \"description\" {\n          description = \"The description of the VPC\"\n          default = \"this is created by terraform\"\n          type = string\n        }\n\n        variable \"cidr\" {\n          description = \"The CIDR of the VPC\"\n          default = \"192.168.0.0/24\"\n          type = string\n        }\n\n        output \"vpcs\" {\n          value = baiducloud_vpc.default.id\n        }",
+				ConfigurationType:      "",
+				Path:                   "",
+			},
+		},
+		{
+			localFilePath: "testdata/terraform-gcp-gcs.yaml",
+			want: types.Capability{
+				Name:                   "gcp-gcs",
+				Description:            "GCP Gcs",
+				TerraformConfiguration: "https://github.com/woernfl/terraform-gcp-gcs.git",
+				ConfigurationType:      "remote",
+				Path:                   "",
+			},
+		},
+		{
+			localFilePath: "testdata/terraform-tencent-subnet.yaml",
+			want: types.Capability{
+				Name:                   "tencent-subnet",
+				Description:            "Tencent Cloud Subnet",
+				TerraformConfiguration: "|\n        terraform {\n          required_providers {\n            tencentcloud = {\n              source = \"tencentcloudstack/tencentcloud\"\n            }\n          }\n        }\n\n        variable \"availability_zone\" {\n          description = \"Availability Zone\"\n          default = \"ap-beijing-1\"\n          type = string\n        }\n\n        resource \"tencentcloud_vpc\" \"foo\" {\n          name       = \"guagua-ci-temp-test\"\n          cidr_block = \"10.0.0.0/16\"\n        }\n\n        resource \"tencentcloud_subnet\" \"subnet\" {\n          availability_zone = var.availability_zone\n          name              = var.name\n          vpc_id            = tencentcloud_vpc.foo.id\n          cidr_block        = var.cidr_block\n          is_multicast      = var.is_multicast\n        }\n\n        variable \"name\" {\n          description = \"Subnet name\"\n          default = \"guagua-ci-temp-test\"\n          type = string\n        }\n\n        variable \"cidr_block\" {\n          description = \"Subnet CIDR block\"\n          default = \"10.0.20.0/28\"\n          type = string\n        }\n\n        variable \"is_multicast\" {\n          description = \"Subnet is multicast\"\n          default = false\n          type = bool\n        }\n\n        output \"SUBNET_ID\" {\n          description = \"Subnet ID\"\n          value = tencentcloud_subnet.subnet.id\n        }",
+				ConfigurationType:      "",
+				Path:                   "",
+			},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			lc, err := ParseLocalFile(tc.localFilePath)
+			if err != nil {
+				t.Errorf("ParseLocalFile(...): -want: %v, got error: %s\n", tc.want, err)
+			}
+			if reflect.DeepEqual(*lc, tc.want) {
+				t.Errorf("ParseLocalFile(...): -want: %v, got: %v\n", tc.want, *lc)
+			}
+		})
+	}
+}
