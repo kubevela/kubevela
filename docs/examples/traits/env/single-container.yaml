@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+      traits:
+        - type: sidecar
+          properties:
+            name: sidecar-nginx
+            image: nginx
+        - type: env
+          properties:
+            # by default, the following environment variable will be patched to the main container -> busybox in this case
+            env:
+              key_first: value_first
+              key_second: value_second
+
+            # if you want to patch the sidecar container, specify the container name explicitly
+            # containerName: sidecar-nginx
+
+            # if you want to unset some existing environment variables in the container, use the `unset` parameter
+            # unset: ["key_existing_first", "key_existing_second"]
+
+            # if you want to clear all the existing environment variables in the container, use the `replace` parameter
+            # replace: true

@@ -47,6 +47,8 @@ const (
 	CustomMessage = "message"
 	// HealthCheckPolicy defines the health check policy in definition template
 	HealthCheckPolicy = "isHealth"
+	// ErrsFieldName check if errors contained in the cue
+	ErrsFieldName = "errs"
 )
 
 const (
@@ -371,6 +373,24 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 	}
 
+	errs := inst.Lookup(ErrsFieldName)
+	if errs.Exists() {
+		if err := parseErrors(errs); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func parseErrors(errs cue.Value) error {
+	if it, e := errs.List(); e == nil {
+		for it.Next() {
+			if s, err := it.Value().String(); err == nil && s != "" {
+				return errors.Errorf(s)
+			}
+		}
+	}
 	return nil
 }
 
