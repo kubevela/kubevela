@@ -99,9 +99,9 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 
 // GetClusterMetricsFromMetricsAPI retrieves current cluster metrics based on GetNodeMetricsFromMetricsAPI
 func GetClusterMetricsFromMetricsAPI(ctx context.Context, k8sClient client.Client, clusterName string) (*ClusterUsageMetrics, error) {
-	nodeMetricsList, err := GetNodeMetricsFromMetricsAPI(ContextWithClusterName(ctx, clusterName), k8sClient)
-	if err != nil {
-		return nil, err
+	nodeMetricsList := metricsV1beta1api.NodeMetricsList{}
+	if err := k8sClient.List(ctx, &nodeMetricsList); err != nil {
+		return nil, errors.Wrapf(err, "failed to list node metrics")
 	}
 	var memoryUsage, cpuUsage resource.Quantity
 	for _, nm := range nodeMetricsList.Items {
@@ -111,14 +111,5 @@ func GetClusterMetricsFromMetricsAPI(ctx context.Context, k8sClient client.Clien
 	return &ClusterUsageMetrics{
 		CPUUsage:    cpuUsage,
 		MemoryUsage: memoryUsage,
-	}, err
-}
-
-// GetNodeMetricsFromMetricsAPI retrieves current node metrics from cluster
-func GetNodeMetricsFromMetricsAPI(ctx context.Context, client client.Client) (*metricsV1beta1api.NodeMetricsList, error) {
-	nodeMetrics := metricsV1beta1api.NodeMetricsList{}
-	if err := client.List(ctx, &nodeMetrics); err != nil {
-		return nil, errors.Wrapf(err, "failed to list node metrics")
-	}
-	return &nodeMetrics, nil
+	}, nil
 }

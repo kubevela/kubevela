@@ -171,7 +171,6 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 	for _, secret := range secrets.Items {
 		vc, err := NewVirtualClusterFromSecret(secret.DeepCopy())
 		if err == nil {
-			vc.Metrics = metricsMap[vc.Name]
 			clusters = append(clusters, *vc)
 		}
 	}
@@ -183,7 +182,6 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 	for _, managedCluster := range managedClusters.Items {
 		vc, err := NewVirtualClusterFromManagedCluster(managedCluster.DeepCopy())
 		if err == nil {
-			vc.Metrics = metricsMap[vc.Name]
 			clusters = append(clusters, *vc)
 		}
 	}
