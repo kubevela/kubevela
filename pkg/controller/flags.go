@@ -45,3 +45,9 @@ func AddOptimizeFlags() {
 	flag.BoolVar(&application.DisableResourceApplyDoubleCheck, "optimize-disable-resource-apply-double-check", false, "Optimize workflow by ignoring resource double check after apply. Side effect: controller will not wait for resource creation. If you want to use KubeVela to dispatch tons of resources and do not need to double check the creation result, you can enable this optimization.")
 	flag.BoolVar(&application.EnableResourceTrackerDeleteOnlyTrigger, "optimize-enable-resource-tracker-delete-only-trigger", true, "Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted. It is enabled by default. If you want to integrate KubeVela with your own operator or allow ResourceTracker manual edit, you can turn it off.")
 }
+
+// AddAdmissionFlags add flags
+func AddAdmissionFlags() {
+	flag.BoolVar(&resourcekeeper.AllowCrossNamespaceResource, "allow-cross-namespace-resource", true, "If set to false, application can only apply resources within its namespace. Default to be true.")
+	flag.StringVar(&resourcekeeper.AllowResourceTypes, "allow-resource-types", "", "If not empty, application can only apply resources with specified types. For example, --allow-resource-types=whitelist:Deployment.v1.apps,Job.v1.batch")
+}

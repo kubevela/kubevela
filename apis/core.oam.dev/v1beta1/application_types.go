@@ -68,6 +68,7 @@ type WorkflowStep struct {
 
 // Workflow defines workflow steps and other attributes
 type Workflow struct {
+	Ref   string         `json:"ref,omitempty"`
 	Steps []WorkflowStep `json:"steps,omitempty"`
 }
 

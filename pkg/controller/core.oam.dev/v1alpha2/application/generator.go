@@ -64,7 +64,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 
 	handlerProviders := providers.NewProviders()
 	kube.Install(handlerProviders, h.r.Client, h.Dispatch, h.Delete)
-	oamProvider.Install(handlerProviders, app, h.applyComponentFunc(
+	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
@@ -177,14 +177,14 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			return nil, nil, false, err
 		}
 		checkSkipApplyWorkload(wl)
+
+		dispatchResources := readyTraits
 		if !wl.SkipApplyWorkload {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyWorkload); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "DispatchStandardWorkload")
-			}
+			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 
-		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, readyTraits...); err != nil {
-			return nil, nil, false, errors.WithMessage(err, "DispatchTraits")
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+			return nil, nil, false, errors.WithMessage(err, "Dispatch")
 		}
 
 		_, isHealth, err := h.collectHealthStatus(wl, appRev, overrideNamespace)

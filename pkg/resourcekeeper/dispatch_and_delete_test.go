@@ -75,3 +75,31 @@ func TestResourceKeeperDispatchAndDelete(t *testing.T) {
 	r.Equal(1, len(rk._rootRT.Spec.ManagedResources))
 	r.Equal(1, len(rk._currentRT.Spec.ManagedResources))
 }
+
+func TestResourceKeeperAdmissionDispatchAndDelete(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	_rk, err := NewResourceKeeper(context.Background(), cli, &v1beta1.Application{
+		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
+	})
+	r.NoError(err)
+	rk := _rk.(*resourceKeeper)
+	AllowCrossNamespaceResource = false
+	defer func() {
+		AllowCrossNamespaceResource = true
+	}()
+	objs := []*unstructured.Unstructured{{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"name":      "demo",
+				"namespace": "demo",
+			},
+		},
+	}}
+	err = rk.Dispatch(context.Background(), objs)
+	r.NotNil(err)
+	r.Contains(err.Error(), "forbidden")
+	err = rk.Delete(context.Background(), objs)
+	r.NotNil(err)
+	r.Contains(err.Error(), "forbidden")
+}

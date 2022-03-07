@@ -15,7 +15,7 @@ spec:
     listKind: PolicyDefinitionList
     plural: policydefinitions
     shortNames:
-    - policy
+    - def-policy
     singular: policydefinition
   scope: Namespaced
   versions:

@@ -90,3 +90,6 @@ var ErrInvalidWebhookPayloadBody = NewBcode(400, 10023, "Invalid webhook payload
 
 // ErrApplicationTriggerNotExist means application trigger is not exist
 var ErrApplicationTriggerNotExist = NewBcode(404, 10024, "application trigger is not exist")
+
+// ErrApplicationComponetNotAllowDelete means the component is main in one application, and it must be deleted before delete app.
+var ErrApplicationComponetNotAllowDelete = NewBcode(400, 10025, "main component in application can not be deleted")

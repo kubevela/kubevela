@@ -157,7 +157,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", apis.ApplicationDeployRequest{}).
+		Reads(apis.ApplicationDeployRequest{}).
+		Returns(200, "", apis.ApplicationDeployResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
 
@@ -196,11 +197,24 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
 		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateApplicationComponentRequest{}).
 		Returns(200, "", apis.ComponentBase{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.ComponentBase{}))
+
+	ws.Route(ws.DELETE("/{name}/components/{compName}").To(c.deleteComponent).
+		Doc("delete a component").
+		Filter(c.appCheckFilter).
+		Filter(c.componentCheckFilter).
+		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.EmptyResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Returns(404, "", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
 		Doc("list policy for application").
@@ -701,7 +715,7 @@ func (c *applicationWebService) createComponent(req *restful.Request, res *restf
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	base, err := c.applicationUsecase.AddComponent(req.Request.Context(), app, createReq)
+	base, err := c.applicationUsecase.CreateComponent(req.Request.Context(), app, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -749,6 +763,20 @@ func (c *applicationWebService) updateComponent(req *restful.Request, res *restf
 	}
 }
 
+func (c *applicationWebService) deleteComponent(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	component := req.Request.Context().Value(&apis.CtxKeyApplicationComponent).(*model.ApplicationComponent)
+	err := c.applicationUsecase.DeleteComponent(req.Request.Context(), app, component)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
 func (c *applicationWebService) createApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
@@ -761,7 +789,7 @@ func (c *applicationWebService) createApplicationPolicy(req *restful.Request, re
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	base, err := c.applicationUsecase.AddPolicy(req.Request.Context(), app, createReq)
+	base, err := c.applicationUsecase.CreatePolicy(req.Request.Context(), app, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -22,11 +22,13 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -159,6 +161,84 @@ func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTyp
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 
+func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policiesRaw, err := v.LookupValue("inputs", "policies")
+	if err != nil {
+		return err
+	}
+	policies := &[]*v1beta1.AppPolicy{}
+	if err = policiesRaw.UnmarshalTo(policies); err != nil {
+		return errors.Wrapf(err, "failed to parse policies")
+	}
+	var placements []v1alpha1.PlacementDecision
+	placementMap := map[string]struct{}{}
+	addCluster := func(cluster string) {
+		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: p.app.GetNamespace()}
+		name := placement.String()
+		if _, found := placementMap[name]; !found {
+			placementMap[name] = struct{}{}
+			placements = append(placements, placement)
+		}
+	}
+	for _, policy := range *policies {
+		if policy.Type == v1alpha1.TopologyPolicyType {
+			topologySpec := &v1alpha1.TopologyPolicySpec{}
+			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
+				return errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
+			}
+			if topologySpec.Clusters != nil {
+				for _, cluster := range topologySpec.Clusters {
+					if _, err = multicluster.GetVirtualCluster(context.Background(), p, cluster); err != nil {
+						return errors.Wrapf(err, "failed to get cluster %s in topology %s", cluster, policy.Name)
+					}
+					addCluster(cluster)
+				}
+			} else if topologySpec.ClusterSelector != nil {
+				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, topologySpec.ClusterSelector)
+				if err != nil {
+					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
+				}
+				for _, cluster := range clusters {
+					addCluster(cluster.Name)
+				}
+			}
+		}
+	}
+	return v.FillObject(placements, "outputs", "decisions")
+}
+
+func (p *provider) OverrideConfiguration(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policiesRaw, err := v.LookupValue("inputs", "policies")
+	if err != nil {
+		return err
+	}
+	policies := &[]*v1beta1.AppPolicy{}
+	if err = policiesRaw.UnmarshalTo(policies); err != nil {
+		return errors.Wrapf(err, "failed to parse policies")
+	}
+	componentsRaw, err := v.LookupValue("inputs", "components")
+	if err != nil {
+		return err
+	}
+	components := make([]common.ApplicationComponent, 0)
+	if err = componentsRaw.UnmarshalTo(&components); err != nil {
+		return errors.Wrapf(err, "failed to parse components")
+	}
+	for _, policy := range *policies {
+		if policy.Type == v1alpha1.OverridePolicyType {
+			overrideSpec := &v1alpha1.OverridePolicySpec{}
+			if err = utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
+				return errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
+			}
+			components, err = envbinding.PatchComponents(components, overrideSpec.Components, overrideSpec.Selector)
+			if err != nil {
+				return errors.Wrapf(err, "failed to apply override policy %s", policy.Name)
+			}
+		}
+	}
+	return v.FillObject(components, "outputs", "components")
+}
+
 // Install register handlers to provider discover.
 func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
 	prd := &provider{Client: c, app: app}
@@ -167,5 +247,7 @@ func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
 		"make-placement-decisions": prd.MakePlacementDecisions,
 		"patch-application":        prd.PatchApplication,
 		"list-clusters":            prd.ListClusters,
+		"expand-topology":          prd.ExpandTopology,
+		"override-configuration":   prd.OverrideConfiguration,
 	})
 }

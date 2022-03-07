@@ -216,3 +216,49 @@
 		clusters: [...string]
 	}
 }
+
+#ExpandTopology: {
+	#provider: "multicluster"
+	#do:       "expand-topology"
+	inputs: {
+		policies: [...{...}]
+	}
+	outputs: {
+		decisions: [...#PlacementDecision]
+	}
+}
+
+#OverrideConfiguration: {
+	#provider: "multicluster"
+	#do:       "override-configuration"
+	inputs: {
+		policies: [...{...}]
+		components: [...#Component]
+	}
+	outputs: {
+		components: [...#Component]
+	}
+}
+
+#HandleDeployPolicies: #Steps & {
+	inputs: {
+		policies: [...{...}]
+		components: [...#Component]
+	}
+	_inputs:        inputs
+	expandTopology: #ExpandTopology & {
+		inputs: {
+			policies: _inputs.policies
+		}
+	}                      @step(1)
+	overrideConfiguration: #OverrideConfiguration & {
+		inputs: {
+			policies:   _inputs.policies
+			components: _inputs.components
+		}
+	} @step(2)
+	outputs: {
+		decisions:  expandTopology.outputs.decisions
+		components: overrideConfiguration.outputs.components
+	}
+}

@@ -579,6 +579,7 @@ type ComponentBase struct {
 	Description   string            `json:"description"`
 	Labels        map[string]string `json:"labels,omitempty"`
 	ComponentType string            `json:"componentType"`
+	Main          bool              `json:"main"`
 	EnvNames      []string          `json:"envNames"`
 	Icon          string            `json:"icon,omitempty"`
 	DependsOn     []string          `json:"dependsOn"`

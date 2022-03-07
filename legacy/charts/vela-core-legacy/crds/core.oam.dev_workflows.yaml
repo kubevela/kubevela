@@ -1,0 +1,149 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.2
+  name: workflows.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: Workflow
+    listKind: WorkflowList
+    plural: workflows
+    singular: workflow
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Workflow is the Schema for the policy API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          steps:
+            items:
+              description: WorkflowStep defines how to execute a workflow step.
+              properties:
+                dependsOn:
+                  items:
+                    type: string
+                  type: array
+                inputs:
+                  description: StepInputs defines variable input of WorkflowStep
+                  items:
+                    properties:
+                      from:
+                        type: string
+                      parameterKey:
+                        type: string
+                    required:
+                    - from
+                    - parameterKey
+                    type: object
+                  type: array
+                name:
+                  description: Name is the unique name of the workflow step.
+                  type: string
+                outputs:
+                  description: StepOutputs defines output variable of WorkflowStep
+                  items:
+                    properties:
+                      name:
+                        type: string
+                      valueFrom:
+                        type: string
+                    required:
+                    - name
+                    - valueFrom
+                    type: object
+                  type: array
+                properties:
+                  type: object
+                  
+                type:
+                  type: string
+              required:
+              - name
+              - type
+              type: object
+            type: array
+        type: object
+    served: true
+    storage: true
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: Workflow defines workflow steps and other attributes
+        properties:
+          ref:
+            type: string
+          steps:
+            items:
+              description: WorkflowStep defines how to execute a workflow step.
+              properties:
+                dependsOn:
+                  items:
+                    type: string
+                  type: array
+                inputs:
+                  description: StepInputs defines variable input of WorkflowStep
+                  items:
+                    properties:
+                      from:
+                        type: string
+                      parameterKey:
+                        type: string
+                    required:
+                    - from
+                    - parameterKey
+                    type: object
+                  type: array
+                name:
+                  description: Name is the unique name of the workflow step.
+                  type: string
+                outputs:
+                  description: StepOutputs defines output variable of WorkflowStep
+                  items:
+                    properties:
+                      name:
+                        type: string
+                      valueFrom:
+                        type: string
+                    required:
+                    - name
+                    - valueFrom
+                    type: object
+                  type: array
+                properties:
+                  type: object
+                  
+                type:
+                  type: string
+              required:
+              - name
+              - type
+              type: object
+            type: array
+        type: object
+    served: true
+    storage: false
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

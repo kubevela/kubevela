@@ -489,7 +489,7 @@ func TestListClusters(t *testing.T) {
 		secret := &v1.Secret{}
 		secret.Name = secretName
 		secret.Namespace = multicluster.ClusterGatewaySecretNamespace
-		secret.Labels = map[string]string{v1alpha12.LabelKeyClusterCredentialType: "X509"}
+		secret.Labels = map[string]string{v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate)}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
 	app := &v1beta1.Application{}
@@ -508,4 +508,156 @@ func TestListClusters(t *testing.T) {
 	}{}
 	r.NoError(outputs.UnmarshalTo(&obj))
 	r.Equal(clusterNames, obj.Clusters)
+}
+
+func TestExpandTopology(t *testing.T) {
+	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&v1.Secret{
+		ObjectMeta: v12.ObjectMeta{
+			Name:      "cluster-a",
+			Namespace: multicluster.ClusterGatewaySecretNamespace,
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+				"key":                                   "value",
+			},
+		},
+	}, &v1.Secret{
+		ObjectMeta: v12.ObjectMeta{
+			Name:      "cluster-b",
+			Namespace: multicluster.ClusterGatewaySecretNamespace,
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+				"key":                                   "value",
+			},
+		},
+	}, &v1.Secret{
+		ObjectMeta: v12.ObjectMeta{
+			Name:      "cluster-c",
+			Namespace: multicluster.ClusterGatewaySecretNamespace,
+			Labels: map[string]string{
+				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+				"key":                                   "none",
+			},
+		},
+	}).Build()
+	app := &v1beta1.Application{
+		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "test"},
+	}
+	p := &provider{
+		Client: cli,
+		app:    app,
+	}
+	testCases := map[string]struct {
+		Input   string
+		Outputs []v1alpha1.PlacementDecision
+		Error   string
+	}{
+		"policies-404": {
+			Input: "{inputs:{}}",
+			Error: "var(path=inputs.policies) not exist",
+		},
+		"invalid-policies": {
+			Input: `{inputs:{policies:"bad value"}}`,
+			Error: "failed to parse policies",
+		},
+		"invalid-topology-policy": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{cluster:"x"}}]}}`,
+			Error: "failed to parse topology policy",
+		},
+		"cluster-not-found": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-x"]}}]}}`,
+			Error: "failed to get cluster",
+		},
+		"topology-by-clusters": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-a"]}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}},
+		},
+		"topology-by-cluster-selector": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+		},
+	}
+	for name, tt := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := value.NewValue("", nil, "")
+			r.NoError(err)
+			r.NoError(v.FillRaw(tt.Input))
+			err = p.ExpandTopology(nil, v, &mock.Action{})
+			if tt.Error != "" {
+				r.NotNil(err)
+				r.Contains(err.Error(), tt.Error)
+			} else {
+				r.NoError(err)
+				outputs, err := v.LookupValue("outputs", "decisions")
+				r.NoError(err)
+				pds := &[]v1alpha1.PlacementDecision{}
+				r.NoError(outputs.UnmarshalTo(pds))
+				r.Equal(tt.Outputs, *pds)
+			}
+		})
+	}
+}
+
+func TestOverrideConfiguration(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{}
+	p := &provider{
+		Client: cli,
+		app:    app,
+	}
+	testCases := map[string]struct {
+		Input   string
+		Outputs []common2.ApplicationComponent
+		Error   string
+	}{
+		"policies-404": {
+			Input: "{inputs:{}}",
+			Error: "var(path=inputs.policies) not exist",
+		},
+		"invalid-policies": {
+			Input: `{inputs:{policies:"bad value"}}`,
+			Error: "failed to parse policies",
+		},
+		"components-404": {
+			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{}}]}}`,
+			Error: "var(path=inputs.components) not exist",
+		},
+		"invalid-components": {
+			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{}}],components:[{name:{}}]}}`,
+			Error: "failed to parse components",
+		},
+		"invalid-override-policy": {
+			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{bad:"value"}}],components:[{}]}}`,
+			Error: "failed to parse override policy",
+		},
+		"normal": {
+			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{components:[{name:"comp",properties:{x:5}}]}}],components:[{name:"comp",properties:{x:1}}]}}`,
+			Outputs: []common2.ApplicationComponent{{
+				Name:       "comp",
+				Traits:     []common2.ApplicationTrait{},
+				Properties: &runtime.RawExtension{Raw: []byte(`{"x":5}`)},
+			}},
+		},
+	}
+	for name, tt := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := value.NewValue("", nil, "")
+			r.NoError(err)
+			r.NoError(v.FillRaw(tt.Input))
+			err = p.OverrideConfiguration(nil, v, &mock.Action{})
+			if tt.Error != "" {
+				r.NotNil(err)
+				r.Contains(err.Error(), tt.Error)
+			} else {
+				r.NoError(err)
+				outputs, err := v.LookupValue("outputs", "components")
+				r.NoError(err)
+				comps := &[]common2.ApplicationComponent{}
+				r.NoError(outputs.UnmarshalTo(comps))
+				r.Equal(tt.Outputs, *comps)
+			}
+		})
+	}
 }

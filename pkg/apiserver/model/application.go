@@ -83,7 +83,7 @@ type ApplicationComponent struct {
 	Name          string            `json:"name"`
 	Alias         string            `json:"alias"`
 	Type          string            `json:"type"`
-
+	Main          bool              `json:"main"`
 	// ExternalRevision specified the component revisionName
 	ExternalRevision string             `json:"externalRevision,omitempty"`
 	Properties       *JSONStruct        `json:"properties,omitempty"`
