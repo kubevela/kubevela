@@ -450,25 +450,20 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 		Long:  "Generate documentation of definitions",
 		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
 			"> vela def doc-gen alibaba-vpc -n vela-system\n" +
-			"2. Generate documentation for local ComponentDefinition file alibaba-vpc:\n" +
-			"> vela def doc-gen alibaba-vpc --local alibaba-vpc.yaml\n",
+			"2. Generate documentation for local ComponentDefinition file alibaba-vpc.yaml:\n" +
+			"> vela def doc-gen alibaba-vpc.yaml\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("please specify definition name")
 			}
 
-			method := ""
-			// if user inputs a local flag, generate docs from local file
-			local, err := cmd.Flags().GetString(FlagLocal)
-			if err == nil {
-				method = Local
-			}
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
-			if err == nil {
-				method = Namespace
-			}
-			if method == "" {
-				return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
+			namespace := ""
+			if !strings.HasSuffix(args[0],".yaml"){
+				var err error
+				namespace, err = cmd.Flags().GetString(FlagNamespace)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
+				}
 			}
 
 			ref := &plugins.MarkdownReference{}
@@ -476,14 +471,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			ref.DefinitionName = args[0]
 			pathEn := plugins.KubeVelaIOTerraformPath
 			ref.I18N = plugins.En
-			switch method {
-			case Local:
-				err = ref.GenerateReferenceDocsFromLocalFile(ctx, c, pathEn, local)
-			case Namespace:
-				err = ref.GenerateReferenceDocs(ctx, c, pathEn, namespace)
-			default:
-				return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
-			}
+			err := ref.GenerateReferenceDocs(ctx, c, pathEn, namespace)
 			if err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
@@ -491,14 +479,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 
 			pathZh := plugins.KubeVelaIOTerraformPathZh
 			ref.I18N = plugins.Zh
-			switch method {
-			case Local:
-				err = ref.GenerateReferenceDocsFromLocalFile(ctx, c, pathZh, local)
-			case Namespace:
-				err = ref.GenerateReferenceDocs(ctx, c, pathZh, namespace)
-			default:
-				return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
-			}
+			err = ref.GenerateReferenceDocs(ctx, c, pathZh, namespace)
 			if err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}

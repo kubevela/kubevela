@@ -586,6 +586,20 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		caps []types.Capability
 		err  error
 	)
+	// Get Capability from local file
+	if len(namespace)==0{
+		cap, err := ParseLocalFile(ref.DefinitionName)
+		if err != nil{
+			return fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
+		}
+		// truncate the suffix
+		cap.Name = strings.TrimSuffix(cap.Name, ".yaml")
+		cap.Type = types.TypeComponentDefinition
+		cap.Category = types.TerraformCategory
+		caps = append(caps,*cap)
+		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
+	}
+
 	config, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -603,85 +617,12 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	} else {
 		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace, pd)
 		if err != nil {
-			return fmt.Errorf("failed to get capability capability %s: %w", ref.DefinitionName, err)
+			return fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 		}
 		caps = []types.Capability{*cap}
 	}
 
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, pd)
-}
-
-// GenerateReferenceDocsFromLocalFile generates reference docs from local file
-func (ref *MarkdownReference) GenerateReferenceDocsFromLocalFile(ctx context.Context, c common.Args, baseRefPath string, local string) error {
-	lc, err := ParseLocalFile(local)
-	if err != nil {
-		return fmt.Errorf("failed to parse local file: %w", err)
-	}
-
-	if ref.DefinitionName == "" {
-		return fmt.Errorf("failed to generate docs for all capabilityes from local file")
-	} else {
-		setDisplayFormat("markdown")
-		var (
-			description   string
-			sample        string
-			specification string
-		)
-
-		fileName := fmt.Sprintf("%s.md", lc.Name)
-		if _, err := os.Stat(baseRefPath); err != nil && os.IsNotExist(err) {
-			if err := os.MkdirAll(baseRefPath, 0750); err != nil {
-				return err
-			}
-		}
-
-		markdownFile := filepath.Join(baseRefPath, fileName)
-		f, err := os.OpenFile(filepath.Clean(markdownFile), os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", markdownFile, err)
-		}
-		if err = os.Truncate(markdownFile, 0); err != nil {
-			return fmt.Errorf("failed to truncate file %s: %w", markdownFile, err)
-		}
-		capName := lc.Name
-		refContent = ""
-		lang := ref.I18N
-		if lang == "" {
-			lang = En
-		}
-		capNameInTitle := ref.makeReadableTitle(capName)
-
-		refContent, err = ref.GenerateTerraformCapabilityPropertiesAndOutputs(*lc)
-		if err != nil {
-			return err
-		}
-
-		title := fmt.Sprintf("---\ntitle:  %s\n---", capNameInTitle)
-		sampleContent := ref.generateSample(capName)
-
-		descriptionI18N := lc.Description
-		des := strings.ReplaceAll(lc.Description, " ", "_")
-		if v, ok := Definitions[des]; ok {
-			descriptionI18N = v[lang]
-		}
-		description = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Description"][lang], descriptionI18N)
-		if sampleContent != "" {
-			sample = fmt.Sprintf("\n\n## %s\n\n%s", Definitions["Samples"][lang], sampleContent)
-		}
-		specification = fmt.Sprintf("\n\n## %s\n%s", Definitions["Specification"][lang], refContent)
-
-		// it's fine if the conflict info files not found
-		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, ReferenceSourcePath)
-
-		refContent = title + description + sample + conflictWithAndMoreSection + specification
-		if _, err := f.WriteString(refContent); err != nil {
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
-		return nil
-	}
 }
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
