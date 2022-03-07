@@ -187,7 +187,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			return nil, nil, false, errors.WithMessage(err, "Dispatch")
 		}
 
-		_, isHealth, err := h.collectHealthStatus(wl, appRev, overrideNamespace)
+		_, isHealth, err := h.collectHealthStatus(ctx, wl, appRev, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 		}

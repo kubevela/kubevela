@@ -55,7 +55,7 @@ var _ = Describe("test generate revision ", func() {
 	td := v1beta1.TraitDefinition{}
 	sd := v1beta1.ScopeDefinition{}
 	rolloutTd := v1beta1.TraitDefinition{}
-	var handler AppHandler
+	var handler *AppHandler
 	var comps []*oamtypes.ComponentManifest
 	var namespaceName string
 	var ns corev1.Namespace
@@ -158,8 +158,7 @@ var _ = Describe("test generate revision ", func() {
 
 		_handler, err := NewAppHandler(ctx, reconciler, &app, nil)
 		Expect(err).Should(Succeed())
-		handler = *_handler
-
+		handler = _handler
 	})
 
 	AfterEach(func() {

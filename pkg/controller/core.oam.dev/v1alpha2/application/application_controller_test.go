@@ -1085,6 +1085,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]common.ApplicationComponentStatus{
 			{
 				Name:               compName,
+				Namespace:          app.Namespace,
 				WorkloadDefinition: ncd.Spec.Workload.Definition,
 				Healthy:            true,
 				Message:            "type: busybox,\t enemies:alien",

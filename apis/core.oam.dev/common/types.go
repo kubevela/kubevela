@@ -219,8 +219,10 @@ const (
 
 // ApplicationComponentStatus record the health status of App component
 type ApplicationComponentStatus struct {
-	Name string `json:"name"`
-	Env  string `json:"env,omitempty"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	Cluster   string `json:"cluster,omitempty"`
+	Env       string `json:"env,omitempty"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
 	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
 	Healthy            bool                     `json:"healthy"`
