@@ -299,10 +299,6 @@ type AppStatus struct {
 	// Services record the status of the application services
 	Services []ApplicationComponentStatus `json:"services,omitempty"`
 
-	// Deprecated
-	// ResourceTracker record the status of the ResourceTracker
-	ResourceTracker *corev1.ObjectReference `json:"resourceTracker,omitempty"`
-
 	// Workflow record the status of workflow
 	Workflow *WorkflowStatus `json:"workflow,omitempty"`
 
