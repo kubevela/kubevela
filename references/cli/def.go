@@ -454,7 +454,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			"> vela def doc-gen alibaba-vpc.yaml\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("please specify definition name")
+				return fmt.Errorf("please specify definition name or a definition file")
 			}
 
 			namespace := ""
