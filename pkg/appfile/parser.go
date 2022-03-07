@@ -271,6 +271,8 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.ApplyOncePolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		case v1alpha1.EnvBindingPolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.TopologyPolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.OverridePolicyType:
