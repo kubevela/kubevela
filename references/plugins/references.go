@@ -603,10 +603,10 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 }
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
-func ParseLocalFile(filePath string) (*types.Capability, error) {
+func ParseLocalFile(localFilePath string) (*types.Capability, error) {
 	var localDefinition v1beta1.ComponentDefinition
 
-	yamlFile, err := ioutil.ReadFile(filePath)
+	yamlFile, err := ioutil.ReadFile(filepath.Clean(localFilePath))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read local file")
 	}
@@ -616,7 +616,7 @@ func ParseLocalFile(filePath string) (*types.Capability, error) {
 		return nil, errors.Wrap(err, "failed to parse local file")
 	}
 
-	desc, _ := localDefinition.ObjectMeta.Annotations["definition.oam.dev/description"]
+	desc := localDefinition.ObjectMeta.Annotations["definition.oam.dev/description"]
 
 	return &types.Capability{
 		Name:                   localDefinition.ObjectMeta.Name,
