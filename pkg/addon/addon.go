@@ -21,9 +21,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	"io"
 	"io/ioutil"
+	"k8s.io/klog/v2"
 	"net/http"
 	"net/url"
 	"path"
@@ -50,7 +49,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -458,6 +456,7 @@ func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, 
 	return file, items, nil
 }
 
+// GetGiteeContents can return either the metadata and content of a single file
 func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
 	escapedPath := (&url.URL{Path: path}).String()
 	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
@@ -470,12 +469,11 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 		return nil, nil, err
 	}
 	response, err := c.Client.Do(req.WithContext(ctx))
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			log.Logger.Errorf(err.Error())
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			fmt.Println(err)
 		}
-	}(response.Body)
+	}()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -491,7 +489,7 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 	if directoryUnmarshalError == nil {
 		return nil, directoryContent, nil
 	}
-	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %s", fileUnmarshalError, directoryUnmarshalError)
+	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError, directoryUnmarshalError)
 }
 
 func genAddonAPISchema(addonRes *UIData) error {

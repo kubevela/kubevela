@@ -18,12 +18,14 @@ package addon
 
 import (
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/pkg/errors"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var _ AsyncReader = &giteeReader{}
@@ -34,6 +36,7 @@ type giteeHelper struct {
 	Meta   *utils.Content
 }
 
+// Client manages communication with the Gitee API
 type Client struct {
 	Client  *http.Client
 	BaseURL *url.URL
@@ -43,6 +46,7 @@ type giteeReader struct {
 	h *giteeHelper
 }
 
+// NewGiteeClient returns a new Gitee API client
 func NewGiteeClient(httpClient *http.Client, baseURL *url.URL) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{}
