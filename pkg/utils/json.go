@@ -16,10 +16,20 @@ limitations under the License.
 
 package utils
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+)
 
 // DumpJSON returns the JSON encoding
 func DumpJSON(o interface{}) string {
 	j, _ := json.Marshal(o)
 	return string(j)
+}
+
+// StrictUnmarshal unmarshal target structure and disallow unknown fields
+func StrictUnmarshal(bs []byte, dest interface{}) error {
+	d := json.NewDecoder(bytes.NewReader(bs))
+	d.DisallowUnknownFields()
+	return d.Decode(dest)
 }

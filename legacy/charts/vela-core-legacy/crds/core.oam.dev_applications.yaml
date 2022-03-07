@@ -1041,6 +1041,8 @@ spec:
                   order, and each step: - will have a context in annotation. - should
                   mark "finish" phase in status.conditions.'
                 properties:
+                  ref:
+                    type: string
                   steps:
                     items:
                       description: WorkflowStep defines how to execute a workflow

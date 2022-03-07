@@ -115,6 +115,11 @@ type PlacementDecision struct {
 	Namespace string `json:"namespace"`
 }
 
+// String encode placement decision
+func (in PlacementDecision) String() string {
+	return in.Cluster + "/" + in.Namespace
+}
+
 // EnvStatus records the status of one env
 type EnvStatus struct {
 	Env        string              `json:"env"`

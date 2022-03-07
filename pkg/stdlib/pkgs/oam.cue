@@ -9,6 +9,21 @@
 	...
 }
 
+#ApplyComponents: {
+	#provider:   "oam"
+	#do:         "components-apply"
+	parallelism: *5 | int
+	components: [string]: {
+		cluster:     *"" | string
+		env:         *"" | string
+		waitHealthy: *true | bool
+		value: {...}
+		patch?: {...}
+		...
+	}
+	...
+}
+
 #RenderComponent: {
 	#provider: "oam"
 	#do:       "component-render"
@@ -31,6 +46,14 @@
 	#provider: "oam"
 	#do:       "load-policies"
 	value?: {...}
+	...
+}
+
+#LoadPoliciesInOrder: {
+	#provider: "oam"
+	#do:       "load-policies-in-order"
+	input?: [...string]
+	output?: [...{...}]
 	...
 }
 

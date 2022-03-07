@@ -396,7 +396,7 @@ wait: op.#ConditionalWait & {
 })
 
 var _ = Describe("Test Policy", func() {
-	It("test generate Policies", func() {
+	It("test generate PolicyWorkloads", func() {
 		testAppfile := &Appfile{
 			Name:      "test-app",
 			Namespace: "default",
@@ -431,7 +431,7 @@ spec:
 					},
 				},
 			},
-			Policies: []*Workload{
+			PolicyWorkloads: []*Workload{
 				{
 					Name: "test-policy",
 					Type: "test-policy",
@@ -462,6 +462,7 @@ spec:
 		}
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
+		testAppfile.parser = &Parser{client: k8sClient}
 		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))

@@ -237,7 +237,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			appRev.Spec.ScopeGVK[s.ResourceVersion] = s.GVK
 		}
 	}
-	for _, p := range af.Policies {
+	for _, p := range af.PolicyWorkloads {
 		if p == nil || p.FullTemplate == nil {
 			continue
 		}
@@ -246,6 +246,12 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			pd.Status = v1beta1.PolicyDefinitionStatus{}
 			appRev.Spec.PolicyDefinitions[p.FullTemplate.PolicyDefinition.Name] = *pd
 		}
+	}
+	for name, def := range af.RelatedComponentDefinitions {
+		appRev.Spec.ComponentDefinitions[name] = *def
+	}
+	for name, def := range af.RelatedTraitDefinitions {
+		appRev.Spec.TraitDefinitions[name] = *def
 	}
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)

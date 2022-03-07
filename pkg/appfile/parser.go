@@ -37,6 +37,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	policypkg "github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -104,9 +106,24 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Components = app.Spec.Components
 
 	var err error
-
-	appfile.Policies, err = p.parsePolicies(ctx, app.Spec.Policies)
+	// parse workflow steps
+	appfile.WorkflowMode = common.WorkflowModeDAG
+	if wfSpec := app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
+		appfile.WorkflowMode = common.WorkflowModeStep
+		appfile.WorkflowSteps = wfSpec.Steps
+	}
+	appfile.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
+		&step.RefWorkflowStepGenerator{Client: p.client, Context: ctx},
+		&step.DeployWorkflowStepGenerator{},
+		&step.Deploy2EnvWorkflowStepGenerator{},
+		&step.ApplyComponentWorkflowStepGenerator{},
+		&step.DeployPreApproveWorkflowStepGenerator{},
+	).Generate(appfile.app, appfile.WorkflowSteps)
 	if err != nil {
+		return nil, err
+	}
+
+	if err = p.parsePolicies(ctx, appfile); err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
 
@@ -135,12 +152,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 			}
 			appfile.RelatedScopeDefinitions[s.Name] = s.DeepCopy()
 		}
-	}
-
-	appfile.WorkflowMode = common.WorkflowModeDAG
-	if wfSpec := app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
-		appfile.WorkflowMode = common.WorkflowModeStep
-		appfile.WorkflowSteps = wfSpec.Steps
 	}
 
 	return appfile, nil
@@ -218,7 +229,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	appfile.Components = app.Spec.Components
 
 	var err error
-	appfile.Policies, err = p.parsePoliciesFromRevision(app.Spec.Policies, appRev)
+	appfile.PolicyWorkloads, err = p.parsePoliciesFromRevision(app.Spec.Policies, appRev)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
 	}
@@ -240,25 +251,53 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	return appfile, nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, policies []v1beta1.AppPolicy) ([]*Workload, error) {
+func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
 	ws := []*Workload{}
+
+	policies, err := step.LoadExternalPoliciesForWorkflow(ctx, p.client, af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	if err != nil {
+		return err
+	}
+
+	var compDefs []*v1beta1.ComponentDefinition
+	var traitDefs []*v1beta1.TraitDefinition
 	for _, policy := range policies {
 		var w *Workload
 		var err error
+		var _compDefs []*v1beta1.ComponentDefinition
+		var _traitDefs []*v1beta1.TraitDefinition
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
 		case v1alpha1.ApplyOncePolicyType:
 			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		case v1alpha1.TopologyPolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+		case v1alpha1.OverridePolicyType:
+			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
+			if err == nil {
+				_compDefs, _traitDefs, err = policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, af.app, policy)
+			}
 		default:
 			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		ws = append(ws, w)
+		compDefs = append(compDefs, _compDefs...)
+		traitDefs = append(traitDefs, _traitDefs...)
 	}
-	return ws, nil
+
+	for _, def := range compDefs {
+		af.RelatedComponentDefinitions[def.Name] = def
+	}
+	for _, def := range traitDefs {
+		af.RelatedTraitDefinitions[def.Name] = def
+	}
+	af.Policies = policies
+	af.PolicyWorkloads = ws
+	return nil
 }
 
 func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev *v1beta1.ApplicationRevision) ([]*Workload, error) {
