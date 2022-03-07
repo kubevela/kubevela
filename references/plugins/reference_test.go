@@ -579,10 +579,6 @@ func TestMakeReadableTitle(t *testing.T) {
 	}
 }
 
-func equals(a types.Capability, b types.Capability) bool {
-	return a.Name == b.Name && a.Description == b.Description && a.TerraformConfiguration == b.TerraformConfiguration && a.ConfigurationType == b.ConfigurationType && a.Path == b.Path
-}
-
 func TestParseLocalFile(t *testing.T) {
 	testcases := []struct {
 		localFilePath string
