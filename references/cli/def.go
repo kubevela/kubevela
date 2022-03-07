@@ -458,7 +458,7 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 			}
 
 			namespace := ""
-			if !strings.HasSuffix(args[0],".yaml"){
+			if !strings.HasSuffix(args[0], ".yaml") {
 				var err error
 				namespace, err = cmd.Flags().GetString(FlagNamespace)
 				if err != nil {

@@ -20,12 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -587,16 +588,16 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		err  error
 	)
 	// Get Capability from local file
-	if len(namespace)==0{
+	if len(namespace) == 0 {
 		cap, err := ParseLocalFile(ref.DefinitionName)
-		if err != nil{
+		if err != nil {
 			return fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
 		}
 		// truncate the suffix
 		cap.Name = strings.TrimSuffix(cap.Name, ".yaml")
 		cap.Type = types.TypeComponentDefinition
 		cap.Category = types.TerraformCategory
-		caps = append(caps,*cap)
+		caps = append(caps, *cap)
 		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
 	}
 
