@@ -26,12 +26,11 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
