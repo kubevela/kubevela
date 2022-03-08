@@ -141,6 +141,6 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `logFilePath`                | If non-empty, write log files in this path                                                                                 | `""`    |
 | `logFileMaxSize`             | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. | `1024`  |
 | `kubeClient.qps`             | The qps for reconcile clients, default is 50                                                                               | `50`    |
-| `kubeClient.burts`           | The burst for reconcile clients, default is 100                                                                            | `100`   |
+| `kubeClient.burst`           | The burst for reconcile clients, default is 100                                                                            | `100`   |
 
 

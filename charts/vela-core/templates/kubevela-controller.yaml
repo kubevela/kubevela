@@ -135,7 +135,7 @@ spec:
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
-            - "--kube-api-burst={{ .Values.kubeClient.burts }}"
+            - "--kube-api-burst={{ .Values.kubeClient.burst }}"
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
