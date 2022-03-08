@@ -20,12 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/oam-dev/terraform-controller/api/v1beta1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	"github.com/oam-dev/terraform-controller/api/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -120,7 +119,7 @@ type Terraform struct {
 	// Path is the sub-directory of remote git repository. It's valid when remote is set
 	Path string `json:"path,omitempty"`
 
-	v1beta1.BaseConfigurationSpec `json:",inline"`
+	v1beta2.BaseConfigurationSpec `json:",inline"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type
