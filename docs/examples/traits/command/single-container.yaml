@@ -1,0 +1,32 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+      traits:
+        - type: sidecar
+          properties:
+            name: sidecar-nginx
+            image: nginx
+        - type: command
+          properties:
+            # by default, the following command will replace the command declared in the main container -> busybox
+            command: ["sleep", "8640000"]
+
+            # if you want to patch the sidecar container, specify the container name explicitly
+            # containerName: sidecar-nginx
+
+            # if you want to replace the existing args in the container, use the `args` parameter
+            # args: ["86400"]
+
+            # if you want to append args to the existing args, use the `addArgs` parameter
+            # addArgs: ["86400"]
+
+            # if you want to delete args to the existing args, use the `delArgs` parameter
+            # delArgs: ["86400"]

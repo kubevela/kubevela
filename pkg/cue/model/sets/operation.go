@@ -35,13 +35,15 @@ const (
 	StrategyRetainKeys = "retainKeys"
 	// StrategyOpen notes on the strategic merge patch will allow any merge
 	StrategyOpen = "open"
+	// StrategyReplace notes on the strategic merge patch will allow replacing list
+	StrategyReplace = "replace"
 )
 
 var (
 	notFoundErr = errors.Errorf("not found")
 )
 
-type interceptor func(node ast.Node) (ast.Node, error)
+type interceptor func(baseNode ast.Node, patchNode ast.Node) error
 
 func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.ListLit) {
 	kmaps := map[string]ast.Expr{}
@@ -103,10 +105,10 @@ func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.Lis
 	patchList.Elts = nElts
 }
 
-func strategyPatchHandle(baseNode ast.Node) interceptor {
-	return func(lnode ast.Node) (ast.Node, error) {
-		walker := newWalker(func(patchNode ast.Node, ctx walkCtx) {
-			field, ok := patchNode.(*ast.Field)
+func strategyPatchHandle() interceptor {
+	return func(baseNode ast.Node, patchNode ast.Node) error {
+		walker := newWalker(func(node ast.Node, ctx walkCtx) {
+			field, ok := node.(*ast.Field)
 			if !ok {
 				return
 			}
@@ -116,27 +118,31 @@ func strategyPatchHandle(baseNode ast.Node) interceptor {
 			switch val := value.(type) {
 			case *ast.ListLit:
 				key := ctx.Tags()[TagPatchKey]
-
+				patchStrategy := ""
 				tags := findCommentTag(field.Comments())
 				for tk, tv := range tags {
 					if tk == TagPatchKey {
 						key = tv
 					}
+					if tk == TagPatchStrategy {
+						patchStrategy = tv
+					}
 				}
 
-				if key == "" {
-					return
-				}
 				paths := append(ctx.Pos(), labelStr(field.Label))
-				baseNode, err := lookUp(baseNode, paths...)
+				baseSubNode, err := lookUp(baseNode, paths...)
 				if err != nil {
 					return
 				}
-				baselist, ok := baseNode.(*ast.ListLit)
+				baselist, ok := baseSubNode.(*ast.ListLit)
 				if !ok {
 					return
 				}
-				listMergeProcess(field, key, baselist, val)
+				if patchStrategy == StrategyReplace {
+					baselist.Elts = val.Elts
+				} else if key != "" {
+					listMergeProcess(field, key, baselist, val)
+				}
 
 			default:
 				if !isStrategyRetainKeys(field) {
@@ -164,8 +170,8 @@ func strategyPatchHandle(baseNode ast.Node) interceptor {
 				}
 			}
 		})
-		walker.walk(lnode)
-		return lnode, nil
+		walker.walk(patchNode)
+		return nil
 	}
 }
 
@@ -201,12 +207,12 @@ func StrategyUnify(base, patch string) (string, error) {
 		return "", errors.WithMessage(err, "invalid patch cue file")
 	}
 
-	return strategyUnify(baseFile, patchFile, strategyPatchHandle(baseFile))
+	return strategyUnify(baseFile, patchFile, strategyPatchHandle())
 }
 
 func strategyUnify(baseFile *ast.File, patchFile *ast.File, patchOpts ...interceptor) (string, error) {
 	for _, option := range patchOpts {
-		if _, err := option(patchFile); err != nil {
+		if err := option(baseFile, patchFile); err != nil {
 			return "", errors.WithMessage(err, "process patchOption")
 		}
 	}

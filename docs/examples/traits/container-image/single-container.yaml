@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+      traits:
+        - type: sidecar
+          properties:
+            name: sidecar-nginx
+            image: nginx
+        - type: container-image
+          properties:
+            # by default, the following image will be applied to the main container -> busybox in this case
+            image: busybox-1.34.0
+
+            # if you want to set the imagePullPolicy as well, specify it
+            # imagePullPolicy: IfNotPresent
+
+            # if you want to patch the sidecar container, specify the container name explicitly
+            # containerName: sidecar-nginx
