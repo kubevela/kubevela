@@ -1690,7 +1690,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
-		for i := 0; i < custom.MaxErrorTimes; i++ {
+		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
@@ -1735,7 +1735,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 
-		for i := 0; i < custom.MaxErrorTimes+1; i++ {
+		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes+1; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
@@ -1803,7 +1803,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
-		for i := 0; i < custom.MaxErrorTimes; i++ {
+		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))

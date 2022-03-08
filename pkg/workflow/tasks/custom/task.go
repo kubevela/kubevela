@@ -39,6 +39,11 @@ import (
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
+var (
+	// MaxWorkflowStepErrorRetryTimes is the max retry times of the failed workflow step.
+	MaxWorkflowStepErrorRetryTimes = 10
+)
+
 const (
 	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
 	StatusReasonWait = "Wait"
@@ -54,8 +59,6 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
-	// MaxErrorTimes is the max times of the workflow progress condition which is Failed.
-	MaxErrorTimes = 10
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -289,7 +292,7 @@ func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 
 func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
 	times := ctx.IncreaseCountValueInMemory(wfTypes.ContextPrefixFailedTimes, exec.wfStatus.ID)
-	if times >= MaxErrorTimes {
+	if times >= MaxWorkflowStepErrorRetryTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true
 	}

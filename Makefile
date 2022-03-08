@@ -48,7 +48,7 @@ staticcheck: staticchecktool
 lint: golangci
 	$(GOLANGCILINT) run ./...
 
-reviewable: manifests fmt vet lint staticcheck
+reviewable: manifests fmt vet lint staticcheck helm-doc-gen
 	go mod tidy
 
 # Execute auto-gen code commands and ensure branch is clean.

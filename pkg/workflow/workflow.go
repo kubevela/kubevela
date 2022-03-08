@@ -46,18 +46,20 @@ var (
 	DisableRecorder = false
 	// StepStatusCache cache the step status
 	StepStatusCache sync.Map
+	// MaxWorkflowWaitBackoffTime is the max time to wait before reconcile wait workflow again
+	MaxWorkflowWaitBackoffTime = 60
+	// MaxWorkflowFailedBackoffTime is the max time to wait before reconcile failed workflow again
+	MaxWorkflowFailedBackoffTime = 300
 )
 
 const (
 	// minWorkflowBackoffWaitTime is the min time to wait before reconcile workflow again
 	minWorkflowBackoffWaitTime = 1
-	// maxWorkflowBackoffWaitTime is the max time to wait before reconcile workflow again
-	maxWorkflowBackoffWaitTime = 600
 	// backoffTimeCoefficient is the coefficient of time to wait before reconcile workflow again
 	backoffTimeCoefficient = 0.05
 
 	// MessageFailedAfterRetries is the message of failed after retries
-	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit(10 times)"
+	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit"
 	// MessageInitializingWorkflow is the message of initializing workflow
 	MessageInitializingWorkflow = "Initializing workflow"
 )
@@ -301,14 +303,24 @@ func (e *engine) getBackoffWaitTime() int {
 		return minWorkflowBackoffWaitTime
 	}
 
-	interval := math.Pow(2, float64(minTimes)) * backoffTimeCoefficient
+	interval := int(math.Pow(2, float64(minTimes)) * backoffTimeCoefficient)
 	if interval < minWorkflowBackoffWaitTime {
 		return minWorkflowBackoffWaitTime
 	}
+	maxWorkflowBackoffWaitTime := e.getMaxBackoffWaitTime()
 	if interval > maxWorkflowBackoffWaitTime {
 		return maxWorkflowBackoffWaitTime
 	}
-	return int(interval)
+	return interval
+}
+
+func (e *engine) getMaxBackoffWaitTime() int {
+	for _, step := range e.status.Steps {
+		if step.Phase == common.WorkflowStepPhaseFailed {
+			return MaxWorkflowFailedBackoffTime
+		}
+	}
+	return MaxWorkflowWaitBackoffTime
 }
 
 func (e *engine) setNextExecuteTime() {

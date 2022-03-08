@@ -51,6 +51,15 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`     |
 
 
+### KubeVela workflow parameters
+
+| Name                                   | Description                                            | Value |
+| -------------------------------------- | ------------------------------------------------------ | ----- |
+| `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`  |
+| `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300` |
+| `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`  |
+
+
 ### KubeVela controller parameters
 
 | Name                        | Description                          | Value              |
