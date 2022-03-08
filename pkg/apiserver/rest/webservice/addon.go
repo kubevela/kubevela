@@ -58,8 +58,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
-		Returns(200, "", apis.ListAddonResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.ListAddonResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonResponse{}))
 
 	// GET
@@ -67,8 +67,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("show details of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.DetailAddonResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.DetailAddonResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to query detail").DataType("string").Required(true)).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Writes(apis.DetailAddonResponse{}))
@@ -77,8 +77,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{name}/status").To(s.statusAddon).
 		Doc("show status of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.AddonStatusResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to query status").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
@@ -87,8 +87,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
-		Returns(200, "", apis.AddonStatusResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
@@ -96,8 +96,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/{name}/disable").To(s.disableAddon).
 		Doc("disable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.AddonStatusResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
@@ -106,8 +106,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("update an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
-		Returns(200, "", apis.AddonStatusResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to update").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
@@ -250,8 +250,8 @@ func (s *enabledAddonWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
-		Returns(200, "", apis.ListAddonResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.ListAddonResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonResponse{}))
 
 	return ws

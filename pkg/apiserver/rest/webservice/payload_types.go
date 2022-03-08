@@ -39,8 +39,8 @@ func (c *payloadTypesWebservice) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(c.ListPayloadTypes).
 		Doc("list application trigger payload types").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", nil).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", nil).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
 	return ws

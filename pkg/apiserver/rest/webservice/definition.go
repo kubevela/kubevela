@@ -44,7 +44,7 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
 		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload.").DataType("string")).
-		Returns(200, "", apis.ListDefinitionResponse{}).
+		Returns(200, "OK", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.GET("/{name}").To(d.detailDefinition).

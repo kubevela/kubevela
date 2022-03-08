@@ -38,7 +38,7 @@ func (c *policyDefinitionWebservice) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(noop).
 		Doc("list all policydefinition").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.ListPolicyDefinitionResponse{}).
+		Returns(200, "OK", apis.ListPolicyDefinitionResponse{}).
 		Writes(apis.ListPolicyDefinitionResponse{}))
 	return ws
 }

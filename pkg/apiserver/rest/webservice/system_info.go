@@ -46,23 +46,23 @@ func (u systemInfoWebService) GetWebService() *restful.WebService {
 	// Get
 	ws.Route(ws.GET("/").To(u.getSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.SystemInfoResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.SystemInfoResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
 	// Delete
 	ws.Route(ws.DELETE("/").To(u.deleteSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.SystemInfoResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.SystemInfoResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
 	// Post
 	ws.Route(ws.PUT("/").To(u.updateSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.SystemInfoRequest{}).
-		Returns(200, "", apis.SystemInfoResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.SystemInfoResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
 	return ws
