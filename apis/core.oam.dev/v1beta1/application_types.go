@@ -68,8 +68,9 @@ type WorkflowStep struct {
 
 // Workflow defines workflow steps and other attributes
 type Workflow struct {
-	Ref   string         `json:"ref,omitempty"`
-	Steps []WorkflowStep `json:"steps,omitempty"`
+	Ref   string              `json:"ref,omitempty"`
+	Mode  common.WorkflowMode `json:"mode,omitempty"`
+	Steps []WorkflowStep      `json:"steps,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

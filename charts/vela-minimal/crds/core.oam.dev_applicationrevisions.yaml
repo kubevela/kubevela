@@ -2225,6 +2225,9 @@ spec:
                           a context in annotation. - should mark "finish" phase in
                           status.conditions.'
                         properties:
+                          mode:
+                            description: WorkflowMode describes the mode of workflow
+                            type: string
                           ref:
                             type: string
                           steps:

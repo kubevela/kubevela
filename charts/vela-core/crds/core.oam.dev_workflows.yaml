@@ -89,6 +89,9 @@ spec:
       openAPIV3Schema:
         description: Workflow defines workflow steps and other attributes
         properties:
+          mode:
+            description: WorkflowMode describes the mode of workflow
+            type: string
           ref:
             type: string
           steps:

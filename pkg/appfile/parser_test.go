@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -120,6 +121,18 @@ var expectedExceptApp = &Appfile{
 			Type: "suspend",
 		},
 	},
+	WorkflowMode: common.WorkflowModeDAG,
+}
+
+var expectedExceptApp2 = &Appfile{
+	Name: "application-sample",
+	WorkflowSteps: []v1beta1.WorkflowStep{
+		{
+			Name: "suspend",
+			Type: "suspend",
+		},
+	},
+	WorkflowMode: common.WorkflowModeStep,
 }
 
 const traitDefinition = `
@@ -222,12 +235,26 @@ spec:
           properties:
             replicas: 10
   workflow:
+    mode: "DAG"
     steps:
     - name: "suspend"
       type: "suspend" 
 `
 
 const appfileYaml2 = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+  namespace: default
+spec:
+  workflow:
+    steps:
+    - name: "suspend"
+      type: "suspend" 
+`
+
+const appfileYaml3 = `
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -275,8 +302,15 @@ var _ = Describe("Test application parser", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 
+		o2 := v1beta1.Application{}
+		err = yaml.Unmarshal([]byte(appfileYaml2), &o2)
+		Expect(err).ShouldNot(HaveOccurred())
+		appfile2, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &o2)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(equal(expectedExceptApp2, appfile2)).Should(BeTrue())
+
 		notfound := v1beta1.Application{}
-		err = yaml.Unmarshal([]byte(appfileYaml2), &notfound)
+		err = yaml.Unmarshal([]byte(appfileYaml3), &notfound)
 		Expect(err).ShouldNot(HaveOccurred())
 		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
@@ -306,6 +340,16 @@ func equal(af, dest *Appfile) bool {
 				fmt.Printf("%#v | %#v\n", td.Params, destTd.Params)
 				return false
 			}
+		}
+	}
+
+	if af.WorkflowMode != dest.WorkflowMode {
+		return false
+	}
+	for i, step := range af.WorkflowSteps {
+		destStep := dest.WorkflowSteps[i]
+		if step.Name != destStep.Name || step.Type != destStep.Type {
+			return false
 		}
 	}
 	return true

@@ -803,6 +803,9 @@ spec:
               workflow:
                 description: 'Workflow defines how to customize the control logic. If workflow is specified, Vela won''t apply any resource, but provide rendered output in AppRevision. Workflow steps are executed in array order, and each step: - will have a context in annotation. - should mark "finish" phase in status.conditions.'
                 properties:
+                  mode:
+                    description: WorkflowMode describes the mode of workflow
+                    type: string
                   ref:
                     type: string
                   steps:
