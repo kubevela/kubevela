@@ -1,0 +1,23 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: GCP Gcs
+  creationTimestamp: null
+  labels:
+    type: terraform
+  name: gcp-gcs
+  namespace: vela-system
+spec:
+  schematic:
+    terraform:
+      configuration: https://github.com/woernfl/terraform-gcp-gcs.git
+      providerRef:
+        name: gcp
+        namespace: default
+      type: remote
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+status: {}

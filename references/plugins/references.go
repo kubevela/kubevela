@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,9 +30,11 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -559,6 +562,20 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		caps []types.Capability
 		err  error
 	)
+	// Get Capability from local file
+	if len(namespace) == 0 {
+		cap, err := ParseLocalFile(ref.DefinitionName)
+		if err != nil {
+			return fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
+		}
+		// truncate the suffix
+		cap.Name = strings.TrimSuffix(cap.Name, ".yaml")
+		cap.Type = types.TypeComponentDefinition
+		cap.Category = types.TerraformCategory
+		caps = append(caps, *cap)
+		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
+	}
+
 	config, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -576,12 +593,37 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	} else {
 		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace, pd)
 		if err != nil {
-			return fmt.Errorf("failed to get capability capability %s: %w", ref.DefinitionName, err)
+			return fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 		}
 		caps = []types.Capability{*cap}
 	}
 
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, pd)
+}
+
+// ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
+func ParseLocalFile(localFilePath string) (*types.Capability, error) {
+	var localDefinition v1beta1.ComponentDefinition
+
+	yamlFile, err := ioutil.ReadFile(filepath.Clean(localFilePath))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read local file")
+	}
+
+	err = yaml.Unmarshal(yamlFile, &localDefinition)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse local file")
+	}
+
+	desc := localDefinition.ObjectMeta.Annotations["definition.oam.dev/description"]
+
+	return &types.Capability{
+		Name:                   localDefinition.ObjectMeta.Name,
+		Description:            desc,
+		TerraformConfiguration: localDefinition.Spec.Schematic.Terraform.Configuration,
+		ConfigurationType:      localDefinition.Spec.Schematic.Terraform.Type,
+		Path:                   localDefinition.Spec.Schematic.Terraform.Path,
+	}, nil
 }
 
 // CreateMarkdown creates markdown based on capabilities

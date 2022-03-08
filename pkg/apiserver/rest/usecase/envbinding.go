@@ -41,10 +41,10 @@ const (
 	Deploy2Env string = "deploy2env"
 	// DeployCloudResource deploy app to local and copy secret to target cluster, suitable for cloud application.
 	DeployCloudResource string = "deploy-cloud-resource"
-	// TerraformWorkfloadType cloud application
-	TerraformWorkfloadType string = "configurations.terraform.core.oam.dev"
-	// TerraformWorkfloadKind terraform workload kind
-	TerraformWorkfloadKind string = "Configuration"
+	// TerraformWorkloadType cloud application
+	TerraformWorkloadType string = "configurations.terraform.core.oam.dev"
+	// TerraformWorkloadKind terraform workload kind
+	TerraformWorkloadKind string = "Configuration"
 )
 
 // EnvBindingUsecase envbinding usecase

@@ -58,11 +58,6 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ResourceTracker != nil {
-		in, out := &in.ResourceTracker, &out.ResourceTracker
-		*out = new(v1.ObjectReference)
-		**out = **in
-	}
 	if in.Workflow != nil {
 		in, out := &in.Workflow, &out.Workflow
 		*out = new(WorkflowStatus)

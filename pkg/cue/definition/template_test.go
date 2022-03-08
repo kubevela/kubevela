@@ -369,7 +369,103 @@ parameter: {
 				},
 			},
 		},
-
+		"patch trait with open merge": {
+			traitTemplate: `
+parameter: {...}
+// +patchStrategy=open
+patch: parameter
+`,
+			params: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"replicas": 5,
+				},
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(5),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}},
+								}}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
+		},
+		"patch trait with replace": {
+			traitTemplate: `
+parameter: {
+  name: string
+  ports: [...int]
+}
+patch: spec: template: spec: {
+  // +patchKey=name
+  containers: [{
+    name: parameter.name
+    // +patchStrategy=replace
+    ports: [for k in parameter.ports {containerPort: k}]
+  }]
+}
+`,
+			params: map[string]interface{}{
+				"name":  "main",
+				"ports": []int{80, 8443},
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{
+										map[string]interface{}{"containerPort": int64(80)},
+										map[string]interface{}{"containerPort": int64(8443)},
+									}},
+								}}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
+		},
 		"output trait": {
 			traitTemplate: `
 outputs: service: {
@@ -862,6 +958,15 @@ patch: {
 parameter: [string]: string`,
 			params: map[string]interface{}{
 				"wrong-keyword": "_|_ //",
+			},
+			hasCompileErr: true,
+		},
+		"using errs": {
+			traitTemplate: `
+errs: parameter.errs
+parameter: { errs: [...string] }`,
+			params: map[string]interface{}{
+				"errs": []string{"has error"},
 			},
 			hasCompileErr: true,
 		},

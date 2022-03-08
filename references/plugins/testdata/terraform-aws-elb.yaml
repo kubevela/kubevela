@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Terraform module which creates ELB resources on
+      AWS
+  creationTimestamp: null
+  labels:
+    type: terraform
+  name: aws-elb
+  namespace: vela-system
+spec:
+  schematic:
+    terraform:
+      configuration: https://github.com/terraform-aws-modules/terraform-aws-elb.git
+      providerRef:
+        name: aws
+        namespace: default
+      type: remote
+  workload:
+    definition:
+      apiVersion: terraform.core.oam.dev/v1beta1
+      kind: Configuration
+status: {}

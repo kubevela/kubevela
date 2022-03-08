@@ -18,6 +18,7 @@ package resourcekeeper
 
 import (
 	"context"
+	"sync"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/apps/v1"
@@ -48,6 +49,7 @@ type ResourceKeeper interface {
 type resourceKeeper struct {
 	client.Client
 	app *v1beta1.Application
+	mu  sync.Mutex
 
 	applicator  apply.Applicator
 	_rootRT     *v1beta1.ResourceTracker

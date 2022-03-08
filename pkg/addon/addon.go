@@ -95,7 +95,7 @@ const (
 )
 
 // ParameterFileName is the addon resources/parameter.cue file name
-var ParameterFileName = filepath.Join("resources", "parameter.cue")
+var ParameterFileName = strings.Join([]string{"resources", "parameter.cue"}, "/")
 
 // ListOptions contains flags mark what files should be read in an addon directory
 type ListOptions struct {
@@ -188,7 +188,7 @@ var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Va
 func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 	relativePath := r.RelativePath(it)
 	for _, p := range Patterns {
-		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
+		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
 			return p.Value
 		}
 	}
@@ -356,8 +356,10 @@ func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUETemplates = append(a.CUETemplates, file)
-	default:
+	case ".yaml", ".yml":
 		a.YAMLTemplates = append(a.YAMLTemplates, file)
+	default:
+		// skip other file formats
 	}
 	return nil
 }
@@ -383,8 +385,10 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUEDefinitions = append(a.CUEDefinitions, file)
-	default:
+	case ".yaml", ".yml":
 		a.Definitions = append(a.Definitions, file)
+	default:
+		// skip other file formats
 	}
 	return nil
 }

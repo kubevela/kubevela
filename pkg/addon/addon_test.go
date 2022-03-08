@@ -809,3 +809,54 @@ func TestUnmarshalToContent(t *testing.T) {
 	_, _, err4 := unmarshalToContent([]byte(testUnmarshalToContent4))
 	assert.Error(t, err4, "unmarshalling failed for both file and directory content: unexpected end of JSON input and unexpecte")
 }
+
+// Test readResFile, only accept .cue and .yaml/.yml
+func TestReadResFile(t *testing.T) {
+
+	// setup test data
+	testAddonName := "example"
+	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
+	reader := localReader{dir: testAddonDir, name: testAddonName}
+	metas, err := reader.ListAddonMeta()
+	testAddonMeta := metas[testAddonName]
+	assert.NoError(t, err)
+
+	// run test
+	var addon = &InstallPackage{}
+	ptItems := ClassifyItemByPattern(&testAddonMeta, reader)
+	items := ptItems[ResourcesDirName]
+	for _, it := range items {
+		err := readResFile(addon, reader, reader.RelativePath(it))
+		assert.NoError(t, err)
+	}
+
+	// verify
+	assert.True(t, len(addon.YAMLTemplates) == 1)
+}
+
+// Test readDefFile only accept .cue and .yaml/.yml
+func TestReadDefFile(t *testing.T) {
+
+	// setup test data
+	testAddonName := "example"
+	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
+	reader := localReader{dir: testAddonDir, name: testAddonName}
+	metas, err := reader.ListAddonMeta()
+	testAddonMeta := metas[testAddonName]
+	assert.NoError(t, err)
+
+	// run test
+	var uiData = &UIData{}
+	ptItems := ClassifyItemByPattern(&testAddonMeta, reader)
+	items := ptItems[DefinitionsDirName]
+
+	for _, it := range items {
+		err := readDefFile(uiData, reader, reader.RelativePath(it))
+		if err != nil {
+			assert.Error(t, fmt.Errorf("Something wrong."))
+		}
+	}
+
+	// verify
+	assert.True(t, len(uiData.Definitions) == 1)
+}

@@ -13,7 +13,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
-	github.com/containerd/containerd v1.4.12
+	github.com/containerd/containerd v1.4.13
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
 	github.com/davecgh/go-spew v1.1.1
@@ -82,6 +82,7 @@ require (
 	k8s.io/kube-aggregator v0.22.1
 	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 	k8s.io/kubectl v0.21.0
+	k8s.io/metrics v0.21.0
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
 	rsc.io/letsencrypt v0.0.3 // indirect
@@ -134,7 +135,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
 	github.com/deislabs/oras v0.11.1 // indirect
 	github.com/docker/cli v20.10.5+incompatible // indirect
-	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/distribution v2.8.0-beta.1+incompatible // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.6.3 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect

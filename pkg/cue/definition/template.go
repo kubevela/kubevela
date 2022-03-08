@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
@@ -46,6 +47,8 @@ const (
 	CustomMessage = "message"
 	// HealthCheckPolicy defines the health check policy in definition template
 	HealthCheckPolicy = "isHealth"
+	// ErrsFieldName check if errors contained in the cue
+	ErrsFieldName = "errs"
 )
 
 const (
@@ -347,6 +350,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
 		}
+		if sets.IsOpenPatch(patcher) {
+			if err := base.Open(); err != nil {
+				return errors.WithMessagef(err, "cannot convert base to open struct")
+			}
+		}
 		if err := base.Unify(p); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
@@ -365,6 +373,24 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 	}
 
+	errs := inst.Lookup(ErrsFieldName)
+	if errs.Exists() {
+		if err := parseErrors(errs); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func parseErrors(errs cue.Value) error {
+	if it, e := errs.List(); e == nil {
+		for it.Next() {
+			if s, err := it.Value().String(); err == nil && s != "" {
+				return errors.Errorf(s)
+			}
+		}
+	}
 	return nil
 }
 

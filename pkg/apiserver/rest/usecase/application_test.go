@@ -203,20 +203,37 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(components[0].ComponentType, "webservice")).Should(BeEmpty())
 	})
 
-	It("Test AddComponent function", func() {
+	It("Test CreateComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 
-		base, err := appUsecase.AddComponent(context.TODO(), appModel, v1.CreateComponentRequest{
+		base, err := appUsecase.CreateComponent(context.TODO(), appModel, v1.CreateComponentRequest{
 			Name:          "test2",
 			Description:   "this is a test2 component",
 			Labels:        map[string]string{},
 			ComponentType: "worker",
 			Properties:    `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 			DependsOn:     []string{"component-name"},
+			Traits: []*v1.CreateApplicationTraitRequest{
+				{
+					Type:       "scaler",
+					Alias:      "Scaler",
+					Properties: `{"replicas": 2}`,
+				},
+				{
+					Type:        "labels",
+					Alias:       "Labels",
+					Description: "This is a trait to set labels",
+					Properties:  `{"key1": "value1"}`,
+				},
+			},
 		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.ComponentType, "worker")).Should(BeEmpty())
+
+		detailResponse, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(detailResponse.Traits), 2)).Should(BeEmpty())
 	})
 
 	It("Test DetailComponent function", func() {
@@ -234,7 +251,7 @@ var _ = Describe("Test application usecase function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		_, err = appUsecase.AddPolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
+		_, err = appUsecase.CreatePolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
 			Name:        EnvBindingPolicyDefaultName,
 			Description: "this is a test2 policy",
 			Type:        "env-binding",
@@ -242,7 +259,7 @@ var _ = Describe("Test application usecase function", func() {
 		})
 		Expect(err).Should(BeNil())
 
-		_, err = appUsecase.AddPolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
+		_, err = appUsecase.CreatePolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
 			Name:        EnvBindingPolicyDefaultName,
 			Description: "this is a test2 policy",
 			Type:        "env-binding",
@@ -291,84 +308,13 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 	})
 
-	It("Test add application trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		alias := "alias"
-		description := "description"
-		res, err := appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
-			Type:        "Ingress",
-			Properties:  `{"domain":"www.test.com"}`,
-			Alias:       alias,
-			Description: description,
-		})
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
-		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
-		Expect(err).Should(BeNil())
-		Expect(comp).ShouldNot(BeNil())
-		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
-		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test.com"}`))
-		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
-		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
-	})
-
-	It("Test add application a dup trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		_, err = appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
-			Type:       "Ingress",
-			Properties: `{"domain":"www.dup.com"}`,
-		})
-		Expect(err).ShouldNot(BeNil())
-	})
-
-	It("Test update application trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		alias := "newAlias"
-		description := "newDescription"
-		res, err := appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress", v1.UpdateApplicationTraitRequest{
-			Properties:  `{"domain":"www.test1.com"}`,
-			Alias:       alias,
-			Description: description,
-		})
-		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
-		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
-		Expect(err).Should(BeNil())
-		Expect(comp).ShouldNot(BeNil())
-		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
-		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test1.com"}`))
-		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
-		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
-	})
-
-	It("Test update a not exist", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		_, err = appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress-1-20", v1.UpdateApplicationTraitRequest{
-			Properties: `{"domain":"www.test1.com"}`,
-		})
-		Expect(err).ShouldNot(BeNil())
-	})
-
-	It("Test delete an exist trait", func() {
-		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
-		Expect(err).Should(BeNil())
-		err = appUsecase.DeleteApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress")
-		Expect(err).Should(BeNil())
-		app, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
-		Expect(err).Should(BeNil())
-		Expect(app).ShouldNot(BeNil())
-		Expect(len(app.Traits)).Should(BeEquivalentTo(0))
-	})
-
 	It("Test DeleteComponent function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		err = appUsecase.DeleteComponent(context.TODO(), appModel, "test2")
+		component, err := appUsecase.GetApplicationComponent(context.TODO(), appModel, "test2")
+		Expect(err).Should(BeNil())
+		err = appUsecase.DeleteComponent(context.TODO(), appModel, component)
 		Expect(err).Should(BeNil())
 	})
 
@@ -478,7 +424,7 @@ var _ = Describe("Test application usecase function", func() {
 			},
 			Spec: v1beta1.ComponentDefinitionSpec{
 				Workload: common.WorkloadTypeDescriptor{
-					Type: TerraformWorkfloadType,
+					Type: TerraformWorkloadType,
 				},
 			},
 		}
@@ -631,6 +577,116 @@ var _ = Describe("Test application usecase function", func() {
 		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(policies), 0)).Should(BeEmpty())
+	})
+})
+
+var _ = Describe("Test application component usecase function", func() {
+
+	var (
+		appUsecase     *applicationUsecaseImpl
+		projectUsecase *projectUsecaseImpl
+		envUsecase     *envUsecaseImpl
+		testApp        string
+		testProject    string
+	)
+
+	BeforeEach(func() {
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		workflowUsecase := &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
+		envBindingUsecase := &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient}
+
+		appUsecase = &applicationUsecaseImpl{
+			ds:                ds,
+			apply:             apply.NewAPIApplicator(k8sClient),
+			kubeClient:        k8sClient,
+			projectUsecase:    projectUsecase,
+			workflowUsecase:   workflowUsecase,
+			envBindingUsecase: envBindingUsecase,
+			envUsecase:        envUsecase,
+		}
+		testApp = "test-trait-app"
+		testProject = "test-trait-project"
+
+	})
+
+	It("Test add application trait", func() {
+		_, err := projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.CreateApplication(context.TODO(), v1.CreateApplicationRequest{Name: testApp, Project: testProject})
+		Expect(err).Should(BeNil())
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.CreateComponent(context.TODO(), appModel, v1.CreateComponentRequest{Name: "test2"})
+		Expect(err).Should(BeNil())
+		alias := "alias"
+		description := "description"
+		res, err := appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
+			Type:        "Ingress",
+			Properties:  `{"domain":"www.test.com"}`,
+			Alias:       alias,
+			Description: description,
+		})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
+		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
+		Expect(err).Should(BeNil())
+		Expect(comp).ShouldNot(BeNil())
+		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
+		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test.com"}`))
+		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
+
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
+			Type:       "Ingress",
+			Properties: `{"domain":"www.dup.com"}`,
+		})
+		Expect(err).ShouldNot(BeNil())
+	})
+
+	It("Test update application trait", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		alias := "newAlias"
+		description := "newDescription"
+		res, err := appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress", v1.UpdateApplicationTraitRequest{
+			Properties:  `{"domain":"www.test1.com"}`,
+			Alias:       alias,
+			Description: description,
+		})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(res.Type, "Ingress")).Should(BeEmpty())
+		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
+		Expect(err).Should(BeNil())
+		Expect(comp).ShouldNot(BeNil())
+		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
+		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test1.com"}`))
+		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
+	})
+
+	It("Test update a not exist", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		_, err = appUsecase.UpdateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress-1-20", v1.UpdateApplicationTraitRequest{
+			Properties: `{"domain":"www.test1.com"}`,
+		})
+		Expect(err).ShouldNot(BeNil())
+	})
+
+	It("Test delete an exist trait", func() {
+		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		err = appUsecase.DeleteApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, "Ingress")
+		Expect(err).Should(BeNil())
+		app, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
+		Expect(err).Should(BeNil())
+		Expect(app).ShouldNot(BeNil())
+		Expect(len(app.Traits)).Should(BeEquivalentTo(0))
 	})
 })
 

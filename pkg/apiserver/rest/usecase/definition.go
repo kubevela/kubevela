@@ -318,7 +318,37 @@ func renderDefaultUISchema(apiSchema *openapi3.Schema) []*utils.UIParameter {
 			params = append(params, param)
 		}
 	}
+	sortDefaultUISchema(params)
 	return params
+}
+
+// Sort Default UISchema
+// 1.Check validate.required. It is True, the sort number will be lower.
+// 2.Check subParameters. The more subparameters, the larger the sort number.
+// 3.If validate.required or subParameters is equal, sort by Label
+//
+// The sort number starts with 100.
+func sortDefaultUISchema(params []*utils.UIParameter) {
+	sort.Slice(params, func(i, j int) bool {
+		switch {
+		case params[i].Validate.Required && !params[j].Validate.Required:
+			return true
+		case !params[i].Validate.Required && params[j].Validate.Required:
+			return false
+		default:
+			switch {
+			case len(params[i].SubParameters) < len(params[j].SubParameters):
+				return true
+			case len(params[i].SubParameters) > len(params[j].SubParameters):
+				return false
+			default:
+				return params[i].Label < params[j].Label
+			}
+		}
+	})
+	for i, param := range params {
+		param.Sort += uint(i)
+	}
 }
 
 func renderUIParameter(key, label string, property *openapi3.SchemaRef, required []string) *utils.UIParameter {

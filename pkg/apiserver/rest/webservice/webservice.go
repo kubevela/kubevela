@@ -23,6 +23,7 @@ import (
 	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 )
 
@@ -49,7 +50,7 @@ func GetRegisteredWebService() []WebService {
 func noop(req *restful.Request, resp *restful.Response) {}
 
 func returns200(b *restful.RouteBuilder) {
-	b.Returns(http.StatusOK, "OK", map[string]string{"status": "ok"})
+	b.Returns(http.StatusOK, "OK", apisv1.SimpleResponse{Status: "ok"})
 }
 
 func returns500(b *restful.RouteBuilder) {

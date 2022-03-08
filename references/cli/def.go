@@ -449,15 +449,21 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
 		Long:  "Generate documentation of definitions",
 		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
-			"> vela def doc-gen alibaba-vpc -n vela-system\n",
+			"> vela def doc-gen alibaba-vpc -n vela-system\n" +
+			"2. Generate documentation for local ComponentDefinition file alibaba-vpc.yaml:\n" +
+			"> vela def doc-gen alibaba-vpc.yaml\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("please specify definition name")
+				return fmt.Errorf("please specify definition name or a definition file")
 			}
 
-			namespace, err := cmd.Flags().GetString(FlagNamespace)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", Namespace)
+			var namespace string
+			if !strings.HasSuffix(args[0], ".yaml") {
+				var err error
+				namespace, err = cmd.Flags().GetString(FlagNamespace)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
+				}
 			}
 
 			ref := &plugins.MarkdownReference{}

@@ -51,7 +51,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
-		Returns(200, "", apis.ApplicationResponse{}).
+		Returns(200, "OK", apis.ApplicationResponse{}).
 		Writes(apis.ApplicationResponse{}))
 
 	ws.Route(ws.POST("/namespaces/{namespace}/applications/{appname}").To(c.createOrUpdateApplication).
@@ -62,6 +62,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Reads(apis.ApplicationRequest{}))
 
 	ws.Route(ws.DELETE("/namespaces/{namespace}/applications/{appname}").To(c.deleteApplication).
+		Operation("deleteOAMApplication").
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).

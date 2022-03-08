@@ -21,13 +21,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )

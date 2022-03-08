@@ -17,10 +17,13 @@ limitations under the License.
 package step
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -52,6 +55,27 @@ func (g *ChainWorkflowStepGenerator) Generate(app *v1beta1.Application, existing
 // NewChainWorkflowStepGenerator create ChainWorkflowStepGenerator
 func NewChainWorkflowStepGenerator(generators ...WorkflowStepGenerator) WorkflowStepGenerator {
 	return &ChainWorkflowStepGenerator{generators: generators}
+}
+
+// RefWorkflowStepGenerator generate workflow steps from ref workflow
+type RefWorkflowStepGenerator struct {
+	context.Context
+	client.Client
+}
+
+// Generate generate workflow steps
+func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
+	if app.Spec.Workflow == nil || app.Spec.Workflow.Ref == "" {
+		return existingSteps, nil
+	}
+	if app.Spec.Workflow.Steps != nil {
+		return nil, errors.Errorf("cannot set steps and ref in workflow at the same time")
+	}
+	wf := &v1alpha1.Workflow{}
+	if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
+		return
+	}
+	return wf.Steps, nil
 }
 
 // ApplyComponentWorkflowStepGenerator generate apply-component workflow steps for all components in the application
@@ -101,4 +125,59 @@ func (g *Deploy2EnvWorkflowStepGenerator) Generate(app *v1beta1.Application, exi
 		}
 	}
 	return
+}
+
+// DeployWorkflowStepGenerator generate deploy workflow steps for all topology & override in the application
+type DeployWorkflowStepGenerator struct{}
+
+// Generate generate workflow steps
+func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
+	if len(existingSteps) > 0 {
+		return existingSteps, nil
+	}
+	var topologies []string
+	var overrides []string
+	for _, policy := range app.Spec.Policies {
+		switch policy.Type {
+		case v1alpha1.TopologyPolicyType:
+			topologies = append(topologies, policy.Name)
+		case v1alpha1.OverridePolicyType:
+			overrides = append(overrides, policy.Name)
+		}
+	}
+	for _, topology := range topologies {
+		steps = append(steps, v1beta1.WorkflowStep{
+			Name: "deploy-" + topology,
+			Type: "deploy",
+			Properties: util.Object2RawExtension(map[string]interface{}{
+				"policies": append(overrides, topology),
+			}),
+		})
+	}
+	return
+}
+
+// DeployPreApproveWorkflowStepGenerator generate suspend workflow steps before all deploy steps
+type DeployPreApproveWorkflowStepGenerator struct{}
+
+// Generate generate workflow steps
+func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
+	lastSuspend := false
+	for _, step := range existingSteps {
+		if step.Type == "deploy" && !lastSuspend {
+			cfg := map[string]interface{}{}
+			_ = json.Unmarshal(step.Properties.Raw, &cfg)
+			_auto, found := cfg["auto"]
+			auto, isBool := _auto.(bool)
+			if found && isBool && !auto {
+				steps = append(steps, v1beta1.WorkflowStep{
+					Name: "manual-approve-" + step.Name,
+					Type: "suspend",
+				})
+			}
+		}
+		lastSuspend = step.Type == "suspend"
+		steps = append(steps, step)
+	}
+	return steps, nil
 }

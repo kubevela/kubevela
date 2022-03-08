@@ -577,18 +577,21 @@ type ApplicationResourceInfo struct {
 
 // ComponentBase component  base model
 type ComponentBase struct {
-	Name          string            `json:"name"`
-	Alias         string            `json:"alias"`
-	Description   string            `json:"description"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	ComponentType string            `json:"componentType"`
-	EnvNames      []string          `json:"envNames"`
-	Icon          string            `json:"icon,omitempty"`
-	DependsOn     []string          `json:"dependsOn"`
-	Creator       string            `json:"creator,omitempty"`
-	DeployVersion string            `json:"deployVersion"`
-	CreateTime    time.Time         `json:"createTime"`
-	UpdateTime    time.Time         `json:"updateTime"`
+	Name          string              `json:"name"`
+	Alias         string              `json:"alias"`
+	Description   string              `json:"description"`
+	Labels        map[string]string   `json:"labels,omitempty"`
+	ComponentType string              `json:"componentType"`
+	Main          bool                `json:"main"`
+	Icon          string              `json:"icon,omitempty"`
+	DependsOn     []string            `json:"dependsOn"`
+	Creator       string              `json:"creator,omitempty"`
+	DeployVersion string              `json:"deployVersion"`
+	CreateTime    time.Time           `json:"createTime"`
+	UpdateTime    time.Time           `json:"updateTime"`
+	Inputs        common.StepInputs   `json:"inputs,omitempty"`
+	Outputs       common.StepOutputs  `json:"outputs,omitempty"`
+	Traits        []*ApplicationTrait `json:"traits"`
 }
 
 // ComponentListResponse list component
@@ -606,6 +609,8 @@ type CreateComponentRequest struct {
 	ComponentType string                           `json:"componentType" validate:"checkname"`
 	Properties    string                           `json:"properties,omitempty"`
 	DependsOn     []string                         `json:"dependsOn" optional:"true"`
+	Inputs        common.StepInputs                `json:"inputs,omitempty" optional:"true"`
+	Outputs       common.StepOutputs               `json:"outputs,omitempty" optional:"true"`
 	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
 }
 
@@ -939,7 +944,7 @@ type CreateApplicationEnvbindingRequest struct {
 	EnvBinding
 }
 
-// CreateApplicationTraitRequest create application triat  req
+// CreateApplicationTraitRequest create application trait request
 type CreateApplicationTraitRequest struct {
 	Type        string `json:"type" validate:"checkname"`
 	Alias       string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
@@ -956,7 +961,6 @@ type UpdateApplicationTraitRequest struct {
 
 // ApplicationTrait application trait
 type ApplicationTrait struct {
-	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Alias       string `json:"alias,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -1055,4 +1059,9 @@ type SystemInfoRequest struct {
 type SystemVersion struct {
 	VelaVersion string `json:"velaVersion"`
 	GitVersion  string `json:"gitVersion"`
+}
+
+// SimpleResponse simple response model for temporary
+type SimpleResponse struct {
+	Status string `json:"status"`
 }

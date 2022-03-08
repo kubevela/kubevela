@@ -47,31 +47,36 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	tags := []string{"env"}
 
 	ws.Route(ws.GET("/").To(n.list).
+		Operation("envlist").
 		Doc("list all envs").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "", apis.ListEnvResponse{}).
+		Returns(200, "OK", apis.ListEnvResponse{}).
 		Writes(apis.ListEnvResponse{}))
 
 	ws.Route(ws.POST("/").To(n.create).
+		Operation("envcreate").
 		Doc("create an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateEnvRequest{}).
-		Returns(200, "", apis.Env{}).
+		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
 	ws.Route(ws.PUT("/{name}").To(n.update).
+		Operation("envupdate").
 		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateEnvRequest{}).
-		Returns(200, "", apis.Env{}).
+		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
 	ws.Route(ws.DELETE("/{name}").To(n.delete).
+		Operation("envdelete").
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
-		Returns(200, "", apis.EmptyResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 	return ws
 }

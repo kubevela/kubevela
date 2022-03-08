@@ -49,8 +49,8 @@ func (v *velaQLWebService) GetWebService() *restful.WebService {
 		Doc("use velaQL to query resource status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("velaql", "velaql query statement").DataType("string")).
-		Returns(200, "", apis.VelaQLViewResponse{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", apis.VelaQLViewResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.VelaQLViewResponse{}))
 
 	return ws

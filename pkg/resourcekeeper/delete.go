@@ -48,6 +48,9 @@ func newDeleteConfig(options ...DeleteOption) *deleteConfig {
 
 // Delete delete resources
 func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.Unstructured, options ...DeleteOption) (err error) {
+	if err = h.AdmissionCheck(ctx, manifests); err != nil {
+		return err
+	}
 	for _, manifest := range manifests {
 		if manifest != nil {
 			_options := options
