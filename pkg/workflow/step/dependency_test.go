@@ -42,7 +42,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
 		Name:       "deploy",
 		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","internal"]}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["ex","internal"]}`)},
 	}}, []v1beta1.AppPolicy{{
 		Name: "internal",
 		Type: "internal",
