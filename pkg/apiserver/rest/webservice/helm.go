@@ -19,6 +19,8 @@ package webservice
 import (
 	"context"
 
+	"helm.sh/helm/v3/pkg/repo"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
@@ -58,7 +60,7 @@ func (h helmWebService) GetWebService() *restful.WebService {
 		Doc("list versions").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
-		Returns(200, "", []string{}).
+		Returns(200, "", repo.ChartVersions{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes([]string{}))
 

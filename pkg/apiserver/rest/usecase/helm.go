@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"time"
 
+	"helm.sh/helm/v3/pkg/repo"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -44,7 +46,7 @@ func NewHelmUsecase() HelmHandler {
 // HelmHandler responsible handle helm related interface
 type HelmHandler interface {
 	ListChartNames(ctx context.Context, url string) ([]string, error)
-	ListChartVersions(ctx context.Context, url string, chartName string) ([]string, error)
+	ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error)
 	GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error)
 }
 
@@ -67,24 +69,18 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string) ([]s
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string) ([]string, error) {
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error) {
 	if m, ok := d.versionCache[fmt.Sprintf(versionPatten, url, chartName)]; ok && !m.IsExpired() {
-		return m.GetData().([]string), nil
+		return m.GetData().(repo.ChartVersions), nil
 	}
 	helper := &helm.Helper{}
 	chartVersions, err := helper.ListVersions(url, chartName)
 	if err != nil {
 		return nil, err
 	}
-	res := make([]string, len(chartVersions))
-	j := 0
-	for _, v := range chartVersions {
-		res[j] = v.Version
-		j++
-	}
 	// helm version updating is more frequent， so set 1min expired time
-	d.versionCache[fmt.Sprintf(versionPatten, url, chartName)] = utils.NewMemoryCache(res, 1*time.Minute)
-	return res, nil
+	d.versionCache[fmt.Sprintf(versionPatten, url, chartName)] = utils.NewMemoryCache(chartVersions, 1*time.Minute)
+	return chartVersions, nil
 }
 
 func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error) {
