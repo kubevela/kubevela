@@ -4279,9 +4279,6 @@
 						"$ref": "#/definitions/common.PolicyStatus"
 					}
 				},
-				"resourceTracker": {
-					"$ref": "#/definitions/v1.ObjectReference"
-				},
 				"services": {
 					"type": "array",
 					"items": {
@@ -4680,8 +4677,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -4879,8 +4876,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"name",
 				"alias",
 				"description",
@@ -5518,12 +5515,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"triggerType",
-				"envName",
-				"createTime",
-				"version",
 				"status",
-				"note"
+				"note",
+				"envName",
+				"triggerType",
+				"version",
+				"createTime"
 			],
 			"properties": {
 				"codeInfo": {
@@ -5753,7 +5750,6 @@
 		},
 		"v1.ApplicationTrait": {
 			"required": [
-				"name",
 				"type",
 				"properties",
 				"createTime",
@@ -5768,9 +5764,6 @@
 					"format": "date-time"
 				},
 				"description": {
-					"type": "string"
-				},
-				"name": {
 					"type": "string"
 				},
 				"properties": {
@@ -5955,11 +5948,11 @@
 				"description",
 				"componentType",
 				"main",
-				"envNames",
 				"dependsOn",
 				"deployVersion",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"traits"
 			],
 			"properties": {
 				"alias": {
@@ -5987,14 +5980,14 @@
 				"description": {
 					"type": "string"
 				},
-				"envNames": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
 				"icon": {
 					"type": "string"
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
 				},
 				"labels": {
 					"type": "object",
@@ -6007,6 +6000,18 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"traits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ApplicationTrait"
+					}
 				},
 				"updateTime": {
 					"type": "string",
@@ -6347,6 +6352,12 @@
 				"icon": {
 					"type": "string"
 				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
 				"labels": {
 					"type": "object",
 					"additionalProperties": {
@@ -6355,6 +6366,12 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
 				},
 				"properties": {
 					"type": "string"
@@ -6510,11 +6527,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
-				"invisible",
 				"version",
 				"icon",
 				"name",
+				"invisible",
+				"description",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -6587,13 +6604,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
 				"alias",
-				"project",
 				"policies",
 				"envBindings",
 				"status",
@@ -6655,20 +6672,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"description",
 				"alias",
+				"apiServerURL",
 				"dashboardURL",
-				"kubeConfigSecret",
-				"createTime",
-				"icon",
-				"labels",
+				"provider",
 				"kubeConfig",
 				"updateTime",
+				"description",
+				"icon",
 				"status",
 				"reason",
-				"provider",
-				"apiServerURL",
+				"createTime",
+				"name",
+				"labels",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -6726,14 +6743,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"name",
 				"updateTime",
+				"appPrimaryKey",
+				"type",
+				"alias",
 				"main",
 				"createTime",
 				"creator",
-				"alias",
-				"type"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -6831,13 +6848,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"updateTime",
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime",
-				"updateTime",
-				"name"
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -6867,17 +6884,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"deployUser",
 				"workflowName",
+				"updateTime",
+				"version",
+				"deployUser",
 				"envName",
-				"appPrimaryKey",
-				"reason",
-				"triggerType",
 				"createTime",
 				"status",
 				"note",
-				"version",
-				"updateTime"
+				"triggerType",
+				"appPrimaryKey",
+				"reason"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -6931,9 +6948,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
-				"name",
-				"createTime"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -6970,12 +6987,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
-				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7027,14 +7044,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"name",
+				"description",
+				"envName",
+				"updateTime",
+				"alias",
 				"enable",
 				"default",
-				"updateTime",
-				"name",
-				"alias",
-				"createTime",
-				"description",
-				"envName"
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -7630,10 +7647,10 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"enableCollection",
 				"createTime",
 				"updateTime",
 				"installID",
-				"enableCollection",
 				"systemVersion"
 			],
 			"properties": {
@@ -8009,6 +8026,9 @@
 		},
 		"v1beta1.Workflow": {
 			"properties": {
+				"ref": {
+					"type": "string"
+				},
 				"steps": {
 					"type": "array",
 					"items": {

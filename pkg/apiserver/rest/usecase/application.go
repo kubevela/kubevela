@@ -544,35 +544,24 @@ func (c *applicationUsecaseImpl) ListComponents(ctx context.Context, app *model.
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{})
+	components, err := c.ds.List(ctx, &component, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
-	envComponents := map[string]bool{}
-	componentSelectorDefine := false
-	if op.EnvName != "" {
-		envbindings, err := c.envBindingUsecase.GetEnvBindings(ctx, app)
-		if err != nil && !errors.Is(err, bcode.ErrApplicationNotEnv) {
-			log.Logger.Errorf("query app  env binding policy config failure %s", err.Error())
-		}
-		if len(envbindings) > 0 {
-			for _, env := range envbindings {
-				if env != nil && env.Name == op.EnvName {
-					componentSelectorDefine = true
-					for _, componentName := range env.ComponentSelector.Components {
-						envComponents[componentName] = true
-					}
-				}
-			}
-		}
-	}
 
 	var list []*apisv1.ComponentBase
+	var main *apisv1.ComponentBase
 	for _, component := range components {
 		pm := component.(*model.ApplicationComponent)
-		if !componentSelectorDefine || envComponents[pm.Name] {
-			list = append(list, c.converComponentModelToBase(pm))
+		if !pm.Main {
+			list = append(list, convertComponentModelToBase(pm))
+		} else {
+			main = convertComponentModelToBase(pm)
 		}
+	}
+	// the main component must be first
+	if main != nil {
+		list = append([]*apisv1.ComponentBase{main}, list...)
 	}
 	return list, nil
 }
@@ -591,21 +580,6 @@ func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model
 	return &apisv1.DetailComponentResponse{
 		ApplicationComponent: component,
 	}, nil
-}
-
-func (c *applicationUsecaseImpl) converComponentModelToBase(m *model.ApplicationComponent) *apisv1.ComponentBase {
-	return &apisv1.ComponentBase{
-		Name:          m.Name,
-		Alias:         m.Alias,
-		Description:   m.Description,
-		Labels:        m.Labels,
-		ComponentType: m.Type,
-		Icon:          m.Icon,
-		DependsOn:     m.DependsOn,
-		Creator:       m.Creator,
-		CreateTime:    m.CreateTime,
-		UpdateTime:    m.UpdateTime,
-	}
 }
 
 // ListPolicies list application policies
@@ -1050,7 +1024,7 @@ func (c *applicationUsecaseImpl) UpdateComponent(ctx context.Context, app *model
 	if err := c.ds.Put(ctx, component); err != nil {
 		return nil, err
 	}
-	return converComponentModelToBase(component), nil
+	return convertComponentModelToBase(component), nil
 }
 
 func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
@@ -1063,6 +1037,8 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 		Name:          com.Name,
 		Type:          com.ComponentType,
 		DependsOn:     com.DependsOn,
+		Inputs:        com.Inputs,
+		Outputs:       com.Outputs,
 		Alias:         com.Alias,
 		Main:          main,
 	}
@@ -1105,7 +1081,7 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
-	return converComponentModelToBase(&componentModel), nil
+	return convertComponentModelToBase(&componentModel), nil
 }
 
 func (c *applicationUsecaseImpl) CreateComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest) (*apisv1.ComponentBase, error) {
@@ -1130,21 +1106,37 @@ func (c *applicationUsecaseImpl) initCreateDefaultTrait(component *model.Applica
 	component.Traits = initTraits
 }
 
-func converComponentModelToBase(componentModel *model.ApplicationComponent) *apisv1.ComponentBase {
+func convertComponentModelToBase(componentModel *model.ApplicationComponent) *apisv1.ComponentBase {
 	if componentModel == nil {
 		return nil
 	}
 	return &apisv1.ComponentBase{
 		Name:          componentModel.Name,
+		Alias:         componentModel.Alias,
 		Description:   componentModel.Description,
 		Labels:        componentModel.Labels,
 		ComponentType: componentModel.Type,
 		Icon:          componentModel.Icon,
 		DependsOn:     componentModel.DependsOn,
+		Inputs:        componentModel.Inputs,
+		Outputs:       componentModel.Outputs,
 		Creator:       componentModel.Creator,
 		Main:          componentModel.Main,
 		CreateTime:    componentModel.CreateTime,
 		UpdateTime:    componentModel.UpdateTime,
+		Traits: func() (traits []*apisv1.ApplicationTrait) {
+			for _, trait := range componentModel.Traits {
+				traits = append(traits, &apisv1.ApplicationTrait{
+					Type:        trait.Type,
+					Properties:  trait.Properties,
+					Alias:       trait.Alias,
+					Description: trait.Description,
+					CreateTime:  trait.CreateTime,
+					UpdateTime:  trait.UpdateTime,
+				})
+			}
+			return
+		}(),
 	}
 }
 
@@ -1261,7 +1253,7 @@ func (c *applicationUsecaseImpl) CreateApplicationTrait(ctx context.Context, app
 	if err := c.ds.Put(ctx, &comp); err != nil {
 		return nil, err
 	}
-	return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties, Alias: req.Alias, Description: req.Description, CreateTime: trait.CreateTime}, nil
+	return &apisv1.ApplicationTrait{Type: trait.Type, Properties: properties, Alias: req.Alias, Description: req.Description, CreateTime: trait.CreateTime, UpdateTime: trait.UpdateTime}, nil
 }
 
 func (c *applicationUsecaseImpl) DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error {
