@@ -19,12 +19,21 @@ package multicluster
 import (
 	"context"
 
+	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ClusterMetrics describes the metrics of a cluster
+type ClusterMetrics struct {
+	IsConnected         bool
+	ClusterInfo         *ClusterInfo
+	ClusterUsageMetrics *ClusterUsageMetrics
+}
 
 // ClusterInfo describes the basic information of a cluster
 type ClusterInfo struct {
@@ -38,6 +47,12 @@ type ClusterInfo struct {
 	CPUAllocatable    resource.Quantity
 	PodAllocatable    resource.Quantity
 	StorageClasses    *storagev1.StorageClassList
+}
+
+// ClusterUsageMetrics describes the usage metrics of a cluster
+type ClusterUsageMetrics struct {
+	CPUUsage    resource.Quantity
+	MemoryUsage resource.Quantity
 }
 
 // GetClusterInfo retrieves current cluster info from cluster
@@ -79,5 +94,22 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 		CPUAllocatable:    cpuAllocatable,
 		PodAllocatable:    podAllocatable,
 		StorageClasses:    storageClasses,
+	}, nil
+}
+
+// GetClusterMetricsFromMetricsAPI retrieves current cluster metrics based on GetNodeMetricsFromMetricsAPI
+func GetClusterMetricsFromMetricsAPI(ctx context.Context, k8sClient client.Client, clusterName string) (*ClusterUsageMetrics, error) {
+	nodeMetricsList := metricsV1beta1api.NodeMetricsList{}
+	if err := k8sClient.List(ContextWithClusterName(ctx, clusterName), &nodeMetricsList); err != nil {
+		return nil, errors.Wrapf(err, "failed to list node metrics")
+	}
+	var memoryUsage, cpuUsage resource.Quantity
+	for _, nm := range nodeMetricsList.Items {
+		cpuUsage.Add(*nm.Usage.Cpu())
+		memoryUsage.Add(*nm.Usage.Memory())
+	}
+	return &ClusterUsageMetrics{
+		CPUUsage:    cpuUsage,
+		MemoryUsage: memoryUsage,
 	}, nil
 }

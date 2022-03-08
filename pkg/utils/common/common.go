@@ -56,6 +56,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/yaml"
 
+	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -96,6 +98,7 @@ func init() {
 	_ = ocmclusterv1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)
 	_ = clustergatewayapi.AddToScheme(Scheme)
+	_ = metricsV1beta1api.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

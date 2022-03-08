@@ -82,6 +82,7 @@ require (
 	k8s.io/kube-aggregator v0.22.1
 	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 	k8s.io/kubectl v0.21.0
+	k8s.io/metrics v0.21.0
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
 	rsc.io/letsencrypt v0.0.3 // indirect
