@@ -469,18 +469,22 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 		return nil, nil, err
 	}
 	response, err := c.Client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, nil, err
+	}
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			fmt.Println(err)
 		}
 	}()
+	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, nil, err
 	}
-	content, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, nil, err
-	}
+	return unmarshalToContent(body)
+}
+
+func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
 	fileUnmarshalError := json.Unmarshal(content, &fileContent)
 	if fileUnmarshalError == nil {
 		return fileContent, nil, nil

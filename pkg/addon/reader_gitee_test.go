@@ -31,18 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-const (
-// baseURLPath is a non-empty Client.BaseURL path to use during tests,
-// to ensure relative URLs are used for all endpoints. See issue #752.
-//baseURLPath = "/api-v3"
-)
-
-//var (
-//	//go:embed testdata
-//	testdata       embed.FS
-//	testdataPrefix = "testdata"
-//)
-
 func giteeSetup() (client *Client, mux *http.ServeMux, teardown func()) {
 	// mux is the HTTP request multiplexer used with the test server.
 	mux = http.NewServeMux()

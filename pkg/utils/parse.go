@@ -136,7 +136,8 @@ func Parse(addr string) (string, *Content, error) {
 			if len(l) < 3 {
 				return "", nil, errors.New("invalid format " + addr)
 			}
-			if l[2] == "tree" {
+			switch l[2] {
+			case "tree":
 				// https://gitee.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
 				if len(l) < 5 {
 					return "", nil, errors.New("invalid format " + addr)
@@ -149,17 +150,17 @@ func Parse(addr string) (string, *Content, error) {
 						Ref:   l[3],
 					},
 				}, nil
-			}
-			// https://gitee.com/<owner>/<repo>/<path-to-dir>
-			return TypeGitee, &Content{
+			default:
+				// https://gitee.com/<owner>/<repo>/<path-to-dir>
+				return TypeGitee, &Content{
 					GiteeContent: GiteeContent{
 						Owner: l[0],
 						Repo:  l[1],
 						Path:  strings.Join(l[2:], "/"),
 						Ref:   "", // use default branch
 					},
-				},
-				nil
+				}, nil
+			}
 		default:
 			return "", nil, fmt.Errorf("git type repository only support github for now")
 		}
