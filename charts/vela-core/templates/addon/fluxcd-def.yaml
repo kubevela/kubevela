@@ -6,6 +6,8 @@ metadata:
     addons.oam.dev/name: fluxcd-def
   name: addon-fluxcd-def
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
 spec:
   components:
     - name: fluxc-def-resources

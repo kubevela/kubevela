@@ -7,6 +7,8 @@ metadata:
     addons.oam.dev/registry: KubeVela
   name: addon-fluxcd
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
 spec:
   components:
     - name: flux-system-namespace

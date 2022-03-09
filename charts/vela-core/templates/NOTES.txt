@@ -27,3 +27,8 @@ Welcome to use the KubeVela! Enjoy your shipping application journey!
       | . \| |_| || |_) ||  __/ \ V /|  __/| || (_| |
       |_|\_\\__,_||_.__/  \___|  \_/  \___||_| \__,_|
 
+** Please note before uninstalling **
+
+If you enable fluxcd addon when install the chart by set `enableFluxcdAddon=true` .
+Uninstall wouldn't disable the fluxcd addon ,and it will be kept in the cluster.
+Please guarantee there is no application in cluster using this addon and disable it firstly before uninstall the helm chart.
