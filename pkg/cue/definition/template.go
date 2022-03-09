@@ -350,12 +350,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
 		}
-		if sets.IsOpenPatch(patcher) {
-			if err := base.Open(); err != nil {
-				return errors.WithMessagef(err, "cannot convert base to open struct")
-			}
-		}
-		if err := base.Unify(p); err != nil {
+		if err := base.Unify(p, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 

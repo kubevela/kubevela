@@ -369,15 +369,18 @@ parameter: {
 				},
 			},
 		},
-		"patch trait with open merge": {
+		"patch trait with json merge patch": {
 			traitTemplate: `
 parameter: {...}
-// +patchStrategy=open
+// +patchStrategy=jsonMergePatch
 patch: parameter
 `,
 			params: map[string]interface{}{
 				"spec": map[string]interface{}{
 					"replicas": 5,
+					"template": map[string]interface{}{
+						"spec": nil,
+					},
 				},
 			},
 			expWorkload: &unstructured.Unstructured{
@@ -392,16 +395,7 @@ patch: parameter
 						"template": map[string]interface{}{
 							"metadata": map[string]interface{}{
 								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
-							},
-							"spec": map[string]interface{}{
-								"containers": []interface{}{map[string]interface{}{
-									"envFrom": []interface{}{map[string]interface{}{
-										"configMapRef": map[string]interface{}{"name": "testgame-config"},
-									}},
-									"image": "website:0.1",
-									"name":  "main",
-									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}},
-								}}}}},
+							}}}},
 			},
 			expAssObjs: map[string]runtime.Object{
 				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
@@ -411,6 +405,54 @@ patch: parameter
 						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
 				},
 			},
+		},
+		"patch trait with json patch": {
+			traitTemplate: `
+parameter: {patch: [...{...}]}
+// +patchStrategy=jsonPatch
+patch: parameter
+`,
+			params: map[string]interface{}{
+				"patch": []map[string]interface{}{
+					{"op": "replace", "path": "/spec/replicas", "value": 5},
+					{"op": "remove", "path": "/spec/template/spec"},
+				},
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(5),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
+		},
+		"patch trait with invalid json patch": {
+			traitTemplate: `
+parameter: {patch: [...{...}]}
+// +patchStrategy=jsonPatch
+patch: parameter
+`,
+			params: map[string]interface{}{
+				"patch": []map[string]interface{}{
+					{"op": "what", "path": "/spec/replicas", "value": 5},
+				},
+			},
+			hasCompileErr: true,
 		},
 		"patch trait with replace": {
 			traitTemplate: `

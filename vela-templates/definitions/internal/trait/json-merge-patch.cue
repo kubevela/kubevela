@@ -1,8 +1,8 @@
-patch: {
+"json-merge-patch": {
 	type: "trait"
 	annotations: {}
 	labels: {}
-	description: "Patch the output directly."
+	description: "Patch the output following Json Merge Patch strategy, following RFC 7396."
 	attributes: {
 		podDisruptive: true
 		appliesToWorkloads: ["*"]
@@ -10,6 +10,6 @@ patch: {
 }
 template: {
 	parameter: {...}
-	// +patchStrategy=open
+	// +patchStrategy=jsonMergePatch
 	patch: parameter
 }
