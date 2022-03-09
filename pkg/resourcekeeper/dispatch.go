@@ -18,16 +18,16 @@ package resourcekeeper
 
 import (
 	"context"
-	"sync"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
+	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 )
 
 // MaxDispatchConcurrent is the max dispatch concurrent number
@@ -118,29 +118,10 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 }
 
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured) error {
-	var errs []error
-	var l sync.Mutex
-	var wg sync.WaitGroup
-
-	ch := make(chan struct{}, MaxDispatchConcurrent)
 	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
-
-	for i := 0; i < len(manifests); i++ {
-		ch <- struct{}{}
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			manifest := manifests[index]
-			applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-			err := h.applicator.Apply(applyCtx, manifest, applyOpts...)
-			if err != nil {
-				l.Lock()
-				errs = append(errs, err)
-				l.Unlock()
-			}
-			<-ch
-		}(i)
-	}
-	wg.Wait()
-	return kerrors.NewAggregate(errs)
+	errs := parallel.ParExec(func(manifest *unstructured.Unstructured) error {
+		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
+	}, manifests, MaxDispatchConcurrent)
+	return velaerrors.AggregateErrors(errs.([]error))
 }

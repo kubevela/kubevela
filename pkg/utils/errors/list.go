@@ -44,3 +44,17 @@ func (e ErrorList) HasError() bool {
 	}
 	return len(e) > 0
 }
+
+// AggregateErrors aggregate errors into ErrorList and filter nil, if no error found, return nil
+func AggregateErrors(errs []error) error {
+	var es ErrorList
+	for _, err := range errs {
+		if err != nil {
+			es = append(es, err)
+		}
+	}
+	if es.HasError() {
+		return es
+	}
+	return nil
+}

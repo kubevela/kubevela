@@ -33,7 +33,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
+	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -60,7 +61,7 @@ type provider struct {
 
 // RenderComponent render component
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, nil)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 }
 
 func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, mu)
 	if err != nil {
 		return err
 	}
@@ -147,37 +148,31 @@ func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wf
 	if parallelism <= 0 {
 		return errors.Errorf("parallelism cannot be smaller than 1")
 	}
+	// prepare parallel execution args
 	mu := &sync.Mutex{}
-	var wg sync.WaitGroup
-	ch := make(chan struct{}, parallelism)
-	var errs errors2.ErrorList
-	err = components.StepByFields(func(name string, in *value.Value) (bool, error) {
-		ch <- struct{}{}
-		wg.Add(1)
-		go func(_name string, _in *value.Value) {
-			defer func() {
-				wg.Done()
-				<-ch
-			}()
-			if err := p.applyComponent(ctx, _in, act, mu); err != nil {
-				mu.Lock()
-				errs = append(errs, errors.Wrapf(err, "failed to apply component %s", _name))
-				mu.Unlock()
-			}
-		}(name, in)
+	var parInputs [][]interface{}
+	if err = components.StepByFields(func(name string, in *value.Value) (bool, error) {
+		parInputs = append(parInputs, []interface{}{name, ctx, in, act, mu})
 		return false, nil
-	})
-	wg.Wait()
-	if err != nil {
+	}); err != nil {
 		return errors.Wrapf(err, "failed to looping over components")
 	}
-	if errs.HasError() {
-		return errs
-	}
-	return nil
+	// parallel execution
+	outputs := parallel.ParExec(func(name string, ctx wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
+		if err := p.applyComponent(ctx, v, act, mu); err != nil {
+			return errors.Wrapf(err, "failed to apply component %s", name)
+		}
+		return nil
+	}, parInputs, int(parallelism))
+	// aggregate errors
+	return velaerrors.AggregateErrors(outputs.([]error))
 }
 
-func lookUpValues(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
+func lookUpValues(v *value.Value, mu *sync.Mutex) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
 		return nil, nil, "", "", "", err
