@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // WorkflowStepGenerator generator generates workflow steps
@@ -165,11 +166,9 @@ func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Applicatio
 	lastSuspend := false
 	for _, step := range existingSteps {
 		if step.Type == "deploy" && !lastSuspend {
-			cfg := map[string]interface{}{}
-			_ = json.Unmarshal(step.Properties.Raw, &cfg)
-			_auto, found := cfg["auto"]
-			auto, isBool := _auto.(bool)
-			if found && isBool && !auto {
+			props := DeployWorkflowStepSpec{}
+			_ = utils.StrictUnmarshal(step.Properties.Raw, &props)
+			if props.Auto != nil && !*props.Auto {
 				steps = append(steps, v1beta1.WorkflowStep{
 					Name: "manual-approve-" + step.Name,
 					Type: "suspend",
