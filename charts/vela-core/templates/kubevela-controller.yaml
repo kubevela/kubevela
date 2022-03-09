@@ -135,7 +135,7 @@ spec:
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
-            - "--kube-api-burst={{ .Values.kubeClient.brust }}"
+            - "--kube-api-burst={{ .Values.kubeClient.burst }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
