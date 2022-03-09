@@ -476,11 +476,8 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() {
-		if err := response.Body.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
+	//nolint:errcheck
+	defer response.Body.Close()
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, nil, err
