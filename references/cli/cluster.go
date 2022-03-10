@@ -19,14 +19,17 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -115,6 +118,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 						labels = append(labels, color.CyanString(k)+"="+color.GreenString(v))
 					}
 				}
+				sort.Strings(labels)
 				if len(labels) == 0 {
 					labels = append(labels, "")
 				}
@@ -280,15 +284,61 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 	return cmd
 }
 
+func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multicluster.VirtualCluster, clusterName string) (err error) {
+	if err = cli.Update(context.Background(), vc.Object); err != nil {
+		return errors.Errorf("failed to update labels for cluster %s (type: %s)", vc.Name, vc.Type)
+	}
+	if vc, err = multicluster.GetVirtualCluster(context.Background(), cli, clusterName); err != nil {
+		return errors.Wrapf(err, "failed to get updated cluster %s", clusterName)
+	}
+	cmd.Printf("Successfully update labels for cluster %s (type: %s).\n", vc.Name, vc.Type)
+	if len(vc.Labels) == 0 {
+		cmd.Println("No valid label exists.")
+	}
+	var keys []string
+	for k := range vc.Labels {
+		if !strings.HasPrefix(k, config.MetaApiGroupName) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		cmd.Println(color.CyanString(k) + "=" + color.GreenString(vc.Labels[k]))
+	}
+	return nil
+}
+
 // NewClusterAddLabelsCommand create command to add labels for managed cluster
 func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "add-labels CLUSTER_NAME LABELS",
-		Short: "add labels to managed cluster",
-		Long: "add labels to managed cluster",
+		Use:     "add-labels CLUSTER_NAME LABELS",
+		Short:   "add labels to managed cluster",
+		Long:    "add labels to managed cluster",
 		Example: "vela cluster add-labels my-cluster project=kubevela,owner=oam-dev",
+		Args:    cobra.ExactValidArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			
+			clusterName := args[0]
+			addLabels := map[string]string{}
+			for _, kv := range strings.Split(args[1], ",") {
+				parts := strings.Split(kv, "=")
+				if len(parts) != 2 {
+					return errors.Errorf("invalid label key-value pair %s, should use the format LABEL_KEY=LABEL_VAL", kv)
+				}
+				addLabels[parts[0]] = parts[1]
+			}
+			cli, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get cluster %s", clusterName)
+			}
+			if vc.Object == nil {
+				return errors.Errorf("cluster type %s do not support add labels now", vc.Type)
+			}
+			meta.AddLabels(vc.Object, addLabels)
+			return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
 		},
 	}
 	return cmd
@@ -297,12 +347,32 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 // NewClusterDelLabelsCommand create command to delete labels for managed cluster
 func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "del-labels CLUSTER_NAME LABELS",
-		Short: "delete labels for managed cluster",
-		Long: "delete labels for managed cluster",
+		Use:     "del-labels CLUSTER_NAME LABELS",
+		Short:   "delete labels for managed cluster",
+		Long:    "delete labels for managed cluster",
+		Args:    cobra.ExactValidArgs(2),
 		Example: "vela cluster del-labels my-cluster project,owner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
+			clusterName := args[0]
+			removeLabels := strings.Split(args[1], ",")
+			cli, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			vc, err := multicluster.GetVirtualCluster(context.Background(), cli, clusterName)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get cluster %s", clusterName)
+			}
+			if vc.Object == nil {
+				return errors.Errorf("cluster type %s do not support delete labels now", vc.Type)
+			}
+			for _, l := range removeLabels {
+				if _, found := vc.Labels[l]; !found {
+					return errors.Errorf("no such label %s", l)
+				}
+			}
+			meta.RemoveLabels(vc.Object, removeLabels...)
+			return updateClusterLabelAndPrint(cmd, cli, vc, clusterName)
 		},
 	}
 	return cmd
