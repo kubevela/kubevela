@@ -37,7 +37,7 @@ func TestParExecNto1(t *testing.T) {
 			inputs = append(inputs, []interface{}{i, i + 1, math.Sqrt(float64(i)), pointer.Int(i)})
 		}
 	}
-	outs := ParExec(func(a int, b int, c float64, d *int) *float64 {
+	outs := Run(func(a int, b int, c float64, d *int) *float64 {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		if d == nil {
 			return nil
@@ -65,7 +65,7 @@ func TestParExec0toN(t *testing.T) {
 	for i := 0; i < size; i++ {
 		inputs = append(inputs, nil)
 	}
-	outs := ParExec(func() (bool, string) {
+	outs := Run(func() (bool, string) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		return false, "ok"
 	}, inputs, parallelism)
@@ -93,7 +93,7 @@ func TestParExec1to0(t *testing.T) {
 	for i := 0; i < size; i++ {
 		inputs = append(inputs, struct{ key int }{key: i})
 	}
-	outs := ParExec(func(obj struct{ key int }) {
+	outs := Run(func(obj struct{ key int }) {
 		time.Sleep(time.Duration(rand.Intn(50)+size-obj.key) * time.Millisecond)
 	}, inputs, parallelism)
 	r := require.New(t)

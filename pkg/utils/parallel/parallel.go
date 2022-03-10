@@ -31,8 +31,8 @@ type orderedParOutput struct {
 	index int
 }
 
-// ParExecProto parallel execute handler function on parInputs, with maximum concurrency as parallelism
-func ParExecProto(handler func(ParInput) ParOutput, parInputs []ParInput, parallelism int) []ParOutput {
+// RunBatch parallel execute handler function on parInputs, with maximum concurrency as parallelism
+func RunBatch(handler func(ParInput) ParOutput, parInputs []ParInput, parallelism int) []ParOutput {
 	outs := make(chan orderedParOutput)
 	pool := make(chan struct{}, parallelism)
 	for _idx, _input := range parInputs {
@@ -48,16 +48,18 @@ func ParExecProto(handler func(ParInput) ParOutput, parInputs []ParInput, parall
 		out := <-outs
 		outputs[out.index] = out.ParOutput
 	}
+	close(outs)
+	close(pool)
 	return outputs
 }
 
-// ParExec execute handler on parInputs, with automatic type conversion and maximum concurrency as parallelism
+// Run execute handler on parInputs, with automatic type conversion and maximum concurrency as parallelism
 // Examples:
-// > out := ParExec(func(x int) int { return x*x }, []int{1,2,3,4,5}, 5)
+// > out := Run(func(x int) int { return x*x }, []int{1,2,3,4,5}, 5)
 // < out: []int{1,4,19,16,25}
-// > out := ParExec(func(x int, y string) (string, bool) { return y, x%2==0 }, [][]interface{}{{1,"n"},{2,"y"}}, 2)
+// > out := Run(func(x int, y string) (string, bool) { return y, x%2==0 }, [][]interface{}{{1,"n"},{2,"y"}}, 2)
 // < out: [][]interface{{"n",false},{"y",true}}
-func ParExec(handler interface{}, parInputs interface{}, parallelism int) interface{} {
+func Run(handler interface{}, parInputs interface{}, parallelism int) interface{} {
 	parInputsVal := reflect.ValueOf(parInputs)
 	elemLen := parInputsVal.Len()
 	_parInputVal := reflect.MakeSlice(reflect.TypeOf([]ParInput{}), elemLen, elemLen)
@@ -105,7 +107,7 @@ func ParExec(handler interface{}, parInputs interface{}, parallelism int) interf
 		}
 		return []reflect.Value{_outputVal}
 	})
-	outs := ParExecProto(_handler.Interface().(func(ParInput) ParOutput), _parInputVal.Interface().([]ParInput), parallelism)
+	outs := RunBatch(_handler.Interface().(func(ParInput) ParOutput), _parInputVal.Interface().([]ParInput), parallelism)
 	if nReturns == 0 {
 		return nil
 	}

@@ -158,7 +158,7 @@ func (p *provider) ApplyComponents(ctx wfContext.Context, v *value.Value, act wf
 		return errors.Wrapf(err, "failed to looping over components")
 	}
 	// parallel execution
-	outputs := parallel.ParExec(func(name string, ctx wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
+	outputs := parallel.Run(func(name string, ctx wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
 		if err := p.applyComponent(ctx, v, act, mu); err != nil {
 			return errors.Wrapf(err, "failed to apply component %s", name)
 		}

@@ -119,7 +119,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
-	errs := parallel.ParExec(func(manifest *unstructured.Unstructured) error {
+	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
 		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
 	}, manifests, MaxDispatchConcurrent)
