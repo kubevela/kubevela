@@ -32,3 +32,4 @@ Welcome to use the KubeVela! Enjoy your shipping application journey!
 If you enable fluxcd addon when install the chart by set `enableFluxcdAddon=true` .
 Uninstall wouldn't disable the fluxcd addon ,and it will be kept in the cluster.
 Please guarantee there is no application in cluster using this addon and disable it firstly before uninstall the helm chart.
+And you can find the script of one-short disable all addons from the uninstalling section of https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/README.md.

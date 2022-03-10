@@ -124,6 +124,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `kubeClient.qps`             | The qps for reconcile clients, default is 50                                                                               | `50`    |
 | `kubeClient.brust`           | The burst for reconcile clients, default is 100                                                                            | `100`   |
 
+
 ## Uninstalling the Chart
 
 To uninstall/delete the KubeVela helm release
