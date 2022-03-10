@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
@@ -548,9 +549,10 @@ func TestExpandTopology(t *testing.T) {
 		app:    app,
 	}
 	testCases := map[string]struct {
-		Input   string
-		Outputs []v1alpha1.PlacementDecision
-		Error   string
+		Input                 string
+		Outputs               []v1alpha1.PlacementDecision
+		Error                 string
+		DisableCrossNamespace bool
 	}{
 		"policies-404": {
 			Input: "{inputs:{}}",
@@ -572,14 +574,49 @@ func TestExpandTopology(t *testing.T) {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-a"]}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}},
 		},
+		"topology-by-cluster-selector-404": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"bad-value"}}}]}}`,
+			Error: "failed to find any cluster matches given labels",
+		},
 		"topology-by-cluster-selector": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+		},
+		"topology-by-cluster-label-selector": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterLabelSelector:{"key":"value"}}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+		},
+		"topology-by-cluster-selector-and-namespace-invalid": {
+			Input:                 `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
+			Error:                 "cannot cross namespace",
+			DisableCrossNamespace: true,
+		},
+		"topology-by-cluster-selector-and-namespace": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "override"}, {Cluster: "cluster-b", Namespace: "override"}},
+		},
+		"topology-by-invalid-targets": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{targets:["cluster-a"]}}]}}`,
+			Error: "invalid target cluster-a",
+		},
+		"topology-by-403-targets": {
+			Input:                 `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{targets:["cluster-a/override-y"]}}]}}`,
+			Error:                 "cannot cross namespace",
+			DisableCrossNamespace: true,
+		},
+		"topology-by-404-targets": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{targets:["cluster-x/override-y"]}}]}}`,
+			Error: "failed to get cluster",
+		},
+		"topology-by-targets": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{targets:["cluster-a/override-a","cluster-b/override-b"]}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "override-a"}, {Cluster: "cluster-b", Namespace: "override-b"}},
 		},
 	}
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			resourcekeeper.AllowCrossNamespaceResource = !tt.DisableCrossNamespace
 			v, err := value.NewValue("", nil, "")
 			r.NoError(err)
 			r.NoError(v.FillRaw(tt.Input))

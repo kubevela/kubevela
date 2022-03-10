@@ -455,12 +455,24 @@ func (in *TopologyPolicySpec) DeepCopyInto(out *TopologyPolicySpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.ClusterLabelSelector != nil {
+		in, out := &in.ClusterLabelSelector, &out.ClusterLabelSelector
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.ClusterSelector != nil {
 		in, out := &in.ClusterSelector, &out.ClusterSelector
 		*out = make(map[string]string, len(*in))
 		for key, val := range *in {
 			(*out)[key] = val
 		}
+	}
+	if in.Targets != nil {
+		in, out := &in.Targets, &out.Targets
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 }
 

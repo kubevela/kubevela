@@ -34,6 +34,8 @@ import (
 )
 
 const (
+	// CredentialTypeInternal identifies the virtual cluster from internal kubevela system
+	CredentialTypeInternal v1alpha1.CredentialType = "Internal"
 	// CredentialTypeOCMManagedCluster identifies the virtual cluster from ocm
 	CredentialTypeOCMManagedCluster v1alpha1.CredentialType = "ManagedCluster"
 )
@@ -47,6 +49,18 @@ type VirtualCluster struct {
 	Accepted bool
 	Labels   map[string]string
 	Metrics  *ClusterMetrics
+}
+
+// NewVirtualClusterFromLocal return virtual cluster corresponding to local cluster
+func NewVirtualClusterFromLocal() *VirtualCluster {
+	return &VirtualCluster{
+		Name:     ClusterLocalName,
+		Type:     CredentialTypeInternal,
+		EndPoint: "-",
+		Accepted: true,
+		Labels:   map[string]string{},
+		Metrics:  metricsMap[ClusterLocalName],
+	}
 }
 
 // NewVirtualClusterFromSecret extract virtual cluster from cluster secret
@@ -90,6 +104,9 @@ func NewVirtualClusterFromManagedCluster(managedCluster *clusterv1.ManagedCluste
 
 // GetVirtualCluster returns virtual cluster with given clusterName
 func GetVirtualCluster(ctx context.Context, c client.Client, clusterName string) (vc *VirtualCluster, err error) {
+	if clusterName == ClusterLocalName {
+		return NewVirtualClusterFromLocal(), nil
+	}
 	secret := &corev1.Secret{}
 	err = c.Get(ctx, apitypes.NamespacedName{
 		Name:      clusterName,
@@ -158,7 +175,11 @@ func (m MatchVirtualClusterLabels) ApplyToDeleteAllOf(opts *client.DeleteAllOfOp
 
 // ListVirtualClusters will get all registered clusters in control plane
 func ListVirtualClusters(ctx context.Context, c client.Client) ([]VirtualCluster, error) {
-	return FindVirtualClustersByLabels(ctx, c, map[string]string{})
+	clusters, err := FindVirtualClustersByLabels(ctx, c, map[string]string{})
+	if err != nil {
+		return nil, err
+	}
+	return append([]VirtualCluster{*NewVirtualClusterFromLocal()}, clusters...), nil
 }
 
 // FindVirtualClustersByLabels will get all virtual clusters with matched labels in control plane

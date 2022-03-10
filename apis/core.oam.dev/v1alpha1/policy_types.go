@@ -25,8 +25,24 @@ const (
 
 // TopologyPolicySpec defines the spec of topology policy
 type TopologyPolicySpec struct {
-	Clusters        []string          `json:"clusters,omitempty"`
+	// Clusters directly specify which cluster to use
+	Clusters []string `json:"clusters,omitempty"`
+	// ClusterLabelSelector label selector for cluster
+	ClusterLabelSelector map[string]string `json:"clusterLabelSelector,omitempty"`
+	// ClusterSelector is an alias to clusterLabelSelector
 	ClusterSelector map[string]string `json:"clusterSelector,omitempty"`
+	// Namespace specify the namespace for override, used along which clusters/clusterLabelSelector/clusterSelector
+	Namespace string `json:"namespace,omitempty"`
+	// Targets specify the delivery targets, used alone
+	Targets []string `json:"targets,omitempty"`
+}
+
+// GetClusterLabelSelector primary use of clusterLabelSelector
+func (in *TopologyPolicySpec) GetClusterLabelSelector() map[string]string {
+	if in.ClusterLabelSelector != nil {
+		return in.ClusterLabelSelector
+	}
+	return in.ClusterSelector
 }
 
 // OverridePolicySpec defines the spec of override policy

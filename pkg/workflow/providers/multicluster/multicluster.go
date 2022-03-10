@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -172,13 +173,25 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 	}
 	var placements []v1alpha1.PlacementDecision
 	placementMap := map[string]struct{}{}
-	addCluster := func(cluster string) {
-		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: p.app.GetNamespace()}
+	addCluster := func(cluster string, ns string, validateCluster bool) error {
+		if validateCluster {
+			if _, e := multicluster.GetVirtualCluster(context.Background(), p, cluster); e != nil {
+				return errors.Wrapf(e, "failed to get cluster %s", cluster)
+			}
+		}
+		if ns == "" {
+			ns = p.app.GetNamespace()
+		}
+		if !resourcekeeper.AllowCrossNamespaceResource && ns != p.app.GetNamespace() {
+			return errors.Errorf("cannot cross namespace")
+		}
+		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: ns}
 		name := placement.String()
 		if _, found := placementMap[name]; !found {
 			placementMap[name] = struct{}{}
 			placements = append(placements, placement)
 		}
+		return nil
 	}
 	for _, policy := range *policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
@@ -186,20 +199,35 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
 				return errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
 			}
-			if topologySpec.Clusters != nil {
+			switch {
+			case topologySpec.Clusters != nil:
 				for _, cluster := range topologySpec.Clusters {
-					if _, err = multicluster.GetVirtualCluster(context.Background(), p, cluster); err != nil {
-						return errors.Wrapf(err, "failed to get cluster %s in topology %s", cluster, policy.Name)
+					if err := addCluster(cluster, topologySpec.Namespace, true); err != nil {
+						return err
 					}
-					addCluster(cluster)
 				}
-			} else if topologySpec.ClusterSelector != nil {
-				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, topologySpec.ClusterSelector)
+			case topologySpec.GetClusterLabelSelector() != nil:
+				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, topologySpec.GetClusterLabelSelector())
 				if err != nil {
 					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
+				if len(clusters) == 0 {
+					return errors.Errorf("failed to find any cluster matches given labels")
+				}
 				for _, cluster := range clusters {
-					addCluster(cluster.Name)
+					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
+						return err
+					}
+				}
+			case topologySpec.Targets != nil:
+				for _, target := range topologySpec.Targets {
+					cluster, ns, err := multicluster.ParseTarget(target)
+					if err != nil {
+						return err
+					}
+					if err := addCluster(cluster, ns, true); err != nil {
+						return err
+					}
 				}
 			}
 		}
