@@ -9,7 +9,7 @@
 	}
 }
 template: {
-	parameter: patch: [...{...}]
+	parameter: operations: [...{...}]
 	// +patchStrategy=jsonPatch
 	patch: parameter
 }

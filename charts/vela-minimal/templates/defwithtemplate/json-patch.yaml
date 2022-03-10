@@ -14,7 +14,7 @@ spec:
   schematic:
     cue:
       template: |
-        parameter: patch: [...{...}]
+        parameter: operations: [...{...}]
         // +patchStrategy=jsonPatch
         patch: parameter
 

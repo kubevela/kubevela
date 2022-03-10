@@ -408,12 +408,12 @@ patch: parameter
 		},
 		"patch trait with json patch": {
 			traitTemplate: `
-parameter: {patch: [...{...}]}
+parameter: {operations: [...{...}]}
 // +patchStrategy=jsonPatch
 patch: parameter
 `,
 			params: map[string]interface{}{
-				"patch": []map[string]interface{}{
+				"operations": []map[string]interface{}{
 					{"op": "replace", "path": "/spec/replicas", "value": 5},
 					{"op": "remove", "path": "/spec/template/spec"},
 				},
