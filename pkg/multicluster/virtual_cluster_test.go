@@ -108,7 +108,7 @@ var _ = Describe("Test Virtual Cluster", func() {
 
 		vcs, err := ListVirtualClusters(ctx, k8sClient)
 		Expect(err).Should(Succeed())
-		Expect(len(vcs)).Should(Equal(3))
+		Expect(len(vcs)).Should(Equal(4))
 
 		vcs, err = FindVirtualClustersByLabels(ctx, k8sClient, map[string]string{"key": "value"})
 		Expect(err).Should(Succeed())
