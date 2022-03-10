@@ -96,6 +96,19 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(out).ShouldNot(ContainSubstring(newClusterName))
 		})
 
+		It("Test manage labels for cluster", func() {
+			_, err := execCommand("cluster", "add-labels", WorkerClusterName, "purpose=test,creator=e2e")
+			Expect(err).Should(Succeed())
+			out, err := execCommand("cluster", "list")
+			Expect(err).Should(Succeed())
+			Expect(out).Should(ContainSubstring("purpose"))
+			_, err = execCommand("cluster", "del-labels", WorkerClusterName, "purpose")
+			Expect(err).Should(Succeed())
+			out, err = execCommand("cluster", "list")
+			Expect(err).Should(Succeed())
+			Expect(out).ShouldNot(ContainSubstring("purpose"))
+		})
+
 		It("Test detach cluster with application use", func() {
 			const testClusterName = "test-cluster"
 			_, err := execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", testClusterName)
