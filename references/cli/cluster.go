@@ -84,6 +84,8 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
 		NewClusterProbeCommand(&c),
+		NewClusterAddLabelsCommand(&c),
+		NewClusterDelLabelsCommand(&c),
 	)
 	return cmd
 }
@@ -273,6 +275,34 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 			}
 			cmd.Printf("Connect to cluster %s successfully.\n%s\n", clusterName, string(content))
 			return nil
+		},
+	}
+	return cmd
+}
+
+// NewClusterAddLabelsCommand create command to add labels for managed cluster
+func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "add-labels CLUSTER_NAME LABELS",
+		Short: "add labels to managed cluster",
+		Long: "add labels to managed cluster",
+		Example: "vela cluster add-labels my-cluster project=kubevela,owner=oam-dev",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			
+		},
+	}
+	return cmd
+}
+
+// NewClusterDelLabelsCommand create command to delete labels for managed cluster
+func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "del-labels CLUSTER_NAME LABELS",
+		Short: "delete labels for managed cluster",
+		Long: "delete labels for managed cluster",
+		Example: "vela cluster del-labels my-cluster project,owner",
+		RunE: func(cmd *cobra.Command, args []string) error {
+
 		},
 	}
 	return cmd
