@@ -17,12 +17,15 @@ limitations under the License.
 package oam
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -180,6 +183,21 @@ func TestApplyComponents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyComponentsHard(t *testing.T) {
+	r := require.New(t)
+	input := `comp0:{value:{name:"comp0"}}`
+	for i := 1; i < 1000; i++ {
+		input += fmt.Sprintf(`,comp%d:{value:{name:"comp%d"}}`, i, i)
+	}
+	input = fmt.Sprintf(`{components:{%s},parallelism:50}`, input)
+	p := &provider{apply: delayedComponentApplyForTest}
+	act := &mock.Action{}
+	v, err := value.NewValue("", nil, "")
+	r.NoError(err)
+	r.NoError(v.FillRaw(input))
+	r.NoError(p.ApplyComponents(nil, v, act))
 }
 
 func TestLoadComponent(t *testing.T) {
@@ -368,4 +386,9 @@ func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Valu
 	}
 	traits := []*unstructured.Unstructured{trait}
 	return workload, traits, testHealthy, nil
+}
+
+func delayedComponentApplyForTest(comp common.ApplicationComponent, v *value.Value, x string, y string, z string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
+	return simpleComponentApplyForTest(comp, v, x, y, z)
 }
