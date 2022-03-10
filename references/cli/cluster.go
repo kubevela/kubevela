@@ -87,8 +87,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		NewClusterRenameCommand(&c),
 		NewClusterDetachCommand(&c),
 		NewClusterProbeCommand(&c),
-		NewClusterAddLabelsCommand(&c),
-		NewClusterDelLabelsCommand(&c),
+		NewClusterLabelCommandGroup(&c),
 	)
 	return cmd
 }
@@ -284,6 +283,20 @@ func NewClusterProbeCommand(c *common.Args) *cobra.Command {
 	return cmd
 }
 
+// NewClusterLabelCommandGroup create a group of commands to manage cluster labels
+func NewClusterLabelCommandGroup(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "labels",
+		Short: "Manage Kubernetes Cluster Labels",
+		Long:  "Manage Kubernetes Cluster Labels for Continuous Delivery.",
+	}
+	cmd.AddCommand(
+		NewClusterAddLabelsCommand(c),
+		NewClusterDelLabelsCommand(c),
+	)
+	return cmd
+}
+
 func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multicluster.VirtualCluster, clusterName string) (err error) {
 	if err = cli.Update(context.Background(), vc.Object); err != nil {
 		return errors.Errorf("failed to update labels for cluster %s (type: %s)", vc.Name, vc.Type)
@@ -311,10 +324,10 @@ func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multi
 // NewClusterAddLabelsCommand create command to add labels for managed cluster
 func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "add-labels CLUSTER_NAME LABELS",
+		Use:     "add CLUSTER_NAME LABELS",
 		Short:   "add labels to managed cluster",
 		Long:    "add labels to managed cluster",
-		Example: "vela cluster add-labels my-cluster project=kubevela,owner=oam-dev",
+		Example: "vela cluster labels add my-cluster project=kubevela,owner=oam-dev",
 		Args:    cobra.ExactValidArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
@@ -347,11 +360,12 @@ func NewClusterAddLabelsCommand(c *common.Args) *cobra.Command {
 // NewClusterDelLabelsCommand create command to delete labels for managed cluster
 func NewClusterDelLabelsCommand(c *common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "del-labels CLUSTER_NAME LABELS",
+		Use:     "del CLUSTER_NAME LABELS",
+		Aliases: []string{"delete", "remove"},
 		Short:   "delete labels for managed cluster",
 		Long:    "delete labels for managed cluster",
 		Args:    cobra.ExactValidArgs(2),
-		Example: "vela cluster del-labels my-cluster project,owner",
+		Example: "vela cluster labels del my-cluster project,owner",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clusterName := args[0]
 			removeLabels := strings.Split(args[1], ",")

@@ -97,12 +97,12 @@ var _ = Describe("Test multicluster scenario", func() {
 		})
 
 		It("Test manage labels for cluster", func() {
-			_, err := execCommand("cluster", "add-labels", WorkerClusterName, "purpose=test,creator=e2e")
+			_, err := execCommand("cluster", "labels", "add", WorkerClusterName, "purpose=test,creator=e2e")
 			Expect(err).Should(Succeed())
 			out, err := execCommand("cluster", "list")
 			Expect(err).Should(Succeed())
 			Expect(out).Should(ContainSubstring("purpose"))
-			_, err = execCommand("cluster", "del-labels", WorkerClusterName, "purpose")
+			_, err = execCommand("cluster", "labels", "del", WorkerClusterName, "purpose")
 			Expect(err).Should(Succeed())
 			out, err = execCommand("cluster", "list")
 			Expect(err).Should(Succeed())
