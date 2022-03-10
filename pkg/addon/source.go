@@ -56,6 +56,13 @@ type GitAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
+// GiteeAddonSource defines the information about the Gitee as addon source
+type GiteeAddonSource struct {
+	URL   string `json:"url,omitempty" validate:"required"`
+	Path  string `json:"path,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
 // Item is a partial interface for github.RepositoryContent
 type Item interface {
 	// GetType return "dir" or "file"
@@ -110,8 +117,9 @@ func pathWithParent(subPath, parent string) string {
 type ReaderType string
 
 const (
-	gitType ReaderType = "git"
-	ossType ReaderType = "oss"
+	gitType   ReaderType = "git"
+	ossType   ReaderType = "oss"
+	giteeType ReaderType = "gitee"
 )
 
 // NewAsyncReader create AsyncReader from
@@ -154,6 +162,21 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 			path:           subPath,
 			client:         resty.New(),
 		}, nil
+	case giteeType:
+		baseURL = strings.TrimSuffix(baseURL, ".git")
+		u, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, errors.New("addon registry invalid")
+		}
+		u.Path = path.Join(u.Path, subPath)
+		_, content, err := utils.Parse(u.String())
+		if err != nil {
+			return nil, err
+		}
+		gitee := createGiteeHelper(content, token)
+		return &giteeReader{
+			h: gitee,
+		}, nil
 	}
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }
@@ -167,6 +190,10 @@ func (r *Registry) BuildReader() (AsyncReader, error) {
 	if r.Git != nil {
 		g := r.Git
 		return NewAsyncReader(g.URL, "", g.Path, g.Token, gitType)
+	}
+	if r.Gitee != nil {
+		g := r.Gitee
+		return NewAsyncReader(g.URL, "", g.Path, g.Token, giteeType)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
 }

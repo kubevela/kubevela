@@ -69,22 +69,25 @@ type NameAlias struct {
 
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
-	Name string                `json:"name" validate:"checkname"`
-	Git  *addon.GitAddonSource `json:"git,omitempty" `
-	Oss  *addon.OSSAddonSource `json:"oss,omitempty"`
+	Name  string                  `json:"name" validate:"checkname"`
+	Git   *addon.GitAddonSource   `json:"git,omitempty" `
+	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
+	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
 }
 
 // UpdateAddonRegistryRequest defines the format for addon registry update request
 type UpdateAddonRegistryRequest struct {
-	Git *addon.GitAddonSource `json:"git,omitempty"`
-	Oss *addon.OSSAddonSource `json:"oss,omitempty"`
+	Git   *addon.GitAddonSource   `json:"git,omitempty"`
+	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
+	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
 }
 
 // AddonRegistry defines the format for a single addon registry
 type AddonRegistry struct {
-	Name string                `json:"name" validate:"required"`
-	Git  *addon.GitAddonSource `json:"git,omitempty"`
-	OSS  *addon.OSSAddonSource `json:"oss,omitempty"`
+	Name  string                  `json:"name" validate:"required"`
+	Git   *addon.GitAddonSource   `json:"git,omitempty"`
+	OSS   *addon.OSSAddonSource   `json:"oss,omitempty"`
+	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
 }
 
 // ListAddonRegistryResponse list addon registry
