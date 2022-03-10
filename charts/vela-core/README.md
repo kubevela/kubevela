@@ -134,7 +134,26 @@ $ helm uninstall -n vela-system kubevela
 
 The command removes all the Kubernetes components associated with kubevela and deletes the release.
 
-Notice: If you enable fluxcd addon  when install the chart by set `enableFluxcdAddon=true` .Uninstall wouldn't disable the fluxcd addon ,and it will be kept in the cluster.Please guarantee there is no application in cluster use this addon and disable it firstly before uninstall the helm chart. 
+**Notice**: If you enable fluxcd addon  when install the chart by set `enableFluxcdAddon=true` .Uninstall wouldn't disable the fluxcd addon ,and it will be kept in the cluster.Please guarantee there is no application in cluster use this addon and disable it firstly before uninstall the helm chart. 
+You can use this script to disable all addons.
+```shell
+#! /bin/sh
+addon=$(vela addon list|grep enabled|awk {'print $1'})
+
+fluxcd=false
+for var in ${addon[*]}
+do
+  if [ $var == "fluxcd" ]; then
+      fluxcd=true
+      continue
+      else
+        vela addon disable $var
+  fi
+done
+if [ $fluxcd ]; then
+    vela addon disable fluxcd
+fi
+```
 
 
 

@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Install Command", func() {

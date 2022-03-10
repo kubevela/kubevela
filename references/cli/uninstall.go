@@ -74,7 +74,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 					return errors.Wrapf(err, "cannot check installed addon")
 				}
 				if len(addons) != 0 {
-					return fmt.Errorf("These addons have been eanbled :%v, please gurantee there is no application using these addons and use `vela unintall -f` unintall include addon ", addons)
+					return fmt.Errorf("these addons have been eanbled :%v, please guarantee there is no application using these addons and use `vela unintall -f` unintall include addon ", addons)
 				}
 			}
 
