@@ -42,7 +42,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
 		Name:       "deploy",
 		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["ex","internal"]}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["ex","internal"],"parallelism":10}`)},
 	}}, []v1beta1.AppPolicy{{
 		Name: "internal",
 		Type: "internal",
@@ -65,7 +65,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 	_, err = LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
 		Name:       "deploy",
 		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{policies:["ex","non"]}`)},
+		Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"],"unknown-field":"value"}`)},
 	}}, []v1beta1.AppPolicy{})
 	r.NotNil(err)
 	r.Contains(err.Error(), "invalid WorkflowStep deploy")

@@ -18,6 +18,7 @@ package e2e_multicluster_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"time"
 
@@ -25,12 +26,15 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -91,4 +95,32 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		}, 30*time.Second).Should(Succeed())
 	})
 
+	It("Test large application parallel apply", func() {
+		newApp := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{Namespace: namespace, Name: "large-app"}}
+		for i := 0; i < 20; i++ {
+			newApp.Spec.Components = append(newApp.Spec.Components, oamcomm.ApplicationComponent{
+				Name:       fmt.Sprintf("comp-%d", i),
+				Type:       "webservice",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox","imagePullPolicy":"IfNotPresent","cmd":["sleep","86400"]}`)},
+			})
+		}
+		newApp.Spec.Policies = append(newApp.Spec.Policies, v1beta1.AppPolicy{
+			Name: "topology-deploy",
+			Type: "topology",
+			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["%s"]}`, WorkerClusterName))},
+		})
+		newApp.Spec.Workflow = &v1beta1.Workflow{
+			Steps: []v1beta1.WorkflowStep{{
+				Name: "deploy",
+				Type: "deploy",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["topology-deploy"],"parallelism":10}`)},
+			}},
+		}
+		Expect(k8sClient.Create(context.Background(), newApp)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			deploys := &v1.DeploymentList{}
+			g.Expect(k8sClient.List(context.Background(), deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(deploys.Items)).Should(Equal(20))
+		}, time.Minute).Should(Succeed())
+	})
 })
