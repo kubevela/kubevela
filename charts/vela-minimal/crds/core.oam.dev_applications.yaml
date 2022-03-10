@@ -465,6 +465,8 @@ spec:
                 items:
                   description: ApplicationComponentStatus record the health status of App component
                   properties:
+                    cluster:
+                      type: string
                     env:
                       type: string
                     healthy:
@@ -472,6 +474,8 @@ spec:
                     message:
                       type: string
                     name:
+                      type: string
+                    namespace:
                       type: string
                     scopes:
                       items:
@@ -964,6 +968,8 @@ spec:
                 items:
                   description: ApplicationComponentStatus record the health status of App component
                   properties:
+                    cluster:
+                      type: string
                     env:
                       type: string
                     healthy:
@@ -971,6 +977,8 @@ spec:
                     message:
                       type: string
                     name:
+                      type: string
+                    namespace:
                       type: string
                     scopes:
                       items:

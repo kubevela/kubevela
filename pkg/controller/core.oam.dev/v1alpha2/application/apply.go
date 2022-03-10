@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"sync"
 
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -53,6 +54,8 @@ type AppHandler struct {
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
 	parser           *appfile.Parser
+
+	mu sync.Mutex
 }
 
 // NewAppHandler create new app handler
@@ -123,6 +126,8 @@ func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.Re
 // addAppliedResource recorde applied resource.
 // reconcile run at single threaded. So there is no need to consider to use locker.
 func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObjectReference) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	for _, ref := range refs {
 		if previous {
 			for i, deleted := range h.deletedResources {
@@ -178,11 +183,13 @@ func removeResources(elements []common.ClusterObjectReference, index int) []comm
 // addServiceStatus recorde the whole component status.
 // reconcile run at single threaded. So there is no need to consider to use locker.
 func (h *AppHandler) addServiceStatus(cover bool, svcs ...common.ApplicationComponentStatus) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	for _, svc := range svcs {
 		found := false
 		for i := range h.services {
 			current := h.services[i]
-			if current.Name == svc.Name && current.Env == svc.Env {
+			if current.Name == svc.Name && current.Env == svc.Env && current.Namespace == svc.Namespace && current.Cluster == svc.Cluster {
 				if cover {
 					h.services[i] = svc
 				}
@@ -201,7 +208,7 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
-func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
+func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
 	namespace := h.app.Namespace
 	if overrideNamespace != "" {
 		namespace = overrideNamespace
@@ -212,6 +219,8 @@ func (h *AppHandler) collectHealthStatus(wl *appfile.Workload, appRev *v1beta1.A
 			Name:               wl.Name,
 			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
 			Healthy:            true,
+			Namespace:          namespace,
+			Cluster:            multicluster.ClusterNameInContext(ctx),
 		}
 		appName  = appRev.Spec.Application.Name
 		isHealth = true

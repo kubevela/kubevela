@@ -210,16 +210,25 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	}
 	for _, comp := range remoteApp.Status.Services {
 		compName := comp.Name
-		if comp.Env == "" {
-			comp.Env = "Control plane cluster"
+		envStat := ""
+		if comp.Env != "" {
+			envStat = "Env: " + comp.Env
 		}
-		ioStreams.Infof(white.Sprintf("  - Name: %s  Env: %s\n", compName, comp.Env))
+		if comp.Cluster == "" {
+			comp.Cluster = "local"
+		}
+		nsStat := ""
+		if comp.Namespace != "" {
+			nsStat = "Namespace: " + comp.Namespace
+		}
+		ioStreams.Infof(fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
+		ioStreams.Infof(fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
 		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
 		healthColor := getHealthStatusColor(comp.Healthy)
 		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
-		healthstats := "healthy"
+		healthstats := "Healthy"
 		if !comp.Healthy {
-			healthstats = "unhealthy"
+			healthstats = "Unhealthy"
 		}
 		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthstats), healthColor.Sprint(healthInfo))
 
@@ -229,16 +238,22 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			return err
 		}
 		// workload Must found
-		ioStreams.Infof("    Traits:\n")
+		if len(comp.Traits) > 0 {
+			ioStreams.Infof("    Traits:\n")
+		} else {
+			ioStreams.Infof("    No trait applied\n")
+		}
 		for _, tr := range comp.Traits {
-			if tr.Message != "" {
-				if tr.Healthy {
-					ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(tr.Type), tr.Message)
-				} else {
-					ioStreams.Infof("      - %s%s: %s", emojiFail, white.Sprint(tr.Type), tr.Message)
-				}
-				continue
+			traitBase := ""
+			if tr.Healthy {
+				traitBase = fmt.Sprintf("      %s%s", emojiSucceed, white.Sprint(tr.Type))
+			} else {
+				traitBase = fmt.Sprintf("      %s%s", emojiFail, white.Sprint(tr.Type))
 			}
+			if tr.Message != "" {
+				traitBase += ": " + tr.Message
+			}
+			ioStreams.Infof(traitBase)
 		}
 		ioStreams.Info("")
 	}
