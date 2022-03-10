@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -95,9 +96,10 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		}, 30*time.Second).Should(Succeed())
 	})
 
-	It("Test large application parallel apply", func() {
+	It("Test large application parallel apply and delete", func() {
 		newApp := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{Namespace: namespace, Name: "large-app"}}
-		for i := 0; i < 20; i++ {
+		size := 30
+		for i := 0; i < size; i++ {
 			newApp.Spec.Components = append(newApp.Spec.Components, oamcomm.ApplicationComponent{
 				Name:       fmt.Sprintf("comp-%d", i),
 				Type:       "webservice",
@@ -105,22 +107,34 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			})
 		}
 		newApp.Spec.Policies = append(newApp.Spec.Policies, v1beta1.AppPolicy{
-			Name: "topology-deploy",
-			Type: "topology",
+			Name:       "topology-deploy",
+			Type:       "topology",
 			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["%s"]}`, WorkerClusterName))},
 		})
 		newApp.Spec.Workflow = &v1beta1.Workflow{
 			Steps: []v1beta1.WorkflowStep{{
-				Name: "deploy",
-				Type: "deploy",
+				Name:       "deploy",
+				Type:       "deploy",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["topology-deploy"],"parallelism":10}`)},
 			}},
 		}
 		Expect(k8sClient.Create(context.Background(), newApp)).Should(Succeed())
 		Eventually(func(g Gomega) {
 			deploys := &v1.DeploymentList{}
-			g.Expect(k8sClient.List(context.Background(), deploys, client.InNamespace(namespace))).Should(Succeed())
-			g.Expect(len(deploys.Items)).Should(Equal(20))
+			g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(deploys.Items)).Should(Equal(size))
+		}, 2*time.Minute).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			app := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(newApp), app)).Should(Succeed())
+			g.Expect(k8sClient.Delete(context.Background(), app)).Should(Succeed())
+		}, 15*time.Second).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			app := &v1beta1.Application{}
+			err := k8sClient.Get(context.Background(), client.ObjectKeyFromObject(newApp), app)
+			g.Expect(errors.IsNotFound(err)).Should(BeTrue())
 		}, time.Minute).Should(Succeed())
 	})
 })
