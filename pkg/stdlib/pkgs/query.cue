@@ -19,6 +19,32 @@
 	...
 }
 
+#ListAppliedResources: {
+	#do:       "listAppliedResources"
+	#provider: "query"
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+		}
+	}
+	list?: [...{
+		name:             string
+		namespace?:       string
+		cluster?:         string
+		component?:       string
+		trait?:           string
+		kind?:            string
+		uid?:             string
+		apiVersion?:      string
+		resourceVersion?: string
+	}]
+	...
+}
+
 #CollectPods: {
 	#do:       "collectPods"
 	#provider: "query"
@@ -71,6 +97,7 @@
 		filter?: {
 			cluster?:          string
 			clusterNamespace?: string
+			components?: [...string]
 		}
 	}
 	list?: [...{
@@ -82,7 +109,8 @@
 			path?:        string
 		}
 		ref: {...}
-		cluster?: string
+		cluster?:   string
+		component?: string
 		...
 	}]
 	...

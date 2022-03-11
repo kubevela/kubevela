@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -36,9 +38,10 @@ const (
 
 // ServiceEndpoint record the access endpoints of the application services
 type ServiceEndpoint struct {
-	Endpoint Endpoint               `json:"endpoint"`
-	Ref      corev1.ObjectReference `json:"ref"`
-	Cluster  string                 `json:"cluster"`
+	Endpoint  Endpoint               `json:"endpoint"`
+	Ref       corev1.ObjectReference `json:"ref"`
+	Cluster   string                 `json:"cluster"`
+	Component string                 `json:"component"`
 }
 
 // String return endpoint URL
@@ -80,4 +83,22 @@ type Endpoint struct {
 
 	// the path for the endpoint
 	Path string `json:"path,omitempty"`
+}
+
+// AppliedResource resource metadata
+type AppliedResource struct {
+	Cluster         string    `json:"cluster"`
+	Component       string    `json:"component"`
+	Trait           string    `json:"trait"`
+	Kind            string    `json:"kind"`
+	Namespace       string    `json:"namespace,omitempty"`
+	Name            string    `json:"name,omitempty"`
+	UID             types.UID `json:"uid,omitempty"`
+	APIVersion      string    `json:"apiVersion,omitempty"`
+	ResourceVersion string    `json:"resourceVersion,omitempty"`
+}
+
+// GroupVersionKind returns the stored group, version, and kind of an object
+func (obj *AppliedResource) GroupVersionKind() schema.GroupVersionKind {
+	return schema.FromAPIVersionAndKind(obj.APIVersion, obj.Kind)
 }

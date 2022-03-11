@@ -109,7 +109,11 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
-				return printAppEndpoints(ctx, newClient, appName, namespace, c)
+				component, _ := cmd.Flags().GetString("component")
+				f := Filter{
+					Component: component,
+				}
+				return printAppEndpoints(ctx, newClient, appName, namespace, f, c)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -120,6 +124,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
+	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -145,16 +150,16 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
-func printAppEndpoints(ctx context.Context, client client.Client, appName string, namespace string, velaC common.Args) error {
-	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC)
+func printAppEndpoints(ctx context.Context, client client.Client, appName string, namespace string, f Filter, velaC common.Args) error {
+	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
 	if err != nil {
 		return err
 	}
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
-	table.SetHeader([]string{"Cluster", "Ref(Kind/Namespace/Name)", "Endpoint"})
+	table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint"})
 	for _, endpoint := range endpoints {
-		table.Append([]string{endpoint.Cluster, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
+		table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
 	}
 	table.Render()
 	return nil

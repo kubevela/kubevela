@@ -570,7 +570,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
 		if err != nil {
-			return nil, ErrRenderCueTmpl
+			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
 		}
 		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
 			comp.Name = strings.Split(comp.Name, ".cue")[0]

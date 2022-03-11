@@ -204,6 +204,97 @@ var _ = Describe("Test Query Provider", func() {
 		})
 	})
 
+	Context("Test ListAppliedResources", func() {
+		It("Test list applied resources created by application", func() {
+			// create test app
+			app := v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-applied",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "web",
+						Type: "webservice",
+						Properties: util.Object2RawExtension(map[string]string{
+							"image": "busybox",
+						}),
+						Traits: []common.ApplicationTrait{{
+							Type: "expose",
+							Properties: util.Object2RawExtension(map[string]interface{}{
+								"ports": []int{8000},
+							}),
+						}},
+					}},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+			// create RT
+			rt := &v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-applied",
+					Namespace: "default",
+					Labels: map[string]string{
+						oam.LabelAppName:      app.Name,
+						oam.LabelAppNamespace: app.Namespace,
+					},
+				},
+				Spec: v1beta1.ResourceTrackerSpec{
+					Type: v1beta1.ResourceTrackerTypeRoot,
+					ManagedResources: []v1beta1.ManagedResource{
+						{
+							ClusterObjectReference: common.ClusterObjectReference{
+								Cluster: "",
+								ObjectReference: corev1.ObjectReference{
+									Kind:      "Deployment",
+									Namespace: "default",
+									Name:      "web",
+								},
+							},
+							OAMObjectReference: common.OAMObjectReference{
+								Component: "web",
+							},
+						},
+						{
+							ClusterObjectReference: common.ClusterObjectReference{
+								Cluster: "",
+								ObjectReference: corev1.ObjectReference{
+									Kind:      "Service",
+									Namespace: "default",
+									Name:      "web",
+								},
+							},
+							OAMObjectReference: common.OAMObjectReference{
+								Trait:     "expose",
+								Component: "web",
+							},
+						},
+					},
+				},
+			}
+			err := k8sClient.Create(context.TODO(), rt)
+			Expect(err).Should(BeNil())
+			prd := provider{cli: k8sClient}
+			opt := `app: {
+				name: "test-applied"
+				namespace: "default"
+				filter: {
+					components: ["web"]
+				}
+			}`
+			v, err := value.NewValue(opt, nil, "")
+			Expect(err).Should(BeNil())
+			Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
+			type Res struct {
+				List []v1beta1.ManagedResource `json:"list"`
+			}
+			var res Res
+			err = v.UnmarshalTo(&res)
+			Expect(err).Should(BeNil())
+			Expect(len(res.List)).Should(Equal(2))
+		})
+	})
+
 	Context("Test CollectPods", func() {
 		It("Test collect pod from workload deployment", func() {
 			deploy := baseDeploy.DeepCopy()
@@ -467,6 +558,28 @@ options: {
 			},
 		}
 		err := k8sClient.Create(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		var mr []v1beta1.ManagedResource
+		for i := range testApp.Status.AppliedResources {
+			mr = append(mr, v1beta1.ManagedResource{
+				ClusterObjectReference: testApp.Status.AppliedResources[i],
+			})
+		}
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "endpoints-app",
+				Namespace: "default",
+				Labels: map[string]string{
+					oam.LabelAppName:      testApp.Name,
+					oam.LabelAppNamespace: testApp.Namespace,
+				},
+			},
+			Spec: v1beta1.ResourceTrackerSpec{
+				Type:             v1beta1.ResourceTrackerTypeRoot,
+				ManagedResources: mr,
+			},
+		}
+		err = k8sClient.Create(context.TODO(), rt)
 		Expect(err).Should(BeNil())
 
 		testServicelist := []map[string]interface{}{

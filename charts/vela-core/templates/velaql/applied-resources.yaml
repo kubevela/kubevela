@@ -1,7 +1,7 @@
 apiVersion: "v1"
 kind:       "ConfigMap"
 metadata: 
-  name:      "service-endpoints-view"
+  name:      "service-applied-resources-view"
   namespace: {{ include "systemDefinitionNamespace" . }}
 data:
   template: |
@@ -15,7 +15,7 @@ data:
           cluster?:   string
           clusterNs?: string
       }
-      resources: ql.#CollectServiceEndpoints & {
+      response: ql.#ListAppliedResources & {
           app: {
               name:      parameter.appName
               namespace: parameter.appNs
@@ -32,13 +32,13 @@ data:
               }
           }
       }
-      if resources.err == _|_ {
+      if response.err == _|_ {
           status: {
-              endpoints: resources.list
+              resources: response.list
           }
       }
-      if resources.err != _|_ {
+      if response.err != _|_ {
           status: {
-              error: resources.err
+              error: response.err
           }
       }
