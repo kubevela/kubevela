@@ -18,6 +18,9 @@ package multicluster
 
 import (
 	"context"
+	"time"
+
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,16 +40,24 @@ type ClusterMetricsHelper interface {
 }
 
 // NewClusterMetricsMgr will create a cluster metrics manager
-func NewClusterMetricsMgr(kubeClient client.Client) (*ClusterMetricsMgr, error) {
+func NewClusterMetricsMgr(kubeClient client.Client, refreshPeriod time.Duration) (*ClusterMetricsMgr, error) {
 	mgr := &ClusterMetricsMgr{
 		kubeClient: kubeClient,
 	}
-	err := mgr.Refresh()
-	return mgr, err
+	go func() {
+		for {
+			clusters, _ := mgr.Refresh()
+			for _, cluster := range clusters {
+				exportMetrics(cluster.Metrics, cluster.Name)
+			}
+			time.Sleep(refreshPeriod)
+		}
+	}()
+	return mgr, nil
 }
 
 // Refresh will re-collect cluster metrics and refresh cache
-func (cmm *ClusterMetricsMgr) Refresh() error {
+func (cmm *ClusterMetricsMgr) Refresh() ([]VirtualCluster, error) {
 	clusters, _ := ListVirtualClusters(context.Background(), cmm.kubeClient)
 	m := make(map[string]*ClusterMetrics)
 
@@ -62,13 +73,42 @@ func (cmm *ClusterMetricsMgr) Refresh() error {
 		if err != nil {
 			klog.Warningf("failed to request metrics api of cluster-(%s)", cluster.Name)
 		}
-		metrics := &ClusterMetrics{
+		cm := &ClusterMetrics{
 			IsConnected:         isConnected,
 			ClusterInfo:         clusterInfo,
 			ClusterUsageMetrics: clusterUsageMetrics,
 		}
-		m[cluster.Name] = metrics
+		m[cluster.Name] = cm
+		cluster.Metrics = cm
 	}
 	metricsMap = m
-	return nil
+	return clusters, nil
+}
+
+// exportMetrics will report ClusterMetrics with a clusterName label
+func exportMetrics(m *ClusterMetrics, clusterName string) {
+	if m == nil {
+		return
+	}
+	metrics.ClusterIsConnectedGauge.WithLabelValues(clusterName).Set(func() float64 {
+		if m.IsConnected {
+			return 1
+		}
+		return 0
+	}())
+	if m.ClusterInfo != nil {
+		metrics.ClusterWorkerNumberGauge.WithLabelValues(clusterName).Set(float64(m.ClusterInfo.WorkerNumber))
+		metrics.ClusterMasterNumberGauge.WithLabelValues(clusterName).Set(float64(m.ClusterInfo.MasterNumber))
+		metrics.ClusterMemoryCapacityGauge.WithLabelValues(clusterName).Set(m.ClusterInfo.MemoryCapacity.AsApproximateFloat64())
+		metrics.ClusterCPUCapacityGauge.WithLabelValues(clusterName).Set(float64(m.ClusterInfo.CPUCapacity.MilliValue()))
+		metrics.ClusterPodCapacityGauge.WithLabelValues(clusterName).Set(m.ClusterInfo.PodCapacity.AsApproximateFloat64())
+		metrics.ClusterMemoryAllocatableGauge.WithLabelValues(clusterName).Set(m.ClusterInfo.MemoryAllocatable.AsApproximateFloat64())
+		metrics.ClusterCPUAllocatableGauge.WithLabelValues(clusterName).Set(float64(m.ClusterInfo.CPUAllocatable.MilliValue()))
+		metrics.ClusterPodAllocatableGauge.WithLabelValues(clusterName).Set(m.ClusterInfo.PodAllocatable.AsApproximateFloat64())
+	}
+	if m.ClusterUsageMetrics != nil {
+		metrics.ClusterMemoryUsageGauge.WithLabelValues(clusterName).Set(m.ClusterUsageMetrics.MemoryUsage.AsApproximateFloat64())
+		metrics.ClusterCPUUsageGauge.WithLabelValues(clusterName).Set(float64(m.ClusterUsageMetrics.CPUUsage.MilliValue()))
+		metrics.ClusterPodUsageGauge.WithLabelValues(clusterName).Set(m.ClusterUsageMetrics.PodUsage.AsApproximateFloat64())
+	}
 }
