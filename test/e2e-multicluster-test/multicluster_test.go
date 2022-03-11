@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/utils"
 
@@ -182,7 +184,7 @@ var _ = Describe("Test multicluster scenario", func() {
 
 	})
 
-	Context("Test EnvBinding Application", func() {
+	Context("Test multi-cluster Application", func() {
 
 		var namespace string
 		var testNamespace string
@@ -395,6 +397,34 @@ var _ = Describe("Test multicluster scenario", func() {
 			By("test delete env")
 			err = k8sClient.Delete(hubCtx, &checkApp)
 			Expect(err).Should(BeNil())
+		})
+
+		It("Test deploy multi-cluster application with target", func() {
+			By("apply application")
+			app := &v1beta1.Application{
+				ObjectMeta: v12.ObjectMeta{Namespace: namespace, Name: "test-app-target"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name:       "test-busybox",
+						Type:       "webservice",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox","cmd":["sleep","86400"]}`)},
+					}},
+					Policies: []v1beta1.AppPolicy{{
+						Name:       "topology-local",
+						Type:       "topology",
+						Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["local"],"namespace":"%s"}`, testNamespace))},
+					}, {
+						Name:       "topology-remote",
+						Type:       "topology",
+						Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"targets":["%s/%s"]}`, WorkerClusterName, prodNamespace))},
+					}},
+				},
+			}
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &v13.Deployment{})).Should(Succeed())
+				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: "test-busybox", Namespace: prodNamespace}, &v13.Deployment{})).Should(Succeed())
+			}, time.Minute).Should(Succeed())
 		})
 	})
 })
