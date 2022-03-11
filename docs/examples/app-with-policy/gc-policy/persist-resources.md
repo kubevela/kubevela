@@ -77,3 +77,25 @@ NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
 hello-world       ClusterIP   10.96.160.208   <none>        8000/TCP   5m56s
 hello-world-new   ClusterIP   10.96.20.4      <none>        8000/TCP   13s
 ```
+
+Users can also keep component if they are deploying job-like components. Resources dispatched by `job-like-component` type component will be kept after application is deleted.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: garbage-collect-app
+spec:
+  components:
+    - name: hello-world-new
+      type: job-like-component
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+             compTypes:
+               - webservice
+           strategy: never
+```
