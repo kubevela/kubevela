@@ -24,6 +24,9 @@ const (
 // DeployWorkflowStepSpec the spec of `deploy` WorkflowStep
 type DeployWorkflowStepSpec struct {
 	// Auto nil/true mean auto deploy, false means additional pre-approve step will be injected before the deploy step
-	Auto     *bool    `json:"auto,omitempty"`
+	Auto *bool `json:"auto,omitempty"`
+	// Policies specifies the policies to use in the step
 	Policies []string `json:"policies,omitempty"`
+	// Parallelism allows setting parallelism for the component deploy process
+	Parallelism *int `json:"parallelism,omitempty"`
 }

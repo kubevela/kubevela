@@ -3,6 +3,7 @@
 	#do:         "component-apply"
 	cluster:     *"" | string
 	env:         *"" | string
+	namespace:   *"" | string
 	waitHealthy: *true | bool
 	value: {...}
 	patch?: {...}
@@ -16,6 +17,7 @@
 	components: [string]: {
 		cluster:     *"" | string
 		env:         *"" | string
+		namespace:   *"" | string
 		waitHealthy: *true | bool
 		value: {...}
 		patch?: {...}
@@ -29,6 +31,7 @@
 	#do:       "component-render"
 	cluster:   *"" | string
 	env:       *"" | string
+	namespace: *"" | string
 	value: {...}
 	patch?: {...}
 	output?: {...}
