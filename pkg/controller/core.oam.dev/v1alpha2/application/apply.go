@@ -233,7 +233,9 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &configuration); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
 		}
-		if configuration.Status.Apply.State != terraformtypes.Available {
+		if appRev.Name != configuration.GetLabels()["app.oam.dev/appRevision"] ||
+			configuration.Status.Apply.State != terraformtypes.Available ||
+			configuration.Status.ObservedGeneration != configuration.Generation {
 			status.Healthy = false
 			isHealth = false
 		} else {

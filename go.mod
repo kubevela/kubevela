@@ -6,7 +6,7 @@ require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
-	github.com/agiledragon/gomonkey/v2 v2.3.0
+	github.com/agiledragon/gomonkey/v2 v2.4.0
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
 	github.com/alibabacloud-go/darabonba-openapi v0.1.4
 	github.com/alibabacloud-go/tea v1.1.15
@@ -43,7 +43,7 @@ require (
 	github.com/oam-dev/cluster-gateway v1.1.6
 	github.com/oam-dev/cluster-register v1.0.3
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
-	github.com/oam-dev/terraform-controller v0.2.12
+	github.com/oam-dev/terraform-controller v0.4.2
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.17.0
