@@ -95,7 +95,7 @@ spec:
       properties:
         rules:
           - selector:
-             compTypes:
+             componentTypes:
                - webservice
            strategy: never
 ```

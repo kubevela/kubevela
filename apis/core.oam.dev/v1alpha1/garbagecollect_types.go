@@ -45,11 +45,11 @@ type GarbageCollectPolicyRule struct {
 }
 
 // GarbageCollectPolicyRuleSelector select the targets of the rule
-// if both traitTypes and CompTypes are specified, combination logic is OR
+// if both traitTypes and componentTypes are specified, combination logic is OR
 // if one resources are specified with conflict strategy, strategy as component go first.
 type GarbageCollectPolicyRuleSelector struct {
 	TraitTypes []string `json:"traitTypes"`
-	CompTypes  []string `json:"compTypes"`
+	CompTypes  []string `json:"componentTypes"`
 }
 
 // GarbageCollectStrategy the strategy for target resource to recycle
