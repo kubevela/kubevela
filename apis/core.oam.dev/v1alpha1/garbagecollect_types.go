@@ -47,6 +47,7 @@ type GarbageCollectPolicyRule struct {
 // GarbageCollectPolicyRuleSelector select the targets of the rule
 type GarbageCollectPolicyRuleSelector struct {
 	TraitTypes []string `json:"traitTypes"`
+	CompTypes  []string `json:"compTypes"`
 }
 
 // GarbageCollectStrategy the strategy for target resource to recycle
@@ -65,9 +66,20 @@ const (
 // FindStrategy find gc strategy for target resource
 func (in GarbageCollectPolicySpec) FindStrategy(manifest *unstructured.Unstructured) *GarbageCollectStrategy {
 	for _, rule := range in.Rules {
-		var traitType string
+		var (
+			compType  string
+			traitType string
+		)
 		if manifest.GetLabels() != nil {
 			traitType = manifest.GetLabels()[oam.TraitTypeLabel]
+			compType = manifest.GetLabels()[oam.WorkloadTypeLabel]
+		}
+		if compType != "" {
+			for _, _compType := range rule.Selector.CompTypes {
+				if _compType == compType {
+					return &rule.Strategy
+				}
+			}
 		}
 		if traitType != "" {
 			for _, _traitType := range rule.Selector.TraitTypes {

@@ -67,6 +67,36 @@ func TestGarbageCollectPolicySpec_FindStrategy(t *testing.T) {
 			}},
 			expectStrategy: GarbageCollectStrategyOnAppDelete,
 		},
+		"component rule match": {
+			rules: []GarbageCollectPolicyRule{{
+				Selector: GarbageCollectPolicyRuleSelector{CompTypes: []string{"comp"}},
+				Strategy: GarbageCollectStrategyNever,
+			}},
+			input: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{oam.WorkloadTypeLabel: "comp"},
+				},
+			}},
+			expectStrategy: GarbageCollectStrategyNever,
+		},
+		"rule match both component and trait, component first": {
+			rules: []GarbageCollectPolicyRule{
+				{
+					Selector: GarbageCollectPolicyRuleSelector{CompTypes: []string{"comp"}},
+					Strategy: GarbageCollectStrategyNever,
+				},
+				{
+					Selector: GarbageCollectPolicyRuleSelector{TraitTypes: []string{"trait"}},
+					Strategy: GarbageCollectStrategyOnAppDelete,
+				},
+			},
+			input: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{oam.WorkloadTypeLabel: "comp", oam.TraitTypeLabel: "trait"},
+				},
+			}},
+			expectStrategy: GarbageCollectStrategyNever,
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
