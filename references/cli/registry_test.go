@@ -25,6 +25,7 @@ import (
 )
 
 func TestRegistry(t *testing.T) {
+	t.Skip("temporary pend this test")
 	testAddon := "dynamic-sa"
 	regName := "testReg"
 	localPath, err := filepath.Abs("../../e2e/plugin/testdata")
