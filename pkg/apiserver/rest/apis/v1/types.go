@@ -1080,3 +1080,17 @@ type ChartVersionListResponse struct {
 type SimpleResponse struct {
 	Status string `json:"status"`
 }
+
+// LoginResponse is the response of login request
+type LoginResponse struct {
+	UserInfo     DetailUserResponse `json:"userInfo"`
+	Token        string             `json:"token,omitempty"`
+	RefreshToken string             `json:"refreshToken,omitempty"`
+}
+
+// DetailUserResponse is the detail user info for the response
+type DetailUserResponse struct {
+	Name  string `json:"name"`
+	Alias string `json:"alias,omitempty"`
+	Email string `json:"email"`
+}

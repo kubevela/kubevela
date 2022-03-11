@@ -74,6 +74,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
 	helmUsecase := usecase.NewHelmUsecase()
+	authenticationUsecase := usecase.NewAuthenticationUsecase(ds)
 
 	// init for default values
 
@@ -96,6 +97,9 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
 	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
 	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))
+
+	// Authentication
+	RegisterWebService(NewAuthenticationWebService(authenticationUsecase))
 
 	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase))
 
