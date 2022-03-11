@@ -17,7 +17,7 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Env{})
+	RegisterModel(&Env{})
 }
 
 // Env models the data of env in database

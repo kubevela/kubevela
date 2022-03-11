@@ -25,8 +25,8 @@ import (
 )
 
 func init() {
-	RegistModel(&Workflow{})
-	RegistModel(&WorkflowRecord{})
+	RegisterModel(&Workflow{})
+	RegisterModel(&WorkflowRecord{})
 }
 
 // Workflow application delivery database model

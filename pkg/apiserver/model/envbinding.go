@@ -19,7 +19,7 @@ package model
 import "fmt"
 
 func init() {
-	RegistModel(&EnvBinding{})
+	RegisterModel(&EnvBinding{})
 }
 
 // EnvBinding application env binding

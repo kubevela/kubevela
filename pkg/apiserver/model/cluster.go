@@ -23,7 +23,7 @@ import (
 )
 
 func init() {
-	RegistModel(&Cluster{})
+	RegisterModel(&Cluster{})
 }
 
 // ProviderInfo describes the information from provider API

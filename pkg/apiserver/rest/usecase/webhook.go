@@ -197,7 +197,7 @@ func (c *customHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 		}
 		if err := c.w.ds.Get(ctx, component); err != nil {
 			if errors.Is(err, datastore.ErrRecordNotExist) {
-				return nil, bcode.ErrApplicationComponetNotExist
+				return nil, bcode.ErrApplicationComponentNotExist
 			}
 			return nil, err
 		}
@@ -227,7 +227,7 @@ func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Appli
 		return nil, err
 	}
 	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponetNotExist
+		return nil, bcode.ErrApplicationComponentNotExist
 	}
 
 	// use the first component as the target component
@@ -287,7 +287,7 @@ func (c dockerHubHandlerImpl) handle(ctx context.Context, trigger *model.Applica
 		return nil, err
 	}
 	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponetNotExist
+		return nil, bcode.ErrApplicationComponentNotExist
 	}
 
 	// use the first component as the target component
@@ -395,7 +395,7 @@ func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 		return nil, err
 	}
 	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponetNotExist
+		return nil, bcode.ErrApplicationComponentNotExist
 	}
 
 	// use the first component as the target component
@@ -461,7 +461,7 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 		return nil, err
 	}
 	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponetNotExist
+		return nil, bcode.ErrApplicationComponentNotExist
 	}
 
 	// use the first component as the target component

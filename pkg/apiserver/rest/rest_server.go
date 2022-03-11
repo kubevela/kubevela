@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
+	velasync "github.com/oam-dev/kubevela/pkg/apiserver/sync"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -116,6 +117,8 @@ func (s *restServer) Run(ctx context.Context) error {
 	go func() {
 		leaderelection.RunOrDie(ctx, *l)
 	}()
+
+	go velasync.Start(s.dataStore)
 
 	return s.startHTTP(ctx)
 }

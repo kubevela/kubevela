@@ -17,7 +17,7 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Target{})
+	RegisterModel(&Target{})
 }
 
 // Target defines the delivery target information for the application

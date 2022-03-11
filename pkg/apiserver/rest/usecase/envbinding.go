@@ -397,31 +397,6 @@ func convertWorkflowName(envName string) string {
 	return fmt.Sprintf("workflow-%s", envName)
 }
 
-func compareSlices(a []string, b []string) ([]string, []string, []string) {
-	m := make(map[string]uint8)
-	for _, k := range a {
-		m[k] |= 1 << 0
-	}
-	for _, k := range b {
-		m[k] |= 1 << 1
-	}
-
-	var inAAndB, inAButNotB, inBButNotA []string
-	for k, v := range m {
-		a := v&(1<<0) != 0
-		b := v&(1<<1) != 0
-		switch {
-		case a && b:
-			inAAndB = append(inAAndB, k)
-		case a && !b:
-			inAButNotB = append(inAButNotB, k)
-		case !a && b:
-			inBButNotA = append(inBButNotA, k)
-		}
-	}
-	return inAAndB, inAButNotB, inBButNotA
-}
-
 func isEnvStepType(stepType string) bool {
 	return stepType == Deploy2Env || stepType == DeployCloudResource
 }

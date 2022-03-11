@@ -17,7 +17,7 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&SystemInfo{})
+	RegisterModel(&SystemInfo{})
 }
 
 // LoginType is the type of login

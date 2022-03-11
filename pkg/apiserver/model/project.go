@@ -17,10 +17,10 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Project{})
+	RegisterModel(&Project{})
 }
 
-// Project project model
+// Project basic model
 type Project struct {
 	BaseModel
 	Name        string `json:"name"`
