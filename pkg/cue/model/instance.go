@@ -35,9 +35,8 @@ type Instance interface {
 	String() string
 	Unstructured() (*unstructured.Unstructured, error)
 	IsBase() bool
-	Unify(other Instance) error
+	Unify(other Instance, options ...sets.UnifyOption) error
 	Compile() ([]byte, error)
-	Open() error
 }
 
 type instance struct {
@@ -89,22 +88,12 @@ func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
 }
 
 // Unify implement unity operations between instances
-func (inst *instance) Unify(other Instance) error {
-	pv, err := sets.StrategyUnify(inst.v, other.String())
+func (inst *instance) Unify(other Instance, options ...sets.UnifyOption) error {
+	pv, err := sets.StrategyUnify(inst.v, other.String(), options...)
 	if err != nil {
 		return err
 	}
 	inst.v = pv
-	return nil
-}
-
-// Open convert instance value to open
-func (inst *instance) Open() error {
-	open, err := sets.OpenBaiscLit(inst.v)
-	if err != nil {
-		return err
-	}
-	inst.v = open
 	return nil
 }
 
