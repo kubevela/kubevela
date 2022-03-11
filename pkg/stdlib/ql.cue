@@ -6,6 +6,8 @@
 
 #ListResourcesInApp: query.#ListResourcesInApp
 
+#ListAppliedResources: query.#ListAppliedResources
+
 #CollectPods: query.#CollectPods
 
 #SearchEvents: query.#SearchEvents

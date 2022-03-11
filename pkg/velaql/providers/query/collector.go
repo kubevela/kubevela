@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 // AppCollector collect resource created by application
@@ -88,27 +89,50 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 	return c.FindResourceFromResourceTrackerSpec(app)
 }
 
-// FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
-func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Application) ([]Resource, error) {
+// ListApplicationResources list application applied resources from tracker
+func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]types.AppliedResource, error) {
 	ctx := context.Background()
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
 
-	managedResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
+	var managedResources []types.AppliedResource
+	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
-			for _, managedResource := range rt.Spec.ManagedResources {
+			for i, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) {
-					managedResources[managedResource.ClusterObjectReference] = true
+					if _, ok := existResources[rt.Spec.ManagedResources[i].ClusterObjectReference]; !ok {
+						managedResources = append(managedResources, types.AppliedResource{
+							Cluster:         managedResource.Cluster,
+							Kind:            managedResource.Kind,
+							Component:       managedResource.Component,
+							Trait:           managedResource.Trait,
+							Name:            managedResource.Name,
+							Namespace:       managedResource.Namespace,
+							APIVersion:      managedResource.APIVersion,
+							ResourceVersion: managedResource.ResourceVersion,
+							UID:             managedResource.UID,
+						})
+					}
 				}
 			}
 		}
 	}
+	return managedResources, nil
+}
+
+// FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
+func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Application) ([]Resource, error) {
+	ctx := context.Background()
+	managedResources, err := c.ListApplicationResources(app)
+	if err != nil {
+		return nil, err
+	}
 	resources := make([]Resource, 0, len(managedResources))
-	for objRef := range managedResources {
+	for _, objRef := range managedResources {
 		obj := new(unstructured.Unstructured)
 		obj.SetGroupVersionKind(objRef.GroupVersionKind())
 		obj.SetNamespace(objRef.Namespace)

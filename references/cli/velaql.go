@@ -27,8 +27,28 @@ import (
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
+// Filter filter options
+type Filter struct {
+	Component        string
+	Cluster          string
+	ClusterNamespace string
+}
+
+// MakeVelaQL build velaQL
+func MakeVelaQL(view string, params map[string]string, action string) string {
+	var paramString string
+	for key, value := range params {
+		if paramString != "" {
+			paramString = fmt.Sprintf("%s, %s=%s", paramString, key, value)
+		} else {
+			paramString = fmt.Sprintf("%s=%s", key, value)
+		}
+	}
+	return fmt.Sprintf("%s{%s}.%s", view, paramString, action)
+}
+
 // GetServiceEndpoints get service endpoints by velaQL
-func GetServiceEndpoints(ctx context.Context, client client.Client, appName string, namespace string, velaC common.Args) ([]querytypes.ServiceEndpoint, error) {
+func GetServiceEndpoints(ctx context.Context, client client.Client, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.ServiceEndpoint, error) {
 	dm, err := velaC.GetDiscoveryMapper()
 	if err != nil {
 		return nil, err
@@ -37,7 +57,18 @@ func GetServiceEndpoints(ctx context.Context, client client.Client, appName stri
 	if err != nil {
 		return nil, err
 	}
-	queryView, err := velaql.ParseVelaQL(fmt.Sprintf("service-endpoints-view{appName=%s,appNs=%s}.status", appName, namespace))
+	parmas := map[string]string{
+		"appName": appName,
+		"appNs":   namespace,
+	}
+	if f.Component != "" {
+		parmas["name"] = f.Component
+	}
+	if f.Cluster != "" && f.ClusterNamespace != "" {
+		parmas["cluster"] = f.Cluster
+		parmas["clusterNs"] = f.ClusterNamespace
+	}
+	queryView, err := velaql.ParseVelaQL(MakeVelaQL("service-endpoints-view", parmas, "status"))
 	if err != nil {
 		return nil, err
 	}

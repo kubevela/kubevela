@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -117,6 +118,29 @@ var _ = Describe("Test velaQL", func() {
 			},
 		}
 		err := k8sClient.Create(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+
+		var mr []v1beta1.ManagedResource
+		for i := range testApp.Status.AppliedResources {
+			mr = append(mr, v1beta1.ManagedResource{
+				ClusterObjectReference: testApp.Status.AppliedResources[i],
+			})
+		}
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					oam.LabelAppName:      testApp.Name,
+					oam.LabelAppNamespace: testApp.Namespace,
+				},
+			},
+			Spec: v1beta1.ResourceTrackerSpec{
+				Type:             v1beta1.ResourceTrackerTypeRoot,
+				ManagedResources: mr,
+			},
+		}
+		err = k8sClient.Create(context.TODO(), rt)
 		Expect(err).Should(BeNil())
 
 		testServicelist := []map[string]interface{}{
@@ -351,7 +375,7 @@ var _ = Describe("Test velaQL", func() {
 		Expect(err).Should(BeNil())
 		err = k8sClient.Create(context.Background(), &cm)
 		Expect(err).Should(BeNil())
-		endpoints, err := GetServiceEndpoints(context.TODO(), k8sClient, appName, namespace, arg)
+		endpoints, err := GetServiceEndpoints(context.TODO(), k8sClient, appName, namespace, arg, Filter{})
 		Expect(err).Should(BeNil())
 		urls := []string{
 			"http://ingress.domain",

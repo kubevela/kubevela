@@ -107,6 +107,29 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	return v.FillObject(appResList, "list")
 }
 
+// ListAppliedResources list applied resource from tracker
+func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("app")
+	if err != nil {
+		return err
+	}
+	opt := Option{}
+	if err = val.UnmarshalTo(&opt); err != nil {
+		return err
+	}
+	collector := NewAppCollector(h.cli, opt)
+	app := new(v1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := h.cli.Get(context.Background(), appKey, app); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	appResList, err := collector.ListApplicationResources(app)
+	if err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	return v.FillObject(appResList, "list")
+}
+
 func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
@@ -201,11 +224,14 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	}
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	var clusterGatewayNodeIP = make(map[string]string)
-	for i, resource := range app.Status.AppliedResources {
-		if !isResourceInTargetCluster(opt.Filter, resource) {
-			continue
-		}
-		cluster := app.Status.AppliedResources[i].Cluster
+	collector := NewAppCollector(h.cli, opt)
+	resources, err := collector.ListApplicationResources(app)
+	if err != nil {
+		return err
+	}
+
+	for i, resource := range resources {
+		cluster := resources[i].Cluster
 		selectorNodeIP := func() string {
 			if ip, exist := clusterGatewayNodeIP[cluster]; exist {
 				return ip
@@ -225,7 +251,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 					klog.Error(err, fmt.Sprintf("find v1 Ingress %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 					continue
 				}
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, resource.Component)...)
 			} else {
 				klog.Warning("not support ingress version", "version", resource.GroupVersionKind())
 			}
@@ -236,7 +262,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
 		case helmapi.HelmReleaseGVK.Kind:
 			obj := new(unstructured.Unstructured)
 			obj.SetNamespace(resource.Namespace)
@@ -247,7 +273,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, "")...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
 			}
 
 			// only support network/v1beta1
@@ -256,7 +282,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, "collect ingres by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
 			for _, ing := range ingress {
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster)...)
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster, resource.Component)...)
 			}
 		case "SeldonDeployment":
 			obj := new(unstructured.Unstructured)
@@ -285,7 +311,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", serviceName, serviceNS, resource.Cluster))
 				continue
 			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
+			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
 	return v.FillObject(serviceEndpoints, "list")
@@ -386,6 +412,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 
 	p.Register(ProviderName, map[string]providers.Handler{
 		"listResourcesInApp":      prd.ListResourcesInApp,
+		"listAppliedResources":    prd.ListAppliedResources,
 		"collectPods":             prd.CollectPods,
 		"searchEvents":            prd.SearchEvents,
 		"collectLogsInPod":        prd.CollectLogsInPod,
@@ -393,7 +420,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	})
 }
 
-func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster, path string) []querytypes.ServiceEndpoint {
+func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster, component, path string) []querytypes.ServiceEndpoint {
 	var serviceEndpoints []querytypes.ServiceEndpoint
 	switch service.Spec.Type {
 	case corev1.ServiceTypeLoadBalancer:
@@ -417,7 +444,8 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							APIVersion:      service.APIVersion,
 							ResourceVersion: service.ResourceVersion,
 						},
-						Cluster: cluster,
+						Cluster:   cluster,
+						Component: component,
 					})
 				}
 				if ingress.IP != "" {
@@ -437,7 +465,8 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 							APIVersion:      service.APIVersion,
 							ResourceVersion: service.ResourceVersion,
 						},
-						Cluster: cluster,
+						Cluster:   cluster,
+						Component: component,
 					})
 				}
 			}
@@ -461,7 +490,8 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 					APIVersion:      service.APIVersion,
 					ResourceVersion: service.ResourceVersion,
 				},
-				Cluster: cluster,
+				Cluster:   cluster,
+				Component: component,
 			})
 		}
 	case corev1.ServiceTypeClusterIP, corev1.ServiceTypeExternalName:
@@ -469,7 +499,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 	return serviceEndpoints
 }
 
-func generatorFromIngress(ingress networkv1beta1.Ingress, cluster string) (serviceEndpoints []querytypes.ServiceEndpoint) {
+func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
 	getAppProtocol := func(host string) string {
 		if len(ingress.Spec.TLS) > 0 {
 			for _, tls := range ingress.Spec.TLS {
@@ -517,7 +547,8 @@ func generatorFromIngress(ingress networkv1beta1.Ingress, cluster string) (servi
 						APIVersion:      ingress.APIVersion,
 						ResourceVersion: ingress.ResourceVersion,
 					},
-					Cluster: cluster,
+					Cluster:   cluster,
+					Component: component,
 				})
 			}
 		}
