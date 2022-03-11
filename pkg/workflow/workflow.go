@@ -544,3 +544,8 @@ func ComputeWorkflowRevisionHash(rev string, app *oamcore.Application) (string, 
 	}
 	return version, nil
 }
+
+// IsFailedAfterRetry check if application is hang due to FailedAfterRetry
+func IsFailedAfterRetry(app *oamcore.Application) bool {
+	return app.Status.Workflow != nil && app.Status.Workflow.Message == MessageFailedAfterRetries
+}

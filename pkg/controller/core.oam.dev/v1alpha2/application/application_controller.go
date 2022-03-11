@@ -226,6 +226,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
+		if !workflow.IsFailedAfterRetry(app) {
+			r.stateKeep(logCtx, handler, app)
+		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 	case common.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
@@ -266,11 +269,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	if err := handler.resourceKeeper.StateKeep(ctx); err != nil {
-		logCtx.Error(err, "Failed to run prevent-configuration-drift")
-		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
-		app.Status.SetConditions(condition.ErrorCondition("StateKeep", err))
-	}
+	r.stateKeep(logCtx, handler, app)
 	if err := garbageCollection(logCtx, handler); err != nil {
 		logCtx.Error(err, "Failed to run garbage collection")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
@@ -285,6 +284,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return r.gcResourceTrackers(logCtx, handler, phase, true)
+}
+
+func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
+	if err := handler.resourceKeeper.StateKeep(logCtx); err != nil {
+		logCtx.Error(err, "Failed to run prevent-configuration-drift")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
+		app.Status.SetConditions(condition.ErrorCondition("StateKeep", err))
+	}
 }
 
 func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool) (ctrl.Result, error) {
