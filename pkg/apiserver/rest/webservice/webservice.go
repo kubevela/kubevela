@@ -83,6 +83,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	if initDatabase {
 		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase)
 	}
+	configUseCase := usecase.NewConfigUseCase(applicationUsecase)
 
 	// Application
 	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase, rbacUsecase))
@@ -94,6 +95,9 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	RegisterWebService(NewAddonWebService(addonUsecase, rbacUsecase, clusterUsecase))
 	RegisterWebService(NewEnabledAddonWebService(addonUsecase, rbacUsecase))
 	RegisterWebService(NewAddonRegistryWebService(addonUsecase, rbacUsecase))
+
+	// Config management
+	RegisterWebService(ConfigWebService(configUseCase))
 
 	// Resources
 	RegisterWebService(NewClusterWebService(clusterUsecase, rbacUsecase))

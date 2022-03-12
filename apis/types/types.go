@@ -61,6 +61,10 @@ const (
 	AnnoIngressControllerHTTPSPort = "ingress.controller/https-port"
 	// AnnoIngressControllerHTTPPort define ingress controller listen port for http
 	AnnoIngressControllerHTTPPort = "ingress.controller/http-port"
+	// LabelConfigType is the label for config type
+	LabelConfigType = "config.oam.dev/type"
+	// LabelConfigCatalog is the label for config catalog
+	LabelConfigCatalog = "config.oam.dev/catalog"
 )
 
 const (

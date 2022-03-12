@@ -184,6 +184,25 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+}
+
+// Config define the metadata of a config
+type Config struct {
+	ConfigType  string     `json:"configType"`
+	Name        string     `json:"name"`
+	Project     string     `json:"project"`
+	Identifier  string     `json:"identifier"`
+	Description string     `json:"description"`
+	CreatedTime *time.Time `json:"createdTime"`
+	UpdatedTime *time.Time `json:"updatedTime"`
+}
+
 // AccessKeyRequest request parameters to access cloud provider
 type AccessKeyRequest struct {
 	AccessKeyID     string `json:"accessKeyID"`
