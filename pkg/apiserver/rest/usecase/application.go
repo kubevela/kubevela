@@ -117,6 +117,7 @@ type applicationUsecaseImpl struct {
 	targetUsecase     TargetUsecase
 	definitionUsecase DefinitionUsecase
 	projectUsecase    ProjectUsecase
+	configUseCase     ConfigHandler
 }
 
 // NewApplicationUsecase new application usecase
@@ -127,6 +128,7 @@ func NewApplicationUsecase(ds datastore.DataStore,
 	targetUsecase TargetUsecase,
 	definitionUsecase DefinitionUsecase,
 	projectUsecase ProjectUsecase,
+	configUseCase ConfigHandler,
 ) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
@@ -142,6 +144,7 @@ func NewApplicationUsecase(ds datastore.DataStore,
 		definitionUsecase: definitionUsecase,
 		projectUsecase:    projectUsecase,
 		envUsecase:        envUsecase,
+		configUseCase:     configUseCase,
 	}
 }
 
@@ -686,7 +689,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-// Deploy deploy app to cluster
+// Deploy deploys app to cluster
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
@@ -701,6 +704,26 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 
 	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
 	if err != nil {
+		return nil, err
+	}
+
+	// sync configs to clusters
+	// TODO(zzxwill) need to check the type of the componentDefinition, if it is `Cloud`, skip the sync
+	env, err := c.envUsecase.GetEnv(ctx, workflow.EnvName)
+	if err != nil {
+		return nil, err
+	}
+	var clusterTargets []*model.ClusterTarget
+	for _, t := range env.Targets {
+		target, err := c.targetUsecase.GetTarget(ctx, t)
+		if err != nil {
+			return nil, err
+		}
+		if target.Cluster != nil {
+			clusterTargets = append(clusterTargets, target.Cluster)
+		}
+	}
+	if err := c.configUseCase.SyncConfigs(ctx, app.Project, clusterTargets); err != nil {
 		return nil, err
 	}
 

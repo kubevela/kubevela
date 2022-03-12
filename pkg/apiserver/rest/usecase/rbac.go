@@ -207,6 +207,14 @@ var ResourceMaps = map[string]resourceMetadata{
 	"permission":    {},
 	"systemSetting": {},
 	"definition":    {},
+	"configType": {
+		pathName: "configType",
+		subResources: map[string]resourceMetadata{
+			"config": {
+				pathName: "name",
+			},
+		},
+	},
 }
 
 var existResourcePaths = convert(ResourceMaps)
