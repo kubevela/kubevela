@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: config-dex-connector-dev
+  namespace: vela-system
+spec:
+  components:
+    - name: dev
+      type: config-dex-connector
+      properties:
+        name: dex-connector-dev
+        type: github
+        clientID: "aa"
+        clientSecret: "bb"
+        callbackURL: "http://localhost:8080/callback"

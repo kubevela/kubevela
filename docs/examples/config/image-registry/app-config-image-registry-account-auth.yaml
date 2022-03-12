@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: config-image-registry-account-auth-dev
+  namespace: vela-system
+spec:
+  components:
+    - name: account-auth
+      type: config-image-registry
+      properties:
+        name: image-registry-dev
+        type: account
+        registry: "registry.cn-beijing.aliyuncs.com"
+        username: "xxx"
+        password: "PfwrjwifjFaked"
+        email: "a@gmail.com"
