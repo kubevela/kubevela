@@ -779,6 +779,9 @@ spec:
                   - type
                   type: object
                 type: array
+              serviceAccountName:
+                description: ServiceAccountName is the name of the ServiceAccount to use to apply Components and run Workflow. ServiceAccount will be used in the local cluster only.
+                type: string
               workflow:
                 description: 'Workflow defines how to customize the control logic. If workflow is specified, Vela won''t apply any resource, but provide rendered output in AppRevision. Workflow steps are executed in array order, and each step: - will have a context in annotation. - should mark "finish" phase in status.conditions.'
                 properties:

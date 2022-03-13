@@ -23,6 +23,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -40,7 +41,9 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 				}
 				if mr.Deleted {
 					if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
-						if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil {
+						deleteCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+						deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+						if err := h.Client.Delete(deleteCtx, entry.obj); err != nil {
 							return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
 						}
 					}
@@ -53,7 +56,9 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					if err != nil {
 						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 					}
-					if err = h.applicator.Apply(multicluster.ContextWithClusterName(ctx, mr.Cluster), manifest, apply.MustBeControlledByApp(h.app)); err != nil {
+					applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+					applyCtx = oamutil.SetServiceAccountInContext(applyCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+					if err = h.applicator.Apply(applyCtx, manifest, apply.MustBeControlledByApp(h.app)); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
 				}

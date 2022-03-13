@@ -35,6 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
@@ -197,6 +198,7 @@ func main() {
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
+	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
 
 	// wrapper the round tripper by multi cluster rewriter
 	if enableClusterGateway {

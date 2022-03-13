@@ -88,6 +88,10 @@ type ApplicationSpec struct {
 	// - should mark "finish" phase in status.conditions.
 	Workflow *Workflow `json:"workflow,omitempty"`
 
+	// ServiceAccountName is the name of the ServiceAccount to use to apply Components and run Workflow.
+	// ServiceAccount will be used in the local cluster only.
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
 	// TODO(wonderflow): we should have application level scopes supported here
 }
 

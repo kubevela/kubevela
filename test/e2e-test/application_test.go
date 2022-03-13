@@ -25,9 +25,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -72,6 +72,20 @@ var _ = Describe("Application Normal tests", func() {
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
 
+	createServiceAccount := func(ns, name string) {
+		sa := corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		}
+		Eventually(
+			func() error {
+				return k8sClient.Create(ctx, &sa)
+			},
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	}
+
 	applyApp := func(source string) {
 		By("Apply an application")
 		var newApp v1beta1.Application
@@ -104,6 +118,20 @@ var _ = Describe("Application Normal tests", func() {
 				app.Spec = targetApp.Spec
 				return k8sClient.Update(ctx, &app)
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+	}
+
+	verifyApplicationWorkflowSuspending := func(ns, appName string) {
+		var testApp v1beta1.Application
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
+			if err != nil {
+				return err
+			}
+			if testApp.Status.Phase != oamcomm.ApplicationWorkflowSuspending {
+				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowSuspending, testApp.Status.Phase)
+			}
+			return nil
+		}, 120*time.Second, time.Second).Should(BeNil())
 	}
 
 	verifyWorkloadRunningExpected := func(workloadName string, replicas int32, image string) {
@@ -252,16 +280,102 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("check application status")
-		testApp := new(v1beta1.Application)
-		Eventually(func() error {
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, testApp)
-			if err != nil {
-				return err
-			}
-			if testApp.Status.Phase != oamcomm.ApplicationWorkflowSuspending {
-				return fmt.Errorf("error application status wants %s, actually %s", oamcomm.ApplicationWorkflowSuspending, testApp.Status.Phase)
-			}
-			return nil
-		}, 60*time.Second).Should(BeNil())
+		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+	})
+
+	It("Test app with ServiceAccount", func() {
+		By("Creating a ServiceAccount")
+		const saName = "app-service-account"
+		createServiceAccount(namespaceName, saName)
+
+		By("Creating Role and RoleBinding")
+		const roleName = "worker"
+		role := rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespaceName,
+				Name:      roleName,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{rbacv1.VerbAll},
+					APIGroups: []string{"apps"},
+					Resources: []string{"deployments"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, &role)).Should(BeNil())
+
+		roleBinding := rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespaceName,
+				Name:      roleName + "-binding",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: namespaceName,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     roleName,
+			},
+		}
+		Expect(k8sClient.Create(ctx, &roleBinding)).Should(BeNil())
+
+		By("Creating an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		newApp.Spec.ServiceAccountName = saName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("Checking an application status")
+		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
+		verifyComponentRevision("myweb", 1)
+	})
+
+	It("Test app with ServiceAccount which has no permission for the component", func() {
+		By("Creating a ServiceAccount")
+		const saName = "dummy-service-account"
+		createServiceAccount(namespaceName, saName)
+
+		By("Creating an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		newApp.Spec.ServiceAccountName = saName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("Checking an application status")
+		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+	})
+
+	It("Test app with non-existence ServiceAccount", func() {
+		By("Ensuring that given service account doesn't exists")
+		const saName = "not-existing-service-account"
+		sa := corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespaceName,
+				Name:      saName,
+			},
+		}
+		Eventually(
+			func() error {
+				return k8sClient.Delete(ctx, &sa)
+			},
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
+
+		By("Creating an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		newApp.Spec.ServiceAccountName = saName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("Checking an application status")
+		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
 	})
 })

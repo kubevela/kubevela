@@ -24,9 +24,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -44,6 +46,7 @@ type Dispatcher func(ctx context.Context, cluster string, owner common.ResourceC
 type Deleter func(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error
 
 type provider struct {
+	app    *v1beta1.Application
 	apply  Dispatcher
 	delete Deleter
 	cli    client.Client
@@ -85,6 +88,9 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if h.app != nil {
+		deployCtx = oamutil.SetServiceAccountInContext(deployCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -119,6 +125,9 @@ func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act ty
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if h.app != nil {
+		deployCtx = oamutil.SetServiceAccountInContext(deployCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
 	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
 		return v.FillObject(err, "err")
 	}
@@ -145,6 +154,9 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 		return err
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if h.app != nil {
+		readCtx = oamutil.SetServiceAccountInContext(readCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -187,6 +199,9 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 		client.MatchingLabels(filter.MatchingLabels),
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if h.app != nil {
+		readCtx = oamutil.SetServiceAccountInContext(readCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -208,6 +223,9 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 		return err
 	}
 	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	if h.app != nil {
+		deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
 	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -215,8 +233,12 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client, apply Dispatcher, deleter Deleter) {
+func Install(p providers.Providers, app *v1beta1.Application, cli client.Client, apply Dispatcher, deleter Deleter) {
+	if app != nil {
+		app = app.DeepCopy()
+	}
 	prd := &provider{
+		app:    app,
 		apply:  apply,
 		delete: deleter,
 		cli:    cli,
