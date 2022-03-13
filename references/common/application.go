@@ -428,10 +428,8 @@ func Info(app *corev1beta1.Application) string {
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
 		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
 		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
-		fmt.Sprintf("      App status: vela status %s\n", appName)
-	for _, comp := range app.Spec.Components {
-		appUpMessage += fmt.Sprintf("  Service status: vela status %s --svc %s\n", appName, comp.Name)
-	}
+		fmt.Sprintf("      App status: vela status %s\n", appName) +
+		fmt.Sprintf("        Endpoint: vela status %s\n --endpoint", appName)
 	return appUpMessage
 }
 
