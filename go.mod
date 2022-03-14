@@ -74,8 +74,10 @@ require (
 	k8s.io/api v0.22.1
 	k8s.io/apiextensions-apiserver v0.22.1
 	k8s.io/apimachinery v0.22.1
+	k8s.io/apiserver v0.22.1
 	k8s.io/cli-runtime v0.21.0
 	k8s.io/client-go v0.22.1
+	k8s.io/component-base v0.22.1
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/kube-aggregator v0.22.1
@@ -264,8 +266,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
-	k8s.io/apiserver v0.22.1 // indirect
-	k8s.io/component-base v0.22.1 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.24 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24 // indirect
 	sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2 // indirect
