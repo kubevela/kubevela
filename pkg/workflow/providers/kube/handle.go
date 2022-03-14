@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -223,10 +224,10 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 }
 
 func (h *provider) setServiceAccountInContext(ctx context.Context) context.Context {
-	if h.app != nil {
-		ctx = oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	if h.app == nil {
+		return ctx
 	}
-	return ctx
+	return oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, h.app.GetAnnotations()[oam.AnnotationServiceAccountName])
 }
 
 // Install register handlers to provider discover.

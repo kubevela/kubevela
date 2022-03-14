@@ -122,7 +122,8 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
 	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-		applyCtx = oamutil.SetServiceAccountInContext(applyCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+		applyCtx = oamutil.SetServiceAccountInContext(
+			applyCtx, h.app.Namespace, h.app.GetAnnotations()[oam.AnnotationServiceAccountName])
 		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
 	}, manifests, MaxDispatchConcurrent)
 	return velaerrors.AggregateErrors(errs.([]error))

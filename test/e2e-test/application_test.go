@@ -33,6 +33,7 @@ import (
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -329,7 +330,9 @@ var _ = Describe("Application Normal tests", func() {
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
-		newApp.Spec.ServiceAccountName = saName
+		annotations := newApp.GetAnnotations()
+		annotations[oam.AnnotationServiceAccountName] = saName
+		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
@@ -346,7 +349,9 @@ var _ = Describe("Application Normal tests", func() {
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
-		newApp.Spec.ServiceAccountName = saName
+		annotations := newApp.GetAnnotations()
+		annotations[oam.AnnotationServiceAccountName] = saName
+		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
@@ -372,7 +377,9 @@ var _ = Describe("Application Normal tests", func() {
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
-		newApp.Spec.ServiceAccountName = saName
+		annotations := newApp.GetAnnotations()
+		annotations[oam.AnnotationServiceAccountName] = saName
+		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")

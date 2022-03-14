@@ -2,8 +2,9 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: app-service-account-e2e
+  annotations:
+    app.oam.dev/service-account-name: default
 spec:
-  serviceAccountName: default
   components:
     - name: myweb
       type: worker
