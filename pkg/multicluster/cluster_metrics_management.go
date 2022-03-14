@@ -40,17 +40,23 @@ type ClusterMetricsHelper interface {
 }
 
 // NewClusterMetricsMgr will create a cluster metrics manager
-func NewClusterMetricsMgr(kubeClient client.Client, refreshPeriod time.Duration) (*ClusterMetricsMgr, error) {
+func NewClusterMetricsMgr(kubeClient client.Client, refreshPeriod time.Duration, ctx context.Context) (*ClusterMetricsMgr, error) {
 	mgr := &ClusterMetricsMgr{
 		kubeClient: kubeClient,
 	}
 	go func() {
 		for {
-			clusters, _ := mgr.Refresh()
-			for _, cluster := range clusters {
-				exportMetrics(cluster.Metrics, cluster.Name)
+			select {
+			case <-ctx.Done():
+				klog.Warning("Stop cluster metrics polling loop.")
+				return
+			default:
+				clusters, _ := mgr.Refresh()
+				for _, cluster := range clusters {
+					exportMetrics(cluster.Metrics, cluster.Name)
+				}
+				time.Sleep(refreshPeriod)
 			}
-			time.Sleep(refreshPeriod)
 		}
 	}()
 	return mgr, nil

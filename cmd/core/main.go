@@ -136,7 +136,7 @@ func main() {
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
 	flag.BoolVar(&enableClusterMetrics, "enable-cluster-metrics", false, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
-	flag.DurationVar(&clusterMetricsInterval, "cluster-metrics-interval", 15*time.Second, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 60 seconds.")
+	flag.DurationVar(&clusterMetricsInterval, "cluster-metrics-interval", 15*time.Second, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	flag.BoolVar(&controllerArgs.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", false, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
 	standardcontroller.AddOptimizeFlags()
@@ -211,7 +211,7 @@ func main() {
 		}
 
 		if enableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(client, clusterMetricsInterval)
+			_, err := multicluster.NewClusterMetricsMgr(client, clusterMetricsInterval, context.Background())
 			if err != nil {
 				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 				os.Exit(1)
