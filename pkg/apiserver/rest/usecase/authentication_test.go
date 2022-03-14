@@ -27,6 +27,7 @@ import (
 	"github.com/coreos/go-oidc"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"golang.org/x/oauth2"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -50,6 +51,10 @@ var _ = Describe("Test authentication usecase functions", func() {
 		})
 		defer patch.Reset()
 		dexHandler := dexHandlerImpl{
+			token: &oauth2.Token{
+				AccessToken:  "access-token",
+				RefreshToken: "refresh-token",
+			},
 			idToken: testIDToken,
 			ds:      ds,
 		}
@@ -57,12 +62,14 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(resp.UserInfo.Email).Should(Equal("test@test.com"))
 		Expect(resp.UserInfo.Name).Should(Equal("test"))
+		Expect(resp.AccessToken).Should(Equal("access-token"))
+		Expect(resp.RefreshToken).Should(Equal("refresh-token"))
 
 		user := &model.User{
-			Email: "test@test.com",
+			Name: "test",
 		}
 		err = ds.Get(context.Background(), user)
 		Expect(err).Should(BeNil())
-		Expect(user.Name).Should(Equal("test"))
+		Expect(user.Email).Should(Equal("test@test.com"))
 	})
 })

@@ -74,7 +74,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
 	helmUsecase := usecase.NewHelmUsecase()
-	authenticationUsecase := usecase.NewAuthenticationUsecase(ds)
+	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase)
 
 	// init for default values
 

@@ -51,6 +51,13 @@ func (c *authenticationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.LoginResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.LoginResponse{}))
+
+	ws.Route(ws.GET("/dexConfig").To(c.getDexConfig).
+		Doc("get Dex config").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.DexConfigResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.DexConfigResponse{}))
 	return ws
 }
 
@@ -60,6 +67,14 @@ func (c *authenticationWebService) login(req *restful.Request, res *restful.Resp
 		bcode.ReturnError(req, res, err)
 		return
 	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *authenticationWebService) getDexConfig(req *restful.Request, res *restful.Response) {
+	base := c.authenticationUsecase.GetDexConfig(req.Request.Context())
 	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return

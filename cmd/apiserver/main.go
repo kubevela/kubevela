@@ -32,7 +32,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -47,8 +46,6 @@ func main() {
 	flag.StringVar(&s.restCfg.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
 	flag.DurationVar(&s.restCfg.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.DurationVar(&s.restCfg.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
-	flag.StringVar(&usecase.DexIssuerURL, "dex-issuer-url", "https://kubevela-dex-issuer.com", "the issuer url of dex")
-	flag.StringVar(&usecase.DexClientID, "dex-client-id", "velaux", "the client id of dex")
 	flag.Parse()
 
 	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {

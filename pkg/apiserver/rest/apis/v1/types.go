@@ -1084,7 +1084,7 @@ type SimpleResponse struct {
 // LoginResponse is the response of login request
 type LoginResponse struct {
 	UserInfo     DetailUserResponse `json:"userInfo"`
-	Token        string             `json:"token,omitempty"`
+	AccessToken  string             `json:"accessToken,omitempty"`
 	RefreshToken string             `json:"refreshToken,omitempty"`
 }
 
@@ -1093,4 +1093,12 @@ type DetailUserResponse struct {
 	Name  string `json:"name"`
 	Alias string `json:"alias,omitempty"`
 	Email string `json:"email"`
+}
+
+// DexConfigResponse is the response of dex config
+type DexConfigResponse struct {
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+	RedirectURL  string `json:"redirectURL"`
+	Issuer       string `json:"issuer"`
 }

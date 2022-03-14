@@ -60,6 +60,7 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	installID := rand.String(16)
 	info.InstallID = installID
 	info.EnableCollection = true
+	info.LoginType = model.LoginTypeLocal
 	err = u.ds.Add(ctx, info)
 	if err != nil {
 		return nil, err

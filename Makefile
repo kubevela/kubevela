@@ -19,7 +19,7 @@ unit-test-core:
 	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver)
 	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
+	go test -gcflags=all=-l -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
 
 # Build vela cli binary
 build: fmt vet lint staticcheck vela-cli kubectl-vela

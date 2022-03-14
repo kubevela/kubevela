@@ -39,17 +39,23 @@ func (u *User) TableName() string {
 
 // PrimaryKey return custom primary key
 func (u *User) PrimaryKey() string {
-	return strings.ReplaceAll(u.Email, "@", "_")
+	return verifyUserValue(u.Name)
 }
 
 // Index return custom index
 func (u *User) Index() map[string]string {
 	index := make(map[string]string)
 	if u.Name != "" {
-		index["name"] = u.Name
+		index["name"] = verifyUserValue(u.Name)
 	}
 	if u.Email != "" {
-		index["email"] = strings.ReplaceAll(u.Email, "@", "_")
+		index["email"] = verifyUserValue(u.Email)
 	}
 	return index
+}
+
+func verifyUserValue(v string) string {
+	s := strings.ReplaceAll(v, "@", "-")
+	s = strings.ReplaceAll(s, " ", "-")
+	return s
 }
