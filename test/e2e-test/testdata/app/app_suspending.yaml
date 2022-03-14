@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: apply-suspending
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
+  workflow:
+    steps:
+      - name: apply-app
+        type: apply-application
+      - name: approval
+        type: suspend

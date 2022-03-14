@@ -207,4 +207,33 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Expect(len(services.Items)).Should(Equal(0))
 	})
 
+	It("Test state keep during suspending", func() {
+		By("create suspending app")
+		app := &v1beta1.Application{}
+		Expect(common.ReadYamlToObject("testdata/app/app_suspending.yaml", app)).Should(BeNil())
+		app.SetNamespace(namespace)
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		appKey := client.ObjectKeyFromObject(app)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationWorkflowSuspending))
+		}, 30*time.Second).Should(Succeed())
+
+		By("test suspending app state-keep")
+		deploy := &v13.Deployment{}
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
+			deploy.Spec.Replicas = pointer.Int32(0)
+			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			app.Status.SetConditions(condition.Condition{Type: "StateKeep", Status: "True", Reason: condition.ReasonAvailable, LastTransitionTime: v12.Now()})
+			g.Expect(k8sClient.Status().Update(ctx, app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
+			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(1)))
+		}, 30*time.Second).Should(Succeed())
+	})
 })
