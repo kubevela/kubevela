@@ -31,7 +31,8 @@ var metricsMap map[string]*ClusterMetrics
 
 // ClusterMetricsMgr manage metrics of clusters
 type ClusterMetricsMgr struct {
-	kubeClient client.Client
+	kubeClient    client.Client
+	refreshPeriod time.Duration
 }
 
 // ClusterMetricsHelper is the interface that provides operations for cluster metrics
@@ -42,9 +43,10 @@ type ClusterMetricsHelper interface {
 // NewClusterMetricsMgr will create a cluster metrics manager
 func NewClusterMetricsMgr(ctx context.Context, kubeClient client.Client, refreshPeriod time.Duration) (*ClusterMetricsMgr, error) {
 	mgr := &ClusterMetricsMgr{
-		kubeClient: kubeClient,
+		kubeClient:    kubeClient,
+		refreshPeriod: refreshPeriod,
 	}
-	go mgr.start(ctx, refreshPeriod)
+	go mgr.start(ctx)
 	return mgr, nil
 }
 
@@ -78,7 +80,7 @@ func (cmm *ClusterMetricsMgr) Refresh() ([]VirtualCluster, error) {
 }
 
 // start will start polling cluster api to collect metrics
-func (cmm *ClusterMetricsMgr) start(ctx context.Context, refreshPeriod time.Duration) {
+func (cmm *ClusterMetricsMgr) start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,7 +91,7 @@ func (cmm *ClusterMetricsMgr) start(ctx context.Context, refreshPeriod time.Dura
 			for _, cluster := range clusters {
 				exportMetrics(cluster.Metrics, cluster.Name)
 			}
-			time.Sleep(refreshPeriod)
+			time.Sleep(cmm.refreshPeriod)
 		}
 	}
 }
