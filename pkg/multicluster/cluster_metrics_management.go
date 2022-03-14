@@ -46,7 +46,7 @@ func NewClusterMetricsMgr(ctx context.Context, kubeClient client.Client, refresh
 		kubeClient:    kubeClient,
 		refreshPeriod: refreshPeriod,
 	}
-	go mgr.start(ctx)
+	go mgr.Start(ctx)
 	return mgr, nil
 }
 
@@ -79,8 +79,8 @@ func (cmm *ClusterMetricsMgr) Refresh() ([]VirtualCluster, error) {
 	return clusters, nil
 }
 
-// start will start polling cluster api to collect metrics
-func (cmm *ClusterMetricsMgr) start(ctx context.Context) {
+// Start will start polling cluster api to collect metrics
+func (cmm *ClusterMetricsMgr) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
