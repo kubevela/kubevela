@@ -23,4 +23,6 @@ const (
 	CredentialTypeInternal v1alpha1.CredentialType = "Internal"
 	// CredentialTypeOCMManagedCluster identifies the virtual cluster from ocm
 	CredentialTypeOCMManagedCluster v1alpha1.CredentialType = "ManagedCluster"
+	// ClusterBlankEndpoint identifies the endpoint of a cluster as blank (not available)
+	ClusterBlankEndpoint = "-"
 )

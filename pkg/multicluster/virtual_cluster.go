@@ -51,7 +51,7 @@ func NewVirtualClusterFromLocal() *VirtualCluster {
 	return &VirtualCluster{
 		Name:     ClusterLocalName,
 		Type:     types.CredentialTypeInternal,
-		EndPoint: "-",
+		EndPoint: types.ClusterBlankEndpoint,
 		Accepted: true,
 		Labels:   map[string]string{},
 		Metrics:  metricsMap[ClusterLocalName],
@@ -91,7 +91,7 @@ func NewVirtualClusterFromManagedCluster(managedCluster *clusterv1.ManagedCluste
 	return &VirtualCluster{
 		Name:     managedCluster.Name,
 		Type:     types.CredentialTypeOCMManagedCluster,
-		EndPoint: "-",
+		EndPoint: types.ClusterBlankEndpoint,
 		Accepted: managedCluster.Spec.HubAcceptsClient,
 		Labels:   managedCluster.GetLabels(),
 		Metrics:  metricsMap[managedCluster.Name],

@@ -32,11 +32,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v13 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	v14 "k8s.io/api/rbac/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,17 +57,17 @@ func initializeContextAndNamespace() (hubCtx context.Context, workerCtx context.
 	hubCtx, workerCtx = initializeContext()
 	// initialize test namespace
 	namespace = "test-mc-" + utils.RandomString(4)
-	ns := &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: namespace}}
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 	Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
 	Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())
 	return
 }
 
 func cleanUpNamespace(hubCtx context.Context, workerCtx context.Context, namespace string) {
-	hubNs := &v1.Namespace{}
+	hubNs := &corev1.Namespace{}
 	Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: namespace}, hubNs)).Should(Succeed())
 	Expect(k8sClient.Delete(hubCtx, hubNs)).Should(Succeed())
-	workerNs := &v1.Namespace{}
+	workerNs := &corev1.Namespace{}
 	Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: namespace}, workerNs)).Should(Succeed())
 	Expect(k8sClient.Delete(workerCtx, workerNs)).Should(Succeed())
 }
@@ -145,8 +145,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			// create service account kubeconfig in worker cluster
 			key := time.Now().UnixNano()
 			serviceAccountName := fmt.Sprintf("test-service-account-%d", key)
-			serviceAccount := &v1.ServiceAccount{
-				ObjectMeta: v12.ObjectMeta{Namespace: "kube-system", Name: serviceAccountName},
+			serviceAccount := &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "kube-system", Name: serviceAccountName},
 			}
 			Expect(k8sClient.Create(workerCtx, serviceAccount)).Should(Succeed())
 			defer func() {
@@ -154,22 +154,22 @@ var _ = Describe("Test multicluster scenario", func() {
 				Expect(k8sClient.Delete(workerCtx, serviceAccount)).Should(Succeed())
 			}()
 			clusterRoleBindingName := fmt.Sprintf("test-cluster-role-binding-%d", key)
-			clusterRoleBinding := &v14.ClusterRoleBinding{
-				ObjectMeta: v12.ObjectMeta{Name: clusterRoleBindingName},
-				Subjects:   []v14.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: "kube-system"}},
-				RoleRef:    v14.RoleRef{Name: "cluster-admin", APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole"},
+			clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+				ObjectMeta: metav1.ObjectMeta{Name: clusterRoleBindingName},
+				Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: "kube-system"}},
+				RoleRef:    rbacv1.RoleRef{Name: "cluster-admin", APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole"},
 			}
 			Expect(k8sClient.Create(workerCtx, clusterRoleBinding)).Should(Succeed())
 			defer func() {
 				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: "kube-system", Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
 				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
 			}()
-			serviceAccount = &v1.ServiceAccount{}
+			serviceAccount = &corev1.ServiceAccount{}
 			Eventually(func(g Gomega) {
 				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
 				Expect(len(serviceAccount.Secrets)).Should(Equal(1))
 			}, time.Second*30).Should(Succeed())
-			secret := &v1.Secret{}
+			secret := &corev1.Secret{}
 			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
 			token, ok := secret.Data["token"]
 			Expect(ok).Should(BeTrue())
@@ -236,18 +236,18 @@ var _ = Describe("Test multicluster scenario", func() {
 			By("wait application resource ready")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(1))
 				hubDeployName = deploys.Items[0].Name
-				deploys = &v13.DeploymentList{}
+				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
-				deploys = &v13.DeploymentList{}
+				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
 				// check component revision
-				compRevs := &v13.ControllerRevisionList{}
+				compRevs := &appsv1.ControllerRevisionList{}
 				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(compRevs.Items)).Should(Equal(2))
 			}, time.Minute).Should(Succeed())
@@ -258,14 +258,14 @@ var _ = Describe("Test multicluster scenario", func() {
 			By("wait application resource delete")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
-				deploys = &v13.DeploymentList{}
+				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
 				// check component revision
-				compRevs := &v13.ControllerRevisionList{}
+				compRevs := &appsv1.ControllerRevisionList{}
 				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(compRevs.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
@@ -291,7 +291,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			By("wait application resource ready")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(1))
 				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(2))
@@ -309,7 +309,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			app.Spec.Policies[0].Properties.Raw = bs
 			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
@@ -321,7 +321,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			app.Spec.Policies[0].Properties.Raw = bs
 			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
@@ -335,7 +335,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			app.Spec.Policies[0].Properties.Raw = bs
 			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(1))
 				g.Expect(int(*deploys.Items[0].Spec.Replicas)).Should(Equal(1))
@@ -349,10 +349,10 @@ var _ = Describe("Test multicluster scenario", func() {
 			By("wait application resource delete")
 			Eventually(func(g Gomega) {
 				// check deployments in clusters
-				deploys := &v13.DeploymentList{}
+				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
-				deploys = &v13.DeploymentList{}
+				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
@@ -371,11 +371,11 @@ var _ = Describe("Test multicluster scenario", func() {
 			targetNamespace := "test-addon-namespace"
 			Eventually(func() error {
 				// check deployments in clusters
-				ns := v1.Namespace{}
+				ns := corev1.Namespace{}
 				if err := k8sClient.Get(hubCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
 					return err
 				}
-				svc := v1.Service{}
+				svc := corev1.Service{}
 				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
 					return err
 				}
@@ -384,11 +384,11 @@ var _ = Describe("Test multicluster scenario", func() {
 
 			Eventually(func() error {
 				// check deployments in clusters
-				ns := v1.Namespace{}
+				ns := corev1.Namespace{}
 				if err := k8sClient.Get(workerCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
 					return err
 				}
-				svc := v1.Service{}
+				svc := corev1.Service{}
 				if err := k8sClient.Get(workerCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
 					return err
 				}
@@ -415,7 +415,7 @@ var _ = Describe("Test multicluster scenario", func() {
 		It("Test deploy multi-cluster application with target", func() {
 			By("apply application")
 			app := &v1beta1.Application{
-				ObjectMeta: v12.ObjectMeta{Namespace: namespace, Name: "test-app-target"},
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "test-app-target"},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
 						Name:       "test-busybox",
@@ -435,8 +435,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			}
 			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &v13.Deployment{})).Should(Succeed())
-				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: "test-busybox", Namespace: prodNamespace}, &v13.Deployment{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
+				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: "test-busybox", Namespace: prodNamespace}, &appsv1.Deployment{})).Should(Succeed())
 			}, time.Minute).Should(Succeed())
 		})
 	})

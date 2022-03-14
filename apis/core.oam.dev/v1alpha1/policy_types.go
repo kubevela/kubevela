@@ -27,7 +27,8 @@ const (
 type TopologyPolicySpec struct {
 	// Placement embeds the selectors for choosing cluster
 	Placement `json:",inline"`
-	// Namespace specify the namespace for override, used along which clusters/clusterLabelSelector/clusterSelector
+	// Namespace is the target namespace to deploy in the selected clusters.
+	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
 
