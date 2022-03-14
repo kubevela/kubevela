@@ -16,7 +16,10 @@ limitations under the License.
 
 package utils
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // MemoryCache memory cache, support time expired
 type MemoryCache struct {
@@ -27,7 +30,21 @@ type MemoryCache struct {
 
 // NewMemoryCache new memory cache instance
 func NewMemoryCache(data interface{}, cacheDuration time.Duration) *MemoryCache {
-	return &MemoryCache{data: data, cacheDuration: cacheDuration, startTime: time.Now()}
+	mc := &MemoryCache{data: data, cacheDuration: cacheDuration, startTime: time.Now()}
+	go mc.autoClearData(context.Background())
+	return mc
+}
+
+// autoClearData wait cache
+func (m *MemoryCache) autoClearData(ctx context.Context) {
+	timer := time.NewTimer(m.cacheDuration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		m.data = nil
+	case <-ctx.Done():
+		m.data = nil
+	}
 }
 
 // IsExpired whether the cache data expires
