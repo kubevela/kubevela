@@ -88,9 +88,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if h.app != nil {
-		deployCtx = oamutil.SetServiceAccountInContext(deployCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
-	}
+	deployCtx = h.setServiceAccountInContext(deployCtx)
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -125,9 +123,7 @@ func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act ty
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if h.app != nil {
-		deployCtx = oamutil.SetServiceAccountInContext(deployCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
-	}
+	deployCtx = h.setServiceAccountInContext(deployCtx)
 	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
 		return v.FillObject(err, "err")
 	}
@@ -154,9 +150,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 		return err
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if h.app != nil {
-		readCtx = oamutil.SetServiceAccountInContext(readCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
-	}
+	readCtx = h.setServiceAccountInContext(readCtx)
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -199,9 +193,7 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 		client.MatchingLabels(filter.MatchingLabels),
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if h.app != nil {
-		readCtx = oamutil.SetServiceAccountInContext(readCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
-	}
+	readCtx = h.setServiceAccountInContext(readCtx)
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -223,13 +215,18 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 		return err
 	}
 	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	if h.app != nil {
-		deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, h.app.Spec.ServiceAccountName)
-	}
+	deleteCtx = h.setServiceAccountInContext(deleteCtx)
 	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	return nil
+}
+
+func (h *provider) setServiceAccountInContext(ctx context.Context) context.Context {
+	if h.app != nil {
+		ctx = oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, h.app.Spec.ServiceAccountName)
+	}
+	return ctx
 }
 
 // Install register handlers to provider discover.
