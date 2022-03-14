@@ -98,9 +98,8 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 }
 
 // GetClusterMetricsFromMetricsAPI retrieves current cluster metrics based on GetNodeMetricsFromMetricsAPI
-func GetClusterMetricsFromMetricsAPI(_ctx context.Context, k8sClient client.Client, clusterName string) (*ClusterUsageMetrics, error) {
+func GetClusterMetricsFromMetricsAPI(ctx context.Context, k8sClient client.Client, clusterName string) (*ClusterUsageMetrics, error) {
 	nodeMetricsList := metricsV1beta1api.NodeMetricsList{}
-	ctx := ContextWithClusterName(_ctx, clusterName)
 	if err := k8sClient.List(ctx, &nodeMetricsList); err != nil {
 		return nil, errors.Wrapf(err, "failed to list node metrics")
 	}
@@ -109,7 +108,6 @@ func GetClusterMetricsFromMetricsAPI(_ctx context.Context, k8sClient client.Clie
 		cpuUsage.Add(*nm.Usage.Cpu())
 		memoryUsage.Add(*nm.Usage.Memory())
 	}
-
 	return &ClusterUsageMetrics{
 		CPUUsage:    cpuUsage,
 		MemoryUsage: memoryUsage,
