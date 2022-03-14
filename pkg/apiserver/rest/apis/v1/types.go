@@ -19,6 +19,8 @@ package v1
 import (
 	"time"
 
+	"helm.sh/helm/v3/pkg/repo"
+
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -1061,6 +1063,11 @@ type SystemInfoRequest struct {
 type SystemVersion struct {
 	VelaVersion string `json:"velaVersion"`
 	GitVersion  string `json:"gitVersion"`
+}
+
+// ChartVersionListResponse contains helm chart versions info
+type ChartVersionListResponse struct {
+	Versions repo.ChartVersions `json:"versions"`
 }
 
 // SimpleResponse simple response model for temporary

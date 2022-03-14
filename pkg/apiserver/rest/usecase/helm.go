@@ -65,7 +65,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string) ([]s
 	if err != nil {
 		return nil, err
 	}
-	d.repoCache[url] = utils.NewMemoryCache(charts, 10*time.Minute)
+	d.repoCache[url] = utils.NewMemoryCache(charts, 3*time.Minute)
 	return charts, nil
 }
 
@@ -78,8 +78,7 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 	if err != nil {
 		return nil, err
 	}
-	// helm version updating is more frequent， so set 1min expired time
-	d.versionCache[fmt.Sprintf(versionPatten, url, chartName)] = utils.NewMemoryCache(chartVersions, 1*time.Minute)
+	d.versionCache[fmt.Sprintf(versionPatten, url, chartName)] = utils.NewMemoryCache(chartVersions, 3*time.Minute)
 	return chartVersions, nil
 }
 
@@ -94,8 +93,7 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, char
 	}
 	res := make(map[string]interface{}, len(v))
 	flattenKey("", v, res)
-	// modify charts value is very low frequency operation, so 10 min is enough
-	d.valuesCache[fmt.Sprintf(valuePatten, url, chartName, version)] = utils.NewMemoryCache(res, 10*time.Minute)
+	d.valuesCache[fmt.Sprintf(valuePatten, url, chartName, version)] = utils.NewMemoryCache(res, 3*time.Minute)
 	return res, nil
 }
 

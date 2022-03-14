@@ -19,7 +19,7 @@ package webservice
 import (
 	"context"
 
-	"helm.sh/helm/v3/pkg/repo"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
@@ -39,38 +39,38 @@ func NewHelmWebService(u usecase.HelmHandler) WebService {
 
 func (h helmWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix+"/helm").
+	ws.Path(versionPrefix+"/repository").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for helm")
 
-	tags := []string{"helm"}
+	tags := []string{"repository", "helm"}
 
 	// List charts
 	ws.Route(ws.GET("/charts").To(h.listCharts).
 		Doc("list charts").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
-		Returns(200, "", []string{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", []string{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
 	// List available chart versions
-	ws.Route(ws.GET("/{chart}/versions").To(h.listVersions).
+	ws.Route(ws.GET("/charts/{chart}/versions").To(h.listVersions).
 		Doc("list versions").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
-		Returns(200, "", repo.ChartVersions{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", v1.ChartVersionListResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
 	// List available chart versions
-	ws.Route(ws.GET("/{chart}/{version}/values").To(h.chartValues).
+	ws.Route(ws.GET("/charts/{chart}/versions/{version}/values").To(h.chartValues).
 		Doc("get chart value").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("repoUrl", "helm repository url").DataType("string")).
-		Returns(200, "", map[string]interface{}{}).
-		Returns(400, "", bcode.Bcode{}).
+		Returns(200, "OK", map[string]interface{}{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
 	return ws
@@ -96,7 +96,7 @@ func (h helmWebService) listVersions(req *restful.Request, res *restful.Response
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 	}
-	err = res.WriteEntity(versions)
+	err = res.WriteEntity(v1.ChartVersionListResponse{Versions: versions})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
