@@ -29,5 +29,5 @@ kubectl apply -f ./docs/examples/rollout-trait/app-v3.yaml
 
 6. modify targetSize as 7 to scale
 ```shell
-kubectl apply -f ./docs/examples/rollout-trait/app-sacle.yaml
+kubectl apply -f ./docs/examples/rollout-trait/app-scale.yaml
 ```
