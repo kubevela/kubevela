@@ -211,7 +211,7 @@ func main() {
 		}
 
 		if enableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(client, clusterMetricsInterval, context.Background())
+			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, clusterMetricsInterval)
 			if err != nil {
 				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
 				os.Exit(1)

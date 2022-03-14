@@ -53,7 +53,6 @@ type ClusterInfo struct {
 type ClusterUsageMetrics struct {
 	CPUUsage    resource.Quantity
 	MemoryUsage resource.Quantity
-	PodUsage    resource.Quantity
 }
 
 // GetClusterInfo retrieves current cluster info from cluster
@@ -105,22 +104,14 @@ func GetClusterMetricsFromMetricsAPI(_ctx context.Context, k8sClient client.Clie
 	if err := k8sClient.List(ctx, &nodeMetricsList); err != nil {
 		return nil, errors.Wrapf(err, "failed to list node metrics")
 	}
-	var memoryUsage, cpuUsage, podUsage resource.Quantity
+	var memoryUsage, cpuUsage resource.Quantity
 	for _, nm := range nodeMetricsList.Items {
 		cpuUsage.Add(*nm.Usage.Cpu())
 		memoryUsage.Add(*nm.Usage.Memory())
 	}
 
-	// get the number of pods in cluster
-	podList := corev1.PodList{}
-	if err := k8sClient.List(ctx, &podList); err != nil {
-		return nil, errors.Wrapf(err, "failed to list cluster pods")
-	}
-	podUsage.Set(int64(len(podList.Items)))
-
 	return &ClusterUsageMetrics{
 		CPUUsage:    cpuUsage,
 		MemoryUsage: memoryUsage,
-		PodUsage:    podUsage,
 	}, nil
 }

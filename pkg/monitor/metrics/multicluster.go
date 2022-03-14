@@ -94,12 +94,4 @@ var (
 		Help:        "cluster cpu usage number.",
 		ConstLabels: prometheus.Labels{},
 	}, []string{"cluster"})
-
-	// ClusterPodUsageGauge report the number of PodUsage in cluster
-	ClusterPodUsageGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name:        "cluster_pod_usage",
-		Help:        "cluster pod usage number.",
-		ConstLabels: prometheus.Labels{},
-	}, []string{"cluster"})
 )
-

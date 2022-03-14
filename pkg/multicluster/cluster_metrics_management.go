@@ -40,7 +40,7 @@ type ClusterMetricsHelper interface {
 }
 
 // NewClusterMetricsMgr will create a cluster metrics manager
-func NewClusterMetricsMgr(kubeClient client.Client, refreshPeriod time.Duration, ctx context.Context) (*ClusterMetricsMgr, error) {
+func NewClusterMetricsMgr(ctx context.Context, kubeClient client.Client, refreshPeriod time.Duration) (*ClusterMetricsMgr, error) {
 	mgr := &ClusterMetricsMgr{
 		kubeClient: kubeClient,
 	}
@@ -115,6 +115,5 @@ func exportMetrics(m *ClusterMetrics, clusterName string) {
 	if m.ClusterUsageMetrics != nil {
 		metrics.ClusterMemoryUsageGauge.WithLabelValues(clusterName).Set(m.ClusterUsageMetrics.MemoryUsage.AsApproximateFloat64())
 		metrics.ClusterCPUUsageGauge.WithLabelValues(clusterName).Set(float64(m.ClusterUsageMetrics.CPUUsage.MilliValue()))
-		metrics.ClusterPodUsageGauge.WithLabelValues(clusterName).Set(m.ClusterUsageMetrics.PodUsage.AsApproximateFloat64())
 	}
 }
