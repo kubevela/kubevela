@@ -33,3 +33,11 @@ func GetCluster(o client.Object) string {
 	}
 	return ""
 }
+
+// GetServiceAccountName extracts service account name from the given object
+func GetServiceAccountName(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationServiceAccountName]
+	}
+	return ""
+}
