@@ -48,7 +48,7 @@ var _ = Describe("Test Install Command", func() {
 	})
 
 	It("Test disable all addons", func() {
-		err := forceDisableAddon(context.Background(), k8sClient)
+		err := forceDisableAddon(context.Background(), k8sClient, cfg)
 		Expect(err).Should(BeNil())
 		Eventually(func() error {
 			addons, err := checkInstallAddon(k8sClient)

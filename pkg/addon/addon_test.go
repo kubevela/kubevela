@@ -61,6 +61,10 @@ var paths = []string{
 
 	"test-error-addon/metadata.yaml",
 	"test-error-addon/resources/parameter.cue",
+
+	"test-disable-addon/metadata.yaml",
+	"test-disable-addon/definitions/compDef.yaml",
+	"test-disable-addon/definitions/traitDef.cue",
 }
 
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
@@ -128,7 +132,7 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, len(uiDataList), 3)
+	assert.Equal(t, 4, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package

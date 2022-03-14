@@ -17,6 +17,8 @@ limitations under the License.
 package webservice
 
 import (
+	"strconv"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
@@ -182,7 +184,13 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
-	err := s.handler.DisableAddon(req.Request.Context(), name)
+	forceParam := req.QueryParameter("force")
+	force, err := strconv.ParseBool(forceParam)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = s.handler.DisableAddon(req.Request.Context(), name, force)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

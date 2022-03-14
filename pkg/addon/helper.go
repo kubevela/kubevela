@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"k8s.io/client-go/discovery"
 
 	"k8s.io/klog/v2"
@@ -65,12 +67,24 @@ func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryC
 }
 
 // DisableAddon will disable addon from cluster.
-func DisableAddon(ctx context.Context, cli client.Client, name string) error {
+func DisableAddon(ctx context.Context, cli client.Client, name string, config *rest.Config, force bool) error {
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	// if app not exist, report error
 	if err != nil {
 		return err
 	}
+
+	if !force {
+		var usingAddonApp []v1beta1.Application
+		usingAddonApp, err = checkAddonHasBeenUsed(ctx, cli, name, *app, config)
+		if err != nil {
+			return err
+		}
+		if len(usingAddonApp) != 0 {
+			return fmt.Errorf("some applications still using this addon, cannot disable yet ")
+		}
+	}
+
 	if err := cli.Delete(ctx, app); err != nil {
 		return err
 	}

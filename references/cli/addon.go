@@ -68,6 +68,8 @@ const (
 	statusDisabled = "disabled"
 )
 
+var forceDisable bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -270,7 +272,7 @@ func parseToMap(args []string) (map[string]interface{}, error) {
 
 // NewAddonDisableCommand create addon disable command
 func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "disable",
 		Short:   "disable an addon",
 		Long:    "disable an addon in cluster.",
@@ -284,7 +286,11 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			err = disableAddon(k8sClient, name)
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			err = disableAddon(k8sClient, name, config, forceDisable)
 			if err != nil {
 				return err
 			}
@@ -292,6 +298,8 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&forceDisable, "force", "f", false, "skip checking if applications are still using this addon")
+	return cmd
 }
 
 // NewAddonStatusCommand create addon status command
@@ -350,8 +358,8 @@ func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient 
 	return nil
 }
 
-func disableAddon(client client.Client, name string) error {
-	if err := pkgaddon.DisableAddon(context.Background(), client, name); err != nil {
+func disableAddon(client client.Client, name string, config *rest.Config, force bool) error {
+	if err := pkgaddon.DisableAddon(context.Background(), client, name, config, force); err != nil {
 		return err
 	}
 	return nil

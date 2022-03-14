@@ -1100,6 +1100,10 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
+	if err := passDefInAppAnnotation(defs, app); err != nil {
+		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
+	}
+
 	err = h.apply.Apply(h.ctx, app, apply.DisableUpdateAnnotation())
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
