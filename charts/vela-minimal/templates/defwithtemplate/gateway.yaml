@@ -8,6 +8,8 @@ metadata:
   name: gateway
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  appliesToWorkloads:
+    - '*'
   podDisruptive: false
   schematic:
     cue:
