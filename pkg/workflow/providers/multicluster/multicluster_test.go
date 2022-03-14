@@ -26,6 +26,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -33,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
@@ -511,6 +514,7 @@ func TestListClusters(t *testing.T) {
 }
 
 func TestExpandTopology(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpecCompatible, true)()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&v1.Secret{
 		ObjectMeta: v12.ObjectMeta{
@@ -574,6 +578,10 @@ func TestExpandTopology(t *testing.T) {
 		},
 		"topology-by-cluster-selector": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+		},
+		"topology-by-cluster-label-selector": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterLabelSelector:{"key":"value"}}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
 		},
 	}

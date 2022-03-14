@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -193,8 +194,8 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 					}
 					addCluster(cluster)
 				}
-			} else if topologySpec.ClusterSelector != nil {
-				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, topologySpec.ClusterSelector)
+			} else if clusterLabelSelector := pkgpolicy.GetClusterLabelSelectorInTopology(topologySpec); clusterLabelSelector != nil {
+				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, clusterLabelSelector)
 				if err != nil {
 					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}

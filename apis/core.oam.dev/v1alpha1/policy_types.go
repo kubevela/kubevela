@@ -25,8 +25,22 @@ const (
 
 // TopologyPolicySpec defines the spec of topology policy
 type TopologyPolicySpec struct {
-	Clusters        []string          `json:"clusters,omitempty"`
-	ClusterSelector map[string]string `json:"clusterSelector,omitempty"`
+	// Placement embeds the selectors for choosing cluster
+	Placement `json:",inline"`
+}
+
+// Placement describes which clusters to be selected in this topology
+type Placement struct {
+	// Clusters is the names of the clusters to select.
+	Clusters []string `json:"clusters,omitempty"`
+
+	// ClusterLabelSelector is the label selector for clusters.
+	// Exclusive to "clusters"
+	ClusterLabelSelector map[string]string `json:"clusterLabelSelector,omitempty"`
+
+	// DeprecatedClusterSelector is a depreciated alias for ClusterLabelSelector.
+	// Deprecated: Use clusterLabelSelector instead.
+	DeprecatedClusterSelector map[string]string `json:"clusterSelector,omitempty"`
 }
 
 // OverridePolicySpec defines the spec of override policy
