@@ -55,7 +55,7 @@ type DefinitionUsecase interface {
 
 type definitionUsecaseImpl struct {
 	kubeClient client.Client
-	caches     map[string]*utils.MemoryCache
+	caches     *utils.MemoryCacheStore
 }
 
 const (
@@ -71,7 +71,7 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
-	return &definitionUsecaseImpl{kubeClient: kubecli, caches: make(map[string]*utils.MemoryCache)}
+	return &definitionUsecaseImpl{kubeClient: kubecli, caches: utils.NewMemoryCacheStore(context.Background())}
 }
 
 func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
@@ -98,8 +98,8 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, de
 }
 
 func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches[cache]; mc != nil && !mc.IsExpired() && appliedWorkload == "" {
-		return mc.GetData().([]*apisv1.DefinitionBase), nil
+	if mc := d.caches.Get(cache); mc != nil && appliedWorkload == "" {
+		return mc.([]*apisv1.DefinitionBase), nil
 	}
 	matchLabels := metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -154,7 +154,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 		defs = append(defs, definition)
 	}
 	if appliedWorkload == "" {
-		d.caches[cache] = utils.NewMemoryCache(defs, time.Minute*3)
+		d.caches.Put(cache, defs, time.Minute*3)
 	}
 	return defs, nil
 }
