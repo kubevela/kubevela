@@ -22,6 +22,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -627,6 +628,7 @@ type UpdateApplicationComponentRequest struct {
 // DetailComponentResponse detail component response body
 type DetailComponentResponse struct {
 	model.ApplicationComponent
+	Definition v1beta1.ComponentDefinitionSpec `json:"definition"`
 }
 
 // ListApplicationComponentOptions list app  component list

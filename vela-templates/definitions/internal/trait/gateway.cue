@@ -5,6 +5,7 @@ gateway: {
 	description: "Enable public web traffic for the component, the ingress API matches K8s v1.20+."
 	attributes: {
 		podDisruptive: false
+		appliesToWorkloads: ["*"]
 		status: {
 			customStatus: #"""
 				let igs = context.outputs.ingress.status.loadBalancer.ingress

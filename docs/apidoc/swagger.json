@@ -4093,6 +4093,19 @@
 				}
 			}
 		},
+		"addon.GiteeAddonSource": {
+			"properties": {
+				"path": {
+					"type": "string"
+				},
+				"token": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			}
+		},
 		"addon.Meta": {
 			"required": [
 				"name",
@@ -4349,6 +4362,9 @@
 				"healthy"
 			],
 			"properties": {
+				"cluster": {
+					"type": "string"
+				},
 				"env": {
 					"type": "string"
 				},
@@ -4359,6 +4375,9 @@
 					"type": "string"
 				},
 				"name": {
+					"type": "string"
+				},
+				"namespace": {
 					"type": "string"
 				},
 				"scopes": {
@@ -4408,6 +4427,36 @@
 				}
 			}
 		},
+		"common.CUE": {
+			"required": [
+				"template"
+			],
+			"properties": {
+				"template": {
+					"type": "string"
+				}
+			}
+		},
+		"common.ChildResourceKind": {
+			"required": [
+				"apiVersion",
+				"kind"
+			],
+			"properties": {
+				"apiVersion": {
+					"type": "string"
+				},
+				"kind": {
+					"type": "string"
+				},
+				"selector": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"common.ClusterObjectReference": {
 			"description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
 			"properties": {
@@ -4447,6 +4496,63 @@
 				}
 			}
 		},
+		"common.Helm": {
+			"required": [
+				"release",
+				"repository"
+			],
+			"properties": {
+				"release": {
+					"type": "string"
+				},
+				"repository": {
+					"type": "string"
+				}
+			}
+		},
+		"common.Kube": {
+			"required": [
+				"template"
+			],
+			"properties": {
+				"parameters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.KubeParameter"
+					}
+				},
+				"template": {
+					"type": "string"
+				}
+			}
+		},
+		"common.KubeParameter": {
+			"required": [
+				"name",
+				"type",
+				"fieldPaths"
+			],
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"fieldPaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"required": {
+					"type": "boolean"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
 		"common.PolicyStatus": {
 			"required": [
 				"name",
@@ -4482,6 +4588,32 @@
 				}
 			}
 		},
+		"common.Schematic": {
+			"properties": {
+				"cue": {
+					"$ref": "#/definitions/common.CUE"
+				},
+				"helm": {
+					"$ref": "#/definitions/common.Helm"
+				},
+				"kube": {
+					"$ref": "#/definitions/common.Kube"
+				},
+				"terraform": {
+					"$ref": "#/definitions/common.Terraform"
+				}
+			}
+		},
+		"common.Status": {
+			"properties": {
+				"customStatus": {
+					"type": "string"
+				},
+				"healthPolicy": {
+					"type": "string"
+				}
+			}
+		},
 		"common.SubStepsStatus": {
 			"properties": {
 				"mode": {
@@ -4496,6 +4628,34 @@
 					"items": {
 						"$ref": "#/definitions/common.WorkflowSubStepStatus"
 					}
+				}
+			}
+		},
+		"common.Terraform": {
+			"required": [
+				"configuration"
+			],
+			"properties": {
+				"configuration": {
+					"type": "string"
+				},
+				"customRegion": {
+					"type": "string"
+				},
+				"deleteResource": {
+					"type": "boolean"
+				},
+				"path": {
+					"type": "string"
+				},
+				"providerRef": {
+					"$ref": "#/definitions/types.Reference"
+				},
+				"type": {
+					"type": "string"
+				},
+				"writeConnectionSecretToRef": {
+					"$ref": "#/definitions/types.SecretReference"
 				}
 			}
 		},
@@ -4608,6 +4768,16 @@
 					"type": "string"
 				},
 				"kind": {
+					"type": "string"
+				}
+			}
+		},
+		"common.WorkloadTypeDescriptor": {
+			"properties": {
+				"definition": {
+					"$ref": "#/definitions/common.WorkloadGVK"
+				},
+				"type": {
 					"type": "string"
 				}
 			}
@@ -4876,8 +5046,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"name",
 				"alias",
 				"description",
@@ -5158,6 +5328,32 @@
 			}
 		},
 		"types.Parameter.default": {},
+		"types.Reference": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"types.SecretReference": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				}
+			}
+		},
 		"utils.GroupOption": {
 			"required": [
 				"label",
@@ -5360,6 +5556,9 @@
 				"git": {
 					"$ref": "#/definitions/addon.GitAddonSource"
 				},
+				"gitee": {
+					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -5519,8 +5718,8 @@
 				"note",
 				"envName",
 				"triggerType",
-				"version",
-				"createTime"
+				"createTime",
+				"version"
 			],
 			"properties": {
 				"codeInfo": {
@@ -6091,6 +6290,9 @@
 				"git": {
 					"$ref": "#/definitions/addon.GitAddonSource"
 				},
+				"gitee": {
+					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -6527,11 +6729,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"version",
-				"icon",
 				"name",
 				"invisible",
+				"version",
 				"description",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -6604,13 +6806,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"alias",
 				"project",
 				"description",
 				"createTime",
 				"updateTime",
 				"icon",
 				"name",
-				"alias",
 				"policies",
 				"envBindings",
 				"status",
@@ -6672,20 +6874,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"alias",
-				"apiServerURL",
-				"dashboardURL",
 				"provider",
 				"kubeConfig",
-				"updateTime",
-				"description",
-				"icon",
-				"status",
-				"reason",
 				"createTime",
 				"name",
-				"labels",
+				"icon",
+				"status",
+				"dashboardURL",
 				"kubeConfigSecret",
+				"updateTime",
+				"labels",
+				"reason",
+				"apiServerURL",
+				"alias",
+				"description",
 				"resourceInfo"
 			],
 			"properties": {
@@ -6743,14 +6945,15 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
-				"appPrimaryKey",
-				"type",
-				"alias",
-				"main",
 				"createTime",
+				"updateTime",
+				"main",
+				"alias",
+				"appPrimaryKey",
 				"creator",
-				"name"
+				"name",
+				"type",
+				"definition"
 			],
 			"properties": {
 				"alias": {
@@ -6765,6 +6968,9 @@
 				},
 				"creator": {
 					"type": "string"
+				},
+				"definition": {
+					"$ref": "#/definitions/v1beta1.ComponentDefinitionSpec"
 				},
 				"dependsOn": {
 					"type": "array",
@@ -6848,13 +7054,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties",
-				"createTime"
+				"properties"
 			],
 			"properties": {
 				"createTime": {
@@ -6884,17 +7090,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"workflowName",
-				"updateTime",
-				"version",
 				"deployUser",
-				"envName",
-				"createTime",
-				"status",
+				"workflowName",
+				"reason",
 				"note",
+				"status",
+				"envName",
 				"triggerType",
+				"createTime",
+				"updateTime",
 				"appPrimaryKey",
-				"reason"
+				"version"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -6948,9 +7154,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"name",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -6987,12 +7193,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
+				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7044,14 +7250,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
 				"description",
 				"envName",
+				"createTime",
 				"updateTime",
+				"name",
 				"alias",
 				"enable",
-				"default",
-				"createTime"
+				"default"
 			],
 			"properties": {
 				"alias": {
@@ -7731,6 +7937,9 @@
 				"git": {
 					"$ref": "#/definitions/addon.GitAddonSource"
 				},
+				"gitee": {
+					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
 				"oss": {
 					"$ref": "#/definitions/addon.OSSAddonSource"
 				}
@@ -8024,6 +8233,37 @@
 				}
 			}
 		},
+		"v1beta1.ComponentDefinitionSpec": {
+			"required": [
+				"workload"
+			],
+			"properties": {
+				"childResourceKinds": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.ChildResourceKind"
+					}
+				},
+				"extension": {
+					"type": "string"
+				},
+				"podSpecPath": {
+					"type": "string"
+				},
+				"revisionLabel": {
+					"type": "string"
+				},
+				"schematic": {
+					"$ref": "#/definitions/common.Schematic"
+				},
+				"status": {
+					"$ref": "#/definitions/common.Status"
+				},
+				"workload": {
+					"$ref": "#/definitions/common.WorkloadTypeDescriptor"
+				}
+			}
+		},
 		"v1beta1.Workflow": {
 			"properties": {
 				"ref": {
@@ -8069,6 +8309,22 @@
 				},
 				"type": {
 					"type": "string"
+				}
+			}
+		},
+		"v1beta2.BaseConfigurationSpec": {
+			"properties": {
+				"customRegion": {
+					"type": "string"
+				},
+				"deleteResource": {
+					"type": "boolean"
+				},
+				"providerRef": {
+					"$ref": "#/definitions/types.Reference"
+				},
+				"writeConnectionSecretToRef": {
+					"$ref": "#/definitions/types.SecretReference"
 				}
 			}
 		}
