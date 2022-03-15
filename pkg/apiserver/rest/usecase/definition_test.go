@@ -45,7 +45,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 	)
 
 	BeforeEach(func() {
-		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.TODO())}
 		err := k8sClient.Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-system",
