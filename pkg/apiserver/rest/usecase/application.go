@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -577,8 +578,14 @@ func (c *applicationUsecaseImpl) DetailComponent(ctx context.Context, app *model
 	if err != nil {
 		return nil, err
 	}
+	var cd v1beta1.ComponentDefinition
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: component.Type, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
+		log.Logger.Warnf("component definition %s get failure. %s", component.Type, err.Error())
+	}
+
 	return &apisv1.DetailComponentResponse{
 		ApplicationComponent: component,
+		Definition:           cd.Spec,
 	}, nil
 }
 
