@@ -88,6 +88,8 @@ func main() {
 	var renewDeadline time.Duration
 	var retryPeriod time.Duration
 	var enableClusterGateway bool
+	var enableClusterMetrics bool
+	var clusterMetricsInterval time.Duration
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
@@ -135,6 +137,8 @@ func main() {
 	flag.DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the LeaderElector clients should wait between tries of actions")
 	flag.BoolVar(&enableClusterGateway, "enable-cluster-gateway", false, "Enable cluster-gateway to use multicluster, disabled by default.")
+	flag.BoolVar(&enableClusterMetrics, "enable-cluster-metrics", false, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
+	flag.DurationVar(&clusterMetricsInterval, "cluster-metrics-interval", 15*time.Second, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	flag.BoolVar(&controllerArgs.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", false, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
 	standardcontroller.AddOptimizeFlags()
@@ -203,9 +207,18 @@ func main() {
 
 	// wrapper the round tripper by multi cluster rewriter
 	if enableClusterGateway {
-		if _, err := multicluster.Initialize(restConfig, true); err != nil {
+		client, err := multicluster.Initialize(restConfig, true)
+		if err != nil {
 			klog.ErrorS(err, "failed to enable multi-cluster capability")
 			os.Exit(1)
+		}
+
+		if enableClusterMetrics {
+			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, clusterMetricsInterval)
+			if err != nil {
+				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
+				os.Exit(1)
+			}
 		}
 	}
 	ctrl.SetLogger(klogr.New())

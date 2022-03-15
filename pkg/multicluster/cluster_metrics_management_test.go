@@ -21,6 +21,7 @@ import (
 	"errors"
 	"strconv"
 	"testing"
+	"time"
 
 	"gotest.tools/assert"
 
@@ -63,10 +64,10 @@ func TestRefresh(t *testing.T) {
 	fakeClient.AddCluster(NormalClusterName, normalCluster)
 	fakeClient.AddCluster(DisconnectedClusterName, disconnectedCluster)
 
-	mgr, err := NewClusterMetricsMgr(fakeClient)
+	mgr, err := NewClusterMetricsMgr(context.Background(), fakeClient, 15*time.Second)
 	assert.NilError(t, err)
 
-	err = mgr.Refresh()
+	_, err = mgr.Refresh()
 	assert.NilError(t, err)
 
 	clusters, err := ListVirtualClusters(context.Background(), fakeClient)
@@ -83,6 +84,9 @@ func TestRefresh(t *testing.T) {
 	norCluster, err := GetVirtualCluster(context.Background(), fakeClient, NormalClusterName)
 	assert.NilError(t, err)
 	assertClusterMetrics(t, norCluster)
+
+	exportMetrics(disCluster.Metrics, disCluster.Name)
+	exportMetrics(norCluster.Metrics, norCluster.Name)
 }
 
 func assertClusterMetrics(t *testing.T, cluster *VirtualCluster) {
