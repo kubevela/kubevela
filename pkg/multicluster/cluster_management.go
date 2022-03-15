@@ -39,6 +39,7 @@ import (
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -394,7 +395,7 @@ func DetachCluster(ctx context.Context, cli client.Client, clusterName string, o
 		if err := cli.Delete(ctx, clusterSecret); err != nil {
 			return errors.Wrapf(err, "failed to detach cluster %s", clusterName)
 		}
-	case CredentialTypeOCMManagedCluster:
+	case types.CredentialTypeOCMManagedCluster:
 		if args.managedClusterKubeConfigPath == "" {
 			return errors.New("kubeconfig-path must be set to detach ocm managed cluster")
 		}
