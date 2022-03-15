@@ -146,6 +146,13 @@ const (
 	AppDefinitionNamespace namespaceContextKey = iota
 )
 
+type serviceAccountContextKey int
+
+const (
+	// ServiceAccountContextKey is the context key to define the service account for the app
+	ServiceAccountContextKey serviceAccountContextKey = iota
+)
+
 // A ConditionedObject is an Object type with condition field
 type ConditionedObject interface {
 	client.Object
@@ -298,6 +305,26 @@ func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 	}
 	ctx = context.WithValue(ctx, AppDefinitionNamespace, namespace)
 	return ctx
+}
+
+// GetServiceAccountInContext returns the name of the service account which reconciles the app from the context.
+func GetServiceAccountInContext(ctx context.Context) string {
+	if serviceAccount, ok := ctx.Value(ServiceAccountContextKey).(string); ok {
+		return serviceAccount
+	}
+	return ""
+}
+
+// SetServiceAccountInContext sets the name of the service account which reconciles the app.
+func SetServiceAccountInContext(ctx context.Context, namespace, name string) context.Context {
+	if name == "" {
+		// We may set `default` service account when the service account name is omitted.
+		// However, setting `default` service account will break existing cluster-scoped applications,
+		// so it would be better to give users a migration term.
+		// TODO(devholic): Use `default` service account if omitted.
+		return ctx
+	}
+	return context.WithValue(ctx, ServiceAccountContextKey, fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name))
 }
 
 // GetDefinition get definition from two level namespace

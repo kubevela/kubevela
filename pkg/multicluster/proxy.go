@@ -20,12 +20,14 @@ import (
 	"net/http"
 	"strings"
 
+	clusterapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/transport"
-	"k8s.io/klog/v2"
 
-	clusterapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
+
+var _ utilnet.RoundTripperWrapper = &secretMultiClusterRoundTripper{}
 
 type secretMultiClusterRoundTripper struct {
 	rt http.RoundTripper
@@ -56,27 +58,17 @@ func (rt *secretMultiClusterRoundTripper) RoundTrip(req *http.Request) (*http.Re
 	return rt.rt.RoundTrip(req)
 }
 
-func tryCancelRequest(rt http.RoundTripper, req *http.Request) {
-	type canceler interface {
-		CancelRequest(*http.Request)
-	}
-	switch rt := rt.(type) {
-	case canceler:
-		rt.CancelRequest(req)
-	case utilnet.RoundTripperWrapper:
-		tryCancelRequest(rt.WrappedRoundTripper(), req)
-	default:
-		klog.Warningf("Unable to cancel request for %T", rt)
-	}
-}
-
 // CancelRequest will try cancel request with the inner round tripper
 func (rt *secretMultiClusterRoundTripper) CancelRequest(req *http.Request) {
-	tryCancelRequest(rt.WrappedRoundTripper(), req)
+	utils.TryCancelRequest(rt.WrappedRoundTripper(), req)
 }
 
 // WrappedRoundTripper can get the wrapped RoundTripper
-func (rt *secretMultiClusterRoundTripper) WrappedRoundTripper() http.RoundTripper { return rt.rt }
+func (rt *secretMultiClusterRoundTripper) WrappedRoundTripper() http.RoundTripper {
+	return rt.rt
+}
+
+var _ utilnet.RoundTripperWrapper = &secretMultiClusterRoundTripperForCluster{}
 
 type secretMultiClusterRoundTripperForCluster struct {
 	rt          http.RoundTripper
@@ -91,6 +83,16 @@ func (rt *secretMultiClusterRoundTripperForCluster) RoundTrip(req *http.Request)
 		req.URL.Path = FormatProxyURL(rt.clusterName, req.URL.Path)
 	}
 	return rt.rt.RoundTrip(req)
+}
+
+// CancelRequest will try cancel request with the inner round tripper
+func (rt *secretMultiClusterRoundTripperForCluster) CancelRequest(req *http.Request) {
+	utils.TryCancelRequest(rt.WrappedRoundTripper(), req)
+}
+
+// WrappedRoundTripper can get the wrapped RoundTripper
+func (rt *secretMultiClusterRoundTripperForCluster) WrappedRoundTripper() http.RoundTripper {
+	return rt.rt
 }
 
 // NewSecretModeMultiClusterRoundTripperForCluster will re-write the API path to the specific cluster
