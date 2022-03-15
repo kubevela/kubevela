@@ -24,6 +24,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -121,6 +122,7 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
 	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+		applyCtx = oamutil.SetServiceAccountInContext(applyCtx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
 		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
 	}, manifests, MaxDispatchConcurrent)
 	return velaerrors.AggregateErrors(errs.([]error))

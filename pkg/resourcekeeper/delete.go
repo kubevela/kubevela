@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 
@@ -85,7 +86,9 @@ func (h *resourceKeeper) delete(ctx context.Context, manifest *unstructured.Unst
 		}
 	}
 	// 2. delete manifests
-	if err = h.Client.Delete(multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest)), manifest); err != nil && !kerrors.IsNotFound(err) {
+	deleteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+	deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
+	if err = h.Client.Delete(deleteCtx, manifest); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "cannot delete manifest, name: %s apiVersion: %s kind: %s", manifest.GetName(), manifest.GetAPIVersion(), manifest.GetKind())
 	}
 	return nil
