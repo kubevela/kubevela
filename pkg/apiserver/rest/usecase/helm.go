@@ -36,10 +36,11 @@ const (
 
 // NewHelmUsecase return a helmHandler
 func NewHelmUsecase() HelmHandler {
+	ctx := context.Background()
 	return defaultHelmHandler{
-		repoCache:    map[string]*utils.MemoryCache{},
-		versionCache: map[string]*utils.MemoryCache{},
-		valuesCache:  map[string]*utils.MemoryCache{},
+		repoCache:    utils.NewMemoryCacheStore(ctx),
+		versionCache: utils.NewMemoryCacheStore(ctx),
+		valuesCache:  utils.NewMemoryCacheStore(ctx),
 	}
 }
 
@@ -51,40 +52,40 @@ type HelmHandler interface {
 }
 
 type defaultHelmHandler struct {
-	repoCache    map[string]*utils.MemoryCache
-	versionCache map[string]*utils.MemoryCache
-	valuesCache  map[string]*utils.MemoryCache
+	repoCache    *utils.MemoryCacheStore
+	versionCache *utils.MemoryCacheStore
+	valuesCache  *utils.MemoryCacheStore
 }
 
 func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string) ([]string, error) {
-	if m, ok := d.repoCache[url]; ok && !m.IsExpired() {
-		return m.GetData().([]string), nil
+	if m := d.repoCache.Get(url); m != nil {
+		return m.([]string), nil
 	}
 	helper := &helm.Helper{}
 	charts, err := helper.ListChartsFromRepo(url)
 	if err != nil {
 		return nil, err
 	}
-	d.repoCache[url] = utils.NewMemoryCache(charts, 3*time.Minute)
+	d.repoCache.Put(url, charts, 3*time.Minute)
 	return charts, nil
 }
 
 func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error) {
-	if m, ok := d.versionCache[fmt.Sprintf(versionPatten, url, chartName)]; ok && !m.IsExpired() {
-		return m.GetData().(repo.ChartVersions), nil
+	if m := d.versionCache.Get(fmt.Sprintf(versionPatten, url, chartName)); m != nil {
+		return m.(repo.ChartVersions), nil
 	}
 	helper := &helm.Helper{}
 	chartVersions, err := helper.ListVersions(url, chartName)
 	if err != nil {
 		return nil, err
 	}
-	d.versionCache[fmt.Sprintf(versionPatten, url, chartName)] = utils.NewMemoryCache(chartVersions, 3*time.Minute)
+	d.versionCache.Put(fmt.Sprintf(versionPatten, url, chartName), chartVersions, 3*time.Minute)
 	return chartVersions, nil
 }
 
 func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error) {
-	if m, ok := d.valuesCache[fmt.Sprintf(valuePatten, url, chartName, version)]; ok && !m.IsExpired() {
-		return m.GetData().(map[string]interface{}), nil
+	if m := d.valuesCache.Get(fmt.Sprintf(valuePatten, url, chartName, version)); m != nil {
+		return m.(map[string]interface{}), nil
 	}
 	helper := &helm.Helper{}
 	v, err := helper.GetValuesFromChart(url, chartName, version)
@@ -93,7 +94,7 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, char
 	}
 	res := make(map[string]interface{}, len(v))
 	flattenKey("", v, res)
-	d.valuesCache[fmt.Sprintf(valuePatten, url, chartName, version)] = utils.NewMemoryCache(res, 3*time.Minute)
+	d.valuesCache.Put(fmt.Sprintf(valuePatten, url, chartName, version), res, 3*time.Minute)
 	return res, nil
 }
 
