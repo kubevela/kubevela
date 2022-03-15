@@ -36,9 +36,18 @@ var _ = Describe("Test cache utils", func() {
 		store := NewMemoryCacheStore(context.TODO())
 		store.Put("test", "test data", time.Second*2)
 		store.Put("test2", "test data", 0)
+		store.Put("test3", "test data", -1)
 		time.Sleep(3 * time.Second)
 		Expect(store.Get("test")).Should(BeNil())
 		Expect(store.Get("test2")).Should(Equal("test data"))
+		Expect(store.Get("test3")).Should(Equal("test data"))
+	})
+
+	It("test cache store delete key", func() {
+		store := NewMemoryCacheStore(context.TODO())
+		store.Put("test", "test data", time.Minute*2)
+		store.Delete("test")
+		Expect(store.Get("test")).Should(BeNil())
 	})
 })
 

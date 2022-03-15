@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,19 +17,24 @@ limitations under the License.
 package utils
 
 import (
-	"strings"
+	"net/http"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/google/go-cmp/cmp"
 )
 
-var _ = Describe("Test version utils", func() {
-	It("Test New version function", func() {
-		s := GenerateVersion("")
-		Expect(s).ShouldNot(BeNil())
+var _ = Describe("Test http utils", func() {
+	It("Test get ClientIP function", func() {
+		req, err := http.NewRequest("GET", "/xx?page=2&pageSize=5", nil)
+		Expect(err).Should(BeNil())
+		req.Header.Set("X-Real-Ip", "198.23.1.1")
+		clientIP := ClientIP(req)
+		Expect(cmp.Diff(clientIP, "198.23.1.1")).Should(BeEmpty())
 
-		s2 := GenerateVersion("pre")
-		Expect(cmp.Diff(strings.HasPrefix(s2, "pre-"), true)).ShouldNot(BeNil())
+		req.Header.Set("X-Forwarded-For", "198.23.1.2")
+		clientIP = ClientIP(req)
+		Expect(cmp.Diff(clientIP, "198.23.1.2")).Should(BeEmpty())
 	})
 })

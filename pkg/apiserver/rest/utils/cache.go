@@ -96,7 +96,7 @@ func (m *MemoryCacheStore) Delete(key interface{}) {
 func (m *MemoryCacheStore) Get(key interface{}) (value interface{}) {
 	mc, ok := m.store.Load(key)
 	if ok && !mc.(*memoryCache).IsExpired() {
-		return mc.(*memoryCache).data
+		return mc.(*memoryCache).GetData()
 	}
 	return nil
 }
