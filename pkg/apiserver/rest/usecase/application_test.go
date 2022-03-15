@@ -68,7 +68,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
-		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.Background())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}

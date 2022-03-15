@@ -17,6 +17,9 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+	"fmt"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -25,11 +28,42 @@ import (
 
 var _ = Describe("Test cache utils", func() {
 	It("should return false for IsExpired()", func() {
-		c := NewMemoryCache("test", 10*time.Hour)
+		c := newMemoryCache("test", 10*time.Hour)
 		Expect(c.IsExpired()).Should(BeFalse())
+	})
 
-		c2 := NewMemoryCache("test", 1*time.Second)
-		time.Sleep(time.Second * 2)
-		Expect(c2.data).Should(BeNil())
+	It("test cache store", func() {
+		store := NewMemoryCacheStore(context.TODO())
+		store.Put("test", "test data", time.Second*2)
+		store.Put("test2", "test data", 0)
+		time.Sleep(3 * time.Second)
+		Expect(store.Get("test")).Should(BeNil())
+		Expect(store.Get("test2")).Should(Equal("test data"))
 	})
 })
+
+var store *MemoryCacheStore
+
+// BenchmarkWrite
+func BenchmarkWrite(b *testing.B) {
+	store = NewMemoryCacheStore(context.TODO())
+
+	for i := 0; i < b.N; i++ {
+		store.Put(fmt.Sprintf("%d", i), i, 0)
+	}
+}
+
+// BenchmarkRead
+func BenchmarkRead(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		store.Get(fmt.Sprintf("%d", i))
+	}
+}
+
+// BenchmarkRW
+func BenchmarkRW(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		store.Put(fmt.Sprintf("%d", i), i, 1)
+		store.Get(fmt.Sprintf("%d", i))
+	}
+}

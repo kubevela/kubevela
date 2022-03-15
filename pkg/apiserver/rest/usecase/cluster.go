@@ -67,7 +67,7 @@ type ClusterUsecase interface {
 
 type clusterUsecaseImpl struct {
 	ds        datastore.DataStore
-	caches    map[string]*utils2.MemoryCache
+	caches    *utils2.MemoryCacheStore
 	k8sClient client.Client
 }
 
@@ -77,7 +77,7 @@ func NewClusterUsecase(ds datastore.DataStore) ClusterUsecase {
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
-	c := &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient, caches: make(map[string]*utils2.MemoryCache)}
+	c := &clusterUsecaseImpl{ds: ds, k8sClient: k8sClient, caches: utils2.NewMemoryCacheStore(context.Background())}
 	if err = c.preAddLocalCluster(context.Background()); err != nil {
 		log.Logger.Fatalf("preAdd local cluster failure: %s", err.Error())
 	}
@@ -427,8 +427,8 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoCacheKey(clusterName string) 
 
 func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, clusterName string) (apis.ClusterResourceInfo, error) {
 	cacheKey := c.getClusterResourceInfoCacheKey(clusterName)
-	if cache, exists := c.caches[cacheKey]; exists && !cache.IsExpired() {
-		return cache.GetData().(apis.ClusterResourceInfo), nil
+	if cache := c.caches.Get(cacheKey); cache != nil {
+		return cache.(apis.ClusterResourceInfo), nil
 	}
 	clusterInfo, err := multicluster.GetClusterInfo(ctx, c.k8sClient, clusterName)
 	if err != nil {
@@ -457,7 +457,7 @@ func (c *clusterUsecaseImpl) getClusterResourceInfoFromK8s(ctx context.Context, 
 		PodUsed:          getUsed(clusterInfo.PodCapacity, clusterInfo.PodAllocatable).Value(),
 		StorageClassList: storageClassList,
 	}
-	c.caches[cacheKey] = utils2.NewMemoryCache(clusterResourceInfo, time.Minute)
+	c.caches.Put(cacheKey, clusterResourceInfo, time.Minute)
 	return clusterResourceInfo, nil
 }
 

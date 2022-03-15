@@ -50,7 +50,7 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		}
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, envUsecase: envUsecase}
-		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: make(map[string]*utils.MemoryCache)}
+		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.TODO())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, definitionUsecase: definitionUsecase, kubeClient: k8sClient, envUsecase: envUsecase}
 		envBindingDemo1 = apisv1.EnvBinding{
 			Name: "envbinding-dev",
