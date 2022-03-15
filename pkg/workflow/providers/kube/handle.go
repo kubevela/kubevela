@@ -227,7 +227,7 @@ func (h *provider) setServiceAccountInContext(ctx context.Context) context.Conte
 	if h.app == nil {
 		return ctx
 	}
-	return oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, oam.GetServiceAccountName(h.app))
+	return oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
 }
 
 // Install register handlers to provider discover.

@@ -87,7 +87,7 @@ func (h *resourceKeeper) delete(ctx context.Context, manifest *unstructured.Unst
 	}
 	// 2. delete manifests
 	deleteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-	deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, oam.GetServiceAccountName(h.app))
+	deleteCtx = oamutil.SetServiceAccountInContext(deleteCtx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
 	if err = h.Client.Delete(deleteCtx, manifest); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "cannot delete manifest, name: %s apiVersion: %s kind: %s", manifest.GetName(), manifest.GetAPIVersion(), manifest.GetKind())
 	}
