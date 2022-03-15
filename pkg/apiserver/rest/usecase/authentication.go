@@ -18,45 +18,54 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"path"
 
 	"github.com/coreos/go-oidc"
 	"github.com/emicklei/go-restful/v3"
 	"golang.org/x/oauth2"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-var dexConfig = apisv1.DexConfigResponse{}
+var dexConfig = &apisv1.DexConfigResponse{}
 
-func init() {
-	dexConfig.ClientID = "velaux"
-	dexConfig.ClientSecret = utils.RandomString(16)
-	dexConfig.RedirectURL = "http://velaux.vela-system.svc.cluster.local/auth/callback"
-	dexConfig.Issuer = path.Join(getVelaUXService(), "/dex")
-}
+const (
+	secretDexConfig = "dex-config"
+)
 
 // AuthenticationUsecase is the usecase of authentication
 type AuthenticationUsecase interface {
 	Login(ctx context.Context, req *restful.Request) (*apisv1.LoginResponse, error)
-	GetDexConfig(ctx context.Context) *apisv1.DexConfigResponse
+	GetDexConfig(ctx context.Context) (*apisv1.DexConfigResponse, error)
 }
 
 type authenticationUsecaseImpl struct {
 	sysUsecase SystemInfoUsecase
 	ds         datastore.DataStore
+	kubeClient client.Client
 }
 
 // NewAuthenticationUsecase new authentication usecase
 func NewAuthenticationUsecase(ds datastore.DataStore, sysUsecase SystemInfoUsecase) AuthenticationUsecase {
+	kubecli, err := clients.GetKubeClient()
+	if err != nil {
+		log.Logger.Fatalf("failed to get kube client: %s", err.Error())
+	}
 	return &authenticationUsecaseImpl{
 		sysUsecase: sysUsecase,
 		ds:         ds,
+		kubeClient: kubecli,
 	}
 }
 
@@ -71,6 +80,13 @@ type dexHandlerImpl struct {
 }
 
 func (a *authenticationUsecaseImpl) newDexHandler(ctx context.Context, req *restful.Request) (*dexHandlerImpl, error) {
+	var err error
+	if dexConfig == nil {
+		dexConfig, err = a.GetDexConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	provider, err := oidc.NewProvider(ctx, dexConfig.Issuer)
 	if err != nil {
 		return nil, err
@@ -121,8 +137,36 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, req *restful.Requ
 	return handler.login(ctx)
 }
 
-func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) *apisv1.DexConfigResponse {
-	return &dexConfig
+func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.DexConfigResponse, error) {
+	secret := &v1.Secret{}
+	if err := a.kubeClient.Get(ctx, types.NamespacedName{
+		Name:      secretDexConfig,
+		Namespace: velatypes.DefaultKubeVelaNS,
+	}, secret); err != nil {
+		log.Logger.Errorf("failed to get dex config: %s", err.Error())
+		return nil, err
+	}
+	var config struct {
+		Issuer        string `json:"issuer"`
+		StaticClients []struct {
+			ID           string   `json:"id"`
+			Secret       string   `json:"secret"`
+			RedirectURIs []string `json:"redirectURIs"`
+		} `json:"staticClients"`
+	}
+	if err := json.Unmarshal(secret.Data[secretDexConfig], &config); err != nil {
+		log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
+		return nil, err
+	}
+	if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
+		return nil, fmt.Errorf("invalid dex config")
+	}
+	return &apisv1.DexConfigResponse{
+		Issuer:       config.Issuer,
+		ClientID:     config.StaticClients[0].ID,
+		ClientSecret: config.StaticClients[0].Secret,
+		RedirectURL:  config.StaticClients[0].RedirectURIs[0],
+	}, nil
 }
 
 func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.LoginResponse, error) {
@@ -162,9 +206,4 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.LoginResponse, erro
 		AccessToken:  d.token.AccessToken,
 		RefreshToken: d.token.RefreshToken,
 	}, nil
-}
-
-// TODO(fog)
-func getVelaUXService() string {
-	return ""
 }

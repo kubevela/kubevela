@@ -28,6 +28,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"golang.org/x/oauth2"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -35,7 +37,8 @@ import (
 
 var _ = Describe("Test authentication usecase functions", func() {
 	var (
-		ds datastore.DataStore
+		authUsecase *authenticationUsecaseImpl
+		ds          datastore.DataStore
 	)
 
 	BeforeEach(func() {
@@ -43,6 +46,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "auth-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
+		authUsecase = &authenticationUsecaseImpl{kubeClient: k8sClient, ds: ds}
 	})
 	It("Test Dex login", func() {
 		testIDToken := &oidc.IDToken{}
@@ -72,4 +76,31 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(user.Email).Should(Equal("test@test.com"))
 	})
+
+	It("Test get dex config", func() {
+		err := k8sClient.Create(context.Background(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-system",
+			},
+		})
+		Expect(err).Should(BeNil())
+		err = k8sClient.Create(context.Background(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretDexConfig,
+				Namespace: "vela-system",
+			},
+			StringData: map[string]string{
+				secretDexConfig: `{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","secret":"client-secret","redirectURIs":["http://localhost:8080/auth/callback"]}]}`,
+			},
+		})
+		Expect(err).Should(BeNil())
+
+		config, err := authUsecase.GetDexConfig(context.Background())
+		Expect(err).Should(BeNil())
+		Expect(config.Issuer).Should(Equal("https://dex.oam.dev"))
+		Expect(config.ClientID).Should(Equal("client-id"))
+		Expect(config.ClientSecret).Should(Equal("client-secret"))
+		Expect(config.RedirectURL).Should(Equal("http://localhost:8080/auth/callback"))
+	})
+
 })

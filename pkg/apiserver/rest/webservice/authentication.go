@@ -74,7 +74,11 @@ func (c *authenticationWebService) login(req *restful.Request, res *restful.Resp
 }
 
 func (c *authenticationWebService) getDexConfig(req *restful.Request, res *restful.Response) {
-	base := c.authenticationUsecase.GetDexConfig(req.Request.Context())
+	base, err := c.authenticationUsecase.GetDexConfig(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 	if err := res.WriteEntity(base); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
