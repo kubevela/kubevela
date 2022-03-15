@@ -38,8 +38,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
-var dexConfig = &apisv1.DexConfigResponse{}
-
 const (
 	secretDexConfig = "dex-config"
 )
@@ -80,12 +78,9 @@ type dexHandlerImpl struct {
 }
 
 func (a *authenticationUsecaseImpl) newDexHandler(ctx context.Context, req *restful.Request) (*dexHandlerImpl, error) {
-	var err error
-	if dexConfig == nil {
-		dexConfig, err = a.GetDexConfig(ctx)
-		if err != nil {
-			return nil, err
-		}
+	dexConfig, err := a.GetDexConfig(ctx)
+	if err != nil {
+		return nil, err
 	}
 	provider, err := oidc.NewProvider(ctx, dexConfig.Issuer)
 	if err != nil {
