@@ -3587,6 +3587,129 @@
 				}
 			}
 		},
+		"/api/v1/repository/charts": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"repository",
+					"helm"
+				],
+				"summary": "list charts",
+				"operationId": "listCharts",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "helm repository url",
+						"name": "repoUrl",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/repository/charts/{chart}/versions": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"repository",
+					"helm"
+				],
+				"summary": "list versions",
+				"operationId": "listVersions",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "helm repository url",
+						"name": "repoUrl",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ChartVersionListResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/repository/charts/{chart}/versions/{version}/values": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"repository",
+					"helm"
+				],
+				"summary": "get chart value",
+				"operationId": "chartValues",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "helm repository url",
+						"name": "repoUrl",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/map[string]interface%20%7B%7D"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/system_info": {
 			"get": {
 				"consumes": [
@@ -4198,6 +4321,128 @@
 					"format": "int32"
 				},
 				"Message": {
+					"type": "string"
+				}
+			}
+		},
+		"chart.Dependency": {
+			"required": [
+				"name",
+				"repository"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"condition": {
+					"type": "string"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"import-values": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/chart.Dependency.import-values"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"repository": {
+					"type": "string"
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
+		"chart.Dependency.import-values": {},
+		"chart.Maintainer": {
+			"properties": {
+				"email": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			}
+		},
+		"chart.Metadata": {
+			"properties": {
+				"annotations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"apiVersion": {
+					"type": "string"
+				},
+				"appVersion": {
+					"type": "string"
+				},
+				"condition": {
+					"type": "string"
+				},
+				"dependencies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/chart.Dependency"
+					}
+				},
+				"deprecated": {
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"home": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"keywords": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"kubeVersion": {
+					"type": "string"
+				},
+				"maintainers": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/chart.Maintainer"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"sources": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"tags": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"version": {
 					"type": "string"
 				}
 			}
@@ -5292,6 +5537,45 @@
 				}
 			}
 		},
+		"repo.ChartVersion": {
+			"required": [
+				"Metadata",
+				"urls"
+			],
+			"properties": {
+				"Metadata": {
+					"$ref": "#/definitions/chart.Metadata"
+				},
+				"checksum": {
+					"type": "string"
+				},
+				"created": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"digest": {
+					"type": "string"
+				},
+				"engine": {
+					"type": "string"
+				},
+				"removed": {
+					"type": "boolean"
+				},
+				"tillerVersion": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				},
+				"urls": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"types.Parameter": {
 			"required": [
 				"name"
@@ -6019,6 +6303,19 @@
 				},
 				"workflowName": {
 					"type": "string"
+				}
+			}
+		},
+		"v1.ChartVersionListResponse": {
+			"required": [
+				"versions"
+			],
+			"properties": {
+				"versions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/repo.ChartVersion"
+					}
 				}
 			}
 		},
