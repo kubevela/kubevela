@@ -25,6 +25,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("Test Virtual Cluster", func() {
@@ -102,13 +104,13 @@ var _ = Describe("Test Virtual Cluster", func() {
 
 		vc, err = GetVirtualCluster(ctx, k8sClient, "ocm-cluster")
 		Expect(err).Should(Succeed())
-		Expect(vc.Type).Should(Equal(CredentialTypeOCMManagedCluster))
+		Expect(vc.Type).Should(Equal(types.CredentialTypeOCMManagedCluster))
 
 		By("Test List Virtual Clusters")
 
 		vcs, err := ListVirtualClusters(ctx, k8sClient)
 		Expect(err).Should(Succeed())
-		Expect(len(vcs)).Should(Equal(3))
+		Expect(len(vcs)).Should(Equal(4))
 
 		vcs, err = FindVirtualClustersByLabels(ctx, k8sClient, map[string]string{"key": "value"})
 		Expect(err).Should(Succeed())

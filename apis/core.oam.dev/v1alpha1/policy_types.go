@@ -27,6 +27,9 @@ const (
 type TopologyPolicySpec struct {
 	// Placement embeds the selectors for choosing cluster
 	Placement `json:",inline"`
+	// Namespace is the target namespace to deploy in the selected clusters.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // Placement describes which clusters to be selected in this topology

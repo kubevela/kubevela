@@ -21,22 +21,23 @@ import (
 	"encoding/json"
 	"testing"
 
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
@@ -101,7 +102,7 @@ func TestReadPlacementDecisions(t *testing.T) {
 				}},
 			})
 			r.NoError(err)
-			app.Status.PolicyStatus = []common2.PolicyStatus{{
+			app.Status.PolicyStatus = []apicommon.PolicyStatus{{
 				Name:   "example-policy",
 				Type:   v1alpha1.EnvBindingPolicyType,
 				Status: &runtime.RawExtension{Raw: bs},
@@ -272,11 +273,11 @@ func TestMakePlacementDecisions(t *testing.T) {
 		r.NoError(err)
 		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
 		if testCase.PreAddCluster != "" {
-			r.NoError(cli.Create(context.Background(), &v1.Secret{
-				ObjectMeta: v12.ObjectMeta{
+			r.NoError(cli.Create(context.Background(), &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
 					Name:      testCase.PreAddCluster,
-					Labels:    map[string]string{v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate)},
+					Labels:    map[string]string{clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)},
 				},
 			}))
 		}
@@ -292,7 +293,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 				}},
 			})
 			r.NoError(err)
-			app.Status.PolicyStatus = []common2.PolicyStatus{{
+			app.Status.PolicyStatus = []apicommon.PolicyStatus{{
 				Name:   "example-policy",
 				Type:   v1alpha1.EnvBindingPolicyType,
 				Status: &runtime.RawExtension{Raw: bs},
@@ -327,7 +328,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 
 func TestPatchApplication(t *testing.T) {
 	baseApp := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
-		Components: []common2.ApplicationComponent{{
+		Components: []apicommon.ApplicationComponent{{
 			Name:       "comp-1",
 			Type:       "webservice",
 			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"base"}`)},
@@ -335,7 +336,7 @@ func TestPatchApplication(t *testing.T) {
 			Name:       "comp-3",
 			Type:       "webservice",
 			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"ext"}`)},
-			Traits: []common2.ApplicationTrait{{
+			Traits: []apicommon.ApplicationTrait{{
 				Type:       "scaler",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)},
 			}, {
@@ -350,7 +351,7 @@ func TestPatchApplication(t *testing.T) {
 	testCases := []struct {
 		InputVal         map[string]interface{}
 		ExpectError      string
-		ExpectComponents []common2.ApplicationComponent
+		ExpectComponents []apicommon.ApplicationComponent
 	}{{
 		InputVal:    map[string]interface{}{},
 		ExpectError: "var(path=inputs.envName) not exist",
@@ -411,7 +412,7 @@ func TestPatchApplication(t *testing.T) {
 				"components": []string{"comp-2", "comp-1", "comp-3", "comp-0"},
 			},
 		},
-		ExpectComponents: []common2.ApplicationComponent{{
+		ExpectComponents: []apicommon.ApplicationComponent{{
 			Name:       "comp-1",
 			Type:       "worker",
 			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"patch","port":8080}`)},
@@ -419,7 +420,7 @@ func TestPatchApplication(t *testing.T) {
 			Name:       "comp-3",
 			Type:       "webservice",
 			Properties: &runtime.RawExtension{Raw: []byte(`{"image":"patch","port":8090}`)},
-			Traits: []common2.ApplicationTrait{{
+			Traits: []apicommon.ApplicationTrait{{
 				Type:       "scaler",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":5}`)},
 			}, {
@@ -489,10 +490,10 @@ func TestListClusters(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	clusterNames := []string{"cluster-a", "cluster-b"}
 	for _, secretName := range clusterNames {
-		secret := &v1.Secret{}
+		secret := &corev1.Secret{}
 		secret.Name = secretName
 		secret.Namespace = multicluster.ClusterGatewaySecretNamespace
-		secret.Labels = map[string]string{v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate)}
+		secret.Labels = map[string]string{clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
 	app := &v1beta1.Application{}
@@ -516,45 +517,46 @@ func TestListClusters(t *testing.T) {
 func TestExpandTopology(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpecCompatible, true)()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
-	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&v1.Secret{
-		ObjectMeta: v12.ObjectMeta{
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cluster-a",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
-				"key":                                   "value",
+				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				"key": "value",
 			},
 		},
-	}, &v1.Secret{
-		ObjectMeta: v12.ObjectMeta{
+	}, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cluster-b",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
-				"key":                                   "value",
+				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				"key": "value",
 			},
 		},
-	}, &v1.Secret{
-		ObjectMeta: v12.ObjectMeta{
+	}, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cluster-c",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
-				"key":                                   "none",
+				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				"key": "none",
 			},
 		},
 	}).Build()
 	app := &v1beta1.Application{
-		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "test"},
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test"},
 	}
 	p := &provider{
 		Client: cli,
 		app:    app,
 	}
 	testCases := map[string]struct {
-		Input   string
-		Outputs []v1alpha1.PlacementDecision
-		Error   string
+		Input                 string
+		Outputs               []v1alpha1.PlacementDecision
+		Error                 string
+		DisableCrossNamespace bool
 	}{
 		"policies-404": {
 			Input: "{inputs:{}}",
@@ -576,6 +578,10 @@ func TestExpandTopology(t *testing.T) {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-a"]}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}},
 		},
+		"topology-by-cluster-selector-404": {
+			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"bad-value"}}}]}}`,
+			Error: "failed to find any cluster matches given labels",
+		},
 		"topology-by-cluster-selector": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
@@ -584,10 +590,20 @@ func TestExpandTopology(t *testing.T) {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterLabelSelector:{"key":"value"}}}]}}`,
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
 		},
+		"topology-by-cluster-selector-and-namespace-invalid": {
+			Input:                 `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
+			Error:                 "cannot cross namespace",
+			DisableCrossNamespace: true,
+		},
+		"topology-by-cluster-selector-and-namespace": {
+			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "override"}, {Cluster: "cluster-b", Namespace: "override"}},
+		},
 	}
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			resourcekeeper.AllowCrossNamespaceResource = !tt.DisableCrossNamespace
 			v, err := value.NewValue("", nil, "")
 			r.NoError(err)
 			r.NoError(v.FillRaw(tt.Input))
@@ -616,7 +632,7 @@ func TestOverrideConfiguration(t *testing.T) {
 	}
 	testCases := map[string]struct {
 		Input   string
-		Outputs []common2.ApplicationComponent
+		Outputs []apicommon.ApplicationComponent
 		Error   string
 	}{
 		"policies-404": {
@@ -641,9 +657,9 @@ func TestOverrideConfiguration(t *testing.T) {
 		},
 		"normal": {
 			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{components:[{name:"comp",properties:{x:5}}]}}],components:[{name:"comp",properties:{x:1}}]}}`,
-			Outputs: []common2.ApplicationComponent{{
+			Outputs: []apicommon.ApplicationComponent{{
 				Name:       "comp",
-				Traits:     []common2.ApplicationTrait{},
+				Traits:     []apicommon.ApplicationTrait{},
 				Properties: &runtime.RawExtension{Raw: []byte(`{"x":5}`)},
 			}},
 		},
@@ -662,7 +678,7 @@ func TestOverrideConfiguration(t *testing.T) {
 				r.NoError(err)
 				outputs, err := v.LookupValue("outputs", "components")
 				r.NoError(err)
-				comps := &[]common2.ApplicationComponent{}
+				comps := &[]apicommon.ApplicationComponent{}
 				r.NoError(outputs.UnmarshalTo(comps))
 				r.Equal(tt.Outputs, *comps)
 			}
