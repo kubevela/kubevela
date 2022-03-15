@@ -46,6 +46,17 @@ var collectorGroup = []prometheus.Collector{
 	ApplicationReconcileTimeHistogram,
 	ApplyComponentTimeHistogram,
 	ResourceTrackerNumberGauge,
+	ClusterIsConnectedGauge,
+	ClusterWorkerNumberGauge,
+	ClusterMasterNumberGauge,
+	ClusterMemoryCapacityGauge,
+	ClusterCPUCapacityGauge,
+	ClusterPodCapacityGauge,
+	ClusterMemoryAllocatableGauge,
+	ClusterCPUAllocatableGauge,
+	ClusterPodAllocatableGauge,
+	ClusterMemoryUsageGauge,
+	ClusterCPUUsageGauge,
 }
 
 func init() {
