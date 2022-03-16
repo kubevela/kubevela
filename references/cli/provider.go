@@ -19,20 +19,18 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"strings"
 
 	"github.com/gosuri/uitable"
 	tcv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
-	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -105,7 +103,7 @@ func NewProviderAddCommand(c common.Args) *cobra.Command {
 type Provider struct {
 	Type string
 	Name string
-	Age  metav1.Time
+	Age  string
 }
 
 func listProviders(ctx context.Context, k8sClient client.Client) error {
@@ -114,29 +112,30 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	tcProviders := &tcv1beta1.ProviderList{}
 	if err := k8sClient.List(ctx, tcProviders, client.InNamespace(ProviderNamespace),
 		client.MatchingLabels{"config.oam.dev/type": labelVal}); err != nil {
-		if kerrors.IsNotFound(err) {
-			defs := &v1beta1.ComponentDefinitionList{}
-			if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-				client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": labelVal}); err != nil {
-				if kerrors.IsNotFound(err) {
-					return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
-				}
-				return errors.Wrap(err, "failed to retrieve providers")
-			}
-			for _, d := range defs.Items {
-				providers = append(providers, Provider{
-					Type: d.Name,
-				})
-			}
-		}
 		return errors.Wrap(err, "failed to retrieve providers")
 	}
-	for _, p := range tcProviders.Items {
-		providers = append(providers, Provider{
-			Type: p.Labels[oam.WorkloadTypeLabel],
-			Name: p.Name,
-			Age:  p.CreationTimestamp,
-		})
+	if len(tcProviders.Items) == 0 {
+		defs := &v1beta1.ComponentDefinitionList{}
+		if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
+			client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": labelVal}); err != nil {
+			return errors.Wrap(err, "failed to retrieve providers")
+		}
+		if len(defs.Items) == 0 {
+			return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
+		}
+		for _, d := range defs.Items {
+			providers = append(providers, Provider{
+				Type: d.Name,
+			})
+		}
+	} else {
+		for _, p := range tcProviders.Items {
+			providers = append(providers, Provider{
+				Type: p.Labels[oam.WorkloadTypeLabel],
+				Name: p.Name,
+				Age:  p.CreationTimestamp.String(),
+			})
+		}
 	}
 
 	table := uitable.New()
