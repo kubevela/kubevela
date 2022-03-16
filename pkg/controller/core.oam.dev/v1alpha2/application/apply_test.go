@@ -25,6 +25,8 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -285,3 +287,167 @@ func TestDeleteAppliedResourceFunc(t *testing.T) {
 		t.Errorf("applied length error acctually %d", len(h.appliedResources))
 	}
 }
+
+var _ = Describe("Test Application health check", func() {
+	const (
+		timeout  = time.Second * 10
+		duration = time.Second * 10
+		interval = time.Millisecond * 500
+	)
+
+	var (
+		ctx context.Context
+		ns  corev1.Namespace
+	)
+
+	BeforeEach(func() {
+		ctx = context.TODO()
+		namespaceName := "health-check-test-" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
+		ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespaceName,
+			},
+		}
+		By("By create the Namespace for test")
+		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
+	})
+
+	AfterEach(func() {
+		By("By clean up resources after an integration test")
+		Expect(k8sClient.Delete(ctx, &ns)).Should(Succeed())
+	})
+
+	Context("Terraform components", func() {
+		var (
+			componentNamespace = "vela-system"
+			componentName      string
+			comp               v1beta1.ComponentDefinition
+
+			applicationName = "test-tf-health-app"
+		)
+
+		BeforeEach(func() {
+			componentName = "demo-hello-tf" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
+			comp = v1beta1.ComponentDefinition{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: v1beta1.ComponentDefinitionKindAPIVersion,
+					Kind:       v1beta1.ComponentDefinitionKind,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      componentName,
+					Namespace: componentNamespace,
+					Labels: map[string]string{
+						"type": "terraform",
+					},
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "terraform.core.oam.dev/v1beta1",
+							Kind:       "Configuration",
+						},
+					},
+					Schematic: &common.Schematic{
+						Terraform: &common.Terraform{
+							Configuration: `
+							terraform {}
+
+							variable "name" {
+							  type        = string
+							  description = "your name"
+							}
+							
+							output "message" {
+							  value = "hello, ${var.name}"
+							}`,
+						},
+					},
+				},
+			}
+			By("By create terraform component")
+			Expect(k8sClient.Create(ctx, &comp)).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			By("By clean terraform component")
+			Expect(k8sClient.Delete(ctx, &comp)).Should(Succeed())
+		})
+
+		It("Should terraform components stand ready and the latest when a new application is running", func() {
+			By("By creating a new app")
+			tfCompName := applicationName + "-comp"
+			app := v1beta1.Application{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: v1beta1.ApplicationKindAPIVersion,
+					Kind:       v1beta1.ApplicationKind,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      applicationName,
+					Namespace: ns.Name,
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: tfCompName,
+							Type: componentName,
+							Properties: &runtime.RawExtension{
+								Raw: []byte(`{"name": "vela!"}`),
+							},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+
+			applicationLoopupKey := types.NamespacedName{Name: applicationName, Namespace: ns.Name}
+			testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: applicationLoopupKey})
+
+			configurationLookupKey := types.NamespacedName{Name: tfCompName, Namespace: ns.Name}
+			configuration := &terraformapi.Configuration{}
+
+			Eventually(func() error {
+				return k8sClient.Get(ctx, configurationLookupKey, configuration)
+			}, timeout, interval).Should(Succeed())
+
+			By("By checking the Application status is not running")
+			Consistently(func() (common.ApplicationPhase, error) {
+				err := k8sClient.Get(ctx, applicationLoopupKey, &app)
+				if err != nil {
+					return "", err
+				}
+				return app.Status.Phase, nil
+			}, duration, interval).ShouldNot(Equal(common.ApplicationRunning))
+
+			By("By configuration is ready")
+			configuration.Status = terraformapi.ConfigurationStatus{
+				ObservedGeneration: configuration.Generation,
+				Apply: terraformapi.ConfigurationApplyStatus{
+					State: terraformtypes.Available,
+				},
+			}
+			Expect(k8sClient.Status().Update(ctx, configuration)).Should(Succeed())
+
+			By("By checking that the Application status is running")
+			Eventually(func() common.ApplicationPhase {
+				testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: applicationLoopupKey})
+				err := k8sClient.Get(ctx, applicationLoopupKey, &app)
+				if err != nil {
+					return ""
+				}
+				return app.Status.Phase
+			}, timeout, interval).Should(Equal(common.ApplicationRunning))
+
+			By("By update the Application and check that the status is not running")
+			app.Spec.Components[0].Properties.Raw = []byte(`{"name": "terraform!"}`)
+			Expect(k8sClient.Update(ctx, &app)).Should(Succeed())
+
+			Consistently(func() (common.ApplicationPhase, error) {
+				testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: applicationLoopupKey})
+				if err := k8sClient.Get(ctx, applicationLoopupKey, &app); err != nil {
+					return "", err
+				}
+				return app.Status.Phase, nil
+			}, duration, interval).ShouldNot(Equal(common.ApplicationRunning))
+		})
+	})
+})

@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -228,12 +229,27 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 	)
 
 	if wl.CapabilityCategory == types.TerraformCategory {
-		ctx := context.Background()
 		var configuration terraformapi.Configuration
 		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &configuration); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
 		}
-		if configuration.Status.Apply.State != terraformtypes.Available {
+
+		isLatest := func() bool {
+			if configuration.Status.ObservedGeneration != 0 {
+				if configuration.Status.ObservedGeneration != configuration.Generation {
+					return false
+				}
+			}
+			// Use AppRevision to avoid getting the configuration before the patch.
+			if v, ok := configuration.GetLabels()[oam.LabelAppRevision]; ok {
+				if v != appRev.Name {
+					return false
+				}
+			}
+
+			return true
+		}
+		if !isLatest() || configuration.Status.Apply.State != terraformtypes.Available {
 			status.Healthy = false
 			isHealth = false
 		} else {
