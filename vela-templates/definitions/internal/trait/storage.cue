@@ -134,14 +134,14 @@ template: {
 		// +patchKey=name
 		volumes: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
 
-		containers: [...{
+		containers: [{
 			// +patchKey=name
 			env: configMapEnvMountsList + secretEnvMountsList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
 			// +patchKey=name
 			volumeMounts: pvcVolumeMountsList + configMapVolumeMountsList + secretVolumeMountsList + emptyDirVolumeMountsList
-		}]
+		}, ...]
 
 	}
 
