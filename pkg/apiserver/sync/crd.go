@@ -19,7 +19,9 @@ package sync
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -31,9 +33,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -147,9 +148,9 @@ func ConvertFromCRTargets(targetApp *v1beta1.Application) []*model.Target {
 	for _, v := range targetApp.Status.AppliedResources {
 		var cluster = v.Cluster
 		if cluster == "" {
-			cluster = "local"
+			cluster = multicluster.ClusterLocalName
 		}
-		name := "auto-sync-" + cluster + "-" + v.Namespace
+		name := model.AutoGenTargetNamePrefix + cluster + "-" + v.Namespace
 		if _, ok := nc[name]; ok {
 			continue
 		}
@@ -166,37 +167,53 @@ func ConvertFromCRTargets(targetApp *v1beta1.Application) []*model.Target {
 }
 
 // ConvertApp2DatastoreApp will convert Application CR to datastore application related resources
-func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *v1beta1.Application) (*model.DataStoreApp, error) {
+func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, ds datastore.DataStore) (*model.DataStoreApp, error) {
 
 	project := model.DefaultInitName
-
 	if _, ok := targetApp.Labels[oam.LabelAddonName]; ok && strings.HasPrefix(targetApp.Name, "addon-") {
 		project = model.DefaultAddonProject
+	}
+	appMeta := &model.Application{
+		Name:        targetApp.Name,
+		Description: model.AutoGenDesc,
+		Project:     project,
+		Labels: map[string]string{
+			model.LabelSyncNamespace:  targetApp.Namespace,
+			model.LabelSyncGeneration: strconv.FormatInt(targetApp.Generation, 10),
+		},
+	}
+
+	existApp := &model.Application{Name: targetApp.Name}
+	err := ds.Get(ctx, existApp)
+	if err == nil {
+		namespace := existApp.Labels[model.LabelSyncNamespace]
+		if namespace != targetApp.Namespace {
+			appMeta.Name = formatAppComposedName(targetApp.Name, targetApp.Namespace)
+			appMeta.Alias = targetApp.Name
+		}
+	}
+	if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
+		return nil, err
 	}
 
 	// 1. convert app meta and env
 	dsApp := &model.DataStoreApp{
-		Name: targetApp.Name,
-		AppMeta: &model.Application{
-			Name:        targetApp.Name,
-			Description: model.AutoGenDesc,
-			Project:     project,
-		},
+		AppMeta: appMeta,
 		Env: &model.Env{
 			Name:        model.AutoGenEnvNamePrefix + targetApp.Namespace,
 			Namespace:   targetApp.Namespace,
 			Description: model.AutoGenDesc,
-			Project:     model.DefaultInitName,
+			Project:     project,
 		},
 		Eb: &model.EnvBinding{
-			AppPrimaryKey: targetApp.Name,
+			AppPrimaryKey: appMeta.PrimaryKey(),
 			Name:          model.AutoGenEnvNamePrefix + targetApp.Namespace,
 		},
 	}
 
 	// 2. convert component
 	for _, cmp := range targetApp.Spec.Components {
-		compModel, err := ConvertFromCRComponent(targetApp.Name, cmp)
+		compModel, err := ConvertFromCRComponent(appMeta.PrimaryKey(), cmp)
 		if err != nil {
 			return nil, err
 		}
@@ -205,7 +222,7 @@ func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *
 
 	// 3. convert policy
 	for _, plc := range targetApp.Spec.Policies {
-		plcModel, err := ConvertFromCRPolicy(targetApp.Name, plc, model.AutoGenPolicy)
+		plcModel, err := ConvertFromCRPolicy(appMeta.PrimaryKey(), plc, model.AutoGenPolicy)
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +242,7 @@ func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *
 		return nil, err
 	}
 	for _, plc := range outsidePLC {
-		plcModel, err := ConvertFromCRPolicy(targetApp.Name, plc, model.AutoGenRefPolicy)
+		plcModel, err := ConvertFromCRPolicy(appMeta.PrimaryKey(), plc, model.AutoGenRefPolicy)
 		if err != nil {
 			return nil, err
 		}
@@ -253,11 +270,16 @@ func CheckSoTFromCR(targetApp *v1beta1.Application) string {
 }
 
 // CheckSoTFromAppMeta will check the source of truth marked in datastore
-func CheckSoTFromAppMeta(ctx context.Context, ds datastore.DataStore, appName string, sotFromCR string) string {
-	app := &model.Application{Name: appName}
+func CheckSoTFromAppMeta(ctx context.Context, ds datastore.DataStore, appName, namespace string, sotFromCR string) string {
+
+	app := &model.Application{Name: formatAppComposedName(appName, namespace)}
 	err := ds.Get(ctx, app)
 	if err != nil {
-		return sotFromCR
+		app = &model.Application{Name: appName}
+		err = ds.Get(ctx, app)
+		if err != nil {
+			return sotFromCR
+		}
 	}
 	if app.Labels == nil || app.Labels[SoT] == "" {
 		return sotFromCR
@@ -265,215 +287,76 @@ func CheckSoTFromAppMeta(ctx context.Context, ds datastore.DataStore, appName st
 	return app.Labels[SoT]
 }
 
-// StoreAppMeta will sync application metadata from CR to datastore
-func StoreAppMeta(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore) error {
-	err := ds.Get(ctx, &model.Application{Name: app.Name})
-	if err == nil {
-		// it means the record already exists, don't need to add anything
-		return nil
-	}
-	if !errors.Is(err, datastore.ErrRecordNotExist) {
-		// other database error, return it
-		return err
-	}
-	return ds.Add(ctx, app.AppMeta)
+// CR2UX provides the Add/Update/Delete method
+type CR2UX struct {
+	ds    datastore.DataStore
+	cli   client.Client
+	cache sync.Map
 }
 
-// StoreEnv will sync application namespace from CR to datastore env, one namespace belongs to one env
-func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore) error {
-	curEnv := &model.Env{Name: app.Env.Name}
-	err := ds.Get(ctx, curEnv)
+func formatAppComposedName(name, namespace string) string {
+	return name + "-" + namespace
+}
+
+func (c *CR2UX) getAppMetaName(ctx context.Context, name, namespace string) string {
+	existApp := &model.Application{Name: name}
+	err := c.ds.Get(ctx, existApp)
 	if err == nil {
-		// it means the record already exists, compare the targets
-		if utils2.EqualSlice(curEnv.Targets, app.Env.Targets) {
+		en := existApp.Labels[model.LabelSyncNamespace]
+		if en != namespace {
+			return formatAppComposedName(name, namespace)
+		}
+	}
+	return name
+}
+
+func (c *CR2UX) Init(ctx context.Context) error {
+	appsRaw, err := c.ds.List(ctx, &model.Application{}, &datastore.ListOptions{})
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return nil
 		}
-		return ds.Put(ctx, app.Env)
-	}
-	if !errors.Is(err, datastore.ErrRecordNotExist) {
-		// other database error, return it
 		return err
 	}
-	return ds.Add(ctx, app.Env)
+	for _, appR := range appsRaw {
+		app, ok := appR.(*model.Application)
+		if !ok {
+			continue
+		}
+		gen, ok := app.Labels[model.LabelSyncGeneration]
+		if !ok || gen == "" {
+			continue
+		}
+		namespace := app.Labels[model.LabelSyncNamespace]
+		var key = formatAppComposedName(app.Name, namespace)
+		if strings.HasSuffix(app.Name, namespace) {
+			key = app.Name
+		}
+		c.cache.Store(key, gen)
+	}
+	return nil
 }
 
-// StoreEnvBinding will add envbinding for application CR one application one envbinding
-func StoreEnvBinding(ctx context.Context, eb *model.EnvBinding, ds datastore.DataStore) error {
-	err := ds.Get(ctx, eb)
-	if err == nil {
-		// it means the record already exists, don't need to add anything
+// AddOrUpdate will sync application CR to storage of VelaUX automatically
+func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application) error {
+	ds := c.ds
+	cli := c.cli
+
+	if !c.shouldSync(ctx, targetApp, false) {
 		return nil
 	}
-	if !errors.Is(err, datastore.ErrRecordNotExist) {
-		// other database error, return it
-		return err
-	}
-	return ds.Add(ctx, eb)
-}
 
-// StoreComponents will sync application components from CR to datastore
-func StoreComponents(ctx context.Context, appPrimaryKey string, expComps []*model.ApplicationComponent, ds datastore.DataStore) error {
-
-	// list the existing components in datastore
-	originComps, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appPrimaryKey}, &datastore.ListOptions{})
-	if err != nil {
-		return err
-	}
-	var originCompNames []string
-	for _, entity := range originComps {
-		comp := entity.(*model.ApplicationComponent)
-		originCompNames = append(originCompNames, comp.Name)
-	}
-
-	var targetCompNames []string
-	for _, comp := range expComps {
-		targetCompNames = append(targetCompNames, comp.Name)
-	}
-
-	_, readyToDelete, readyToAdd := utils2.CompareSlices(originCompNames, targetCompNames)
-
-	// delete the components that not belongs to the new app
-	for _, entity := range originComps {
-		comp := entity.(*model.ApplicationComponent)
-		// we only compare for components that automatically generated by sync process.
-		if comp.Creator != model.AutoGenComp {
-			continue
-		}
-		if !utils.StringsContain(readyToDelete, comp.Name) {
-			continue
-		}
-		if err := ds.Delete(ctx, comp); err != nil {
-			if errors.Is(err, datastore.ErrRecordNotExist) {
-				continue
-			}
-			log.Logger.Warnf("delete comp %s for app %s  failure %s", comp.Name, appPrimaryKey, err.Error())
-		}
-	}
-
-	// add or update new app's components for datastore
-	for _, comp := range expComps {
-		if utils.StringsContain(readyToAdd, comp.Name) {
-			err = ds.Add(ctx, comp)
-		} else {
-			err = ds.Put(ctx, comp)
-		}
-		if err != nil {
-			log.Logger.Warnf("convert comp %s for app %s into datastore failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
-			return err
-		}
-	}
-	return nil
-}
-
-// StorePolicy will add/update/delete policies, we don't delete ref policy
-func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model.ApplicationPolicy, ds datastore.DataStore) error {
-	// list the existing policies for this app in datastore
-	originPolicies, err := ds.List(ctx, &model.ApplicationPolicy{AppPrimaryKey: appPrimaryKey}, &datastore.ListOptions{})
-	if err != nil {
-		return err
-	}
-	var originPolicyNames []string
-	for _, entity := range originPolicies {
-		plc := entity.(*model.ApplicationPolicy)
-		originPolicyNames = append(originPolicyNames, plc.Name)
-	}
-
-	var targetPLCNames []string
-	for _, plc := range expPolicies {
-		targetPLCNames = append(targetPLCNames, plc.Name)
-	}
-
-	_, readyToDelete, readyToAdd := utils2.CompareSlices(originPolicyNames, targetPLCNames)
-
-	// delete the components that not belongs to the new app
-	for _, entity := range originPolicies {
-		plc := entity.(*model.ApplicationPolicy)
-		// we only compare for policies that automatically generated by sync process, and the policy should not be ref ones.
-		if plc.Creator != model.AutoGenPolicy {
-			continue
-		}
-		if !utils.StringsContain(readyToDelete, plc.Name) {
-			continue
-		}
-		if err := ds.Delete(ctx, plc); err != nil {
-			if errors.Is(err, datastore.ErrRecordNotExist) {
-				continue
-			}
-			log.Logger.Warnf("delete policy %s for app %s failure %s", plc.Name, appPrimaryKey, err.Error())
-		}
-	}
-
-	// add or update new app's policies for datastore
-	for _, plc := range expPolicies {
-		if utils.StringsContain(readyToAdd, plc.Name) {
-			err = ds.Add(ctx, plc)
-		} else {
-			err = ds.Put(ctx, plc)
-		}
-		if err != nil {
-			log.Logger.Warnf("convert policy %s for app %s into datastore failure %s", plc.Name, utils2.Sanitize(appPrimaryKey), err.Error())
-			return err
-		}
-	}
-	return nil
-}
-
-// StoreWorkflow will sync workflow application CR to datastore, it updates the only one workflow from the application with specified name
-func StoreWorkflow(ctx context.Context, targetApp *model.DataStoreApp, ds datastore.DataStore) error {
-	err := ds.Get(ctx, &model.Workflow{AppPrimaryKey: targetApp.Name, Name: targetApp.Workflow.Name})
-	if err == nil {
-		// it means the record already exists, update it
-		return ds.Put(ctx, targetApp.Workflow)
-	}
-	if !errors.Is(err, datastore.ErrRecordNotExist) {
-		// other database error, return it
-		return err
-	}
-	return ds.Add(ctx, targetApp.Workflow)
-}
-
-// StoreTargets will sync targets from application CR to datastore
-func StoreTargets(ctx context.Context, targetApp *model.DataStoreApp, ds datastore.DataStore) error {
-	for _, t := range targetApp.Targets {
-		err := ds.Get(ctx, t)
-		if err == nil {
-			continue
-		}
-		if !errors.Is(err, datastore.ErrRecordNotExist) {
-			// other database error, return it
-			return err
-		}
-		if err = ds.Add(ctx, t); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Store2UXAuto will sync application CR to storage of VelaUX automatically
-func Store2UXAuto(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, ds datastore.DataStore) error {
-	sot := CheckSoTFromCR(targetApp)
-
-	// This is a double check to make sure the app not be converted and un-deployed
-	sot = CheckSoTFromAppMeta(ctx, ds, targetApp.Name, sot)
-
-	switch sot {
-	case FromUX, FromInner:
-		// we don't sync if the application is not created from CR
-		return nil
-	default:
-	}
-
-	dsApp, err := ConvertApp2DatastoreApp(ctx, cli, targetApp)
+	dsApp, err := ConvertApp2DatastoreApp(ctx, cli, targetApp, ds)
 	if err != nil {
 		log.Logger.Errorf("Convert App to data store err %v", err)
 		return err
 	}
 
-	if err = StoreAppMeta(ctx, dsApp, ds); err != nil {
-		log.Logger.Errorf("Store App Metadata to data store err %v", err)
+	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds); err != nil {
+		log.Logger.Errorf("get or create project for sync process err %v", err)
 		return err
 	}
+
 	if err = StoreEnv(ctx, dsApp, ds); err != nil {
 		log.Logger.Errorf("Store Env Metadata to data store err %v", err)
 		return err
@@ -482,11 +365,11 @@ func Store2UXAuto(ctx context.Context, cli client.Client, targetApp *v1beta1.App
 		log.Logger.Errorf("Store EnvBinding Metadata to data store err %v", err)
 		return err
 	}
-	if err = StoreComponents(ctx, dsApp.Name, dsApp.Comps, ds); err != nil {
+	if err = StoreComponents(ctx, dsApp.AppMeta.Name, dsApp.Comps, ds); err != nil {
 		log.Logger.Errorf("Store Components Metadata to data store err %v", err)
 		return err
 	}
-	if err = StorePolicy(ctx, dsApp.Name, dsApp.Policies, ds); err != nil {
+	if err = StorePolicy(ctx, dsApp.AppMeta.Name, dsApp.Policies, ds); err != nil {
 		log.Logger.Errorf("Store Policy Metadata to data store err %v", err)
 		return err
 	}
@@ -498,28 +381,29 @@ func Store2UXAuto(ctx context.Context, cli client.Client, targetApp *v1beta1.App
 		log.Logger.Errorf("Store targets to data store err %v", err)
 		return err
 	}
+
+	if err = StoreAppMeta(ctx, dsApp, ds); err != nil {
+		log.Logger.Errorf("Store App Metadata to data store err %v", err)
+		return err
+	}
+
+	// update cache
+	c.updateCache(dsApp.AppMeta.PrimaryKey(), targetApp.Generation)
 	return nil
 }
 
 // DeleteApp will delete the application as the CR was deleted
-func DeleteApp(ctx context.Context, targetApp *v1beta1.Application, ds datastore.DataStore) error {
-	sot := CheckSoTFromCR(targetApp)
+func (c *CR2UX) DeleteApp(ctx context.Context, targetApp *v1beta1.Application) error {
+	ds := c.ds
 
-	// This is a double check to make sure the app not be converted and un-deployed
-	sot = CheckSoTFromAppMeta(ctx, ds, targetApp.Name, sot)
-
-	switch sot {
-	case FromUX, FromInner:
-		// we don't sync if the application is not created from CR
+	if !c.shouldSync(ctx, targetApp, true) {
 		return nil
-	default:
 	}
+	appName := c.getAppMetaName(ctx, targetApp.Name, targetApp.Namespace)
 
-	_ = ds.Delete(ctx, &model.Application{Name: targetApp.Name})
+	_ = ds.Delete(ctx, &model.Application{Name: appName})
 
-	_ = ds.Delete(ctx, &model.Env{Name: model.AutoGenEnvNamePrefix + targetApp.Namespace})
-
-	cmps, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: targetApp.Name}, &datastore.ListOptions{})
+	cmps, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appName}, &datastore.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -530,7 +414,7 @@ func DeleteApp(ctx context.Context, targetApp *v1beta1.Application, ds datastore
 		}
 	}
 
-	plcs, err := ds.List(ctx, &model.ApplicationPolicy{AppPrimaryKey: targetApp.Name}, &datastore.ListOptions{})
+	plcs, err := ds.List(ctx, &model.ApplicationPolicy{AppPrimaryKey: appName}, &datastore.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -541,7 +425,7 @@ func DeleteApp(ctx context.Context, targetApp *v1beta1.Application, ds datastore
 		}
 	}
 
-	_ = ds.Delete(ctx, &model.Workflow{Name: model.AutoGenWorkflowNamePrefix + targetApp.Name})
+	_ = ds.Delete(ctx, &model.Workflow{Name: model.AutoGenWorkflowNamePrefix + appName})
 
 	return nil
 }

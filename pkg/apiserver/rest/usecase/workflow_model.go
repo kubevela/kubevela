@@ -58,7 +58,7 @@ func UpdateEnvWorkflow(ctx context.Context, kubeClient client.Client, ds datasto
 	}
 
 	var filteredSteps []apisv1.WorkflowStep
-	_, readyToDeleteSteps, readyToAddSteps := utils2.CompareSlices(workflowStepNames, envStepNames)
+	_, readyToDeleteSteps, readyToAddSteps := utils2.ThreeWaySliceCompare(workflowStepNames, envStepNames)
 
 	for _, step := range workflow.Steps {
 		if isEnvStepType(step.Type) && utils.StringsContain(readyToDeleteSteps, step.Name) {

@@ -44,6 +44,9 @@ func (a *Application) TableName() string {
 }
 
 // PrimaryKey return custom primary key
+// the app primary key is the app name, so the app name is globally unique in every namespace
+// when the app is synced from CR, the first synced one be same with app name,
+// if there's any conflicts, the name will be composed by <appname>-<namespace>
 func (a *Application) PrimaryKey() string {
 	return a.Name
 }

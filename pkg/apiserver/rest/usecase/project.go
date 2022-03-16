@@ -114,15 +114,6 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string
 		return
 	}
 
-	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
-		Name:        model.DefaultAddonProject,
-		Alias:       "Addons",
-		Description: model.DefaultProjectDescription,
-	})
-	if err != nil {
-		log.Logger.Errorf("initialize project failed %v", err)
-		return
-	}
 }
 
 // GetProject get project

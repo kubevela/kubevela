@@ -117,9 +117,6 @@ func (s *restServer) Run(ctx context.Context) error {
 	go func() {
 		leaderelection.RunOrDie(ctx, *l)
 	}()
-
-	go velasync.Start(s.dataStore)
-
 	return s.startHTTP(ctx)
 }
 
@@ -141,10 +138,15 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		RetryPeriod:   time.Second * 2,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				s.runLeader(ctx, s.cfg.LeaderConfig.Duration)
+				fmt.Println("XXXXXXXXXXXXXX")
+
+				go velasync.Start(ctx, s.dataStore)
+				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 			},
 			OnStoppedLeading: func() {
 				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
+				// Currently, the started goroutine will all closed by the context, so there seems no need to call os.Exit here.
+				// But it can be safe to stop the process as leader lost.
 				os.Exit(0)
 			},
 			OnNewLeader: func(identity string) {
@@ -158,7 +160,8 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 	}, nil
 }
 
-func (s restServer) runLeader(ctx context.Context, duration time.Duration) {
+func (s restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
+	klog.Infof("start to syncing workflow record")
 	w := usecase.NewWorkflowUsecase(s.dataStore, usecase.NewEnvUsecase(s.dataStore))
 
 	t := time.NewTicker(duration)

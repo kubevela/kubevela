@@ -19,9 +19,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 
 	"github.com/fatih/color"
 	"github.com/sirupsen/logrus"
@@ -37,7 +35,7 @@ import (
 )
 
 // Start prepares watchers and run their controllers, then waits for process termination signals
-func Start(ds datastore.DataStore) {
+func Start(ctx context.Context, ds datastore.DataStore) {
 
 	cfg := ctrl.GetConfigOrDie()
 	dynamicClient, err := dynamic.NewForConfig(cfg)
@@ -46,18 +44,11 @@ func Start(ds datastore.DataStore) {
 	}
 
 	f := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, v1.NamespaceAll, nil)
-	stopCh := make(chan struct{})
-	defer close(stopCh)
 
-	go startAppSyncing(stopCh, f, ds)
-
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGTERM)
-	signal.Notify(sigterm, syscall.SIGINT)
-	<-sigterm
+	startAppSyncing(ctx, f, ds)
 }
 
-func startAppSyncing(stopCh <-chan struct{}, factory dynamicinformer.DynamicSharedInformerFactory, ds datastore.DataStore) {
+func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedInformerFactory, ds datastore.DataStore) {
 	cli, err := clients.GetKubeClient()
 	if err != nil {
 		logrus.Fatal(err)
@@ -69,29 +60,42 @@ func startAppSyncing(stopCh <-chan struct{}, factory dynamicinformer.DynamicShar
 		_ = json.Unmarshal(bs, app)
 		return app
 	}
+	cu := &CR2UX{
+		ds:    ds,
+		cli:   cli,
+		cache: sync.Map{},
+	}
+	if err = cu.Init(ctx); err != nil {
+		logrus.Fatal("sync app init err", err)
+	}
+
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			app := getApp(obj)
-			err = Store2UXAuto(context.Background(), cli, app, ds)
+			logrus.Infof("watched add app event, %s %s", app.Namespace, app.Name)
+			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
 				logrus.Errorf("Application %-30s Create Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
 			app := getApp(obj)
-			err = Store2UXAuto(context.Background(), cli, app, ds)
+			logrus.Infof("watched update app event, %s %s", app.Namespace, app.Name)
+			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
 				logrus.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)
-			err = DeleteApp(context.Background(), app, ds)
+			logrus.Infof("watched delete app event, %s %s", app.Namespace, app.Name)
+			err = cu.DeleteApp(ctx, app)
 			if err != nil {
 				logrus.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 	}
 	informer.AddEventHandler(handlers)
-	informer.Run(stopCh)
+	logrus.Info("app syncing started")
+	informer.Run(ctx.Done())
 }

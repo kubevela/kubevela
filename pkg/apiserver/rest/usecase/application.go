@@ -1577,7 +1577,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 		targetCompNames = append(targetCompNames, comp.Name)
 	}
 
-	readyToUpdate, readyToDelete, readyToAdd := utils2.CompareSlices(originCompNames, targetCompNames)
+	readyToUpdate, readyToDelete, readyToAdd := utils2.ThreeWaySliceCompare(originCompNames, targetCompNames)
 
 	// delete new app's components
 	for _, compName := range readyToDelete {

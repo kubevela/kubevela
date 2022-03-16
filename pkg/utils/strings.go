@@ -31,8 +31,8 @@ func StringsContain(items []string, source string) bool {
 	return false
 }
 
-// CompareSlices will compare two string slice, with the three return values: [both in A and B], [only in A], [only in B]
-func CompareSlices(a []string, b []string) ([]string, []string, []string) {
+// ThreeWaySliceCompare will compare two string slice, with the three return values: [both in A and B], [only in A], [only in B]
+func ThreeWaySliceCompare(a []string, b []string) ([]string, []string, []string) {
 	m := make(map[string]struct{})
 	for _, k := range b {
 		m[k] = struct{}{}

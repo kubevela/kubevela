@@ -49,7 +49,7 @@ var _ = Describe("Test CRD CR sync to datastore", func() {
 		app1 := &v1beta1.Application{}
 		Expect(common2.ReadYamlToObject("testdata/test-app1.yaml", app1)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), app1)).Should(BeNil())
-		//Store2UXAuto()
+		//AddOrUpdate()
 
 	})
 
