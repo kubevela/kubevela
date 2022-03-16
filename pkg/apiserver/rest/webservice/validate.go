@@ -26,7 +26,10 @@ import (
 
 var validate = validator.New()
 
-var nameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+var (
+	nameRegexp  = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	emailRegexp = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+)
 
 const (
 	minPageSize = 5
@@ -41,6 +44,9 @@ func init() {
 		panic(err)
 	}
 	if err := validate.RegisterValidation("checkpayloadtype", ValidatePayloadType); err != nil {
+		panic(err)
+	}
+	if err := validate.RegisterValidation("checkemail", ValidateEmail); err != nil {
 		panic(err)
 	}
 }
@@ -72,4 +78,10 @@ func ValidateAlias(fl validator.FieldLevel) bool {
 		return false
 	}
 	return true
+}
+
+// ValidateEmail custom check email field
+func ValidateEmail(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	return emailRegexp.MatchString(value)
 }

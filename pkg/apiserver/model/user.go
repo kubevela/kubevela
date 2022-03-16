@@ -16,7 +16,11 @@ limitations under the License.
 
 package model
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 func init() {
 	RegisterModel(&User{})
@@ -25,11 +29,12 @@ func init() {
 // User is the model of user
 type User struct {
 	BaseModel
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Alias    string `json:"alias,omitempty"`
-	Password string `json:"password,omitempty"`
-	Disabled bool   `json:"disabled"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Alias         string    `json:"alias,omitempty"`
+	Password      string    `json:"password,omitempty"`
+	Disabled      bool      `json:"disabled"`
+	LastLoginTime time.Time `json:"lastLoginTime,omitempty"`
 }
 
 // TableName return custom table name
@@ -55,6 +60,37 @@ func (u *User) Index() map[string]string {
 	}
 	if u.Email != "" {
 		index["email"] = verifyUserValue(u.Email)
+	}
+	return index
+}
+
+// ProjectUser is the model of user in project
+type ProjectUser struct {
+	BaseModel
+	Username     string `json:"username"`
+	ProjectName  string `json:"projectName"`
+	ProjectAlias string `json:"projectAlias,omitempty"`
+	UserRole     string `json:"userRole"`
+}
+
+// TableName return custom table name
+func (u *ProjectUser) TableName() string {
+	return tableNamePrefix + "project_user"
+}
+
+// PrimaryKey return custom primary key
+func (u *ProjectUser) PrimaryKey() string {
+	return fmt.Sprintf("%s-%s", u.ProjectName, verifyUserValue(u.Username))
+}
+
+// Index return custom index
+func (u *ProjectUser) Index() map[string]string {
+	index := make(map[string]string)
+	if u.Username != "" {
+		index["username"] = verifyUserValue(u.Username)
+	}
+	if u.ProjectName != "" {
+		index["projectName"] = u.ProjectName
 	}
 	return index
 }

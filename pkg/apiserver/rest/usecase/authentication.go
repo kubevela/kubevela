@@ -195,8 +195,10 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.LoginResponse, erro
 
 	return &apisv1.LoginResponse{
 		UserInfo: apisv1.DetailUserResponse{
-			Name:  claims.Name,
-			Email: claims.Email,
+			UserBase: apisv1.UserBase{
+				Name:  claims.Name,
+				Email: claims.Email,
+			},
 		},
 		AccessToken:  d.token.AccessToken,
 		RefreshToken: d.token.RefreshToken,
