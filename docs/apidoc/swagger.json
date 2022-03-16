@@ -4496,6 +4496,19 @@
 				}
 			}
 		},
+		"common.DefinitionReference": {
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				}
+			}
+		},
 		"common.Helm": {
 			"required": [
 				"release",
@@ -5046,8 +5059,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"name",
 				"alias",
 				"description",
@@ -5714,12 +5727,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"createTime",
+				"version",
+				"envName",
 				"status",
 				"note",
-				"envName",
-				"triggerType",
-				"createTime",
-				"version"
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -6713,6 +6726,9 @@
 				"icon"
 			],
 			"properties": {
+				"component": {
+					"$ref": "#/definitions/v1beta1.ComponentDefinitionSpec"
+				},
 				"description": {
 					"type": "string"
 				},
@@ -6722,6 +6738,15 @@
 				"name": {
 					"type": "string"
 				},
+				"policy": {
+					"$ref": "#/definitions/v1beta1.PolicyDefinitionSpec"
+				},
+				"trait": {
+					"$ref": "#/definitions/v1beta1.TraitDefinitionSpec"
+				},
+				"workflowStep": {
+					"$ref": "#/definitions/v1beta1.WorkflowStepDefinitionSpec"
+				},
 				"workloadType": {
 					"type": "string"
 				}
@@ -6729,8 +6754,8 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
 				"invisible",
+				"name",
 				"version",
 				"description",
 				"icon",
@@ -6806,13 +6831,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"icon",
+				"name",
 				"alias",
 				"project",
 				"description",
 				"createTime",
 				"updateTime",
-				"icon",
-				"name",
 				"policies",
 				"envBindings",
 				"status",
@@ -6874,20 +6899,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"provider",
-				"kubeConfig",
-				"createTime",
 				"name",
-				"icon",
-				"status",
-				"dashboardURL",
-				"kubeConfigSecret",
 				"updateTime",
-				"labels",
-				"reason",
+				"createTime",
+				"provider",
 				"apiServerURL",
 				"alias",
 				"description",
+				"icon",
+				"status",
+				"labels",
+				"reason",
+				"dashboardURL",
+				"kubeConfig",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -6945,14 +6970,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"main",
-				"alias",
-				"appPrimaryKey",
-				"creator",
 				"name",
+				"appPrimaryKey",
 				"type",
+				"createTime",
+				"creator",
+				"alias",
+				"main",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -7054,13 +7079,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
 				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -7090,17 +7115,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"deployUser",
-				"workflowName",
-				"reason",
-				"note",
-				"status",
-				"envName",
-				"triggerType",
 				"createTime",
 				"updateTime",
+				"reason",
+				"deployUser",
+				"workflowName",
+				"version",
+				"triggerType",
 				"appPrimaryKey",
-				"version"
+				"status",
+				"note",
+				"envName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7154,9 +7179,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -7193,12 +7218,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"status",
-				"name",
-				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
+				"status",
+				"name",
+				"namespace",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7250,14 +7275,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"description",
+				"default",
 				"envName",
 				"createTime",
-				"updateTime",
 				"name",
 				"alias",
+				"description",
 				"enable",
-				"default"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -7853,10 +7878,10 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"enableCollection",
 				"createTime",
 				"updateTime",
 				"installID",
+				"enableCollection",
 				"systemVersion"
 			],
 			"properties": {
@@ -8264,6 +8289,62 @@
 				}
 			}
 		},
+		"v1beta1.PolicyDefinitionSpec": {
+			"properties": {
+				"definitionRef": {
+					"$ref": "#/definitions/common.DefinitionReference"
+				},
+				"manageHealthCheck": {
+					"type": "boolean"
+				},
+				"schematic": {
+					"$ref": "#/definitions/common.Schematic"
+				}
+			}
+		},
+		"v1beta1.TraitDefinitionSpec": {
+			"properties": {
+				"appliesToWorkloads": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"conflictsWith": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"definitionRef": {
+					"$ref": "#/definitions/common.DefinitionReference"
+				},
+				"extension": {
+					"type": "string"
+				},
+				"manageWorkload": {
+					"type": "boolean"
+				},
+				"podDisruptive": {
+					"type": "boolean"
+				},
+				"revisionEnabled": {
+					"type": "boolean"
+				},
+				"schematic": {
+					"$ref": "#/definitions/common.Schematic"
+				},
+				"skipRevisionAffect": {
+					"type": "boolean"
+				},
+				"status": {
+					"$ref": "#/definitions/common.Status"
+				},
+				"workloadRefPath": {
+					"type": "string"
+				}
+			}
+		},
 		"v1beta1.Workflow": {
 			"properties": {
 				"ref": {
@@ -8309,6 +8390,16 @@
 				},
 				"type": {
 					"type": "string"
+				}
+			}
+		},
+		"v1beta1.WorkflowStepDefinitionSpec": {
+			"properties": {
+				"definitionRef": {
+					"$ref": "#/definitions/common.DefinitionReference"
+				},
+				"schematic": {
+					"$ref": "#/definitions/common.Schematic"
 				}
 			}
 		},
