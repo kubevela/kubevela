@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test authentication usecase functions", func() {
@@ -83,7 +84,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 				Name: "vela-system",
 			},
 		})
-		Expect(err).Should(BeNil())
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		err = k8sClient.Create(context.Background(), &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretDexConfig,
