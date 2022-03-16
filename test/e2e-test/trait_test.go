@@ -70,7 +70,6 @@ var _ = Describe("Trait tests", func() {
 				deploy := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels).ShouldNot(BeNil())
-				g.Expect(deploy.Labels["deploy-label-key"]).Should(Equal("deploy-label-added-value"))
 				g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(3)))
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels).ShouldNot(BeNil())
 				g.Expect(deploy.Spec.Template.ObjectMeta.Labels["pod-label-key"]).Should(Equal("pod-label-modified-value"))

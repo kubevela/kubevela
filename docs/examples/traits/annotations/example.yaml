@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+        annotations:
+          annotation-key: annotation-value
+          to-delete-annotation-key: to-delete-annotation-value
+      traits:
+        # the `annotations` trait will add/delete annotation key/value pair to the
+        # labels of the workload and the template inside the spec of the workload (if exists)
+        # 1. if original annotations contains the key, value will be overridden
+        # 2. if original annotations do not contain the key, value will be added
+        # 3. if original annotations contains the key and the value is null, the key will be removed
+        - type: annotations
+          properties:
+            added-annotation-key: added-annotation-value
+            annotation-key: modified-annotation-value
+            to-delete-annotation-key: null
