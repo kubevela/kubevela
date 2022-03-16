@@ -35,6 +35,7 @@ var registeredModels = map[string]Interface{}
 // Interface model interface
 type Interface interface {
 	TableName() string
+	ShortTableName() string
 }
 
 // RegisterModel register model
@@ -45,6 +46,11 @@ func RegisterModel(models ...Interface) {
 		}
 		registeredModels[model.TableName()] = model
 	}
+}
+
+// GetRegisterModels will return the register models
+func GetRegisterModels() map[string]Interface {
+	return registeredModels
 }
 
 // JSONStruct json struct, same with runtime.RawExtension

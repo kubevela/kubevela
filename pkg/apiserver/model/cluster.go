@@ -82,6 +82,11 @@ func (c *Cluster) TableName() string {
 	return tableNamePrefix + "cluster"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (c *Cluster) ShortTableName() string {
+	return "cls"
+}
+
 // PrimaryKey primary key for datastore
 func (c *Cluster) PrimaryKey() string {
 	return c.Name

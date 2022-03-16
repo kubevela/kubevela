@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -51,7 +52,7 @@ func Start(ctx context.Context, ds datastore.DataStore) {
 func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedInformerFactory, ds datastore.DataStore) {
 	cli, err := clients.GetKubeClient()
 	if err != nil {
-		logrus.Fatal(err)
+		klog.Fatal(err)
 	}
 	informer := factory.ForResource(v1beta1.SchemeGroupVersion.WithResource("applications")).Informer()
 	getApp := func(obj interface{}) *v1beta1.Application {
@@ -66,13 +67,13 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		cache: sync.Map{},
 	}
 	if err = cu.Init(ctx); err != nil {
-		logrus.Fatal("sync app init err", err)
+		klog.Fatal("sync app init err", err)
 	}
 
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			app := getApp(obj)
-			logrus.Infof("watched add app event, %s %s", app.Namespace, app.Name)
+			klog.Infof("watched add app event, %s %s", app.Namespace, app.Name)
 			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
 				logrus.Errorf("Application %-30s Create Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
@@ -80,22 +81,22 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
 			app := getApp(obj)
-			logrus.Infof("watched update app event, %s %s", app.Namespace, app.Name)
+			klog.Infof("watched update app event, %s %s", app.Namespace, app.Name)
 			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
-				logrus.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				klog.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)
-			logrus.Infof("watched delete app event, %s %s", app.Namespace, app.Name)
+			klog.Infof("watched delete app event, %s %s", app.Namespace, app.Name)
 			err = cu.DeleteApp(ctx, app)
 			if err != nil {
-				logrus.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				klog.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 	}
 	informer.AddEventHandler(handlers)
-	logrus.Info("app syncing started")
+	klog.Info("app syncing started")
 	informer.Run(ctx.Done())
 }

@@ -61,6 +61,11 @@ func (w *Workflow) TableName() string {
 	return tableNamePrefix + "workflow"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (w *Workflow) ShortTableName() string {
+	return "wf"
+}
+
 // PrimaryKey return custom primary key
 func (w *Workflow) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", w.AppPrimaryKey, w.Name)
@@ -116,6 +121,11 @@ type WorkflowStepStatus struct {
 // TableName return custom table name
 func (w *WorkflowRecord) TableName() string {
 	return tableNamePrefix + "workflow_record"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (w *WorkflowRecord) ShortTableName() string {
+	return "wfr"
 }
 
 // PrimaryKey return custom primary key

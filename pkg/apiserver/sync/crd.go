@@ -99,9 +99,9 @@ func ConvertFromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creat
 }
 
 // ConvertFromCRWorkflow converts Application CR Workflow section into velaux data store workflow
-func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
+func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
 	dataWf := model.Workflow{
-		AppPrimaryKey: app.Name,
+		AppPrimaryKey: appPrimaryKey,
 		// every namespace has a synced env
 		EnvName: model.AutoGenEnvNamePrefix + app.Namespace,
 		// every application has a synced workflow
@@ -176,6 +176,7 @@ func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *
 	appMeta := &model.Application{
 		Name:        targetApp.Name,
 		Description: model.AutoGenDesc,
+		Alias:       targetApp.Name,
 		Project:     project,
 		Labels: map[string]string{
 			model.LabelSyncNamespace:  targetApp.Namespace,
@@ -189,7 +190,6 @@ func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *
 		namespace := existApp.Labels[model.LabelSyncNamespace]
 		if namespace != targetApp.Namespace {
 			appMeta.Name = formatAppComposedName(targetApp.Name, targetApp.Namespace)
-			appMeta.Alias = targetApp.Name
 		}
 	}
 	if err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
@@ -230,7 +230,7 @@ func ConvertApp2DatastoreApp(ctx context.Context, cli client.Client, targetApp *
 	}
 
 	// 4. convert workflow
-	wf, steps, err := ConvertFromCRWorkflow(ctx, cli, targetApp)
+	wf, steps, err := ConvertFromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +310,7 @@ func (c *CR2UX) getAppMetaName(ctx context.Context, name, namespace string) stri
 	return name
 }
 
+// Init will initialize the cache
 func (c *CR2UX) Init(ctx context.Context) error {
 	appsRaw, err := c.ds.List(ctx, &model.Application{}, &datastore.ListOptions{})
 	if err != nil {

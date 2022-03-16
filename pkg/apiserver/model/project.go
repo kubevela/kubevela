@@ -33,6 +33,11 @@ func (p *Project) TableName() string {
 	return tableNamePrefix + "project"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (p *Project) ShortTableName() string {
+	return "pj"
+}
+
 // PrimaryKey return custom primary key
 func (p *Project) PrimaryKey() string {
 	return p.Name

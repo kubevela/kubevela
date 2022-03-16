@@ -50,6 +50,11 @@ func (e *EnvBinding) TableName() string {
 	return tableNamePrefix + "envbinding"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (e *EnvBinding) ShortTableName() string {
+	return "evb"
+}
+
 // PrimaryKey return custom primary key
 func (e *EnvBinding) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", e.AppPrimaryKey, e.Name)

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
@@ -97,8 +96,4 @@ func NewDatastore(cfg datastore.Config) (ds datastore.DataStore, err error) {
 		return nil, fmt.Errorf("not support datastore type %s", cfg.Type)
 	}
 	return ds, nil
-}
-
-func randomNamespaceName(basic string) string {
-	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

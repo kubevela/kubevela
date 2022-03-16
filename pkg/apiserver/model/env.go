@@ -42,6 +42,11 @@ func (p *Env) TableName() string {
 	return tableNamePrefix + "env"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (p *Env) ShortTableName() string {
+	return "ev"
+}
+
 // PrimaryKey return custom primary key
 func (p *Env) PrimaryKey() string {
 	return p.Name
