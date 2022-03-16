@@ -11,6 +11,7 @@ annotations: {
 	}
 }
 template: {
+	// +patchStrategy=jsonMergePatch
 	patch: {
 		metadata: {
 			annotations: {
@@ -19,11 +20,13 @@ template: {
 				}
 			}
 		}
-		spec: template: metadata: annotations: {
-			for k, v in parameter {
-				"\(k)": v
+		if context.output.spec != _|_ && context.output.spec.template != _|_ {
+			spec: template: metadata: annotations: {
+				for k, v in parameter {
+					"\(k)": v
+				}
 			}
 		}
 	}
-	parameter: [string]: string
+	parameter: [string]: string | null
 }

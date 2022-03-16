@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: ["sleep", "86400"]
+        labels:
+          label-key: label-value
+          to-delete-label-key: to-delete-label-value
+      traits:
+        # the `labels` trait will add/delete label key/value pair to the
+        # labels of the workload and the template inside the spec of the workload (if exists)
+        # 1. if original labels contains the key, value will be overridden
+        # 2. if original labels do not contain the key, value will be added
+        # 3. if original labels contains the key and the value is null, the key will be removed
+        - type: labels
+          properties:
+            added-label-key: added-label-value
+            label-key: modified-label-value
+            to-delete-label-key: null

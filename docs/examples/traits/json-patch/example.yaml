@@ -24,11 +24,6 @@ spec:
           properties:
             operations:
               - op: add
-                path: "/metadata"
-                value:
-                  labels:
-                    deploy-label-key: deploy-label-added-value
-              - op: add
                 path: "/spec/replicas"
                 value: 3
               - op: replace
