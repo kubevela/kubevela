@@ -14,9 +14,9 @@ jobs:
         with:
           repository: "oam-dev/kubevela-github-actions"
           path: ./actions
-          ref: v0.4.1
+          ref: v0.4.2
       - name: Install Actions
-        run: npm install --production --prefix ./actions
+        run: npm ci --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
         with:
