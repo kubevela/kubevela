@@ -234,6 +234,35 @@ var _ = Describe("Test Application Controller", func() {
 		Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 	})
 
+	appWithStorage := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-storage",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "myworker",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"firstValue\"}]}")},
+				},
+			},
+		},
+	}
+	appWithStorage.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "storage",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\":[{\"name\":\"myworker-cm\",\"mountPath\":\"/test/mount/cm\",\"data\":{\"secondKey\":\"secondValue\"}}]}")},
+		},
+		{
+			Type:       "env",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"env\":{\"thirdKey\":\"thirdValue\"}}")},
+		},
+	}
+
 	cd := &v1beta1.ComponentDefinition{}
 	cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
 	k8sObjectsCDJson, _ := yaml.YAMLToJSON([]byte(k8sObjectsComponentDefinitionYaml))
@@ -246,6 +275,10 @@ var _ = Describe("Test Application Controller", func() {
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
 
 	importTd := &v1alpha2.TraitDefinition{}
+
+	importStorage := &v1alpha2.TraitDefinition{}
+
+	importEnv := &v1alpha2.TraitDefinition{}
 
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
@@ -277,6 +310,16 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importTd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		storageJson, storageErr := yaml.YAMLToJSON([]byte(storageYaml))
+		Expect(storageErr).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(storageJson, importStorage)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importStorage.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		envJson, envErr := yaml.YAMLToJSON([]byte(envYaml))
+		Expect(envErr).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(envJson, importEnv)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importEnv.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -2390,6 +2433,51 @@ var _ = Describe("Test Application Controller", func() {
 		check(&v1OREmptyReconciler, appWithCtrlReqV1, true)
 		check(&v2OnlyReconciler, appWithCtrlReqV2, true)
 	})
+
+	It("app with env and storage will create application", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-env-storage",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithStorage.SetNamespace(ns.Name)
+		app := appWithStorage.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 const (
@@ -3336,6 +3424,394 @@ spec:
                 value: workloads
         }
         parameter: parallelism: int
+
+`
+
+	storageYaml = `apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Add storages on K8s pod for your workload which follows the pod spec in path 'spec.template'.
+  name: storage
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  podDisruptive: true
+  schematic:
+    cue:
+      template: |
+        pvcVolumesList: *[
+        		for v in parameter.pvc {
+        		{
+        			name: "pvc-" + v.name
+        			persistentVolumeClaim: claimName: v.name
+        		}
+        	},
+        ] | []
+        configMapVolumesList: *[
+        			for v in parameter.configMap {
+        		{
+        			name: "configmap-" + v.name
+        			configMap: {
+        				defaultMode: v.defaultMode
+        				name:        v.name
+        				if v.items != _|_ {
+        					items: v.items
+        				}
+        			}
+        		}
+        	},
+        ] | []
+        secretVolumesList: *[
+        			for v in parameter.secret {
+        		{
+        			name: "secret-" + v.name
+        			secret: {
+        				defaultMode: v.defaultMode
+        				secretName:  v.name
+        				if v.items != _|_ {
+        					items: v.items
+        				}
+        			}
+        		}
+        	},
+        ] | []
+        emptyDirVolumesList: *[
+        			for v in parameter.emptyDir {
+        		{
+        			name: "emptydir-" + v.name
+        			emptyDir: medium: v.medium
+        		}
+        	},
+        ] | []
+        pvcVolumeMountsList: *[
+        			for v in parameter.pvc {
+        		if v.volumeMode == "Filesystem" {
+        			{
+        				name:      "pvc-" + v.name
+        				mountPath: v.mountPath
+        			}
+        		}
+        	},
+        ] | []
+        configMapVolumeMountsList: *[
+        				for v in parameter.configMap {
+        		{
+        			name:      "configmap-" + v.name
+        			mountPath: v.mountPath
+        		}
+        	},
+        ] | []
+        configMapEnvMountsList: *[
+        			for v in parameter.configMap if v.mountToEnv != _|_ {
+        		{
+        			name: v.mountToEnv.envName
+        			valueFrom: configMapKeyRef: {
+        				name: v.name
+        				key:  v.mountToEnv.configMapKey
+        			}
+        		}
+        	},
+        ] | []
+        secretVolumeMountsList: *[
+        			for v in parameter.secret {
+        		{
+        			name:      "secret-" + v.name
+        			mountPath: v.mountPath
+        		}
+        	},
+        ] | []
+        secretEnvMountsList: *[
+        			for v in parameter.secret if v.mountToEnv != _|_ {
+        		{
+        			name: v.mountToEnv.envName
+        			valueFrom: secretKeyRef: {
+        				name: v.name
+        				key:  v.mountToEnv.secretKey
+        			}
+        		}
+        	},
+        ] | []
+        emptyDirVolumeMountsList: *[
+        				for v in parameter.emptyDir {
+        		{
+        			name:      "emptydir-" + v.name
+        			mountPath: v.mountPath
+        		}
+        	},
+        ] | []
+        volumeDevicesList: *[
+        			for v in parameter.pvc if v.volumeMode == "Block" {
+        		{
+        			name:       "pvc-" + v.name
+        			devicePath: v.mountPath
+        		}
+        	},
+        ] | []
+        patch: spec: template: spec: {
+        	// +patchKey=name
+        	volumes: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+
+        	containers: [{
+        		// +patchKey=name
+        		env: configMapEnvMountsList + secretEnvMountsList
+        		// +patchKey=name
+        		volumeDevices: volumeDevicesList
+        		// +patchKey=name
+        		volumeMounts: pvcVolumeMountsList + configMapVolumeMountsList + secretVolumeMountsList + emptyDirVolumeMountsList
+        	},...]
+
+        }
+        outputs: {
+        	for v in parameter.pvc {
+        		if v.mountOnly == false {
+        			"pvc-\(v.name)": {
+        				apiVersion: "v1"
+        				kind:       "PersistentVolumeClaim"
+        				metadata: name: v.name
+        				spec: {
+        					accessModes: v.accessModes
+        					volumeMode:  v.volumeMode
+        					if v.volumeName != _|_ {
+        						volumeName: v.volumeName
+        					}
+        					if v.storageClassName != _|_ {
+        						storageClassName: v.storageClassName
+        					}
+
+        					if v.resources.requests.storage == _|_ {
+        						resources: requests: storage: "8Gi"
+        					}
+        					if v.resources.requests.storage != _|_ {
+        						resources: requests: storage: v.resources.requests.storage
+        					}
+        					if v.resources.limits.storage != _|_ {
+        						resources: limits: storage: v.resources.limits.storage
+        					}
+        					if v.dataSourceRef != _|_ {
+        						dataSourceRef: v.dataSourceRef
+        					}
+        					if v.dataSource != _|_ {
+        						dataSource: v.dataSource
+        					}
+        					if v.selector != _|_ {
+        						dataSource: v.selector
+        					}
+        				}
+        			}
+        		}
+        	}
+
+        	for v in parameter.configMap {
+        		if v.mountOnly == false {
+        			"configmap-\(v.name)": {
+        				apiVersion: "v1"
+        				kind:       "ConfigMap"
+        				metadata: name: v.name
+        				if v.data != _|_ {
+        					data: v.data
+        				}
+        			}
+        		}
+        	}
+
+        	for v in parameter.secret {
+        		if v.mountOnly == false {
+        			"secret-\(v.name)": {
+        				apiVersion: "v1"
+        				kind:       "Secret"
+        				metadata: name: v.name
+        				if v.data != _|_ {
+        					data: v.data
+        				}
+        				if v.stringData != _|_ {
+        					stringData: v.stringData
+        				}
+        			}
+        		}
+        	}
+
+        }
+        parameter: {
+        	// +usage=Declare pvc type storage
+        	pvc?: [...{
+        		name:              string
+        		mountOnly:         *false | bool
+        		mountPath:         string
+        		volumeMode:        *"Filesystem" | string
+        		volumeName?:       string
+        		accessModes:       *["ReadWriteOnce"] | [...string]
+        		storageClassName?: string
+        		resources?: {
+        			requests: storage: =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+        			limits?: storage:  =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
+        		}
+        		dataSourceRef?: {
+        			name:     string
+        			kind:     string
+        			apiGroup: string
+        		}
+        		dataSource?: {
+        			name:     string
+        			kind:     string
+        			apiGroup: string
+        		}
+        		selector?: {
+        			matchLabels?: [string]: string
+        			matchExpressions?: {
+        				key: string
+        				values: [...string]
+        				operator: string
+        			}
+        		}
+        	}]
+
+        	// +usage=Declare config map type storage
+        	configMap?: [...{
+        		name:      string
+        		mountOnly: *false | bool
+        		mountToEnv?: {
+        			envName:      string
+        			configMapKey: string
+        		}
+        		mountPath:   string
+        		defaultMode: *420 | int
+        		readOnly:    *false | bool
+        		data?: {...}
+        		items?: [...{
+        			key:  string
+        			path: string
+        			mode: *511 | int
+        		}]
+        	}]
+
+        	// +usage=Declare secret type storage
+        	secret?: [...{
+        		name:      string
+        		mountOnly: *false | bool
+        		mountToEnv?: {
+        			envName:   string
+        			secretKey: string
+        		}
+        		mountPath:   string
+        		defaultMode: *420 | int
+        		readOnly:    *false | bool
+        		stringData?: {...}
+        		data?: {...}
+        		items?: [...{
+        			key:  string
+        			path: string
+        			mode: *511 | int
+        		}]
+        	}]
+
+        	// +usage=Declare empty dir type storage
+        	emptyDir?: [...{
+        		name:      string
+        		mountPath: string
+        		medium:    *"" | "Memory"
+        	}]
+        }
+`
+
+	envYaml = `apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Add env on K8s pod for your workload which follows the pod spec in path 'spec.template'
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
+  name: env
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - '*'
+  schematic:
+    cue:
+      template: |
+        #PatchParams: {
+        	// +usage=Specify the name of the target container, if not set, use the component name
+        	containerName: *"" | string
+        	// +usage=Specify if replacing the whole environment settings for the container
+        	replace: *false | bool
+        	// +usage=Specify the  environment variables to merge, if key already existing, override its value
+        	env: [string]: string
+        	// +usage=Specify which existing environment variables to unset
+        	unset: *[] | [...string]
+        }
+        PatchContainer: {
+        	_params: #PatchParams
+        	name:    _params.containerName
+        	_delKeys: {for k in _params.unset {"\(k)": ""}}
+        	_baseContainers: context.output.spec.template.spec.containers
+        	_matchContainers_: [ for _container_ in _baseContainers if _container_.name == name {_container_}]
+        	_baseContainer: *_|_ | {...}
+        	if len(_matchContainers_) == 0 {
+        		err: "container \(name) not found"
+        	}
+        	if len(_matchContainers_) > 0 {
+        		_baseContainer: _matchContainers_[0]
+        		_baseEnv:       _baseContainer.env
+        		if _baseEnv == _|_ {
+        			// +patchStrategy=replace
+        			env: [ for k, v in _params.env if _delKeys[k] == _|_ {
+        				name:  k
+        				value: v
+        			}]
+        		}
+        		if _baseEnv != _|_ {
+        			_baseEnvMap: {for envVar in _baseEnv {"\(envVar.name)": envVar.value}}
+        			// +patchStrategy=replace
+        			env: [ for envVar in _baseEnv if _delKeys[envVar.name] == _|_ && !_params.replace {
+        				name: envVar.name
+        				if _params.env[envVar.name] != _|_ {
+        					value: _params.env[envVar.name]
+        				}
+        				if _params.env[envVar.name] == _|_ {
+        					value: envVar.value
+        				}
+        			}] + [ for k, v in _params.env if _delKeys[k] == _|_ && (_params.replace || _baseEnvMap[k] == _|_) {
+        				name:  k
+        				value: v
+        			}]
+        		}
+        	}
+        }
+        patch: spec: template: spec: {
+        	if parameter.containers == _|_ {
+        		// +patchKey=name
+        		containers: [{
+        			PatchContainer & {_params: {
+        				if parameter.containerName == "" {
+        					containerName: context.name
+        				}
+        				if parameter.containerName != "" {
+        					containerName: parameter.containerName
+        				}
+        				replace: parameter.replace
+        				env:     parameter.env
+        				unset:   parameter.unset
+        			}}
+        		}]
+        	}
+        	if parameter.containers != _|_ {
+        		// +patchKey=name
+        		containers: [ for c in parameter.containers {
+        			if c.containerName == "" {
+        				err: "containerName must be set for containers"
+        			}
+        			if c.containerName != "" {
+        				PatchContainer & {_params: c}
+        			}
+        		}]
+        	}
+        }
+        parameter: #PatchParams | close({
+        	// +usage=Specify the environment variables for multiple containers
+        	containers: [...#PatchParams]
+        })
+        errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 
 `
 )
