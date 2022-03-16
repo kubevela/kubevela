@@ -748,10 +748,16 @@ type DetailDefinitionResponse struct {
 
 // DefinitionBase is the definition base model
 type DefinitionBase struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	WorkloadType string `json:"workloadType,omitempty"`
-	Icon         string `json:"icon"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	// WorkloadType the component workload type
+	// Deprecated: it same as component.workload.type
+	WorkloadType string                              `json:"workloadType,omitempty"`
+	Trait        *v1beta1.TraitDefinitionSpec        `json:"trait,omitempty"`
+	Component    *v1beta1.ComponentDefinitionSpec    `json:"component,omitempty"`
+	Policy       *v1beta1.PolicyDefinitionSpec       `json:"policy,omitempty"`
+	WorkflowStep *v1beta1.WorkflowStepDefinitionSpec `json:"workflowStep,omitempty"`
 }
 
 // CreatePolicyRequest create app policy
