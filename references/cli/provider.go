@@ -19,34 +19,39 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"strings"
 
 	"github.com/gosuri/uitable"
+	tcv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
 
-	// ProviderTerraformProviderNamespace is the namespace of addon terraform provider
-	ProviderTerraformProviderNamespace = "default"
-	// ProviderTerraformProviderNameArgument is the argument name of addon terraform provider
+	// ProviderNamespace is the namespace of Terraform Cloud Provider
+	ProviderNamespace = "default"
+	// ProviderTerraformProviderNameArgument is the argument name of addon terraform Provider
 	ProviderTerraformProviderNameArgument = "providerName"
 )
 
 // NewProviderCommand create `addon` command
 func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "addon",
-		Short: "Manage addons for extension.",
-		Long:  "Manage addons for extension.",
+		Use:   "provider",
+		Short: "Authenticate Terraform Cloud Providers",
+		Long:  "Authenticate Terraform Cloud Providers by managing Terraform Controller Providers with its credential secret",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeExtension,
@@ -54,6 +59,7 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 	}
 	cmd.AddCommand(
 		NewProviderListCommand(c),
+		NewProviderAddCommand(c),
 	)
 	return cmd
 }
@@ -63,14 +69,14 @@ func NewProviderListCommand(c common.Args) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List addons",
-		Long:    "List addons in KubeVela",
+		Short:   "List Terraform Cloud Providers",
+		Long:    "List Terraform Cloud Providers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			err = listProviders(context.Background(), k8sClient, "")
+			err = listProviders(context.Background(), k8sClient)
 			if err != nil {
 				return err
 			}
@@ -79,52 +85,65 @@ func NewProviderListCommand(c common.Args) *cobra.Command {
 	}
 }
 
-func listProviders(ctx context.Context, clt client.Client, registry string) error {
-	var addons []*pkgaddon.UIData
-	var err error
-	registryDS := pkgaddon.NewRegistryDataStore(clt)
-	registries, err := registryDS.ListRegistries(ctx)
-	if err != nil {
-		return err
+// NewProviderAddCommand create a Provider
+func NewProviderAddCommand(c common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "add",
+		Short:   "add a Terraform Cloud Provider",
+		Long:    "add a Terraform Cloud Provider by creating a credential secret and a Terraform Controller Provider",
+		Example: "vela Provider add <Provider-type>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("must specify a Terraform Cloud Provider type")
+			}
+			return nil
+		},
 	}
-	onlineAddon := map[string]bool{}
-	for _, r := range registries {
-		if registry != "" && r.Name != registry {
-			continue
-		}
+	return cmd
+}
 
-		meta, err := r.ListAddonMeta()
-		if err != nil {
-			continue
+type Provider struct {
+	Type string
+	Name string
+	Age  metav1.Time
+}
+
+func listProviders(ctx context.Context, k8sClient client.Client) error {
+	var labelVal = "terraform-provider"
+	var providers []Provider
+	tcProviders := &tcv1beta1.ProviderList{}
+	if err := k8sClient.List(ctx, tcProviders, client.InNamespace(ProviderNamespace),
+		client.MatchingLabels{"config.oam.dev/type": labelVal}); err != nil {
+		if kerrors.IsNotFound(err) {
+			defs := &v1beta1.ComponentDefinitionList{}
+			if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
+				client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": labelVal}); err != nil {
+				if kerrors.IsNotFound(err) {
+					return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
+				}
+				return errors.Wrap(err, "failed to retrieve providers")
+			}
+			for _, d := range defs.Items {
+				providers = append(providers, Provider{
+					Type: d.Name,
+				})
+			}
 		}
-		addList, err := r.ListUIData(meta, pkgaddon.CLIMetaOptions)
-		if err != nil {
-			continue
-		}
-		addons = mergeProviders(addons, addList)
+		return errors.Wrap(err, "failed to retrieve providers")
+	}
+	for _, p := range tcProviders.Items {
+		providers = append(providers, Provider{
+			Type: p.Labels[oam.WorkloadTypeLabel],
+			Name: p.Name,
+			Age:  p.CreationTimestamp,
+		})
 	}
 
 	table := uitable.New()
-	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "STATUS")
+	table.AddRow("TYPE", "NAME", "CREATED-TIME")
 
-	for _, addon := range addons {
-		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
-		if err != nil {
-			return err
-		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, status.AddonPhase)
-		onlineAddon[addon.Name] = true
-	}
-	appList := v1alpha2.ApplicationList{}
-	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
-		return err
-	}
-	for _, app := range appList.Items {
-		addonName := app.GetLabels()[oam.LabelAddonName]
-		if onlineAddon[addonName] {
-			continue
-		}
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", statusEnabled)
+	for _, p := range providers {
+		table.AddRow(p.Type, p.Name, p.Age)
 	}
 	fmt.Println(table.String())
 	return nil
