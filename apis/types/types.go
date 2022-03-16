@@ -41,6 +41,8 @@ var DefaultKubeVelaNS = "vela-system"
 const (
 	// AnnoDefinitionDescription is the annotation which describe what is the capability used for in a WorkloadDefinition/TraitDefinition Object
 	AnnoDefinitionDescription = "definition.oam.dev/description"
+	// AnnoDefinitionIcon is the annotation which describe the icon url
+	AnnoDefinitionIcon = "definition.oam.dev/icon"
 	// AnnoDefinitionAppliedWorkloads is the annotation which describe what is the workloads used for in a TraitDefinition Object
 	AnnoDefinitionAppliedWorkloads = "definition.oam.dev/appliedWorkloads"
 	// LabelDefinition is the label for definition

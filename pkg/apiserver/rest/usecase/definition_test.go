@@ -87,6 +87,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(len(traits), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(traits[0].Name, "myingress")).Should(BeEmpty())
 		Expect(traits[0].Description).ShouldNot(BeEmpty())
+		Expect(traits[0].Trait).ShouldNot(BeNil())
 
 		By("List workflow step definitions")
 		step, err := ioutil.ReadFile("./testdata/applyapplication-sd.yaml")
@@ -101,6 +102,29 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(wfstep[0].Name, "apply-application")).Should(BeEmpty())
 		Expect(wfstep[0].Description).ShouldNot(BeEmpty())
+		Expect(wfstep[0].WorkflowStep.Schematic).ShouldNot(BeNil())
+
+		By("List policy definitions")
+		var policy = v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "health",
+				Namespace: "vela-system",
+				Annotations: map[string]string{
+					"definition.oam.dev/description": "this is a policy definition",
+				},
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				ManageHealthCheck: true,
+			},
+		}
+		err = k8sClient.Create(context.Background(), &policy)
+		Expect(err).Should(Succeed())
+		policies, err := definitionUsecase.ListDefinitions(context.TODO(), "", "policy", "")
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(policies), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(policies[0].Name, "health")).Should(BeEmpty())
+		Expect(policies[0].Description).ShouldNot(BeEmpty())
+		Expect(policies[0].Policy.ManageHealthCheck).Should(BeTrue())
 	})
 
 	It("Test DetailDefinition function", func() {

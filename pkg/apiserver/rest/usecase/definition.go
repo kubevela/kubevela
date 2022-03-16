@@ -63,6 +63,7 @@ const (
 	kindComponentDefinition    = "ComponentDefinition"
 	kindTraitDefinition        = "TraitDefinition"
 	kindWorkflowStepDefinition = "WorkflowStepDefinition"
+	kindPolicyDefinition       = "PolicyDefinition"
 )
 
 // NewDefinitionUsecase new definition usecase
@@ -91,6 +92,11 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, de
 		defs.SetAPIVersion(definitionAPIVersion)
 		defs.SetKind(kindWorkflowStepDefinition)
 		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition, "")
+
+	case "policy":
+		defs.SetAPIVersion(definitionAPIVersion)
+		defs.SetKind(kindPolicyDefinition)
+		return d.listDefinitions(ctx, defs, kindPolicyDefinition, "")
 
 	default:
 		return nil, bcode.ErrDefinitionTypeNotSupport
@@ -143,6 +149,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 		definition := &apisv1.DefinitionBase{
 			Name:        def.GetName(),
 			Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
+			Icon:        def.GetAnnotations()[types.AnnoDefinitionIcon],
 		}
 		if cache == kindComponentDefinition {
 			compDef := &v1beta1.ComponentDefinition{}
@@ -150,6 +157,28 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 				return nil, errors.Wrap(err, "invalid component definition")
 			}
 			definition.WorkloadType = compDef.Spec.Workload.Type
+			definition.Component = &compDef.Spec
+		}
+		if cache == kindTraitDefinition {
+			traitDef := &v1beta1.TraitDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
+				return nil, errors.Wrap(err, "invalid trait definition")
+			}
+			definition.Trait = &traitDef.Spec
+		}
+		if cache == kindWorkflowStepDefinition {
+			workflowStepDef := &v1beta1.WorkflowStepDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, workflowStepDef); err != nil {
+				return nil, errors.Wrap(err, "invalid trait definition")
+			}
+			definition.WorkflowStep = &workflowStepDef.Spec
+		}
+		if cache == kindPolicyDefinition {
+			policyDef := &v1beta1.PolicyDefinition{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, policyDef); err != nil {
+				return nil, errors.Wrap(err, "invalid trait definition")
+			}
+			definition.Policy = &policyDef.Spec
 		}
 		defs = append(defs, definition)
 	}
