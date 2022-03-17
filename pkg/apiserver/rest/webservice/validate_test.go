@@ -67,4 +67,64 @@ var _ = Describe("Test validate function", func() {
 		err = validate.Struct(&component)
 		Expect(err).Should(BeNil())
 	})
+
+	It("Test check email validate ", func() {
+		invalidEmail := &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "password1",
+			Email:    "invalidEmail",
+		}
+		err := validate.Struct(invalidEmail)
+		Expect(err).ShouldNot(BeNil())
+
+		validEmail := &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "password1",
+			Email:    "test@example.com",
+		}
+		err = validate.Struct(validEmail)
+		Expect(err).Should(BeNil())
+	})
+
+	It("Test check password validate ", func() {
+		invalidPwd := &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "password",
+			Email:    "test@example.com",
+		}
+		err := validate.Struct(invalidPwd)
+		Expect(err).ShouldNot(BeNil())
+
+		invalidPwd = &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "a",
+			Email:    "test@example.com",
+		}
+		err = validate.Struct(invalidPwd)
+		Expect(err).ShouldNot(BeNil())
+
+		invalidPwd = &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "passwordpasswordpassword",
+			Email:    "test@example.com",
+		}
+		err = validate.Struct(invalidPwd)
+		Expect(err).ShouldNot(BeNil())
+
+		invalidPwd = &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "11111111",
+			Email:    "test@example.com",
+		}
+		err = validate.Struct(invalidPwd)
+		Expect(err).ShouldNot(BeNil())
+
+		validPwd := &apisv1.CreateUserRequest{
+			Name:     "user",
+			Password: "password1",
+			Email:    "test@example.com",
+		}
+		err = validate.Struct(validPwd)
+		Expect(err).Should(BeNil())
+	})
 })

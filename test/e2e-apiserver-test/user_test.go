@@ -40,7 +40,7 @@ var _ = Describe("Test user rest api", func() {
 			Name:     username,
 			Alias:    "alias",
 			Email:    "test@example.com",
-			Password: "password",
+			Password: "password1",
 		}
 		bodyByte, err := json.Marshal(req)
 		Expect(err).Should(BeNil())

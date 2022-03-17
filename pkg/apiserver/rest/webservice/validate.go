@@ -18,6 +18,7 @@ package webservice
 
 import (
 	"regexp"
+	"unicode"
 
 	"github.com/go-playground/validator/v10"
 
@@ -47,6 +48,9 @@ func init() {
 		panic(err)
 	}
 	if err := validate.RegisterValidation("checkemail", ValidateEmail); err != nil {
+		panic(err)
+	}
+	if err := validate.RegisterValidation("checkpassword", ValidatePassword); err != nil {
 		panic(err)
 	}
 }
@@ -84,4 +88,24 @@ func ValidateAlias(fl validator.FieldLevel) bool {
 func ValidateEmail(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
 	return emailRegexp.MatchString(value)
+}
+
+// ValidatePassword custom check password field
+func ValidatePassword(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if len(value) < 8 || len(value) > 16 {
+		return false
+	}
+	// go's regex doesn't support backtracking so check the password with a loop
+	letter := false
+	num := false
+	for _, c := range value {
+		switch {
+		case unicode.IsNumber(c):
+			num = true
+		case unicode.IsLetter(c):
+			letter = true
+		}
+	}
+	return letter && num
 }

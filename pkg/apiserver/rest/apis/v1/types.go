@@ -1113,18 +1113,16 @@ type ProjectUserBase struct {
 
 // CreateUserRequest create user request
 type CreateUserRequest struct {
-	Name  string `json:"name" validate:"checkname"`
-	Alias string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Email string `json:"email" validate:"checkemail"`
-	// TODO: add password validation
-	Password string `json:"password"`
+	Name     string `json:"name" validate:"checkname"`
+	Alias    string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Email    string `json:"email" validate:"checkemail"`
+	Password string `json:"password" validate:"checkpassword"`
 }
 
 // UpdateUserRequest update user request
 type UpdateUserRequest struct {
-	Alias string `json:"alias,omitempty" optional:"true"`
-	// TODO: add password validation
-	Password string `json:"password,omitempty" optional:"true"`
+	Alias    string `json:"alias,omitempty" optional:"true"`
+	Password string `json:"password,omitempty" validate:"checkpassword" optional:"true"`
 }
 
 // ListUserResponse list user response
