@@ -26,6 +26,7 @@ func init() {
 type EnvBinding struct {
 	BaseModel
 	AppPrimaryKey   string           `json:"appPrimaryKey"`
+	AppDeployName   string           `json:"appDeployName"`
 	Name            string           `json:"name"`
 	ComponentsPatch []ComponentPatch `json:"componentsPatchs"`
 }

@@ -18,20 +18,63 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 )
+
+type cached struct {
+	generation int64
+	targets    int64
+}
+
+// InitCache will initialize the cache
+func (c *CR2UX) InitCache(ctx context.Context) error {
+	appsRaw, err := c.ds.List(ctx, &model.Application{}, &datastore.ListOptions{})
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil
+		}
+		return err
+	}
+	for _, appR := range appsRaw {
+		app, ok := appR.(*model.Application)
+		if !ok {
+			continue
+		}
+		gen, ok := app.Labels[model.LabelSyncGeneration]
+		if !ok || gen == "" {
+			continue
+		}
+		namespace := app.Labels[model.LabelSyncNamespace]
+		var key = formatAppComposedName(app.Name, namespace)
+		if strings.HasSuffix(app.Name, namespace) {
+			key = app.Name
+		}
+		generation, _ := strconv.ParseInt(gen, 10, 64)
+
+		// we should check targets if we synced from app status
+		c.updateCache(key, generation, 0)
+	}
+	return nil
+}
 
 func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, del bool) bool {
 	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
-	ann, ok := c.cache.Load(key)
+	cachedData, ok := c.cache.Load(key)
 	if ok {
-		sann := ann.(string)
-		if sann == strconv.FormatInt(targetApp.Generation, 10) && !del {
-			logrus.Infof("app %s %s generation is %v hasn't updated, will not sync..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
+		cd := cachedData.(*cached)
+
+		// TODO(wonderflow): we should check targets if we sync that, it can avoid missing the status changed for targets updated in multi-cluster deploy, e.g. resumed suspend case.
+
+		if cd.generation == targetApp.Generation && !del {
+			logrus.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
 			return false
 		}
 		if del {
@@ -53,7 +96,7 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 	return true
 }
 
-func (c *CR2UX) updateCache(key string, generation int64) {
+func (c *CR2UX) updateCache(key string, generation, targets int64) {
 	// update cache
-	c.cache.Store(key, strconv.FormatInt(generation, 10))
+	c.cache.Store(key, &cached{generation: generation, targets: targets})
 }

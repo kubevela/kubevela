@@ -51,6 +51,9 @@ func ThreeWaySliceCompare(a []string, b []string) ([]string, []string, []string)
 	for k := range m {
 		BO = append(BO, k)
 	}
+	sort.Strings(AB)
+	sort.Strings(AO)
+	sort.Strings(BO)
 	return AB, AO, BO
 }
 

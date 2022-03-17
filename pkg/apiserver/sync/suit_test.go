@@ -68,6 +68,7 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
+	clients.SetKubeClient(k8sClient)
 	By("new kube client success")
 	clients.SetKubeClient(k8sClient)
 	Expect(err).Should(BeNil())

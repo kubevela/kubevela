@@ -4,10 +4,10 @@ metadata:
   name: example
 spec:
   components:
-    - name: nginx
+    - name: blog
       type: webservice
       properties:
-        image: nginx
+        image: wordpress
       traits:
         - type: gateway
           properties:
@@ -17,7 +17,7 @@ spec:
     - name: nginx2
       type: webservice
       properties:
-        image: nginx2
+        image: nginx
   policies:
     - name: topology-beijing-demo
       type: topology
@@ -25,13 +25,9 @@ spec:
         clusterLabelSelector:
           region: beijing
         namespace: demo
-    - name: topology-local
-      type: topology
-      properties:
-        targets: ["local/demo", "local/ackone-demo"]
   workflow:
     steps:
       - type: deploy
         name: deploy-local
         properties:
-          policies: ["topology-local", "topology-beijing-demo"]
+          policies: ["topology-beijing-demo"]

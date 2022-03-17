@@ -279,7 +279,7 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 	if err != nil {
 		return nil, err
 	}
-	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.Name}, &app)
+	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -294,9 +294,10 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 
 // GetApplicationCR get application CR in cluster
 func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
+
 	var apps v1beta1.ApplicationList
 	selector := labels.NewSelector()
-	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.Name})
+	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.GetAppNameForSynced()})
 	if err != nil {
 		return nil, err
 	}

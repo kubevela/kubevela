@@ -58,10 +58,9 @@ func migrate(dbns string) {
 			}
 		}
 		if migrated || len(configMaps.Items) == 0 {
-			klog.Infof("%s migrated, skip syncing", k.TableName())
 			continue
 		}
-		klog.Infof("migrating data for %v", k.TableName())
+		klog.Infof("migrating data for table %v", k.TableName())
 		for _, cm := range configMaps.Items {
 			cm := cm
 			checkprefix := strings.ReplaceAll(fmt.Sprintf("veladatabase-%s", k.TableName()), "_", "-")

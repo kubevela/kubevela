@@ -18,6 +18,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -66,6 +67,18 @@ func (a *Application) Index() map[string]string {
 		index["project"] = a.Project
 	}
 	return index
+}
+
+// GetAppNameForSynced will trim namespace suffix for synced CR
+func (a *Application) GetAppNameForSynced() string {
+	if a.Labels == nil {
+		return a.Name
+	}
+	namespace := a.Labels[LabelSyncNamespace]
+	if namespace == "" {
+		return a.Name
+	}
+	return strings.TrimSuffix(a.Name, "-"+namespace)
 }
 
 // ClusterSelector cluster selector

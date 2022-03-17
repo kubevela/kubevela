@@ -26,7 +26,7 @@ func TestCompareSlice(t *testing.T) {
 	caseA := []string{"c", "b", "a"}
 	caseB := []string{"c", "b", "a"}
 	gotab, gotao, gotbo := ThreeWaySliceCompare(caseA, caseB)
-	assert.Equal(t, gotab, []string{"c", "b", "a"})
+	assert.Equal(t, gotab, []string{"a", "b", "c"})
 	assert.Equal(t, gotao, []string(nil))
 	assert.Equal(t, gotbo, []string(nil))
 
@@ -41,7 +41,7 @@ func TestCompareSlice(t *testing.T) {
 	caseB = nil
 	gotab, gotao, gotbo = ThreeWaySliceCompare(caseA, caseB)
 	assert.Equal(t, gotab, []string(nil))
-	assert.Equal(t, gotao, []string{"c", "b"})
+	assert.Equal(t, gotao, []string{"b", "c"})
 	assert.Equal(t, gotbo, []string(nil))
 
 	caseA = nil
@@ -49,7 +49,7 @@ func TestCompareSlice(t *testing.T) {
 	gotab, gotao, gotbo = ThreeWaySliceCompare(caseA, caseB)
 	assert.Equal(t, gotab, []string(nil))
 	assert.Equal(t, gotao, []string(nil))
-	assert.Equal(t, gotbo, []string{"c", "b"})
+	assert.Equal(t, gotbo, []string{"b", "c"})
 }
 
 func TestEqual(t *testing.T) {
