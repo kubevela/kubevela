@@ -65,9 +65,9 @@ func (c *userWebService) GetWebService() *restful.WebService {
 		Doc("create a user").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateUserRequest{}).
-		Returns(200, "OK", apis.DetailUserResponse{}).
+		Returns(200, "OK", apis.UserBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.DetailUserResponse{}))
+		Writes(apis.UserBase{}))
 
 	ws.Route(ws.GET("/{username}").To(c.detailUser).
 		Doc("get user detail").
@@ -81,9 +81,9 @@ func (c *userWebService) GetWebService() *restful.WebService {
 		Doc("update a user's alias or password").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.userCheckFilter).
-		Returns(200, "OK", apis.DetailUserResponse{}).
+		Returns(200, "OK", apis.UserBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.DetailUserResponse{}))
+		Writes(apis.UserBase{}))
 
 	ws.Route(ws.DELETE("/{username}").To(c.deleteUser).
 		Doc("delete a user").
