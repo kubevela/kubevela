@@ -83,9 +83,9 @@ var _ = Describe("Test definition check", func() {
 
 		anno := addonApp.GetAnnotations()
 		Expect(len(anno)).Should(BeEquivalentTo(3))
-		Expect(anno[compDefAnnotation]).Should(BeEquivalentTo(`["my-comp"]`))
-		Expect(anno[traitDefAnnotation]).Should(BeEquivalentTo(`["my-trait"]`))
-		Expect(anno[workflowStepDefAnnotation]).Should(BeEquivalentTo(`["my-wfstep"]`))
+		Expect(anno[compDefAnnotation]).Should(BeEquivalentTo("my-comp"))
+		Expect(anno[traitDefAnnotation]).Should(BeEquivalentTo("my-trait"))
+		Expect(anno[workflowStepDefAnnotation]).Should(BeEquivalentTo("my-wfstep"))
 	})
 
 	It("Test checkAddonHasBeenUsed func", func() {
@@ -131,13 +131,20 @@ var _ = Describe("Test definition check", func() {
 
 func TestMerge2Map(t *testing.T) {
 	res := make(map[string]bool)
-	err := merge2DefMap(compDefAnnotation, `["my-comp1","my-comp2"]`, res)
-	assert.NoError(t, err)
-	err = merge2DefMap(traitDefAnnotation, `["my-trait1","my-trait2"]`, res)
-	assert.NoError(t, err)
-	err = merge2DefMap(workflowStepDefAnnotation, `["my-wfStep1","my-wfStep2"]`, res)
-	assert.NoError(t, err)
+	merge2DefMap(compDefAnnotation, "my-comp1,my-comp2", res)
+	merge2DefMap(traitDefAnnotation, "my-trait1,my-trait2", res)
+	merge2DefMap(workflowStepDefAnnotation, "my-wfStep1,my-wfStep2", res)
 	assert.Equal(t, 6, len(res))
+}
+
+func TestUsingAddonInfo(t *testing.T) {
+	apps := []v1beta1.Application{
+		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-1"}},
+		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-2", Name: "app-2"}},
+		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
+	}
+	res := usingAppsInfo(apps)
+	assert.Equal(t, res, "application: (app-1,app-3) in namespace:namespace-1,(app-2) in namespace:namespace-2 are string using this addon")
 }
 
 const (
@@ -173,9 +180,9 @@ metadata:
     addons.oam.dev/name: myaddon
     addons.oam.dev/registry: KubeVela
   annotations:
-    addon.oam.dev/componentDefinitions: '["my-comp"]'
-    addon.oam.dev/traitDefinitions: '["my-trait"]'
-    addon.oam.dev/workflowStepDefinitions: '["my-wfstep"]'
+    addon.oam.dev/componentDefinitions: "my-comp"
+    addon.oam.dev/traitDefinitions: "my-trait"
+    addon.oam.dev/workflowStepDefinitions: "my-wfstep"
   name: addon-myaddon
   namespace: vela-system
 spec:

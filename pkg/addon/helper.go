@@ -81,7 +81,7 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 			return err
 		}
 		if len(usingAddonApp) != 0 {
-			return fmt.Errorf("some applications still using this addon, cannot disable yet ")
+			return fmt.Errorf(fmt.Sprintf("%s please delete them first", usingAppsInfo(usingAddonApp)))
 		}
 	}
 

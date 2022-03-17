@@ -18,8 +18,8 @@ package addon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"strings"
 
 	errors "github.com/pkg/errors"
 
@@ -57,16 +57,13 @@ func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Appl
 		}
 	}
 	if len(comps) != 0 {
-		c, _ := json.Marshal(comps)
-		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{compDefAnnotation: string(c)}))
+		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{compDefAnnotation: strings.Join(comps, ",")}))
 	}
 	if len(traits) != 0 {
-		t, _ := json.Marshal(traits)
-		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{traitDefAnnotation: string(t)}))
+		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{traitDefAnnotation: strings.Join(traits, ",")}))
 	}
 	if len(workflowSteps) != 0 {
-		w, _ := json.Marshal(workflowSteps)
-		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{workflowStepDefAnnotation: string(w)}))
+		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{workflowStepDefAnnotation: strings.Join(workflowSteps, ",")}))
 	}
 	return nil
 }
@@ -86,9 +83,7 @@ func checkAddonHasBeenUsed(ctx context.Context, k8sClient client.Client, name st
 	for key, defNames := range addonApp.GetAnnotations() {
 		switch key {
 		case compDefAnnotation, traitDefAnnotation, workflowStepDefAnnotation:
-			if err := merge2DefMap(key, defNames, createdDefs); err != nil {
-				return nil, err
-			}
+			merge2DefMap(key, defNames, createdDefs)
 		}
 	}
 
@@ -128,12 +123,8 @@ CHECKNEXT:
 }
 
 //  merge2DefMap will parse annotation in addon's app to 'created x-definition'. Then stroe them in defMap
-func merge2DefMap(defType string, defNames string, defMap map[string]bool) error {
-	list := []string{}
-	err := json.Unmarshal([]byte(defNames), &list)
-	if err != nil {
-		return err
-	}
+func merge2DefMap(defType string, defNames string, defMap map[string]bool) {
+	list := strings.Split(defNames, ",")
 	template := "addon-%s-%s"
 	for _, defName := range list {
 		switch defType {
@@ -145,7 +136,6 @@ func merge2DefMap(defType string, defNames string, defMap map[string]bool) error
 			defMap[fmt.Sprintf(template, "wfStep", defName)] = true
 		}
 	}
-	return nil
 }
 
 // for old addon's app no 'created x-definitions' annotation, fetch the definitions from alive addon registry. Put them in defMap
@@ -164,11 +154,17 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 	for i, registry := range registries {
 		if registry.Name == registryName {
 			installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil)
-			pkg, err := installer.loadInstallPackage(addonName)
+			metas, err := installer.getAddonMeta()
 			if err != nil {
-				return errors.Wrapf(err, "cannot fetch addon files from registry")
+				return err
 			}
-			for _, defYaml := range pkg.Definitions {
+			meta := metas[addonName]
+			// only fetch definition files from registry.
+			data, err := registry.GetUIData(&meta, UnInstallOptions)
+			if err != nil {
+				return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
+			}
+			for _, defYaml := range data.Definitions {
 				def, err := renderObject(defYaml)
 				if err != nil {
 					// don't let one error defined definition block whole disable process
@@ -176,7 +172,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 				defObjects = append(defObjects, def)
 			}
-			for _, cueDef := range pkg.CUEDefinitions {
+			for _, cueDef := range data.CUEDefinitions {
 				def := definition.Definition{Unstructured: unstructured.Unstructured{}}
 				err := def.FromCUEString(cueDef.Data, config)
 				if err != nil {
@@ -198,4 +194,18 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 		}
 	}
 	return nil
+}
+
+func usingAppsInfo(apps []v1beta1.Application) string {
+	res := "application: "
+	appsNamespaceNameList := map[string][]string{}
+	for _, app := range apps {
+		appsNamespaceNameList[app.GetNamespace()] = append(appsNamespaceNameList[app.GetNamespace()], app.GetName())
+	}
+	for namespace, appNames := range appsNamespaceNameList {
+		nameStr := strings.Join(appNames, ",")
+		res += fmt.Sprintf("(%s) in namespace:%s,", nameStr, namespace)
+	}
+	res = strings.TrimSuffix(res, ",") + " are string using this addon"
+	return res
 }

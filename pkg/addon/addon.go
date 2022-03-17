@@ -113,6 +113,9 @@ var (
 
 	// CLIMetaOptions get Addon metadata for CLI display
 	CLIMetaOptions = ListOptions{}
+
+	// UnInstallOptions used for addon uninstalling
+	UnInstallOptions = ListOptions{GetDefinition: true}
 )
 
 const (
