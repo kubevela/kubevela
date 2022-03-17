@@ -37,7 +37,7 @@ spec:
         	},
         ] | []
         secretVolumesList: *[
-        			for v in parameter.secret {
+        			for v in parameter.secret if v.mountPath != _|_ {
         		{
         			name: "secret-" + v.name
         			secret: {
@@ -88,7 +88,7 @@ spec:
         	},
         ] | []
         secretVolumeMountsList: *[
-        			for v in parameter.secret {
+        			for v in parameter.secret if v.mountPath != _|_ {
         		{
         			name:      "secret-" + v.name
         			mountPath: v.mountPath
@@ -267,7 +267,7 @@ spec:
         			envName:   string
         			secretKey: string
         		}
-        		mountPath:   string
+        		mountPath?:  string
         		defaultMode: *420 | int
         		readOnly:    *false | bool
         		stringData?: {...}

@@ -34,7 +34,7 @@ template: {
 	] | []
 
 	secretVolumesList: *[
-				for v in parameter.secret {
+				for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name: "secret-" + v.name
 				secret: {
@@ -92,7 +92,7 @@ template: {
 	] | []
 
 	secretVolumeMountsList: *[
-				for v in parameter.secret {
+				for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
@@ -279,7 +279,7 @@ template: {
 				envName:   string
 				secretKey: string
 			}
-			mountPath:   string
+			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			stringData?: {...}
