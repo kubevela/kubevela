@@ -34,11 +34,33 @@ type UIParameter struct {
 	UIType      string    `json:"uiType"`
 	Style       *Style    `json:"style,omitempty"`
 	// means disable parameter in ui
-	Disable                 *bool          `json:"disable,omitempty"`
+	Disable *bool `json:"disable,omitempty"`
+	// Conditions: control whether fields are enabled or disabled by certain conditions.
+	// Rules:
+	// if all conditions are not matching, the parameter will be disabled
+	// if there are no conditions, and disable==false the parameter will be enabled.
+	// if one disable action condition is matched, the parameter will be disabled.
+	// if all enable actions conditions are matched, the parameter will be enabled.
+	// +optional
+	Conditions              []Condition    `json:"conditions,omitempty"`
 	SubParameterGroupOption []GroupOption  `json:"subParameterGroupOption,omitempty"`
 	SubParameters           []*UIParameter `json:"subParameters,omitempty"`
 	AdditionalParameter     *UIParameter   `json:"additionalParameter,omitempty"`
 	Additional              *bool          `json:"additional,omitempty"`
+}
+
+// Condition control whether fields are enabled or disabled by certain conditions.
+type Condition struct {
+	// JSONKey specifies the path of the field, support the peer and subordinate fields.
+	JSONKey string `json:"jsonKey"`
+	// Op options includes `==` 、`!=` and `in`, default is `==`
+	// +optional
+	Op string `json:"op,omitempty"`
+	// Value specifies the prospective value.
+	Value interface{} `json:"value"`
+	// Action options includes `enable` or `disable`, default is `enable`
+	// +optional
+	Action string `json:"action,omitempty"`
 }
 
 // Style ui style
