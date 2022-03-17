@@ -18,7 +18,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 // UserUsecase User manage api
@@ -154,6 +154,12 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 		}
 		user.Password = hash
 	}
+	if req.Email != "" {
+		if user.Email != "" {
+			return nil, bcode.ErrUnsupportedEmailModification
+		}
+		user.Email = req.Email
+	}
 	if err := u.ds.Put(ctx, user); err != nil {
 		return nil, err
 	}
@@ -205,7 +211,7 @@ func (u *userUsecaseImpl) ListUsers(ctx context.Context, page, pageSize int, lis
 // DisableUser disable user
 func (u *userUsecaseImpl) DisableUser(ctx context.Context, user *model.User) error {
 	if user.Disabled {
-		return fmt.Errorf("the user is already disabled")
+		return bcode.ErrUserAlreadyDisabled
 	}
 	user.Disabled = true
 	return u.ds.Put(ctx, user)
@@ -214,7 +220,7 @@ func (u *userUsecaseImpl) DisableUser(ctx context.Context, user *model.User) err
 // EnableUser disable user
 func (u *userUsecaseImpl) EnableUser(ctx context.Context, user *model.User) error {
 	if !user.Disabled {
-		return fmt.Errorf("the user is already enabled")
+		return bcode.ErrUserAlreadyEnabled
 	}
 	user.Disabled = false
 	return u.ds.Put(ctx, user)

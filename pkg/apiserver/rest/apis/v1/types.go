@@ -1123,6 +1123,7 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	Alias    string `json:"alias,omitempty" optional:"true"`
 	Password string `json:"password,omitempty" validate:"checkpassword" optional:"true"`
+	Email    string `json:"email,omitempty" validate:"checkemail" optional:"true"`
 }
 
 // ListUserResponse list user response
