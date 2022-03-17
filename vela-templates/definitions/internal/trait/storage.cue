@@ -19,7 +19,7 @@ template: {
 	] | []
 
 	configMapVolumesList: *[
-				for v in parameter.configMap {
+				for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name: "configmap-" + v.name
 				configMap: {
@@ -71,7 +71,7 @@ template: {
 	] | []
 
 	configMapVolumeMountsList: *[
-					for v in parameter.configMap {
+					for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
@@ -260,7 +260,7 @@ template: {
 				envName:      string
 				configMapKey: string
 			}
-			mountPath:   string
+			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			data?: {...}

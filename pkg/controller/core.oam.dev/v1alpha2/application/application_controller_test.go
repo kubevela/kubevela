@@ -263,13 +263,13 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
-	appWithSecret := &v1beta1.Application{
+	appWithMountPath := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "app-secret",
+			Name: "app-storage",
 		},
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{
@@ -281,10 +281,14 @@ var _ = Describe("Test Application Controller", func() {
 			},
 		},
 	}
-	appWithSecret.Spec.Components[0].Traits = []common.ApplicationTrait{
+	appWithMountPath.Spec.Components[0].Traits = []common.ApplicationTrait{
 		{
 			Type:       "storage",
 			Properties: &runtime.RawExtension{Raw: []byte("{\"secret\":[{\"name\":\"myworker-secret\",\"mountToEnv\":{\"envName\":\"firstEnv\",\"secretKey\":\"firstKey\"},\"data\":{\"firstKey\":\"dmFsdWUwMQo=\"}}]}")},
+		},
+		{
+			Type:       "storage",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\":[{\"name\": \"myworker-cm\",\"mountToEnv\":{ \"envName\":\"secondEnv\",\"configMapKey\":\"secondKey\"},\"data\": {\"secondKey\":\"secondValue\"}}]}")},
 		},
 	}
 
@@ -2508,13 +2512,13 @@ var _ = Describe("Test Application Controller", func() {
 
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-secret-mountpath",
+				Name: "vela-test-with-mountpath",
 			},
 		}
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 
-		appWithSecret.SetNamespace(ns.Name)
-		app := appWithSecret.DeepCopy()
+		appWithMountPath.SetNamespace(ns.Name)
+		app := appWithMountPath.DeepCopy()
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 
 		appKey := client.ObjectKey{
@@ -2546,13 +2550,21 @@ var _ = Describe("Test Application Controller", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
 
-		By("Check secret Created with the expected trait-storage-secret spec")
+		By("Check secret Created with the expected trait-storage spec")
 		secret := &corev1.Secret{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: ns.Name,
 			Name:      app.Spec.Components[0].Name + "-secret",
 		}, secret)).Should(BeNil())
 
+		By("Check configMap Created with the expected trait-storage spec")
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      app.Spec.Components[0].Name + "-cm",
+		}, cm)).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, secret)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -3528,7 +3540,7 @@ spec:
         	},
         ] | []
         configMapVolumesList: *[
-        			for v in parameter.configMap {
+        			for v in parameter.configMap if v.mountPath != _|_ {
         		{
         			name: "configmap-" + v.name
         			configMap: {
@@ -3574,7 +3586,7 @@ spec:
         	},
         ] | []
         configMapVolumeMountsList: *[
-        				for v in parameter.configMap {
+        				for v in parameter.configMap if v.mountPath != _|_ {
         		{
         			name:      "configmap-" + v.name
         			mountPath: v.mountPath
@@ -3753,7 +3765,7 @@ spec:
         			envName:      string
         			configMapKey: string
         		}
-        		mountPath:   string
+        		mountPath?:   string
         		defaultMode: *420 | int
         		readOnly:    *false | bool
         		data?: {...}
