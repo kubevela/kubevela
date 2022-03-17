@@ -23,7 +23,7 @@ spec:
         	},
         ] | []
         configMapVolumesList: *[
-        			for v in parameter.configMap {
+        			for v in parameter.configMap if v.mountPath != _|_ {
         		{
         			name: "configmap-" + v.name
         			configMap: {
@@ -37,7 +37,7 @@ spec:
         	},
         ] | []
         secretVolumesList: *[
-        			for v in parameter.secret {
+        			for v in parameter.secret if v.mountPath != _|_ {
         		{
         			name: "secret-" + v.name
         			secret: {
@@ -69,7 +69,7 @@ spec:
         	},
         ] | []
         configMapVolumeMountsList: *[
-        				for v in parameter.configMap {
+        				for v in parameter.configMap if v.mountPath != _|_ {
         		{
         			name:      "configmap-" + v.name
         			mountPath: v.mountPath
@@ -88,7 +88,7 @@ spec:
         	},
         ] | []
         secretVolumeMountsList: *[
-        			for v in parameter.secret {
+        			for v in parameter.secret if v.mountPath != _|_ {
         		{
         			name:      "secret-" + v.name
         			mountPath: v.mountPath
@@ -248,7 +248,7 @@ spec:
         			envName:      string
         			configMapKey: string
         		}
-        		mountPath:   string
+        		mountPath?:  string
         		defaultMode: *420 | int
         		readOnly:    *false | bool
         		data?: {...}
@@ -267,7 +267,7 @@ spec:
         			envName:   string
         			secretKey: string
         		}
-        		mountPath:   string
+        		mountPath?:  string
         		defaultMode: *420 | int
         		readOnly:    *false | bool
         		stringData?: {...}
