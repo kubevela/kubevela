@@ -85,17 +85,19 @@ func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 		return nil, err
 	}
 	for _, v := range projectUsers {
-		pu := v.(*model.ProjectUser)
-		project, err := u.projectUsecase.GetProject(ctx, pu.ProjectName)
-		if err != nil {
-			log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
-			continue
+		pu, ok := v.(*model.ProjectUser)
+		if ok {
+			project, err := u.projectUsecase.GetProject(ctx, pu.ProjectName)
+			if err != nil {
+				log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
+				continue
+			}
+			detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
+				Name:      pu.ProjectName,
+				Alias:     project.Alias,
+				UserRoles: pu.UserRoles,
+			})
 		}
-		detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
-			Name:      pu.ProjectName,
-			Alias:     project.Alias,
-			UserRoles: pu.UserRoles,
-		})
 	}
 	return detailUser, nil
 }

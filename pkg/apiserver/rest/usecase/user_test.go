@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 var _ = Describe("Test authentication usecase functions", func() {
@@ -45,7 +46,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: db})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		userUsecase = &userUsecaseImpl{ds: ds}
+		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
+		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
 	})
 	AfterEach(func() {
 		err := k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: db}})
@@ -194,7 +196,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = userUsecase.DisableUser(ctx, userModel)
-		Expect(err).Should(Equal(fmt.Errorf("the user is already disabled")))
+		Expect(err).Should(Equal(bcode.ErrUserAlreadyDisabled))
 		userModel.Disabled = false
 		err = ds.Put(ctx, userModel)
 		Expect(err).Should(BeNil())
@@ -220,7 +222,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = userUsecase.EnableUser(ctx, userModel)
-		Expect(err).Should(Equal(fmt.Errorf("the user is already enabled")))
+		Expect(err).Should(Equal(bcode.ErrUserAlreadyEnabled))
 		userModel.Disabled = true
 		err = ds.Put(ctx, userModel)
 		Expect(err).Should(BeNil())
