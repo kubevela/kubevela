@@ -52,7 +52,6 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(c.listUser).
 		Doc("list users").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(c.userCheckFilter).
 		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
 		Param(ws.QueryParameter("name", "fuzzy search based on name").DataType("string")).

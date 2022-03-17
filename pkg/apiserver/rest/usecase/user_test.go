@@ -86,10 +86,14 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		for i := 0; i < 2; i++ {
 			err = ds.Add(ctx, &model.ProjectUser{
-				Username:     "name",
-				ProjectName:  fmt.Sprintf("project-%d", i),
-				ProjectAlias: fmt.Sprintf("project-alias-%d", i),
-				UserRole:     fmt.Sprintf("user-role-%d", i),
+				Username:    "name",
+				ProjectName: fmt.Sprintf("project-%d", i),
+				UserRoles:   []string{fmt.Sprintf("user-role-%d", i)},
+			})
+			Expect(err).Should(BeNil())
+			err = ds.Add(ctx, &model.Project{
+				Name:  fmt.Sprintf("project-%d", i),
+				Alias: fmt.Sprintf("project-alias-%d", i),
 			})
 			Expect(err).Should(BeNil())
 		}
@@ -106,14 +110,14 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(user.Email).Should(Equal("email@example.com"))
 		Expect(user.Projects).Should(Equal([]apisv1.ProjectUserBase{
 			{
-				Name:     "project-1",
-				Alias:    "project-alias-1",
-				UserRole: "user-role-1",
+				Name:      "project-1",
+				Alias:     "project-alias-1",
+				UserRoles: []string{"user-role-1"},
 			},
 			{
-				Name:     "project-0",
-				Alias:    "project-alias-0",
-				UserRole: "user-role-0",
+				Name:      "project-0",
+				Alias:     "project-alias-0",
+				UserRoles: []string{"user-role-0"},
 			},
 		}))
 	})

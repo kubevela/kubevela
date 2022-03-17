@@ -67,10 +67,9 @@ func (u *User) Index() map[string]string {
 // ProjectUser is the model of user in project
 type ProjectUser struct {
 	BaseModel
-	Username     string `json:"username"`
-	ProjectName  string `json:"projectName"`
-	ProjectAlias string `json:"projectAlias,omitempty"`
-	UserRole     string `json:"userRole"`
+	Username    string   `json:"username"`
+	ProjectName string   `json:"projectName"`
+	UserRoles   []string `json:"userRoles"`
 }
 
 // TableName return custom table name

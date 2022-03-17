@@ -35,27 +35,29 @@ type UserUsecase interface {
 	GetUser(ctx context.Context, username string) (*model.User, error)
 	DetailUser(ctx context.Context, user *model.User) (*apisv1.DetailUserResponse, error)
 	DeleteUser(ctx context.Context, username string) error
-	CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.DetailUserResponse, error)
-	UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.DetailUserResponse, error)
+	CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.UserBase, error)
+	UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.UserBase, error)
 	ListUsers(ctx context.Context, page, pageSize int, listOptions apisv1.ListUserOptions) (*apisv1.ListUserResponse, error)
 	DisableUser(ctx context.Context, user *model.User) error
 	EnableUser(ctx context.Context, user *model.User) error
 }
 
 type userUsecaseImpl struct {
-	ds        datastore.DataStore
-	k8sClient client.Client
+	ds             datastore.DataStore
+	k8sClient      client.Client
+	projectUsecase ProjectUsecase
 }
 
 // NewUserUsecase new User usecase
-func NewUserUsecase(ds datastore.DataStore) UserUsecase {
+func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) UserUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
 	return &userUsecaseImpl{
-		k8sClient: k8sClient,
-		ds:        ds,
+		k8sClient:      k8sClient,
+		ds:             ds,
+		projectUsecase: projectUsecase,
 	}
 }
 
@@ -84,10 +86,15 @@ func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 	}
 	for _, v := range projectUsers {
 		pu := v.(*model.ProjectUser)
+		project, err := u.projectUsecase.GetProject(ctx, pu.ProjectName)
+		if err != nil {
+			log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
+			continue
+		}
 		detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
-			Name:     pu.ProjectName,
-			Alias:    pu.ProjectAlias,
-			UserRole: pu.UserRole,
+			Name:      pu.ProjectName,
+			Alias:     project.Alias,
+			UserRoles: pu.UserRoles,
 		})
 	}
 	return detailUser, nil
@@ -117,7 +124,7 @@ func (u *userUsecaseImpl) DeleteUser(ctx context.Context, username string) error
 }
 
 // CreateUser create user
-func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.DetailUserResponse, error) {
+func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.UserBase, error) {
 	hash, err := generatePasswordHash(req.Password)
 	if err != nil {
 		return nil, err
@@ -132,11 +139,11 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err := u.ds.Add(ctx, user); err != nil {
 		return nil, err
 	}
-	return convertUserModel(user), nil
+	return convertUserBase(user), nil
 }
 
 // UpdateUser update user
-func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.DetailUserResponse, error) {
+func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.UserBase, error) {
 	if req.Alias != "" {
 		user.Alias = req.Alias
 	}
@@ -150,7 +157,7 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 	if err := u.ds.Put(ctx, user); err != nil {
 		return nil, err
 	}
-	return convertUserModel(user), nil
+	return convertUserBase(user), nil
 }
 
 // ListUsers list users
@@ -215,15 +222,19 @@ func (u *userUsecaseImpl) EnableUser(ctx context.Context, user *model.User) erro
 
 func convertUserModel(user *model.User) *apisv1.DetailUserResponse {
 	return &apisv1.DetailUserResponse{
-		UserBase: apisv1.UserBase{
-			Name:          user.Name,
-			Alias:         user.Alias,
-			Email:         user.Email,
-			CreateTime:    user.CreateTime,
-			LastLoginTime: user.LastLoginTime,
-			Disabled:      user.Disabled,
-		},
+		UserBase: *convertUserBase(user),
 		Projects: make([]apisv1.ProjectUserBase, 0),
+	}
+}
+
+func convertUserBase(user *model.User) *apisv1.UserBase {
+	return &apisv1.UserBase{
+		Name:          user.Name,
+		Alias:         user.Alias,
+		Email:         user.Email,
+		CreateTime:    user.CreateTime,
+		LastLoginTime: user.LastLoginTime,
+		Disabled:      user.Disabled,
 	}
 }
 

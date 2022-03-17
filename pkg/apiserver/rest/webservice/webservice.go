@@ -75,7 +75,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
 	helmUsecase := usecase.NewHelmUsecase()
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase)
-	userUsecase := usecase.NewUserUsecase(ds)
+	userUsecase := usecase.NewUserUsecase(ds, projectUsecase)
 
 	// init for default values
 

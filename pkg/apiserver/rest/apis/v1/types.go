@@ -1106,9 +1106,9 @@ type DetailUserResponse struct {
 
 // ProjectUserBase project user base
 type ProjectUserBase struct {
-	Name     string `json:"name"`
-	Alias    string `json:"alias"`
-	UserRole string `json:"userRole"`
+	Name      string   `json:"name"`
+	Alias     string   `json:"alias"`
+	UserRoles []string `json:"userRoles"`
 }
 
 // CreateUserRequest create user request
