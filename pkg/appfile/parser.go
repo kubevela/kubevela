@@ -24,6 +24,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -87,6 +88,13 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	}
 	ns := app.Namespace
 	appName := app.Name
+
+	if isLatest, appRev, err := p.isLatestPublishVersion(ctx, app); err != nil {
+		return nil, err
+	} else if isLatest {
+		app.Spec = appRev.Spec.Application.Spec
+		return p.GenerateAppFileFromRevision(appRev)
+	}
 
 	appfile := p.newAppfile(appName, ns, app)
 	if app.Status.LatestRevision != nil {
@@ -180,6 +188,31 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 	return file
 }
 
+// isLatestPublishVersion checks if the latest application revision has the same publishVersion with the application,
+// return true and the latest ApplicationRevision if they share the same publishVersion
+func (p *Parser) isLatestPublishVersion(ctx context.Context, app *v1beta1.Application) (bool, *v1beta1.ApplicationRevision, error) {
+	if !metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+		return false, nil, nil
+	}
+	if app.Status.LatestRevision == nil {
+		return false, nil, nil
+	}
+	appRev := &v1beta1.ApplicationRevision{}
+	if err := p.client.Get(ctx, ktypes.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.GetNamespace()}, appRev); err != nil {
+		if kerrors.IsNotFound(err) {
+			return false, nil, nil
+		}
+		return false, nil, errors.Wrapf(err, "failed to load latest application revision")
+	}
+	if !metav1.HasAnnotation(appRev.ObjectMeta, oam.AnnotationPublishVersion) {
+		return false, nil, nil
+	}
+	if app.GetAnnotations()[oam.AnnotationPublishVersion] != appRev.GetAnnotations()[oam.AnnotationPublishVersion] {
+		return false, nil, nil
+	}
+	return true, appRev, nil
+}
+
 // inheritLabelAndAnnotationFromAppRev is a compatible function, that we can't record metadata for application object in AppRev
 func inheritLabelAndAnnotationFromAppRev(appRev *v1beta1.ApplicationRevision) {
 	if len(appRev.Spec.Application.Annotations) > 0 || len(appRev.Spec.Application.Labels) > 0 {
@@ -214,6 +247,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	ns := app.Namespace
 	appName := app.Name
 	appfile := p.newAppfile(appName, ns, app)
+	appfile.AppRevision = appRev
 	appfile.AppRevisionName = appRev.Name
 	appfile.AppRevisionHash = appRev.Labels[oam.LabelAppRevisionHash]
 
@@ -244,8 +278,14 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
 	}
 
-	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		appfile.WorkflowSteps = wfSpec.Steps
+	if appRev.Spec.AppfileCache == nil {
+		// for backward compatibility before v1.3
+		if wfSpec := app.Spec.Workflow; wfSpec != nil {
+			appfile.WorkflowSteps = wfSpec.Steps
+		}
+	} else {
+		appfile.WorkflowSteps = appRev.Spec.AppfileCache.WorkflowSteps
+		appfile.Policies = appRev.Spec.AppfileCache.Policies
 	}
 
 	return appfile, nil

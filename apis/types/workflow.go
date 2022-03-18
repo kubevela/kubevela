@@ -20,6 +20,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	// WorkflowStarted workflow started
+	WorkflowStarted = "Started"
+	// WorkflowFailed workflow failed
+	WorkflowFailed = "Failed"
+	// WorkflowSucceed workflow succeeded
+	WorkflowSucceed = "Succeeded"
+)
+
 // WorkflowContext is the workflow context to pass into workflow objects.
 type WorkflowContext struct {
 	AppName           string                      `json:"appName,omitempty"`

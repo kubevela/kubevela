@@ -153,14 +153,16 @@ func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namesp
 
 // Appfile describes application
 type Appfile struct {
-	Name            string
-	Namespace       string
-	AppRevisionName string
-	Workloads       []*Workload
+	Name      string
+	Namespace string
+	Workloads []*Workload
 
+	AppRevision     *v1beta1.ApplicationRevision
+	AppRevisionName string
 	AppRevisionHash string
-	AppLabels       map[string]string
-	AppAnnotations  map[string]string
+
+	AppLabels      map[string]string
+	AppAnnotations map[string]string
 
 	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
 	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition

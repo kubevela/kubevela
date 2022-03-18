@@ -2025,6 +2025,12 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
+    - jsonPath: .status.workflow.publishVersion
+      name: PUBLISH_VERSION
+      type: string
+    - jsonPath: .status.workflow.status
+      name: STATUS
+      type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
@@ -2046,6 +2052,80 @@ spec:
           spec:
             description: ApplicationRevisionSpec is the spec of ApplicationRevision
             properties:
+              appfileCache:
+                description: AppfileCache records the cache for appfile
+                properties:
+                  policies:
+                    description: Policies records the polices use in the current application
+                      revision
+                    items:
+                      description: AppPolicy defines a global policy for all components
+                        in the app.
+                      properties:
+                        name:
+                          description: Name is the unique name of the policy.
+                          type: string
+                        properties:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        type:
+                          type: string
+                      required:
+                      - name
+                      - type
+                      type: object
+                    type: array
+                  workflowSteps:
+                    description: WorkflowSteps records the steps to run in the current
+                      application revision
+                    items:
+                      description: WorkflowStep defines how to execute a workflow
+                        step.
+                      properties:
+                        dependsOn:
+                          items:
+                            type: string
+                          type: array
+                        inputs:
+                          description: StepInputs defines variable input of WorkflowStep
+                          items:
+                            properties:
+                              from:
+                                type: string
+                              parameterKey:
+                                type: string
+                            required:
+                            - from
+                            - parameterKey
+                            type: object
+                          type: array
+                        name:
+                          description: Name is the unique name of the workflow step.
+                          type: string
+                        outputs:
+                          description: StepOutputs defines output variable of WorkflowStep
+                          items:
+                            properties:
+                              name:
+                                type: string
+                              valueFrom:
+                                type: string
+                            required:
+                            - name
+                            - valueFrom
+                            type: object
+                          type: array
+                        properties:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        type:
+                          type: string
+                      required:
+                      - name
+                      - type
+                      type: object
+                    type: array
+                type: object
               application:
                 description: Application records the snapshot of the created/modified
                   Application
@@ -2747,13 +2827,6 @@ spec:
                         type: object
                     type: object
                 type: object
-              applicationConfiguration:
-                description: ApplicationConfiguration records the rendered applicationConfiguration
-                  from Application, it will contains the whole K8s CR of trait and
-                  the reference component in it.
-                type: object
-                x-kubernetes-embedded-resource: true
-                x-kubernetes-preserve-unknown-fields: true
               componentDefinitions:
                 additionalProperties:
                   description: ComponentDefinition is the Schema for the componentdefinitions
@@ -3087,20 +3160,6 @@ spec:
                 description: ComponentDefinitions records the snapshot of the componentDefinitions
                   related with the created/modified Application
                 type: object
-              components:
-                description: Components records the rendered components from Application,
-                  it will contains the whole K8s CR of workload in it.
-                items:
-                  description: RawComponent record raw component
-                  properties:
-                    raw:
-                      type: object
-                      x-kubernetes-embedded-resource: true
-                      x-kubernetes-preserve-unknown-fields: true
-                  required:
-                  - raw
-                  type: object
-                type: array
               policyDefinitions:
                 additionalProperties:
                   description: PolicyDefinition is the Schema for the policydefinitions
@@ -3376,15 +3435,6 @@ spec:
                   type: object
                 description: PolicyDefinitions records the snapshot of the PolicyDefinitions
                   related with the created/modified Application
-                type: object
-              resourcesConfigMap:
-                description: ResourcesConfigMap references the ConfigMap that's generated
-                  to contain all final rendered resources.
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
-                    type: string
                 type: object
               scopeDefinitions:
                 additionalProperties:
@@ -4408,10 +4458,35 @@ spec:
             required:
             - application
             type: object
+          status:
+            description: ApplicationRevisionStatus is the status of ApplicationRevision
+            properties:
+              workflow:
+                description: Workflow the running status of the workflow
+                properties:
+                  endTime:
+                    description: EndTime workflow finish time
+                    format: date-time
+                    type: string
+                  publishVersion:
+                    description: PublishVersion the version of workflow
+                    type: string
+                  startTime:
+                    description: StartTime workflow start time
+                    format: date-time
+                    type: string
+                  status:
+                    description: Status workflow status
+                    type: string
+                required:
+                - status
+                type: object
+            type: object
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

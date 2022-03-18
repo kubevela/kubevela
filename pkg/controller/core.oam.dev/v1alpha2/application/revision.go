@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,7 +31,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -155,6 +155,15 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 		}))
 		defer subCtx.Commit("finish prepare current appRevision")
 	}
+
+	if af.AppRevision != nil {
+		h.isNewRevision = false
+		h.latestAppRev = af.AppRevision
+		h.currentAppRev = af.AppRevision
+		h.currentRevHash = af.AppRevisionHash
+		return nil
+	}
+
 	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
 	if err != nil {
 		return err
@@ -187,7 +196,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
-	copiedApp.Spec.Workflow = nil
+	if !metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationPublishVersion) {
+		copiedApp.Spec.Workflow = nil
+	}
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			Application:             *copiedApp,
@@ -198,9 +209,10 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 			WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
 			ScopeGVK:                make(map[string]metav1.GroupVersionKind),
-
-			// add an empty appConfig here just for compatible as old version kubevela need appconfig as required value
-			ApplicationConfiguration: runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1alpha2","kind":"ApplicationConfiguration"}`)},
+			AppfileCache: &v1beta1.ApplicationRevisionAppfileCache{
+				Policies:      af.Policies,
+				WorkflowSteps: af.WorkflowSteps,
+			},
 		},
 	}
 	for _, w := range af.Workloads {
@@ -706,6 +718,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		}))
 		defer subCtx.Commit("finish apply app revision")
 	}
+	if !h.isNewRevision {
+		return nil
+	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
@@ -724,13 +739,13 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}})
-	// In this stage, the configmap is empty and not generated.
-	appRev.Spec.ResourcesConfigMap.Name = appRev.Name
 
 	gotAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
 		if apierrors.IsNotFound(err) {
-			return h.r.Create(ctx, appRev)
+			if err = h.r.Create(ctx, appRev); err == nil {
+				h.UpdateApplicationRevisionStatus(ctx, appRev, types.WorkflowStarted)
+			}
 		}
 		return err
 	}
@@ -934,4 +949,31 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
 	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
 	return ir < ij
+}
+
+// UpdateApplicationRevisionStatus update application revision status
+func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, workflowStatus string) {
+	if appRev == nil {
+		return
+	}
+	wfStatus := appRev.Status.Workflow
+	switch workflowStatus {
+	case types.WorkflowStarted:
+		wfStatus.PublishVersion = oam.GetPublishVersion(h.app)
+		wfStatus.StartTime = &metav1.Time{Time: time.Now()}
+		wfStatus.EndTime = nil
+	case types.WorkflowSucceed:
+		wfStatus.EndTime = &metav1.Time{Time: time.Now()}
+	case types.WorkflowFailed:
+		wfStatus.EndTime = &metav1.Time{Time: time.Now()}
+	}
+	wfStatus.Status = workflowStatus
+	appRev.Status.Workflow = wfStatus
+	if err := h.r.Client.Status().Update(ctx, appRev); err != nil {
+		if logCtx, ok := ctx.(monitorContext.Context); ok {
+			logCtx.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
+		} else {
+			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
+		}
+	}
 }
