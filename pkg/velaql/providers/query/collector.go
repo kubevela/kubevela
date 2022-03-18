@@ -144,6 +144,9 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 			}
 			return nil, err
 		}
+		if objRef.Cluster == "" {
+			objRef.Cluster = multicluster.ClusterLocalName
+		}
 		resources = append(resources, Resource{
 			Cluster:   objRef.Cluster,
 			Revision:  obj.GetLabels()[oam.LabelAppRevision],

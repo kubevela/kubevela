@@ -16,6 +16,11 @@ limitations under the License.
 
 package utils
 
+import (
+	"reflect"
+	"sort"
+)
+
 // StringsContain strings contain
 func StringsContain(items []string, source string) bool {
 	for _, item := range items {
@@ -24,4 +29,37 @@ func StringsContain(items []string, source string) bool {
 		}
 	}
 	return false
+}
+
+// ThreeWaySliceCompare will compare two string slice, with the three return values: [both in A and B], [only in A], [only in B]
+func ThreeWaySliceCompare(a []string, b []string) ([]string, []string, []string) {
+	m := make(map[string]struct{})
+	for _, k := range b {
+		m[k] = struct{}{}
+	}
+
+	var AB, AO, BO []string
+	for _, k := range a {
+		_, ok := m[k]
+		if !ok {
+			AO = append(AO, k)
+			continue
+		}
+		AB = append(AB, k)
+		delete(m, k)
+	}
+	for k := range m {
+		BO = append(BO, k)
+	}
+	sort.Strings(AB)
+	sort.Strings(AO)
+	sort.Strings(BO)
+	return AB, AO, BO
+}
+
+// EqualSlice checks if two slice are equal
+func EqualSlice(a, b []string) bool {
+	sort.Strings(a)
+	sort.Strings(b)
+	return reflect.DeepEqual(a, b)
 }
