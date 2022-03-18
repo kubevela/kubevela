@@ -1427,7 +1427,6 @@ var _ = Describe("Test use context.appLabels& context.appAnnotations in componen
 											if context.appLabels != _|_ {
 												context.appLabels
 											}
-											"app.oam.dev/component": context.name
 										}
 										annotations: {
 											if context.appAnnotations != _|_ {
