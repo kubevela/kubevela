@@ -84,6 +84,10 @@ webhookService:
 healthCheck:
   port: 9440
 
+## @section KubeVela controller optimization parameters
+
+##@param optimize-disable-component-revision Optimize ComponentRevision by disabling the creation and gc
+optimizeDisableComponentRevision: false
 
 ## @section MultiCluster parameters
 

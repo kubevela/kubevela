@@ -121,6 +121,9 @@ spec:
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
             {{ end }}
+            {{ if .Values.optimizeDisableComponentRevision }}
+            - "--optimize-disable-component-revision"
+            {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"

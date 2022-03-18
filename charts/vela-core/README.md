@@ -76,7 +76,11 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `webhookService.type`       | KubeVela webhook service type        | `ClusterIP`        |
 | `webhookService.port`       | KubeVela webhook service port        | `9443`             |
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
+### KubeVela controller optimization parameters
 
+| Name       | Description                          | Value   |
+|------------| ------------------------------------ |---------|
+| `optimizeDisableComponentRevision`         | Optimize ComponentRevision by disabling the creation and gc   | `false` |
 
 ### MultiCluster parameters
 
@@ -155,8 +159,3 @@ if [ $fluxcd ]; then
     vela addon disable fluxcd
 fi
 ```
-
-
-
-
-
