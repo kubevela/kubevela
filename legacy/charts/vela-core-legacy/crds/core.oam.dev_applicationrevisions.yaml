@@ -2055,6 +2055,14 @@ spec:
               appfileCache:
                 description: AppfileCache records the cache for appfile
                 properties:
+                  externalPolicies:
+                    items:
+                      type: object
+                    type: array
+                    
+                  externalWorkflow:
+                    type: object
+                    
                   policies:
                     description: Policies records the polices use in the current application
                       revision

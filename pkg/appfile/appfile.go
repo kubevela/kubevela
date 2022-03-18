@@ -175,6 +175,9 @@ type Appfile struct {
 	Artifacts       []*types.ComponentManifest
 	WorkflowMode    common.WorkflowMode
 
+	ExternalPolicies []*runtime.RawExtension
+	ExternalWorkflow *runtime.RawExtension
+
 	parser *Parser
 	app    *v1beta1.Application
 }
@@ -879,4 +882,31 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.Con
 		data.PublishVersion = appfile.AppAnnotations[oam.AnnotationPublishVersion]
 	}
 	return data
+}
+
+// WrapClient the wrapped client will store all retrieved policies and workflow into the appfile
+func (af *Appfile) WrapClient(cli client.Client) client.Client {
+	return &appfileClient{Client: cli, af: af}
+}
+
+type appfileClient struct {
+	client.Client
+	af *Appfile
+}
+
+func (c *appfileClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+	err := c.Client.Get(ctx, key, obj)
+	if err == nil {
+		switch o := obj.(type) {
+		case *v1alpha1.Policy:
+			policy := o.DeepCopy()
+			policy.ObjectMeta = metav1.ObjectMeta{Name: policy.Name, Namespace: policy.Namespace}
+			c.af.ExternalPolicies = append(c.af.ExternalPolicies, &runtime.RawExtension{Object: policy})
+		case *v1alpha1.Workflow:
+			wf := o.DeepCopy()
+			wf.ObjectMeta = metav1.ObjectMeta{Name: wf.Name, Namespace: wf.Namespace}
+			c.af.ExternalWorkflow = &runtime.RawExtension{Object: wf}
+		}
+	}
+	return err
 }

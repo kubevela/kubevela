@@ -121,7 +121,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		appfile.WorkflowSteps = wfSpec.Steps
 	}
 	appfile.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
-		&step.RefWorkflowStepGenerator{Client: p.client, Context: ctx},
+		&step.RefWorkflowStepGenerator{Client: appfile.WrapClient(p.client), Context: ctx},
 		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},
@@ -286,6 +286,8 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	} else {
 		appfile.WorkflowSteps = appRev.Spec.AppfileCache.WorkflowSteps
 		appfile.Policies = appRev.Spec.AppfileCache.Policies
+		appfile.ExternalPolicies = appRev.Spec.AppfileCache.ExternalPolicies
+		appfile.ExternalWorkflow = appRev.Spec.AppfileCache.ExternalWorkflow
 	}
 
 	return appfile, nil
@@ -294,7 +296,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
 	ws := []*Workload{}
 
-	policies, err := step.LoadExternalPoliciesForWorkflow(ctx, p.client, af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	policies, err := step.LoadExternalPoliciesForWorkflow(ctx, af.WrapClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
 	if err != nil {
 		return err
 	}

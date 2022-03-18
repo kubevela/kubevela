@@ -210,8 +210,10 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
 			ScopeGVK:                make(map[string]metav1.GroupVersionKind),
 			AppfileCache: &v1beta1.ApplicationRevisionAppfileCache{
-				Policies:      af.Policies,
-				WorkflowSteps: af.WorkflowSteps,
+				Policies:         af.Policies,
+				WorkflowSteps:    af.WorkflowSteps,
+				ExternalPolicies: af.ExternalPolicies,
+				ExternalWorkflow: af.ExternalWorkflow,
 			},
 		},
 	}

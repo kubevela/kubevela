@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -59,6 +60,12 @@ type ApplicationRevisionAppfileCache struct {
 
 	// WorkflowSteps records the steps to run in the current application revision
 	WorkflowSteps []WorkflowStep `json:"workflowSteps,omitempty"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	ExternalPolicies []*runtime.RawExtension `json:"externalPolicies,omitempty"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	ExternalWorkflow *runtime.RawExtension `json:"externalWorkflow,omitempty"`
 }
 
 // ApplicationRevisionStatus is the status of ApplicationRevision
