@@ -73,7 +73,7 @@ func TestLoadTerraformComponents(t *testing.T) {
 			continue
 		}
 		r.NoError(err)
-		outputs, err := v.LookupValue("outputs", "components")
+		outputs, err := v.LookupValue("outputs.components")
 		r.NoError(err)
 		var comps []apicommon.ApplicationComponent
 		r.NoError(outputs.UnmarshalTo(&comps))

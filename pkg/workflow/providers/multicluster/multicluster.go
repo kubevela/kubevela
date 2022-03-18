@@ -74,7 +74,7 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	if err != nil {
 		return err
 	}
-	val, err := v.LookupValue("inputs", "placement")
+	val, err := v.LookupValue("inputs.placement")
 	if err != nil {
 		return err
 	}
@@ -129,13 +129,13 @@ func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act w
 	patch := v1alpha1.EnvPatch{}
 	selector := &v1alpha1.EnvSelector{}
 
-	obj, err := v.LookupValue("inputs", "patch")
+	obj, err := v.LookupValue("inputs.patch")
 	if err == nil {
 		if err = obj.UnmarshalTo(&patch); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal patch for env %s", env)
 		}
 	}
-	obj, err = v.LookupValue("inputs", "selector")
+	obj, err = v.LookupValue("inputs.selector")
 	if err == nil {
 		if err = obj.UnmarshalTo(selector); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal selector for env %s", env)
@@ -164,7 +164,7 @@ func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTyp
 }
 
 func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	policiesRaw, err := v.LookupValue("inputs", "policies")
+	policiesRaw, err := v.LookupValue("inputs.policies")
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 }
 
 func (p *provider) OverrideConfiguration(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	policiesRaw, err := v.LookupValue("inputs", "policies")
+	policiesRaw, err := v.LookupValue("inputs.policies")
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (p *provider) OverrideConfiguration(ctx wfContext.Context, v *value.Value, 
 	if err = policiesRaw.UnmarshalTo(policies); err != nil {
 		return errors.Wrapf(err, "failed to parse policies")
 	}
-	componentsRaw, err := v.LookupValue("inputs", "components")
+	componentsRaw, err := v.LookupValue("inputs.components")
 	if err != nil {
 		return err
 	}

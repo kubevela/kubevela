@@ -253,7 +253,7 @@ func TestLoadComponent(t *testing.T) {
 	r.NoError(err)
 	err = p.LoadComponent(nil, overrideValue, nil)
 	r.NoError(err)
-	_, err = overrideValue.LookupValue("value", "c2")
+	_, err = overrideValue.LookupValue("value.c2")
 	r.NoError(err)
 }
 
