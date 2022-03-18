@@ -328,6 +328,9 @@ func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIPa
 			if cusSchema.Style != nil {
 				dSchema.Style = cusSchema.Style
 			}
+			if cusSchema.Conditions != nil {
+				dSchema.Conditions = cusSchema.Conditions
+			}
 		}
 	}
 	sort.Slice(defaultSchema, func(i, j int) bool {
