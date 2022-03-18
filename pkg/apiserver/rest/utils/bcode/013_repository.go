@@ -29,4 +29,4 @@ var ErrGetChartValues = NewBcode(200, 13003, "cannot get the values info of the 
 var ErrChartNotExist = NewBcode(200, 13004, "this chart not exist in the repository")
 
 // ErrSkipCacheParameter means the skip cache parameter miss config
-var ErrSkipCacheParameter = NewBcode(400, 13005, "skip cache parameter miss config")
+var ErrSkipCacheParameter = NewBcode(400, 13005, "skip cache parameter miss config, the value only can be true or false")

@@ -216,15 +216,11 @@ func (h *Helper) getIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, 
 	if err := yaml.UnmarshalStrict(body, i); err != nil {
 		return nil, fmt.Errorf("parse index file from %s failure %w", repoURL, err)
 	}
-	cacheTime := 3 * time.Minute
-	if len(i.Entries) > 20 {
-		// huge helm repo like https://charts.bitnami.com/bitnami have too many(106) charts, generally user cannot modify it.
-		// need more cache time
-		cacheTime = 1 * time.Hour
-	}
+
 	if h.cache != nil {
-		h.cache.Put(fmt.Sprintf(repoPatten, repoURL), i, cacheTime)
+		h.cache.Put(fmt.Sprintf(repoPatten, repoURL), i, calculateCacheTimeFromIndex(len(i.Entries)))
 	}
+
 	fmt.Println(len(i.Entries))
 	return i, nil
 }
@@ -330,9 +326,19 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 			continue
 		}
 		if h.cache != nil {
-			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), c.Values, 10*time.Minute)
+			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), c.Values, calculateCacheTimeFromIndex(len(i.Entries)))
 		}
 		return c.Values, nil
 	}
 	return nil, fmt.Errorf("cannot load chart from chart repo")
+}
+
+func calculateCacheTimeFromIndex(length int) time.Duration {
+	cacheTime := 3 * time.Minute
+	if length > 20 {
+		// huge helm repo like https://charts.bitnami.com/bitnami have too many(106) charts, generally user cannot modify it.
+		// need more cache time
+		cacheTime = 1 * time.Hour
+	}
+	return cacheTime
 }

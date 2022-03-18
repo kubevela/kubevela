@@ -22,6 +22,7 @@ import (
 
 	"helm.sh/helm/v3/pkg/repo"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
@@ -47,6 +48,7 @@ type defaultHelmHandler struct {
 func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error) {
 	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
 	if err != nil {
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
@@ -55,9 +57,11 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skip
 func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error) {
 	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
 	if err != nil {
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", url, chartName)
 		return nil, bcode.ErrChartNotExist
 	}
 	return chartVersions, nil
@@ -66,6 +70,7 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
 	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
 	if err != nil {
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
