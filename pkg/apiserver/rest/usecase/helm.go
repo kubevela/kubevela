@@ -18,79 +18,63 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 	"strconv"
-	"time"
 
 	"helm.sh/helm/v3/pkg/repo"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
-
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
-)
-
-const (
-	chartPatten   = "repoUrl: %s"
-	versionPatten = "repoUrl: %s, chart: %s"
-	valuePatten   = "repoUrl: %s, chart: %s, version: %s"
 )
 
 // NewHelmUsecase return a helmHandler
 func NewHelmUsecase() HelmHandler {
 	return defaultHelmHandler{
-		cache: utils.NewMemoryCacheStore(context.Background()),
+		helper: helm.NewHelperWithCache(),
 	}
 }
 
 // HelmHandler responsible handle helm related interface
 type HelmHandler interface {
-	ListChartNames(ctx context.Context, url string) ([]string, error)
-	ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error)
-	GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error)
+	ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error)
+	ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error)
+	GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error)
 }
 
 type defaultHelmHandler struct {
-	cache *utils.MemoryCacheStore
+	helper *helm.Helper
 }
 
-func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string) ([]string, error) {
-	if m := d.cache.Get(fmt.Sprintf(chartPatten, url)); m != nil {
-		return m.([]string), nil
-	}
-	helper := &helm.Helper{}
-	charts, err := helper.ListChartsFromRepo(url)
+func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error) {
+	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
+		return nil, bcode.ErrListHelmChart
 	}
-	d.cache.Put(fmt.Sprintf(chartPatten, url), charts, 3*time.Minute)
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error) {
-	if m := d.cache.Get(fmt.Sprintf(versionPatten, url, chartName)); m != nil {
-		return m.(repo.ChartVersions), nil
-	}
-	helper := &helm.Helper{}
-	chartVersions, err := helper.ListVersions(url, chartName)
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error) {
+	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
+		return nil, bcode.ErrListHelmVersions
 	}
-	d.cache.Put(fmt.Sprintf(versionPatten, url, chartName), chartVersions, 3*time.Minute)
+	if len(chartVersions) == 0 {
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", url, chartName)
+		return nil, bcode.ErrChartNotExist
+	}
 	return chartVersions, nil
 }
 
-func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error) {
-	if m := d.cache.Get(fmt.Sprintf(valuePatten, url, chartName, version)); m != nil {
-		return m.(map[string]interface{}), nil
-	}
-	helper := &helm.Helper{}
-	v, err := helper.GetValuesFromChart(url, chartName, version)
+func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
+	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
 	if err != nil {
-		return nil, err
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
+		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
 	flattenKey("", v, res)
-	d.cache.Put(fmt.Sprintf(valuePatten, url, chartName, version), res, 3*time.Minute)
 	return res, nil
 }
 

@@ -163,7 +163,7 @@ func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			helmHelper := helm.NewHelper()
-			versions, err := helmHelper.ListVersions(kubevelaInstallerHelmRepoURL, kubeVelaChartName)
+			versions, err := helmHelper.ListVersions(kubevelaInstallerHelmRepoURL, kubeVelaChartName, true)
 			if err != nil {
 				return err
 			}

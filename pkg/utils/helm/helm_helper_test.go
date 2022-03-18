@@ -60,14 +60,14 @@ var _ = Describe("Test helm helper", func() {
 
 	It("Test ListVersions ", func() {
 		helper := NewHelper()
-		versions, err := helper.ListVersions("./testdata", "autoscalertrait")
+		versions, err := helper.ListVersions("./testdata", "autoscalertrait", true)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(versions), 2)).Should(BeEmpty())
 	})
 
 	It("Test getValues from chart", func() {
 		helper := NewHelper()
-		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0")
+		values, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", true)
 		Expect(err).Should(BeNil())
 		Expect(values).ShouldNot(BeEmpty())
 	})
