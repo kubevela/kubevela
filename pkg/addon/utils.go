@@ -206,6 +206,6 @@ func usingAppsInfo(apps []v1beta1.Application) string {
 		nameStr := strings.Join(appNames, ",")
 		res += fmt.Sprintf("(%s) in namespace:%s,", nameStr, namespace)
 	}
-	res = strings.TrimSuffix(res, ",") + " are string using this addon"
+	res = strings.TrimSuffix(res, ",") + " are still using this addon"
 	return res
 }
