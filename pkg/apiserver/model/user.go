@@ -24,6 +24,7 @@ import (
 
 func init() {
 	RegisterModel(&User{})
+	RegisterModel(&ProjectUser{})
 }
 
 // User is the model of user
@@ -75,6 +76,11 @@ type ProjectUser struct {
 // TableName return custom table name
 func (u *ProjectUser) TableName() string {
 	return tableNamePrefix + "project_user"
+}
+
+// ShortTableName return custom table name
+func (u *ProjectUser) ShortTableName() string {
+	return "pusr"
 }
 
 // PrimaryKey return custom primary key
