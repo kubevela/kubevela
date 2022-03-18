@@ -81,6 +81,7 @@ func (h helmWebService) listCharts(req *restful.Request, res *restful.Response) 
 	charts, err := h.usecase.ListChartNames(context.Background(), url)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
+		return
 	}
 	err = res.WriteEntity(charts)
 	if err != nil {
@@ -95,6 +96,7 @@ func (h helmWebService) listVersions(req *restful.Request, res *restful.Response
 	versions, err := h.usecase.ListChartVersions(context.Background(), url, chartName)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
+		return
 	}
 	err = res.WriteEntity(v1.ChartVersionListResponse{Versions: versions})
 	if err != nil {
@@ -110,6 +112,7 @@ func (h helmWebService) chartValues(req *restful.Request, res *restful.Response)
 	versions, err := h.usecase.GetChartValues(context.Background(), url, chartName, version)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
+		return
 	}
 	err = res.WriteEntity(versions)
 	if err != nil {
