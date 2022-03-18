@@ -85,6 +85,11 @@ type templateContext struct {
 
 	data map[string]interface{}
 
+	// appLabels is the labels  of Application
+	appLabels map[string]string
+	// appAnnotations is the annotations  of Application
+	appAnnotations map[string]string
+
 	ctx context.Context
 }
 
@@ -109,6 +114,9 @@ type ContextData struct {
 	BaseHooks      []BaseHook
 	AuxiliaryHooks []AuxiliaryHook
 	Components     []common.ApplicationComponent
+
+	AppLabels      map[string]string
+	AppAnnotations map[string]string
 }
 
 // NewContext create render templateContext
@@ -128,7 +136,8 @@ func NewContext(data ContextData) Context {
 		ctx:            data.Ctx,
 		baseHooks:      data.BaseHooks,
 		auxiliaryHooks: data.AuxiliaryHooks,
-		components:     data.Components,
+		appLabels:      data.AppLabels,
+		appAnnotations: data.AppAnnotations,
 	}
 	return ctx
 }
@@ -173,6 +182,16 @@ func (ctx *templateContext) BaseContextFile() string {
 	buff += fmt.Sprintf(model.ContextCompRevisionName+": \"%s\"\n", model.ComponentRevisionPlaceHolder)
 	buff += fmt.Sprintf(model.ContextWorkflowName+": \"%s\"\n", ctx.workflowName)
 	buff += fmt.Sprintf(model.ContextPublishVersion+": \"%s\"\n", ctx.publishVersion)
+
+	if ctx.appLabels != nil {
+		bt, _ := json.Marshal(ctx.appLabels)
+		buff += model.ContextAppLabels + ": " + string(bt) + "\n"
+	}
+
+	if ctx.appAnnotations != nil {
+		bt, _ := json.Marshal(ctx.appAnnotations)
+		buff += model.ContextAppAnnotations + ": " + string(bt) + "\n"
+	}
 
 	if ctx.base != nil {
 		buff += fmt.Sprintf(model.OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
