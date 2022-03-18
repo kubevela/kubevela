@@ -44,18 +44,32 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/yaml"
 
+	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
+const (
+	repoPatten   = " repoUrl: %s"
+	valuesPatten = "repoUrl: %s, chart: %s, version: %s"
+)
+
 // Helper provides helper functions for common Helm operations
 type Helper struct {
+	cache *utils2.MemoryCacheStore
 }
 
 // NewHelper creates a Helper
 func NewHelper() *Helper {
 	return &Helper{}
+}
+
+// NewHelperWithCache creates a Helper with cache usually used by apiserver
+func NewHelperWithCache() *Helper {
+	return &Helper{
+		cache: utils2.NewMemoryCacheStore(context.Background()),
+	}
 }
 
 // LoadCharts load helm chart from local or remote
@@ -164,15 +178,20 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 }
 
 // ListVersions list available versions from repo
-func (h *Helper) ListVersions(repoURL string, chartName string) (repo.ChartVersions, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool) (repo.ChartVersions, error) {
+	i, err := h.getIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}
 	return i.Entries[chartName], nil
 }
 
-func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
+func (h *Helper) getIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, error) {
+	if h.cache != nil && !skipCache {
+		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
+			return i.(*repo.IndexFile), nil
+		}
+	}
 	var body []byte
 	if utils.IsValidURL(repoURL) {
 		parsedURL, err := url.Parse(repoURL)
@@ -197,6 +216,12 @@ func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
 	if err := yaml.UnmarshalStrict(body, i); err != nil {
 		return nil, fmt.Errorf("parse index file from %s failure %w", repoURL, err)
 	}
+
+	if h.cache != nil {
+		h.cache.Put(fmt.Sprintf(repoPatten, repoURL), i, calculateCacheTimeFromIndex(len(i.Entries)))
+	}
+
+	fmt.Println(len(i.Entries))
 	return i, nil
 }
 
@@ -260,8 +285,8 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 }
 
 // ListChartsFromRepo list available helm charts in a repo
-func (h *Helper) ListChartsFromRepo(repoURL string) ([]string, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool) ([]string, error) {
+	i, err := h.getIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}
@@ -275,8 +300,13 @@ func (h *Helper) ListChartsFromRepo(repoURL string) ([]string, error) {
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string) (map[string]interface{}, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
+	if h.cache != nil && !skipCache {
+		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
+			return v.(map[string]interface{}), nil
+		}
+	}
+	i, err := h.getIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +325,20 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		if err != nil {
 			continue
 		}
+		if h.cache != nil {
+			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), c.Values, calculateCacheTimeFromIndex(len(i.Entries)))
+		}
 		return c.Values, nil
 	}
 	return nil, fmt.Errorf("cannot load chart from chart repo")
+}
+
+func calculateCacheTimeFromIndex(length int) time.Duration {
+	cacheTime := 3 * time.Minute
+	if length > 20 {
+		// huge helm repo like https://charts.bitnami.com/bitnami have too many(106) charts, generally user cannot modify it.
+		// need more cache time
+		cacheTime = 1 * time.Hour
+	}
+	return cacheTime
 }
