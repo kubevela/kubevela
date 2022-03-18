@@ -1,0 +1,37 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example
+spec:
+  components:
+    - name: nginx
+      type: webservice
+      properties:
+        image: nginx
+      traits:
+        - type: gateway
+          properties:
+            domain: testsvc.example.com
+            http:
+              "/": 8000
+    - name: nginx2
+      type: webservice
+      properties:
+        image: nginx2
+  policies:
+    - name: topology-beijing-demo
+      type: topology
+      properties:
+        clusterLabelSelector:
+          region: beijing
+        namespace: demo
+    - name: topology-local
+      type: topology
+      properties:
+        targets: ["local/demo", "local/ackone-demo"]
+  workflow:
+    steps:
+      - type: deploy
+        name: deploy-local
+        properties:
+          policies: ["topology-local", "topology-beijing-demo"]

@@ -19,13 +19,14 @@ package model
 import "fmt"
 
 func init() {
-	RegistModel(&EnvBinding{})
+	RegisterModel(&EnvBinding{})
 }
 
 // EnvBinding application env binding
 type EnvBinding struct {
 	BaseModel
 	AppPrimaryKey   string           `json:"appPrimaryKey"`
+	AppDeployName   string           `json:"appDeployName"`
 	Name            string           `json:"name"`
 	ComponentsPatch []ComponentPatch `json:"componentsPatchs"`
 }
@@ -48,6 +49,11 @@ type TraitPatch struct {
 // TableName return custom table name
 func (e *EnvBinding) TableName() string {
 	return tableNamePrefix + "envbinding"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (e *EnvBinding) ShortTableName() string {
+	return "evb"
 }
 
 // PrimaryKey return custom primary key

@@ -18,13 +18,14 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 func init() {
-	RegistModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationTrigger{})
+	RegisterModel(&ApplicationComponent{}, &ApplicationPolicy{}, &Application{}, &ApplicationRevision{}, &ApplicationTrigger{})
 }
 
 // Application application delivery model
@@ -43,7 +44,15 @@ func (a *Application) TableName() string {
 	return tableNamePrefix + "application"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (a *Application) ShortTableName() string {
+	return "app"
+}
+
 // PrimaryKey return custom primary key
+// the app primary key is the app name, so the app name is globally unique in every namespace
+// when the app is synced from CR, the first synced one be same with app name,
+// if there's any conflicts, the name will be composed by <appname>-<namespace>
 func (a *Application) PrimaryKey() string {
 	return a.Name
 }
@@ -58,6 +67,18 @@ func (a *Application) Index() map[string]string {
 		index["project"] = a.Project
 	}
 	return index
+}
+
+// GetAppNameForSynced will trim namespace suffix for synced CR
+func (a *Application) GetAppNameForSynced() string {
+	if a.Labels == nil {
+		return a.Name
+	}
+	namespace := a.Labels[LabelSyncNamespace]
+	if namespace == "" {
+		return a.Name
+	}
+	return strings.TrimSuffix(a.Name, "-"+namespace)
 }
 
 // ClusterSelector cluster selector
@@ -102,6 +123,11 @@ func (a *ApplicationComponent) TableName() string {
 	return tableNamePrefix + "application_component"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (a *ApplicationComponent) ShortTableName() string {
+	return "app_cmp"
+}
+
 // PrimaryKey return custom primary key
 func (a *ApplicationComponent) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Name)
@@ -136,6 +162,11 @@ type ApplicationPolicy struct {
 // TableName return custom table name
 func (a *ApplicationPolicy) TableName() string {
 	return tableNamePrefix + "application_policy"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (a *ApplicationPolicy) ShortTableName() string {
+	return "app_plc"
 }
 
 // PrimaryKey return custom primary key
@@ -270,6 +301,11 @@ func (a *ApplicationRevision) TableName() string {
 	return tableNamePrefix + "application_revision"
 }
 
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (a *ApplicationRevision) ShortTableName() string {
+	return "app_rev"
+}
+
 // PrimaryKey return custom primary key
 func (a *ApplicationRevision) PrimaryKey() string {
 	return fmt.Sprintf("%s-%s", a.AppPrimaryKey, a.Version)
@@ -347,6 +383,11 @@ const (
 // TableName return custom table name
 func (w *ApplicationTrigger) TableName() string {
 	return tableNamePrefix + "trigger"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (w *ApplicationTrigger) ShortTableName() string {
+	return "app_tg"
 }
 
 // PrimaryKey return custom primary key

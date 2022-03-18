@@ -26,11 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,6 +48,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/apiserver/sync"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
@@ -279,7 +279,7 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 	if err != nil {
 		return nil, err
 	}
-	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.Name}, &app)
+	err = c.kubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -294,9 +294,10 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 
 // GetApplicationCR get application CR in cluster
 func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
+
 	var apps v1beta1.ApplicationList
 	selector := labels.NewSelector()
-	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.Name})
+	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.GetAppNameForSynced()})
 	if err != nil {
 		return nil, err
 	}
@@ -998,7 +999,7 @@ func (c *applicationUsecaseImpl) GetApplicationComponent(ctx context.Context, ap
 	err := c.ds.Get(ctx, &component)
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrApplicationComponetNotExist
+			return nil, bcode.ErrApplicationComponentNotExist
 		}
 		return nil, err
 	}
@@ -1083,7 +1084,7 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 
 	if err := c.ds.Add(ctx, &componentModel); err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
-			return nil, bcode.ErrApplicationComponetExist
+			return nil, bcode.ErrApplicationComponentExist
 		}
 		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
@@ -1149,11 +1150,11 @@ func convertComponentModelToBase(componentModel *model.ApplicationComponent) *ap
 
 func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model.Application, component *model.ApplicationComponent) error {
 	if component.Main {
-		return bcode.ErrApplicationComponetNotAllowDelete
+		return bcode.ErrApplicationComponentNotAllowDelete
 	}
 	if err := c.ds.Delete(ctx, component); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return bcode.ErrApplicationComponetNotExist
+			return bcode.ErrApplicationComponentNotExist
 		}
 		log.Logger.Warnf("delete app component %s failure %s", app.PrimaryKey(), err.Error())
 		return err
@@ -1528,34 +1529,6 @@ func genWebhookToken() string {
 	return string(b)
 }
 
-func convertToModelComponent(appPrimaryKey string, component common.ApplicationComponent) (model.ApplicationComponent, error) {
-	bc := model.ApplicationComponent{
-		AppPrimaryKey:    appPrimaryKey,
-		Name:             component.Name,
-		Type:             component.Type,
-		ExternalRevision: component.ExternalRevision,
-		DependsOn:        component.DependsOn,
-		Inputs:           component.Inputs,
-		Outputs:          component.Outputs,
-		Scopes:           component.Scopes,
-	}
-	if component.Properties != nil {
-		properties, err := model.NewJSONStruct(component.Properties)
-		if err != nil {
-			return bc, err
-		}
-		bc.Properties = properties
-	}
-	for _, trait := range component.Traits {
-		properties, err := model.NewJSONStruct(trait.Properties)
-		if err != nil {
-			return bc, err
-		}
-		bc.Traits = append(bc.Traits, model.ApplicationTrait{CreateTime: time.Now(), UpdateTime: time.Now(), Properties: properties, Type: trait.Type, Alias: trait.Type, Description: "auto gen"})
-	}
-	return bc, nil
-}
-
 func (c *applicationUsecaseImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
 
 	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
@@ -1590,7 +1563,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 
 	originComps, err := c.ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appPrimaryKey}, &datastore.ListOptions{})
 	if err != nil {
-		return nil, bcode.ErrApplicationComponetNotExist
+		return nil, bcode.ErrApplicationComponentNotExist
 	}
 
 	var originCompNames []string
@@ -1605,7 +1578,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 		targetCompNames = append(targetCompNames, comp.Name)
 	}
 
-	readyToUpdate, readyToDelete, readyToAdd := compareSlices(originCompNames, targetCompNames)
+	readyToUpdate, readyToDelete, readyToAdd := utils2.ThreeWaySliceCompare(originCompNames, targetCompNames)
 
 	// delete new app's components
 	for _, compName := range readyToDelete {
@@ -1624,7 +1597,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
-			compModel, err := convertToModelComponent(appPrimaryKey, comp)
+			compModel, err := sync.ConvertFromCRComponent(appPrimaryKey, comp)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
 			}

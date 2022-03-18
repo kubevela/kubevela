@@ -17,7 +17,7 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Target{})
+	RegisterModel(&Target{})
 }
 
 // Target defines the delivery target information for the application
@@ -34,6 +34,11 @@ type Target struct {
 // TableName return custom table name
 func (d *Target) TableName() string {
 	return tableNamePrefix + "target"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (d *Target) ShortTableName() string {
+	return "tg"
 }
 
 // PrimaryKey return custom primary key

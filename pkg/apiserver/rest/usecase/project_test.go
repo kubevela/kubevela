@@ -81,43 +81,43 @@ var _ = Describe("Test project usecase functions", func() {
 			return k8sClient.Get(context.TODO(), types.NamespacedName{Name: defaultNamespace}, &namespace)
 		}, time.Second*3, time.Microsecond*300).Should(BeNil())
 
-		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnvName], DefaultInitName)).Should(BeEmpty())
-		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfTargetName], DefaultInitName)).Should(BeEmpty())
+		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnvName], model.DefaultInitName)).Should(BeEmpty())
+		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfTargetName], model.DefaultInitName)).Should(BeEmpty())
 		Expect(cmp.Diff(namespace.Labels[oam.LabelControlPlaneNamespaceUsage], oam.VelaNamespaceUsageEnv)).Should(BeEmpty())
 		Expect(cmp.Diff(namespace.Labels[oam.LabelRuntimeNamespaceUsage], oam.VelaNamespaceUsageTarget)).Should(BeEmpty())
 
 		By("check project created")
-		dp, err := projectUsecase.GetProject(context.TODO(), DefaultInitName)
+		dp, err := projectUsecase.GetProject(context.TODO(), model.DefaultInitName)
 		Expect(err).Should(BeNil())
 		Expect(dp.Alias).Should(BeEquivalentTo("Default"))
-		Expect(dp.Description).Should(BeEquivalentTo(DefaultProjectDescription))
+		Expect(dp.Description).Should(BeEquivalentTo(model.DefaultProjectDescription))
 
 		By("check env created")
 
-		env, err := envImpl.GetEnv(context.TODO(), DefaultInitName)
+		env, err := envImpl.GetEnv(context.TODO(), model.DefaultInitName)
 		Expect(err).Should(BeNil())
 		Expect(env.Alias).Should(BeEquivalentTo("Default"))
-		Expect(env.Description).Should(BeEquivalentTo(DefaultEnvDescription))
-		Expect(env.Project).Should(BeEquivalentTo(DefaultInitName))
-		Expect(env.Targets).Should(BeEquivalentTo([]string{DefaultInitName}))
+		Expect(env.Description).Should(BeEquivalentTo(model.DefaultEnvDescription))
+		Expect(env.Project).Should(BeEquivalentTo(model.DefaultInitName))
+		Expect(env.Targets).Should(BeEquivalentTo([]string{model.DefaultInitName}))
 		Expect(env.Namespace).Should(BeEquivalentTo(defaultNamespace))
 
 		By("check target created")
 
-		tg, err := targetImpl.GetTarget(context.TODO(), DefaultInitName)
+		tg, err := targetImpl.GetTarget(context.TODO(), model.DefaultInitName)
 		Expect(err).Should(BeNil())
 		Expect(tg.Alias).Should(BeEquivalentTo("Default"))
-		Expect(tg.Description).Should(BeEquivalentTo(DefaultTargetDescription))
+		Expect(tg.Description).Should(BeEquivalentTo(model.DefaultTargetDescription))
 		Expect(tg.Cluster).Should(BeEquivalentTo(&model.ClusterTarget{
 			ClusterName: multicluster.ClusterLocalName,
 			Namespace:   defaultNamespace,
 		}))
-		Expect(env.Targets).Should(BeEquivalentTo([]string{DefaultInitName}))
+		Expect(env.Targets).Should(BeEquivalentTo([]string{model.DefaultInitName}))
 		Expect(env.Namespace).Should(BeEquivalentTo(defaultNamespace))
 
-		err = targetImpl.DeleteTarget(context.TODO(), DefaultInitName)
+		err = targetImpl.DeleteTarget(context.TODO(), model.DefaultInitName)
 		Expect(err).Should(BeNil())
-		err = envImpl.DeleteEnv(context.TODO(), DefaultInitName)
+		err = envImpl.DeleteEnv(context.TODO(), model.DefaultInitName)
 		Expect(err).Should(BeNil())
 
 	})

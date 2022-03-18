@@ -172,6 +172,7 @@ const (
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
 
 	// AnnotationAppName specifies the name for application in db.
+	// Note: the annotation is only created by velaUX, please don't use it in other Source of Truth.
 	AnnotationAppName = "app.oam.dev/appName"
 
 	// AnnotationAppAlias specifies the alias for application in db.
@@ -189,4 +190,7 @@ const (
 	// AnnotationServiceAccountName indicates the name of the ServiceAccount to use to apply Components and run Workflow.
 	// ServiceAccount will be used in the local cluster only.
 	AnnotationServiceAccountName = "app.oam.dev/service-account-name"
+
+	// AnnotationSOTFromInner indicates the application source of truth is from inner and should not be synced
+	AnnotationSOTFromInner = "sot.oam.dev/from-inner"
 )

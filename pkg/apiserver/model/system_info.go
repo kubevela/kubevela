@@ -17,7 +17,7 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&SystemInfo{})
+	RegisterModel(&SystemInfo{})
 }
 
 // LoginType is the type of login
@@ -41,6 +41,11 @@ type SystemInfo struct {
 // TableName return custom table name
 func (u *SystemInfo) TableName() string {
 	return tableNamePrefix + "system_info"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (u *SystemInfo) ShortTableName() string {
+	return "sysi"
 }
 
 // PrimaryKey return custom primary key
