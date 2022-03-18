@@ -86,7 +86,7 @@ healthCheck:
 
 ## @section KubeVela controller optimization parameters
 
-##@param optimize-disable-component-revision Optimize ComponentRevision by disabling the creation and gc
+##@param optimizeDisableComponentRevision Optimize componentRevision by disabling the creation and gc
 optimizeDisableComponentRevision: false
 
 ## @section MultiCluster parameters
