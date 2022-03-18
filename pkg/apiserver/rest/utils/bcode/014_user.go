@@ -18,13 +18,13 @@ package bcode
 
 var (
 	// ErrUnsupportedEmailModification is the error of unsupported email modification
-	ErrUnsupportedEmailModification = NewBcode(400, 13001, "the user already has an email address and cannot modify it again")
+	ErrUnsupportedEmailModification = NewBcode(400, 14001, "the user already has an email address and cannot modify it again")
 	// ErrUserAlreadyDisabled is the error of user already disabled
-	ErrUserAlreadyDisabled = NewBcode(400, 13002, "the user is already disabled")
+	ErrUserAlreadyDisabled = NewBcode(400, 14002, "the user is already disabled")
 	// ErrUserAlreadyEnabled is the error of user already enabled
-	ErrUserAlreadyEnabled = NewBcode(400, 13003, "the user is already enabled")
+	ErrUserAlreadyEnabled = NewBcode(400, 14003, "the user is already enabled")
 	// ErrUserCannotModified is the error of user cannot modified
-	ErrUserCannotModified = NewBcode(400, 13004, "the user cannot be modified in dex login mode")
+	ErrUserCannotModified = NewBcode(400, 14004, "the user cannot be modified in dex login mode")
 	// ErrUserInvalidPassword is the error of user invalid password
-	ErrUserInvalidPassword = NewBcode(400, 13005, "the password is invalid")
+	ErrUserInvalidPassword = NewBcode(400, 14005, "the password is invalid")
 )
