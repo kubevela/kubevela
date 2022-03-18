@@ -78,6 +78,13 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
 
+### KubeVela controller optimization parameters
+
+| Name                               | Description                                                 | Value   |
+| ---------------------------------- | ----------------------------------------------------------- | ------- |
+| `optimizeDisableComponentRevision` | Optimize componentRevision by disabling the creation and gc | `false` |
+
+
 ### MultiCluster parameters
 
 | Name                                                  | Description                      | Value                            |
