@@ -46,10 +46,11 @@ type userUsecaseImpl struct {
 	ds             datastore.DataStore
 	k8sClient      client.Client
 	projectUsecase ProjectUsecase
+	sysUsecase     SystemInfoUsecase
 }
 
 // NewUserUsecase new User usecase
-func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) UserUsecase {
+func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUsecase SystemInfoUsecase) UserUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
@@ -58,6 +59,7 @@ func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) UserU
 		k8sClient:      k8sClient,
 		ds:             ds,
 		projectUsecase: projectUsecase,
+		sysUsecase:     sysUsecase,
 	}
 }
 
@@ -127,6 +129,13 @@ func (u *userUsecaseImpl) DeleteUser(ctx context.Context, username string) error
 
 // CreateUser create user
 func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.UserBase, error) {
+	sysInfo, err := u.sysUsecase.GetSystemInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if sysInfo.LoginType == model.LoginTypeDex {
+		return nil, bcode.ErrUserCannotModified
+	}
 	hash, err := generatePasswordHash(req.Password)
 	if err != nil {
 		return nil, err
@@ -146,6 +155,13 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 
 // UpdateUser update user
 func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.UserBase, error) {
+	sysInfo, err := u.sysUsecase.GetSystemInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if sysInfo.LoginType == model.LoginTypeDex {
+		return nil, bcode.ErrUserCannotModified
+	}
 	if req.Alias != "" {
 		user.Alias = req.Alias
 	}

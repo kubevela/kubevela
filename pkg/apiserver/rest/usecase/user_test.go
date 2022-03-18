@@ -47,7 +47,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
-		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase}
+		sysUsecase := &systemInfoUsecaseImpl{ds: ds}
+		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase}
 	})
 	AfterEach(func() {
 		err := k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: db}})

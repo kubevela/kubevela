@@ -23,4 +23,6 @@ var (
 	ErrUserAlreadyDisabled = NewBcode(400, 13002, "the user is already disabled")
 	// ErrUserAlreadyEnabled is the error of user already enabled
 	ErrUserAlreadyEnabled = NewBcode(400, 13003, "the user is already enabled")
+	// ErrUserCannotModified is the error of user cannot modified
+	ErrUserCannotModified = NewBcode(400, 13004, "the user cannot be modified in dex login mode")
 )

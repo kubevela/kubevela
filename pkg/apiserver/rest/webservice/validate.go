@@ -87,12 +87,18 @@ func ValidateAlias(fl validator.FieldLevel) bool {
 // ValidateEmail custom check email field
 func ValidateEmail(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
 	return emailRegexp.MatchString(value)
 }
 
 // ValidatePassword custom check password field
 func ValidatePassword(fl validator.FieldLevel) bool {
 	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
 	if len(value) < 8 || len(value) > 16 {
 		return false
 	}
