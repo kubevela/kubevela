@@ -263,6 +263,9 @@ func convertUserBase(user *model.User) *apisv1.UserBase {
 }
 
 func generatePasswordHash(s string) (string, error) {
+	if s == "" {
+		return "", bcode.ErrUserInvalidPassword
+	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(s), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
