@@ -37,11 +37,11 @@ var ErrDeployApplyFail = NewBcode(500, 10005, "application deploy apply failure"
 // ErrNoComponent no component
 var ErrNoComponent = NewBcode(200, 10006, "application not have components, can not deploy")
 
-// ErrApplicationComponetExist application component is exist
-var ErrApplicationComponetExist = NewBcode(400, 10007, "application component is exist")
+// ErrApplicationComponentExist application component is exist
+var ErrApplicationComponentExist = NewBcode(400, 10007, "application component is exist")
 
-// ErrApplicationComponetNotExist  application component is not exist
-var ErrApplicationComponetNotExist = NewBcode(404, 10008, "application component is not exist")
+// ErrApplicationComponentNotExist  application component is not exist
+var ErrApplicationComponentNotExist = NewBcode(404, 10008, "application component is not exist")
 
 // ErrApplicationPolicyExist application policy is exist
 var ErrApplicationPolicyExist = NewBcode(400, 10009, "application policy is exist")
@@ -76,7 +76,7 @@ var ErrApplicationRevisionNotExist = NewBcode(404, 10018, "application revision 
 // ErrApplicationRefusedDelete means the application cannot be deleted because it has been deployed
 var ErrApplicationRefusedDelete = NewBcode(400, 10019, "The application cannot be deleted because it has been deployed")
 
-// ErrApplicationEnvRefusedDelete means he application env cannot be deleted because it has been deployed
+// ErrApplicationEnvRefusedDelete means the application env cannot be deleted because it has been deployed
 var ErrApplicationEnvRefusedDelete = NewBcode(400, 10020, "The application envbinding cannot be deleted because it has been deployed")
 
 // ErrInvalidWebhookToken means the webhook token is invalid
@@ -91,5 +91,5 @@ var ErrInvalidWebhookPayloadBody = NewBcode(400, 10023, "Invalid webhook payload
 // ErrApplicationTriggerNotExist means application trigger is not exist
 var ErrApplicationTriggerNotExist = NewBcode(404, 10024, "application trigger is not exist")
 
-// ErrApplicationComponetNotAllowDelete means the component is main in one application, and it must be deleted before delete app.
-var ErrApplicationComponetNotAllowDelete = NewBcode(400, 10025, "main component in application can not be deleted")
+// ErrApplicationComponentNotAllowDelete means the component is main in one application, and it must be deleted before delete app.
+var ErrApplicationComponentNotAllowDelete = NewBcode(400, 10025, "main component in application can not be deleted")

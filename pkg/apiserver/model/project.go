@@ -17,10 +17,10 @@ limitations under the License.
 package model
 
 func init() {
-	RegistModel(&Project{})
+	RegisterModel(&Project{})
 }
 
-// Project project model
+// Project basic model
 type Project struct {
 	BaseModel
 	Name        string `json:"name"`
@@ -31,6 +31,11 @@ type Project struct {
 // TableName return custom table name
 func (p *Project) TableName() string {
 	return tableNamePrefix + "project"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (p *Project) ShortTableName() string {
+	return "pj"
 }
 
 // PrimaryKey return custom primary key

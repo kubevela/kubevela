@@ -19,7 +19,7 @@ package model
 import "strings"
 
 func init() {
-	RegistModel(&User{})
+	RegisterModel(&User{})
 }
 
 // User is the model of user
@@ -35,6 +35,11 @@ type User struct {
 // TableName return custom table name
 func (u *User) TableName() string {
 	return tableNamePrefix + "user"
+}
+
+// ShortTableName return custom table name
+func (u *User) ShortTableName() string {
+	return "usr"
 }
 
 // PrimaryKey return custom primary key

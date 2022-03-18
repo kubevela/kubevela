@@ -114,7 +114,7 @@ func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envL
 			log.Logger.Errorf("envbinding invalid %s", err.Error())
 			continue
 		}
-		list = append(list, convertEnvbindingModelToBase(eb, env, targets))
+		list = append(list, convertEnvBindingModelToBase(eb, env, targets))
 	}
 	return list, nil
 }
@@ -315,7 +315,7 @@ func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model
 		return nil, err
 	}
 	return &apisv1.DetailEnvBindingResponse{
-		EnvBindingBase: *convertEnvbindingModelToBase(envBinding, env, targets),
+		EnvBindingBase: *convertEnvBindingModelToBase(envBinding, env, targets),
 	}, nil
 }
 
@@ -346,11 +346,12 @@ func convertCreateReqToEnvBindingModel(app *model.Application, req apisv1.Create
 	envBinding := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          req.Name,
+		AppDeployName: app.GetAppNameForSynced(),
 	}
 	return envBinding
 }
 
-func convertEnvbindingModelToBase(envBinding *model.EnvBinding, env *model.Env, targets []*model.Target) *apisv1.EnvBindingBase {
+func convertEnvBindingModelToBase(envBinding *model.EnvBinding, env *model.Env, targets []*model.Target) *apisv1.EnvBindingBase {
 	var dtMap = make(map[string]*model.Target, len(targets))
 	for _, dte := range targets {
 		dtMap[dte.Name] = dte
@@ -379,7 +380,7 @@ func convertEnvbindingModelToBase(envBinding *model.EnvBinding, env *model.Env, 
 		Targets:            envBindingTargets,
 		CreateTime:         envBinding.CreateTime,
 		UpdateTime:         envBinding.UpdateTime,
-		AppDeployName:      envBinding.AppPrimaryKey,
+		AppDeployName:      envBinding.AppDeployName,
 		AppDeployNamespace: env.Namespace,
 	}
 	return ebb
@@ -389,37 +390,13 @@ func convertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 	re := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          envBind.Name,
+		AppDeployName: app.GetAppNameForSynced(),
 	}
 	return &re
 }
 
 func convertWorkflowName(envName string) string {
 	return fmt.Sprintf("workflow-%s", envName)
-}
-
-func compareSlices(a []string, b []string) ([]string, []string, []string) {
-	m := make(map[string]uint8)
-	for _, k := range a {
-		m[k] |= 1 << 0
-	}
-	for _, k := range b {
-		m[k] |= 1 << 1
-	}
-
-	var inAAndB, inAButNotB, inBButNotA []string
-	for k, v := range m {
-		a := v&(1<<0) != 0
-		b := v&(1<<1) != 0
-		switch {
-		case a && b:
-			inAAndB = append(inAAndB, k)
-		case a && !b:
-			inAButNotB = append(inAButNotB, k)
-		case !a && b:
-			inBButNotA = append(inBButNotA, k)
-		}
-	}
-	return inAAndB, inAButNotB, inBButNotA
 }
 
 func isEnvStepType(stepType string) bool {

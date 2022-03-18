@@ -23,7 +23,7 @@ import (
 )
 
 func init() {
-	RegistModel(&Cluster{})
+	RegisterModel(&Cluster{})
 }
 
 // ProviderInfo describes the information from provider API
@@ -80,6 +80,11 @@ func (c *Cluster) SetCreateTime(t time.Time) {
 // TableName table name for datastore
 func (c *Cluster) TableName() string {
 	return tableNamePrefix + "cluster"
+}
+
+// ShortTableName is the compressed version of table name for kubeapi storage and others
+func (c *Cluster) ShortTableName() string {
+	return "cls"
 }
 
 // PrimaryKey primary key for datastore

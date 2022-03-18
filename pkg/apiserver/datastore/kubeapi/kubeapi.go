@@ -64,6 +64,7 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 			return nil, fmt.Errorf("create namespace failure %w", err)
 		}
 	}
+	migrate(cfg.Database)
 	return &kubeapi{
 		kubeclient: kubeClient,
 		namespace:  cfg.Database,
@@ -71,7 +72,9 @@ func New(ctx context.Context, cfg datastore.Config) (datastore.DataStore, error)
 }
 
 func generateName(entity datastore.Entity) string {
-	name := fmt.Sprintf("veladatabase-%s-%s", entity.TableName(), entity.PrimaryKey())
+	// record the old ways here, it'll be migrated
+	// name := fmt.Sprintf("veladatabase-%s-%s", entity.TableName(), entity.PrimaryKey())
+	name := fmt.Sprintf("%s-%s", entity.ShortTableName(), entity.PrimaryKey())
 	return strings.ReplaceAll(name, "_", "-")
 }
 

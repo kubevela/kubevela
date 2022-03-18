@@ -31,21 +31,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
-const (
-
-	// DefaultInitName is default object name for initialization
-	DefaultInitName = "default"
-	// DefaultInitNamespace is default namespace name for initialization
-	DefaultInitNamespace = "default"
-
-	// DefaultTargetDescription describes default target created
-	DefaultTargetDescription = "Default target is created by velaux system automatically."
-	// DefaultEnvDescription describes default env created
-	DefaultEnvDescription = "Default environment is created by velaux system automatically."
-	// DefaultProjectDescription describes the default project created
-	DefaultProjectDescription = "Default project is created by velaux system automatically."
-)
-
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
@@ -65,7 +50,7 @@ func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
 	p := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
-	p.initDefaultProjectEnvTarget(DefaultInitNamespace)
+	p.initDefaultProjectEnvTarget(model.DefaultInitNamespace)
 	return p
 }
 
@@ -84,15 +69,15 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
 
-	if err := createTargetNamespace(ctx, p.k8sClient, multicluster.ClusterLocalName, defaultNamespace, DefaultInitName); err != nil {
+	if err := createTargetNamespace(ctx, p.k8sClient, multicluster.ClusterLocalName, defaultNamespace, model.DefaultInitName); err != nil {
 		log.Logger.Errorf("initialize default target namespace failed %v", err)
 		return
 	}
 	// initialize default target first
 	err = createTarget(ctx, p.ds, &model.Target{
-		Name:        DefaultInitName,
+		Name:        model.DefaultInitName,
 		Alias:       "Default",
-		Description: DefaultTargetDescription,
+		Description: model.DefaultTargetDescription,
 		Cluster: &model.ClusterTarget{
 			ClusterName: multicluster.ClusterLocalName,
 			Namespace:   defaultNamespace,
@@ -106,12 +91,12 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string
 
 	// initialize default target first
 	err = createEnv(ctx, p.k8sClient, p.ds, &model.Env{
-		Name:        DefaultInitName,
+		Name:        model.DefaultInitName,
 		Alias:       "Default",
-		Description: DefaultEnvDescription,
-		Project:     DefaultInitName,
+		Description: model.DefaultEnvDescription,
+		Project:     model.DefaultInitName,
 		Namespace:   defaultNamespace,
-		Targets:     []string{DefaultInitName},
+		Targets:     []string{model.DefaultInitName},
 	})
 	// for idempotence, ignore default env already exist error
 	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {
@@ -120,14 +105,15 @@ func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string
 	}
 
 	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
-		Name:        DefaultInitName,
+		Name:        model.DefaultInitName,
 		Alias:       "Default",
-		Description: DefaultProjectDescription,
+		Description: model.DefaultProjectDescription,
 	})
 	if err != nil {
 		log.Logger.Errorf("initialize project failed %v", err)
 		return
 	}
+
 }
 
 // GetProject get project

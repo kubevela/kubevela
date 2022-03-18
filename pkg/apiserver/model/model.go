@@ -30,28 +30,37 @@ import (
 
 var tableNamePrefix = "vela_"
 
-var registedModels = map[string]Interface{}
+var registeredModels = map[string]Interface{}
 
 // Interface model interface
 type Interface interface {
 	TableName() string
+	ShortTableName() string
 }
 
-// RegistModel regist model
-func RegistModel(models ...Interface) {
+// RegisterModel register model
+func RegisterModel(models ...Interface) {
 	for _, model := range models {
-		if _, exist := registedModels[model.TableName()]; exist {
+		if _, exist := registeredModels[model.TableName()]; exist {
 			panic(fmt.Errorf("model table name %s conflict", model.TableName()))
 		}
-		registedModels[model.TableName()] = model
+		registeredModels[model.TableName()] = model
 	}
+}
+
+// GetRegisterModels will return the register models
+func GetRegisterModels() map[string]Interface {
+	return registeredModels
 }
 
 // JSONStruct json struct, same with runtime.RawExtension
 type JSONStruct map[string]interface{}
 
-// NewJSONStruct new jsonstruct from runtime.RawExtension
+// NewJSONStruct new json struct from runtime.RawExtension
 func NewJSONStruct(raw *runtime.RawExtension) (*JSONStruct, error) {
+	if raw == nil || raw.Raw == nil {
+		return nil, nil
+	}
 	var data JSONStruct
 	err := json.Unmarshal(raw.Raw, &data)
 	if err != nil {
@@ -60,7 +69,7 @@ func NewJSONStruct(raw *runtime.RawExtension) (*JSONStruct, error) {
 	return &data, nil
 }
 
-// NewJSONStructByString new jsonstruct from string
+// NewJSONStructByString new json struct from string
 func NewJSONStructByString(source string) (*JSONStruct, error) {
 	if source == "" {
 		return nil, nil
@@ -73,7 +82,7 @@ func NewJSONStructByString(source string) (*JSONStruct, error) {
 	return &data, nil
 }
 
-// NewJSONStructByStruct new jsonstruct from strcut object
+// NewJSONStructByStruct new json struct from struct object
 func NewJSONStructByStruct(object interface{}) (*JSONStruct, error) {
 	if object == nil {
 		return nil, nil
