@@ -35,25 +35,25 @@ func NewHelmUsecase() HelmHandler {
 
 // HelmHandler responsible handle helm related interface
 type HelmHandler interface {
-	ListChartNames(ctx context.Context, url string) ([]string, error)
-	ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error)
-	GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error)
+	ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error)
+	ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error)
+	GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error)
 }
 
 type defaultHelmHandler struct {
 	helper *helm.Helper
 }
 
-func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string) ([]string, error) {
-	charts, err := d.helper.ListChartsFromRepo(url)
+func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error) {
+	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
 	if err != nil {
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string) (repo.ChartVersions, error) {
-	chartVersions, err := d.helper.ListVersions(url, chartName)
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error) {
+	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
 	if err != nil {
 		return nil, bcode.ErrListHelmVersions
 	}
@@ -63,8 +63,8 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 	return chartVersions, nil
 }
 
-func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string) (map[string]interface{}, error) {
-	v, err := d.helper.GetValuesFromChart(url, chartName, version)
+func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
+	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
 	if err != nil {
 		return nil, bcode.ErrGetChartValues
 	}

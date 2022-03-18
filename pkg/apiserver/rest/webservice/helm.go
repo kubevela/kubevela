@@ -18,6 +18,7 @@ package webservice
 
 import (
 	"context"
+	"strconv"
 
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 
@@ -78,7 +79,16 @@ func (h helmWebService) GetWebService() *restful.WebService {
 
 func (h helmWebService) listCharts(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
-	charts, err := h.usecase.ListChartNames(context.Background(), url)
+	skipStr := req.QueryParameter("skipCache")
+	skipCache := false
+	var err error
+	if skipStr != "" {
+		if skipCache, err = strconv.ParseBool(skipStr); err != nil {
+			bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
+			return
+		}
+	}
+	charts, err := h.usecase.ListChartNames(context.Background(), url, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -93,7 +103,16 @@ func (h helmWebService) listCharts(req *restful.Request, res *restful.Response) 
 func (h helmWebService) listVersions(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
 	chartName := req.PathParameter("chart")
-	versions, err := h.usecase.ListChartVersions(context.Background(), url, chartName)
+	skipStr := req.QueryParameter("skipCache")
+	skipCache := false
+	var err error
+	if skipStr != "" {
+		if skipCache, err = strconv.ParseBool(skipStr); err != nil {
+			bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
+			return
+		}
+	}
+	versions, err := h.usecase.ListChartVersions(context.Background(), url, chartName, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -109,7 +128,16 @@ func (h helmWebService) chartValues(req *restful.Request, res *restful.Response)
 	url := req.QueryParameter("repoUrl")
 	chartName := req.PathParameter("chart")
 	version := req.PathParameter("version")
-	versions, err := h.usecase.GetChartValues(context.Background(), url, chartName, version)
+	skipStr := req.QueryParameter("skipCache")
+	skipCache := false
+	var err error
+	if skipStr != "" {
+		if skipCache, err = strconv.ParseBool(skipStr); err != nil {
+			bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
+			return
+		}
+	}
+	versions, err := h.usecase.GetChartValues(context.Background(), url, chartName, version, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
