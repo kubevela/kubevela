@@ -104,7 +104,7 @@ request:{
 		prd := &provider{}
 		err = prd.Do(nil, v, nil)
 		assert.NilError(t, err, tName)
-		body, err := v.LookupValue("response", "body")
+		body, err := v.LookupValue("response.body")
 		assert.NilError(t, err, tName)
 		ret, err := body.CueValue().String()
 		assert.NilError(t, err, tName)

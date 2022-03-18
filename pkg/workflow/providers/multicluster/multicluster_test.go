@@ -613,7 +613,7 @@ func TestExpandTopology(t *testing.T) {
 				r.Contains(err.Error(), tt.Error)
 			} else {
 				r.NoError(err)
-				outputs, err := v.LookupValue("outputs", "decisions")
+				outputs, err := v.LookupValue("outputs.decisions")
 				r.NoError(err)
 				pds := &[]v1alpha1.PlacementDecision{}
 				r.NoError(outputs.UnmarshalTo(pds))
@@ -676,7 +676,7 @@ func TestOverrideConfiguration(t *testing.T) {
 				r.Contains(err.Error(), tt.Error)
 			} else {
 				r.NoError(err)
-				outputs, err := v.LookupValue("outputs", "components")
+				outputs, err := v.LookupValue("outputs.components")
 				r.NoError(err)
 				comps := &[]apicommon.ApplicationComponent{}
 				r.NoError(outputs.UnmarshalTo(comps))

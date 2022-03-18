@@ -91,7 +91,7 @@ func (wf *WorkflowContext) PatchComponent(name string, patchValue *value.Value) 
 
 // GetVar get variable from workflow context.
 func (wf *WorkflowContext) GetVar(paths ...string) (*value.Value, error) {
-	return wf.vars.LookupValue(paths...)
+	return wf.vars.LookupValue(strings.Join(paths, "."))
 }
 
 // SetVar set variable to workflow context.

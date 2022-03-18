@@ -48,7 +48,7 @@ component: "server"
 	assert.NilError(t, err)
 	err = p.Load(wfCtx, v, &mockAction{})
 	assert.NilError(t, err)
-	v, err = v.LookupValue("value", "server")
+	v, err = v.LookupValue("value.server")
 	assert.NilError(t, err)
 	str, err = v.String()
 	assert.NilError(t, err)
