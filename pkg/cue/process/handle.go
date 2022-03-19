@@ -136,6 +136,7 @@ func NewContext(data ContextData) Context {
 		ctx:            data.Ctx,
 		baseHooks:      data.BaseHooks,
 		auxiliaryHooks: data.AuxiliaryHooks,
+		components:     data.Components,
 		appLabels:      data.AppLabels,
 		appAnnotations: data.AppAnnotations,
 	}
