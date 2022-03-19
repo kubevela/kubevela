@@ -18,6 +18,7 @@ package webservice
 
 import (
 	"regexp"
+	"unicode"
 
 	"github.com/go-playground/validator/v10"
 
@@ -26,7 +27,10 @@ import (
 
 var validate = validator.New()
 
-var nameRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+var (
+	nameRegexp  = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	emailRegexp = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+)
 
 const (
 	minPageSize = 5
@@ -41,6 +45,12 @@ func init() {
 		panic(err)
 	}
 	if err := validate.RegisterValidation("checkpayloadtype", ValidatePayloadType); err != nil {
+		panic(err)
+	}
+	if err := validate.RegisterValidation("checkemail", ValidateEmail); err != nil {
+		panic(err)
+	}
+	if err := validate.RegisterValidation("checkpassword", ValidatePassword); err != nil {
 		panic(err)
 	}
 }
@@ -72,4 +82,36 @@ func ValidateAlias(fl validator.FieldLevel) bool {
 		return false
 	}
 	return true
+}
+
+// ValidateEmail custom check email field
+func ValidateEmail(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
+	return emailRegexp.MatchString(value)
+}
+
+// ValidatePassword custom check password field
+func ValidatePassword(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true
+	}
+	if len(value) < 8 || len(value) > 16 {
+		return false
+	}
+	// go's regex doesn't support backtracking so check the password with a loop
+	letter := false
+	num := false
+	for _, c := range value {
+		switch {
+		case unicode.IsNumber(c):
+			num = true
+		case unicode.IsLetter(c):
+			letter = true
+		}
+	}
+	return letter && num
 }

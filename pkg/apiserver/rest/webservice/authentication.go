@@ -38,7 +38,7 @@ func NewAuthenticationWebService(authenticationUsecase usecase.AuthenticationUse
 
 func (c *authenticationWebService) GetWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(versionPrefix).
+	ws.Path(versionPrefix+"/auth").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
 		Produces(restful.MIME_JSON, restful.MIME_XML).
 		Doc("api for authentication manage")
