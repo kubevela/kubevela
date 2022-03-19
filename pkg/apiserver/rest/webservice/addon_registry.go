@@ -79,6 +79,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

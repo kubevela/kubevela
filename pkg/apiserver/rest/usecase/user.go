@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"golang.org/x/crypto/bcrypt"
+	"helm.sh/helm/v3/pkg/time"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -40,6 +41,7 @@ type UserUsecase interface {
 	ListUsers(ctx context.Context, page, pageSize int, listOptions apisv1.ListUserOptions) (*apisv1.ListUserResponse, error)
 	DisableUser(ctx context.Context, user *model.User) error
 	EnableUser(ctx context.Context, user *model.User) error
+	updateUserLoginTime(ctx context.Context, user *model.User) error
 }
 
 type userUsecaseImpl struct {
@@ -136,7 +138,7 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if sysInfo.LoginType == model.LoginTypeDex {
 		return nil, bcode.ErrUserCannotModified
 	}
-	hash, err := generatePasswordHash(req.Password)
+	hash, err := GeneratePasswordHash(req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +168,7 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 		user.Alias = req.Alias
 	}
 	if req.Password != "" {
-		hash, err := generatePasswordHash(req.Password)
+		hash, err := GeneratePasswordHash(req.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -244,6 +246,12 @@ func (u *userUsecaseImpl) EnableUser(ctx context.Context, user *model.User) erro
 	return u.ds.Put(ctx, user)
 }
 
+// updateUserLoginTime update user login time
+func (u *userUsecaseImpl) updateUserLoginTime(ctx context.Context, user *model.User) error {
+	user.LastLoginTime = time.Now().Time
+	return u.ds.Put(ctx, user)
+}
+
 func convertUserModel(user *model.User) *apisv1.DetailUserResponse {
 	return &apisv1.DetailUserResponse{
 		UserBase: *convertUserBase(user),
@@ -262,7 +270,7 @@ func convertUserBase(user *model.User) *apisv1.UserBase {
 	}
 }
 
-func generatePasswordHash(s string) (string, error) {
+func GeneratePasswordHash(s string) (string, error) {
 	if s == "" {
 		return "", bcode.ErrUserInvalidPassword
 	}

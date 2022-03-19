@@ -36,16 +36,38 @@ const baseURL = "http://127.0.0.1:8000"
 func post(path string, body interface{}) *http.Response {
 	b, err := json.Marshal(body)
 	Expect(err).Should(BeNil())
-
-	res, err := http.Post(baseURL+path, "application/json", bytes.NewBuffer(b))
+	client := &http.Client{}
+	reqest, err := http.NewRequest("POST", baseURL+path, bytes.NewBuffer(b))
 	Expect(err).Should(BeNil())
-	return res
+	reqest.Header.Add("Authorization", token)
+	reqest.Header.Add("Content-Type", "application/json")
+
+	response, err := client.Do(reqest)
+	Expect(err).Should(BeNil())
+	return response
 }
 
 func get(path string) *http.Response {
-	res, err := http.Get(baseURL + path)
+	client := &http.Client{}
+	reqest, err := http.NewRequest("GET", baseURL+path, nil)
 	Expect(err).Should(BeNil())
-	return res
+	reqest.Header.Add("Authorization", token)
+
+	response, err := client.Do(reqest)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func delete(path string) *http.Response {
+	client := &http.Client{}
+	reqest, err := http.NewRequest("DELETE", baseURL+path, nil)
+	Expect(err).Should(BeNil())
+	reqest.Header.Add("Authorization", token)
+
+	response, err := client.Do(reqest)
+	Expect(err).Should(BeNil())
+	defer response.Body.Close()
+	return response
 }
 
 var _ = Describe("Test addon rest api", func() {
@@ -75,10 +97,7 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(rmeta.Git).Should(Equal(createReq.Git))
 		Expect(rmeta.OSS).Should(Equal(createReq.Oss))
 
-		deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/api/v1/addon_registries/"+createReq.Name, nil)
-		Expect(err).Should(BeNil())
-		deleteRes, err := http.DefaultClient.Do(deleteReq)
-		Expect(err).Should(BeNil())
+		deleteRes := delete("/api/v1/addon_registries/" + createReq.Name)
 		Expect(deleteRes).ShouldNot(BeNil())
 		Expect(deleteRes.StatusCode).Should(Equal(200))
 	})

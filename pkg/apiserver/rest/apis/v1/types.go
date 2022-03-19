@@ -1067,7 +1067,8 @@ type SystemInfoResponse struct {
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
-	EnableCollection bool
+	EnableCollection bool            `json:"enableCollection"`
+	LoginType        model.LoginType `json:"loginType"`
 }
 
 // SystemVersion contains KubeVela version
@@ -1086,11 +1087,23 @@ type SimpleResponse struct {
 	Status string `json:"status"`
 }
 
+// LoginRequest is the request body for login
+type LoginRequest struct {
+	Code     string `json:"code,omitempty" optional:"true"`
+	Username string `json:"username,omitempty" optional:"true"`
+	Password string `json:"password,omitempty" optional:"true"`
+}
+
 // LoginResponse is the response of login request
 type LoginResponse struct {
-	UserInfo     DetailUserResponse `json:"userInfo"`
-	AccessToken  string             `json:"accessToken,omitempty"`
-	RefreshToken string             `json:"refreshToken,omitempty"`
+	User         *UserBase `json:"user"`
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+}
+
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 // DexConfigResponse is the response of dex config
@@ -1150,4 +1163,9 @@ type ListUserOptions struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Alias string `json:"alias"`
+}
+
+// GetLoginTypeResponse get login type response
+type GetLoginTypeResponse struct {
+	LoginType model.LoginType `json:"loginType"`
 }

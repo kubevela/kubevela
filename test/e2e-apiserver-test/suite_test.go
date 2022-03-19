@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -40,6 +42,7 @@ import (
 )
 
 var k8sClient client.Client
+var token string
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -79,19 +82,30 @@ var _ = BeforeSuite(func() {
 	By("wait for api server to start")
 	Eventually(
 		func() error {
-			res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
-			if err != nil {
-				return err
+			secret := &v1.Secret{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: "admin", Namespace: "vela-system"}, secret)
+			Expect(err).Should(BeNil())
+			var req = apisv1.LoginRequest{
+				Username: "admin",
+				Password: string(secret.Data["admin"]),
 			}
-			if res.StatusCode == http.StatusOK {
+			fmt.Println(2222, req)
+			bodyByte, err := json.Marshal(req)
+			Expect(err).Should(BeNil())
+			resp, err := http.Post("http://127.0.0.1:8000/api/v1/auth/login", "application/json", bytes.NewBuffer(bodyByte))
+			Expect(err).Should(BeNil())
+			loginResp := &apisv1.LoginResponse{}
+			test, _ := json.Marshal(resp.Body)
+			fmt.Println(1111, string(test), resp.StatusCode)
+			err = json.NewDecoder(resp.Body).Decode(loginResp)
+			Expect(err).Should(BeNil())
+			token = "Bearer " + loginResp.AccessToken
+			if resp.StatusCode == http.StatusOK {
 				var req = apisv1.CreateProjectRequest{
 					Name:        appProject,
 					Description: "test project",
 				}
-				bodyByte, err := json.Marshal(req)
-				Expect(err).ShouldNot(HaveOccurred())
-				_, err = http.Post("http://127.0.0.1:8000/api/v1/projects", "application/json", bytes.NewBuffer(bodyByte))
-				Expect(err).ShouldNot(HaveOccurred())
+				_ = post("/api/v1/projects", req)
 				return nil
 			}
 			return errors.New("rest service not ready")

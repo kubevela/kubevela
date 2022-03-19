@@ -537,6 +537,7 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AppDryRunResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

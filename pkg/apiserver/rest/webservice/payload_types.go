@@ -43,6 +43,7 @@ func (c *payloadTypesWebservice) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

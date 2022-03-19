@@ -115,6 +115,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("name", "addon name to update").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

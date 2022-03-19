@@ -107,6 +107,8 @@ func (c *userWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

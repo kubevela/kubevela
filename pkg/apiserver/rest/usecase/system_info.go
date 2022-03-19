@@ -73,7 +73,13 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	if err != nil {
 		return nil, err
 	}
-	modifiedInfo := model.SystemInfo{InstallID: info.InstallID, EnableCollection: sysInfo.EnableCollection, BaseModel: model.BaseModel{CreateTime: info.CreateTime}}
+	modifiedInfo := model.SystemInfo{
+		InstallID:        info.InstallID,
+		EnableCollection: sysInfo.EnableCollection,
+		LoginType:        sysInfo.LoginType,
+		BaseModel: model.BaseModel{
+			CreateTime: info.CreateTime,
+		}}
 	err = u.ds.Put(ctx, &modifiedInfo)
 	if err != nil {
 		return nil, err

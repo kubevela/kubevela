@@ -18,6 +18,7 @@ package rest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,20 +27,27 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 	velasync "github.com/oam-dev/kubevela/pkg/apiserver/sync"
+	oamutils "github.com/oam-dev/kubevela/pkg/utils"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -108,6 +116,10 @@ func New(cfg Config) (a APIServer, err error) {
 
 func (s *restServer) Run(ctx context.Context) error {
 	s.RegisterServices()
+
+	if err := s.InitAdmin(ctx); err != nil {
+		return err
+	}
 
 	l, err := s.setupLeaderElection()
 	if err != nil {
@@ -187,7 +199,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	// Add container filter to enable CORS
 	cors := restful.CrossOriginResourceSharing{
 		ExposeHeaders:  []string{},
-		AllowedHeaders: []string{"Content-Type", "Accept"},
+		AllowedHeaders: []string{"Content-Type", "Accept", "Authorization", "RefreshToken"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		CookiesAllowed: true,
 		Container:      s.webContainer}
@@ -199,7 +211,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	// Add request log
 	s.webContainer.Filter(s.requestLog)
 
-	// Regist all custom webservice
+	// Register all custom webservice
 	for _, handler := range webservice.GetRegisteredWebService() {
 		s.webContainer.Add(handler.GetWebService())
 	}
@@ -210,6 +222,58 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
 	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
 	return config
+}
+
+// RegisterServices register web service
+func (s *restServer) InitAdmin(ctx context.Context) error {
+	admin := "admin"
+	if err := s.dataStore.Get(ctx, &model.User{
+		Name: admin,
+	}); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			pwd := oamutils.RandomString(8)
+			encrypted, err := usecase.GeneratePasswordHash(pwd)
+			if err != nil {
+				return err
+			}
+			if err := s.dataStore.Add(ctx, &model.User{
+				Name:     admin,
+				Password: encrypted,
+			}); err != nil {
+				return err
+			}
+			kubecli, err := clients.GetKubeClient()
+			if err != nil {
+				log.Logger.Fatalf("failed to get kube client: %s", err.Error())
+				return err
+			}
+			secret := &corev1.Secret{}
+			if err := kubecli.Get(ctx, k8stypes.NamespacedName{
+				Name:      admin,
+				Namespace: types.DefaultKubeVelaNS,
+			}, secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					if err := kubecli.Create(ctx, &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      admin,
+							Namespace: types.DefaultKubeVelaNS,
+						},
+						StringData: map[string]string{
+							admin: pwd,
+						},
+					}); err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+		}
+	} else {
+		return err
+	}
+
+	return nil
 }
 
 func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {

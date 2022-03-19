@@ -2636,7 +2636,7 @@
 			}
 		},
 		"/api/v1/auth/login": {
-			"get": {
+			"post": {
 				"consumes": [
 					"application/xml",
 					"application/json"
@@ -2650,10 +2650,78 @@
 				],
 				"summary": "handle login request",
 				"operationId": "login",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.LoginRequest"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"schema": {
 							"$ref": "#/definitions/v1.LoginResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/auth/loginType": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"authentication"
+				],
+				"summary": "get login type",
+				"operationId": "getLoginType",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.GetLoginTypeResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/auth/refreshToken": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"authentication"
+				],
+				"summary": "refresh token",
+				"operationId": "refreshToken",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.RefreshTokenResponse"
 						}
 					},
 					"400": {
@@ -3239,9 +3307,15 @@
 				"parameters": [
 					{
 						"enum": [
+<<<<<<< HEAD
 							"trait",
 							"workflowstep",
 							"component"
+=======
+							"component",
+							"trait",
+							"workflowstep"
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -6365,10 +6439,18 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+<<<<<<< HEAD
 				"version",
 				"note",
+=======
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"createTime",
+				"version",
 				"status",
+<<<<<<< HEAD
+=======
+				"note",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"envName",
 				"triggerType"
 			],
@@ -7422,10 +7504,17 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+<<<<<<< HEAD
 				"description",
 				"icon",
 				"name",
 				"version",
+=======
+				"name",
+				"icon",
+				"version",
+				"description",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"invisible",
 				"schema",
 				"uiSchema",
@@ -7499,13 +7588,19 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+<<<<<<< HEAD
 				"icon",
+=======
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"name",
 				"project",
 				"createTime",
 				"updateTime",
 				"alias",
 				"description",
+				"createTime",
+				"updateTime",
+				"icon",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -7566,6 +7661,7 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+<<<<<<< HEAD
 				"createTime",
 				"reason",
 				"updateTime",
@@ -7580,6 +7676,22 @@
 				"name",
 				"status",
 				"provider",
+=======
+				"reason",
+				"createTime",
+				"updateTime",
+				"name",
+				"icon",
+				"alias",
+				"status",
+				"provider",
+				"dashboardURL",
+				"labels",
+				"apiServerURL",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"description",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"resourceInfo"
 			],
 			"properties": {
@@ -7637,6 +7749,7 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+<<<<<<< HEAD
 				"main",
 				"alias",
 				"type",
@@ -7645,6 +7758,16 @@
 				"appPrimaryKey",
 				"createTime",
 				"updateTime",
+=======
+				"appPrimaryKey",
+				"name",
+				"creator",
+				"alias",
+				"main",
+				"createTime",
+				"updateTime",
+				"type",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"definition"
 			],
 			"properties": {
@@ -7746,13 +7869,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -7782,6 +7905,7 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+<<<<<<< HEAD
 				"createTime",
 				"reason",
 				"triggerType",
@@ -7793,6 +7917,19 @@
 				"appPrimaryKey",
 				"status",
 				"workflowName"
+=======
+				"version",
+				"triggerType",
+				"workflowName",
+				"createTime",
+				"envName",
+				"reason",
+				"deployUser",
+				"appPrimaryKey",
+				"status",
+				"note",
+				"updateTime"
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7923,12 +8060,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"name",
-				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
+				"name",
+				"namespace",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7980,14 +8117,24 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+<<<<<<< HEAD
+=======
+				"name",
+				"alias",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"description",
-				"default",
+				"enable",
 				"envName",
 				"createTime",
+<<<<<<< HEAD
 				"updateTime",
 				"name",
 				"alias",
 				"enable"
+=======
+				"default",
+				"updateTime"
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 			],
 			"properties": {
 				"alias": {
@@ -8190,6 +8337,16 @@
 					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.GetLoginTypeResponse": {
+			"required": [
+				"loginType"
+			],
+			"properties": {
+				"loginType": {
 					"type": "string"
 				}
 			}
@@ -8484,9 +8641,24 @@
 				}
 			}
 		},
+		"v1.LoginRequest": {
+			"properties": {
+				"code": {
+					"type": "string"
+				},
+				"password": {
+					"type": "string"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.LoginResponse": {
 			"required": [
-				"userInfo"
+				"user",
+				"accessToken",
+				"refreshToken"
 			],
 			"properties": {
 				"accessToken": {
@@ -8495,8 +8667,8 @@
 				"refreshToken": {
 					"type": "string"
 				},
-				"userInfo": {
-					"$ref": "#/definitions/v1.DetailUserResponse"
+				"user": {
+					"$ref": "#/definitions/v1.UserBase"
 				}
 			}
 		},
@@ -8654,6 +8826,20 @@
 			}
 		},
 		"v1.PutApplicationEnvBindingRequest": {},
+		"v1.RefreshTokenResponse": {
+			"required": [
+				"accessToken",
+				"refreshToken"
+			],
+			"properties": {
+				"accessToken": {
+					"type": "string"
+				},
+				"refreshToken": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.SimpleResponse": {
 			"required": [
 				"status"
@@ -8666,21 +8852,32 @@
 		},
 		"v1.SystemInfoRequest": {
 			"required": [
-				"EnableCollection"
+				"enableCollection",
+				"loginType"
 			],
 			"properties": {
-				"EnableCollection": {
+				"enableCollection": {
 					"type": "boolean"
+				},
+				"loginType": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+<<<<<<< HEAD
 				"loginType",
+=======
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"createTime",
 				"updateTime",
 				"installID",
 				"enableCollection",
+<<<<<<< HEAD
+=======
+				"loginType",
+>>>>>>> cba11794 (Feat: add login handle for apiserver)
 				"systemVersion"
 			],
 			"properties": {

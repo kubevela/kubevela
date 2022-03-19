@@ -54,16 +54,13 @@ var _ = Describe("Test application rest api", func() {
 				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/api/v1/applications", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var appBase apisv1.ApplicationBase
-		err = json.NewDecoder(res.Body).Decode(&appBase)
+		err := json.NewDecoder(res.Body).Decode(&appBase)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
@@ -72,28 +69,26 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test list components", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/" + appName + "/components")
-		Expect(err).ShouldNot(HaveOccurred())
+		res := get("/api/v1/applications/" + appName + "/components")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var components apisv1.ComponentListResponse
-		err = json.NewDecoder(res.Body).Decode(&components)
+		err := json.NewDecoder(res.Body).Decode(&components)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(components.Components), 1)).Should(BeEmpty())
 	})
 
 	It("Test detail application", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/" + appName)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := get("/api/v1/applications/" + appName)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var detail apisv1.DetailApplicationResponse
-		err = json.NewDecoder(res.Body).Decode(&detail)
+		err := json.NewDecoder(res.Body).Decode(&detail)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
@@ -110,10 +105,7 @@ var _ = Describe("Test application rest api", func() {
 				Namespace:   targetName,
 			},
 		}
-		bodyByte, err := json.Marshal(createTarget)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/targets", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/api/v1/targets", createTarget)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 
@@ -122,10 +114,7 @@ var _ = Describe("Test application rest api", func() {
 			Name:    envName,
 			Targets: []string{targetName},
 		}
-		bodyByte, err = json.Marshal(createEnvReq)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err = http.Post("http://127.0.0.1:8000/api/v1/envs", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res = post("/api/v1/envs", createEnvReq)
 		Expect(res).ShouldNot(BeNil())
 
 		// create envbinding
@@ -134,10 +123,7 @@ var _ = Describe("Test application rest api", func() {
 				Name: envName,
 			},
 		}
-		bodyByte, err = json.Marshal(createEnvbindingReq)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/envs", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res = post("/api/v1/applications/"+appName+"/envs", createEnvbindingReq)
 		Expect(res).ShouldNot(BeNil())
 
 		// deploy app
@@ -147,16 +133,13 @@ var _ = Describe("Test application rest api", func() {
 			WorkflowName: "workflow-dev",
 			Force:        false,
 		}
-		bodyByte, err = json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/deploy", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res = post("/api/v1/applications/"+appName+"/deploy", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.ApplicationDeployResponse
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
