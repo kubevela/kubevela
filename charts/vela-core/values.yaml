@@ -210,3 +210,6 @@ admissionWebhooks:
 kubeClient:
   qps: 50
   burst: 100
+
+## @param podOnly Use pod instead of Deployment to deploy vela-core
+podOnly: false
