@@ -43,6 +43,8 @@ var (
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
 	// CtxKeyApplicationComponent request context key of component
 	CtxKeyApplicationComponent = "component"
+	// CtxKeyUser request context key of user
+	CtxKeyUser = "user"
 )
 
 // AddonPhase defines the phase of an addon
@@ -1088,17 +1090,61 @@ type LoginResponse struct {
 	RefreshToken string             `json:"refreshToken,omitempty"`
 }
 
-// DetailUserResponse is the detail user info for the response
-type DetailUserResponse struct {
-	Name  string `json:"name"`
-	Alias string `json:"alias,omitempty"`
-	Email string `json:"email"`
-}
-
 // DexConfigResponse is the response of dex config
 type DexConfigResponse struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
 	RedirectURL  string `json:"redirectURL"`
 	Issuer       string `json:"issuer"`
+}
+
+// DetailUserResponse is the response of user detail
+type DetailUserResponse struct {
+	UserBase
+	Projects []ProjectUserBase `json:"projects"`
+}
+
+// ProjectUserBase project user base
+type ProjectUserBase struct {
+	Name      string   `json:"name"`
+	Alias     string   `json:"alias"`
+	UserRoles []string `json:"userRoles"`
+}
+
+// CreateUserRequest create user request
+type CreateUserRequest struct {
+	Name     string `json:"name" validate:"checkname"`
+	Alias    string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Email    string `json:"email" validate:"checkemail"`
+	Password string `json:"password" validate:"checkpassword"`
+}
+
+// UpdateUserRequest update user request
+type UpdateUserRequest struct {
+	Alias    string `json:"alias,omitempty" optional:"true"`
+	Password string `json:"password,omitempty" validate:"checkpassword" optional:"true"`
+	Email    string `json:"email,omitempty" validate:"checkemail" optional:"true"`
+}
+
+// ListUserResponse list user response
+type ListUserResponse struct {
+	Users []*DetailUserResponse `json:"users"`
+	Total int64                 `json:"total"`
+}
+
+// UserBase is the base info of user
+type UserBase struct {
+	CreateTime    time.Time `json:"createTime"`
+	LastLoginTime time.Time `json:"lastLoginTime"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Alias         string    `json:"alias,omitempty"`
+	Disabled      bool      `json:"disabled"`
+}
+
+// ListUserOptions list user options
+type ListUserOptions struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Alias string `json:"alias"`
 }
