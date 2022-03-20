@@ -47,7 +47,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
 	velasync "github.com/oam-dev/kubevela/pkg/apiserver/sync"
-	oamutils "github.com/oam-dev/kubevela/pkg/utils"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -231,7 +230,7 @@ func (s *restServer) InitAdmin(ctx context.Context) error {
 		Name: admin,
 	}); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			pwd := oamutils.RandomString(8)
+			pwd := utils2.RandomString(8)
 			encrypted, err := usecase.GeneratePasswordHash(pwd)
 			if err != nil {
 				return err

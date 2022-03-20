@@ -270,6 +270,7 @@ func convertUserBase(user *model.User) *apisv1.UserBase {
 	}
 }
 
+// GeneratePasswordHash generate password hash
 func GeneratePasswordHash(s string) (string, error) {
 	if s == "" {
 		return "", bcode.ErrUserInvalidPassword

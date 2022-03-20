@@ -1101,6 +1101,7 @@ type LoginResponse struct {
 	RefreshToken string    `json:"refreshToken"`
 }
 
+// RefreshTokenResponse is the response of refresh token request
 type RefreshTokenResponse struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`

@@ -87,6 +87,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 			Email:    "test@example.com",
 			Password: "password1",
 		})
+		Expect(err).Should(BeNil())
 		localHandler := localHandlerImpl{
 			userUsecase: userUsecase,
 			ds:          ds,

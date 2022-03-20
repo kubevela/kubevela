@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -44,8 +45,11 @@ const (
 	secretDexConfigKey = "config.yaml"
 	jwtIssuer          = "vela-issuer"
 	signedKey          = "vela-singned"
-	GrantTypeAccess    = "access"
-	GrantTypeRefresh   = "refresh"
+
+	// GrantTypeAccess is the grant type for access token
+	GrantTypeAccess = "access"
+	// GrantTypeRefresh is the grant type for refresh token
+	GrantTypeRefresh = "refresh"
 )
 
 // AuthenticationUsecase is the usecase of authentication
@@ -168,11 +172,11 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	if err != nil {
 		return nil, err
 	}
-	accessToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeAccess, time.Hour)
+	accessToken, err := a.generateJWTToken(userBase.Name, GrantTypeAccess, time.Hour)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeRefresh, time.Hour*24)
+	refreshToken, err := a.generateJWTToken(userBase.Name, GrantTypeRefresh, time.Hour*24)
 	if err != nil {
 		return nil, err
 	}
@@ -183,11 +187,11 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	}, nil
 }
 
-func (a *authenticationUsecaseImpl) generateJWTToken(ctx context.Context, username, grantType string, expireDuration time.Duration) (string, error) {
+func (a *authenticationUsecaseImpl) generateJWTToken(username, grantType string, expireDuration time.Duration) (string, error) {
 	expire := time.Now().Add(expireDuration)
 	claims := model.CustomClaims{
 		StandardClaims: jwt.StandardClaims{
-			NotBefore: int64(time.Now().Unix()),
+			NotBefore: time.Now().Unix(),
 			ExpiresAt: expire.Unix(),
 			Issuer:    jwtIssuer,
 		},
@@ -205,7 +209,7 @@ func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshTok
 		return nil, err
 	}
 	if claim.GrantType == GrantTypeRefresh {
-		accessToken, err := a.generateJWTToken(ctx, claim.Username, GrantTypeAccess, time.Hour)
+		accessToken, err := a.generateJWTToken(claim.Username, GrantTypeAccess, time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -218,12 +222,14 @@ func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshTok
 	return nil, err
 }
 
+// ParseToken parses and verifies a token
 func ParseToken(tokenString string) (*model.CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &model.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(signedKey), nil
 	})
 	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok {
+		var ve *jwt.ValidationError
+		if jwtErr := errors.As(err, ve); jwtErr {
 			switch ve.Errors {
 			case jwt.ValidationErrorExpired:
 				return nil, bcode.ErrTokenExpired
