@@ -154,7 +154,13 @@ func extractFuncName(expr ast.Expr) (string, []ast.Expr) {
 func getPaths(node ast.Expr) []string {
 	switch v := node.(type) {
 	case *ast.SelectorExpr:
-		return append(getPaths(v.X), v.Sel.Name)
+		var sel string
+		if l, ok := v.Sel.(*ast.Ident); ok {
+			sel = l.Name
+		} else {
+			sel = fmt.Sprint(v.Sel)
+		}
+		return append(getPaths(v.X), sel)
 	case *ast.Ident:
 		return []string{v.Name}
 	case *ast.BasicLit:

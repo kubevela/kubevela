@@ -42,10 +42,10 @@ func TestGetParameter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
-		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},
 		{Name: "image", Short: "i", Required: true, Usage: "Which image would you like to use for your service", Default: "", Type: cue.StringKind},
 		{Name: "port", Short: "p", Required: false, Usage: "Which port do you want customer traffic sent to", Default: int64(8080),
 			Type: cue.IntKind},
+		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},
 		{Name: "cpu", Short: "", Required: false, Usage: "", Default: "", Type: cue.StringKind}},
 		params)
 
@@ -54,9 +54,9 @@ func TestGetParameter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
-		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},
 		{Name: "image", Short: "i", Required: true, Usage: "Which image would you like to use for your service", Default: "", Type: cue.StringKind},
 		{Name: "port", Short: "p", Usage: "Which port do you want customer traffic sent to", Default: int64(8080), Type: cue.IntKind},
+		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},
 		{Name: "enable", Default: false, Type: cue.BoolKind},
 		{Name: "fval", Default: 64.3, Type: cue.FloatKind},
 		{Name: "nval", Default: float64(0), Required: true, Type: cue.NumberKind}}, params)

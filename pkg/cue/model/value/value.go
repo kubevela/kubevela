@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
@@ -39,7 +41,7 @@ import (
 // Value is an object with cue.runtime and vendors
 type Value struct {
 	v          cue.Value
-	r          cue.Runtime
+	r          *cue.Context
 	addImports func(instance *build.Instance) error
 }
 
@@ -54,6 +56,9 @@ func (val *Value) Error() error {
 	v := val.CueValue()
 	if !v.Exists() {
 		return errors.New("empty value")
+	}
+	if err := val.v.Err(); err != nil {
+		return err
 	}
 	var gerr error
 	v.Walk(func(value cue.Value) bool {
@@ -105,11 +110,8 @@ func NewValue(s string, pd *packages.PackageDiscover, tagTempl string, opts ...f
 		return nil, err
 	}
 
-	var r cue.Runtime
-	inst, err := r.Build(builder)
-	if err != nil {
-		return nil, err
-	}
+	r := cuecontext.New()
+	inst := r.BuildInstance(builder)
 	val := new(Value)
 	val.r = r
 	val.v = inst.Value()
@@ -196,10 +198,7 @@ func (val *Value) MakeValue(s string) (*Value, error) {
 	if err := val.addImports(builder); err != nil {
 		return nil, err
 	}
-	inst, err := val.r.Build(builder)
-	if err != nil {
-		return nil, err
-	}
+	inst := val.r.BuildInstance(builder)
 	v := new(Value)
 	v.r = val.r
 	v.v = inst.Value()
@@ -209,18 +208,28 @@ func (val *Value) MakeValue(s string) (*Value, error) {
 
 func (val *Value) makeValueWithFile(files ...*ast.File) (*Value, error) {
 	builder := &build.Instance{}
+	newFile := &ast.File{}
+	imports := map[string]*ast.ImportSpec{}
 	for _, f := range files {
-		if err := builder.AddSyntax(f); err != nil {
-			return nil, err
+		for _, importSpec := range f.Imports {
+			if _, ok := imports[importSpec.Name.String()]; !ok {
+				imports[importSpec.Name.String()] = importSpec
+			}
 		}
+		newFile.Decls = append(newFile.Decls, f.Decls...)
+	}
+
+	for _, imp := range imports {
+		newFile.Imports = append(newFile.Imports, imp)
+	}
+
+	if err := builder.AddSyntax(newFile); err != nil {
+		return nil, err
 	}
 	if err := val.addImports(builder); err != nil {
 		return nil, err
 	}
-	inst, err := val.r.Build(builder)
-	if err != nil {
-		return nil, err
-	}
+	inst := val.r.BuildInstance(builder)
 	v := new(Value)
 	v.r = val.r
 	v.v = inst.Value()
@@ -230,10 +239,12 @@ func (val *Value) makeValueWithFile(files ...*ast.File) (*Value, error) {
 
 // FillRaw unify the value with the cue format string x at the given path.
 func (val *Value) FillRaw(x string, paths ...string) error {
-	xInst, err := val.r.Compile("-", x)
+	file, err := parser.ParseFile("-", x)
 	if err != nil {
 		return err
 	}
+	xInst := val.r.BuildFile(file)
+
 	v := val.v.Fill(xInst.Value(), paths...)
 	if v.Err() != nil {
 		return v.Err()
@@ -293,18 +304,18 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		insert = v.v
 	}
 	newV := val.v.Fill(insert, paths...)
-	if newV.Err() != nil {
-		return newV.Err()
-	}
+	//if newV.Err() != nil {
+	//	return newV.Err()
+	//}
 	val.v = newV
 	return nil
 }
 
 // LookupValue reports the value at a path starting from val
-func (val *Value) LookupValue(paths ...string) (*Value, error) {
-	v := val.v.Lookup(paths...)
+func (val *Value) LookupValue(path string) (*Value, error) {
+	v := val.v.LookupPath(cue.ParsePath(path))
 	if !v.Exists() {
-		return nil, errors.Errorf("var(path=%s) not exist", strings.Join(paths, "."))
+		return nil, errors.Errorf("var(path=%s) not exist", path)
 	}
 	return &Value{
 		v:          v,
@@ -315,11 +326,16 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 
 // LookupByScript reports the value by cue script.
 func (val *Value) LookupByScript(script string) (*Value, error) {
+
 	var outputKey = "zz_output__"
 	script = strings.TrimSpace(script)
 	scriptFile, err := parser.ParseFile("-", script)
 	if err != nil {
 		return nil, errors.WithMessage(err, "parse script")
+	}
+
+	if len(scriptFile.Imports) == 0 {
+		return val.LookupValue(script)
 	}
 
 	raw, err := val.String()
@@ -405,71 +421,103 @@ func (val *Value) StepByList(handle func(name string, in *Value) (bool, error)) 
 
 // StepByFields process the fields in order
 func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)) error {
-	for i := 0; ; i++ {
-		field, end, err := val.fieldIndex(i)
-		if err != nil {
-			return err
-		}
-
-		if end {
-			return nil
-		}
-		stop, err := handle(field.Name, field.Value)
-		if err != nil {
-			return errors.WithMessagef(err, "step %s", field.Name)
-		}
-		if stop {
-			return nil
-		}
-
-		if !isDef(field.Name) {
-			if err := val.FillObject(field.Value, field.Name); err != nil {
-				return err
-			}
-		}
-
-		if end {
-			break
-		}
+	iter := steps(val)
+	for iter.next() {
+		iter.do(handle)
 	}
-	return nil
+	return iter.err
 }
 
-func (val *Value) fieldIndex(index int) (*field, bool, error) {
-	fields, err := val.fields()
-	if err != nil {
-		return nil, false, err
-	}
-	if index >= len(fields) {
-		return nil, true, nil
-	}
-	return fields[index], false, nil
+type stepsIterator struct {
+	queue   []*field
+	index   int
+	target  *Value
+	err     error
+	stopped bool
 }
 
-func (val *Value) fields() ([]*field, error) {
-	st, err := val.v.Struct()
-	if err != nil {
-		return nil, err
+func steps(v *Value) *stepsIterator {
+	return &stepsIterator{
+		target: v,
 	}
-	var fields []*field
+}
+
+func (iter *stepsIterator) next() bool {
+	if iter.stopped {
+		return false
+	}
+	if iter.err != nil {
+		return false
+	}
+	if iter.queue != nil {
+		iter.index++
+	}
+	iter.assemble()
+	return iter.index <= len(iter.queue)-1
+}
+
+func (iter *stepsIterator) assemble() {
+	st, err := iter.target.v.Struct()
+	if err != nil {
+		iter.err = err
+		return
+	}
+
+	filters := map[string]struct{}{}
+	for _, item := range iter.queue {
+		filters[item.Name] = struct{}{}
+	}
+	var addFields []*field
 	for i := 0; i < st.Len(); i++ {
-		v := st.Field(i)
-		attr := v.Value.Attribute("step")
+		name := st.Field(i).Name
+		attr := st.Field(i).Value.Attribute("step")
 		no, err := attr.Int(0)
 		if err != nil {
 			no = 100
 		}
-		fields = append(fields, &field{
-			no:   no,
-			Name: v.Name,
-			Value: &Value{
-				r:          val.r,
-				v:          v.Value,
-				addImports: val.addImports,
-			}})
+		if _, ok := filters[name]; !ok {
+			addFields = append(addFields, &field{
+				Name: name,
+				no:   no,
+			})
+		}
 	}
-	sort.Sort(sortFields(fields))
-	return fields, nil
+
+	suffixItems := append(addFields, iter.queue[iter.index:]...)
+	sort.Sort(sortFields(suffixItems))
+	iter.queue = append(iter.queue[:iter.index], suffixItems...)
+}
+
+func (iter *stepsIterator) value() *Value {
+	v := iter.target.v.LookupPath(cue.ParsePath(iter.name()))
+	return &Value{
+		r:          iter.target.r,
+		v:          v,
+		addImports: iter.target.addImports,
+	}
+}
+
+func (iter *stepsIterator) name() string {
+	return iter.queue[iter.index].Name
+}
+
+func (iter *stepsIterator) do(handle func(name string, in *Value) (bool, error)) {
+	if iter.err != nil {
+		return
+	}
+	v := iter.value()
+	stopped, err := handle(iter.name(), v)
+	if err != nil {
+		iter.err = err
+		return
+	}
+	iter.stopped = stopped
+	if !isDef(iter.name()) {
+		if err := iter.target.FillObject(v, iter.name()); err != nil {
+			iter.err = err
+			return
+		}
+	}
 }
 
 type sortFields []*field
@@ -506,7 +554,7 @@ func (val *Value) Field(label string) (cue.Value, error) {
 
 // GetString get the string value at a path starting from v.
 func (val *Value) GetString(paths ...string) (string, error) {
-	v, err := val.LookupValue(paths...)
+	v, err := val.LookupValue(strings.Join(paths, "."))
 	if err != nil {
 		return "", err
 	}
@@ -515,7 +563,7 @@ func (val *Value) GetString(paths ...string) (string, error) {
 
 // GetInt64 get the int value at a path starting from v.
 func (val *Value) GetInt64(paths ...string) (int64, error) {
-	v, err := val.LookupValue(paths...)
+	v, err := val.LookupValue(strings.Join(paths, "."))
 	if err != nil {
 		return 0, err
 	}
@@ -524,7 +572,7 @@ func (val *Value) GetInt64(paths ...string) (int64, error) {
 
 // GetBool get the int value at a path starting from v.
 func (val *Value) GetBool(paths ...string) (bool, error) {
-	v, err := val.LookupValue(paths...)
+	v, err := val.LookupValue(strings.Join(paths, "."))
 	if err != nil {
 		return false, err
 	}
@@ -586,12 +634,17 @@ func (a *assembler) installTo(expr ast.Expr) error {
 			return err
 		}
 	case *ast.SelectorExpr:
-		if err := a.installTo(v.Sel); err != nil {
-			return err
+		if ident, ok := v.Sel.(*ast.Ident); ok {
+			if err := a.installTo(ident); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("assembler parse selector.Sel invalid(!=ident)")
 		}
 		if err := a.installTo(v.X); err != nil {
 			return err
 		}
+
 	case *ast.Ident:
 		a.fill2Path(v.String())
 	case *ast.BasicLit:

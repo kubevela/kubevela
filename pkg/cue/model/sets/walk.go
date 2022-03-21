@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue/token"
+
 	"cuelang.org/go/cue/ast"
 )
 
@@ -92,10 +94,10 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	// Files
 	case *ast.File:
 		nwk.walkDeclList(n.Decls)
-
-	case *ast.ListComprehension:
-		nwk.walk(n.Expr)
-
+	case *ast.SliceExpr:
+		if list, ok := n.X.(*ast.ListLit); ok {
+			nwk.walkExprSlice(list.Elts, n.Low, n.High)
+		}
 	case *ast.CallExpr:
 		// close func need to be ignored
 		if it, ok := n.Fun.(*ast.Ident); ok && it.Name == "close" && len(n.Args) == 1 {
@@ -122,6 +124,28 @@ func (nwk *nodewalker) walkExprList(list []ast.Expr) {
 func (nwk *nodewalker) walkDeclList(list []ast.Decl) {
 	for _, x := range list {
 		nwk.walk(x)
+	}
+}
+
+func (nwk *nodewalker) walkExprSlice(list []ast.Expr, low ast.Expr, high ast.Expr) {
+	var (
+		lowIndex  = 0
+		highIndex = len(list)
+	)
+	if v, ok := low.(*ast.BasicLit); ok && v.Kind == token.INT {
+		lowIndex, _ = strconv.Atoi(v.Value)
+	}
+	if v, ok := high.(*ast.BasicLit); ok && v.Kind == token.INT {
+		highIndex, _ = strconv.Atoi(v.Value)
+	}
+	for i, x := range list {
+		if i < lowIndex || i >= highIndex {
+			continue
+		}
+		origin := nwk.pos
+		nwk.pos = append(nwk.pos, strconv.Itoa(i-lowIndex))
+		nwk.walk(x)
+		nwk.pos = origin
 	}
 }
 

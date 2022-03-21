@@ -167,9 +167,9 @@ image: "myserver"
 
 	artifacts, err := ctxInst.Lookup("context", model.ContextDataArtifacts).MarshalJSON()
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(artifacts))
+	assert.Equal(t, "{\"bool\":false,\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"],\"string\":\"mytxt\"}", string(artifacts))
 
 	arbitraryData, err := ctxInst.Lookup("context", "arbitraryData").MarshalJSON()
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(arbitraryData))
+	assert.Equal(t, "{\"bool\":false,\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"],\"string\":\"mytxt\"}", string(arbitraryData))
 }

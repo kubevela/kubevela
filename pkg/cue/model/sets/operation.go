@@ -19,6 +19,8 @@ package sets
 import (
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
@@ -275,25 +277,16 @@ func strategyUnify(baseFile *ast.File, patchFile *ast.File, params *UnifyParams,
 		}
 	}
 
-	var r cue.Runtime
+	r := cuecontext.New()
 
-	baseInst, err := r.CompileFile(baseFile)
-	if err != nil {
-		return "", errors.WithMessage(err, "compile base file")
-	}
-	patchInst, err := r.CompileFile(patchFile)
-	if err != nil {
-		return "", errors.WithMessage(err, "compile patch file")
-	}
-
+	baseInst := r.BuildFile(baseFile)
+	patchInst := r.BuildFile(patchFile)
 	if params.PatchStrategy == StrategyJSONMergePatch {
 		return jsonMergePatch(baseInst.Value(), patchInst.Value())
 	} else if params.PatchStrategy == StrategyJSONPatch {
 		return jsonPatch(baseInst.Value(), patchInst.Lookup("operations"))
 	}
-
 	ret := baseInst.Value().Unify(patchInst.Value())
-
 	rv, err := toString(ret)
 	if err != nil {
 		return rv, errors.WithMessage(err, " format result toString")

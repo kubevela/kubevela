@@ -194,7 +194,7 @@ metadata: name: parameter.name
 `,
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), fmt.Sprintf(`failed to have the workload/trait unstructured: metadata.name: reference "%s" not found`, ParameterFieldName))
+	assert.Equal(t, err.Error(), fmt.Sprintf("failed to have the workload/trait unstructured: -:4:17: reference \"%s\" not found", ParameterFieldName))
 	ins = &instance{
 		v: `
 apiVersion: "apps/v1"
