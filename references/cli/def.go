@@ -113,6 +113,7 @@ func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
 	return os.ReadFile(path.Clean(pathOrURL))
 }
 
+// nolint: staticcheck
 func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	templateYAMLBytes, err := loadYAMLBytesFromFileOrHTTP(templateYAML)
 	if err != nil {

@@ -585,6 +585,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 }
 
 // GenerateCUETemplate generate CUE Template from Kube module and Helm module
+// nolint: staticcheck
 func GenerateCUETemplate(wl *Workload) (string, error) {
 	var templateStr string
 	switch wl.CapabilityCategory {

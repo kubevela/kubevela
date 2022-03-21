@@ -192,7 +192,11 @@ func (vs *visitor) addAttrForExpr(node ast.Node, index *int) {
 // MakeValue generate an value with same runtime
 func (val *Value) MakeValue(s string) (*Value, error) {
 	builder := &build.Instance{}
-	if err := builder.AddFile("-", s); err != nil {
+	file, err := parser.ParseFile("-", s)
+	if err != nil {
+		return nil, err
+	}
+	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
 	}
 	if err := val.addImports(builder); err != nil {
@@ -245,7 +249,7 @@ func (val *Value) FillRaw(x string, paths ...string) error {
 	}
 	xInst := val.r.BuildFile(file)
 
-	v := val.v.Fill(xInst.Value(), paths...)
+	v := val.v.FillPath(cue.ParsePath(strings.Join(paths, ".")), xInst.Value())
 	if v.Err() != nil {
 		return v.Err()
 	}
@@ -303,7 +307,7 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		}
 		insert = v.v
 	}
-	newV := val.v.Fill(insert, paths...)
+	newV := val.v.FillPath(cue.ParsePath(strings.Join(paths, ".")), insert)
 	//if newV.Err() != nil {
 	//	return newV.Err()
 	//}
@@ -535,13 +539,7 @@ func (sf sortFields) Swap(i, j int) {
 
 // Field return the cue value corresponding to the specified field
 func (val *Value) Field(label string) (cue.Value, error) {
-	var v cue.Value
-	if isDef(label) {
-		v = val.v.LookupDef(label)
-	} else {
-		v = val.v.Lookup(label)
-	}
-
+	v := val.v.LookupPath(cue.ParsePath(label))
 	if !v.Exists() {
 		return v, errors.Errorf("label %s not found", label)
 	}

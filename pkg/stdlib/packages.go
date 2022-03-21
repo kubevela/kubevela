@@ -69,6 +69,7 @@ func GetPackages(tagTempl string) (map[string]string, error) {
 }
 
 // AddImportsFor install imports for build.Instance.
+// nolint: staticcheck
 func AddImportsFor(inst *build.Instance, tagTempl string) error {
 	pkgs, err := GetPackages(tagTempl)
 	if err != nil {

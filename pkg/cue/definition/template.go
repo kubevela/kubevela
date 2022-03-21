@@ -84,6 +84,7 @@ func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) Abstra
 }
 
 // Complete do workload definition's rendering
+// nolint: staticcheck
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", renderTemplate(abstractTemplate)); err != nil {
@@ -213,6 +214,7 @@ func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, ns st
 	return checkHealth(templateContext, healthPolicyTemplate)
 }
 
+// nolint: staticcheck
 func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string) (bool, error) {
 	bt, err := json.Marshal(templateContext)
 	if err != nil {
@@ -244,6 +246,7 @@ func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string,
 	return getStatusMessage(wd.pd, templateContext, customStatusTemplate, parameter)
 }
 
+// nolint: staticcheck
 func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
 	bi := build.NewContext().NewInstance("", nil)
 	var ctxBuff string
@@ -293,6 +296,7 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 }
 
 // Complete do trait definition's rendering
+// nolint: staticcheck
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", renderTemplate(abstractTemplate)); err != nil {

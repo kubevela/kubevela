@@ -83,6 +83,7 @@ func GetChartValuesJSONSchema(ctx context.Context, h *common.Helm) ([]byte, erro
 
 // generateSchemaFromValues generate OpenAPIv3 schema based on Chart Values
 // file.
+// nolint: staticcheck
 func generateSchemaFromValues(values []byte) ([]byte, error) {
 	valuesIdentifier := "values"
 	r := cue.Runtime{}

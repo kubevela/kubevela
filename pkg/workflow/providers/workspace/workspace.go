@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"cuelang.org/go/cue"
+
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -138,7 +140,7 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 
 	cv := v.CueValue()
 	if cv.Exists() {
-		ret := cv.Lookup("continue")
+		ret := cv.LookupPath(cue.ParsePath("continue"))
 		if ret.Exists() {
 			isContinue, err := ret.Bool()
 			if err == nil && isContinue {

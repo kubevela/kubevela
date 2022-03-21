@@ -99,6 +99,7 @@ func (def *Definition) SetType(t string) error {
 }
 
 // ToCUE converts Definition to CUE value (with predefined Definition's cue format)
+// nolint: staticcheck
 func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	annotations := map[string]string{}
 	for key, val := range def.GetAnnotations() {
@@ -188,7 +189,7 @@ func (def *Definition) ToCUEString() (string, error) {
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
-// nolint:gocyclo
+// nolint:gocyclo,staticcheck
 func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if def.Object == nil {
 		def.Object = map[string]interface{}{}
@@ -290,6 +291,7 @@ func encodeDeclsToString(decls []ast.Decl) (string, error) {
 }
 
 // FromCUEString converts cue string into Definition
+// nolint: staticcheck
 func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
 	r := &cue.Runtime{}
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)

@@ -857,6 +857,7 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 }
 
 // parseParameters parses every parameter
+// nolint: staticcheck
 func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string, depth int) error {
 	var params []ReferenceParameter
 	switch paraValue.Kind() {
