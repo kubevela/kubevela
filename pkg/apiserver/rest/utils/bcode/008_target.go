@@ -27,3 +27,6 @@ var ErrTargetInUseCantDeleted = NewBcode(404, 80003, "target in use, can't be de
 
 // ErrTargetNamespaceAlreadyBound indicates the namespace already belongs to other target, one namespace can only belong to one target
 var ErrTargetNamespaceAlreadyBound = NewBcode(400, 80004, "the namespace specified already belongs to other target")
+
+// ErrTargetInvalidWithEmptyClusterOrNamespace indicates the namespace/cluster of target is empty
+var ErrTargetInvalidWithEmptyClusterOrNamespace = NewBcode(400, 80005, "the namespace or cluster of target should not be empty")
