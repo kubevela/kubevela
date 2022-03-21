@@ -308,9 +308,6 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		insert = v.v
 	}
 	newV := val.v.FillPath(cue.ParsePath(strings.Join(paths, ".")), insert)
-	//if newV.Err() != nil {
-	//	return newV.Err()
-	//}
 	val.v = newV
 	return nil
 }
