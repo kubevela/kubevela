@@ -5419,8 +5419,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -6359,21 +6359,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-<<<<<<< HEAD
-				"createTime",
-				"note",
-				"version",
 				"status",
+				"createTime",
+				"version",
 				"envName",
-				"triggerType"
-=======
 				"triggerType",
-				"createTime",
-				"version",
-				"status",
-				"note",
-				"envName"
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"note"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7429,10 +7420,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
 				"name",
-				"description",
+				"invisible",
 				"version",
+				"description",
 				"icon",
 				"schema",
 				"uiSchema",
@@ -7506,11 +7497,11 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
-				"name",
 				"alias",
 				"project",
 				"description",
+				"icon",
+				"name",
 				"createTime",
 				"updateTime",
 				"policies",
@@ -7577,37 +7568,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-<<<<<<< HEAD
-				"name",
-				"alias",
-				"labels",
-				"dashboardURL",
-				"kubeConfigSecret",
 				"createTime",
-				"updateTime",
-				"reason",
-				"icon",
-				"provider",
 				"description",
 				"status",
 				"apiServerURL",
-				"kubeConfig",
-=======
 				"updateTime",
-				"name",
 				"alias",
-				"provider",
-				"description",
-				"labels",
-				"dashboardURL",
-				"kubeConfigSecret",
-				"kubeConfig",
-				"createTime",
-				"icon",
-				"status",
 				"reason",
-				"apiServerURL",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"name",
+				"icon",
+				"labels",
+				"provider",
+				"dashboardURL",
+				"kubeConfig",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7665,26 +7639,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-<<<<<<< HEAD
-				"updateTime",
 				"creator",
-=======
-				"creator",
-				"createTime",
-				"appPrimaryKey",
-				"main",
-				"updateTime",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"name",
 				"alias",
 				"type",
-<<<<<<< HEAD
-				"main",
 				"createTime",
 				"appPrimaryKey",
-=======
-				"alias",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"main",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -7786,13 +7748,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -7822,31 +7784,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-<<<<<<< HEAD
-				"note",
+				"appPrimaryKey",
+				"version",
+				"status",
 				"workflowName",
-				"createTime",
-				"triggerType",
 				"updateTime",
-				"appPrimaryKey",
-				"deployUser",
-				"envName",
-				"version",
-				"status",
-				"reason"
-=======
-				"version",
-				"reason",
-				"triggerType",
-				"workflowName",
-				"createTime",
-				"appPrimaryKey",
 				"deployUser",
 				"note",
-				"status",
+				"triggerType",
+				"createTime",
 				"envName",
-				"updateTime"
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"reason"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7900,15 +7848,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-<<<<<<< HEAD
+				"createTime",
 				"updateTime",
-				"createTime",
 				"name"
-=======
-				"createTime",
-				"name",
-				"updateTime"
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
 			],
 			"properties": {
 				"alias": {
@@ -7945,19 +7887,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-<<<<<<< HEAD
-				"disabled",
-				"createTime",
-				"lastLoginTime",
-				"name",
-				"email",
-=======
-				"name",
 				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"name",
 				"projects"
 			],
 			"properties": {
@@ -7991,19 +7925,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-<<<<<<< HEAD
-=======
-				"applicationRevision",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
-				"status",
-				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
-<<<<<<< HEAD
 				"applicationRevision",
-=======
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"status",
+				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -8055,25 +7982,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-<<<<<<< HEAD
-=======
-				"enable",
-				"createTime",
-				"updateTime",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
-				"description",
-				"alias",
 				"default",
 				"envName",
-<<<<<<< HEAD
-				"createTime",
+				"updateTime",
 				"name",
 				"alias",
+				"description",
 				"enable",
-				"updateTime"
-=======
-				"name"
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -8756,18 +8672,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-<<<<<<< HEAD
+				"createTime",
 				"updateTime",
-=======
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"installID",
 				"enableCollection",
 				"loginType",
-				"createTime",
-<<<<<<< HEAD
-=======
-				"updateTime",
->>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"systemVersion"
 			],
 			"properties": {

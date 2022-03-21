@@ -123,7 +123,7 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 			}
 		}
 	}
-	total, err := p.ds.Count(ctx, &model.Env{}, nil)
+	total, err := p.ds.Count(ctx, &model.Env{Project: listOption.Project}, nil)
 	if err != nil {
 		return nil, err
 	}
