@@ -18,11 +18,12 @@ package webservice
 
 import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
-	restful "github.com/emicklei/go-restful/v3"
+	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -60,12 +61,17 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 }
 
 func (n *projectWebService) listprojects(req *restful.Request, res *restful.Response) {
-	projects, err := n.projectUsecase.ListProjects(req.Request.Context())
+	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListProjectResponse{Projects: projects}); err != nil {
+	projects, err := n.projectUsecase.ListProjects(req.Request.Context(), page, pageSize)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(projects); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

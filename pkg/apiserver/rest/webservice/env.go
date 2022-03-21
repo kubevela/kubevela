@@ -93,7 +93,7 @@ func (n *envWebService) list(req *restful.Request, res *restful.Response) {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if err := res.WriteEntity(apis.ListEnvResponse{Envs: envs}); err != nil {
+	if err := res.WriteEntity(envs); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

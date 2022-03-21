@@ -5419,8 +5419,8 @@
 		},
 		"model.ApplicationComponent": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"creator",
 				"name",
@@ -6359,12 +6359,21 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+<<<<<<< HEAD
 				"createTime",
 				"note",
 				"version",
 				"status",
 				"envName",
 				"triggerType"
+=======
+				"triggerType",
+				"createTime",
+				"version",
+				"status",
+				"note",
+				"envName"
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 			],
 			"properties": {
 				"codeInfo": {
@@ -7568,6 +7577,7 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+<<<<<<< HEAD
 				"name",
 				"alias",
 				"labels",
@@ -7582,6 +7592,22 @@
 				"status",
 				"apiServerURL",
 				"kubeConfig",
+=======
+				"updateTime",
+				"name",
+				"alias",
+				"provider",
+				"description",
+				"labels",
+				"dashboardURL",
+				"kubeConfigSecret",
+				"kubeConfig",
+				"createTime",
+				"icon",
+				"status",
+				"reason",
+				"apiServerURL",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"resourceInfo"
 			],
 			"properties": {
@@ -7639,14 +7665,26 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+<<<<<<< HEAD
 				"updateTime",
 				"creator",
+=======
+				"creator",
+				"createTime",
+				"appPrimaryKey",
+				"main",
+				"updateTime",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"name",
 				"alias",
 				"type",
+<<<<<<< HEAD
 				"main",
 				"createTime",
 				"appPrimaryKey",
+=======
+				"alias",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"definition"
 			],
 			"properties": {
@@ -7784,6 +7822,7 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+<<<<<<< HEAD
 				"note",
 				"workflowName",
 				"createTime",
@@ -7795,6 +7834,19 @@
 				"version",
 				"status",
 				"reason"
+=======
+				"version",
+				"reason",
+				"triggerType",
+				"workflowName",
+				"createTime",
+				"appPrimaryKey",
+				"deployUser",
+				"note",
+				"status",
+				"envName",
+				"updateTime"
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7848,9 +7900,15 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+<<<<<<< HEAD
 				"updateTime",
 				"createTime",
 				"name"
+=======
+				"createTime",
+				"name",
+				"updateTime"
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 			],
 			"properties": {
 				"alias": {
@@ -7887,11 +7945,19 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+<<<<<<< HEAD
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+=======
+				"name",
+				"email",
+				"disabled",
+				"createTime",
+				"lastLoginTime",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"projects"
 			],
 			"properties": {
@@ -7925,12 +7991,19 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+<<<<<<< HEAD
+=======
+				"applicationRevision",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
+<<<<<<< HEAD
 				"applicationRevision",
+=======
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7982,14 +8055,25 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+<<<<<<< HEAD
+=======
+				"enable",
+				"createTime",
+				"updateTime",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"description",
+				"alias",
 				"default",
 				"envName",
+<<<<<<< HEAD
 				"createTime",
 				"name",
 				"alias",
 				"enable",
 				"updateTime"
+=======
+				"name"
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 			],
 			"properties": {
 				"alias": {
@@ -8348,7 +8432,8 @@
 		},
 		"v1.ListEnvResponse": {
 			"required": [
-				"envs"
+				"envs",
+				"total"
 			],
 			"properties": {
 				"envs": {
@@ -8356,6 +8441,10 @@
 					"items": {
 						"$ref": "#/definitions/v1.Env"
 					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -8374,7 +8463,8 @@
 		},
 		"v1.ListProjectResponse": {
 			"required": [
-				"projects"
+				"projects",
+				"total"
 			],
 			"properties": {
 				"projects": {
@@ -8382,6 +8472,10 @@
 					"items": {
 						"$ref": "#/definitions/v1.ProjectBase"
 					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -8662,11 +8756,18 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+<<<<<<< HEAD
 				"updateTime",
+=======
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"installID",
 				"enableCollection",
 				"loginType",
 				"createTime",
+<<<<<<< HEAD
+=======
+				"updateTime",
+>>>>>>> f2fc2a59 (Feat: add page index for env list API)
 				"systemVersion"
 			],
 			"properties": {
