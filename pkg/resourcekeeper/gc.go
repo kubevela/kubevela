@@ -386,6 +386,6 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 	if err = h.Client.Update(ctx, app); err != nil {
 		return errors.Wrapf(err, "failed to upgrade app %s/%s", h.app.Namespace, h.app.Name)
 	}
-	h.app.ObjectMeta.SetResourceVersion(app.ResourceVersion)
+	h.app.ObjectMeta = app.ObjectMeta
 	return nil
 }

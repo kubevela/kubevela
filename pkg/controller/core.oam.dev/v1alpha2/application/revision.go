@@ -720,9 +720,6 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		}))
 		defer subCtx.Commit("finish apply app revision")
 	}
-	if !h.isNewRevision {
-		return nil
-	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
