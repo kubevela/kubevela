@@ -284,7 +284,7 @@ func strategyUnify(baseFile *ast.File, patchFile *ast.File, params *UnifyParams,
 	if params.PatchStrategy == StrategyJSONMergePatch {
 		return jsonMergePatch(baseInst.Value(), patchInst.Value())
 	} else if params.PatchStrategy == StrategyJSONPatch {
-		return jsonPatch(baseInst.Value(), patchInst.Lookup("operations"))
+		return jsonPatch(baseInst.Value(), patchInst.LookupPath(cue.ParsePath("operations")))
 	}
 	ret := baseInst.Value().Unify(patchInst.Value())
 	rv, err := toString(ret)
