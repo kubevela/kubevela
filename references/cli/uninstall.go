@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -107,7 +109,7 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			}
 			if unInstallArgs.force {
 				// if use --force disable all addons
-				err := forceDisableAddon(context.Background(), kubeClient)
+				err := forceDisableAddon(context.Background(), kubeClient, restConfig)
 				if err != nil {
 					return errors.Wrapf(err, "cannot force disabe all addons")
 				}
@@ -171,7 +173,7 @@ func checkInstallAddon(kubeClient client.Client) ([]string, error) {
 }
 
 // forceDisableAddon force delete all enabled addons, fluxcd must be the last one to be deleted
-func forceDisableAddon(ctx context.Context, kubeClient client.Client) error {
+func forceDisableAddon(ctx context.Context, kubeClient client.Client, config *rest.Config) error {
 	addons, err := checkInstallAddon(kubeClient)
 	if err != nil {
 		return errors.Wrapf(err, "cannot check the installed addon")
@@ -183,7 +185,7 @@ func forceDisableAddon(ctx context.Context, kubeClient client.Client) error {
 			fluxcdFlag = true
 			continue
 		}
-		if err := pkgaddon.DisableAddon(ctx, kubeClient, addon); err != nil {
+		if err := pkgaddon.DisableAddon(ctx, kubeClient, addon, config, true); err != nil {
 			return err
 		}
 	}
@@ -204,7 +206,7 @@ func forceDisableAddon(ctx context.Context, kubeClient client.Client) error {
 			}
 			time.Sleep(5 * time.Second)
 		}
-		if err := pkgaddon.DisableAddon(ctx, kubeClient, "fluxcd"); err != nil {
+		if err := pkgaddon.DisableAddon(ctx, kubeClient, "fluxcd", config, true); err != nil {
 			return err
 		}
 	}

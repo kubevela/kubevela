@@ -60,7 +60,7 @@ type AddonHandler interface {
 	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
 	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
-	DisableAddon(ctx context.Context, name string) error
+	DisableAddon(ctx context.Context, name string, force bool) error
 	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
@@ -381,8 +381,8 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 	return bcode.ErrAddonNotExist
 }
 
-func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string) error {
-	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name)
+func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string, force bool) error {
+	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name, u.config, force)
 	if err != nil {
 		log.Logger.Errorf("delete application fail: %s", err.Error())
 		return err

@@ -1,0 +1,13 @@
+name: test-disable-addon
+version: 1.0.0
+
+tags:
+  - only_test
+
+deployTo:
+  control_plane: true
+  runtime_cluster: false
+
+dependencies: []
+
+invisible: false
