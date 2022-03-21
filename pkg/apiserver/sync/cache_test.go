@@ -86,7 +86,7 @@ var _ = Describe("Test Cache", func() {
 
 		cr2ux.syncCache(formatAppComposedName(app1.Name, app1.Namespace), 1, 0)
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(false))
-
+		Expect(cr2ux.shouldSync(ctx, app1, true)).Should(BeEquivalentTo(true))
 	})
 
 })

@@ -155,6 +155,7 @@ var _ = Describe("Test CR convert to ux", func() {
 
 		Expect(cr2ux.DeleteApp(ctx, app1)).Should(BeNil())
 		Expect(ds.Get(context.Background(), &comp3)).Should(BeEquivalentTo(datastore.ErrRecordNotExist))
+		Expect(ds.Get(context.Background(), &model.Application{Name: apName1})).Should(BeEquivalentTo(datastore.ErrRecordNotExist))
 	})
 
 })
