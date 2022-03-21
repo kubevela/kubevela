@@ -73,24 +73,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
 
-{{ if .Values.podOnly }}
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: {{ include "kubevela.fullname" . }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-  {{- include "kubevela.labels" . | nindent 4 }}
-  annotations:
-    prometheus.io/path: /metrics
-    prometheus.io/port: "8080"
-    prometheus.io/scrape: "true"
-spec:
-  {{- include "kubevela.podSpec" . | nindent 2}}
-
-  {{ else }}
----
+{{ if not .Values.podOnly }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -114,4 +97,4 @@ spec:
         prometheus.io/scrape: "true"
     spec:
   {{- include "kubevela.podSpec" . | nindent 6}}
-  {{- end }}
+{{- end }}

@@ -1,0 +1,83 @@
+{{ if .Values.podOnly}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "kubevela.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela.labels" . | nindent 4 }}
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"
+spec:
+  {{- include "kubevela.podSpec" . | nindent 2}}
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  {{ include "kubevela-cluster-gateway-tls-secret-create.annotations" . | indent 2 }}
+  {{ include "kubevela-cluster-gateway-tls-secret-create.name-labels" . | indent 2 }}
+spec:
+  {{ include "kubevela-cluster-gateway-tls-secret-create.podSpec" . | indent 2}}
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-cluster-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
+spec:
+  {{- include "kubevela-cluster-gateway.podSpec" . | nindent 2}}
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: {{ .Release.Namespace }}
+  {{ include "kubevela-cluster-gateway-tls-secret-patch.name-labels" . | indent 2 }}
+  {{ include "kubevela-cluster-gateway-tls-secret-patch.annotations" . | indent 2 }}
+spec:
+  {{- include "kubevela-cluster-gateway-tls-secret-patch.podSpec" . | nindent 2}}
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "kubevela.fullname" . }}-admission-create
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-admission-create
+  {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{ include "kubevela-admission-webhook-create.podSpec" . | indent 2 }}
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "kubevela.fullname" . }}-admission-patch
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-admission-patch
+  {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{ include "kubevela-admission-webhook-patch.Podspec" . | indent 2 }}
+---
+
+{{ end }}
+

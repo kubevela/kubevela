@@ -1,16 +1,5 @@
 {{ if .Values.multicluster.enabled }}
-{{ if .Values.podOnly }}
-apiVersion: v1
-kind: Pod
-metadata:
-  name: {{ .Release.Name }}-cluster-gateway
-  namespace: {{ .Release.Namespace }}
-  labels:
-  {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
-spec:
-  {{- include "kubevela-cluster-gateway.podSpec" . | nindent 2}}
-  {{ else }}
----
+{{ if not .Values.podOnly }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,7 +24,7 @@ spec:
       maxSurge: 1
       maxUnavailable: 1
 {{ end }}
-  {{ end }}
+{{ end }}
 ---
 {{ if .Values.multicluster.enabled }}
 apiVersion: v1
@@ -139,16 +128,7 @@ metadata:
 {{- end }}
 ---
 {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  {{ if .Values.podOnly }}
-apiVersion: v1
-kind: Pod
-metadata:
-  {{ include "kubevela-cluster-gateway-tls-secret-create.annotations" . | indent 2 }}
-  {{ include "kubevela-cluster-gateway-tls-secret-create.name-labels" . | indent 2 }}
-spec:
-  {{ include "kubevela-cluster-gateway-tls-secret-create.podSpec" . | indent 2}}
----
-  {{ else }}
+{{ if not .Values.podOnly }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -169,17 +149,7 @@ spec:
   {{ end }}
 ---
   {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  {{ if .Values.podOnly }}
-apiVersion: v1
-kind: Pod
-metadata:
-  namespace: {{ .Release.Namespace }}
-  {{ include "kubevela-cluster-gateway-tls-secret-patch.name-labels" . | indent 2 }}
-  {{ include "kubevela-cluster-gateway-tls-secret-patch.annotations" . | indent 2 }}
-spec:
-  {{- include "kubevela-cluster-gateway-tls-secret-patch.podSpec" . | nindent 2}}
----
-  {{ else }}
+{{ if not .Values.podOnly }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -197,4 +167,4 @@ spec:
     spec:
   {{ include "kubevela-cluster-gateway-tls-secret-patch.podSpec" . | indent 6}}
   {{ end }}
-  {{ end }}
+{{ end }}
