@@ -143,7 +143,7 @@ func LiveDiffApplication(cmdOption *LiveDiffCmdOptions, c common.Args, namespace
 		}
 	}
 
-	liveDiffOption := dryrun.NewLiveDiffOption(newClient, dm, pd, objs)
+	liveDiffOption := dryrun.NewLiveDiffOption(newClient, config, dm, pd, objs)
 	diffResult, err := liveDiffOption.Diff(context.Background(), app, appRevision)
 	if err != nil {
 		return buff, errors.WithMessage(err, "cannot calculate diff")

@@ -18,10 +18,20 @@ package dryrun
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"k8s.io/kubectl/pkg/util/openapi"
+	"k8s.io/kubectl/pkg/util/openapi/validation"
+	kval "k8s.io/kubectl/pkg/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -38,8 +48,8 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *Option {
-	return &Option{c, dm, pd, as}
+func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *Option {
+	return &Option{c, dm, pd, cfg, as}
 }
 
 // Option contains options to execute dry-run
@@ -47,10 +57,65 @@ type Option struct {
 	Client          client.Client
 	DiscoveryMapper discoverymapper.DiscoveryMapper
 	PackageDiscover *packages.PackageDiscover
+
+	cfg *rest.Config
 	// Auxiliaries are capability definitions used to parse application.
 	// DryRun will use capabilities in Auxiliaries as higher priority than
 	// getting one from cluster.
 	Auxiliaries []oam.Object
+}
+
+// validateObjectFromFile will read file into Unstructured object
+func (d *Option) validateObjectFromFile(filename string) (*unstructured.Unstructured, error) {
+	fileContent, err := os.ReadFile(filepath.Clean(filename))
+	if err != nil {
+		return nil, err
+	}
+
+	fileType := filepath.Ext(filename)
+	switch fileType {
+	case ".yaml", ".yml":
+		fileContent, err = yaml.YAMLToJSON(fileContent)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	dc, err := discovery.NewDiscoveryClientForConfig(d.cfg)
+	if err != nil {
+		return nil, err
+	}
+	openAPIGetter := openapi.NewOpenAPIGetter(dc)
+	resources, err := openapi.NewOpenAPIParser(openAPIGetter).Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	valids := kval.ConjunctiveSchema{validation.NewSchemaValidation(resources), kval.NoDoubleKeySchema{}}
+	if err = valids.ValidateBytes(fileContent); err != nil {
+		return nil, err
+	}
+
+	app := new(unstructured.Unstructured)
+	err = json.Unmarshal(fileContent, app)
+	return app, err
+}
+
+// ValidateApp will validate app with client schema check and server side dry-run
+func (d *Option) ValidateApp(ctx context.Context, filename string) error {
+	app, err := d.validateObjectFromFile(filename)
+	if err != nil {
+		return err
+	}
+
+	app2 := app.DeepCopy()
+
+	err = d.Client.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app2)
+	if err == nil {
+		app.SetResourceVersion(app2.GetResourceVersion())
+		return d.Client.Update(ctx, app, client.DryRunAll)
+	}
+	return d.Client.Create(ctx, app, client.DryRunAll)
 }
 
 // ExecuteDryRun simulates applying an application into cluster and returns rendered

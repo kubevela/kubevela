@@ -1648,7 +1648,7 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	if err != nil {
 		return buff, err
 	}
-	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
 	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, errors.New("generate OAM objects")
@@ -1726,7 +1726,7 @@ func compare(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.A
 	if err != nil {
 		return nil, buff, err
 	}
-	liveDiffOption := dryrun.NewLiveDiffOption(client, dm, pd, objs)
+	liveDiffOption := dryrun.NewLiveDiffOption(client, config, dm, pd, objs)
 	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
 	if err != nil {
 		return nil, buff, err

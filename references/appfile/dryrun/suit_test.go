@@ -107,7 +107,7 @@ var _ = BeforeSuite(func(done Done) {
 	tdMyScaler, err := oamutil.Object2Unstructured(myscalerDef)
 	Expect(err).Should(BeNil())
 
-	dryrunOpt = NewDryRunOption(k8sClient, dm, pd, []oam.Object{cdMyWorker, tdMyIngress, tdMyScaler})
+	dryrunOpt = NewDryRunOption(k8sClient, cfg, dm, pd, []oam.Object{cdMyWorker, tdMyIngress, tdMyScaler})
 	diffOpt = &LiveDiffOption{DryRun: dryrunOpt, Parser: appfile.NewApplicationParser(k8sClient, dm, pd)}
 
 	close(done)
