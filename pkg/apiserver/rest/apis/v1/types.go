@@ -311,6 +311,7 @@ type ApplicationBase struct {
 	UpdateTime  time.Time         `json:"updateTime"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
+	ReadOnly    bool              `json:"readOnly,omitempty"`
 }
 
 // AppCompareResponse application compare result
