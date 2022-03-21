@@ -190,7 +190,4 @@ const (
 	// AnnotationServiceAccountName indicates the name of the ServiceAccount to use to apply Components and run Workflow.
 	// ServiceAccount will be used in the local cluster only.
 	AnnotationServiceAccountName = "app.oam.dev/service-account-name"
-
-	// AnnotationSOTFromInner indicates the application source of truth is from inner and should not be synced
-	AnnotationSOTFromInner = "sot.oam.dev/from-inner"
 )
