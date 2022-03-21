@@ -113,6 +113,9 @@ var (
 
 	// CLIMetaOptions get Addon metadata for CLI display
 	CLIMetaOptions = ListOptions{}
+
+	// UnInstallOptions used for addon uninstalling
+	UnInstallOptions = ListOptions{GetDefinition: true}
 )
 
 const (
@@ -1098,6 +1101,10 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	schemas, err := RenderDefinitionSchema(addon)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions' schema fail")
+	}
+
+	if err := passDefInAppAnnotation(defs, app); err != nil {
+		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
 
 	err = h.apply.Apply(h.ctx, app, apply.DisableUpdateAnnotation())

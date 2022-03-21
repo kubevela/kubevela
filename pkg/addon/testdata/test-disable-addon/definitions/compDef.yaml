@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: my-comp
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template:
