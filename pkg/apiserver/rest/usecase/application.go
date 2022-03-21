@@ -208,7 +208,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	}
 	var list []*apisv1.ApplicationBase
 	for _, app := range apps {
-		appBase := c.converAppModelToBase(ctx, app)
+		appBase := c.convertAppModelToBase(ctx, app)
 		list = append(list, appBase)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -233,7 +233,7 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 
 // DetailApplication detail application  info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
-	base := c.converAppModelToBase(ctx, app)
+	base := c.convertAppModelToBase(ctx, app)
 	policys, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
@@ -375,7 +375,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, err
 	}
 	// render app base info.
-	base := c.converAppModelToBase(ctx, &application)
+	base := c.convertAppModelToBase(ctx, &application)
 	return base, nil
 }
 
@@ -503,7 +503,7 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	return c.converAppModelToBase(ctx, app), nil
+	return c.convertAppModelToBase(ctx, app), nil
 }
 
 // ListRecords list application record
@@ -736,7 +736,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	return &apisv1.ApplicationDeployResponse{
-		ApplicationRevisionBase: c.converRevisionModelToBase(appRevision),
+		ApplicationRevisionBase: c.convertRevisionModelToBase(appRevision),
 	}, nil
 }
 
@@ -883,7 +883,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
+func (c *applicationUsecaseImpl) convertAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
 	appBase := &apisv1.ApplicationBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
@@ -893,6 +893,10 @@ func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *
 		Icon:        app.Icon,
 		Labels:      app.Labels,
 	}
+	if app.IsSynced() {
+		appBase.ReadOnly = true
+	}
+
 	project, err := c.projectUsecase.GetProject(ctx, app.Project)
 	if err != nil {
 		log.Logger.Errorf("query project info failure %s", err.Error())
@@ -903,7 +907,7 @@ func (c *applicationUsecaseImpl) converAppModelToBase(ctx context.Context, app *
 	return appBase
 }
 
-func (c *applicationUsecaseImpl) converRevisionModelToBase(revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
+func (c *applicationUsecaseImpl) convertRevisionModelToBase(revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
 	return apisv1.ApplicationRevisionBase{
 		Version:     revision.Version,
 		Status:      revision.Status,
@@ -925,7 +929,7 @@ func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *mod
 	if err != nil {
 		return err
 	}
-	if len(crs.Items) > 0 {
+	if len(crs.Items) > 0 || app.IsSynced() {
 		return bcode.ErrApplicationRefusedDelete
 	}
 	// query all components to deleted
@@ -1337,7 +1341,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	for _, raw := range revisions {
 		r, ok := raw.(*model.ApplicationRevision)
 		if ok {
-			resp.Revisions = append(resp.Revisions, c.converRevisionModelToBase(r))
+			resp.Revisions = append(resp.Revisions, c.convertRevisionModelToBase(r))
 		}
 	}
 	count, err := c.ds.Count(ctx, &revision, nil)

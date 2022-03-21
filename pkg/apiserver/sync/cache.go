@@ -34,8 +34,8 @@ type cached struct {
 	targets    int64
 }
 
-// InitCache will initialize the cache
-func (c *CR2UX) InitCache(ctx context.Context) error {
+// initCache will initialize the cache
+func (c *CR2UX) initCache(ctx context.Context) error {
 	appsRaw, err := c.ds.List(ctx, &model.Application{}, &datastore.ListOptions{})
 	if err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -60,7 +60,7 @@ func (c *CR2UX) InitCache(ctx context.Context) error {
 		generation, _ := strconv.ParseInt(gen, 10, 64)
 
 		// we should check targets if we synced from app status
-		c.updateCache(key, generation, 0)
+		c.syncCache(key, generation, 0)
 	}
 	return nil
 }
@@ -72,31 +72,30 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		cd := cachedData.(*cached)
 
 		// TODO(wonderflow): we should check targets if we sync that, it can avoid missing the status changed for targets updated in multi-cluster deploy, e.g. resumed suspend case.
-
+		if del {
+			c.cache.Delete(key)
+			return false
+		}
 		if cd.generation == targetApp.Generation && !del {
 			logrus.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
 			return false
 		}
-		if del {
-			c.cache.Delete(key)
-		}
 	}
 
-	sot := CheckSoTFromCR(targetApp)
-
 	// This is a double check to make sure the app not be converted and un-deployed
-	sot = CheckSoTFromAppMeta(ctx, c.ds, targetApp.Name, targetApp.Namespace, sot)
+	sot := c.CheckSoTFromAppMeta(ctx, targetApp.Name, targetApp.Namespace, CheckSoTFromCR(targetApp))
 
 	switch sot {
-	case FromUX, FromInner:
+	case model.FromUX, model.FromInner:
 		// we don't sync if the application is not created from CR
 		return false
+	case model.FromCR:
 	default:
 	}
 	return true
 }
 
-func (c *CR2UX) updateCache(key string, generation, targets int64) {
+func (c *CR2UX) syncCache(key string, generation, targets int64) {
 	// update cache
 	c.cache.Store(key, &cached{generation: generation, targets: targets})
 }

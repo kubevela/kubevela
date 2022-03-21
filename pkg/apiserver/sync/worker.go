@@ -67,7 +67,7 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		cli:   cli,
 		cache: sync.Map{},
 	}
-	if err = cu.InitCache(ctx); err != nil {
+	if err = cu.initCache(ctx); err != nil {
 		klog.Fatal("sync app init err", err)
 	}
 

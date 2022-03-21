@@ -89,8 +89,9 @@ func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey
 		// every namespace has a synced env
 		EnvName: model.AutoGenEnvNamePrefix + app.Namespace,
 		// every application has a synced workflow
-		Name:  model.AutoGenWorkflowNamePrefix + app.Name,
-		Alias: "Synced",
+		Name:        model.AutoGenWorkflowNamePrefix + appPrimaryKey,
+		Alias:       model.AutoGenWorkflowNamePrefix + app.Name,
+		Description: model.AutoGenDesc,
 	}
 	if app.Spec.Workflow == nil {
 		return dataWf, nil, nil
@@ -169,6 +170,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		Labels: map[string]string{
 			model.LabelSyncNamespace:  targetApp.Namespace,
 			model.LabelSyncGeneration: strconv.FormatInt(targetApp.Generation, 10),
+			model.LabelSourceOfTruth:  model.FromCR,
 		},
 	}
 
@@ -180,7 +182,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 			Namespace:   targetApp.Namespace,
 			Description: model.AutoGenDesc,
 			Project:     project,
-			Alias:       "Synced",
+			Alias:       model.AutoGenEnvNamePrefix + targetApp.Namespace,
 		},
 		Eb: &model.EnvBinding{
 			AppPrimaryKey: appMeta.PrimaryKey(),
@@ -206,12 +208,19 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	dsApp.Workflow = &wf
 
 	// 4. convert policy, some policies are references in workflow step, we need to sync all the outside policy to make that work
+	var innerPlc = make(map[string]struct{})
+	for _, plc := range targetApp.Spec.Policies {
+		innerPlc[plc.Name] = struct{}{}
+	}
 	outsidePLC, err := step.LoadExternalPoliciesForWorkflow(ctx, cli, targetApp.Namespace, steps, targetApp.Spec.Policies)
 	if err != nil {
 		return nil, err
 	}
 	for _, plc := range outsidePLC {
 		plcModel, err := ConvertFromCRPolicy(appMeta.PrimaryKey(), plc, model.AutoGenRefPolicy)
+		if _, ok := innerPlc[plc.Name]; ok {
+			plcModel.Creator = model.AutoGenPolicy
+		}
 		if err != nil {
 			return nil, err
 		}
