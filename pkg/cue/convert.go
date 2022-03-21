@@ -30,6 +30,7 @@ import (
 )
 
 // GetParameters get parameter from cue template
+// nolint: staticcheck
 func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
 	var template *cue.Instance
 	var err error

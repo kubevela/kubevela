@@ -645,6 +645,7 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 }
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
+// nolint: staticcheck
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
 	template, err := PrepareParameterCue(capability.Name, capability.CueTemplate)
 	if err != nil {

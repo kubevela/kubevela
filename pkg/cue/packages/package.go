@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// nolint: staticcheck,golint
 package packages
 
 import (
@@ -106,6 +107,7 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 }
 
 // ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
+// nolint: golint
 func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
 	var r cue.Runtime
 	if pd == nil {

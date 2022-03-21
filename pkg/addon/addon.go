@@ -512,6 +512,7 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError, directoryUnmarshalError)
 }
 
+// nolint: staticcheck
 func genAddonAPISchema(addonRes *UIData) error {
 	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
 	if err != nil {

@@ -296,6 +296,7 @@ func (comp *ComponentManifest) string() (string, error) {
 	return string(js), err
 }
 
+// nolint: staticcheck
 func (comp *ComponentManifest) unmarshal(v string) error {
 
 	cm := componentMould{}

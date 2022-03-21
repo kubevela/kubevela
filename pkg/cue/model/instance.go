@@ -20,8 +20,9 @@ import (
 	"regexp"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
+
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -55,21 +56,17 @@ func (inst *instance) IsBase() bool {
 }
 
 func (inst *instance) Compile() ([]byte, error) {
-	bi := build.NewContext().NewInstance("", nil)
-	err := bi.AddFile("-", inst.v)
-	if err != nil {
-		return nil, err
-	}
-	var r cue.Runtime
-	it, err := r.Build(bi)
-	if err != nil {
+	ctx := cuecontext.New()
+	compiled := ctx.CompileString(inst.v)
+
+	if err := compiled.Err(); err != nil {
 		return nil, err
 	}
 	// compiled object should be final and concrete value
-	if err := it.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
+	if err := compiled.Validate(cue.Concrete(true), cue.Final()); err != nil {
 		return nil, err
 	}
-	return it.Value().MarshalJSON()
+	return compiled.MarshalJSON()
 }
 
 // Unstructured convert cue values to unstructured.Unstructured

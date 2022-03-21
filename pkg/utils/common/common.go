@@ -160,6 +160,7 @@ func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byt
 }
 
 // GetCUEParameterValue converts definitions to cue format
+// nolint: staticcheck
 func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
 	var template *cue.Instance
 	var err error
@@ -223,6 +224,7 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 }
 
 // extractParameterDefinitionNodeFromInstance extracts the `#parameter` ast.Node from root instance, if failed fall back to `parameter` by LookUpDef
+// nolint: staticcheck
 func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 	opts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 	node := inst.Value().Syntax(opts...)
@@ -235,11 +237,12 @@ func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 			}
 		}
 	}
-	paramVal := inst.LookupDef(model.ParameterFieldName)
+	paramVal := inst.Lookup(model.ParameterFieldName)
 	return paramVal.Syntax(opts...)
 }
 
 // RefineParameterInstance refines cue instance to merely include `parameter` identifier
+// nolint: staticcheck
 func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	r := cue.Runtime{}
 	paramVal := inst.LookupDef(model.ParameterFieldName)

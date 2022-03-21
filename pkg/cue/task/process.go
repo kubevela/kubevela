@@ -28,8 +28,9 @@ import (
 )
 
 // Process processing the http task
+// nolint: staticcheck
 func Process(inst *cue.Instance) (*cue.Instance, error) {
-	taskVal := inst.Lookup("processing", "http")
+	taskVal := inst.Value().LookupPath(cue.ParsePath("processing.http"))
 	if !taskVal.Exists() {
 		return inst, errors.New("there is no http in processing")
 	}
