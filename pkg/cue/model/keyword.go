@@ -33,6 +33,10 @@ const (
 	ContextAppRevision = "appRevision"
 	// ContextAppRevisionNum is the revision num of app of context
 	ContextAppRevisionNum = "appRevisionNum"
+	// ContextAppLabels is the labels of app of context
+	ContextAppLabels = "appLabels"
+	// ContextAppAnnotations is the annotations of app of context
+	ContextAppAnnotations = "appAnnotations"
 	// ContextNamespace is the namespace of the app
 	ContextNamespace = "namespace"
 	// ContextPublishVersion is the publish version of the app

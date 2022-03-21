@@ -875,6 +875,10 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.Con
 	if appfile.AppAnnotations != nil {
 		data.WorkflowName = appfile.AppAnnotations[oam.AnnotationWorkflowName]
 		data.PublishVersion = appfile.AppAnnotations[oam.AnnotationPublishVersion]
+		data.AppAnnotations = appfile.AppAnnotations
+	}
+	if appfile.AppLabels != nil {
+		data.AppLabels = appfile.AppLabels
 	}
 	return data
 }
