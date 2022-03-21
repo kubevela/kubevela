@@ -6359,12 +6359,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"createTime",
-				"note",
-				"version",
 				"status",
+				"createTime",
+				"version",
 				"envName",
-				"triggerType"
+				"triggerType",
+				"note"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7420,10 +7420,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
 				"name",
-				"description",
+				"invisible",
 				"version",
+				"description",
 				"icon",
 				"schema",
 				"uiSchema",
@@ -7497,11 +7497,11 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
-				"name",
 				"alias",
 				"project",
 				"description",
+				"icon",
+				"name",
 				"createTime",
 				"updateTime",
 				"policies",
@@ -7568,20 +7568,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"alias",
-				"labels",
-				"dashboardURL",
-				"kubeConfigSecret",
 				"createTime",
-				"updateTime",
-				"reason",
-				"icon",
-				"provider",
 				"description",
 				"status",
 				"apiServerURL",
+				"updateTime",
+				"alias",
+				"reason",
+				"name",
+				"icon",
+				"labels",
+				"provider",
+				"dashboardURL",
 				"kubeConfig",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7639,14 +7639,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"updateTime",
 				"creator",
 				"name",
 				"alias",
 				"type",
-				"main",
 				"createTime",
 				"appPrimaryKey",
+				"main",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -7748,13 +7748,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -7784,16 +7784,16 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"note",
-				"workflowName",
-				"createTime",
-				"triggerType",
-				"updateTime",
 				"appPrimaryKey",
-				"deployUser",
-				"envName",
 				"version",
 				"status",
+				"workflowName",
+				"updateTime",
+				"deployUser",
+				"note",
+				"triggerType",
+				"createTime",
+				"envName",
 				"reason"
 			],
 			"properties": {
@@ -7848,8 +7848,8 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"name"
 			],
 			"properties": {
@@ -7887,11 +7887,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
 				"projects"
 			],
 			"properties": {
@@ -7925,12 +7925,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"status",
-				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
+				"status",
+				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7982,14 +7982,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"description",
 				"default",
 				"envName",
-				"createTime",
+				"updateTime",
 				"name",
 				"alias",
+				"description",
 				"enable",
-				"updateTime"
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -8348,7 +8348,8 @@
 		},
 		"v1.ListEnvResponse": {
 			"required": [
-				"envs"
+				"envs",
+				"total"
 			],
 			"properties": {
 				"envs": {
@@ -8356,6 +8357,10 @@
 					"items": {
 						"$ref": "#/definitions/v1.Env"
 					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -8374,7 +8379,8 @@
 		},
 		"v1.ListProjectResponse": {
 			"required": [
-				"projects"
+				"projects",
+				"total"
 			],
 			"properties": {
 				"projects": {
@@ -8382,6 +8388,10 @@
 					"items": {
 						"$ref": "#/definitions/v1.ProjectBase"
 					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -8662,11 +8672,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"installID",
 				"enableCollection",
 				"loginType",
-				"createTime",
 				"systemVersion"
 			],
 			"properties": {
