@@ -668,6 +668,7 @@ type ApplicationTemplateVersion struct {
 // ListProjectResponse list project response body
 type ListProjectResponse struct {
 	Projects []*ProjectBase `json:"projects"`
+	Total    int64          `json:"total"`
 }
 
 // ProjectBase project base model
@@ -712,7 +713,8 @@ type ListEnvOptions struct {
 
 // ListEnvResponse response the while env list
 type ListEnvResponse struct {
-	Envs []*Env `json:"envs"`
+	Envs  []*Env `json:"envs"`
+	Total int64  `json:"total"`
 }
 
 // CreateEnvRequest contains the env data as request body

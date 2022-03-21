@@ -33,6 +33,9 @@ import (
 )
 
 func createTargetNamespace(ctx context.Context, k8sClient client.Client, clusterName, namespace, targetName string) error {
+	if clusterName == "" || namespace == "" {
+		return bcode.ErrTargetInvalidWithEmptyClusterOrNamespace
+	}
 	err := utils.CreateOrUpdateNamespace(multicluster.ContextWithClusterName(ctx, clusterName), k8sClient, namespace, utils.MergeOverrideLabels(map[string]string{
 		oam.LabelRuntimeNamespaceUsage: oam.VelaNamespaceUsageTarget,
 	}), utils.MergeNoConflictLabels(map[string]string{

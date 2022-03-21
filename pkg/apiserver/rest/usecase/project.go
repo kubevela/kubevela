@@ -34,7 +34,7 @@ import (
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
-	ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error)
+	ListProjects(ctx context.Context, page, pageSize int) (*apisv1.ListProjectResponse, error)
 	CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error)
 }
 
@@ -59,12 +59,12 @@ func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
 func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string) {
 
 	ctx := context.Background()
-	entities, err := listProjects(ctx, p.ds)
+	projResp, err := listProjects(ctx, p.ds, 0, 0)
 	if err != nil {
 		log.Logger.Errorf("initialize project failed %v", err)
 		return
 	}
-	if len(entities) > 0 {
+	if len(projResp.Projects) > 0 {
 		return
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
@@ -128,9 +128,9 @@ func (p *projectUsecaseImpl) GetProject(ctx context.Context, projectName string)
 	return project, nil
 }
 
-func listProjects(ctx context.Context, ds datastore.DataStore) ([]*apisv1.ProjectBase, error) {
+func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize int) (*apisv1.ListProjectResponse, error) {
 	var project = model.Project{}
-	entitys, err := ds.List(ctx, &project, &datastore.ListOptions{SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entitys, err := ds.List(ctx, &project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +139,16 @@ func listProjects(ctx context.Context, ds datastore.DataStore) ([]*apisv1.Projec
 		project := entity.(*model.Project)
 		projects = append(projects, convertProjectModel2Base(project))
 	}
-	return projects, nil
+	total, err := ds.Count(ctx, &model.Project{}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.ListProjectResponse{Projects: projects, Total: total}, nil
 }
 
 // ListProjects list projects
-func (p *projectUsecaseImpl) ListProjects(ctx context.Context) ([]*apisv1.ProjectBase, error) {
-	return listProjects(ctx, p.ds)
+func (p *projectUsecaseImpl) ListProjects(ctx context.Context, page, pageSize int) (*apisv1.ListProjectResponse, error) {
+	return listProjects(ctx, p.ds, page, pageSize)
 }
 
 // DeleteProject delete a project

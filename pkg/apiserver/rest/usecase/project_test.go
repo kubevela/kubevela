@@ -50,10 +50,10 @@ var _ = Describe("Test project usecase functions", func() {
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		projectUsecase = &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
-		pp, err := projectUsecase.ListProjects(context.TODO())
+		pp, err := projectUsecase.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
 		// reset all projects
-		for _, p := range pp {
+		for _, p := range pp.Projects {
 			_ = projectUsecase.DeleteProject(context.TODO(), p.Name)
 		}
 
@@ -61,7 +61,7 @@ var _ = Describe("Test project usecase functions", func() {
 		envs, err := envImpl.ListEnvs(context.TODO(), 0, 0, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
 		// reset all projects
-		for _, e := range envs {
+		for _, e := range envs.Envs {
 			_ = envImpl.DeleteEnv(context.TODO(), e.Name)
 		}
 		targetImpl = &targetUsecaseImpl{k8sClient: k8sClient, ds: ds}
@@ -129,7 +129,7 @@ var _ = Describe("Test project usecase functions", func() {
 		base, err := projectUsecase.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
-		_, err = projectUsecase.ListProjects(context.TODO())
+		_, err = projectUsecase.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
 		projectUsecase.DeleteProject(context.TODO(), "test-project")
 	})

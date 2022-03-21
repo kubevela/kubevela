@@ -38,7 +38,7 @@ import (
 // EnvUsecase defines the API of Env.
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
-	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error)
+	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 	UpdateEnv(ctx context.Context, envName string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
@@ -95,7 +95,7 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 }
 
 // ListEnvs list envs
-func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error) {
+func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error) {
 	entities, err := listEnvs(ctx, p.ds, listOption.Project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
@@ -111,19 +111,23 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		envs = append(envs, convertEnvModel2Base(ee, Targets))
 	}
 
-	projects, err := listProjects(ctx, p.ds)
+	projectResp, err := listProjects(ctx, p.ds, 0, 0)
 	if err != nil {
 		return nil, err
 	}
 	for _, e := range envs {
-		for _, pj := range projects {
+		for _, pj := range projectResp.Projects {
 			if e.Project.Name == pj.Name {
 				e.Project.Alias = pj.Alias
 				break
 			}
 		}
 	}
-	return envs, nil
+	total, err := p.ds.Count(ctx, &model.Env{Project: listOption.Project}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.ListEnvResponse{Envs: envs, Total: total}, nil
 }
 
 func checkEqual(old, new []string) bool {
