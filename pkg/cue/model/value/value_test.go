@@ -18,6 +18,7 @@ package value
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -99,13 +100,13 @@ step3: {
 	prefix: 101
 	value:  102
 }
-step4: {
-	prefix: 102
-	value:  103
-}
 step5: {
 	prefix: 103
 	value:  104
+}
+step4: {
+	prefix: 102
+	value:  103
 }
 `},
 
@@ -135,7 +136,7 @@ step3: {
 `},
 	}
 
-	for _, tCase := range testCases {
+	for i, tCase := range testCases {
 		val, err := NewValue(tCase.base, nil, "")
 		assert.NilError(t, err)
 		number := 99
@@ -145,7 +146,7 @@ step3: {
 				"value": number,
 			})
 		})
-		assert.NilError(t, err)
+		assert.NilError(t, err, fmt.Sprintf("case %d", i))
 		str, err := val.String()
 		assert.NilError(t, err)
 		assert.Equal(t, str, tCase.expected)
@@ -252,14 +253,14 @@ step2: {
 	prefix: 100
 	value:  101
 } @step(2)
-step2_3: {
-	prefix: 101
-	value:  102
-} @step(3)
 step3: {
 	prefix: 101
 	value:  103
 } @step(4)
+step2_3: {
+	prefix: 101
+	value:  102
+} @step(3)
 step4: {
 	prefix: 103
 	value:  104
@@ -279,14 +280,14 @@ if step2.value > 100 {
 step1: {
 	value: 100
 } @step(1)
-step3: {
-	prefix: 101
-	value:  103
-} @step(4)
 step2_3: {
 	prefix: 101
 	value:  102
 } @step(3)
+step3: {
+	prefix: 101
+	value:  103
+} @step(4)
 `},
 
 		{base: `
@@ -409,8 +410,8 @@ func TestValue(t *testing.T) {
 provider: xxx
 `
 	val, err := NewValue(caseError, nil, "")
-	assert.Equal(t, err != nil, true)
-	assert.Equal(t, val == nil, true)
+	assert.NilError(t, err)
+	assert.Equal(t, val.Error() != nil, true)
 
 	val, err = NewValue(":", nil, "")
 	assert.Equal(t, err != nil, true)
@@ -425,8 +426,9 @@ do: "apply"
 	assert.NilError(t, err)
 	originCue := val.CueValue()
 
-	_, err = val.MakeValue(caseError)
-	assert.Equal(t, err != nil, true)
+	valHasError, err := val.MakeValue(caseError)
+	assert.NilError(t, err)
+	assert.Equal(t, valHasError.Error() != nil, true)
 	_, err = val.MakeValue(":")
 	assert.Equal(t, err != nil, true)
 	err = val.FillRaw(caseError)
@@ -447,9 +449,8 @@ close({provider: int})
 	assert.Equal(t, originCue, val.CueValue())
 	cv, err = val.MakeValue(caseClose)
 	assert.NilError(t, err)
-	err = val.FillObject(cv)
-	assert.Equal(t, err != nil, true)
-	assert.Equal(t, originCue, val.CueValue())
+	val.FillObject(cv)
+	assert.Equal(t, val.Error() != nil, true)
 
 	_, err = val.LookupValue("abc")
 	assert.Equal(t, err != nil, true)
@@ -485,8 +486,7 @@ do: "apply"
 	assert.NilError(t, err)
 	err = val.FillRaw(`
 provider: "conflict"`)
-	assert.NilError(t, err)
-	assert.Equal(t, val.Error() != nil, true)
+	assert.Equal(t, err != nil, true)
 
 	val, err = NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
@@ -652,7 +652,7 @@ strings.Join(apply.arr,".")+"$"`,
    op: "help"
 `,
 			script: `oss`,
-			err:    "zz_output__: reference \"oss\" not found",
+			err:    "var(path=oss) not exist",
 		},
 	}
 
@@ -845,14 +845,14 @@ func TestFillByScript(t *testing.T) {
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].value",
 			v:    `foo`,
-			err:  "remake value: a.b.x.y.value: reference \"foo\" not found",
+			err:  "a.b.x.y.value: reference \"foo\" not found",
 		},
 		{
 			name: "conflict merge",
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].name",
 			v:    `"foo"`,
-			err:  "a.b.0.x.y.0.name: conflicting values \"key\" and \"foo\"",
+			err:  "a.b.0.x.y.0.name: conflicting values \"foo\" and \"key\"",
 		},
 		{
 			name: "filled value with wrong cue format",

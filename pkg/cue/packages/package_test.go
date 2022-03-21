@@ -347,12 +347,11 @@ func TestPackage(t *testing.T) {
 	}
 	assert.Equal(t, cmp.Diff(mypd.ListPackageKinds(), expectPkgKinds), "")
 
-	exceptObj := `output: close({
-	kind:                "Bucket"
+	exceptObj := `output: {
 	apiVersion:          "apps.test.io/v1"
-	type:                "alicloud_oss_bucket"
-	acl:                 "public-read-write" | "public-read" | *"private"
-	dataRedundancyType?: "ZRS" | *"LRS"
+	kind:                "Bucket"
+	acl:                 *"private" | "public-read" | "public-read-write"
+	dataRedundancyType?: "LRS" | "ZRS" | *"LRS"
 	dataSourceRef?: {
 		dsPath: string
 	}
@@ -360,12 +359,6 @@ func TestPackage(t *testing.T) {
 		importKey: string
 	}
 	output: {
-		{[!~"^(bucketName|extranetEndpoint|intranetEndpoint|masterUserId)$"]: {
-											outRef: string
-		} | {
-			// Example: demoVpc.vpcId
-			valueRef: string
-		}}
 		bucketName: {
 			outRef: "self.name"
 		}
@@ -403,8 +396,9 @@ func TestPackage(t *testing.T) {
 			valueRef: string
 		}
 	}
-	storageClass?: "IA" | "Archive" | "ColdArchive" | *"Standard"
-})
+	storageClass?: "Standard" | "IA" | "Archive" | "ColdArchive" | *"Standard"
+	type:          "alicloud_oss_bucket"
+}
 `
 	bi := build.NewContext().NewInstance("", nil)
 	bi.AddFile("-", `
@@ -462,8 +456,8 @@ func TestProcessFile(t *testing.T) {
 	assert.NilError(t, err)
 	retInst, err := inst.Fill(testCasesInst.Value())
 	assert.NilError(t, err)
-	assert.Error(t, retInst.Lookup("case1").Err(), "case1: field \"additionalProperty\" not allowed in closed struct")
-	assert.Error(t, retInst.Lookup("case2", "metadata").Err(), "case2.metadata: field \"additionalProperty\" not allowed in closed struct")
+	assert.Error(t, retInst.Lookup("case1").Err(), "case1: field not allowed: additionalProperty")
+	assert.Error(t, retInst.Lookup("case2", "metadata").Err(), "case2.metadata: field not allowed: additionalProperty")
 }
 
 func TestMount(t *testing.T) {

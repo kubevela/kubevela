@@ -18,6 +18,8 @@ package sets
 import (
 	"testing"
 
+	"cuelang.org/go/cue/cuecontext"
+
 	"cuelang.org/go/cue/format"
 
 	"cuelang.org/go/cue"
@@ -56,8 +58,8 @@ if true {
 }
 lacy: string
 `,
-			expected: `foo:  int
-lacy: string
+			expected: `lacy: string
+foo:  int
 `},
 		{
 			s: ` 
@@ -72,9 +74,10 @@ if foo > 5 {
 }
 `},
 	}
-	var r cue.Runtime
+	var r = cuecontext.New()
 	for _, tcase := range testCases {
-		inst, err := r.Compile("-", tcase.s)
+		file, err := parser.ParseFile("-", tcase.s)
+		inst := r.BuildFile(file)
 		assert.NilError(t, err)
 		str, err := ToString(inst.Value())
 		assert.NilError(t, err)
@@ -122,9 +125,9 @@ abc
 `,
 			expected: `foo: int
 lacy: """
-        abc
-        123
-        """
+	abc
+	123
+	"""
 `},
 	}
 

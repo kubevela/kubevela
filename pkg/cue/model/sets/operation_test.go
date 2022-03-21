@@ -44,15 +44,25 @@ func TestPatch(t *testing.T) {
 		},
 
 		{
-			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
-			patch:  `containers: [{name: "x2"},{name: "x1"}]`,
-			result: "_|_\n",
+			base:  `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `containers: [{name: "x2"},{name: "x1"}]`,
+			result: `containers: [{
+	name: _|_ // containers.0.name: conflicting values "x2" and "x1"
+}, {
+	name: _|_ // containers.1.name: conflicting values "x1" and "x2"
+}]
+`,
 		},
 
 		{
-			base:   `containers: [{name: _|_},{name: "x2"},...]`,
-			patch:  `containers: [{name: _|_},{name: "x2"}]`,
-			result: "_|_\n",
+			base:  `containers: [{name: _|_},{name: "x2"},...]`,
+			patch: `containers: [{name: _|_},{name: "x2"}]`,
+			result: `containers: [{
+	name: _|_ // explicit error (_|_ literal) in source (and 1 more errors)
+}, {
+	name: "x2"
+}]
+`,
 		},
 
 		{
@@ -74,7 +84,14 @@ containers: [{
 			patch: `
 // +patchKey=name
 containers: [{name: "x2"},{name: "x1"}]`,
-			result: "_|_\n",
+			result: `// +patchKey=name
+containers: [{
+	namex: "x1"
+	name:  _|_ // containers.0: field not allowed: name
+}, {
+	name: "x1"
+}]
+`,
 		},
 
 		{
@@ -97,10 +114,16 @@ containers: [{
 
 		{
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
-			patch: `
-// +patchKey=name
+			patch: `// +patchKey=name
 containers: [{noname: "x3"},{name: "x1"}]`,
-			result: "_|_\n",
+			result: `// +patchKey=name
+containers: [{
+	name:   "x1"
+	noname: "x3"
+}, {
+	name: _|_ // containers.1.name: conflicting values "x1" and "x2"
+}]
+`,
 		},
 		{
 			base: `containers: [{name: "x1"},{name: "x2", envs:[ {name: "OPS",value: string},...]},...]`,
@@ -117,23 +140,6 @@ containers: [{
 		value: "OAM"
 	}, ...]
 }, ...]
-`,
-		},
-		{
-			base: `containers: [close({name: "x1"}),close({name: "x2", envs:[{name: "OPS",value: string},...]}),...]`,
-			patch: `
-// +patchKey=name
-containers: [{name: "x2", envs: [close({name: "OPS", value: "OAM"})]}]`,
-			result: `// +patchKey=name
-containers: [close({
-	name: "x1"
-}), close({
-	name: "x2"
-	envs: [close({
-		name:  "OPS"
-		value: "OAM"
-	}), ...]
-}), ...]
 `,
 		},
 
@@ -260,16 +266,17 @@ containers: [{
              },...]`,
 			result: `containers: [{
 	volumeMounts: [{
+		name: "k1"
 		path: "p1"
-		name: "k1"
 	}, {
+		name: "k1"
 		path: "p2"
-		name: "k1"
 	}, {
-		path: "p3"
 		name: "k2"
+		path: "p3"
 	}]
 }, ...]
+
 // +patchKey=name
 volumes: [{
 	name:  "x1"

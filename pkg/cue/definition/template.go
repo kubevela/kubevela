@@ -86,7 +86,7 @@ func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) Abstra
 // Complete do workload definition's rendering
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", abstractTemplate); err != nil {
+	if err := bi.AddFile("-", renderTemplate(abstractTemplate)); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
 	var paramFile = model.ParameterFieldName + ": {}"
@@ -102,12 +102,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := bi.AddFile(model.ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
-
-	if err := bi.AddFile("-", ctx.ExtendedContextFile()); err != nil {
+	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
 		return err
 	}
 
 	inst, err := wd.pd.ImportPackagesAndBuildInstance(bi)
+
 	if err != nil {
 		return err
 	}
@@ -147,6 +147,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		}
 	}
 	return nil
+}
+
+func renderTemplate(templ string) string {
+	return templ + `
+context: _
+parameter: _
+`
 }
 
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
@@ -288,7 +295,7 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 // Complete do trait definition's rendering
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", abstractTemplate); err != nil {
+	if err := bi.AddFile("-", renderTemplate(abstractTemplate)); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
 	var paramFile = model.ParameterFieldName + ": {}"
