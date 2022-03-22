@@ -17,9 +17,8 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/apis/types"
-	innerVersion "github.com/oam-dev/kubevela/version"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -32,8 +31,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	innerVersion "github.com/oam-dev/kubevela/version"
 )
 
 var (
@@ -52,11 +53,12 @@ type CtrlPlaneArgs struct {
 	TLSSan                    string
 	DBEndpoint                string
 	IsMainland                bool
+	IsJoin                    bool
 	Token                     string
 	DisableWorkloadController bool
 	// InstallVelaParam is parameters passed to vela install command
 	// e.g. "--detail --version=x.y.z"
-	InstallVelaParam          string
+	InstallVelaParam string
 }
 
 // NewCtrlPlaneCommand create ctrl-plane command
@@ -98,7 +100,7 @@ func NewInstallCmd(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}()
 
 			// Step.1 Set up K3s as control plane cluster
-			err := SetupK3s(cArgs)
+			err := SetupK3s(cmd.Context(), cArgs)
 			if err != nil {
 				errf("Fail to setup k3s: %v\n", err)
 				return
@@ -113,16 +115,18 @@ func NewInstallCmd(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 
 			// Step.3 install vela-core
-			installCmd := NewInstallCommand(c, "1", ioStreams)
-			installArgs:=strings.Split(cArgs.InstallVelaParam," ")
-			if cArgs.DisableWorkloadController {
-				installArgs = append(installArgs, "--set", "podOnly=true")
-			}
-			installCmd.SetArgs(installArgs)
-			err = installCmd.Execute()
-			if err != nil {
-				errf("Fail to install vela-core in control plane: %v. You can try \"vela install\" later\n", err)
-				return
+			if !cArgs.IsJoin {
+				installCmd := NewInstallCommand(c, "1", ioStreams)
+				installArgs := strings.Split(cArgs.InstallVelaParam, " ")
+				if cArgs.DisableWorkloadController {
+					installArgs = append(installArgs, "--set", "podOnly=true")
+				}
+				installCmd.SetArgs(installArgs)
+				err = installCmd.Execute()
+				if err != nil {
+					errf("Fail to install vela-core in control plane: %v. You can try \"vela install\" later\n", err)
+					return
+				}
 			}
 
 			info("Cleaning up script...")
@@ -130,6 +134,7 @@ func NewInstallCmd(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&cArgs.IsMainland, "mainland", false, "If set, use some mirror site to avoid network problem")
+	cmd.Flags().BoolVar(&cArgs.IsJoin, "join", false, "If set, vela-core won't be installed again")
 	cmd.Flags().StringVar(&cArgs.DBEndpoint, "database-endpoint", "", "Use an external database to store control plane metadata")
 	cmd.Flags().StringVar(&cArgs.TLSSan, "tls-san", "", "Add additional hostname or IP as a Subject Alternative Name in the TLS cert")
 	cmd.Flags().StringVar(&cArgs.Token, "token", "", "Token for register other node")
@@ -152,9 +157,9 @@ func cleanup() error {
 }
 
 // SetupK3s will set up K3s as control plane.
-func SetupK3s(cArgs CtrlPlaneArgs) error {
+func SetupK3s(ctx context.Context, cArgs CtrlPlaneArgs) error {
 	info("Downloading cluster setup script...")
-	script, err := DownloadK3sScript()
+	script, err := DownloadK3sScript(ctx)
 	if err != nil {
 		return errors.Wrap(err, "fail to download k3s setup script")
 	}
@@ -167,7 +172,7 @@ func SetupK3s(cArgs CtrlPlaneArgs) error {
 	}(script)
 
 	info("Downloading k3s binary...")
-	err = PrepareK3sBin(cArgs.IsMainland)
+	err = PrepareK3sBin(ctx, cArgs.IsMainland)
 	if err != nil {
 		return errors.Wrap(err, "Fail to download k3s binary")
 	}
@@ -199,30 +204,29 @@ func composeArgs(args CtrlPlaneArgs) []string {
 		shellArgs = append(shellArgs, "--token="+args.Token)
 	}
 	if args.DisableWorkloadController {
-		shellArgs = append(shellArgs, "--kube-controller-manager-arg=controllers=*,-deployment,-job,-replicaset,-daemonset,-statefulset,-cronjob")
-		// Traefik use Job to install, which is impossible without Job Controller
-		shellArgs = append(shellArgs, "--disable","traefik")
+		shellArgs = append(shellArgs, "--kube-controller-manager-arg=controllers=*,-deployment,-job,-replicaset,-daemonset,-statefulset,-cronjob",
+			// Traefik use Job to install, which is impossible without Job Controller
+			"--disable", "traefik")
 	}
 	return shellArgs
 }
 
 // DownloadK3sScript download k3s install script
-func DownloadK3sScript() (string, error) {
+func DownloadK3sScript(ctx context.Context) (string, error) {
 	scriptFile, err := ioutil.TempFile("/var", "k3s-setup-*.sh")
 	if err != nil {
 		return "", err
 	}
-	defer func(scriptFile *os.File) {
-		err := scriptFile.Close()
-		if err != nil {
-			fmt.Printf("Fail to close script file: %v", err)
-		}
-	}(scriptFile)
-	res, err := http.Get("https://get.k3s.io")
+	defer CloseQuietly(scriptFile)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://get.k3s.io", nil)
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer CloseQuietly(res.Body)
 	_, err = io.Copy(scriptFile, res.Body)
 	if err != nil {
 		return "", err
@@ -231,27 +235,27 @@ func DownloadK3sScript() (string, error) {
 }
 
 // PrepareK3sBin download k3s bin
-func PrepareK3sBin(isMainland bool) error {
+func PrepareK3sBin(ctx context.Context, isMainland bool) error {
 	downloadSite := "github.com"
 	if isMainland {
 		downloadSite = "hub.fastgit.xyz"
 	}
 	downloadURL := fmt.Sprintf(k3sDownloadTmpl, downloadSite, k3sVersion)
-	res, err := http.Get(downloadURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer CloseQuietly(res.Body)
+	/* #nosec */
 	bin, err := os.OpenFile(k3sBinaryLocation, os.O_CREATE|os.O_WRONLY, 0700)
 	if err != nil {
 		return err
 	}
-	defer func(bin *os.File) {
-		err := bin.Close()
-		if err != nil {
-			fmt.Println("Fail to close k3s binary file descriptor")
-		}
-	}(bin)
+	defer CloseQuietly(bin)
 	_, err = io.Copy(bin, res.Body)
 	if err != nil {
 		return err
@@ -288,4 +292,10 @@ func NewUninstallCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// CloseQuietly closes `io.Closer` quietly. Very handy and helpful for code
+// quality too.
+func CloseQuietly(d io.Closer) {
+	_ = d.Close()
 }
