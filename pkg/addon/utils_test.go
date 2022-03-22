@@ -144,7 +144,7 @@ func TestUsingAddonInfo(t *testing.T) {
 		v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "namespace-1", Name: "app-3"}},
 	}
 	res := usingAppsInfo(apps)
-	assert.Equal(t, true, strings.Contains(res, "still using this addon"))
+	assert.Equal(t, true, strings.Contains(res, "Please delete them before disabling the addon"))
 }
 
 const (
