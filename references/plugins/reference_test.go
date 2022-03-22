@@ -24,11 +24,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
