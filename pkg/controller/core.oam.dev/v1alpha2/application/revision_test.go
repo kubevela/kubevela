@@ -302,7 +302,6 @@ var _ = Describe("test generate revision ", func() {
 			},
 			time.Second*5, time.Millisecond*500).Should(BeNil())
 		appHash1, err := ComputeAppRevisionHash(curAppRevision)
-		appRevName1 := curApp.Status.LatestRevision.Name
 		Expect(err).Should(Succeed())
 		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
 		Expect(appHash1).Should(Equal(curApp.Status.LatestRevision.RevisionHash))
@@ -458,9 +457,6 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curApp.Status.LatestRevision.Name).Should(Equal(lastRevision))
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(appHash2))
-		// new revision should be equal to v1 revision
-		Expect(curApp.Status.LatestRevision.Name).Should(Equal(appRevName1))
-		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash1))
 		By("Verify the appRevision is changed")
 		// reset appRev
 		curAppRevision = &v1beta1.ApplicationRevision{}

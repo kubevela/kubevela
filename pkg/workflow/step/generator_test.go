@@ -38,7 +38,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			Name:      "ref-wf",
 			Namespace: "test",
 		},
-		Steps: []v1beta1.WorkflowStep{{
+		Steps: []common.WorkflowStep{{
 			Name: "manual-approve",
 			Type: "suspend",
 		}, {

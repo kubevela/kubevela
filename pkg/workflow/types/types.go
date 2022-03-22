@@ -92,3 +92,12 @@ const (
 	// ContextKeyNextExecuteTime is the key that refer to the next execute time in workflow context config map.
 	ContextKeyNextExecuteTime = "next_execute_time"
 )
+
+const (
+	// WorkflowStepTypeSuspend type suspend
+	WorkflowStepTypeSuspend = "suspend"
+	// WorkflowStepTypeApplyComponent type apply-component
+	WorkflowStepTypeApplyComponent = "apply-component"
+	// WorkflowStepTypeBuiltinApplyComponent type builtin-apply-component
+	WorkflowStepTypeBuiltinApplyComponent = "builtin-apply-component"
+)

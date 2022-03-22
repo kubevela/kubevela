@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // WorkflowStepGenerator generator generates workflow steps
@@ -76,7 +77,7 @@ func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSt
 	if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
 		return
 	}
-	return wf.Steps, nil
+	return ConvertSteps(wf.Steps), nil
 }
 
 // ApplyComponentWorkflowStepGenerator generate apply-component workflow steps for all components in the application
@@ -90,7 +91,7 @@ func (g *ApplyComponentWorkflowStepGenerator) Generate(app *v1beta1.Application,
 	for _, comp := range app.Spec.Components {
 		steps = append(steps, v1beta1.WorkflowStep{
 			Name: comp.Name,
-			Type: "apply-component",
+			Type: wftypes.WorkflowStepTypeApplyComponent,
 			Properties: util.Object2RawExtension(map[string]string{
 				"component": comp.Name,
 			}),
@@ -171,11 +172,11 @@ func (g *DeployPreApproveWorkflowStepGenerator) Generate(app *v1beta1.Applicatio
 			if props.Auto != nil && !*props.Auto {
 				steps = append(steps, v1beta1.WorkflowStep{
 					Name: "manual-approve-" + step.Name,
-					Type: "suspend",
+					Type: wftypes.WorkflowStepTypeSuspend,
 				})
 			}
 		}
-		lastSuspend = step.Type == "suspend"
+		lastSuspend = step.Type == wftypes.WorkflowStepTypeSuspend
 		steps = append(steps, step)
 	}
 	return steps, nil

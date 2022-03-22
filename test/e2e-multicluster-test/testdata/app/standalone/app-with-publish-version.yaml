@@ -2,6 +2,8 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: podinfo
+  annotations:
+    app.oam.dev/publishVersion: alpha1
 spec:
   components:
     - name: podinfo
@@ -11,14 +13,6 @@ spec:
           - apiVersion: apps/v1
             kind: Deployment
             name: podinfo
-          - apiVersion: v1
-            kind: ConfigMap
-            selector:
-              app: podinfo
-      traits:
-        - type: scaler
-          properties:
-            replicas: 5
   policies:
     - type: topology
       name: topology-worker
