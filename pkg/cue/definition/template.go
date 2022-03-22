@@ -353,7 +353,6 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err := base.Unify(p, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
-
 		for _, auxiliary := range auxiliaries {
 			target := patcher.Lookup("context", model.OutputsFieldName, auxiliary.Name)
 			if target.Exists() {

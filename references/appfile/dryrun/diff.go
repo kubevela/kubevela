@@ -23,6 +23,7 @@ import (
 
 	"github.com/aryann/difflib"
 	"github.com/pkg/errors"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -35,9 +36,9 @@ import (
 )
 
 // NewLiveDiffOption creates a live-diff option
-func NewLiveDiffOption(c client.Client, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
+func NewLiveDiffOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *LiveDiffOption {
 	parser := appfile.NewApplicationParser(c, dm, pd)
-	return &LiveDiffOption{DryRun: NewDryRunOption(c, dm, pd, as), Parser: parser}
+	return &LiveDiffOption{DryRun: NewDryRunOption(c, cfg, dm, pd, as), Parser: parser}
 }
 
 // ManifestKind enums the kind of OAM objects
