@@ -570,7 +570,6 @@ type DetailApplicationResponse struct {
 	ApplicationBase
 	Policies        []string                `json:"policies"`
 	EnvBindings     []string                `json:"envBindings"`
-	Status          string                  `json:"status"`
 	ApplicationType string                  `json:"applicationType"`
 	ResourceInfo    ApplicationResourceInfo `json:"resourceInfo"`
 }
@@ -592,7 +591,6 @@ type ComponentBase struct {
 	Icon          string              `json:"icon,omitempty"`
 	DependsOn     []string            `json:"dependsOn"`
 	Creator       string              `json:"creator,omitempty"`
-	DeployVersion string              `json:"deployVersion"`
 	CreateTime    time.Time           `json:"createTime"`
 	UpdateTime    time.Time           `json:"updateTime"`
 	Inputs        common.StepInputs   `json:"inputs,omitempty"`
