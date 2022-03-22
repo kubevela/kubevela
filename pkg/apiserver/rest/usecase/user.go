@@ -99,7 +99,7 @@ func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 			detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
 				Name:      pu.ProjectName,
 				Alias:     project.Alias,
-				UserRoles: pu.UserRoles,
+				UserRoles: []string{},
 			})
 		}
 	}

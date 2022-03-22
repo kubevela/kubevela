@@ -27,6 +27,8 @@ import (
 func init() {
 	RegisterModel(&User{})
 	RegisterModel(&ProjectUser{})
+	RegisterModel(&Role{})
+	RegisterModel(&PermPolicy{})
 }
 
 // User is the model of user
@@ -38,6 +40,8 @@ type User struct {
 	Password      string    `json:"password,omitempty"`
 	Disabled      bool      `json:"disabled"`
 	LastLoginTime time.Time `json:"lastLoginTime,omitempty"`
+	// UserRoles binding the platform level roles
+	UserRoles []string `json:"userRoles"`
 }
 
 // TableName return custom table name
@@ -70,9 +74,10 @@ func (u *User) Index() map[string]string {
 // ProjectUser is the model of user in project
 type ProjectUser struct {
 	BaseModel
-	Username    string   `json:"username"`
-	ProjectName string   `json:"projectName"`
-	UserRoles   []string `json:"userRoles"`
+	Username    string `json:"username"`
+	ProjectName string `json:"projectName"`
+	// UserRoles binding the project level roles
+	UserRoles []string `json:"userRoles"`
 }
 
 // TableName return custom table name
@@ -113,4 +118,66 @@ type CustomClaims struct {
 	Username  string `json:"username"`
 	GrantType string `json:"grantType"`
 	jwt.StandardClaims
+}
+
+// Role is a model for a new RBAC mode.
+type Role struct {
+	BaseModel
+	Name         string   `json:"name"`
+	Project      string   `json:"project,omitempty"`
+	PermPolicies []string `json:"permPolicies"`
+}
+
+// PermPolicy is a model for a new RBAC mode.
+type PermPolicy struct {
+	BaseModel
+	Name      string     `json:"name"`
+	Alias     string     `json:"alias"`
+	Project   string     `json:"project,omitempty"`
+	Resource  string     `json:"resource"`
+	Actions   []string   `json:"actions"`
+	Effect    string     `json:"effect"`
+	Principal *Principal `json:"principal,omitempty"`
+	Condition *Condition `json:"condition,omitempty"`
+}
+
+// Principal is a model for a new RBAC mode.
+type Principal struct {
+	// Type options: User or Role
+	Type  string `json:"type"`
+	Names string `json:"names"`
+}
+
+// Condition is a model for a new RBAC mode.
+type Condition struct {
+}
+
+// TableName return custom table name
+func (u *Role) TableName() string {
+	return tableNamePrefix + "role"
+}
+
+// ShortTableName return custom table name
+func (u *Role) ShortTableName() string {
+	return "role"
+}
+
+// PrimaryKey return custom primary key
+func (u *Role) PrimaryKey() string {
+	return fmt.Sprintf("%s.%s", u.Project, u.Name)
+}
+
+// TableName return custom table name
+func (p *PermPolicy) TableName() string {
+	return tableNamePrefix + "perm"
+}
+
+// ShortTableName return custom table name
+func (p *PermPolicy) ShortTableName() string {
+	return "perm"
+}
+
+// PrimaryKey return custom primary key
+func (p *PermPolicy) PrimaryKey() string {
+	return p.Name
 }
