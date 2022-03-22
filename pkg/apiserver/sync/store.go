@@ -19,6 +19,7 @@ package sync
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -40,6 +41,7 @@ func StoreProject(ctx context.Context, name string, ds datastore.DataStore) erro
 	proj := &model.Project{
 		Name:        name,
 		Description: model.AutoGenProj,
+		Alias:       strings.Title(name),
 	}
 	return ds.Add(ctx, proj)
 }
