@@ -28,9 +28,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/stretchr/testify/assert"
 )
 
 var RefTestDir = filepath.Join(TestDir, "ref")
@@ -651,9 +650,10 @@ func TestParseLocalFile(t *testing.T) {
 			if err != nil {
 				t.Errorf("ParseLocalFile(...): -want: %v, got error: %s\n", tc.want, err)
 			}
-			if reflect.DeepEqual(*lc, tc.want) {
+			if !reflect.DeepEqual(*lc, tc.want) {
 				t.Errorf("ParseLocalFile(...): -want: %v, got: %v\n", tc.want, *lc)
 			}
 		})
+		break
 	}
 }
