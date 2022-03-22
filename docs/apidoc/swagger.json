@@ -3239,9 +3239,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"component",
 							"trait",
-							"workflowstep"
+							"workflowstep",
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -6217,8 +6217,8 @@
 		},
 		"v1.AddonStatusResponse": {
 			"required": [
-				"phase",
 				"name",
+				"phase",
 				"args"
 			],
 			"properties": {
@@ -6365,11 +6365,11 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"createTime",
 				"version",
+				"note",
+				"createTime",
 				"status",
 				"envName",
-				"note",
 				"triggerType"
 			],
 			"properties": {
@@ -7422,11 +7422,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
 				"description",
-				"invisible",
-				"version",
 				"icon",
+				"name",
+				"version",
+				"invisible",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -7499,13 +7499,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"description",
 				"icon",
-				"alias",
+				"name",
 				"project",
 				"createTime",
 				"updateTime",
+				"alias",
+				"description",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -7566,20 +7566,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
+				"createTime",
 				"reason",
+				"updateTime",
+				"alias",
+				"apiServerURL",
 				"dashboardURL",
+				"kubeConfigSecret",
+				"description",
+				"icon",
+				"labels",
 				"kubeConfig",
 				"name",
 				"status",
-				"description",
-				"icon",
-				"createTime",
-				"alias",
 				"provider",
-				"apiServerURL",
-				"kubeConfigSecret",
-				"updateTime",
-				"labels",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7637,14 +7637,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
+				"main",
+				"alias",
 				"type",
 				"creator",
 				"name",
-				"createTime",
-				"alias",
-				"updateTime",
 				"appPrimaryKey",
-				"main",
+				"createTime",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -7746,13 +7746,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"properties",
 				"createTime",
 				"updateTime",
 				"name",
 				"type",
-				"description"
+				"description",
+				"creator",
+				"properties"
 			],
 			"properties": {
 				"createTime": {
@@ -7783,15 +7783,15 @@
 		"v1.DetailRevisionResponse": {
 			"required": [
 				"createTime",
-				"status",
 				"reason",
+				"triggerType",
+				"note",
+				"version",
+				"updateTime",
 				"deployUser",
 				"envName",
 				"appPrimaryKey",
-				"updateTime",
-				"version",
-				"note",
-				"triggerType",
+				"status",
 				"workflowName"
 			],
 			"properties": {
@@ -7846,9 +7846,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
+				"name",
 				"createTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -7885,11 +7885,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"name",
-				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
+				"name",
+				"email",
 				"projects"
 			],
 			"properties": {
@@ -7923,12 +7923,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
-				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7980,13 +7980,13 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"description",
 				"default",
 				"envName",
 				"createTime",
 				"updateTime",
 				"name",
 				"alias",
-				"description",
 				"enable"
 			],
 			"properties": {
@@ -8051,6 +8051,12 @@
 			"properties": {
 				"args": {
 					"type": "object"
+				},
+				"clusters": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -8173,8 +8179,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"name",
-				"alias"
+				"alias",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -8670,11 +8676,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"installID",
-				"enableCollection",
 				"loginType",
 				"createTime",
 				"updateTime",
+				"installID",
+				"enableCollection",
 				"systemVersion"
 			],
 			"properties": {

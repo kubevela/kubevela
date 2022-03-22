@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +35,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	v1alpha12 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -268,6 +271,56 @@ var _ = Describe("Test addon util func", func() {
 		Expect(res).Should(BeEquivalentTo(map[string]interface{}{"repo": "www.test.com", "tag": "v1.3.1"}))
 	})
 
+})
+
+var _ = Describe("Test render addon with specified clusters", func() {
+	BeforeEach(func() {
+		Expect(k8sClient.Create(ctx, &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "add-c1",
+				Namespace: "vela-system",
+				Labels: map[string]string{
+					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					v1alpha1.LabelKeyClusterEndpointType:   v1alpha1.ClusterEndpointTypeConst,
+					"key":                                  "value",
+				},
+			},
+		})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "add-c2",
+				Namespace: "vela-system",
+				Labels: map[string]string{
+					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					v1alpha1.LabelKeyClusterEndpointType:   v1alpha1.ClusterEndpointTypeConst,
+					"key":                                  "value",
+				},
+			},
+		})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	})
+	It("test render not exits cluster", func() {
+		i := &baseAddon
+		i.Name = "test-cluster-addon"
+
+		args := map[string]interface{}{
+			"clusters": []string{"add-c1", "ne"},
+		}
+		_, err := RenderApp(ctx, i, k8sClient, args)
+		Expect(err.Error()).Should(BeEquivalentTo("cluster ne not exist"))
+	})
+	It("test render normal addon with specified clusters", func() {
+		i := &baseAddon
+		i.DeployTo = &DeployTo{RuntimeCluster: true}
+		i.Name = "test-cluster-addon-normal"
+		args := map[string]interface{}{
+			"clusters": []string{"add-c1", "add-c2"},
+		}
+		ap, err := RenderApp(ctx, i, k8sClient, args)
+		Expect(err).Should(BeNil())
+		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: "specified-addon-clusters",
+			Type:       v1alpha12.TopologyPolicyType,
+			Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["add-c1","add-c2"]}`)}}}))
+	})
 })
 
 const (
