@@ -110,10 +110,6 @@ myIP: value: "1.1.1.1"
 			Type: "terminate",
 		},
 		{
-			Name: "rendering",
-			Type: "renderFailed",
-		},
-		{
 			Name: "execute",
 			Type: "executeFailed",
 		},
@@ -152,7 +148,7 @@ myIP: value: "1.1.1.1"
 			r.Equal(status.Reason, StatusReasonExecute)
 			continue
 		}
-		r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded)
+		r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded, step.Name)
 	}
 
 }
