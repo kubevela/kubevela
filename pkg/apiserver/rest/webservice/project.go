@@ -28,12 +28,14 @@ import (
 )
 
 type projectWebService struct {
+	rbacUsecase    usecase.RBACUsecase
 	projectUsecase usecase.ProjectUsecase
+	targetUsecase  usecase.TargetUsecase
 }
 
 // NewProjectWebService new project webservice
-func NewProjectWebService(projectUsecase usecase.ProjectUsecase) WebService {
-	return &projectWebService{projectUsecase: projectUsecase}
+func NewProjectWebService(projectUsecase usecase.ProjectUsecase, rbacUsecase usecase.RBACUsecase, targetUsecase usecase.TargetUsecase) WebService {
+	return &projectWebService{projectUsecase: projectUsecase, rbacUsecase: rbacUsecase, targetUsecase: targetUsecase}
 }
 
 func (n *projectWebService) GetWebService() *restful.WebService {
@@ -48,15 +50,38 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.listprojects).
 		Doc("list all projects").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("Project", "List")).
 		Returns(200, "OK", apis.ListProjectResponse{}).
 		Writes(apis.ListProjectResponse{}))
 
 	ws.Route(ws.POST("/").To(n.createproject).
 		Doc("create a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("Project", "Create")).
 		Reads(apis.CreateProjectRequest{}).
 		Returns(200, "OK", apis.ProjectBase{}).
 		Writes(apis.ProjectBase{}))
+
+	ws.Route(ws.GET("/{projectName}").To(n.detailProject).
+		Doc("detail a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("Project", "Detail")).
+		Returns(200, "OK", apis.ProjectBase{}).
+		Writes(apis.ProjectBase{}))
+
+	ws.Route(ws.DELETE("/{projectName}").To(n.deleteProject).
+		Doc("delete a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("Project", "Delete")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/{projectName}/targets").To(n.listProjectTargets).
+		Doc("get targets list belong to a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("Project", "Detail")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -100,6 +125,50 @@ func (n *projectWebService) createproject(req *restful.Request, res *restful.Res
 
 	// Write back response data
 	if err := res.WriteEntity(projectBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) detailProject(req *restful.Request, res *restful.Response) {
+	project, err := n.projectUsecase.GetProject(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Write back response data
+	if err := res.WriteEntity(usecase.ConvertProjectModel2Base(project)); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) deleteProject(req *restful.Request, res *restful.Response) {
+	err := n.projectUsecase.DeleteProject(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) listProjectTargets(req *restful.Request, res *restful.Response) {
+	project, err := n.projectUsecase.GetProject(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	projects, err := n.targetUsecase.ListTargets(req.Request.Context(), 0, 0, project.Name)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Write back response data
+	if err := res.WriteEntity(projects); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

@@ -95,10 +95,9 @@ func pickEnv(envs []*model.Env, name string) (*model.Env, error) {
 func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envListOption) ([]*apisv1.EnvBindingBase, error) {
 	envBindings, err := listEnvBindings(ctx, ds, option)
 	if err != nil {
-
 		return nil, bcode.ErrEnvBindingsNotExist
 	}
-	targets, err := listTarget(ctx, ds, nil)
+	targets, err := listTarget(ctx, ds, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +305,7 @@ func (e *envBindingUsecaseImpl) deleteEnvWorkflow(ctx context.Context, app *mode
 }
 
 func (e *envBindingUsecaseImpl) DetailEnvBinding(ctx context.Context, app *model.Application, envBinding *model.EnvBinding) (*apisv1.DetailEnvBindingResponse, error) {
-	targets, err := listTarget(ctx, e.ds, nil)
+	targets, err := listTarget(ctx, e.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}

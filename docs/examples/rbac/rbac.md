@@ -34,7 +34,7 @@ PermPolicy:
 ```yaml
 name: app-manage
 project: demo
-resource: Project/xxx/Application/*
+resource: ["project:demo/application:*"]
 actions: ["*"]
 effect: Allow
 principal: {}
@@ -43,7 +43,7 @@ condition: {}
 
 ```yaml
 name: cluster-manage
-resource: Cluster/*
+resource: ["cluster:*"]
 actions: ["*"]
 effect: Allow
 principal: {}
@@ -52,7 +52,7 @@ condition: {}
 
 ```yaml
 name: cluster-beijing-manage
-resource: Cluster/beijing
+resource: ["cluster:beijing"]
 actions: ["*"]
 effect: Allow
 principal: {}
@@ -61,7 +61,7 @@ condition: {}
 
 ```yaml
 name: all
-resource: *
+resource: ["*"]
 actions: ["*"]
 effect: Allow
 principal: {}
@@ -72,7 +72,7 @@ PermPolicyTemplate:
 
 ```yaml
 name: app-manage
-resource: Project/${projectName}/Application/*
+resource: ["project:${projectName}/application:*"]
 actions: ["*"]
 effect: Allow
 principal: {}

@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package webservice
+package usecase
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Test perm webservice", func() {
+var _ = Describe("Test rbac service", func() {
 	It("Test check resource", func() {
 		path, err := checkResourcePath("Project")
 		Expect(err).Should(BeNil())

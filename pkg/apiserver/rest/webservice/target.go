@@ -204,7 +204,7 @@ func (dt *TargetWebService) listTargets(req *restful.Request, res *restful.Respo
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	Targets, err := dt.TargetUsecase.ListTargets(req.Request.Context(), page, pageSize)
+	Targets, err := dt.TargetUsecase.ListTargets(req.Request.Context(), page, pageSize, req.QueryParameter("project"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

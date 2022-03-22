@@ -39,6 +39,7 @@ import (
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
 	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error)
+	ListEnvCount(ctx context.Context, listOption apisv1.ListEnvOptions) (int64, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 	UpdateEnv(ctx context.Context, envName string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
@@ -101,7 +102,7 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds, nil)
+	Targets, err := listTarget(ctx, p.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +129,10 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		return nil, err
 	}
 	return &apisv1.ListEnvResponse{Envs: envs, Total: total}, nil
+}
+
+func (p *envUsecaseImpl) ListEnvCount(ctx context.Context, listOption apisv1.ListEnvOptions) (int64, error) {
+	return p.ds.Count(ctx, &model.Env{Project: listOption.Project}, nil)
 }
 
 func checkEqual(old, new []string) bool {
@@ -186,7 +191,7 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		env.Targets = req.Targets
 	}
 
-	targets, err := listTarget(ctx, p.ds, nil)
+	targets, err := listTarget(ctx, p.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +237,7 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 		return nil, bcode.ErrEnvTargetConflict
 	}
 
-	targets, err := listTarget(ctx, p.ds, nil)
+	targets, err := listTarget(ctx, p.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}

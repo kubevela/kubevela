@@ -65,7 +65,7 @@ var _ = Describe("Test target usecase functions", func() {
 		Expect(cmp.Diff(Target.Name, "test--target")).Should(BeEmpty())
 
 		By("Test ListTargets function")
-		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1)
+		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1, "")
 		Expect(err).Should(BeNil())
 		Expect(resp.Targets[0].ClusterAlias).Should(Equal("dev-alias"))
 

@@ -134,7 +134,7 @@ type PermPolicy struct {
 	Name      string     `json:"name"`
 	Alias     string     `json:"alias"`
 	Project   string     `json:"project,omitempty"`
-	Resource  string     `json:"resource"`
+	Resources []string   `json:"resources"`
 	Actions   []string   `json:"actions"`
 	Effect    string     `json:"effect"`
 	Principal *Principal `json:"principal,omitempty"`
@@ -144,8 +144,8 @@ type PermPolicy struct {
 // Principal is a model for a new RBAC mode.
 type Principal struct {
 	// Type options: User or Role
-	Type  string `json:"type"`
-	Names string `json:"names"`
+	Type  string   `json:"type"`
+	Names []string `json:"names"`
 }
 
 // Condition is a model for a new RBAC mode.
@@ -153,18 +153,30 @@ type Condition struct {
 }
 
 // TableName return custom table name
-func (u *Role) TableName() string {
+func (r *Role) TableName() string {
 	return tableNamePrefix + "role"
 }
 
 // ShortTableName return custom table name
-func (u *Role) ShortTableName() string {
+func (r *Role) ShortTableName() string {
 	return "role"
 }
 
 // PrimaryKey return custom primary key
-func (u *Role) PrimaryKey() string {
-	return fmt.Sprintf("%s.%s", u.Project, u.Name)
+func (r *Role) PrimaryKey() string {
+	return fmt.Sprintf("%s.%s", r.Project, r.Name)
+}
+
+// Index return custom index
+func (r *Role) Index() map[string]string {
+	index := make(map[string]string)
+	if r.Name != "" {
+		index["name"] = r.Name
+	}
+	if r.Project != "" {
+		index["project"] = r.Project
+	}
+	return index
 }
 
 // TableName return custom table name
@@ -180,4 +192,19 @@ func (p *PermPolicy) ShortTableName() string {
 // PrimaryKey return custom primary key
 func (p *PermPolicy) PrimaryKey() string {
 	return p.Name
+}
+
+// Index return custom index
+func (p *PermPolicy) Index() map[string]string {
+	index := make(map[string]string)
+	if p.Name != "" {
+		index["name"] = p.Name
+	}
+	if p.Project != "" {
+		index["project"] = p.Project
+	}
+	if p.Principal != nil && p.Principal.Type != "" {
+		index["principal.type"] = p.Principal.Type
+	}
+	return index
 }

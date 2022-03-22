@@ -62,9 +62,10 @@ func returns500(b *restful.RouteBuilder) {
 func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
 	envUsecase := usecase.NewEnvUsecase(ds)
+	rbacUsecase := usecase.NewRBACUsecase(ds)
+	targetUsecase := usecase.NewTargetUsecase(ds)
 	workflowUsecase := usecase.NewWorkflowUsecase(ds, envUsecase)
 	projectUsecase := usecase.NewProjectUsecase(ds)
-	targetUsecase := usecase.NewTargetUsecase(ds)
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
@@ -80,8 +81,8 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	// init for default values
 
 	// Application
-	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase))
-	RegisterWebService(NewProjectWebService(projectUsecase))
+	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase, rbacUsecase))
+	RegisterWebService(NewProjectWebService(projectUsecase, rbacUsecase, targetUsecase))
 	RegisterWebService(NewEnvWebService(envUsecase, applicationUsecase))
 
 	// Extension
@@ -102,8 +103,6 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	// Authentication
 	RegisterWebService(NewAuthenticationWebService(authenticationUsecase))
 	RegisterWebService(NewUserWebService(userUsecase))
-
 	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase))
-
 	RegisterWebService(NewHelmWebService(helmUsecase))
 }

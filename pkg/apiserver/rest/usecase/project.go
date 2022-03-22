@@ -36,6 +36,7 @@ type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
 	ListProjects(ctx context.Context, page, pageSize int) (*apisv1.ListProjectResponse, error)
 	CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error)
+	DeleteProject(ctx context.Context, projectName string) error
 }
 
 type projectUsecaseImpl struct {
@@ -137,7 +138,7 @@ func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize in
 	var projects []*apisv1.ProjectBase
 	for _, entity := range entitys {
 		project := entity.(*model.Project)
-		projects = append(projects, convertProjectModel2Base(project))
+		projects = append(projects, ConvertProjectModel2Base(project))
 	}
 	total, err := ds.Count(ctx, &model.Project{}, nil)
 	if err != nil {
@@ -153,9 +154,34 @@ func (p *projectUsecaseImpl) ListProjects(ctx context.Context, page, pageSize in
 
 // DeleteProject delete a project
 func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) error {
+	_, err := p.GetProject(ctx, name)
+	if err != nil {
+		return err
+	}
 
-	// TODO(@wonderflow): it's not supported for delete a project now, just used in test
-	// we should prevent delete a project that contain any application/env inside.
+	count, err := p.ds.Count(ctx, &model.Application{Project: name}, nil)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return bcode.ErrProjectDenyDeleteByApplication
+	}
+
+	count, err = p.ds.Count(ctx, &model.Target{Project: name}, nil)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return bcode.ErrProjectDenyDeleteByTarget
+	}
+
+	count, err = p.ds.Count(ctx, &model.Env{Project: name}, nil)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return bcode.ErrProjectDenyDeleteByEnvironment
+	}
 
 	return p.ds.Delete(ctx, &model.Project{Name: name})
 }
@@ -191,7 +217,8 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	}, nil
 }
 
-func convertProjectModel2Base(project *model.Project) *apisv1.ProjectBase {
+// ConvertProjectModel2Base convert project model to base struct
+func ConvertProjectModel2Base(project *model.Project) *apisv1.ProjectBase {
 	return &apisv1.ProjectBase{
 		Name:        project.Name,
 		Description: project.Description,

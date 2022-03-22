@@ -38,7 +38,8 @@ type TargetUsecase interface {
 	DeleteTarget(ctx context.Context, TargetName string) error
 	CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error)
 	UpdateTarget(ctx context.Context, Target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error)
-	ListTargets(ctx context.Context, page, pageSize int) (*apisv1.ListTargetResponse, error)
+	ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error)
+	ListTargetCount(ctx context.Context, projectName string) (int64, error)
 }
 
 type targetUsecaseImpl struct {
@@ -58,9 +59,12 @@ func NewTargetUsecase(ds datastore.DataStore) TargetUsecase {
 	}
 }
 
-func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int) (*apisv1.ListTargetResponse, error) {
-
-	Targets, err := listTarget(ctx, dt.ds, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error) {
+	Targets, err := listTarget(ctx, dt.ds, projectName, &datastore.ListOptions{
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +74,17 @@ func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int
 	for _, raw := range Targets {
 		resp.Targets = append(resp.Targets, *(dt.convertFromTargetModel(ctx, raw)))
 	}
-	count, err := dt.ds.Count(ctx, &model.Target{}, nil)
+	count, err := dt.ds.Count(ctx, &model.Target{Project: projectName}, nil)
 	if err != nil {
 		return nil, err
 	}
 	resp.Total = count
 
 	return resp, nil
+}
+
+func (dt *targetUsecaseImpl) ListTargetCount(ctx context.Context, projectName string) (int64, error) {
+	return dt.ds.Count(ctx, &model.Target{Project: projectName}, nil)
 }
 
 // DeleteTarget delete application Target

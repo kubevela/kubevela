@@ -25,6 +25,7 @@ type Project struct {
 	BaseModel
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
+	Owner       string `json:"owner"`
 	Description string `json:"description,omitempty"`
 }
 

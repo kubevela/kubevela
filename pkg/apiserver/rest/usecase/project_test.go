@@ -65,7 +65,7 @@ var _ = Describe("Test project usecase functions", func() {
 			_ = envImpl.DeleteEnv(context.TODO(), e.Name)
 		}
 		targetImpl = &targetUsecaseImpl{k8sClient: k8sClient, ds: ds}
-		targs, err := targetImpl.ListTargets(context.TODO(), 0, 0)
+		targs, err := targetImpl.ListTargets(context.TODO(), 0, 0, "")
 		Expect(err).Should(BeNil())
 		// reset all projects
 		for _, e := range targs.Targets {

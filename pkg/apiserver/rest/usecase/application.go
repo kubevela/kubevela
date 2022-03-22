@@ -912,7 +912,7 @@ func (c *applicationUsecaseImpl) convertAppModelToBase(ctx context.Context, app 
 		log.Logger.Errorf("query project info failure %s", err.Error())
 	}
 	if project != nil {
-		appBase.Project = convertProjectModel2Base(project)
+		appBase.Project = ConvertProjectModel2Base(project)
 	}
 	return appBase
 }

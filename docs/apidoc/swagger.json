@@ -468,8 +468,14 @@
 					},
 					{
 						"type": "string",
-						"description": "The namespace of the managed cluster",
-						"name": "namespace",
+						"description": "search base on project name",
+						"name": "project",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "search base on env name",
+						"name": "env",
 						"in": "query"
 					},
 					{
@@ -3680,6 +3686,79 @@
 				}
 			}
 		},
+		"/api/v1/projects/{projectName}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "detail a project",
+				"operationId": "detailProject",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ProjectBase"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a project",
+				"operationId": "deleteProject",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/targets": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get targets list belong to a project",
+				"operationId": "listProjectTargets",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/query": {
 			"get": {
 				"consumes": [
@@ -6433,12 +6512,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
-				"note",
-				"triggerType",
 				"createTime",
+				"status",
+				"envName",
 				"version",
-				"envName"
+				"note",
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7567,13 +7646,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"description",
+				"name",
 				"alias",
 				"project",
-				"createTime",
 				"updateTime",
 				"icon",
-				"name",
+				"description",
+				"createTime",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -7634,20 +7713,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"reason",
-				"labels",
-				"updateTime",
+				"name",
 				"alias",
-				"icon",
-				"provider",
-				"kubeConfig",
+				"labels",
+				"status",
+				"reason",
+				"kubeConfigSecret",
 				"createTime",
 				"description",
-				"name",
-				"apiServerURL",
 				"dashboardURL",
-				"kubeConfigSecret",
-				"status",
+				"kubeConfig",
+				"icon",
+				"provider",
+				"apiServerURL",
+				"updateTime",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7705,14 +7784,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"alias",
-				"creator",
-				"main",
 				"appPrimaryKey",
+				"creator",
 				"name",
+				"alias",
 				"type",
-				"createTime",
 				"updateTime",
+				"main",
+				"createTime",
 				"definition"
 			],
 			"properties": {
@@ -7814,13 +7893,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -7855,12 +7934,16 @@
 				"appPrimaryKey",
 				"version",
 				"createTime",
+				"status",
+				"workflowName",
+				"updateTime",
+				"appPrimaryKey",
 				"reason",
 				"triggerType",
 				"envName",
-				"status",
-				"deployUser",
-				"workflowName"
+				"triggerType",
+				"version",
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -7953,11 +8036,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"email",
+				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
-				"disabled",
 				"projects"
 			],
 			"properties": {
@@ -7991,12 +8074,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
+				"workflowName",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -8048,14 +8131,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
 				"alias",
-				"description",
 				"enable",
-				"envName",
-				"createTime",
 				"default",
-				"updateTime"
+				"envName",
+				"updateTime",
+				"name",
+				"description",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -8787,11 +8870,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"updateTime",
+				"createTime",
 				"installID",
 				"enableCollection",
 				"loginType",
-				"updateTime",
-				"createTime",
 				"systemVersion"
 			],
 			"properties": {

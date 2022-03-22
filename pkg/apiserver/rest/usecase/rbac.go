@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package webservice
+package usecase
 
 import (
 	"fmt"
@@ -22,6 +22,8 @@ import (
 	"sync"
 
 	"github.com/emicklei/go-restful/v3"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -100,21 +102,24 @@ func convertMap2Array(sources map[string]interface{}) (list []string) {
 	return
 }
 
-type permWebService struct {
+type rbacUsecase struct {
+	ds datastore.DataStore
 }
 
-// NewPermWebService is the webservice of user perm
-func NewPermWebService() WebService {
-	return &permWebService{}
+// RBACUsecase implement RBAC-related business logic.
+type RBACUsecase interface {
+	CheckPerm(resource string, actions ...string) func(req *restful.Request, res *restful.Response, chain *restful.FilterChain)
 }
 
-func (p *permWebService) GetWebService() *restful.WebService {
-	ws := new(restful.WebService)
-	return ws
+// NewRBACUsecase is the usecase service of RBAC
+func NewRBACUsecase(ds datastore.DataStore) RBACUsecase {
+	return &rbacUsecase{
+		ds: ds,
+	}
 }
 
-// RegisterResourceAction register resource actions
-func RegisterResourceAction(resource string, actions ...string) {
+// registerResourceAction register resource actions
+func registerResourceAction(resource string, actions ...string) {
 	lock.Lock()
 	defer lock.Unlock()
 	if resourceActions == nil {
@@ -138,8 +143,8 @@ func RegisterResourceAction(resource string, actions ...string) {
 	}
 }
 
-func (p *permWebService) checkPermFilter(resource string, actions ...string) func(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	RegisterResourceAction(resource, actions...)
+func (p *rbacUsecase) CheckPerm(resource string, actions ...string) func(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	registerResourceAction(resource, actions...)
 	f := func(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 		// get user info from req.Request.Context()
 

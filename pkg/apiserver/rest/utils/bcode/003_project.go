@@ -27,3 +27,12 @@ var ErrProjectNamespaceFail = NewBcode(400, 30003, "project bind namespace failu
 
 // ErrProjectNamespaceIsExist the namespace belongs to the other project
 var ErrProjectNamespaceIsExist = NewBcode(400, 30004, "the namespace belongs to the other project")
+
+// ErrProjectDenyDeleteByApplication the project cannot be deleted because there are some applications
+var ErrProjectDenyDeleteByApplication = NewBcode(400, 30005, "the project cannot be deleted because there are some applications")
+
+// ErrProjectDenyDeleteByEnvironment the project cannot be deleted because there are some environments
+var ErrProjectDenyDeleteByEnvironment = NewBcode(400, 30006, "the project cannot be deleted because there are some environments")
+
+// ErrProjectDenyDeleteByTarget the project cannot be deleted because there are some targets
+var ErrProjectDenyDeleteByTarget = NewBcode(400, 30007, "the project cannot be deleted because there are some targets")

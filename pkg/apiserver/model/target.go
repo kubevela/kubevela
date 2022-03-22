@@ -26,6 +26,7 @@ type Target struct {
 	BaseModel
 	Name        string                 `json:"name"`
 	Alias       string                 `json:"alias,omitempty"`
+	Project     string                 `json:"project"`
 	Description string                 `json:"description,omitempty"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
@@ -51,6 +52,9 @@ func (d *Target) Index() map[string]string {
 	index := make(map[string]string)
 	if d.Name != "" {
 		index["name"] = d.Name
+	}
+	if d.Project != "" {
+		index["project"] = d.Project
 	}
 	return index
 }
