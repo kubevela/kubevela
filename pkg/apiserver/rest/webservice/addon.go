@@ -185,12 +185,8 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 func (s *addonWebService) disableAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("name")
 	forceParam := req.QueryParameter("force")
-	force, err := strconv.ParseBool(forceParam)
-	if err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-	err = s.handler.DisableAddon(req.Request.Context(), name, force)
+	force, _ := strconv.ParseBool(forceParam)
+	err := s.handler.DisableAddon(req.Request.Context(), name, force)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

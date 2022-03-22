@@ -72,11 +72,12 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		cd := cachedData.(*cached)
 
 		// TODO(wonderflow): we should check targets if we sync that, it can avoid missing the status changed for targets updated in multi-cluster deploy, e.g. resumed suspend case.
-		if del {
+
+		// if app meta not exist, we should ignore the cache
+		_, _, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
+		if del || err != nil {
 			c.cache.Delete(key)
-			return false
-		}
-		if cd.generation == targetApp.Generation && !del {
+		} else if cd.generation == targetApp.Generation {
 			logrus.Infof("app %s/%s with generation(%v) hasn't updated, ignore the sync event..", targetApp.Name, targetApp.Namespace, targetApp.Generation)
 			return false
 		}
