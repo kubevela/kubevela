@@ -197,15 +197,15 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 }
 
 func usingAppsInfo(apps []v1beta1.Application) string {
-	res := "application: "
+	res := "addon is being used :"
 	appsNamespaceNameList := map[string][]string{}
 	for _, app := range apps {
 		appsNamespaceNameList[app.GetNamespace()] = append(appsNamespaceNameList[app.GetNamespace()], app.GetName())
 	}
 	for namespace, appNames := range appsNamespaceNameList {
 		nameStr := strings.Join(appNames, ",")
-		res += fmt.Sprintf("(%s) in namespace:%s,", nameStr, namespace)
+		res += fmt.Sprintf("{%s} in namespace:%s,", nameStr, namespace)
 	}
-	res = strings.TrimSuffix(res, ",") + " are still using this addon"
+	res = strings.TrimSuffix(res, ",") + ".Please delete them before disabling the addon."
 	return res
 }

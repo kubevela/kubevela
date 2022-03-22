@@ -101,6 +101,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.AddonStatusResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("name", "addon name to enable").DataType("string").Required(true)).
+		Param(ws.QueryParameter("force", "force disable an anddon").DataType("bool").Required(false)).
 		Writes(apis.AddonStatusResponse{}))
 
 	// update addon
