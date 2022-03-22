@@ -463,7 +463,7 @@ spec:
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
 		testAppfile.parser = &Parser{client: k8sClient}
-		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy(context.Background())
+		gotPolicies, err := testAppfile.PreparePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 

@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -60,7 +61,7 @@ func NewDiffCommand(c common.Args) *cobra.Command {
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.RangeArgs(1, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
@@ -82,20 +83,69 @@ func NewDiffCommand(c common.Args) *cobra.Command {
 				cmd.Printf("Application is not running with PublishVersion, the workflow always runs with the latest spec.\n")
 				return nil
 			}
-			if app.Status.LatestRevision == nil {
-				cmd.Printf("Application has no revision now, current phase: %s.\n", app.Status.Phase)
+			revs, err := application.GetAppRevisions(ctx, cli, app.Name, app.Namespace)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get revisions for application %s/%s", app.Namespace, app.Name)
+			}
+			appParser, err := getAppParser(c, cli)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get app parser")
+			}
+
+			var af1, af2 *appfile.Appfile
+			var spec1, spec2 v1beta1.ApplicationSpec
+
+			load := func(revName string, searchPublishVersion bool, afPtr **appfile.Appfile, specPtr *v1beta1.ApplicationSpec) error {
+				rev, err := findRevInAppRevs(revName, revs, searchPublishVersion)
+				if err != nil {
+					return err
+				}
+				af, err := appParser.GenerateAppFileFromRevision(rev)
+				if err != nil {
+					return errors.Wrapf(err, "failed to parse application revision %s", rev.Name)
+				}
+				*afPtr = af
+				*specPtr = rev.Spec.Application.Spec
 				return nil
 			}
-			apprev := &v1beta1.ApplicationRevision{}
-			if err = cli.Get(ctx, apitypes.NamespacedName{Namespace: namespace, Name: app.Status.LatestRevision.Name}, apprev); err != nil {
-				return errors.Wrapf(err, "failed to get application revision %s/%s", namespace, app.Status.LatestRevision.Name)
+			if len(args) < 3 {
+				latestRev := app.Status.LatestRevision
+				app.Status.LatestRevision = nil
+				af1, err = appParser.GenerateAppFile(ctx, app)
+				app.Status.LatestRevision = latestRev
+				if err != nil {
+					return errors.Wrapf(err, "failed to parse current application")
+				}
+				spec1 = app.Spec
 			}
-			diffSpec, specChanged, err := diffApplicationSpec(app, apprev)
+			switch len(args) {
+			case 1:
+				if app.Status.LatestRevision == nil {
+					cmd.Printf("Application has no revision now, current phase: %s.\n", app.Status.Phase)
+					return nil
+				}
+				cmd.Printf("Current revision in use is %s\n", app.Status.LatestRevision.Name)
+				if err = load(app.Status.LatestRevision.Name, false, &af2, &spec2); err != nil {
+					return err
+				}
+			case 2:
+				if err = load(args[1], true, &af2, &spec2); err != nil {
+					return err
+				}
+			case 3:
+				if err = load(args[1], true, &af1, &spec1); err != nil {
+					return err
+				}
+				if err = load(args[2], true, &af2, &spec2); err != nil {
+					return err
+				}
+			}
+			diffSpec, specChanged, err := diffAppSpec(spec2, spec1)
 			if err != nil {
 				return err
 			}
 			cmd.Printf("%s%s%s\n%s\n", color.CyanString("=== Application Spec ("), diffMarker(specChanged), color.CyanString(") ==="), diffSpec)
-			diffExternal, externalChanged, err := diffExternalPoliciesAndWorkflow(ctx, c, cli, namespace, app, apprev)
+			diffExternal, externalChanged, err := diffExternalPoliciesAndWorkflowInAppfile(af2, af1)
 			if err != nil {
 				return err
 			}
@@ -107,6 +157,19 @@ func NewDiffCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
+func findRevInAppRevs(name string, revs []v1beta1.ApplicationRevision, searchPublishVersion bool) (*v1beta1.ApplicationRevision, error) {
+	for _, _rev := range revs {
+		rev := _rev.DeepCopy()
+		if rev.Name == name {
+			return rev, nil
+		}
+		if searchPublishVersion && oam.GetPublishVersion(rev) == name {
+			return rev, nil
+		}
+	}
+	return nil, errors.Errorf("failed to find application revision with name or PublishVersion equal to %s", name)
+}
+
 func diffMarker(changed bool) string {
 	if changed {
 		return color.YellowString("Modified")
@@ -114,16 +177,15 @@ func diffMarker(changed bool) string {
 	return color.CyanString("No Change")
 }
 
-func diffApplicationSpec(app *v1beta1.Application, apprev *v1beta1.ApplicationRevision) (string, bool, error) {
-	original, err := yaml.Marshal(apprev.Spec.Application.Spec)
+func diffAppSpec(a, b v1beta1.ApplicationSpec) (string, bool, error) {
+	original, err := yaml.Marshal(a)
 	if err != nil {
 		return "", false, errors.Wrapf(err, "cannot marshal original application spec into yaml")
 	}
-	current, err := yaml.Marshal(app.Spec)
+	current, err := yaml.Marshal(b)
 	if err != nil {
 		return "", false, errors.Wrapf(err, "cannot marshal current application spec into yaml")
 	}
-
 	appSpecDiff := diffString(string(original), string(current))
 	if appSpecDiff == "" {
 		appSpecDiff = "No diff in application spec."
@@ -131,42 +193,37 @@ func diffApplicationSpec(app *v1beta1.Application, apprev *v1beta1.ApplicationRe
 	return appSpecDiff, string(original) != string(current), nil
 }
 
-func diffExternalPoliciesAndWorkflow(ctx context.Context, c common.Args, cli client.Client, namespace string, app *v1beta1.Application, apprev *v1beta1.ApplicationRevision) (string, bool, error) {
-	cfg, err := c.GetConfig()
-	if err != nil {
-		return "", false, err
-	}
-	dm, err := discoverymapper.New(cfg)
-	if err != nil {
-		return "", false, err
-	}
-	pd, err := packages.NewPackageDiscover(cfg)
-	if err != nil {
-		return "", false, err
-	}
-	appParser := appfile.NewApplicationParser(cli, dm, pd)
-	revisionAppfile, err := appParser.GenerateAppFileFromRevision(apprev)
-	if err != nil {
-		return "", false, errors.Wrapf(err, "failed to parse application revision %s/%s", namespace, apprev.Name)
-	}
-	app.Status.LatestRevision = nil
-	currentAppfile, err := appParser.GenerateAppFile(ctx, app)
-	if err != nil {
-		return "", false, errors.Wrapf(err, "failed to generate appfile for current application spec")
-	}
-	revisionString, err := encodeExternalPoliciesAndWorkflowInAppfile(revisionAppfile)
+func diffExternalPoliciesAndWorkflowInAppfile(a, b *appfile.Appfile) (string, bool, error) {
+	original, err := encodeExternalPoliciesAndWorkflowInAppfile(a)
 	if err != nil {
 		return "", false, errors.Wrapf(err, "encode revision error")
 	}
-	applicationString, err := encodeExternalPoliciesAndWorkflowInAppfile(currentAppfile)
+	current, err := encodeExternalPoliciesAndWorkflowInAppfile(b)
 	if err != nil {
 		return "", false, errors.Wrapf(err, "encode application error")
 	}
-	diff := diffString(revisionString, applicationString)
+	diff := diffString(original, current)
 	if diff == "" {
 		diff = "No diff for external policies and workflow."
 	}
-	return diff, revisionString != applicationString, nil
+	return diff, original != current, nil
+}
+
+func getAppParser(c common.Args, cli client.Client) (*appfile.Parser, error) {
+	cfg, err := c.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	dm, err := discoverymapper.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	pd, err := packages.NewPackageDiscover(cfg)
+	if err != nil {
+		return nil, err
+	}
+	appParser := appfile.NewApplicationParser(cli, dm, pd)
+	return appParser, nil
 }
 
 func encodeExternalPoliciesAndWorkflowInAppfile(af *appfile.Appfile) (string, error) {

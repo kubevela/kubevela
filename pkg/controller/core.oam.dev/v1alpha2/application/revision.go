@@ -267,6 +267,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	for name, def := range af.RelatedTraitDefinitions {
 		appRev.Spec.TraitDefinitions[name] = *def
 	}
+	for name, def := range af.RelatedWorkflowStepDefinitions {
+		appRev.Spec.WorkflowStepDefinitions[name] = *def
+	}
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
@@ -305,6 +308,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ComponentDefinitionHash map[string]string
 		TraitDefinitionHash     map[string]string
 		ScopeDefinitionHash     map[string]string
+		AppfileCacheHash        string
 	}
 	appRevisionHash := AppRevisionHash{
 		WorkloadDefinitionHash:  make(map[string]string),
@@ -345,6 +349,10 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		appRevisionHash.ScopeDefinitionHash[key] = hash
 	}
+	appRevisionHash.AppfileCacheHash, err = utils.ComputeSpecHash(appRevision.Spec.AppfileCache)
+	if err != nil {
+		return "", err
+	}
 	// compatible for old mode without any policy or workflow
 	if len(appRevision.Spec.PolicyDefinitions) == 0 && len(appRevision.Spec.WorkflowStepDefinitions) == 0 {
 		// compute the hash of the entire structure
@@ -360,6 +368,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash        map[string]string
 		PolicyDefinitionHash       map[string]string
 		WorkflowStepDefinitionHash map[string]string
+		AppfileCacheHash           string
 	}
 	appRevisionHashWorkflow := AppRevisionHashWorkflow{
 		ApplicationSpecHash:        appRevisionHash.ApplicationSpecHash,
@@ -384,6 +393,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		appRevisionHashWorkflow.WorkflowStepDefinitionHash[key] = hash
 	}
+	appRevisionHashWorkflow.AppfileCacheHash = appRevisionHash.AppfileCacheHash
 	return utils.ComputeSpecHash(&appRevisionHashWorkflow)
 }
 
@@ -398,6 +408,9 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationAutoUpdate) {
 		isLatestRev = h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev)
 	}
+	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
+		isLatestRev = false
+	}
 
 	// diff the latest revision first
 	if isLatestRev {
@@ -410,20 +423,19 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		return false, false, nil
 	}
 
-	// list revision histories
-	revisionList := &v1beta1.ApplicationRevisionList{}
-	listOpts := []client.ListOption{client.MatchingLabels{
-		oam.LabelAppName: h.app.Name,
-	}, client.InNamespace(h.app.Namespace)}
-	if err := h.r.Client.List(ctx, revisionList, listOpts...); err != nil {
+	revs, err := GetAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
+	if err != nil {
 		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
 		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
 
-	for i := range revisionList.Items {
-		if revisionList.Items[i].GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash && DeepEqualRevision(&revisionList.Items[i], h.currentAppRev) {
+	for _, _rev := range revs {
+		rev := _rev.DeepCopy()
+		if rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash &&
+			DeepEqualRevision(rev, h.currentAppRev) &&
+			oam.GetPublishVersion(rev) != oam.GetPublishVersion(h.app) {
 			// we set currentAppRev to existRevision
-			h.currentAppRev = revisionList.Items[i].DeepCopy()
+			h.currentAppRev = rev
 			return true, false, nil
 		}
 	}
@@ -475,7 +487,8 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 
 func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
 	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
-		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
+		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions)) &&
+		apiequality.Semantic.DeepEqual(old.Spec.AppfileCache, new.Spec.AppfileCache)
 }
 
 // HandleComponentsRevision manages Component revisions
@@ -743,7 +756,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
 		if apierrors.IsNotFound(err) {
 			if err = h.r.Create(ctx, appRev); err == nil {
-				h.UpdateApplicationRevisionStatus(ctx, appRev, types.WorkflowStarted)
+				h.UpdateApplicationRevisionStatus(ctx, appRev, types.WorkflowStarted, nil)
 			}
 		}
 		return err
@@ -784,23 +797,17 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if DisableAllApplicationRevision {
 		return nil
 	}
-	listOpts := []client.ListOption{
-		client.InNamespace(h.app.Namespace),
-		client.MatchingLabels{oam.LabelAppName: h.app.Name},
-	}
-	appRevisionList := new(v1beta1.ApplicationRevisionList)
-	// controller-runtime will cache all appRevision by default, there is no need to watch or own appRevision in manager
-	if err := h.r.List(ctx, appRevisionList, listOpts...); err != nil {
+	sortedRevision, err := GetAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
+	if err != nil {
 		return err
 	}
 	appRevisionInUse := gatherUsingAppRevision(h)
-	needKill := len(appRevisionList.Items) - h.r.appRevisionLimit - len(appRevisionInUse)
+	needKill := len(sortedRevision) - h.r.appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
 	}
 	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
-		"total", len(appRevisionList.Items), "using", len(appRevisionInUse), "kill", needKill)
-	sortedRevision := appRevisionList.Items
+		"total", len(sortedRevision), "using", len(appRevisionInUse), "kill", needKill)
 	sort.Sort(historiesByRevision(sortedRevision))
 
 	for _, rev := range sortedRevision {
@@ -951,12 +958,12 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 }
 
 // UpdateApplicationRevisionStatus update application revision status
-func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, workflowStatus string) {
+func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, workflowResult types.WorkflowResult, workflowStatus *common.WorkflowStatus) {
 	if appRev == nil {
 		return
 	}
 	wfStatus := appRev.Status.Workflow
-	switch workflowStatus {
+	switch workflowResult {
 	case types.WorkflowStarted:
 		wfStatus.PublishVersion = oam.GetPublishVersion(h.app)
 		wfStatus.StartTime = &metav1.Time{Time: time.Now()}
@@ -966,6 +973,7 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 	case types.WorkflowFailed:
 		wfStatus.EndTime = &metav1.Time{Time: time.Now()}
 	}
+	wfStatus.Result = workflowResult
 	wfStatus.Status = workflowStatus
 	appRev.Status.Workflow = wfStatus
 	if err := h.r.Client.Status().Update(ctx, appRev); err != nil {
@@ -975,4 +983,38 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
 		}
 	}
+}
+
+// GetAppRevisions get application revisions by label
+func GetAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	listOpts := []client.ListOption{
+		client.InNamespace(appNs),
+		client.MatchingLabels{oam.LabelAppName: appName},
+	}
+	appRevisionList := new(v1beta1.ApplicationRevisionList)
+	if err := cli.List(ctx, appRevisionList, listOpts...); err != nil {
+		return nil, err
+	}
+	return appRevisionList.Items, nil
+}
+
+// GetSortedAppRevisions get application revisions by label and sort them by workflow start time in decending order
+func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	revs, err := GetAppRevisions(ctx, cli, appName, appNs)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(revs, func(i, j int) bool {
+		if revs[i].Status.Workflow.StartTime != nil && revs[j].Status.Workflow.StartTime != nil {
+			return !revs[i].Status.Workflow.StartTime.Before(revs[j].Status.Workflow.StartTime)
+		}
+		if revs[i].Status.Workflow.StartTime != nil {
+			return true
+		}
+		if revs[j].Status.Workflow.StartTime != nil {
+			return false
+		}
+		return !revs[i].CreationTimestamp.Before(&revs[j].CreationTimestamp)
+	})
+	return revs, nil
 }

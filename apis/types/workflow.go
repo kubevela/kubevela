@@ -20,13 +20,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// WorkflowResult the running result for workflow
+type WorkflowResult string
+
 const (
 	// WorkflowStarted workflow started
-	WorkflowStarted = "Started"
+	WorkflowStarted WorkflowResult = "Started"
 	// WorkflowFailed workflow failed
-	WorkflowFailed = "Failed"
+	WorkflowFailed WorkflowResult = "Failed"
 	// WorkflowSucceed workflow succeeded
-	WorkflowSucceed = "Succeeded"
+	WorkflowSucceed WorkflowResult = "Succeeded"
 )
 
 // WorkflowContext is the workflow context to pass into workflow objects.

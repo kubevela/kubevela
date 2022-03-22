@@ -181,11 +181,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	logCtx.Info("Successfully apply application revision")
 
-	externalPolicies, err := appFile.PrepareWorkflowAndPolicy(logCtx)
+	externalPolicies, err := appFile.PreparePolicyManifests(logCtx)
 	if err != nil {
-		logCtx.Error(err, "[Handle PrepareWorkflowAndPolicy]")
+		logCtx.Error(err, "[Handle PreparePolicyManifests]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
-		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "PrepareWorkflowAndPolicy")), common.ApplicationPolicyGenerating)
+		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.PolicyCondition.String(), errors.WithMessage(err, "PreparePolicyManifests")), common.ApplicationPolicyGenerating)
 	}
 
 	if len(externalPolicies) > 0 {
@@ -223,7 +223,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	switch workflowState {
 	case common.WorkflowStateInitializing:
 		logCtx.Info("Workflow return state=Initializing")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, velatypes.WorkflowStarted)
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, velatypes.WorkflowStarted, app.Status.Workflow)
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
@@ -233,7 +233,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 	case common.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, velatypes.WorkflowFailed)
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, velatypes.WorkflowFailed, app.Status.Workflow)
 		if err := r.doWorkflowFinish(app, wf); err != nil {
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 		}
@@ -244,7 +244,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(err).requeue(wf.GetBackoffWaitTime()).ret()
 	case common.WorkflowStateSucceeded:
 		logCtx.Info("Workflow return state=Succeeded")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, velatypes.WorkflowSucceed)
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, velatypes.WorkflowSucceed, app.Status.Workflow)
 		if err := r.doWorkflowFinish(app, wf); err != nil {
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 		}

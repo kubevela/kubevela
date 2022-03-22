@@ -132,7 +132,11 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	}
 
 	if err = p.parsePolicies(ctx, appfile); err != nil {
-		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+		return nil, errors.Wrapf(err, "failed to parsePolicies")
+	}
+
+	if err = p.parseWorkflowSteps(ctx, appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseWorkflowSteps")
 	}
 
 	for _, w := range wds {
@@ -274,6 +278,9 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	for k, v := range appRev.Spec.TraitDefinitions {
 		appfile.RelatedTraitDefinitions[k] = v.DeepCopy()
 	}
+	for k, v := range appRev.Spec.WorkflowStepDefinitions {
+		appfile.RelatedWorkflowStepDefinitions[k] = v.DeepCopy()
+	}
 	for k, v := range appRev.Spec.ScopeDefinitions {
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
 	}
@@ -354,6 +361,20 @@ func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev 
 		ws = append(ws, w)
 	}
 	return ws, nil
+}
+
+func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
+	for _, workflowStep := range af.WorkflowSteps {
+		if _, found := af.RelatedWorkflowStepDefinitions[workflowStep.Type]; found {
+			continue
+		}
+		def := &v1beta1.WorkflowStepDefinition{}
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+			return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
+		}
+		af.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
+	}
+	return nil
 }
 
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Workload, error) {

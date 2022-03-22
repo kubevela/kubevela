@@ -74,14 +74,12 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 	}, nil
 }
 
-// NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	email.Install(providerHandlers)
 	util.Install(providerHandlers)
 
-	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend": suspend,
@@ -89,6 +87,18 @@ func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers, 0, pCtx),
 		templateLoader:     templateLoader,
 	}
+}
+
+// NewTaskDiscover will create a client for load task generator.
+func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
+	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
+}
+
+// NewTaskDiscoverFromRevision will create a client for load task generator from ApplicationRevision.
+func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+	templateLoader := template.NewWorkflowStepTemplateRevisionLoader(rev, dm)
+	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
 }
 
 type suspendTaskRunner struct {

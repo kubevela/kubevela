@@ -166,6 +166,7 @@ type Appfile struct {
 
 	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
 	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
+	RelatedWorkflowStepDefinitions     map[string]*v1beta1.WorkflowStepDefinition
 	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
 
 	Policies        []v1beta1.AppPolicy
@@ -182,14 +183,8 @@ type Appfile struct {
 	app    *v1beta1.Application
 }
 
-// Handler handles reconcile
-type Handler interface {
-	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
-	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
-}
-
-// PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructured.Unstructured, error) {
+// PreparePolicyManifests generates workflow steps and policies from an appFile
+func (af *Appfile) PreparePolicyManifests(ctx context.Context) ([]*unstructured.Unstructured, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("prepare-workflow-and-policy", monitorContext.DurationMetric(func(v float64) {
 			metrics.PrepareWorkflowAndPolicyDurationHistogram.WithLabelValues("application").Observe(v)

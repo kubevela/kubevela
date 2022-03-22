@@ -19,6 +19,9 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -82,8 +85,10 @@ type ApplicationRevisionWorkflowStatus struct {
 	EndTime *metav1.Time `json:"endTime,omitempty"`
 	// PublishVersion the version of workflow
 	PublishVersion string `json:"publishVersion,omitempty"`
-	// Status workflow status
-	Status string `json:"status"`
+	// Result workflow result: succeeded / failed/ started
+	Result types.WorkflowResult `json:"result"`
+	// Status the original workflow running status
+	Status *common.WorkflowStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -94,7 +99,7 @@ type ApplicationRevisionWorkflowStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="PUBLISH_VERSION",type=string,JSONPath=`.status.workflow.publishVersion`
-// +kubebuilder:printcolumn:name="STATUS",type=string,JSONPath=`.status.workflow.status`
+// +kubebuilder:printcolumn:name="RESULT",type=string,JSONPath=`.status.workflow.result`
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevision struct {
