@@ -294,8 +294,18 @@ func (c *applicationUsecaseImpl) GetApplicationStatus(ctx context.Context, appmo
 
 // GetApplicationCR get application CR in cluster
 func (c *applicationUsecaseImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
-
 	var apps v1beta1.ApplicationList
+	if appModel.IsSynced() {
+		var app v1beta1.Application
+		err := c.kubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.GetAppNamespaceForSynced(), Name: appModel.GetAppNameForSynced()}, &app)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		if err == nil {
+			apps.Items = append(apps.Items, app)
+			return &apps, nil
+		}
+	}
 	selector := labels.NewSelector()
 	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.GetAppNameForSynced()})
 	if err != nil {
@@ -924,12 +934,11 @@ func (c *applicationUsecaseImpl) convertRevisionModelToBase(revision *model.Appl
 
 // DeleteApplication delete application
 func (c *applicationUsecaseImpl) DeleteApplication(ctx context.Context, app *model.Application) error {
-	// TODO: check app can be deleted
 	crs, err := c.GetApplicationCR(ctx, app)
 	if err != nil {
 		return err
 	}
-	if len(crs.Items) > 0 || app.IsSynced() {
+	if len(crs.Items) > 0 {
 		return bcode.ErrApplicationRefusedDelete
 	}
 	// query all components to deleted
