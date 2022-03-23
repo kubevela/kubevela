@@ -137,17 +137,15 @@ func prepareProviderAddCommand(c common.Args) (*cobra.Command, error) {
 				}
 			}
 			return errors.New(errMsg)
-		} else {
-			if err == nil {
-				var found bool
-				for _, def := range defs {
-					if def.Name == args[0] {
-						found = true
-					}
+		} else if err == nil {
+			var found bool
+			for _, def := range defs {
+				if def.Name == args[0] {
+					found = true
 				}
-				if !found {
-					return fmt.Errorf("%s is not valid", args[0])
-				}
+			}
+			if !found {
+				return fmt.Errorf("%s is not valid", args[0])
 			}
 		}
 		return nil
@@ -212,7 +210,7 @@ func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
 								Components: []coreapi.ApplicationComponent{
 									{
 										Name: providerAppName,
-										Type: d.Name,
+										Type: providerType,
 										Properties: &runtime.RawExtension{
 											Raw: data,
 										},
@@ -247,19 +245,34 @@ func getParameters(ctx context.Context, k8sClient client.Client, providerType st
 	return cap.Parameters, nil
 }
 
-type Provider struct {
+// ProviderMeta is the metadata for a Terraform Cloud Provider
+type ProviderMeta struct {
 	Type string
 	Name string
 	Age  string
 }
 
 func listProviders(ctx context.Context, k8sClient client.Client) error {
-	var providers []Provider
+	var (
+		providers        []ProviderMeta
+		currentProviders []tcv1beta1.Provider
+		legacyProviders  []tcv1beta1.Provider
+	)
 	tcProviders := &tcv1beta1.ProviderList{}
-	if err := k8sClient.List(ctx, tcProviders, client.InNamespace(ProviderNamespace),
-		client.MatchingLabels{"config.oam.dev/type": labelVal}); err != nil {
+	// client.MatchingLabels{: }
+	if err := k8sClient.List(ctx, tcProviders, client.InNamespace(ProviderNamespace)); err != nil {
 		return errors.Wrap(err, "failed to retrieve providers")
 	}
+
+	for _, p := range tcProviders.Items {
+		if p.Labels["config.oam.dev/type"] == labelVal {
+			currentProviders = append(currentProviders, p)
+		} else {
+			// if not labeled, the provider is manually created or created by `vela addon enable`.
+			legacyProviders = append(legacyProviders, p)
+		}
+	}
+
 	defs, err := getTerraformProviderTypes(ctx, k8sClient)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
@@ -270,10 +283,10 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 
 	for _, d := range defs {
 		var found bool
-		for _, p := range tcProviders.Items {
+		for _, p := range currentProviders {
 			if p.Labels[oam.WorkloadTypeLabel] == d.Name {
 				found = true
-				providers = append(providers, Provider{
+				providers = append(providers, ProviderMeta{
 					Type: p.Labels[oam.WorkloadTypeLabel],
 					Name: p.Name,
 					Age:  p.CreationTimestamp.String(),
@@ -281,10 +294,18 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 			}
 		}
 		if !found {
-			providers = append(providers, Provider{
+			providers = append(providers, ProviderMeta{
 				Type: d.Name,
 			})
 		}
+	}
+
+	for _, p := range legacyProviders {
+		providers = append(providers, ProviderMeta{
+			Type: "-",
+			Name: p.Name + "(legacy)",
+			Age:  p.CreationTimestamp.String(),
+		})
 	}
 
 	if len(providers) == 0 {
@@ -360,17 +381,15 @@ func prepareProviderDeleteCommand(c common.Args) (*cobra.Command, error) {
 				}
 			}
 			return errors.New(errMsg)
-		} else {
-			if err == nil {
-				var found bool
-				for _, def := range defs {
-					if def.Name == args[0] {
-						found = true
-					}
+		} else if err == nil {
+			var found bool
+			for _, def := range defs {
+				if def.Name == args[0] {
+					found = true
 				}
-				if !found {
-					return fmt.Errorf("%s is not valid", args[0])
-				}
+			}
+			if !found {
+				return fmt.Errorf("%s is not valid", args[0])
 			}
 		}
 		return nil
