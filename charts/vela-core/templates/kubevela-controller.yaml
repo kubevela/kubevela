@@ -73,6 +73,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
 
+---
 {{ if not .Values.podOnly }}
 apiVersion: apps/v1
 kind: Deployment
