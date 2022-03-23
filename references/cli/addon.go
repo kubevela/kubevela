@@ -117,16 +117,21 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "enable",
-		Short:   "enable an addon",
-		Long:    "enable an addon in cluster.",
-		Example: "vela addon enable <addon-name>",
+		Use:   "enable",
+		Short: "enable an addon",
+		Long:  "enable an addon in cluster.",
+		Example: `\
+Enable addon by:
+	vela addon enable <addon-name>
+Enable addon for specific clusters, (local means control plane):
+	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			addonArgs, err := parseToMap(args[1:])
+			addonArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
 				return err
 			}
@@ -196,10 +201,15 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "upgrade",
-		Short:   "upgrade an addon",
-		Long:    "upgrade an addon in cluster.",
-		Example: "vela addon upgrade <addon-name>",
+		Use:   "upgrade",
+		Short: "upgrade an addon",
+		Long:  "upgrade an addon in cluster.",
+		Example: `\
+Upgrade addon by:
+	vela addon upgrade <addon-name>
+Upgrade addon for specific clusters, (local means control plane):
+	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
@@ -216,7 +226,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			addonArgs, err := parseToMap(args[1:])
+			addonArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
 				return err
 			}
@@ -260,12 +270,28 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 	return cmd
 }
 
-func parseToMap(args []string) (map[string]interface{}, error) {
+func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	for _, arg := range args {
 		if err := strvals.ParseIntoString(arg, res); err != nil {
 			return nil, err
 		}
+	}
+	clusters, ok := res[types.ClustersArg]
+	if ok {
+		var clusterL []string
+		clusterList, ok := clusters.([]interface{})
+		if !ok {
+			return nil, errors.Errorf("you must specify string list for --clusters instead of %v", clusters)
+		}
+		for _, v := range clusterList {
+			val, strOk := v.(string)
+			if !strOk {
+				return nil, errors.Errorf("only string allowed in parameter --clusters list instead of %v", v)
+			}
+			clusterL = append(clusterL, strings.TrimSpace(val))
+		}
+		res[types.ClustersArg] = clusterL
 	}
 	return res, nil
 }

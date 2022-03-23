@@ -228,15 +228,16 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
-	assert.Equal(t, len(app.Spec.Components), 2)
+	// definition should not be rendered
+	assert.Equal(t, len(app.Spec.Components), 1)
 }
 
 func TestRenderAppWithNeedNamespace(t *testing.T) {
 	addon := baseAddon
-	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS)
-	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS, "test-ns2")
+	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 	for _, c := range app.Spec.Components {
@@ -257,7 +258,7 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	steps := app.Spec.Workflow.Steps
 	assert.True(t, len(steps) >= 2)
@@ -278,7 +279,7 @@ func TestRenderDefinitions(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	// addon which app work on no-runtime-cluster mode workflow is nil
 	assert.Nil(t, app.Spec.Workflow)
@@ -291,7 +292,7 @@ func TestRenderK8sObjects(t *testing.T) {
 		RuntimeCluster:      false,
 	}
 
-	app, err := RenderApp(ctx, &addonMultiYaml, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 1)
 	comp := app.Spec.Components[0]
@@ -556,7 +557,7 @@ func TestRenderApp4Observability(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
@@ -603,7 +604,7 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)

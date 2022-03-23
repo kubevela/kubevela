@@ -53,6 +53,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -523,32 +524,22 @@ func genAddonAPISchema(addonRes *UIData) error {
 	return nil
 }
 
-// RenderApp render a K8s application
-func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
-	if args == nil {
-		args = map[string]interface{}{}
+func getClusters(args map[string]interface{}) []string {
+	ccr, ok := args[types.ClustersArg]
+	if !ok {
+		return nil
 	}
-	app := addon.AppTemplate
-	if app == nil {
-		app = &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      Convert2AppName(addon.Name),
-				Namespace: types.DefaultKubeVelaNS,
-				Labels: map[string]string{
-					oam.LabelAddonName: addon.Name,
-				},
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common2.ApplicationComponent{},
-			},
-		}
+	cc, ok := ccr.([]string)
+	if !ok {
+		return nil
 	}
-	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+	return cc
+}
 
-	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
-	app.SetNamespace(types.DefaultKubeVelaNS)
-
+// renderNeededNamespaceAsComps will convert namespace as app components to create namespace for managed clusters
+func renderNeededNamespaceAsComps(addon *InstallPackage) []common2.ApplicationComponent {
+	var nscomps []common2.ApplicationComponent
+	// create namespace for managed clusters
 	for _, namespace := range addon.NeedNamespace {
 		// vela-system must exist before rendering vela addon
 		if namespace == types.DefaultKubeVelaNS {
@@ -559,15 +550,19 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 			Name:       fmt.Sprintf("%s-namespace", namespace),
 			Properties: util.Object2RawExtension(renderNamespace(namespace)),
 		}
-		app.Spec.Components = append(app.Spec.Components, comp)
+		nscomps = append(nscomps, comp)
 	}
+	return nscomps
+}
 
+func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
+	var resources []common2.ApplicationComponent
 	if len(addon.YAMLTemplates) != 0 {
 		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
 		if err != nil {
 			return nil, err
 		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
+		resources = append(resources, *comp)
 	}
 
 	for _, tmpl := range addon.CUETemplates {
@@ -578,23 +573,110 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
 			comp.Name = strings.Split(comp.Name, ".cue")[0]
 		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
+		resources = append(resources, *comp)
+	}
+	return resources, nil
+}
+
+func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
+	app := addon.AppTemplate
+	if app == nil {
+		app = &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common2.ApplicationComponent{},
+			},
+		}
+	}
+	app.Name = Convert2AppName(addon.Name)
+	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
+	app.SetNamespace(types.DefaultKubeVelaNS)
+	if app.Labels == nil {
+		app.Labels = make(map[string]string)
+	}
+	app.Labels[oam.LabelAddonName] = addon.Name
+	return app
+}
+
+func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[string]interface{}) ([]string, error) {
+	deployClusters := getClusters(args)
+	if len(deployClusters) == 0 || k8sClient == nil {
+		return nil, nil
+	}
+	vcs, err := multicluster.ListVirtualClusters(ctx, k8sClient)
+	if err != nil {
+		return nil, err
+	}
+	var res []string
+	for _, c := range deployClusters {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		var found bool
+		for _, vc := range vcs {
+			if c == vc.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, errors.Errorf("cluster %s not exist", c)
+		}
+		res = append(res, c)
+	}
+	return res, nil
+}
+
+// RenderApp render a K8s application
+func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
+
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+
+	app := formatAppFramework(addon)
+	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
+
+	resources, err := renderResources(addon, args)
+	if err != nil {
+		return nil, err
+	}
+	app.Spec.Components = append(app.Spec.Components, resources...)
+
+	deployClusters, err := checkDeployClusters(ctx, k8sClient, args)
+	if err != nil {
+		return nil, err
 	}
 
 	switch {
+	case app.Spec.Workflow != nil && (len(app.Spec.Workflow.Steps) > 0 || app.Spec.Workflow.Ref != ""):
+		// if users have already specified workflow in addon, this won't work
 	case isDeployToRuntimeOnly(addon):
-		if app.Spec.Workflow == nil {
-			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
-		}
-		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
-			v1beta1.WorkflowStep{
-				Name: "deploy-control-plane",
-				Type: "apply-application",
-			},
-			v1beta1.WorkflowStep{
-				Name: "deploy-runtime",
-				Type: "deploy2runtime",
+		if len(deployClusters) > 0 {
+			// deploy to specified clusters
+			if app.Spec.Policies == nil {
+				app.Spec.Policies = []v1beta1.AppPolicy{}
+			}
+			body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+				Name:       "specified-addon-clusters",
+				Type:       v1alpha1.TopologyPolicyType,
+				Properties: &runtime.RawExtension{Raw: body},
 			})
+		} else {
+			// deploy to all clusters
+			app.Spec.Workflow = &v1beta1.Workflow{Steps: []v1beta1.WorkflowStep{
+				{
+					Name: "deploy-control-plane",
+					Type: "apply-application",
+				},
+				{
+					Name: "deploy-runtime",
+					Type: "deploy2runtime",
+				},
+			}}
+		}
 	case addon.Name == ObservabilityAddon:
 		clusters, err := allocateDomainForAddon(ctx, k8sClient)
 		if err != nil {
@@ -630,36 +712,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, workflowSteps...)
 
 	default:
-		for _, cueDef := range addon.CUEDefinitions {
-			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
-			err := def.FromCUEString(cueDef.Data, config)
-			if err != nil {
-				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
-			}
-			if def.Unstructured.GetNamespace() == "" {
-				def.Unstructured.SetNamespace(types.DefaultKubeVelaNS)
-			}
-			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
-				Name:       cueDef.Name,
-				Type:       "raw",
-				Properties: util.Object2RawExtension(&def.Unstructured),
-			})
-		}
-		for _, teml := range addon.DefSchemas {
-			u, err := renderSchemaConfigmap(teml)
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
-				Name:       teml.Name,
-				Type:       "raw",
-				Properties: util.Object2RawExtension(u),
-			})
-		}
-		// set to nil so workflow mode will be set to "DAG" automatically
-		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) == 0 {
-			app.Spec.Workflow = nil
-		}
+
 	}
 
 	return app, nil
@@ -698,14 +751,13 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
 
-	if isDeployToRuntimeOnly(addon) {
-		for _, teml := range addon.DefSchemas {
-			u, err := renderSchemaConfigmap(teml)
-			if err != nil {
-				return nil, err
-			}
-			schemaConfigmaps = append(schemaConfigmaps, u)
+	// No matter runtime mode or control mode , definition schemas only needs to control plane k8s.
+	for _, teml := range addon.DefSchemas {
+		u, err := renderSchemaConfigmap(teml)
+		if err != nil {
+			return nil, err
 		}
+		schemaConfigmaps = append(schemaConfigmaps, u)
 	}
 	return schemaConfigmaps, nil
 }
@@ -1080,7 +1132,7 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 }
 
 func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
-	app, err := RenderApp(h.ctx, addon, h.config, h.cli, h.args)
+	app, err := RenderApp(h.ctx, addon, h.cli, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}

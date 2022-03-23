@@ -22,6 +22,9 @@ import (
 	"time"
 
 	"k8s.io/client-go/discovery"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
+	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
+	ocmworkv1 "open-cluster-management.io/api/work/v1"
 
 	v12 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -79,6 +82,9 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(crdv1.AddToScheme(scheme)).NotTo(HaveOccurred())
+	_ = ocmclusterv1alpha1.Install(scheme)
+	_ = ocmclusterv1.Install(scheme)
+	_ = ocmworkv1.Install(scheme)
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
