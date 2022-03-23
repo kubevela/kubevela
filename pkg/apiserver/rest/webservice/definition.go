@@ -47,9 +47,9 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}").To(d.detailDefinition).
+	ws.Route(ws.GET("/{definitionName}").To(d.detailDefinition).
 		Doc("detail definition").
-		Param(ws.PathParameter("name", "identifier of the definition").DataType("string")).
+		Param(ws.PathParameter("definitionName", "identifier of the definition").DataType("string")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "create success", apis.DetailDefinitionResponse{}).
@@ -79,7 +79,7 @@ func (d *definitionWebservice) listDefinitions(req *restful.Request, res *restfu
 }
 
 func (d *definitionWebservice) detailDefinition(req *restful.Request, res *restful.Response) {
-	definition, err := d.definitionUsecase.DetailDefinition(req.Request.Context(), req.PathParameter("name"), req.QueryParameter("type"))
+	definition, err := d.definitionUsecase.DetailDefinition(req.Request.Context(), req.PathParameter("definitionName"), req.QueryParameter("type"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

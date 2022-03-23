@@ -134,4 +134,23 @@ var _ = Describe("Test project usecase functions", func() {
 		projectUsecase.DeleteProject(context.TODO(), "test-project")
 	})
 
+	It("Test Update project function", func() {
+
+	})
+
+	It("Test Delete project function", func() {
+
+	})
+
+	It("Test Create project user function", func() {
+
+	})
+
+	It("Test Update project user function", func() {
+
+	})
+
+	It("Test Delete project user function", func() {
+
+	})
 })

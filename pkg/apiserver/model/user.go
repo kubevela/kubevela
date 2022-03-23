@@ -29,6 +29,7 @@ func init() {
 	RegisterModel(&ProjectUser{})
 	RegisterModel(&Role{})
 	RegisterModel(&PermPolicy{})
+	RegisterModel(&PermPolicyTemplate{})
 }
 
 // User is the model of user
@@ -205,6 +206,41 @@ func (p *PermPolicy) Index() map[string]string {
 	}
 	if p.Principal != nil && p.Principal.Type != "" {
 		index["principal.type"] = p.Principal.Type
+	}
+	return index
+}
+
+// PermPolicyTemplate is a model for a new RBAC mode.
+type PermPolicyTemplate struct {
+	BaseModel
+	Name      string     `json:"name"`
+	Alias     string     `json:"alias"`
+	Resources []string   `json:"resources"`
+	Actions   []string   `json:"actions"`
+	Effect    string     `json:"effect"`
+	Condition *Condition `json:"condition,omitempty"`
+}
+
+// TableName return custom table name
+func (p *PermPolicyTemplate) TableName() string {
+	return tableNamePrefix + "perm_temp"
+}
+
+// ShortTableName return custom table name
+func (p *PermPolicyTemplate) ShortTableName() string {
+	return "perm_temp"
+}
+
+// PrimaryKey return custom primary key
+func (p *PermPolicyTemplate) PrimaryKey() string {
+	return p.Name
+}
+
+// Index return custom index
+func (p *PermPolicyTemplate) Index() map[string]string {
+	index := make(map[string]string)
+	if p.Name != "" {
+		index["name"] = p.Name
 	}
 	return index
 }

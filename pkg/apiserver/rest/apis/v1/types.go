@@ -678,6 +678,7 @@ type ProjectBase struct {
 	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
+	Owner       NameAlias `json:"owner"`
 }
 
 // CreateProjectRequest create project request body
@@ -685,6 +686,14 @@ type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
+}
+
+// UpdateProjectRequest update a project request body
+type UpdateProjectRequest struct {
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
 }
 
 // Env models the data of env in API
@@ -989,6 +998,7 @@ type ApplicationTrait struct {
 type CreateTargetRequest struct {
 	Name        string                 `json:"name" validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Project     string                 `json:"project" validate:"checkname"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
@@ -1029,6 +1039,7 @@ type TargetBase struct {
 	CreateTime   time.Time              `json:"createTime"`
 	UpdateTime   time.Time              `json:"updateTime"`
 	AppNum       int64                  `json:"appNum,omitempty"`
+	Project      NameAlias              `json:"project"`
 }
 
 // ApplicationRevisionBase application revision base spec
@@ -1118,14 +1129,21 @@ type DexConfigResponse struct {
 // DetailUserResponse is the response of user detail
 type DetailUserResponse struct {
 	UserBase
-	Projects []ProjectUserBase `json:"projects"`
+	Projects []*ProjectBase `json:"projects"`
 }
 
 // ProjectUserBase project user base
 type ProjectUserBase struct {
-	Name      string   `json:"name"`
-	Alias     string   `json:"alias"`
-	UserRoles []string `json:"userRoles"`
+	UserName   string    `json:"name"`
+	UserRoles  []string  `json:"userRoles"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// ListProjectUsersResponse the response body that list users belong to a project
+type ListProjectUsersResponse struct {
+	Users []*ProjectUserBase `json:"users"`
+	Total int64              `json:"total"`
 }
 
 // CreateUserRequest create user request
@@ -1169,4 +1187,15 @@ type ListUserOptions struct {
 // GetLoginTypeResponse get login type response
 type GetLoginTypeResponse struct {
 	LoginType string `json:"loginType"`
+}
+
+// AddProjectUserRequest the request body that add user to project
+type AddProjectUserRequest struct {
+	UserName  string   `json:"userName" validate:"checkname"`
+	UserRoles []string `json:"userRoles"`
+}
+
+// UpdateProjectUserRequest the request body that update user role in a project
+type UpdateProjectUserRequest struct {
+	UserRoles []string `json:"userRoles"`
 }

@@ -111,18 +111,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(user.Name).Should(Equal("name"))
 		Expect(user.Alias).Should(Equal("alias"))
 		Expect(user.Email).Should(Equal("email@example.com"))
-		Expect(user.Projects).Should(Equal([]apisv1.ProjectUserBase{
-			{
-				Name:      "project-1",
-				Alias:     "project-alias-1",
-				UserRoles: []string{"user-role-1"},
-			},
-			{
-				Name:      "project-0",
-				Alias:     "project-alias-0",
-				UserRoles: []string{"user-role-0"},
-			},
-		}))
+		Expect(len(user.Projects)).Should(Equal(2))
 	})
 
 	It("Test list users", func() {

@@ -91,16 +91,12 @@ func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 	for _, v := range projectUsers {
 		pu, ok := v.(*model.ProjectUser)
 		if ok {
-			project, err := u.projectUsecase.GetProject(ctx, pu.ProjectName)
+			project, err := u.projectUsecase.DetailProject(ctx, pu.ProjectName)
 			if err != nil {
 				log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
 				continue
 			}
-			detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
-				Name:      pu.ProjectName,
-				Alias:     project.Alias,
-				UserRoles: pu.UserRoles,
-			})
+			detailUser.Projects = append(detailUser.Projects, project)
 		}
 	}
 	return detailUser, nil
@@ -255,7 +251,7 @@ func (u *userUsecaseImpl) updateUserLoginTime(ctx context.Context, user *model.U
 func convertUserModel(user *model.User) *apisv1.DetailUserResponse {
 	return &apisv1.DetailUserResponse{
 		UserBase: *convertUserBase(user),
-		Projects: make([]apisv1.ProjectUserBase, 0),
+		Projects: make([]*apisv1.ProjectBase, 0),
 	}
 }
 

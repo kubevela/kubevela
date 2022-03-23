@@ -62,19 +62,19 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Writes(apis.ListAddonRegistryResponse{}))
 
 	// Delete
-	ws.Route(ws.DELETE("/{name}").To(s.deleteAddonRegistry).
+	ws.Route(ws.DELETE("/{addonRegName}").To(s.deleteAddonRegistry).
 		Doc("delete an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
+		Param(ws.PathParameter("addonRegName", "identifier of the addon registry").DataType("string")).
 		Returns(200, "OK", apis.AddonRegistry{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
-	ws.Route(ws.PUT("/{name}").To(s.updateAddonRegistry).
+	ws.Route(ws.PUT("/{addonRegName}").To(s.updateAddonRegistry).
 		Doc("update an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateAddonRegistryRequest{}).
-		Param(ws.PathParameter("name", "identifier of the addon registry").DataType("string")).
+		Param(ws.PathParameter("addonRegName", "identifier of the addon registry").DataType("string")).
 		Returns(200, "OK", apis.AddonRegistry{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
@@ -110,7 +110,7 @@ func (s *addonRegistryWebService) createAddonRegistry(req *restful.Request, res 
 }
 
 func (s *addonRegistryWebService) deleteAddonRegistry(req *restful.Request, res *restful.Response) {
-	r, err := s.addonUsecase.GetAddonRegistry(req.Request.Context(), req.PathParameter("name"))
+	r, err := s.addonUsecase.GetAddonRegistry(req.Request.Context(), req.PathParameter("addonRegName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -151,7 +151,7 @@ func (s *addonRegistryWebService) updateAddonRegistry(req *restful.Request, res 
 		return
 	}
 	// Call the usecase layer code
-	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("name"), updateReq)
+	meta, err := s.addonUsecase.UpdateAddonRegistry(req.Request.Context(), req.PathParameter("addonRegName"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -24,6 +24,8 @@ import (
 	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -31,34 +33,74 @@ import (
 var resourceActions map[string][]string
 var lock sync.Mutex
 
+type resourceMetadata struct {
+	subResources map[string]resourceMetadata
+	pathName     string
+}
+
 // ResourceMaps all resources definition for RBAC
-var ResourceMaps = map[string]interface{}{
-	"Project": map[string]interface{}{
-		"Application": map[string]interface{}{
-			"Component": map[string]interface{}{
-				"Trait": map[string]interface{}{},
+var ResourceMaps = map[string]resourceMetadata{
+	"project": {
+		subResources: map[string]resourceMetadata{
+			"application": {
+				pathName: "appName",
+				subResources: map[string]resourceMetadata{
+					"component": {
+						subResources: map[string]resourceMetadata{
+							"trait": {
+								pathName: "traitType",
+							},
+						},
+						pathName: "compName",
+					},
+					"workflow": {
+						subResources: map[string]resourceMetadata{
+							"record": {
+								pathName: "record",
+							},
+						},
+						pathName: "workflowName",
+					},
+					"policy": {
+						pathName: "policyName",
+					},
+					"revision": {
+						pathName: "revision",
+					},
+					"envBinding": {
+						pathName: "envName",
+					},
+					"trigger": {},
+				},
 			},
-			"Workflow": map[string]interface{}{
-				"Record": map[string]interface{}{},
+			"environment": {
+				pathName: "envName",
 			},
-			"Policy":     map[string]interface{}{},
-			"Revision":   map[string]interface{}{},
-			"EnvBinding": map[string]interface{}{},
-			"Trigger":    map[string]interface{}{},
+			"workflow": {
+				pathName: "workflowName",
+			},
+			"role":                {},
+			"projectUser":         {},
+			"applicationTemplate": {},
 		},
-		"Environment":         map[string]interface{}{},
-		"Workflow":            map[string]interface{}{},
-		"Role":                map[string]interface{}{},
-		"ProjectUser":         map[string]interface{}{},
-		"ApplicationTemplate": map[string]interface{}{},
+		pathName: "projectName",
 	},
-	"Cluster":       map[string]interface{}{},
-	"Addon":         map[string]interface{}{},
-	"Target":        map[string]interface{}{},
-	"User":          map[string]interface{}{},
-	"Role":          map[string]interface{}{},
-	"SystemSetting": map[string]interface{}{},
-	"Definition":    map[string]interface{}{},
+	"cluster": {
+		pathName: "clusterName",
+	},
+	"addon": {
+		pathName: "addonName",
+	},
+	"addonRegistry": {
+		pathName: "addonRegName",
+	},
+	"target": {
+		pathName: "targetName",
+	},
+	"user":          {},
+	"role":          {},
+	"systemSetting": {},
+	"definition":    {},
 }
 
 var existResourcePaths = convertMap2Array(ResourceMaps)
@@ -66,10 +108,17 @@ var existResourcePaths = convertMap2Array(ResourceMaps)
 func checkResourcePath(resource string) (string, error) {
 	path := ""
 	exist := 0
-	for _, erp := range existResourcePaths {
-		index := strings.Index(erp, fmt.Sprintf("/%s/", resource))
-		if index > -1 {
-			pre := erp[:index+len(resource)+2]
+	lastResourceName := resource[strings.LastIndex(resource, "/")+1:]
+	for key, erp := range existResourcePaths {
+		allMatchIndex := strings.Index(key, fmt.Sprintf("/%s/", resource))
+		index := strings.Index(erp, fmt.Sprintf("/%s:", lastResourceName))
+		if index > -1 && allMatchIndex > -1 {
+			pre := erp[:index+len(lastResourceName)+2]
+			next := strings.Replace(erp, pre, "", 1)
+			nameIndex := strings.Index(next, "/")
+			if nameIndex > -1 {
+				pre += next[:nameIndex]
+			}
 			if pre != path {
 				exist++
 			}
@@ -87,19 +136,27 @@ func checkResourcePath(resource string) (string, error) {
 	return path, fmt.Errorf("there is no resource %s", resource)
 }
 
-func convertMap2Array(sources map[string]interface{}) (list []string) {
+func convertMap2Array(sources map[string]resourceMetadata) map[string]string {
+	list := make(map[string]string)
 	for k, v := range sources {
-		subResource := v.(map[string]interface{})
-		if len(subResource) > 0 {
-			for _, sub := range convertMap2Array(subResource) {
-				list = append(list, fmt.Sprintf("/%s%s", k, sub))
+		if len(v.subResources) > 0 {
+			for sub, subWithPathName := range convertMap2Array(v.subResources) {
+				if subWithPathName != "" {
+					withPathname := fmt.Sprintf("/%s:*%s", k, subWithPathName)
+					if v.pathName != "" {
+						withPathname = fmt.Sprintf("/%s:{%s}%s", k, v.pathName, subWithPathName)
+					}
+					list[fmt.Sprintf("/%s%s", k, sub)] = withPathname
+				}
 			}
 		}
-		if len(subResource) == 0 {
-			list = append(list, fmt.Sprintf("/%s/", k))
+		withPathname := fmt.Sprintf("/%s:*/", k)
+		if v.pathName != "" {
+			withPathname = fmt.Sprintf("/%s:{%s}/", k, v.pathName)
 		}
+		list[fmt.Sprintf("/%s/", k)] = withPathname
 	}
-	return
+	return list
 }
 
 type rbacUsecase struct {
@@ -150,12 +207,17 @@ func (p *rbacUsecase) CheckPerm(resource string, actions ...string) func(req *re
 
 		// get use's perm list.
 
-		// match resource and resource name form req.PathParameter()
-		// Application: req.PathParameter("name")
-		// Component: req.PathParameter("compName")
-		// EnvBinding: req.PathParameter("envName")
+		// match resource and resource name form req.PathParameter(), build resource permission requirements
+		_, err := checkResourcePath(resource)
+		if err != nil {
+			log.Logger.Errorf("check resource path failure %s", err.Error())
+			bcode.ReturnError(req, res, bcode.ErrForbidden)
+			return
+		}
 
 		// match perm policy
+
+		chain.ProcessFilter(req, res)
 	}
 	return f
 }

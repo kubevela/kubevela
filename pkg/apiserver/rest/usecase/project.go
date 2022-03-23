@@ -34,9 +34,15 @@ import (
 // ProjectUsecase project manage usecase.
 type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
+	DetailProject(ctx context.Context, projectName string) (*apisv1.ProjectBase, error)
 	ListProjects(ctx context.Context, page, pageSize int) (*apisv1.ListProjectResponse, error)
 	CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error)
 	DeleteProject(ctx context.Context, projectName string) error
+	UpdateProject(ctx context.Context, projectName string, req apisv1.UpdateProjectRequest) (*apisv1.ProjectBase, error)
+	ListProjectUser(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListProjectUsersResponse, error)
+	AddProjectUser(ctx context.Context, projectName string, req apisv1.AddProjectUserRequest) (*apisv1.ProjectUserBase, error)
+	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
+	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 }
 
 type projectUsecaseImpl struct {
@@ -129,16 +135,36 @@ func (p *projectUsecaseImpl) GetProject(ctx context.Context, projectName string)
 	return project, nil
 }
 
+func (p *projectUsecaseImpl) DetailProject(ctx context.Context, projectName string) (*apisv1.ProjectBase, error) {
+	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	var user = &model.User{Name: project.Owner}
+	if project.Owner != "" {
+		if err := p.ds.Get(ctx, user); err != nil {
+			log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
+		}
+	}
+	return ConvertProjectModel2Base(project, user), nil
+}
+
 func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize int) (*apisv1.ListProjectResponse, error) {
 	var project = model.Project{}
-	entitys, err := ds.List(ctx, &project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	entities, err := ds.List(ctx, &project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
 	var projects []*apisv1.ProjectBase
-	for _, entity := range entitys {
+	for _, entity := range entities {
 		project := entity.(*model.Project)
-		projects = append(projects, ConvertProjectModel2Base(project))
+		var user = &model.User{Name: project.Owner}
+		if project.Owner != "" {
+			if err := ds.Get(ctx, user); err != nil {
+				log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
+			}
+		}
+		projects = append(projects, ConvertProjectModel2Base(project, user))
 	}
 	total, err := ds.Count(ctx, &model.Project{}, nil)
 	if err != nil {
@@ -197,33 +223,180 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 	if exist {
 		return nil, bcode.ErrProjectIsExist
 	}
-
+	owner := req.Owner
+	var user = &model.User{Name: owner}
+	if owner != "" {
+		if err := p.ds.Get(ctx, user); err != nil {
+			return nil, err
+		}
+	}
+	if owner == "" {
+		loginUser := ctx.Value(apisv1.CtxKeyUser).(*model.User)
+		if loginUser != nil {
+			owner = loginUser.Name
+		}
+	}
 	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
 		Alias:       req.Alias,
+		Owner:       owner,
 	}
 
 	if err := p.ds.Add(ctx, newProject); err != nil {
 		return nil, err
 	}
 
-	return &apisv1.ProjectBase{
-		Name:        newProject.Name,
-		Alias:       newProject.Alias,
-		Description: newProject.Description,
-		CreateTime:  newProject.CreateTime,
-		UpdateTime:  newProject.UpdateTime,
-	}, nil
+	return ConvertProjectModel2Base(newProject, user), nil
+}
+
+// UpdateProject update project
+func (p *projectUsecaseImpl) UpdateProject(ctx context.Context, projectName string, req apisv1.UpdateProjectRequest) (*apisv1.ProjectBase, error) {
+	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	project.Alias = req.Alias
+	project.Description = req.Description
+	var user = &model.User{Name: req.Owner}
+	if req.Owner != "" {
+		if err := p.ds.Get(ctx, user); err != nil {
+			return nil, err
+		}
+		project.Owner = req.Owner
+	}
+	err = p.ds.Put(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	return ConvertProjectModel2Base(project, user), nil
+}
+
+func (p *projectUsecaseImpl) ListProjectUser(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListProjectUsersResponse, error) {
+	var projectUser = model.ProjectUser{
+		ProjectName: projectName,
+	}
+	entities, err := p.ds.List(ctx, &projectUser, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	if err != nil {
+		return nil, err
+	}
+	var res apisv1.ListProjectUsersResponse
+	for _, entity := range entities {
+		res.Users = append(res.Users, ConvertProjectUserModel2Base(entity.(*model.ProjectUser)))
+	}
+	count, err := p.ds.Count(ctx, &projectUser, nil)
+	if err != nil {
+		return nil, err
+	}
+	res.Total = count
+	return &res, nil
+}
+
+func (p *projectUsecaseImpl) AddProjectUser(ctx context.Context, projectName string, req apisv1.AddProjectUserRequest) (*apisv1.ProjectUserBase, error) {
+	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	// check user roles
+	for _, role := range req.UserRoles {
+		var projectUser = model.Role{
+			Name: role,
+		}
+		if err := p.ds.Get(ctx, &projectUser); err != nil {
+			return nil, bcode.ErrProjectRoleCheckFailure
+		}
+		if projectUser.Project != "" && projectUser.Project != projectName {
+			return nil, bcode.ErrProjectRoleCheckFailure
+		}
+	}
+	var projectUser = model.ProjectUser{
+		Username:    req.UserName,
+		ProjectName: project.Name,
+		UserRoles:   req.UserRoles,
+	}
+	if err := p.ds.Add(ctx, &projectUser); err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
+			return nil, bcode.ErrProjectUserExist
+		}
+		return nil, err
+	}
+	return ConvertProjectUserModel2Base(&projectUser), nil
+}
+
+func (p *projectUsecaseImpl) DeleteProjectUser(ctx context.Context, projectName string, userName string) error {
+	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return err
+	}
+	var projectUser = model.ProjectUser{
+		Username:    userName,
+		ProjectName: project.Name,
+	}
+	if err := p.ds.Delete(ctx, &projectUser); err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
+			return bcode.ErrProjectUserExist
+		}
+		return err
+	}
+	return nil
+}
+
+func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error) {
+	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	// check user roles
+	for _, role := range req.UserRoles {
+		var projectUser = model.Role{
+			Name: role,
+		}
+		if err := p.ds.Get(ctx, &projectUser); err != nil {
+			return nil, bcode.ErrProjectRoleCheckFailure
+		}
+		if projectUser.Project != "" && projectUser.Project != projectName {
+			return nil, bcode.ErrProjectRoleCheckFailure
+		}
+	}
+	var projectUser = model.ProjectUser{
+		Username:    userName,
+		ProjectName: project.Name,
+	}
+	if err := p.ds.Get(ctx, &projectUser); err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
+			return nil, bcode.ErrProjectUserExist
+		}
+		return nil, err
+	}
+	projectUser.UserRoles = req.UserRoles
+	if err := p.ds.Put(ctx, &projectUser); err != nil {
+		return nil, err
+	}
+	return ConvertProjectUserModel2Base(&projectUser), nil
 }
 
 // ConvertProjectModel2Base convert project model to base struct
-func ConvertProjectModel2Base(project *model.Project) *apisv1.ProjectBase {
-	return &apisv1.ProjectBase{
+func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1.ProjectBase {
+	base := &apisv1.ProjectBase{
 		Name:        project.Name,
 		Description: project.Description,
 		Alias:       project.Alias,
 		CreateTime:  project.CreateTime,
 		UpdateTime:  project.UpdateTime,
 	}
+	if owner != nil {
+		base.Owner = apisv1.NameAlias{Name: owner.Name, Alias: owner.Alias}
+	}
+	return base
+}
+
+// ConvertProjectUserModel2Base convert project user model to base struct
+func ConvertProjectUserModel2Base(user *model.ProjectUser) *apisv1.ProjectUserBase {
+	base := &apisv1.ProjectUserBase{
+		UserName:   user.Username,
+		UserRoles:  user.UserRoles,
+		CreateTime: user.CreateTime,
+		UpdateTime: user.UpdateTime,
+	}
+	return base
 }

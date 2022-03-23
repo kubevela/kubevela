@@ -23,29 +23,29 @@ import (
 
 var _ = Describe("Test rbac service", func() {
 	It("Test check resource", func() {
-		path, err := checkResourcePath("Project")
+		path, err := checkResourcePath("project")
 		Expect(err).Should(BeNil())
-		Expect(path).Should(BeEquivalentTo("Project"))
+		Expect(path).Should(BeEquivalentTo("project:{projectName}"))
 
-		path, err = checkResourcePath("Application")
+		path, err = checkResourcePath("application")
 		Expect(err).Should(BeNil())
-		Expect(path).Should(BeEquivalentTo("Project/Application"))
+		Expect(path).Should(BeEquivalentTo("project:{projectName}/application:{appName}"))
 
-		_, err = checkResourcePath("Applications")
+		_, err = checkResourcePath("applications")
 		Expect(err).ShouldNot(BeNil())
 
-		_, err = checkResourcePath("Project/Component")
+		_, err = checkResourcePath("project/component")
 		Expect(err).ShouldNot(BeNil())
 
-		_, err = checkResourcePath("Workflow")
+		_, err = checkResourcePath("workflow")
 		Expect(err).ShouldNot(BeNil())
 
-		path, err = checkResourcePath("Project/Application/Workflow")
+		path, err = checkResourcePath("project/application/workflow")
 		Expect(err).Should(BeNil())
-		Expect(path).Should(BeEquivalentTo("Project/Application/Workflow"))
+		Expect(path).Should(BeEquivalentTo("project:{projectName}/application:{appName}/workflow:{workflowName}"))
 
-		path, err = checkResourcePath("Project/Workflow")
+		path, err = checkResourcePath("project/workflow")
 		Expect(err).Should(BeNil())
-		Expect(path).Should(BeEquivalentTo("Project/Workflow"))
+		Expect(path).Should(BeEquivalentTo("project:{projectName}/workflow:{workflowName}"))
 	})
 })

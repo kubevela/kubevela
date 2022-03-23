@@ -36,3 +36,9 @@ var ErrProjectDenyDeleteByEnvironment = NewBcode(400, 30006, "the project cannot
 
 // ErrProjectDenyDeleteByTarget the project cannot be deleted because there are some targets
 var ErrProjectDenyDeleteByTarget = NewBcode(400, 30007, "the project cannot be deleted because there are some targets")
+
+// ErrProjectRoleCheckFailure means role is not exit or role is not belong to this project.
+var ErrProjectRoleCheckFailure = NewBcode(400, 30008, "the role is not exit or not belong to this project")
+
+// ErrProjectUserExist means the use is exit in this project
+var ErrProjectUserExist = NewBcode(400, 30009, "the use is exit in this project")

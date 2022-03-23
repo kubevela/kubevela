@@ -617,11 +617,11 @@ func (c *applicationUsecaseImpl) queryApplicationPolicies(ctx context.Context, a
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	policys, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
+	policies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	for _, policy := range policys {
+	for _, policy := range policies {
 		pm := policy.(*model.ApplicationPolicy)
 		list = append(list, pm)
 	}
@@ -912,7 +912,13 @@ func (c *applicationUsecaseImpl) convertAppModelToBase(ctx context.Context, app 
 		log.Logger.Errorf("query project info failure %s", err.Error())
 	}
 	if project != nil {
-		appBase.Project = ConvertProjectModel2Base(project)
+		var user = &model.User{Name: project.Owner}
+		if project.Owner != "" {
+			if err := c.ds.Get(ctx, user); err != nil {
+				log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
+			}
+		}
+		appBase.Project = ConvertProjectModel2Base(project, user)
 	}
 	return appBase
 }

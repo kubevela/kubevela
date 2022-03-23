@@ -61,20 +61,20 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
-	ws.Route(ws.PUT("/{name}").To(n.update).
+	ws.Route(ws.PUT("/{envName}").To(n.update).
 		Operation("envupdate").
 		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
-	ws.Route(ws.DELETE("/{name}").To(n.delete).
+	ws.Route(ws.DELETE("/{envName}").To(n.delete).
 		Operation("envdelete").
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -103,7 +103,7 @@ func (n *envWebService) list(req *restful.Request, res *restful.Response) {
 
 // it will prevent the deletion if there's still application in it.
 func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
-	envname := req.PathParameter("name")
+	envname := req.PathParameter("envName")
 
 	ctx := req.Request.Context()
 	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicationOptions{Env: envname})
@@ -166,7 +166,7 @@ func (n *envWebService) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), req.PathParameter("name"), updateReq)
+	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), req.PathParameter("envName"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
