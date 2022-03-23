@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -64,12 +65,24 @@ func TestParseMap(t *testing.T) {
 			},
 			nilError: true,
 		},
+		{
+			args: []string{"clusters={c1, c2, c3}", "image.tag=1.1"},
+			res: map[string]interface{}{
+				"clusters": []string{"c1", "c2", "c3"},
+				"image": map[string]interface{}{
+					"tag": "1.1",
+				},
+			},
+			nilError: true,
+		},
 	}
 	for _, s := range testcase {
-		r, err := parseToMap(s.args)
-		assert.DeepEqual(t, s.res, r)
+		r, err := parseAddonArgsToMap(s.args)
 		if s.nilError {
 			assert.NilError(t, err)
+			assert.DeepEqual(t, s.res, r)
+		} else {
+			assert.Error(t, err, fmt.Sprintf("%v should be error case", s.args))
 		}
 	}
 }

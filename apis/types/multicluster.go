@@ -25,4 +25,7 @@ const (
 	CredentialTypeOCMManagedCluster v1alpha1.CredentialType = "ManagedCluster"
 	// ClusterBlankEndpoint identifies the endpoint of a cluster as blank (not available)
 	ClusterBlankEndpoint = "-"
+
+	// ClustersArg indicates the argument for specific clusters to install addon
+	ClustersArg = "clusters"
 )

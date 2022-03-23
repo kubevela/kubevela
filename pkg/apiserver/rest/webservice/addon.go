@@ -22,6 +22,7 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -172,8 +173,12 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 			return
 		}
 	}
+	if createReq.Clusters != nil {
+		createReq.Args[types.ClustersArg] = createReq.Clusters
+	}
 
 	name := req.PathParameter("name")
+
 	err = s.handler.EnableAddon(req.Request.Context(), name, createReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -224,6 +229,9 @@ func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Respons
 			bcode.ReturnError(req, res, err)
 			return
 		}
+	}
+	if createReq.Clusters != nil {
+		createReq.Args[types.ClustersArg] = createReq.Clusters
 	}
 
 	name := req.PathParameter("name")

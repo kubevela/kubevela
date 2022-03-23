@@ -43,13 +43,18 @@ type UIData struct {
 type InstallPackage struct {
 	Meta
 
-	Definitions    []ElementFile        `json:"definitions"`
-	CUEDefinitions []ElementFile        `json:"CUEDefinitions"`
-	Parameters     string               `json:"parameters"`
-	CUETemplates   []ElementFile        `json:"CUETemplates"`
-	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
-	DefSchemas     []ElementFile        `json:"def_schemas,omitempty"`
-	AppTemplate    *v1beta1.Application `json:"appTemplate"`
+	// Definitions and CUEDefinitions are converted as OAM X-Definitions, they will only in control plane cluster
+	Definitions    []ElementFile `json:"definitions"`
+	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
+	// DefSchemas are UI schemas read by VelaUX, it will only be installed in control plane clusters
+	DefSchemas []ElementFile `json:"def_schemas,omitempty"`
+
+	Parameters string `json:"parameters"`
+
+	// CUETemplates and YAMLTemplates are resources needed to be installed in managed clusters
+	CUETemplates  []ElementFile        `json:"CUETemplates"`
+	YAMLTemplates []ElementFile        `json:"YAMLTemplates,omitempty"`
+	AppTemplate   *v1beta1.Application `json:"appTemplate"`
 }
 
 // Meta defines the format for a single addon
