@@ -30,6 +30,8 @@ var (
 	ErrClusterNotExists = ClusterManagementError(fmt.Errorf("no such cluster"))
 	// ErrReservedLocalClusterName reserved cluster name is used
 	ErrReservedLocalClusterName = ClusterManagementError(fmt.Errorf("cluster name `local` is reserved for kubevela hub cluster"))
+	// ErrDetectClusterGateway fail to wait for ClusterGateway service ready
+	ErrDetectClusterGateway = ClusterManagementError(fmt.Errorf("failed to wait for cluster gateway, unable to use multi-cluster"))
 )
 
 // ClusterManagementError multicluster management error
