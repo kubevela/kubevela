@@ -60,15 +60,6 @@ func TestWorkflowSuspend(t *testing.T) {
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
 		},
-		"no workflow in app": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-workflow",
-					Namespace: "default",
-				},
-			},
-			expectedErr: fmt.Errorf("the application must have workflow"),
-		},
 		"workflow not running": {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
@@ -260,15 +251,6 @@ func TestWorkflowTerminate(t *testing.T) {
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
 		},
-		"no workflow in app": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-workflow",
-					Namespace: "default",
-				},
-			},
-			expectedErr: fmt.Errorf("the application must have workflow"),
-		},
 		"workflow not running": {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
@@ -348,15 +330,6 @@ func TestWorkflowRestart(t *testing.T) {
 	}{
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
-		},
-		"no workflow in app": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-workflow",
-					Namespace: "default",
-				},
-			},
-			expectedErr: fmt.Errorf("the application must have workflow"),
 		},
 		"workflow not running": {
 			app: &v1beta1.Application{
@@ -439,15 +412,6 @@ func TestWorkflowRollback(t *testing.T) {
 	}{
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
-		},
-		"no workflow in app": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-workflow",
-					Namespace: "default",
-				},
-			},
-			expectedErr: fmt.Errorf("the application must have workflow"),
 		},
 		"workflow running": {
 			app: &v1beta1.Application{
