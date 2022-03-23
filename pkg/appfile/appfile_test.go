@@ -30,7 +30,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -584,10 +584,6 @@ variable "password" {
 		raw.Raw = data
 
 		workload := terraformapi.Configuration{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "terraform.core.oam.dev/v1beta1",
-				Kind:       "Configuration",
-			},
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					"app.oam.dev/appRevision": "v1",
@@ -917,16 +913,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		args args
 		want want
 	}{
-		"json workload with secret": {
-			args: args{
-
-				json: "abc",
-				params: map[string]interface{}{"acl": "private",
-					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": ""}},
-				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
-			},
-			want: want{err: nil}},
-
 		"valid hcl workload": {
 			args: args{
 				hcl: "abc",
@@ -1007,7 +993,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				},
 			}
 			configSpec = terraformapi.ConfigurationSpec{
-				JSON:     tc.args.json,
 				Variable: raw,
 			}
 			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
@@ -1061,7 +1046,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 
 		if err == nil {
 			tfConfiguration := terraformapi.Configuration{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 				Spec:       configSpec,
 			}

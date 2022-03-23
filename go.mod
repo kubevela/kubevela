@@ -283,6 +283,11 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )
 
+require (
+	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
+	honnef.co/go/tools v0.3.0 // indirect
+)
+
 replace (
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
