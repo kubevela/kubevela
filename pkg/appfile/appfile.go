@@ -27,7 +27,7 @@ import (
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -63,7 +63,9 @@ const (
 	// WriteConnectionSecretToRefKey is used to create a secret for cloud resource connection
 	WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
 	// RegionKey is the region of a Cloud Provider
-	RegionKey = "region"
+	// It's used to override the region of a Cloud Provider
+	// Refer to https://github.com/oam-dev/terraform-controller/blob/master/api/v1beta2/configuration_types.go#L66 for details
+	RegionKey = "customRegion"
 	// ProviderRefKey is the reference of a Provider
 	ProviderRefKey = "providerRef"
 )
@@ -666,7 +668,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 
 	configuration := terraformapi.Configuration{
-		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wl.Name,
 			Namespace: ns,
@@ -679,8 +681,6 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	switch wl.FullTemplate.Terraform.Type {
 	case "hcl":
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
-	case "json":
-		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	case "remote":
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path

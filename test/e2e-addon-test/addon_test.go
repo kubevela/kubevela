@@ -88,13 +88,18 @@ var _ = Describe("Addon tests", func() {
 
 	It("Addon Terraform is successfully enabled and Terraform application works", func() {
 		By("Install Addon Terraform")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing").Output()
+		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba").Output()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
 			fmt.Println("exit code error:", string(ee.Stderr))
 		}
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("enabled Successfully"))
+
+		By("Authenticate a provider")
+		output, err = exec.Command("bash", "-c", "/tmp/vela provider add terraform-alibaba --ALICLOUD_ACCESS_KEY=xxx --ALICLOUD_SECRET_KEY=yyy --ALICLOUD_REGION=cn-hangzhou").Output()
+		Expect(err).Should(BeNil())
+		Expect(string(output)).Should(ContainSubstring("Successfully authenticate provider"))
 
 		By("Checking Provider")
 		Eventually(func() error {
