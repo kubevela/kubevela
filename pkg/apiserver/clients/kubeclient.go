@@ -17,6 +17,8 @@ limitations under the License.
 package clients
 
 import (
+	"errors"
+
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var kubeClient client.Client
@@ -42,6 +45,18 @@ func GetKubeClient() (client.Client, error) {
 	}
 	var err error
 	kubeClient, kubeConfig, err = multicluster.GetMulticlusterKubernetesClient()
+	if err == nil {
+		return kubeClient, nil
+	}
+	if !errors.Is(err, multicluster.ErrDetectClusterGateway) {
+		return nil, err
+	}
+	// create single cluster client
+	conf, err := config.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	kubeClient, err = client.New(conf, client.Options{Scheme: common.Scheme})
 	if err != nil {
 		return nil, err
 	}

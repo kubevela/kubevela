@@ -143,7 +143,7 @@ func Initialize(restConfig *rest.Config, autoUpgrade bool) (client.Client, error
 	}
 	svc, err := WaitUntilClusterGatewayReady(context.Background(), c, 60, 5*time.Second)
 	if err != nil {
-		return nil, errors2.Wrapf(err, "failed to wait for cluster gateway, unable to use multi-cluster")
+		return nil, ErrDetectClusterGateway
 	}
 	ClusterGatewaySecretNamespace = svc.Namespace
 	klog.Infof("find cluster gateway service %s/%s:%d", svc.Namespace, svc.Name, *svc.Port)
