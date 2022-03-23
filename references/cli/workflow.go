@@ -70,9 +70,6 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if err != nil {
 				return err
 			}
-			if app.Spec.Workflow == nil {
-				return fmt.Errorf("the application must have workflow")
-			}
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
@@ -158,9 +155,6 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			if err != nil {
 				return err
 			}
-			if app.Spec.Workflow == nil {
-				return fmt.Errorf("the application must have workflow")
-			}
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
@@ -197,9 +191,6 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
 				return err
-			}
-			if app.Spec.Workflow == nil {
-				return fmt.Errorf("the application must have workflow")
 			}
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
@@ -238,9 +229,6 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			app, err := appfile.LoadApplication(namespace, args[0], c)
 			if err != nil {
 				return err
-			}
-			if app.Spec.Workflow == nil {
-				return fmt.Errorf("the application must have workflow")
 			}
 			if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
 				return fmt.Errorf("can not rollback a running workflow")
