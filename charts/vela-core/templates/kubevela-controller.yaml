@@ -89,7 +89,6 @@ spec:
   {{- include "kubevela.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      name: {{ include "kubevela.fullname" . }}
       labels:
       {{- include "kubevela.selectorLabels" . | nindent 8 }}
       annotations:
@@ -97,5 +96,97 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/scrape: "true"
     spec:
-  {{- include "kubevela.podSpec" . | nindent 6}}
-{{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Release.Name }}
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - "--metrics-addr=:8080"
+            - "--enable-leader-election"
+            {{ if ne .Values.logFilePath "" }}
+            - "--log-file-path={{ .Values.logFilePath }}"
+            - "--log-file-max-size={{ .Values.logFileMaxSize }}"
+            {{ end }}
+            {{ if .Values.logDebug }}
+            - "--log-debug=true"
+            {{ end }}
+            {{ if .Values.admissionWebhooks.enabled }}
+            - "--use-webhook=true"
+            - "--webhook-port={{ .Values.webhookService.port }}"
+            - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            {{ end }}
+            - "--health-addr=:{{ .Values.healthCheck.port }}"
+            {{ if ne .Values.disableCaps "" }}
+            - "--disable-caps={{ .Values.disableCaps }}"
+            {{ end }}
+            - "--system-definition-namespace={{ include "systemDefinitionNamespace" . }}"
+            - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
+            - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
+            - "--oam-spec-ver={{ .Values.OAMSpecVer }}"
+            {{ if .Values.multicluster.enabled }}
+            - "--enable-cluster-gateway"
+            {{ end }}
+            - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
+            - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
+            - "--kube-api-qps={{ .Values.kubeClient.qps }}"
+            - "--kube-api-burst={{ .Values.kubeClient.burst }}"
+            - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
+            - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
+            - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+          image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+          resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+          {{ if .Values.admissionWebhooks.enabled }}
+          ports:
+            - containerPort: {{ .Values.webhookService.port }}
+              name: webhook-server
+              protocol: TCP
+            - containerPort: {{ .Values.healthCheck.port }}
+              name: healthz
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 90
+            periodSeconds: 5
+          volumeMounts:
+            - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
+              name: tls-cert-vol
+              readOnly: true
+      {{ end }}
+      {{ if .Values.admissionWebhooks.enabled }}
+      volumes:
+        - name: tls-cert-vol
+          secret:
+            defaultMode: 420
+            secretName: {{ template "kubevela.fullname" . }}-admission
+      {{ end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+  {{- toYaml . | nindent 8 }}
+  {{- end }}
+
+{{ end }}
