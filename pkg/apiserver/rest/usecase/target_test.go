@@ -49,6 +49,7 @@ var _ = Describe("Test target usecase functions", func() {
 			Name:        "test--target",
 			Alias:       "test-alias",
 			Description: "this is a Target",
+			Project:     testProject,
 			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 			Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"},
 		}

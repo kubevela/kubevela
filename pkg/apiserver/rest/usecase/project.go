@@ -231,8 +231,8 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		}
 	}
 	if owner == "" {
-		loginUser := ctx.Value(apisv1.CtxKeyUser).(*model.User)
-		if loginUser != nil {
+		loginUser, ok := ctx.Value(&apisv1.CtxKeyUser).(*model.User)
+		if loginUser != nil && ok {
 			owner = loginUser.Name
 		}
 	}

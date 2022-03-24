@@ -88,10 +88,10 @@ var _ = Describe("Test application usecase function", func() {
 	It("Test CreateApplication function", func() {
 
 		By("test sample create")
-		_, err := targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
+		_, err := projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
 		Expect(err).Should(BeNil())
 
-		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
 		Expect(err).Should(BeNil())
 
 		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: "app-dev"})
@@ -481,7 +481,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
 		By("compare when app's env add target, should return true")
-		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
 		Expect(err).Should(BeNil())
 		_, err = envUsecase.UpdateEnv(context.TODO(), "app-dev",
 			v1.UpdateEnvRequest{

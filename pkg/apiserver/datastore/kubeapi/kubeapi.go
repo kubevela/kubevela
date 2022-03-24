@@ -120,15 +120,15 @@ func (m *kubeapi) Add(ctx context.Context, entity datastore.Entity) error {
 }
 
 // BatchAdd batch add entity, this operation has some atomicity.
-func (m *kubeapi) BatchAdd(ctx context.Context, entitys []datastore.Entity) error {
-	donotRollback := make(map[string]int)
-	for i, saveEntity := range entitys {
+func (m *kubeapi) BatchAdd(ctx context.Context, entities []datastore.Entity) error {
+	notRollback := make(map[string]int)
+	for i, saveEntity := range entities {
 		if err := m.Add(ctx, saveEntity); err != nil {
 			if errors.Is(err, datastore.ErrRecordExist) {
-				donotRollback[saveEntity.PrimaryKey()] = 1
+				notRollback[saveEntity.PrimaryKey()] = 1
 			}
-			for _, deleteEntity := range entitys[:i] {
-				if _, exit := donotRollback[deleteEntity.PrimaryKey()]; !exit {
+			for _, deleteEntity := range entities[:i] {
+				if _, exit := notRollback[deleteEntity.PrimaryKey()]; !exit {
 					if err := m.Delete(ctx, deleteEntity); err != nil {
 						if !errors.Is(err, datastore.ErrRecordNotExist) {
 							log.Logger.Errorf("rollback delete component failure %w", err)
@@ -347,6 +347,15 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		}
 		selector = selector.Add(*rq)
 	}
+	if op != nil {
+		for _, inFilter := range op.In {
+			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
+			if err != nil {
+				return nil, datastore.ErrIndexInvalid
+			}
+			selector = selector.Add(*rq)
+		}
+	}
 	options := &client.ListOptions{
 		LabelSelector: selector,
 		Namespace:     m.namespace,
@@ -385,7 +394,6 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		items = items[:limit]
 	}
 	var list []datastore.Entity
-	log.Logger.Debugf("query %s result count %d", selector, len(items))
 	for _, item := range items {
 		ent, err := datastore.NewEntity(entity)
 		if err != nil {
@@ -416,6 +424,16 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		}
 		selector = selector.Add(*rq)
 	}
+	if filterOptions != nil {
+		for _, inFilter := range filterOptions.In {
+			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
+			if err != nil {
+				return 0, datastore.ErrIndexInvalid
+			}
+			selector = selector.Add(*rq)
+		}
+	}
+
 	options := &client.ListOptions{
 		LabelSelector: selector,
 		Namespace:     m.namespace,

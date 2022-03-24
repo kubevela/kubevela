@@ -63,3 +63,25 @@ func EqualSlice(a, b []string) bool {
 	sort.Strings(b)
 	return reflect.DeepEqual(a, b)
 }
+
+// SliceIncludeSlice the a slice include the b slice
+func SliceIncludeSlice(a, b []string) bool {
+	if EqualSlice(a, b) {
+		return true
+	}
+	for _, item := range b {
+		if !StringsContain(a, item) {
+			return false
+		}
+	}
+	return true
+}
+
+// MapKey2Array convery map keys to array
+func MapKey2Array(source map[string]string) []string {
+	var list []string
+	for k := range source {
+		list = append(list, k)
+	}
+	return list
+}

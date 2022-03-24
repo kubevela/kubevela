@@ -125,6 +125,7 @@ type CustomClaims struct {
 type Role struct {
 	BaseModel
 	Name         string   `json:"name"`
+	Alias        string   `json:"alias"`
 	Project      string   `json:"project,omitempty"`
 	PermPolicies []string `json:"permPolicies"`
 }
@@ -132,11 +133,12 @@ type Role struct {
 // PermPolicy is a model for a new RBAC mode.
 type PermPolicy struct {
 	BaseModel
-	Name      string     `json:"name"`
-	Alias     string     `json:"alias"`
-	Project   string     `json:"project,omitempty"`
-	Resources []string   `json:"resources"`
-	Actions   []string   `json:"actions"`
+	Name      string   `json:"name"`
+	Alias     string   `json:"alias"`
+	Project   string   `json:"project,omitempty"`
+	Resources []string `json:"resources"`
+	Actions   []string `json:"actions"`
+	// Effect option values: Allow,Deny
 	Effect    string     `json:"effect"`
 	Principal *Principal `json:"principal,omitempty"`
 	Condition *Condition `json:"condition,omitempty"`
@@ -165,7 +167,10 @@ func (r *Role) ShortTableName() string {
 
 // PrimaryKey return custom primary key
 func (r *Role) PrimaryKey() string {
-	return fmt.Sprintf("%s.%s", r.Project, r.Name)
+	if r.Project == "" {
+		return r.Name
+	}
+	return fmt.Sprintf("%s-%s", r.Project, r.Name)
 }
 
 // Index return custom index

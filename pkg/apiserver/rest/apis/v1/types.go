@@ -1199,3 +1199,31 @@ type AddProjectUserRequest struct {
 type UpdateProjectUserRequest struct {
 	UserRoles []string `json:"userRoles"`
 }
+
+// CreateRoleRequest the request body that create a role
+type CreateRoleRequest struct {
+	Name         string   `json:"name" validate:"checkname"`
+	Alias        string   `json:"alias" validate:"checkalias"`
+	PermPolicies []string `json:"permPolicies"`
+}
+
+// UpdateRoleRequest the request body that update a role
+type UpdateRoleRequest struct {
+	Alias        string   `json:"alias" validate:"checkalias"`
+	PermPolicies []string `json:"permPolicies"`
+}
+
+// RoleBase the base struct of role
+type RoleBase struct {
+	CreateTime   time.Time   `json:"createTime"`
+	UpdateTime   time.Time   `json:"updateTime"`
+	Name         string      `json:"name"`
+	Alias        string      `json:"alias,omitempty"`
+	PermPolicies []NameAlias `json:"permPolicies"`
+}
+
+// ListRolesResponse the response body of list roles
+type ListRolesResponse struct {
+	Total int64       `json:"total"`
+	Roles []*RoleBase `json:"roles"`
+}

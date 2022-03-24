@@ -99,10 +99,13 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
 	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
 	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))
+	RegisterWebService(NewHelmWebService(helmUsecase))
 
 	// Authentication
 	RegisterWebService(NewAuthenticationWebService(authenticationUsecase))
 	RegisterWebService(NewUserWebService(userUsecase))
 	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase))
-	RegisterWebService(NewHelmWebService(helmUsecase))
+
+	// RBAC
+	RegisterWebService(NewRBACWebService(rbacUsecase))
 }

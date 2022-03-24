@@ -112,9 +112,16 @@ type FuzzyQueryOption struct {
 	Query string
 }
 
+// InQueryOption defines the include search filter option
+type InQueryOption struct {
+	Key    string
+	Values []string
+}
+
 // FilterOptions filter query returned items
 type FilterOptions struct {
 	Queries []FuzzyQueryOption
+	In      []InQueryOption
 }
 
 // ListOptions list api options

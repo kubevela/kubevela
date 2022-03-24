@@ -38,6 +38,9 @@ var ErrServer = NewBcode(500, 500, "The service has lapsed.")
 // ErrForbidden check user perms failure
 var ErrForbidden = NewBcode(403, 403, "403 Forbidden")
 
+// ErrUnauthorized check user auth failure
+var ErrUnauthorized = NewBcode(401, 401, "401 Unauthorized")
+
 // Bcode business error code
 type Bcode struct {
 	HTTPCode     int32 `json:"-"`

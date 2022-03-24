@@ -3628,6 +3628,131 @@
 				}
 			}
 		},
+		"/api/v1/project/{projectName}/roles": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "list all project level roles",
+				"operationId": "listProjectRoles",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListRolesResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "create project level role",
+				"operationId": "createProjectRole",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/project/{projectName}/roles/{roleName}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "update project level role",
+				"operationId": "updateProjectRole",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "update project level role",
+				"operationId": "deleteProjectRole",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/projects": {
 			"get": {
 				"consumes": [
@@ -4099,6 +4224,122 @@
 						"description": "Bad Request",
 						"schema": {
 							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/roles": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "list all platform level roles",
+				"operationId": "listPlatformRoles",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListRolesResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "create platform level role",
+				"operationId": "createPlatformRole",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/roles/{roleName}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "update platform level role",
+				"operationId": "updatePlatformRole",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "update platform level role",
+				"operationId": "deletePlatformRole",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					}
 				}
@@ -6718,11 +6959,11 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"status",
 				"note",
 				"envName",
 				"createTime",
 				"version",
-				"status",
 				"triggerType"
 			],
 			"properties": {
@@ -7670,6 +7911,27 @@
 				}
 			}
 		},
+		"v1.CreateRoleRequest": {
+			"required": [
+				"name",
+				"alias",
+				"permPolicies"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"permPolicies": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"v1.CreateTargetRequest": {
 			"required": [
 				"name",
@@ -7782,11 +8044,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"version",
-				"description",
 				"invisible",
-				"name",
+				"description",
 				"icon",
+				"name",
+				"version",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -7859,13 +8121,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"icon",
-				"alias",
 				"project",
-				"description",
 				"createTime",
 				"updateTime",
+				"name",
+				"alias",
+				"description",
+				"icon",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -7926,20 +8188,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"description",
-				"provider",
-				"apiServerURL",
-				"updateTime",
-				"labels",
-				"status",
-				"kubeConfig",
 				"name",
+				"alias",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"createTime",
+				"labels",
 				"reason",
 				"dashboardURL",
-				"kubeConfigSecret",
-				"alias",
+				"updateTime",
+				"provider",
+				"status",
 				"icon",
-				"createTime",
+				"apiServerURL",
+				"description",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7998,13 +8260,13 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"createTime",
-				"type",
-				"main",
+				"alias",
 				"appPrimaryKey",
+				"name",
 				"creator",
 				"updateTime",
-				"alias",
-				"name",
+				"type",
+				"main",
 				"definition"
 			],
 			"properties": {
@@ -8106,13 +8368,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"updateTime",
-				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
-				"createTime"
+				"createTime",
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"createTime": {
@@ -8142,17 +8404,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"updateTime",
-				"status",
-				"workflowName",
-				"appPrimaryKey",
-				"version",
-				"reason",
-				"triggerType",
 				"createTime",
+				"appPrimaryKey",
+				"status",
+				"note",
+				"workflowName",
+				"reason",
 				"deployUser",
 				"envName",
-				"note"
+				"updateTime",
+				"version",
+				"triggerType"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -8206,10 +8468,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"name",
 				"createTime",
 				"updateTime",
-				"project",
-				"name"
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -8249,11 +8511,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects"
 			],
 			"properties": {
@@ -8287,12 +8549,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
-				"workflowName",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -8344,14 +8606,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
-				"description",
-				"default",
-				"createTime",
 				"name",
+				"description",
 				"enable",
+				"default",
+				"updateTime",
+				"alias",
 				"envName",
-				"updateTime"
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -8791,6 +9053,24 @@
 				}
 			}
 		},
+		"v1.ListRolesResponse": {
+			"required": [
+				"total",
+				"roles"
+			],
+			"properties": {
+				"roles": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.RoleBase"
+					}
+				},
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
 		"v1.ListTargetResponse": {
 			"required": [
 				"targets",
@@ -9053,17 +9333,33 @@
 			}
 		},
 		"v1.PutApplicationEnvBindingRequest": {},
-		"v1.RefreshTokenResponse": {
+		"v1.RoleBase": {
 			"required": [
-				"accessToken",
-				"refreshToken"
+				"createTime",
+				"updateTime",
+				"name",
+				"permPolicies"
 			],
 			"properties": {
-				"accessToken": {
+				"alias": {
 					"type": "string"
 				},
-				"refreshToken": {
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
 					"type": "string"
+				},
+				"permPolicies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NameAlias"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
@@ -9093,11 +9389,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"updateTime",
 				"installID",
 				"enableCollection",
 				"loginType",
 				"createTime",
+				"updateTime",
 				"systemVersion"
 			],
 			"properties": {
@@ -9296,6 +9592,23 @@
 			],
 			"properties": {
 				"userRoles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"v1.UpdateRoleRequest": {
+			"required": [
+				"alias",
+				"permPolicies"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"permPolicies": {
 					"type": "array",
 					"items": {
 						"type": "string"

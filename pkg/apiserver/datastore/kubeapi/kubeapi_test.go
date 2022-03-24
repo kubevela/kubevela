@@ -157,6 +157,17 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 4)
 		Expect(diff).Should(BeEmpty())
+
+		list, err = kubeStore.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 2)
+		Expect(diff).Should(BeEmpty())
+
 	})
 
 	It("Test list clusters with sort and fuzzy query", func() {
@@ -220,6 +231,15 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			Queries: []datastore.FuzzyQueryOption{{Key: "name", Query: "ir"}},
 		})
 		Expect(err).Should(Succeed())
+		Expect(count).Should(Equal(int64(2)))
+
+		count, err = kubeStore.Count(context.TODO(), &app, &datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(2)))
 	})
 
