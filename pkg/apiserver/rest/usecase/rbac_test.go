@@ -79,7 +79,11 @@ var _ = Describe("Test rbac service", func() {
 	})
 
 	It("Test checkPerm by admin user", func() {
-		err := ds.Add(context.TODO(), &model.Role{Name: "admin-role", PermPolicies: []string{"admin"}})
+
+		err := ds.Add(context.TODO(), &model.User{Name: "admin", UserRoles: []string{"admin-role"}})
+		Expect(err).Should(BeNil())
+
+		err = ds.Add(context.TODO(), &model.Role{Name: "admin-role", PermPolicies: []string{"admin"}})
 		Expect(err).Should(BeNil())
 
 		err = ds.Add(context.TODO(), &model.PermPolicy{Name: "admin", Resources: []string{"*"}, Actions: []string{"*"}})
@@ -87,7 +91,7 @@ var _ = Describe("Test rbac service", func() {
 
 		rbac := rbacUsecaseImpl{ds: ds}
 		req := &http.Request{}
-		req = req.WithContext(context.WithValue(req.Context(), &apisv1.CtxKeyUser, &model.User{Name: "admin", UserRoles: []string{"admin-role"}}))
+		req = req.WithContext(context.WithValue(req.Context(), &apisv1.CtxKeyUser, "admin"))
 		res := &restful.Response{}
 		pass := false
 		filter := &restful.FilterChain{
@@ -100,7 +104,11 @@ var _ = Describe("Test rbac service", func() {
 	})
 
 	It("Test checkPerm by dev user", func() {
-		err := ds.Add(context.TODO(), &model.Role{Name: "application-admin", PermPolicies: []string{"application-manage"}})
+
+		err := ds.Add(context.TODO(), &model.User{Name: "dev", UserRoles: []string{"application-admin"}})
+		Expect(err).Should(BeNil())
+
+		err = ds.Add(context.TODO(), &model.Role{Name: "application-admin", PermPolicies: []string{"application-manage"}})
 		Expect(err).Should(BeNil())
 
 		err = ds.Add(context.TODO(), &model.PermPolicy{Name: "application-manage", Resources: []string{"project:*/application:*"}, Actions: []string{"*"}})
@@ -113,7 +121,7 @@ var _ = Describe("Test rbac service", func() {
 		req := &http.Request{
 			Header: header,
 		}
-		req = req.WithContext(context.WithValue(req.Context(), &apisv1.CtxKeyUser, &model.User{Name: "dev", UserRoles: []string{"application-admin"}}))
+		req = req.WithContext(context.WithValue(req.Context(), &apisv1.CtxKeyUser, "dev"))
 		record := httptest.NewRecorder()
 		res := restful.NewResponse(record)
 		res.SetRequestAccepts("application/json")

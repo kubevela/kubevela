@@ -359,8 +359,13 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 	registerResourceAction(resource, actions...)
 	f := func(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 		// get login user info
-		user, ok := req.Request.Context().Value(&apisv1.CtxKeyUser).(*model.User)
+		userName, ok := req.Request.Context().Value(&apisv1.CtxKeyUser).(string)
 		if !ok {
+			bcode.ReturnError(req, res, bcode.ErrUnauthorized)
+			return
+		}
+		user := &model.User{Name: userName}
+		if err := p.ds.Get(req.Request.Context(), user); err != nil {
 			bcode.ReturnError(req, res, bcode.ErrUnauthorized)
 			return
 		}
@@ -374,7 +379,26 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 		ra.SetResourceWithName(path, func(name string) string {
 			value := req.PathParameter(name)
 			if name == ResourceMaps["project"].pathName && value == "" {
-				value = req.QueryParameter("project")
+				// multiple method for get the project name.
+				getProjectName := func() string {
+					if value := req.QueryParameter("project"); value != "" {
+						return value
+					}
+					if appName := req.PathParameter(ResourceMaps["project"].subResources["application"].pathName); appName != "" {
+						app := &model.Application{Name: appName}
+						if err := p.ds.Get(req.Request.Context(), app); err == nil {
+							return app.Project
+						}
+					}
+					if envName := req.PathParameter(ResourceMaps["project"].subResources["environment"].pathName); envName != "" {
+						env := &model.Env{Name: envName}
+						if err := p.ds.Get(req.Request.Context(), env); err == nil {
+							return env.Project
+						}
+					}
+					return ""
+				}
+				value = getProjectName()
 			}
 			return value
 		})
@@ -604,6 +628,11 @@ func (p *rbacUsecaseImpl) initPlatformPermPolicies() {
 			Effect:    policy.Effect,
 		})
 	}
+	batchData = append(batchData, &model.Role{
+		Name:         "admin",
+		Alias:        "Admin",
+		PermPolicies: []string{"admin"},
+	})
 	if err := p.ds.BatchAdd(context.Background(), batchData); err != nil {
 		log.Logger.Errorf("init the platform perm policies failure %s", err.Error())
 	}

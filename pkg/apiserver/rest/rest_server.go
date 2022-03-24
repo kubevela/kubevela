@@ -236,8 +236,9 @@ func (s *restServer) InitAdmin(ctx context.Context) error {
 				return err
 			}
 			if err := s.dataStore.Add(ctx, &model.User{
-				Name:     admin,
-				Password: encrypted,
+				Name:      admin,
+				Password:  encrypted,
+				UserRoles: []string{"admin"},
 			}); err != nil {
 				return err
 			}

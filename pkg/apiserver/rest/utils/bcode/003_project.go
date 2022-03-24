@@ -42,3 +42,6 @@ var ErrProjectRoleCheckFailure = NewBcode(400, 30008, "the role is not exit or n
 
 // ErrProjectUserExist means the use is exit in this project
 var ErrProjectUserExist = NewBcode(400, 30009, "the use is exit in this project")
+
+// ErrProjectOwnerIsNotExist means the owner is invalid
+var ErrProjectOwnerIsNotExist = NewBcode(400, 30010, "the project owner is invalid")

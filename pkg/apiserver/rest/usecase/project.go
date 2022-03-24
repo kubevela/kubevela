@@ -231,16 +231,16 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 		return nil, bcode.ErrProjectIsExist
 	}
 	owner := req.Owner
+	if owner == "" {
+		loginUserName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+		if ok {
+			owner = loginUserName
+		}
+	}
 	var user = &model.User{Name: owner}
 	if owner != "" {
 		if err := p.ds.Get(ctx, user); err != nil {
-			return nil, err
-		}
-	}
-	if owner == "" {
-		loginUser, ok := ctx.Value(&apisv1.CtxKeyUser).(*model.User)
-		if loginUser != nil && ok {
-			owner = loginUser.Name
+			return nil, bcode.ErrProjectOwnerIsNotExist
 		}
 	}
 
