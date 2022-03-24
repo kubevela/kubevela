@@ -38,11 +38,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var k8sClient client.Client
 var token string
+
+const (
+	baseURL      = "http://127.0.0.1:8000/api/v1"
+	testNSprefix = "api-e2e-test-"
+)
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -120,16 +124,11 @@ var _ = AfterSuite(func() {
 	err := k8sClient.List(context.TODO(), &nsList)
 	Expect(err).ToNot(HaveOccurred())
 	for _, ns := range nsList.Items {
-		if strings.HasPrefix(ns.Name, e2e_apiserver.TestNSprefix) {
+		if strings.HasPrefix(ns.Name, testNSprefix) {
 			_ = k8sClient.Delete(context.TODO(), &ns)
 		}
 	}
 })
-
-const (
-	baseURL      = "http://127.0.0.1:8000/api/v1"
-	testNSprefix = "api-e2e-test-"
-)
 
 func post(path string, body interface{}) *http.Response {
 	b, err := json.Marshal(body)

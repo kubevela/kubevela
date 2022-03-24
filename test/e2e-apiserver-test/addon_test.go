@@ -42,42 +42,28 @@ var _ = Describe("Test addon rest api", func() {
 
 		By("add registry")
 		createRes := post("/addon_registries", createReq)
-		Expect(createRes).ShouldNot(BeNil())
-		Expect(createRes.Body).ShouldNot(BeNil())
-		Expect(createRes.StatusCode).Should(Equal(200))
-
-		defer createRes.Body.Close()
-
 		var rmeta apis.AddonRegistry
-		err := json.NewDecoder(createRes.Body).Decode(&rmeta)
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(createRes, &rmeta)).Should(Succeed())
 		Expect(rmeta.Name).Should(Equal(createReq.Name))
 		Expect(rmeta.Git).Should(Equal(createReq.Git))
 		Expect(rmeta.OSS).Should(Equal(createReq.Oss))
 
 		deleteRes := delete("/addon_registries/" + createReq.Name)
-		Expect(deleteRes).ShouldNot(BeNil())
-		Expect(deleteRes.StatusCode).Should(Equal(200))
+		Expect(decodeResponseBody(deleteRes, nil)).Should(Succeed())
 	})
 
 	It("list addons", func() {
 		DefaultRegistry := "KubeVela"
 		listRes := get("/addons/")
-		defer listRes.Body.Close()
-
 		var lres apis.ListAddonResponse
-		err := json.NewDecoder(listRes.Body).Decode(&lres)
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(listRes, &lres)).Should(Succeed())
 		Expect(lres.Addons).ShouldNot(BeZero())
 		Expect(lres.Addons[0].RegistryName).To(Equal(DefaultRegistry))
 
 		By("get addon detail")
 		detailRes := get("/addons/terraform-alibaba")
-		defer detailRes.Body.Close()
-
-		var dres *apis.DetailAddonResponse
-		err = json.NewDecoder(detailRes.Body).Decode(&dres)
-		Expect(err).Should(BeNil())
+		var dres apis.DetailAddonResponse
+		Expect(decodeResponseBody(detailRes, &dres)).Should(Succeed())
 		Expect(dres.Meta).ShouldNot(BeNil())
 		Expect(dres.UISchema).ShouldNot(BeNil())
 		Expect(dres.APISchema).ShouldNot(BeNil())
@@ -93,17 +79,8 @@ var _ = Describe("Test addon rest api", func() {
 		}
 		testAddon := "example"
 		res := post("/addons/"+testAddon+"/enable", req)
-		defer res.Body.Close()
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-
-		defer res.Body.Close()
-
 		var statusRes apis.AddonStatusResponse
-		err := json.NewDecoder(res.Body).Decode(&statusRes)
-
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(res, &statusRes)).Should(Succeed())
 		Expect(statusRes.Phase).Should(Equal(apis.AddonPhaseEnabling))
 
 		// Wait for addon enabled
@@ -113,7 +90,7 @@ var _ = Describe("Test addon rest api", func() {
 		Eventually(func() error {
 			res = get("/addons/" + testAddon + "/status")
 			defer res.Body.Close()
-			err = json.NewDecoder(res.Body).Decode(&statusRes)
+			err := json.NewDecoder(res.Body).Decode(&statusRes)
 			Expect(err).Should(BeNil())
 			if statusRes.Phase == apis.AddonPhaseEnabled {
 				return nil
@@ -122,13 +99,7 @@ var _ = Describe("Test addon rest api", func() {
 		}, timeout, period).Should(BeNil())
 
 		res = post("/addons/"+testAddon+"/disable", req)
-		defer res.Body.Close()
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-
-		err = json.NewDecoder(res.Body).Decode(&statusRes)
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(res, &statusRes)).Should(Succeed())
 	})
 
 	It("should delete test registry", func() {

@@ -25,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var _ = Describe("Test project rest api", func() {
@@ -33,7 +32,7 @@ var _ = Describe("Test project rest api", func() {
 		projectName1 string
 	)
 	BeforeEach(func() {
-		projectName1 = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		projectName1 = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 	})
 	It("Test create project", func() {
 		defer GinkgoRecover()

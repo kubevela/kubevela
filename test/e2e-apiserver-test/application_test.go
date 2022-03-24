@@ -18,7 +18,6 @@ package e2e_apiserver_test
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var appName = "app-e2e"
@@ -53,13 +51,8 @@ var _ = Describe("Test application rest api", func() {
 			},
 		}
 		res := post("/applications", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var appBase apisv1.ApplicationBase
-		err := json.NewDecoder(res.Body).Decode(&appBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &appBase)).Should(Succeed())
 		Expect(cmp.Diff(appBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Description, req.Description)).Should(BeEmpty())
 		Expect(cmp.Diff(appBase.Labels["test"], req.Labels["test"])).Should(BeEmpty())
@@ -68,32 +61,22 @@ var _ = Describe("Test application rest api", func() {
 	It("Test list components", func() {
 		defer GinkgoRecover()
 		res := get("/applications/" + appName + "/components")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var components apisv1.ComponentListResponse
-		err := json.NewDecoder(res.Body).Decode(&components)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &components)).Should(Succeed())
 		Expect(cmp.Diff(len(components.Components), 1)).Should(BeEmpty())
 	})
 
 	It("Test detail application", func() {
 		defer GinkgoRecover()
 		res := get("/applications/" + appName)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var detail apisv1.DetailApplicationResponse
-		err := json.NewDecoder(res.Body).Decode(&detail)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &detail)).Should(Succeed())
 		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
 	})
 
 	It("Test deploy application", func() {
 		defer GinkgoRecover()
-		var targetName = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		var targetName = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 		var envName = "dev"
 		// create target
 		var createTarget = apisv1.CreateTargetRequest{
@@ -104,8 +87,7 @@ var _ = Describe("Test application rest api", func() {
 			},
 		}
 		res := post("/targets", createTarget)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 
 		// create env
 		var createEnvReq = apisv1.CreateEnvRequest{
@@ -113,7 +95,7 @@ var _ = Describe("Test application rest api", func() {
 			Targets: []string{targetName},
 		}
 		res = post("/envs", createEnvReq)
-		Expect(res).ShouldNot(BeNil())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 
 		// create envbinding
 		var createEnvbindingReq = apisv1.CreateApplicationEnvbindingRequest{
@@ -122,7 +104,7 @@ var _ = Describe("Test application rest api", func() {
 			},
 		}
 		res = post("/applications/"+appName+"/envs", createEnvbindingReq)
-		Expect(res).ShouldNot(BeNil())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 
 		// deploy app
 		var req = apisv1.ApplicationDeployRequest{
@@ -132,17 +114,12 @@ var _ = Describe("Test application rest api", func() {
 			Force:        false,
 		}
 		res = post("/applications/"+appName+"/deploy", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.ApplicationDeployResponse
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Status, model.RevisionStatusRunning)).Should(BeEmpty())
 
 		var oam v1beta1.Application
-		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName, Namespace: envName}, &oam)
+		err := k8sClient.Get(context.TODO(), types.NamespacedName{Name: appName, Namespace: envName}, &oam)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(oam.Spec.Components), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(len(oam.Spec.Policies), 1)).Should(BeEmpty())
@@ -151,8 +128,7 @@ var _ = Describe("Test application rest api", func() {
 	It("Test recycling application", func() {
 		var envName = "dev"
 		res := post("/applications/"+appName+"/envs/"+envName+"/recycle", nil)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 
 	It("Test create component", func() {
@@ -166,26 +142,17 @@ var _ = Describe("Test application rest api", func() {
 			DependsOn:     []string{"data-worker"},
 		}
 		res := post("/applications/"+appName+"/components", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.ComponentBase
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.ComponentType, "worker")).Should(BeEmpty())
 	})
 
 	It("Test detail component", func() {
 		defer GinkgoRecover()
 		res := get("/applications/" + appName + "/components/test2")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.DetailComponentResponse
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(len(response.DependsOn), 1)).Should(BeEmpty())
 	})
 
@@ -196,13 +163,8 @@ var _ = Describe("Test application rest api", func() {
 			Properties: `{"domain": "www.test.com"}`,
 		}
 		res := post("/applications/"+appName+"/components/test2/traits", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.ApplicationTrait
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test.com"}`)).Should(BeEmpty())
 	})
 
@@ -213,28 +175,21 @@ var _ = Describe("Test application rest api", func() {
 			Properties: `{"domain": "www.test1.com"}`,
 		}
 		res := put("/applications/"+appName+"/components/test2/traits/ingress", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.ApplicationTrait
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test1.com"}`)).Should(BeEmpty())
 	})
 
 	It("Test delete trait", func() {
 		defer GinkgoRecover()
 		res := delete("/applications/" + appName + "/components/test2/traits/ingress")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 
 	It("Test delete component", func() {
 		defer GinkgoRecover()
 		res := delete("/applications/" + appName + "/components/test2")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 
 	It("Test create application policy", func() {
@@ -254,27 +209,16 @@ var _ = Describe("Test application rest api", func() {
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
 		res = post("/applications/"+appName+"/policies", req2)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.PolicyBase
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Type, "wqsdasd")).Should(BeEmpty())
 	})
 
 	It("Test detail application policy", func() {
 		defer GinkgoRecover()
 		res := get("/applications/" + appName + "/policies/test2")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.DetailPolicyResponse
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Description, "this is a test2 policy")).Should(BeEmpty())
 	})
 
@@ -285,28 +229,20 @@ var _ = Describe("Test application rest api", func() {
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
 		res := put("/applications/"+appName+"/policies/test2", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
 		var response apisv1.PolicyBase
-		err := json.NewDecoder(res.Body).Decode(&response)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &response)).Should(Succeed())
 		Expect(cmp.Diff(response.Description, "this is a test2 policy update")).Should(BeEmpty())
 	})
 
 	It("Test delete application policy", func() {
 		defer GinkgoRecover()
 		res := delete("/applications/" + appName + "/policies/test2")
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 
 	It("Test delete app", func() {
 		defer GinkgoRecover()
 		res := delete("/applications/" + appName)
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 })
