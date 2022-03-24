@@ -17,9 +17,6 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -28,7 +25,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
 )
 
 var _ = Describe("Test project rest api", func() {
@@ -36,7 +32,7 @@ var _ = Describe("Test project rest api", func() {
 		projectName1 string
 	)
 	BeforeEach(func() {
-		projectName1 = e2e_apiserver.TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		projectName1 = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 	})
 	It("Test create project", func() {
 		defer GinkgoRecover()
@@ -44,31 +40,17 @@ var _ = Describe("Test project rest api", func() {
 			Name:        projectName1,
 			Description: "KubeVela Project",
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/projects", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := post("/projects", req)
 		var projectBase apisv1.ProjectBase
-		err = json.NewDecoder(res.Body).Decode(&projectBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &projectBase)).Should(Succeed())
 		Expect(cmp.Diff(projectBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(projectBase.Description, req.Description)).Should(BeEmpty())
 	})
 
 	It("Test list project", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := get("/projects")
 		var projects apisv1.ListProjectResponse
-		err = json.NewDecoder(res.Body).Decode(&projects)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &projects)).Should(Succeed())
 	})
 })

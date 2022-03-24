@@ -16,5 +16,21 @@ limitations under the License.
 
 package bcode
 
-// ErrUnsupportedLoginType is the error of unsupported login type
-var ErrUnsupportedLoginType = NewBcode(400, 12001, "the login type is not supported")
+var (
+	// ErrUnsupportedLoginType is the error of unsupported login type
+	ErrUnsupportedLoginType = NewBcode(401, 12001, "the login type is not supported")
+	// ErrTokenExpired is the error of token expired
+	ErrTokenExpired = NewBcode(401, 12002, "the token is expired")
+	// ErrTokenNotValidYet is the error of token not valid yet
+	ErrTokenNotValidYet = NewBcode(401, 12003, "the token is not valid yet")
+	// ErrTokenInvalid is the error of token invalid
+	ErrTokenInvalid = NewBcode(401, 12004, "the token is invalid")
+	// ErrTokenMalformed is the error of token malformed
+	ErrTokenMalformed = NewBcode(403, 12005, "the token is malformed")
+	// ErrNotAuthorized is the error of not authorized
+	ErrNotAuthorized = NewBcode(401, 12006, "the user is not authorized")
+	// ErrNotAccessToken is the error of not access token
+	ErrNotAccessToken = NewBcode(401, 12007, "the token is not an access token")
+	// ErrInvalidLoginRequest is the error of invalid login request
+	ErrInvalidLoginRequest = NewBcode(400, 12008, "the login request is invalid")
+)

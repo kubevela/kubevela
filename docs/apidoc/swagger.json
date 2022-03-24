@@ -2636,7 +2636,7 @@
 			}
 		},
 		"/api/v1/auth/login": {
-			"get": {
+			"post": {
 				"consumes": [
 					"application/xml",
 					"application/json"
@@ -2650,10 +2650,78 @@
 				],
 				"summary": "handle login request",
 				"operationId": "login",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.LoginRequest"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"schema": {
 							"$ref": "#/definitions/v1.LoginResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/auth/loginType": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"authentication"
+				],
+				"summary": "get login type",
+				"operationId": "getLoginType",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.GetLoginTypeResponse"
+						}
+					},
+					"400": {
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/auth/refreshToken": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"authentication"
+				],
+				"summary": "refresh token",
+				"operationId": "refreshToken",
+				"responses": {
+					"200": {
+						"schema": {
+							"$ref": "#/definitions/v1.RefreshTokenResponse"
 						}
 					},
 					"400": {
@@ -3239,9 +3307,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"component",
 							"trait",
-							"workflowstep",
-							"component"
+							"workflowstep"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -5513,8 +5581,8 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"version",
 				"status",
@@ -5810,8 +5878,8 @@
 		},
 		"model.SystemInfo": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"installID",
 				"enableCollection",
 				"loginType"
@@ -6365,12 +6433,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
-				"note",
-				"createTime",
 				"status",
-				"envName",
-				"triggerType"
+				"note",
+				"triggerType",
+				"createTime",
+				"version",
+				"envName"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7422,10 +7490,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
-				"icon",
 				"name",
 				"version",
+				"description",
+				"icon",
 				"invisible",
 				"schema",
 				"uiSchema",
@@ -7499,13 +7567,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
-				"name",
+				"description",
+				"alias",
 				"project",
 				"createTime",
 				"updateTime",
-				"alias",
-				"description",
+				"icon",
+				"name",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -7566,20 +7634,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
 				"reason",
+				"labels",
 				"updateTime",
 				"alias",
+				"icon",
+				"provider",
+				"kubeConfig",
+				"createTime",
+				"description",
+				"name",
 				"apiServerURL",
 				"dashboardURL",
 				"kubeConfigSecret",
-				"description",
-				"icon",
-				"labels",
-				"kubeConfig",
-				"name",
 				"status",
-				"provider",
 				"resourceInfo"
 			],
 			"properties": {
@@ -7637,12 +7705,12 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"main",
 				"alias",
-				"type",
 				"creator",
-				"name",
+				"main",
 				"appPrimaryKey",
+				"name",
+				"type",
 				"createTime",
 				"updateTime",
 				"definition"
@@ -7782,16 +7850,16 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"updateTime",
+				"note",
+				"appPrimaryKey",
+				"version",
 				"createTime",
 				"reason",
 				"triggerType",
-				"note",
-				"version",
-				"updateTime",
-				"deployUser",
 				"envName",
-				"appPrimaryKey",
 				"status",
+				"deployUser",
 				"workflowName"
 			],
 			"properties": {
@@ -7846,9 +7914,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -7885,11 +7953,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects"
 			],
 			"properties": {
@@ -7923,12 +7991,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"name",
-				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
+				"name",
+				"namespace",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -7980,14 +8048,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"description",
-				"default",
-				"envName",
-				"createTime",
-				"updateTime",
 				"name",
 				"alias",
-				"enable"
+				"description",
+				"enable",
+				"envName",
+				"createTime",
+				"default",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -8179,8 +8247,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"alias",
-				"name"
+				"name",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -8190,6 +8258,16 @@
 					"$ref": "#/definitions/v1.ClusterTarget"
 				},
 				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.GetLoginTypeResponse": {
+			"required": [
+				"loginType"
+			],
+			"properties": {
+				"loginType": {
 					"type": "string"
 				}
 			}
@@ -8484,9 +8562,24 @@
 				}
 			}
 		},
+		"v1.LoginRequest": {
+			"properties": {
+				"code": {
+					"type": "string"
+				},
+				"password": {
+					"type": "string"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.LoginResponse": {
 			"required": [
-				"userInfo"
+				"user",
+				"accessToken",
+				"refreshToken"
 			],
 			"properties": {
 				"accessToken": {
@@ -8495,8 +8588,8 @@
 				"refreshToken": {
 					"type": "string"
 				},
-				"userInfo": {
-					"$ref": "#/definitions/v1.DetailUserResponse"
+				"user": {
+					"$ref": "#/definitions/v1.UserBase"
 				}
 			}
 		},
@@ -8654,6 +8747,20 @@
 			}
 		},
 		"v1.PutApplicationEnvBindingRequest": {},
+		"v1.RefreshTokenResponse": {
+			"required": [
+				"accessToken",
+				"refreshToken"
+			],
+			"properties": {
+				"accessToken": {
+					"type": "string"
+				},
+				"refreshToken": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.SimpleResponse": {
 			"required": [
 				"status"
@@ -8666,21 +8773,25 @@
 		},
 		"v1.SystemInfoRequest": {
 			"required": [
-				"EnableCollection"
+				"enableCollection",
+				"loginType"
 			],
 			"properties": {
-				"EnableCollection": {
+				"enableCollection": {
 					"type": "boolean"
+				},
+				"loginType": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"loginType",
-				"createTime",
-				"updateTime",
 				"installID",
 				"enableCollection",
+				"loginType",
+				"updateTime",
+				"createTime",
 				"systemVersion"
 			],
 			"properties": {

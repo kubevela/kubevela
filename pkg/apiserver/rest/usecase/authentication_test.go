@@ -33,12 +33,15 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test authentication usecase functions", func() {
 	var (
 		authUsecase *authenticationUsecaseImpl
+		userUsecase *userUsecaseImpl
+		sysUsecase  *systemInfoUsecaseImpl
 		ds          datastore.DataStore
 	)
 
@@ -48,6 +51,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		authUsecase = &authenticationUsecaseImpl{kubeClient: k8sClient, ds: ds}
+		sysUsecase = &systemInfoUsecaseImpl{ds: ds}
+		userUsecase = &userUsecaseImpl{ds: ds, sysUsecase: sysUsecase}
 	})
 	It("Test Dex login", func() {
 		testIDToken := &oidc.IDToken{}
@@ -65,10 +70,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 		}
 		resp, err := dexHandler.login(context.Background())
 		Expect(err).Should(BeNil())
-		Expect(resp.UserInfo.Email).Should(Equal("test@test.com"))
-		Expect(resp.UserInfo.Name).Should(Equal("test"))
-		Expect(resp.AccessToken).Should(Equal("access-token"))
-		Expect(resp.RefreshToken).Should(Equal("refresh-token"))
+		Expect(resp.Email).Should(Equal("test@test.com"))
+		Expect(resp.Name).Should(Equal("test"))
 
 		user := &model.User{
 			Name: "test",
@@ -76,6 +79,24 @@ var _ = Describe("Test authentication usecase functions", func() {
 		err = ds.Get(context.Background(), user)
 		Expect(err).Should(BeNil())
 		Expect(user.Email).Should(Equal("test@test.com"))
+	})
+
+	It("Test local login", func() {
+		_, err := userUsecase.CreateUser(context.Background(), apisv1.CreateUserRequest{
+			Name:     "test-login",
+			Email:    "test@example.com",
+			Password: "password1",
+		})
+		Expect(err).Should(BeNil())
+		localHandler := localHandlerImpl{
+			userUsecase: userUsecase,
+			ds:          ds,
+			username:    "test-login",
+			password:    "password1",
+		}
+		resp, err := localHandler.login(context.Background())
+		Expect(err).Should(BeNil())
+		Expect(resp.Name).Should(Equal("test-login"))
 	})
 
 	It("Test get dex config", func() {
@@ -91,7 +112,14 @@ var _ = Describe("Test authentication usecase functions", func() {
 				Namespace: "vela-system",
 			},
 			StringData: map[string]string{
-				secretDexConfig: `{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","secret":"client-secret","redirectURIs":["http://localhost:8080/auth/callback"]}]}`,
+				secretDexConfigKey: `
+issuer: https://dex.oam.dev
+staticClients:
+- id: client-id
+  secret: client-secret
+  redirectURIs:
+  - http://localhost:8080/auth/callback
+`,
 			},
 		})
 		Expect(err).Should(BeNil())

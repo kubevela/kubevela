@@ -20,22 +20,19 @@ func init() {
 	RegisterModel(&SystemInfo{})
 }
 
-// LoginType is the type of login
-type LoginType string
-
 const (
 	// LoginTypeDex is the dex login type
-	LoginTypeDex LoginType = "dex"
+	LoginTypeDex string = "dex"
 	// LoginTypeLocal is the local login type
-	LoginTypeLocal LoginType = "local"
+	LoginTypeLocal string = "local"
 )
 
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID        string    `json:"installID"`
-	EnableCollection bool      `json:"enableCollection"`
-	LoginType        LoginType `json:"loginType"`
+	InstallID        string `json:"installID"`
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
 }
 
 // TableName return custom table name
