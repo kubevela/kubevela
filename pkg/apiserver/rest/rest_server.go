@@ -267,11 +267,10 @@ func (s *restServer) InitAdmin(ctx context.Context) error {
 					return err
 				}
 			}
+		} else {
+			return err
 		}
-	} else {
-		return err
 	}
-
 	return nil
 }
 

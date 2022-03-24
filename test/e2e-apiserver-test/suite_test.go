@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -89,14 +88,11 @@ var _ = BeforeSuite(func() {
 				Username: "admin",
 				Password: string(secret.Data["admin"]),
 			}
-			fmt.Println(2222, req)
 			bodyByte, err := json.Marshal(req)
 			Expect(err).Should(BeNil())
 			resp, err := http.Post("http://127.0.0.1:8000/api/v1/auth/login", "application/json", bytes.NewBuffer(bodyByte))
 			Expect(err).Should(BeNil())
 			loginResp := &apisv1.LoginResponse{}
-			test, _ := json.Marshal(resp.Body)
-			fmt.Println(1111, string(test), resp.StatusCode)
 			err = json.NewDecoder(resp.Body).Decode(loginResp)
 			Expect(err).Should(BeNil())
 			token = "Bearer " + loginResp.AccessToken

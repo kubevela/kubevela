@@ -334,7 +334,6 @@ func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) 
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(1111, user.Password, l.password)
 	if err := compareHashWithPassword(user.Password, l.password); err != nil {
 		return nil, err
 	}

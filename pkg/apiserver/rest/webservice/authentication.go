@@ -17,6 +17,7 @@ limitations under the License.
 package webservice
 
 import (
+	"context"
 	"strings"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -99,6 +100,7 @@ func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful
 		bcode.ReturnError(req, res, bcode.ErrNotAccessToken)
 		return
 	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyUser, token.Username))
 
 	chain.ProcessFilter(req, res)
 }
