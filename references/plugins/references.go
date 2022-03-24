@@ -83,9 +83,21 @@ type ParseReference struct {
 	I18N   Language `json:"i18n"`
 }
 
+// Remote is the struct for input Namespace
+type Remote struct {
+	Namespace string `json:"namespace"`
+}
+
+// Remote is the struct for input Definition Path
+type Local struct {
+	Path string `json:"path"`
+}
+
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
-	DefinitionName string `json:"definitionName"`
+	Remote 			*Remote `json:"remote"`
+	Local 			*Local  `json:"local"`
+	DefinitionName 	string `json:"definitionName"`
 	ParseReference
 }
 
@@ -557,15 +569,14 @@ func setDisplayFormat(format string) {
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string, readFrom string) error {
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string) error {
 	var (
 		caps []types.Capability
 		err  error
 	)
 	// Get Capability from local file
-	if strings.HasSuffix(readFrom, ".yaml") {
-		localFilePath := readFrom
-		cap, err := ParseLocalFile(localFilePath)
+	if ref.Local != nil {
+		cap, err := ParseLocalFile(ref.Local.Path)
 		if err != nil {
 			return fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
 		}
@@ -576,7 +587,10 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
 	}
 
-	namespace := readFrom
+	if ref.Remote == nil{
+		return fmt.Errorf("failed to get capability %s without namespace or local filepath", ref.DefinitionName)
+	}
+
 	config, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -592,7 +606,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 			return fmt.Errorf("failed to get all capabilityes: %w", err)
 		}
 	} else {
-		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace, pd)
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace, pd)
 		if err != nil {
 			return fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 		}
