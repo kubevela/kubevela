@@ -95,9 +95,9 @@ type Local struct {
 
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
-	Remote 			*Remote `json:"remote"`
-	Local 			*Local  `json:"local"`
-	DefinitionName 	string `json:"definitionName"`
+	Remote         *Remote `json:"remote"`
+	Local          *Local  `json:"local"`
+	DefinitionName string  `json:"definitionName"`
 	ParseReference
 }
 
@@ -587,7 +587,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
 	}
 
-	if ref.Remote == nil{
+	if ref.Remote == nil {
 		return fmt.Errorf("failed to get capability %s without namespace or local filepath", ref.DefinitionName)
 	}
 
