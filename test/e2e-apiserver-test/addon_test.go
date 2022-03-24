@@ -17,10 +17,7 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -30,45 +27,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/addon"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
-
-const baseURL = "http://127.0.0.1:8000"
-
-func post(path string, body interface{}) *http.Response {
-	b, err := json.Marshal(body)
-	Expect(err).Should(BeNil())
-	client := &http.Client{}
-	reqest, err := http.NewRequest("POST", baseURL+path, bytes.NewBuffer(b))
-	Expect(err).Should(BeNil())
-	reqest.Header.Add("Authorization", token)
-	reqest.Header.Add("Content-Type", "application/json")
-
-	response, err := client.Do(reqest)
-	Expect(err).Should(BeNil())
-	return response
-}
-
-func get(path string) *http.Response {
-	client := &http.Client{}
-	reqest, err := http.NewRequest("GET", baseURL+path, nil)
-	Expect(err).Should(BeNil())
-	reqest.Header.Add("Authorization", token)
-
-	response, err := client.Do(reqest)
-	Expect(err).Should(BeNil())
-	return response
-}
-
-func delete(path string) *http.Response {
-	client := &http.Client{}
-	reqest, err := http.NewRequest("DELETE", baseURL+path, nil)
-	Expect(err).Should(BeNil())
-	reqest.Header.Add("Authorization", token)
-
-	response, err := client.Do(reqest)
-	Expect(err).Should(BeNil())
-	defer response.Body.Close()
-	return response
-}
 
 var _ = Describe("Test addon rest api", func() {
 	registryName := "test-addon-registry"
@@ -83,7 +41,7 @@ var _ = Describe("Test addon rest api", func() {
 		defer GinkgoRecover()
 
 		By("add registry")
-		createRes := post("/api/v1/addon_registries", createReq)
+		createRes := post("/addon_registries", createReq)
 		Expect(createRes).ShouldNot(BeNil())
 		Expect(createRes.Body).ShouldNot(BeNil())
 		Expect(createRes.StatusCode).Should(Equal(200))
@@ -97,14 +55,14 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(rmeta.Git).Should(Equal(createReq.Git))
 		Expect(rmeta.OSS).Should(Equal(createReq.Oss))
 
-		deleteRes := delete("/api/v1/addon_registries/" + createReq.Name)
+		deleteRes := delete("/addon_registries/" + createReq.Name)
 		Expect(deleteRes).ShouldNot(BeNil())
 		Expect(deleteRes.StatusCode).Should(Equal(200))
 	})
 
 	It("list addons", func() {
 		DefaultRegistry := "KubeVela"
-		listRes := get("/api/v1/addons/")
+		listRes := get("/addons/")
 		defer listRes.Body.Close()
 
 		var lres apis.ListAddonResponse
@@ -114,7 +72,7 @@ var _ = Describe("Test addon rest api", func() {
 		Expect(lres.Addons[0].RegistryName).To(Equal(DefaultRegistry))
 
 		By("get addon detail")
-		detailRes := get("/api/v1/addons/terraform-alibaba")
+		detailRes := get("/addons/terraform-alibaba")
 		defer detailRes.Body.Close()
 
 		var dres *apis.DetailAddonResponse
@@ -134,7 +92,8 @@ var _ = Describe("Test addon rest api", func() {
 			},
 		}
 		testAddon := "example"
-		res := post("/api/v1/addons/"+testAddon+"/enable", req)
+		res := post("/addons/"+testAddon+"/enable", req)
+		defer res.Body.Close()
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 		Expect(res.Body).ShouldNot(BeNil())
@@ -152,17 +111,18 @@ var _ = Describe("Test addon rest api", func() {
 		period := 30 * time.Second
 		timeout := 2 * time.Minute
 		Eventually(func() error {
-			res = get("/api/v1/addons/" + testAddon + "/status")
+			res = get("/addons/" + testAddon + "/status")
+			defer res.Body.Close()
 			err = json.NewDecoder(res.Body).Decode(&statusRes)
 			Expect(err).Should(BeNil())
 			if statusRes.Phase == apis.AddonPhaseEnabled {
 				return nil
 			}
-			fmt.Println(statusRes.Phase)
 			return errors.New("not ready")
 		}, timeout, period).Should(BeNil())
 
-		res = post("/api/v1/addons/"+testAddon+"/disable", req)
+		res = post("/addons/"+testAddon+"/disable", req)
+		defer res.Body.Close()
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 		Expect(res.Body).ShouldNot(BeNil())

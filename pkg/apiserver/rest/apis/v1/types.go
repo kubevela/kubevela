@@ -1067,8 +1067,8 @@ type SystemInfoResponse struct {
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
-	EnableCollection bool            `json:"enableCollection"`
-	LoginType        model.LoginType `json:"loginType"`
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
 }
 
 // SystemVersion contains KubeVela version
@@ -1168,5 +1168,5 @@ type ListUserOptions struct {
 
 // GetLoginTypeResponse get login type response
 type GetLoginTypeResponse struct {
-	LoginType model.LoginType `json:"loginType"`
+	LoginType string `json:"loginType"`
 }

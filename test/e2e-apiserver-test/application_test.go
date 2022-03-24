@@ -17,10 +17,8 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -54,7 +52,7 @@ var _ = Describe("Test application rest api", func() {
 				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
-		res := post("/api/v1/applications", req)
+		res := post("/applications", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
@@ -69,7 +67,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test list components", func() {
 		defer GinkgoRecover()
-		res := get("/api/v1/applications/" + appName + "/components")
+		res := get("/applications/" + appName + "/components")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
@@ -82,7 +80,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test detail application", func() {
 		defer GinkgoRecover()
-		res := get("/api/v1/applications/" + appName)
+		res := get("/applications/" + appName)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
@@ -105,7 +103,7 @@ var _ = Describe("Test application rest api", func() {
 				Namespace:   targetName,
 			},
 		}
-		res := post("/api/v1/targets", createTarget)
+		res := post("/targets", createTarget)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 
@@ -114,7 +112,7 @@ var _ = Describe("Test application rest api", func() {
 			Name:    envName,
 			Targets: []string{targetName},
 		}
-		res = post("/api/v1/envs", createEnvReq)
+		res = post("/envs", createEnvReq)
 		Expect(res).ShouldNot(BeNil())
 
 		// create envbinding
@@ -123,7 +121,7 @@ var _ = Describe("Test application rest api", func() {
 				Name: envName,
 			},
 		}
-		res = post("/api/v1/applications/"+appName+"/envs", createEnvbindingReq)
+		res = post("/applications/"+appName+"/envs", createEnvbindingReq)
 		Expect(res).ShouldNot(BeNil())
 
 		// deploy app
@@ -133,7 +131,7 @@ var _ = Describe("Test application rest api", func() {
 			WorkflowName: "workflow-dev",
 			Force:        false,
 		}
-		res = post("/api/v1/applications/"+appName+"/deploy", req)
+		res = post("/applications/"+appName+"/deploy", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
@@ -152,8 +150,7 @@ var _ = Describe("Test application rest api", func() {
 
 	It("Test recycling application", func() {
 		var envName = "dev"
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/envs/"+envName+"/recycle", "application/json", nil)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/applications/"+appName+"/envs/"+envName+"/recycle", nil)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
@@ -168,30 +165,26 @@ var _ = Describe("Test application rest api", func() {
 			Properties:    `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 			DependsOn:     []string{"data-worker"},
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/components", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/applications/"+appName+"/components", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.ComponentBase
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.ComponentType, "worker")).Should(BeEmpty())
 	})
 
 	It("Test detail component", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/" + appName + "/components/test2")
-		Expect(err).ShouldNot(HaveOccurred())
+		res := get("/applications/" + appName + "/components/test2")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.DetailComponentResponse
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(len(response.DependsOn), 1)).Should(BeEmpty())
 	})
@@ -202,59 +195,44 @@ var _ = Describe("Test application rest api", func() {
 			Type:       "ingress",
 			Properties: `{"domain": "www.test.com"}`,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/components/test2/traits", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/applications/"+appName+"/components/test2/traits", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.ApplicationTrait
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test.com"}`)).Should(BeEmpty())
 	})
 
 	It("Test update trait", func() {
 		defer GinkgoRecover()
-		var req2 = apisv1.CreateApplicationTraitRequest{
+		var req = apisv1.CreateApplicationTraitRequest{
 			Type:       "ingress",
 			Properties: `{"domain": "www.test1.com"}`,
 		}
-		bodyByte, err := json.Marshal(req2)
-		Expect(err).ShouldNot(HaveOccurred())
-		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/components/test2/traits/ingress", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
-		req.Header.Set("Content-Type", "application/json")
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := put("/applications/"+appName+"/components/test2/traits/ingress", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.ApplicationTrait
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Properties.JSON(), `{"domain":"www.test1.com"}`)).Should(BeEmpty())
 	})
 
 	It("Test delete trait", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/components/test2/traits/ingress", nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := delete("/applications/" + appName + "/components/test2/traits/ingress")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
 	It("Test delete component", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/components/test2", nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := delete("/applications/" + appName + "/components/test2")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
@@ -266,10 +244,7 @@ var _ = Describe("Test application rest api", func() {
 			Description: "this is a test2 component",
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/policies", "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post("/applications/"+appName+"/policies", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 400)).Should(BeEmpty())
 		var req2 = apisv1.CreatePolicyRequest{
@@ -278,75 +253,59 @@ var _ = Describe("Test application rest api", func() {
 			Type:        "wqsdasd",
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
-		bodyByte2, err := json.Marshal(req2)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err = http.Post("http://127.0.0.1:8000/api/v1/applications/"+appName+"/policies", "application/json", bytes.NewBuffer(bodyByte2))
-		Expect(err).ShouldNot(HaveOccurred())
+		res = post("/applications/"+appName+"/policies", req2)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.PolicyBase
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Type, "wqsdasd")).Should(BeEmpty())
 	})
 
 	It("Test detail application policy", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/applications/" + appName + "/policies/test2")
-		Expect(err).ShouldNot(HaveOccurred())
+		res := get("/applications/" + appName + "/policies/test2")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.DetailPolicyResponse
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Description, "this is a test2 policy")).Should(BeEmpty())
 	})
 
 	It("Test update application policy", func() {
-		var req2 = apisv1.UpdatePolicyRequest{
+		var req = apisv1.UpdatePolicyRequest{
 			Description: "this is a test2 policy update",
 			Type:        "wqsdasd",
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
-		bodyByte2, err := json.Marshal(req2)
-		Expect(err).ShouldNot(HaveOccurred())
-		req, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/policies/test2", bytes.NewBuffer(bodyByte2))
-		Expect(err).ShouldNot(HaveOccurred())
-		req.Header.Set("Content-Type", "application/json")
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := put("/applications/"+appName+"/policies/test2", req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 
 		Expect(res.Body).ShouldNot(BeNil())
 		defer res.Body.Close()
 		var response apisv1.PolicyBase
-		err = json.NewDecoder(res.Body).Decode(&response)
+		err := json.NewDecoder(res.Body).Decode(&response)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(cmp.Diff(response.Description, "this is a test2 policy update")).Should(BeEmpty())
 	})
 
 	It("Test delete application policy", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName+"/policies/test2", nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := delete("/applications/" + appName + "/policies/test2")
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})
 
 	It("Test delete app", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8000/api/v1/applications/"+appName, nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := delete("/applications/" + appName)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})

@@ -17,10 +17,6 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"encoding/json"
-	"net/http"
-
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -31,15 +27,9 @@ var _ = Describe("Test definitions rest api", func() {
 
 	It("Test list definitions", func() {
 		defer GinkgoRecover()
-		res, err := http.Get("http://127.0.0.1:8000/api/v1/definitions?type=component")
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(res).ShouldNot(BeNil())
-		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := get("/definitions?type=component")
 		var definitions apisv1.ListDefinitionResponse
-		err = json.NewDecoder(res.Body).Decode(&definitions)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(res, &definitions)).Should(Succeed())
 	})
 
 })

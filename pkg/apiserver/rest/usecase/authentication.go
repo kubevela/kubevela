@@ -228,7 +228,7 @@ func ParseToken(tokenString string) (*model.CustomClaims, error) {
 		return []byte(signedKey), nil
 	})
 	if err != nil {
-		var ve *jwt.ValidationError
+		ve := &jwt.ValidationError{}
 		if jwtErr := errors.As(err, ve); jwtErr {
 			switch ve.Errors {
 			case jwt.ValidationErrorExpired:

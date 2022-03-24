@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -83,7 +84,9 @@ var _ = BeforeSuite(func() {
 		func() error {
 			secret := &v1.Secret{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Name: "admin", Namespace: "vela-system"}, secret)
-			Expect(err).Should(BeNil())
+			if err != nil {
+				return err
+			}
 			var req = apisv1.LoginRequest{
 				Username: "admin",
 				Password: string(secret.Data["admin"]),
@@ -91,7 +94,9 @@ var _ = BeforeSuite(func() {
 			bodyByte, err := json.Marshal(req)
 			Expect(err).Should(BeNil())
 			resp, err := http.Post("http://127.0.0.1:8000/api/v1/auth/login", "application/json", bytes.NewBuffer(bodyByte))
-			Expect(err).Should(BeNil())
+			if err != nil {
+				return err
+			}
 			loginResp := &apisv1.LoginResponse{}
 			err = json.NewDecoder(resp.Body).Decode(loginResp)
 			Expect(err).Should(BeNil())
@@ -101,7 +106,7 @@ var _ = BeforeSuite(func() {
 					Name:        appProject,
 					Description: "test project",
 				}
-				_ = post("/api/v1/projects", req)
+				_ = post("/projects", req)
 				return nil
 			}
 			return errors.New("rest service not ready")
@@ -120,3 +125,74 @@ var _ = AfterSuite(func() {
 		}
 	}
 })
+
+const (
+	baseURL      = "http://127.0.0.1:8000/api/v1"
+	testNSprefix = "api-e2e-test-"
+)
+
+func post(path string, body interface{}) *http.Response {
+	b, err := json.Marshal(body)
+	Expect(err).Should(BeNil())
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodPost, baseURL+path, bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	req.Header.Add("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func put(path string, body interface{}) *http.Response {
+	b, err := json.Marshal(body)
+	Expect(err).Should(BeNil())
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodPut, baseURL+path, bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func get(path string) *http.Response {
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func delete(path string) *http.Response {
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodDelete, baseURL+path, nil)
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	defer response.Body.Close()
+	return response
+}
+
+func decodeResponseBody(resp *http.Response, dst interface{}) error {
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("response code is not 200: %d", resp.StatusCode)
+	}
+	if resp.Body == nil {
+		return fmt.Errorf("response body is nil")
+	}
+	if dst != nil {
+		err := json.NewDecoder(resp.Body).Decode(dst)
+		Expect(err).Should(BeNil())
+		return resp.Body.Close()
+	}
+	return resp.Body.Close()
+}

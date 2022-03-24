@@ -19,15 +19,12 @@ package usecase
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/version"
-
-	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/version"
 )
 
 // SystemInfoUsecase is usecase for systemInfoCollection
