@@ -26,9 +26,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -292,7 +292,7 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 	var managedResources []v1beta1.ManagedResource
 	for _, cr := range h._crRT.Spec.ManagedResources { // legacy code for rollout-plan
 		if _, exists := inUseComponents[cr.ComponentKey()]; !exists {
-			_cr := &v1.ControllerRevision{}
+			_cr := &appsv1.ControllerRevision{}
 			err := h.Client.Get(multicluster.ContextWithClusterName(ctx, cr.Cluster), cr.NamespacedName(), _cr)
 			if err != nil && !multicluster.IsNotFoundOrClusterNotExists(err) {
 				return errors.Wrapf(err, "failed to get component revision %s", cr.ResourceKey())
@@ -374,13 +374,18 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 		}
 	}
 	// upgrade app version
-	if _, err = version.NewVersion(version2.VelaVersion); err != nil {
-		v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, velaVersionNumberToUpgradeResourceTracker)
-	} else {
-		v12.SetMetaDataAnnotation(&h.app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
+	app := &v1beta1.Application{}
+	if err = h.Client.Get(ctx, client.ObjectKeyFromObject(h.app), app); err != nil {
+		return errors.Wrapf(err, "failed to get app %s/%s for upgrade version", h.app.Namespace, h.app.Name)
 	}
-	if err = h.Client.Update(ctx, h.app); err != nil {
+	if _, err = version.NewVersion(version2.VelaVersion); err != nil {
+		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, velaVersionNumberToUpgradeResourceTracker)
+	} else {
+		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
+	}
+	if err = h.Client.Update(ctx, app); err != nil {
 		return errors.Wrapf(err, "failed to upgrade app %s/%s", h.app.Namespace, h.app.Name)
 	}
+	h.app.ObjectMeta = app.ObjectMeta
 	return nil
 }

@@ -41,3 +41,11 @@ func GetServiceAccountNameFromAnnotations(o client.Object) string {
 	}
 	return ""
 }
+
+// GetPublishVersion get PublishVersion from object
+func GetPublishVersion(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationPublishVersion]
+	}
+	return ""
+}

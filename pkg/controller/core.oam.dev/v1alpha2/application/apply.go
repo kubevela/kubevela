@@ -324,3 +324,23 @@ func garbageCollection(ctx context.Context, h *AppHandler) error {
 	}
 	return nil
 }
+
+// ApplyPolicies will render policies into manifests from appfile and dispatch them
+func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) error {
+	if ctx, ok := ctx.(monitorContext.Context); ok {
+		subCtx := ctx.Fork("apply-policies", monitorContext.DurationMetric(func(v float64) {
+			metrics.ApplyPoliciesDurationHistogram.WithLabelValues("application").Observe(v)
+		}))
+		defer subCtx.Commit("finish apply policies")
+	}
+	policyManifests, err := af.GeneratePolicyManifests(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to render policy manifests")
+	}
+	if len(policyManifests) > 0 {
+		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, policyManifests...); err != nil {
+			return errors.Wrapf(err, "failed to dispatch policy manifests")
+		}
+	}
+	return nil
+}

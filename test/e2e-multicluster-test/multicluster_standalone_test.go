@@ -27,7 +27,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +37,7 @@ import (
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("Test multicluster standalone scenario", func() {
@@ -44,6 +45,20 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 	var namespace string
 	var hubCtx context.Context
 	var workerCtx context.Context
+
+	readFile := func(filename string) *unstructured.Unstructured {
+		bs, err := ioutil.ReadFile("./testdata/app/standalone/" + filename)
+		Expect(err).Should(Succeed())
+		un := &unstructured.Unstructured{}
+		Expect(yaml.Unmarshal(bs, un)).Should(Succeed())
+		un.SetNamespace(namespace)
+		return un
+	}
+
+	applyFile := func(filename string) {
+		un := readFile(filename)
+		Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
+	}
 
 	BeforeEach(func() {
 		hubCtx, workerCtx, namespace = initializeContextAndNamespace()
@@ -54,14 +69,6 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 	})
 
 	It("Test standalone app", func() {
-		applyFile := func(filename string) {
-			bs, err := ioutil.ReadFile("./testdata/app/standalone/" + filename)
-			Expect(err).Should(Succeed())
-			un := &unstructured.Unstructured{}
-			Expect(yaml.Unmarshal(bs, un)).Should(Succeed())
-			un.SetNamespace(namespace)
-			Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
-		}
 		By("Apply resources")
 		applyFile("deployment.yaml")
 		applyFile("configmap-1.yaml")
@@ -96,8 +103,85 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		}, 30*time.Second).Should(Succeed())
 	})
 
+	It("Test standalone app with publish version", func() {
+		By("Apply resources")
+		deploy := readFile("deployment.yaml")
+		Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
+		workflow := readFile("workflow-suspend.yaml")
+		Expect(k8sClient.Create(hubCtx, workflow)).Should(Succeed())
+		policy := readFile("policy-zero-replica.yaml")
+		Expect(k8sClient.Create(hubCtx, policy)).Should(Succeed())
+		app := readFile("app-with-publish-version.yaml")
+		Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+		appKey := client.ObjectKeyFromObject(app)
+
+		Eventually(func(g Gomega) {
+			_app := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationWorkflowSuspending))
+		}, 15*time.Second).Should(Succeed())
+
+		Expect(k8sClient.Delete(hubCtx, workflow)).Should(Succeed())
+		Expect(k8sClient.Delete(hubCtx, policy)).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			_app := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			_app.Status.Workflow.Suspend = false
+			g.Expect(k8sClient.Status().Update(hubCtx, _app)).Should(Succeed())
+		}, 15*time.Second).Should(Succeed())
+
+		// test application can run without external policies and workflow since they are recorded in the application revision
+		_app := &v1beta1.Application{}
+		Eventually(func(g Gomega) {
+			deploys := &v1.DeploymentList{}
+			g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(deploys.Items)).Should(Equal(1))
+			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(0)))
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+		}, 30*time.Second).Should(Succeed())
+
+		// update application without updating publishVersion
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			_app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(`{"clusters":["local"]}`)}
+			g.Expect(k8sClient.Update(hubCtx, _app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+
+		// application should no re-run workflow
+		time.Sleep(10 * time.Second)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+			apprevs := &v1beta1.ApplicationRevisionList{}
+			g.Expect(k8sClient.List(hubCtx, apprevs, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(apprevs.Items)).Should(Equal(1))
+		}, 10*time.Second).Should(Succeed())
+
+		// update application with publishVersion
+		applyFile("policy.yaml")
+		applyFile("workflow.yaml")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			_app.Annotations[oam.AnnotationPublishVersion] = "beta"
+			g.Expect(k8sClient.Update(hubCtx, _app)).Should(Succeed())
+		}, 10*time.Second).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
+			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+			deploys := &v1.DeploymentList{}
+			g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(deploys.Items)).Should(Equal(0))
+			g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(len(deploys.Items)).Should(Equal(1))
+			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(3)))
+		}, 30*time.Second).Should(Succeed())
+	})
+
 	It("Test large application parallel apply and delete", func() {
-		newApp := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{Namespace: namespace, Name: "large-app"}}
+		newApp := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "large-app"}}
 		size := 30
 		for i := 0; i < size; i++ {
 			newApp.Spec.Components = append(newApp.Spec.Components, oamcomm.ApplicationComponent{

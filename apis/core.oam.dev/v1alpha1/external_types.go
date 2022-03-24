@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // +kubebuilder:object:root=true
@@ -61,7 +61,7 @@ type Workflow struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Steps []v1beta1.WorkflowStep `json:"steps,omitempty"`
+	Steps []common.WorkflowStep `json:"steps,omitempty"`
 }
 
 // +kubebuilder:object:root=true

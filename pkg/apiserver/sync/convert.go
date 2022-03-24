@@ -103,7 +103,7 @@ func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey
 		if err := cli.Get(ctx, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
 			return dataWf, nil, err
 		}
-		steps = wf.Steps
+		steps = step.ConvertSteps(wf.Steps)
 	} else {
 		steps = app.Spec.Workflow.Steps
 	}
