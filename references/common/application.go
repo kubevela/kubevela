@@ -429,7 +429,7 @@ func Info(app *corev1beta1.Application) string {
 		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
 		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
 		fmt.Sprintf("      App status: vela status %s\n", appName) +
-		fmt.Sprintf("        Endpoint: vela status %s\n --endpoint", appName)
+		fmt.Sprintf("        Endpoint: vela status %s --endpoint\n", appName)
 	return appUpMessage
 }
 
