@@ -99,6 +99,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

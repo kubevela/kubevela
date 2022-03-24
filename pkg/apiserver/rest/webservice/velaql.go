@@ -53,6 +53,7 @@ func (v *velaQLWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.VelaQLViewResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

@@ -14,10 +14,9 @@
  limitations under the License.
 */
 
-package e2e_apiserver
+package e2e_apiserver_test
 
 import (
-	"net/http"
 	"strconv"
 	"time"
 
@@ -34,9 +33,9 @@ var _ = Describe("Test env rest api", func() {
 		testtarget1, testenv1, testtarget2 string
 	)
 	BeforeEach(func() {
-		testtarget1 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
-		testenv1 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
-		testtarget2 = TestNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		testtarget1 = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		testenv1 = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+		testtarget2 = testNSprefix + strconv.FormatInt(time.Now().UnixNano(), 10)
 	})
 
 	It("Test create, get, delete env with normal format", func() {
@@ -50,8 +49,8 @@ var _ = Describe("Test env rest api", func() {
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
-		err := HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp := post("/targets", reqt)
+		Expect(decodeResponseBody(resp, &tgBase)).Should(Succeed())
 
 		By("create the first env")
 		var req = apisv1.CreateEnvRequest{
@@ -63,15 +62,15 @@ var _ = Describe("Test env rest api", func() {
 			Targets:     []string{testtarget1},
 		}
 		var envBase apisv1.Env
-		err = HttpRequest(req, http.MethodPost, "/envs", &envBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = post("/envs", req)
+		Expect(decodeResponseBody(resp, &envBase)).Should(Succeed())
 		Expect(cmp.Diff(envBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(envBase.Description, req.Description)).Should(BeEmpty())
 
 		By("get the first env")
 		var envs apisv1.ListEnvResponse
-		err = HttpRequest(nil, http.MethodGet, "/envs", &envs)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = get("/envs")
+		Expect(decodeResponseBody(resp, &envs)).Should(Succeed())
 		Expect(len(envs.Envs) >= 1).Should(BeTrue())
 		var found bool
 		for _, ev := range envs.Envs {
@@ -88,8 +87,8 @@ var _ = Describe("Test env rest api", func() {
 		Expect(found).Should(BeTrue())
 
 		By("delete the first env")
-		err = HttpRequest(nil, http.MethodDelete, "/envs/"+testenv1, nil)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = delete("/envs/" + testenv1)
+		Expect(decodeResponseBody(resp, nil)).Should(Succeed())
 
 	})
 
@@ -104,16 +103,16 @@ var _ = Describe("Test env rest api", func() {
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
-		err := HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp := post("/targets", reqt)
+		Expect(decodeResponseBody(resp, &tgBase)).Should(Succeed())
 		reqt = apisv1.CreateTargetRequest{
 			Name:        testtarget2,
 			Alias:       "my-target-for-env3",
 			Description: "KubeVela Target",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget2},
 		}
-		err = HttpRequest(reqt, http.MethodPost, "/targets", &tgBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = post("/targets", reqt)
+		Expect(decodeResponseBody(resp, &tgBase)).Should(Succeed())
 
 		By("create  env for update")
 		var req = apisv1.CreateEnvRequest{
@@ -125,8 +124,8 @@ var _ = Describe("Test env rest api", func() {
 			Targets:     []string{testtarget1},
 		}
 		var envBase apisv1.Env
-		err = HttpRequest(req, http.MethodPost, "/envs", &envBase)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = post("/envs", req)
+		Expect(decodeResponseBody(resp, &envBase)).Should(Succeed())
 		Expect(cmp.Diff(envBase.Name, req.Name)).Should(BeEmpty())
 		Expect(cmp.Diff(envBase.Description, req.Description)).Should(BeEmpty())
 
@@ -136,13 +135,13 @@ var _ = Describe("Test env rest api", func() {
 			Description: "KubeVela Env2",
 			Targets:     []string{testtarget2},
 		}
-		err = HttpRequest(upreq, http.MethodPut, "/envs/"+testenv1, nil)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = put("/envs/"+testenv1, upreq)
+		Expect(decodeResponseBody(resp, nil)).Should(Succeed())
 
 		By("get the env")
 		var envs apisv1.ListEnvResponse
-		err = HttpRequest(nil, http.MethodGet, "/envs", &envs)
-		Expect(err).ShouldNot(HaveOccurred())
+		resp = get("/envs")
+		Expect(decodeResponseBody(resp, &envs)).Should(Succeed())
 		Expect(len(envs.Envs) >= 1).Should(BeTrue())
 		var found bool
 		for _, ev := range envs.Envs {

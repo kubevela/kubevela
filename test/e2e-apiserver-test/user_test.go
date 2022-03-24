@@ -17,10 +17,7 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,8 +26,7 @@ import (
 )
 
 const (
-	username  = "my-user"
-	urlPrefix = "http://127.0.0.1:8000/api/v1/users"
+	username = "my-user"
 )
 
 var _ = Describe("Test user rest api", func() {
@@ -42,17 +38,9 @@ var _ = Describe("Test user rest api", func() {
 			Email:    "test@example.com",
 			Password: "password1",
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).Should(BeNil())
-		res, err := http.Post(urlPrefix, "application/json", bytes.NewBuffer(bodyByte))
-		Expect(err).Should(BeNil())
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := post("/users", req)
 		userBase := &apisv1.UserBase{}
-		err = json.NewDecoder(res.Body).Decode(&userBase)
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(res, userBase)).Should(Succeed())
 		Expect(userBase.Name).Should(Equal(username))
 		Expect(userBase.Alias).Should(Equal("alias"))
 		Expect(userBase.Email).Should(Equal("test@example.com"))
@@ -60,29 +48,18 @@ var _ = Describe("Test user rest api", func() {
 
 	It("Test list users", func() {
 		defer GinkgoRecover()
-		res, err := http.Get(urlPrefix)
-		Expect(err).Should(BeNil())
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := get("/users")
 		users := &apisv1.ListUserResponse{}
-		err = json.NewDecoder(res.Body).Decode(users)
-		Expect(err).Should(BeNil())
-		Expect(users.Total).Should(Equal(int64(1)))
+		Expect(decodeResponseBody(res, users)).Should(Succeed())
+		// two users in total, one is admin user
+		Expect(users.Total).Should(Equal(int64(2)))
 	})
 
 	It("Test detail user", func() {
 		defer GinkgoRecover()
-		res, err := http.Get(fmt.Sprintf("%s/%s", urlPrefix, username))
-		Expect(err).Should(BeNil())
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
-		var detail apisv1.DetailUserResponse
-		err = json.NewDecoder(res.Body).Decode(&detail)
-		Expect(err).Should(BeNil())
+		res := get(fmt.Sprintf("/users/%s", username))
+		detail := &apisv1.DetailUserResponse{}
+		Expect(decodeResponseBody(res, detail)).Should(Succeed())
 		Expect(detail.Name).Should(Equal(username))
 		Expect(detail.Alias).Should(Equal("alias"))
 		Expect(detail.Email).Should(Equal("test@example.com"))
@@ -91,34 +68,19 @@ var _ = Describe("Test user rest api", func() {
 
 	It("Test update user", func() {
 		defer GinkgoRecover()
-		var updateReq = apisv1.UpdateUserRequest{
+		var req = apisv1.UpdateUserRequest{
 			Alias: "updated-alias",
 		}
-		bodyByte, err := json.Marshal(updateReq)
-		Expect(err).Should(BeNil())
-		req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/%s", urlPrefix, username), bytes.NewBuffer(bodyByte))
-		Expect(err).Should(BeNil())
-		req.Header.Set("Content-Type", "application/json")
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).Should(BeNil())
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-		defer res.Body.Close()
+		res := put(fmt.Sprintf("/users/%s", username), req)
 		userBase := &apisv1.UserBase{}
-		err = json.NewDecoder(res.Body).Decode(&userBase)
-		Expect(err).Should(BeNil())
+		Expect(decodeResponseBody(res, userBase)).Should(Succeed())
 		Expect(userBase.Alias).Should(Equal("updated-alias"))
 	})
 
 	It("Test delete user", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%s", urlPrefix, username), nil)
-		Expect(err).Should(BeNil())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).Should(BeNil())
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
+		res := delete(fmt.Sprintf("/users/%s", username))
+		Expect(decodeResponseBody(res, nil)).Should(Succeed())
 	})
 
 })

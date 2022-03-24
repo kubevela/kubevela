@@ -65,6 +65,7 @@ func (u systemInfoWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

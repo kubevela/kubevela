@@ -57,6 +57,8 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Reads(apis.CreateProjectRequest{}).
 		Returns(200, "OK", apis.ProjectBase{}).
 		Writes(apis.ProjectBase{}))
+
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

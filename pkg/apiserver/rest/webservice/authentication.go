@@ -17,6 +17,9 @@ limitations under the License.
 package webservice
 
 import (
+	"context"
+	"strings"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
@@ -45,9 +48,10 @@ func (c *authenticationWebService) GetWebService() *restful.WebService {
 
 	tags := []string{"authentication"}
 
-	ws.Route(ws.GET("/login").To(c.login).
+	ws.Route(ws.POST("/login").To(c.login).
 		Doc("handle login request").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.LoginRequest{}).
 		Returns(200, "", apis.LoginResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.LoginResponse{}))
@@ -58,11 +62,56 @@ func (c *authenticationWebService) GetWebService() *restful.WebService {
 		Returns(200, "", apis.DexConfigResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DexConfigResponse{}))
+
+	ws.Route(ws.GET("/refreshToken").To(c.refreshToken).
+		Doc("refresh token").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.RefreshTokenResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.RefreshTokenResponse{}))
+
+	ws.Route(ws.GET("/loginType").To(c.getLoginType).
+		Doc("get login type").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.GetLoginTypeResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.GetLoginTypeResponse{}))
 	return ws
 }
 
+func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	tokenHeader := req.HeaderParameter("Authorization")
+	if tokenHeader == "" {
+		bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
+		return
+	}
+	splitted := strings.Split(tokenHeader, " ")
+	if len(splitted) != 2 {
+		bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
+		return
+	}
+
+	token, err := usecase.ParseToken(splitted[1])
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if token.GrantType != usecase.GrantTypeAccess {
+		bcode.ReturnError(req, res, bcode.ErrNotAccessToken)
+		return
+	}
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyUser, token.Username))
+
+	chain.ProcessFilter(req, res)
+}
+
 func (c *authenticationWebService) login(req *restful.Request, res *restful.Response) {
-	base, err := c.authenticationUsecase.Login(req.Request.Context(), req)
+	var loginReq apis.LoginRequest
+	if err := req.ReadEntity(&loginReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	base, err := c.authenticationUsecase.Login(req.Request.Context(), loginReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -75,6 +124,30 @@ func (c *authenticationWebService) login(req *restful.Request, res *restful.Resp
 
 func (c *authenticationWebService) getDexConfig(req *restful.Request, res *restful.Response) {
 	base, err := c.authenticationUsecase.GetDexConfig(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *authenticationWebService) refreshToken(req *restful.Request, res *restful.Response) {
+	base, err := c.authenticationUsecase.RefreshToken(req.Request.Context(), req.HeaderParameter("RefreshToken"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *authenticationWebService) getLoginType(req *restful.Request, res *restful.Response) {
+	base, err := c.authenticationUsecase.GetLoginType(req.Request.Context())
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

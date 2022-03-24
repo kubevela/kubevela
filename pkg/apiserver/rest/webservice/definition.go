@@ -54,6 +54,8 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "create success", apis.DetailDefinitionResponse{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
+
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

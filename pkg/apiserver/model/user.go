@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/form3tech-oss/jwt-go"
 )
 
 func init() {
@@ -103,5 +105,12 @@ func (u *ProjectUser) Index() map[string]string {
 func verifyUserValue(v string) string {
 	s := strings.ReplaceAll(v, "@", "-")
 	s = strings.ReplaceAll(s, " ", "-")
-	return s
+	return strings.ToLower(s)
+}
+
+// CustomClaims is the custom claims
+type CustomClaims struct {
+	Username  string `json:"username"`
+	GrantType string `json:"grantType"`
+	jwt.StandardClaims
 }

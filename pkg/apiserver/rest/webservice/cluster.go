@@ -153,6 +153,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.CreateCloudClusterResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

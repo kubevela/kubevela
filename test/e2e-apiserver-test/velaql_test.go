@@ -92,16 +92,9 @@ var _ = Describe("Test velaQL rest api", func() {
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
 
-		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{name=%s,namespace=%s}.%s", "read-view", appName, namespace, "output.value.spec"),
-		)
-		Expect(err).Should(BeNil())
-		Expect(queryRes.StatusCode).Should(Equal(200))
-
-		defer queryRes.Body.Close()
+		queryRes := get(fmt.Sprintf("/query?velaql=%s{name=%s,namespace=%s}.%s", "read-view", appName, namespace, "output.value.spec"))
 		var appSpec v1beta1.ApplicationSpec
-		err = json.NewDecoder(queryRes.Body).Decode(&appSpec)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(queryRes, &appSpec)).Should(Succeed())
 
 		var existApp v1beta1.Application
 		Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, &existApp)).Should(BeNil())
@@ -110,10 +103,7 @@ var _ = Describe("Test velaQL rest api", func() {
 	})
 
 	It("Test query application status with wrong velaQL", func() {
-		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{err=,name=%s,namespace=%s}.%s", "read-object", appName, namespace, "output.value.spec"),
-		)
-		Expect(err).Should(BeNil())
+		queryRes := get(fmt.Sprintf("/query?velaql=%s{err=,name=%s,namespace=%s}.%s", "read-object", appName, namespace, "output.value.spec"))
 		Expect(queryRes.StatusCode).Should(Equal(400))
 	})
 
@@ -133,32 +123,20 @@ var _ = Describe("Test velaQL rest api", func() {
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
 
-		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"),
-		)
-		Expect(err).Should(BeNil())
-		Expect(queryRes.StatusCode).Should(Equal(200))
-
-		defer queryRes.Body.Close()
+		queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"))
 		status := new(Status)
-		err = json.NewDecoder(queryRes.Body).Decode(status)
-		Expect(err).ShouldNot(HaveOccurred())
+		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
 		Expect(len(status.PodList)).Should(Equal(1))
 		Expect(status.PodList[0].Containers[0]).Should(Equal(component1Name))
 
 		Eventually(func() error {
-			queryRes1, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes1 := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"))
 			if queryRes1.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes1.StatusCode)
 			}
 			defer queryRes1.Body.Close()
 			status1 := new(Status)
-			err = json.NewDecoder(queryRes1.Body).Decode(status1)
+			err := json.NewDecoder(queryRes1.Body).Decode(status1)
 			if err != nil {
 				return err
 			}
@@ -217,18 +195,13 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
 
 		Eventually(func() error {
-			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s}.%s", "test-component-pod-view", appName, namespace, "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s}.%s", "test-component-pod-view", appName, namespace, "status"))
 			if queryRes.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes.StatusCode)
 			}
 			defer queryRes.Body.Close()
 			status := new(Status)
-			err = json.NewDecoder(queryRes.Body).Decode(status)
+			err := json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
@@ -268,12 +241,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeNil())
 
 		Eventually(func() error {
-			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"))
 			if queryRes.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes.StatusCode)
 			}
@@ -324,12 +292,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeNil())
 
 		Eventually(func() error {
-			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"))
 			if queryRes.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes.StatusCode)
 			}
@@ -376,12 +339,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 2*time.Minute, 1*time.Second).Should(BeNil())
 
 		Eventually(func() error {
-			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"))
 			if queryRes.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes.StatusCode)
 			}
@@ -402,12 +360,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
 
 		Eventually(func() error {
-			queryRes, err := http.Get(
-				fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "new-express-server", "status"),
-			)
-			if err != nil {
-				return err
-			}
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "new-express-server", "status"))
 			if queryRes.StatusCode != 200 {
 				return errors.Errorf("status code is %d", queryRes.StatusCode)
 			}
@@ -451,19 +404,12 @@ var _ = Describe("Test velaQL rest api", func() {
 			g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)).Should(Succeed())
 			g.Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
 		}, 30*time.Second).Should(Succeed())
-		queryRes, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/api/v1/query?velaql=%s{cluster=%s,namespace=%s,pod=%s,container=%s}.%s", "test-collect-logs", "local", "default", podName, containerName, "status"),
-		)
-		Expect(err).Should(BeNil())
-		Expect(queryRes.StatusCode).Should(Equal(200))
-
-		defer queryRes.Body.Close()
+		queryRes := get(fmt.Sprintf("/query?velaql=%s{cluster=%s,namespace=%s,pod=%s,container=%s}.%s", "test-collect-logs", "local", "default", podName, containerName, "status"))
 		status := &struct {
 			Logs string `json:"logs"`
 			Err  string `json:"err,omitempty"`
 		}{}
-		err = json.NewDecoder(queryRes.Body).Decode(status)
-		Expect(err).Should(Succeed())
+		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
 	})
 })
 
