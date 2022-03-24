@@ -278,7 +278,7 @@ func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOpti
 			})
 		}
 	}
-	if filterOptions != nil && len(filterOptions.Queries) > 0 {
+	if filterOptions != nil {
 		filter = _applyFilterOptions(filter, *filterOptions)
 	}
 	count, err := collection.CountDocuments(ctx, filter)

@@ -42,6 +42,24 @@ condition: {}
 ```
 
 ```yaml
+name: app1-manage
+project: demo
+resource: ["project:demo/application:app1/*"]
+actions: ["*"]
+effect: Allow
+principal: {}
+condition: {}
+
+name: app2-manage
+project: demo
+resource: ["project:demo/application:app2/*"]
+actions: ["*"]
+effect: Allow
+principal: {}
+condition: {}
+```
+
+```yaml
 name: cluster-manage
 resource: ["cluster:*"]
 actions: ["*"]

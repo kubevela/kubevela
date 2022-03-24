@@ -29,21 +29,24 @@ import (
 )
 
 // NewAddonWebService returns addon web service
-func NewAddonWebService(u usecase.AddonHandler) WebService {
+func NewAddonWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACUsecase) WebService {
 	return &addonWebService{
-		handler: u,
+		handler:     u,
+		rbacUsecase: rbacUsecase,
 	}
 }
 
 // NewEnabledAddonWebService returns enabled addon web service
-func NewEnabledAddonWebService(u usecase.AddonHandler) WebService {
+func NewEnabledAddonWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACUsecase) WebService {
 	return &enabledAddonWebService{
 		addonUsecase: u,
+		rbacUsecase:  rbacUsecase,
 	}
 }
 
 type addonWebService struct {
-	handler usecase.AddonHandler
+	rbacUsecase usecase.RBACUsecase
+	handler     usecase.AddonHandler
 }
 
 func (s *addonWebService) GetWebService() *restful.WebService {
@@ -59,6 +62,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.listAddons).
 		Doc("list all addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.rbacUsecase.CheckPerm("addon", "list")).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
 		Returns(200, "OK", apis.ListAddonResponse{}).
@@ -70,6 +74,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("show details of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.rbacUsecase.CheckPerm("addon", "detail")).
 		Returns(200, "OK", apis.DetailAddonResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("addonName", "addon name to query detail").DataType("string").Required(true)).
@@ -80,6 +85,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{addonName}/status").To(s.statusAddon).
 		Doc("show status of an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.rbacUsecase.CheckPerm("addon", "detail")).
 		Returns(200, "OK", apis.AddonStatusResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("addonName", "addon name to query status").DataType("string").Required(true)).
@@ -90,6 +96,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("enable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
+		Filter(s.rbacUsecase.CheckPerm("addon", "enable")).
 		Returns(200, "OK", apis.AddonStatusResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("addonName", "addon name to enable").DataType("string").Required(true)).
@@ -100,6 +107,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Doc("disable an addon").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Filter(s.rbacUsecase.CheckPerm("addon", "disable")).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("addonName", "addon name to enable").DataType("string").Required(true)).
 		Param(ws.QueryParameter("force", "force disable an addon").DataType("boolean").Required(false)).
@@ -111,6 +119,7 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.EnableAddonRequest{}).
 		Returns(200, "OK", apis.AddonStatusResponse{}).
+		Filter(s.rbacUsecase.CheckPerm("addon", "update")).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Param(ws.PathParameter("addonName", "addon name to update").DataType("string").Required(true)).
 		Writes(apis.AddonStatusResponse{}))
@@ -246,6 +255,7 @@ func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Respons
 
 type enabledAddonWebService struct {
 	addonUsecase usecase.AddonHandler
+	rbacUsecase  usecase.RBACUsecase
 }
 
 func (s *enabledAddonWebService) GetWebService() *restful.WebService {
@@ -261,6 +271,7 @@ func (s *enabledAddonWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.list).
 		Doc("list all addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.rbacUsecase.CheckPerm("addon", "list")).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
 		Returns(200, "OK", apis.ListAddonResponse{}).

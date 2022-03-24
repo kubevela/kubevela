@@ -30,7 +30,6 @@ import (
 // SystemInfoUsecase is usecase for systemInfoCollection
 type SystemInfoUsecase interface {
 	GetSystemInfo(ctx context.Context) (*v1.SystemInfoResponse, error)
-	DeleteSystemInfo(ctx context.Context) error
 	UpdateSystemInfo(ctx context.Context, sysInfo v1.SystemInfoRequest) (*v1.SystemInfoResponse, error)
 }
 
@@ -82,16 +81,4 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 		return nil, err
 	}
 	return &v1.SystemInfoResponse{SystemInfo: modifiedInfo, SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
-}
-
-func (u systemInfoUsecaseImpl) DeleteSystemInfo(ctx context.Context) error {
-	info, err := u.GetSystemInfo(ctx)
-	if err != nil {
-		return err
-	}
-	err = u.ds.Delete(ctx, info)
-	if err != nil {
-		return err
-	}
-	return nil
 }

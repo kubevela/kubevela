@@ -28,12 +28,14 @@ import (
 
 type oamApplicationWebService struct {
 	oamApplicationUsecase usecase.OAMApplicationUsecase
+	rbacUsecase           usecase.RBACUsecase
 }
 
 // NewOAMApplication new oam application
-func NewOAMApplication(oamApplicationUsecase usecase.OAMApplicationUsecase) WebService {
+func NewOAMApplication(oamApplicationUsecase usecase.OAMApplicationUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &oamApplicationWebService{
 		oamApplicationUsecase: oamApplicationUsecase,
+		rbacUsecase:           rbacUsecase,
 	}
 }
 
@@ -49,6 +51,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/namespaces/{namespace}/applications/{appname}").To(c.getApplication).
 		Doc("get the specified oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "detail")).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
 		Returns(200, "OK", apis.ApplicationResponse{}).
@@ -57,6 +60,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/namespaces/{namespace}/applications/{appname}").To(c.createOrUpdateApplication).
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "deploy")).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")).
 		Reads(apis.ApplicationRequest{}))
@@ -65,6 +69,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Operation("deleteOAMApplication").
 		Doc("create or update oam application in the specified namespace").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "delete")).
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")))
 

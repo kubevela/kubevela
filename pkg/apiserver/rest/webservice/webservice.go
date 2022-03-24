@@ -84,28 +84,28 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	// Application
 	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase, rbacUsecase))
 	RegisterWebService(NewProjectWebService(projectUsecase, rbacUsecase, targetUsecase))
-	RegisterWebService(NewEnvWebService(envUsecase, applicationUsecase))
+	RegisterWebService(NewEnvWebService(envUsecase, applicationUsecase, rbacUsecase))
 
 	// Extension
-	RegisterWebService(NewDefinitionWebservice(definitionUsecase))
-	RegisterWebService(NewAddonWebService(addonUsecase))
-	RegisterWebService(NewEnabledAddonWebService(addonUsecase))
-	RegisterWebService(NewAddonRegistryWebService(addonUsecase))
+	RegisterWebService(NewDefinitionWebservice(definitionUsecase, rbacUsecase))
+	RegisterWebService(NewAddonWebService(addonUsecase, rbacUsecase))
+	RegisterWebService(NewEnabledAddonWebService(addonUsecase, rbacUsecase))
+	RegisterWebService(NewAddonRegistryWebService(addonUsecase, rbacUsecase))
 
 	// Resources
-	RegisterWebService(NewClusterWebService(clusterUsecase))
-	RegisterWebService(NewOAMApplication(oamApplicationUsecase))
+	RegisterWebService(NewClusterWebService(clusterUsecase, rbacUsecase))
+	RegisterWebService(NewOAMApplication(oamApplicationUsecase, rbacUsecase))
 	RegisterWebService(&policyDefinitionWebservice{})
 	RegisterWebService(&payloadTypesWebservice{})
-	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase))
-	RegisterWebService(NewVelaQLWebService(velaQLUsecase))
+	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase, rbacUsecase))
+	RegisterWebService(NewVelaQLWebService(velaQLUsecase, rbacUsecase))
 	RegisterWebService(NewWebhookWebService(webhookUsecase, applicationUsecase))
 	RegisterWebService(NewHelmWebService(helmUsecase))
 
 	// Authentication
 	RegisterWebService(NewAuthenticationWebService(authenticationUsecase))
-	RegisterWebService(NewUserWebService(userUsecase))
-	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase))
+	RegisterWebService(NewUserWebService(userUsecase, rbacUsecase))
+	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase, rbacUsecase))
 
 	// RBAC
 	RegisterWebService(NewRBACWebService(rbacUsecase))

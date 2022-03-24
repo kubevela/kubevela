@@ -28,13 +28,14 @@ import (
 )
 
 type envWebService struct {
-	envUsecase usecase.EnvUsecase
-	appUsecase usecase.ApplicationUsecase
+	envUsecase  usecase.EnvUsecase
+	appUsecase  usecase.ApplicationUsecase
+	rbacUsecase usecase.RBACUsecase
 }
 
 // NewEnvWebService new env webservice
-func NewEnvWebService(envUsecase usecase.EnvUsecase, appUseCase usecase.ApplicationUsecase) WebService {
-	return &envWebService{envUsecase: envUsecase, appUsecase: appUseCase}
+func NewEnvWebService(envUsecase usecase.EnvUsecase, appUseCase usecase.ApplicationUsecase, rbacUsecase usecase.RBACUsecase) WebService {
+	return &envWebService{envUsecase: envUsecase, appUsecase: appUseCase, rbacUsecase: rbacUsecase}
 }
 
 func (n *envWebService) GetWebService() *restful.WebService {
@@ -49,6 +50,7 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.list).
 		Operation("envlist").
 		Doc("list all envs").
+		Filter(n.rbacUsecase.CheckPerm("environment", "list")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListEnvResponse{}).
 		Writes(apis.ListEnvResponse{}))
@@ -56,6 +58,7 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/").To(n.create).
 		Operation("envcreate").
 		Doc("create an env").
+		Filter(n.rbacUsecase.CheckPerm("environment", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
@@ -65,6 +68,7 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Operation("envupdate").
 		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("environment", "update")).
 		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
@@ -74,6 +78,7 @@ func (n *envWebService) GetWebService() *restful.WebService {
 		Operation("envdelete").
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("environment", "delete")).
 		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).

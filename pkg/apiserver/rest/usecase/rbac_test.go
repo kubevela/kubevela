@@ -23,13 +23,14 @@ import (
 	"testing"
 
 	"github.com/emicklei/go-restful/v3"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/assert"
 )
 
 var _ = Describe("Test rbac service", func() {
@@ -128,6 +129,9 @@ var _ = Describe("Test rbac service", func() {
 
 		rbac.CheckPerm("application", "list")(restful.NewRequest(req), res, filter)
 		Expect(pass).Should(BeTrue())
+
+		rbac.CheckPerm("component", "list")(restful.NewRequest(req), res, filter)
+		Expect(pass).Should(BeFalse())
 	})
 
 	It("Test initDefaultRoleAndUsersForProject", func() {

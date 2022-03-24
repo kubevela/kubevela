@@ -70,7 +70,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 	{
 		Name:      "cluster-manage",
 		Alias:     "Cluster Management",
-		Resources: []string{"cluster:*"},
+		Resources: []string{"cluster:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Level:     "platform",
@@ -94,7 +94,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 	{
 		Name:      "target-manage",
 		Alias:     "Target Management",
-		Resources: []string{"target:*"},
+		Resources: []string{"target:*", "cluster:*/namespace:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Level:     "platform",
@@ -175,6 +175,9 @@ var ResourceMaps = map[string]resourceMetadata{
 	},
 	"cluster": {
 		pathName: "clusterName",
+		subResources: map[string]resourceMetadata{
+			"namespace": {},
+		},
 	},
 	"addon": {
 		pathName: "addonName",

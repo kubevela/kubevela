@@ -35,10 +35,11 @@ import (
 )
 
 // NewTargetWebService new Target webservice
-func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase usecase.ApplicationUsecase) WebService {
+func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase usecase.ApplicationUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &TargetWebService{
 		TargetUsecase:      targetUsecase,
 		applicationUsecase: applicationUsecase,
+		rbacUsecase:        rbacUsecase,
 	}
 }
 
@@ -46,6 +47,7 @@ func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase
 type TargetWebService struct {
 	TargetUsecase      usecase.TargetUsecase
 	applicationUsecase usecase.ApplicationUsecase
+	rbacUsecase        usecase.RBACUsecase
 }
 
 // GetWebService get web service
@@ -61,6 +63,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(dt.listTargets).
 		Doc("list Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(dt.rbacUsecase.CheckPerm("target", "list")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer")).
 		Param(ws.QueryParameter("project", "list targets by project name").DataType("string")).
@@ -71,6 +74,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Doc("create Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateTargetRequest{}).
+		Filter(dt.rbacUsecase.CheckPerm("target", "create")).
 		Returns(200, "create success", apis.DetailTargetResponse{}).
 		Returns(400, "create failure", bcode.Bcode{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
@@ -80,6 +84,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("targetName", "identifier of the Target.").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
+		Filter(dt.rbacUsecase.CheckPerm("target", "detail")).
 		Returns(200, "create success", apis.DetailTargetResponse{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
@@ -89,6 +94,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Filter(dt.targetCheckFilter).
 		Param(ws.PathParameter("targetName", "identifier of the Target").DataType("string")).
 		Reads(apis.UpdateTargetRequest{}).
+		Filter(dt.rbacUsecase.CheckPerm("target", "update")).
 		Returns(200, "OK", apis.DetailTargetResponse{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
@@ -96,6 +102,7 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Doc("deletet Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
+		Filter(dt.rbacUsecase.CheckPerm("target", "delete")).
 		Param(ws.PathParameter("targetName", "identifier of the Target").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))

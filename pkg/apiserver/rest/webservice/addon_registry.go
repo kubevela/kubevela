@@ -26,14 +26,16 @@ import (
 )
 
 // NewAddonRegistryWebService returns addon registry web service
-func NewAddonRegistryWebService(u usecase.AddonHandler) WebService {
+func NewAddonRegistryWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACUsecase) WebService {
 	return &addonRegistryWebService{
 		addonUsecase: u,
+		rbacUsecase:  rbacUsecase,
 	}
 }
 
 type addonRegistryWebService struct {
 	addonUsecase usecase.AddonHandler
+	rbacUsecase  usecase.RBACUsecase
 }
 
 func (s *addonRegistryWebService) GetWebService() *restful.WebService {
@@ -50,6 +52,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("create an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateAddonRegistryRequest{}).
+		Filter(s.rbacUsecase.CheckPerm("addonRegistry", "create")).
 		Returns(200, "OK", apis.AddonRegistry{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
@@ -57,6 +60,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.listAddonRegistry).
 		Doc("list all addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(s.rbacUsecase.CheckPerm("addonRegistry", "list")).
 		Returns(200, "OK", apis.ListAddonRegistryResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonRegistryResponse{}))
@@ -67,6 +71,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("addonRegName", "identifier of the addon registry").DataType("string")).
 		Returns(200, "OK", apis.AddonRegistry{}).
+		Filter(s.rbacUsecase.CheckPerm("addonRegistry", "delete")).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AddonRegistry{}))
 
@@ -74,6 +79,7 @@ func (s *addonRegistryWebService) GetWebService() *restful.WebService {
 		Doc("update an addon registry").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateAddonRegistryRequest{}).
+		Filter(s.rbacUsecase.CheckPerm("addonRegistry", "update")).
 		Param(ws.PathParameter("addonRegName", "identifier of the addon registry").DataType("string")).
 		Returns(200, "OK", apis.AddonRegistry{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
