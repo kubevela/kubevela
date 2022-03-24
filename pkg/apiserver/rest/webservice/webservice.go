@@ -65,7 +65,7 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	rbacUsecase := usecase.NewRBACUsecase(ds)
 	targetUsecase := usecase.NewTargetUsecase(ds)
 	workflowUsecase := usecase.NewWorkflowUsecase(ds, envUsecase)
-	projectUsecase := usecase.NewProjectUsecase(ds)
+	projectUsecase := usecase.NewProjectUsecase(ds, rbacUsecase)
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
@@ -78,7 +78,8 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	userUsecase := usecase.NewUserUsecase(ds, projectUsecase, systemInfoUsecase)
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
 
-	// init for default values
+	// Modules that require default data initialization, Call it here in order
+	initData(rbacUsecase, projectUsecase)
 
 	// Application
 	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase, rbacUsecase))
@@ -108,4 +109,15 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 
 	// RBAC
 	RegisterWebService(NewRBACWebService(rbacUsecase))
+}
+
+// InitUsecase the usecase set that needs init data
+type InitUsecase interface {
+	Init()
+}
+
+func initData(inits ...InitUsecase) {
+	for _, init := range inits {
+		init.Init()
+	}
 }

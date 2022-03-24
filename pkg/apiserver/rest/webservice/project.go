@@ -101,23 +101,34 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Filter(n.rbacUsecase.CheckPerm("project/projectUser", "create")).
 		Reads(apis.AddProjectUserRequest{}).
 		Returns(200, "OK", apis.ProjectUserBase{}).
-		Writes(apis.EmptyResponse{}))
+		Writes(apis.ProjectUserBase{}))
 
 	ws.Route(ws.GET("/{projectName}/users").To(n.listProjectUser).
 		Doc("list all users belong to a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Filter(n.rbacUsecase.CheckPerm("project/projectUser", "list")).
-		Returns(200, "OK", apis.ProjectUserBase{}).
-		Writes(apis.EmptyResponse{}))
+		Returns(200, "OK", apis.ListProjectUsersResponse{}).
+		Writes(apis.ListProjectUsersResponse{}))
 
 	ws.Route(ws.PUT("/{projectName}/users/{userName}").To(n.updateProjectUser).
 		Doc("add a user to a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateProjectUserRequest{}).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("userName", "identifier of the project user").DataType("string")).
 		Filter(n.rbacUsecase.CheckPerm("project/projectUser", "create")).
 		Returns(200, "OK", apis.ProjectUserBase{}).
+		Writes(apis.ProjectUserBase{}))
+
+	ws.Route(ws.DELETE("/{projectName}/users/{userName}").To(n.deleteProjectUser).
+		Doc("delete a user from a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateProjectUserRequest{}).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("userName", "identifier of the project user").DataType("string")).
+		Filter(n.rbacUsecase.CheckPerm("project/projectUser", "delete")).
+		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
 
 	ws.Filter(authCheckFilter)
@@ -255,7 +266,7 @@ func (n *projectWebService) createProjectUser(req *restful.Request, res *restful
 	// Call the usecase layer code
 	userBase, err := n.projectUsecase.AddProjectUser(req.Request.Context(), req.PathParameter("projectName"), createReq)
 	if err != nil {
-		log.Logger.Errorf("create project failure %s", err.Error())
+		log.Logger.Errorf("create project user failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -276,7 +287,7 @@ func (n *projectWebService) listProjectUser(req *restful.Request, res *restful.R
 	// Call the usecase layer code
 	users, err := n.projectUsecase.ListProjectUser(req.Request.Context(), req.PathParameter("projectName"), page, pageSize)
 	if err != nil {
-		log.Logger.Errorf("create project failure %s", err.Error())
+		log.Logger.Errorf("list project users failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
@@ -306,13 +317,29 @@ func (n *projectWebService) updateProjectUser(req *restful.Request, res *restful
 	// Call the usecase layer code
 	userBase, err := n.projectUsecase.UpdateProjectUser(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("userName"), updateReq)
 	if err != nil {
-		log.Logger.Errorf("create project failure %s", err.Error())
+		log.Logger.Errorf("update project user failure %s", err.Error())
 		bcode.ReturnError(req, res, err)
 		return
 	}
 
 	// Write back response data
 	if err := res.WriteEntity(userBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) deleteProjectUser(req *restful.Request, res *restful.Response) {
+	// Call the usecase layer code
+	err := n.projectUsecase.DeleteProjectUser(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("userName"))
+	if err != nil {
+		log.Logger.Errorf("delete project user failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

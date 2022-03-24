@@ -106,7 +106,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = kubeStore.BatchAdd(context.TODO(), datas2)
-		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
+		equal := cmp.Diff(strings.Contains(err.Error(), "save entities occur error"), true)
 		Expect(equal).To(BeEmpty())
 	})
 

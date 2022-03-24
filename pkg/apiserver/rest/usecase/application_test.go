@@ -47,6 +47,7 @@ import (
 
 var _ = Describe("Test application usecase function", func() {
 	var (
+		rbacUsecase       *rbacUsecaseImpl
 		appUsecase        *applicationUsecaseImpl
 		workflowUsecase   *workflowUsecaseImpl
 		envUsecase        *envUsecaseImpl
@@ -66,12 +67,13 @@ var _ = Describe("Test application usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
+		rbacUsecase = &rbacUsecaseImpl{ds: ds}
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.Background())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,
@@ -594,7 +596,8 @@ var _ = Describe("Test application component usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
 		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase := &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		envBindingUsecase := &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient}

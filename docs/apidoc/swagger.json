@@ -3313,9 +3313,9 @@
 				"parameters": [
 					{
 						"enum": [
-							"component",
 							"trait",
-							"workflowstep"
+							"workflowstep",
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -3603,6 +3603,34 @@
 				}
 			}
 		},
+		"/api/v1/permPolicies": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "list all project level perm policies",
+				"operationId": "listPlatformPermPolicies",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/v1.PermPolicyBase"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/policy_definitions": {
 			"get": {
 				"consumes": [
@@ -3623,131 +3651,6 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/v1.ListPolicyDefinitionResponse"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/project/{projectName}/roles": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"rbac"
-				],
-				"summary": "list all project level roles",
-				"operationId": "listProjectRoles",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "identifier of the project",
-						"name": "projectName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListRolesResponse"
-						}
-					}
-				}
-			},
-			"post": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"rbac"
-				],
-				"summary": "create project level role",
-				"operationId": "createProjectRole",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.CreateRoleRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.RoleBase"
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/project/{projectName}/roles/{roleName}": {
-			"put": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"rbac"
-				],
-				"summary": "update project level role",
-				"operationId": "updateProjectRole",
-				"parameters": [
-					{
-						"name": "body",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/v1.UpdateRoleRequest"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.RoleBase"
-						}
-					}
-				}
-			},
-			"delete": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"rbac"
-				],
-				"summary": "update project level role",
-				"operationId": "deleteProjectRole",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					}
 				}
@@ -3917,6 +3820,205 @@
 				}
 			}
 		},
+		"/api/v1/projects/{projectName}/permPolicies": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "list all project level perm policies",
+				"operationId": "listProjectPermPolicies",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/v1.PermPolicyBase"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/roles": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "list all project level roles",
+				"operationId": "listProjectRoles",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListRolesResponse"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "create project level role",
+				"operationId": "createProjectRole",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/roles/{roleName}": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "update project level role",
+				"operationId": "updateProjectRole",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project role",
+						"name": "roleName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateRoleRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.RoleBase"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "delete project level role",
+				"operationId": "deleteProjectRole",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project role",
+						"name": "roleName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/projects/{projectName}/targets": {
 			"get": {
 				"consumes": [
@@ -3979,7 +4081,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.ProjectUserBase"
+							"$ref": "#/definitions/v1.ListProjectUsersResponse"
 						}
 					}
 				}
@@ -4055,6 +4157,13 @@
 						"name": "projectName",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project user",
+						"name": "userName",
+						"in": "path",
+						"required": true
 					}
 				],
 				"responses": {
@@ -4062,6 +4171,53 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/v1.ProjectUserBase"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a user from a project",
+				"operationId": "deleteProjectUser",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateProjectUserRequest"
+						}
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project user",
+						"name": "userName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					}
 				}
@@ -6201,8 +6357,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"name",
 				"alias",
 				"description",
@@ -6959,12 +7115,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"note",
-				"envName",
-				"triggerType",
 				"createTime",
 				"version",
-				"status"
+				"status",
+				"note",
+				"envName",
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8044,11 +8200,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
-				"invisible",
 				"version",
 				"description",
 				"icon",
+				"invisible",
+				"name",
 				"schema",
 				"uiSchema",
 				"definitions"
@@ -8121,13 +8277,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"project",
 				"createTime",
-				"updateTime",
 				"icon",
 				"alias",
+				"project",
 				"description",
 				"name",
+				"updateTime",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -8188,20 +8344,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"alias",
-				"updateTime",
-				"provider",
-				"dashboardURL",
-				"kubeConfigSecret",
-				"reason",
 				"description",
 				"icon",
-				"labels",
-				"status",
-				"createTime",
 				"apiServerURL",
+				"dashboardURL",
 				"kubeConfig",
+				"kubeConfigSecret",
+				"updateTime",
 				"name",
+				"labels",
+				"provider",
+				"createTime",
+				"alias",
+				"status",
+				"reason",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8259,13 +8415,13 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"name",
 				"type",
 				"main",
+				"appPrimaryKey",
+				"alias",
 				"updateTime",
 				"creator",
-				"alias",
+				"name",
 				"createTime",
 				"definition"
 			],
@@ -8368,13 +8524,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime",
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"createTime": {
@@ -8404,17 +8560,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"createTime",
-				"version",
-				"status",
+				"updateTime",
 				"reason",
 				"note",
-				"appPrimaryKey",
 				"workflowName",
+				"status",
+				"appPrimaryKey",
+				"version",
+				"triggerType",
 				"envName",
-				"updateTime",
-				"deployUser",
-				"triggerType"
+				"createTime",
+				"deployUser"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -8468,10 +8624,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
-				"createTime",
 				"updateTime",
-				"project"
+				"project",
+				"name",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -8511,11 +8667,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
 				"createTime",
-				"lastLoginTime",
 				"projects"
 			],
 			"properties": {
@@ -8549,12 +8705,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"workflowName",
-				"workflowAlias",
-				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
+				"workflowName",
+				"workflowAlias",
+				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -8608,12 +8764,12 @@
 			"required": [
 				"name",
 				"enable",
-				"updateTime",
+				"envName",
+				"createTime",
 				"alias",
 				"description",
 				"default",
-				"envName",
-				"createTime"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -9035,6 +9191,24 @@
 				}
 			}
 		},
+		"v1.ListProjectUsersResponse": {
+			"required": [
+				"users",
+				"total"
+			],
+			"properties": {
+				"total": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"users": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ProjectUserBase"
+					}
+				}
+			}
+		},
 		"v1.ListRevisionsResponse": {
 			"required": [
 				"revisions",
@@ -9213,6 +9387,48 @@
 				"uid": {
 					"description": "UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids",
 					"type": "string"
+				}
+			}
+		},
+		"v1.PermPolicyBase": {
+			"required": [
+				"name",
+				"alias",
+				"resources",
+				"actions",
+				"effect",
+				"createTime",
+				"updateTime"
+			],
+			"properties": {
+				"actions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"alias": {
+					"type": "string"
+				},
+				"createTime": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"effect": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"resources": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"updateTime": {
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},

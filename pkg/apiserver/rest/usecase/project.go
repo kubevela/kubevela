@@ -43,28 +43,34 @@ type ProjectUsecase interface {
 	AddProjectUser(ctx context.Context, projectName string, req apisv1.AddProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
+	InitDefaultProjectEnvTarget(defaultNamespace string)
+	Init()
 }
 
 type projectUsecaseImpl struct {
-	ds        datastore.DataStore
-	k8sClient client.Client
+	ds          datastore.DataStore
+	k8sClient   client.Client
+	rbacUsecase RBACUsecase
 }
 
 // NewProjectUsecase new project usecase
-func NewProjectUsecase(ds datastore.DataStore) ProjectUsecase {
+func NewProjectUsecase(ds datastore.DataStore, rbacUsecase RBACUsecase) ProjectUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
 	}
-	p := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
-	p.initDefaultProjectEnvTarget(model.DefaultInitNamespace)
+	p := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
 	return p
+}
+
+// Init init default data
+func (p *projectUsecaseImpl) Init() {
+	p.InitDefaultProjectEnvTarget(model.DefaultInitNamespace)
 }
 
 // initDefaultProjectEnvTarget will initialize a default project with a default env that contain a default target
 // the default env and default target both using the `default` namespace in control plane cluster
-func (p *projectUsecaseImpl) initDefaultProjectEnvTarget(defaultNamespace string) {
-
+func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(defaultNamespace string) {
 	ctx := context.Background()
 	projResp, err := listProjects(ctx, p.ds, 0, 0)
 	if err != nil {
@@ -209,6 +215,7 @@ func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) err
 		return bcode.ErrProjectDenyDeleteByEnvironment
 	}
 
+	// TODO: delete all roles、projectUsers、permPolicies and other project level data
 	return p.ds.Delete(ctx, &model.Project{Name: name})
 }
 
@@ -236,6 +243,7 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 			owner = loginUser.Name
 		}
 	}
+
 	newProject := &model.Project{
 		Name:        req.Name,
 		Description: req.Description,
@@ -245,6 +253,10 @@ func (p *projectUsecaseImpl) CreateProject(ctx context.Context, req apisv1.Creat
 
 	if err := p.ds.Add(ctx, newProject); err != nil {
 		return nil, err
+	}
+
+	if err := p.rbacUsecase.InitDefaultRoleAndUsersForProject(ctx, newProject); err != nil {
+		log.Logger.Errorf("init default role and users for project failure %s", err.Error())
 	}
 
 	return ConvertProjectModel2Base(newProject, user), nil

@@ -75,7 +75,14 @@ func (r *rbacWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/project/{projectName}/roles").To(r.listProjectRoles).
+	ws.Route(ws.GET("/permPolicies").To(r.listPlatformPermPolicies).
+		Doc("list all project level perm policies").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(r.rbacUsecase.CheckPerm("permPolicy", "list")).
+		Returns(200, "OK", []apis.PermPolicyBase{}).
+		Writes([]apis.PermPolicyBase{}))
+
+	ws.Route(ws.GET("/projects/{projectName}/roles").To(r.listProjectRoles).
 		Doc("list all project level roles").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
@@ -83,28 +90,42 @@ func (r *rbacWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.ListRolesResponse{}).
 		Writes(apis.ListRolesResponse{}))
 
-	ws.Route(ws.POST("/project/{projectName}/roles").To(r.createProjectRole).
+	ws.Route(ws.POST("/projects/{projectName}/roles").To(r.createProjectRole).
 		Doc("create project level role").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Filter(r.rbacUsecase.CheckPerm("project/role", "create")).
 		Returns(200, "OK", apis.RoleBase{}).
 		Reads(apis.CreateRoleRequest{}).
 		Writes(apis.RoleBase{}))
 
-	ws.Route(ws.PUT("/project/{projectName}/roles/{roleName}").To(r.updateProjectRole).
+	ws.Route(ws.PUT("/projects/{projectName}/roles/{roleName}").To(r.updateProjectRole).
 		Doc("update project level role").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("roleName", "identifier of the project role").DataType("string")).
 		Filter(r.rbacUsecase.CheckPerm("project/role", "update")).
 		Reads(apis.UpdateRoleRequest{}).
 		Returns(200, "OK", apis.RoleBase{}).
 		Writes(apis.RoleBase{}))
 
-	ws.Route(ws.DELETE("/project/{projectName}/roles/{roleName}").To(r.deleteProjectRole).
-		Doc("update project level role").
+	ws.Route(ws.DELETE("/projects/{projectName}/roles/{roleName}").To(r.deleteProjectRole).
+		Doc("delete project level role").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("roleName", "identifier of the project role").DataType("string")).
 		Filter(r.rbacUsecase.CheckPerm("project/role", "delete")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
+
+	ws.Route(ws.GET("/projects/{projectName}/permPolicies").To(r.listProjectPermPolicies).
+		Doc("list all project level perm policies").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Filter(r.rbacUsecase.CheckPerm("project/permPolicy", "list")).
+		Returns(200, "OK", []apis.PermPolicyBase{}).
+		Writes([]apis.PermPolicyBase{}))
+
 	return ws
 }
 
@@ -191,12 +212,16 @@ func (r *rbacWebService) deletePlatformRole(req *restful.Request, res *restful.R
 }
 
 func (r *rbacWebService) listProjectRoles(req *restful.Request, res *restful.Response) {
+	if req.PathParameter("projectName") == "" {
+		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
+		return
+	}
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	roles, err := r.rbacUsecase.ListRole(req.Request.Context(), "", page, pageSize)
+	roles, err := r.rbacUsecase.ListRole(req.Request.Context(), req.PathParameter("projectName"), page, pageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -208,6 +233,10 @@ func (r *rbacWebService) listProjectRoles(req *restful.Request, res *restful.Res
 }
 
 func (r *rbacWebService) createProjectRole(req *restful.Request, res *restful.Response) {
+	if req.PathParameter("projectName") == "" {
+		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
+		return
+	}
 	// Verify the validity of parameters
 	var createReq apis.CreateRoleRequest
 	if err := req.ReadEntity(&createReq); err != nil {
@@ -234,6 +263,10 @@ func (r *rbacWebService) createProjectRole(req *restful.Request, res *restful.Re
 }
 
 func (r *rbacWebService) updateProjectRole(req *restful.Request, res *restful.Response) {
+	if req.PathParameter("projectName") == "" {
+		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
+		return
+	}
 	// Verify the validity of parameters
 	var updateReq apis.UpdateRoleRequest
 	if err := req.ReadEntity(&updateReq); err != nil {
@@ -260,6 +293,10 @@ func (r *rbacWebService) updateProjectRole(req *restful.Request, res *restful.Re
 }
 
 func (r *rbacWebService) deleteProjectRole(req *restful.Request, res *restful.Response) {
+	if req.PathParameter("projectName") == "" {
+		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
+		return
+	}
 	err := r.rbacUsecase.DeleteRole(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("roleName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
@@ -267,6 +304,34 @@ func (r *rbacWebService) deleteProjectRole(req *restful.Request, res *restful.Re
 	}
 	// Write back response data
 	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (r *rbacWebService) listProjectPermPolicies(req *restful.Request, res *restful.Response) {
+	if req.PathParameter("projectName") == "" {
+		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
+		return
+	}
+	policies, err := r.rbacUsecase.ListPermPolicies(req.Request.Context(), req.PathParameter("projectName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(policies); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (r *rbacWebService) listPlatformPermPolicies(req *restful.Request, res *restful.Response) {
+	policies, err := r.rbacUsecase.ListPermPolicies(req.Request.Context(), "")
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(policies); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

@@ -197,7 +197,10 @@ func (p *PermPolicy) ShortTableName() string {
 
 // PrimaryKey return custom primary key
 func (p *PermPolicy) PrimaryKey() string {
-	return p.Name
+	if p.Project == "" {
+		return p.Name
+	}
+	return fmt.Sprintf("%s-%s", p.Project, p.Name)
 }
 
 // Index return custom index
@@ -218,8 +221,10 @@ func (p *PermPolicy) Index() map[string]string {
 // PermPolicyTemplate is a model for a new RBAC mode.
 type PermPolicyTemplate struct {
 	BaseModel
-	Name      string     `json:"name"`
-	Alias     string     `json:"alias"`
+	Name  string `json:"name"`
+	Alias string `json:"alias"`
+	// Level options: project or platform
+	Level     string     `json:"level"`
 	Resources []string   `json:"resources"`
 	Actions   []string   `json:"actions"`
 	Effect    string     `json:"effect"`
@@ -246,6 +251,9 @@ func (p *PermPolicyTemplate) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name
+	}
+	if p.Level != "" {
+		index["level"] = p.Level
 	}
 	return index
 }

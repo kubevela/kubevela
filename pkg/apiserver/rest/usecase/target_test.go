@@ -38,7 +38,8 @@ var _ = Describe("Test target usecase functions", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "target-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 	})
 	It("Test CreateTarget function", func() {

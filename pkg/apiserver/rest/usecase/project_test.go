@@ -49,7 +49,7 @@ var _ = Describe("Test project usecase functions", func() {
 		ns.Name = defaultNamespace
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		projectUsecase = &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
+		projectUsecase = &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: &rbacUsecaseImpl{ds: ds}}
 		pp, err := projectUsecase.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
 		// reset all projects
@@ -74,7 +74,7 @@ var _ = Describe("Test project usecase functions", func() {
 	})
 	It("Test project initialize function", func() {
 
-		projectUsecase.initDefaultProjectEnvTarget(defaultNamespace)
+		projectUsecase.InitDefaultProjectEnvTarget(defaultNamespace)
 		By("test env created")
 		var namespace corev1.Namespace
 		Eventually(func() error {

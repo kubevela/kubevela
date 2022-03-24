@@ -74,7 +74,16 @@ PermPolicyTemplate:
 name: app-manage
 resource: ["project:${projectName}/application:*"]
 actions: ["*"]
+level: project
 effect: Allow
 principal: {}
 condition: {}
+```
+
+```yaml
+name: deny-delete-cluster
+resource: ["cluster:*"]
+actions: ["delete"]
+level: platform
+effect: Deny
 ```

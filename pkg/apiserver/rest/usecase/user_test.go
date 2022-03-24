@@ -46,7 +46,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: db})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: rbacUsecase}
 		sysUsecase := &systemInfoUsecaseImpl{ds: ds}
 		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase}
 	})

@@ -1227,3 +1227,25 @@ type ListRolesResponse struct {
 	Total int64       `json:"total"`
 	Roles []*RoleBase `json:"roles"`
 }
+
+// PermPolicyTemplateBase the perm policy template base struct
+type PermPolicyTemplateBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// PermPolicyBase the perm policy base struct
+type PermPolicyBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}

@@ -131,12 +131,12 @@ func (m *kubeapi) BatchAdd(ctx context.Context, entities []datastore.Entity) err
 				if _, exit := notRollback[deleteEntity.PrimaryKey()]; !exit {
 					if err := m.Delete(ctx, deleteEntity); err != nil {
 						if !errors.Is(err, datastore.ErrRecordNotExist) {
-							log.Logger.Errorf("rollback delete component failure %w", err)
+							log.Logger.Errorf("rollback delete entity failure %w", err)
 						}
 					}
 				}
 			}
-			return datastore.NewDBError(fmt.Errorf("save components occur error, %w", err))
+			return datastore.NewDBError(fmt.Errorf("save entities occur error, %w", err))
 		}
 	}
 	return nil
