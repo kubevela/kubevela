@@ -88,7 +88,7 @@ type Remote struct {
 	Namespace string `json:"namespace"`
 }
 
-// Remote is the struct for input Definition Path
+// Local is the struct for input Definition Path
 type Local struct {
 	Path string `json:"path"`
 }
