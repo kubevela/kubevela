@@ -77,6 +77,8 @@ func (s *addonWebService) GetWebService() *restful.WebService {
 		Filter(s.rbacUsecase.CheckPerm("addon", "detail")).
 		Returns(200, "OK", apis.DetailAddonResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
+		Param(ws.PathParameter("name", "addon name to query detail").DataType("string").Required(true)).
+		Param(ws.QueryParameter("version", "specify addon version to enable").DataType("string").Required(false)).
 		Param(ws.PathParameter("addonName", "addon name to query detail").DataType("string").Required(true)).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Writes(apis.DetailAddonResponse{}))
@@ -154,7 +156,7 @@ func (s *addonWebService) listAddons(req *restful.Request, res *restful.Response
 
 func (s *addonWebService) detailAddon(req *restful.Request, res *restful.Response) {
 	name := req.PathParameter("addonName")
-	addon, err := s.handler.GetAddon(req.Request.Context(), name, req.QueryParameter("registry"))
+	addon, err := s.handler.GetAddon(req.Request.Context(), name, req.QueryParameter("registry"), req.QueryParameter("version"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

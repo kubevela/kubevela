@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
+
 	"k8s.io/client-go/discovery"
 
 	"helm.sh/helm/v3/pkg/strvals"
@@ -69,6 +71,7 @@ const (
 )
 
 var forceDisable bool
+var addonVersion string
 
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -123,6 +126,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Example: `\
 Enable addon by:
 	vela addon enable <addon-name>
+Enable addon with specify version:
+    vela addon enable <addon-name> --version <addon-version>
 Enable addon for specific clusters, (local means control plane):
 	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -165,7 +170,7 @@ Enable addon for specific clusters, (local means control plane):
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
 
-				err = enableAddon(ctx, k8sClient, dc, config, name, addonArgs)
+				err = enableAddon(ctx, k8sClient, dc, config, name, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -175,6 +180,8 @@ Enable addon for specific clusters, (local means control plane):
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
 	return cmd
 }
 
@@ -207,6 +214,8 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Example: `\
 Upgrade addon by:
 	vela addon upgrade <addon-name>
+Upgrade addon with specify version:
+    vela addon upgrade <addon-name> --version <addon-version>
 Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -256,7 +265,7 @@ Upgrade addon for specific clusters, (local means control plane):
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
 				}
-				err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonArgs)
+				err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
 				if err != nil {
 					return err
 				}
@@ -267,6 +276,7 @@ Upgrade addon for specific clusters, (local means control plane):
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
 	return cmd
 }
 
@@ -349,7 +359,7 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	}
 }
 
-func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, args map[string]interface{}) error {
+func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) error {
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
 	registries, err := registryDS.ListRegistries(ctx)
@@ -358,7 +368,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	}
 
 	for _, registry := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
@@ -424,27 +434,40 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 		if registry != "" && r.Name != registry {
 			continue
 		}
-
-		meta, err := r.ListAddonMeta()
-		if err != nil {
-			continue
+		var addonList []*pkgaddon.UIData
+		var err error
+		if !pkgaddon.IsVersionRegistry(r) {
+			meta, err := r.ListAddonMeta()
+			if err != nil {
+				continue
+			}
+			addonList, err = r.ListUIData(meta, pkgaddon.CLIMetaOptions)
+			if err != nil {
+				continue
+			}
+		} else {
+			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL)
+			addonList, err = versionedRegistry.ListAddon()
+			if err != nil {
+				continue
+			}
 		}
-		addList, err := r.ListUIData(meta, pkgaddon.CLIMetaOptions)
-		if err != nil {
-			continue
-		}
-		addons = mergeAddons(addons, addList)
+		addons = mergeAddons(addons, addonList)
 	}
 
 	table := uitable.New()
-	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "STATUS")
+	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "AVAILABLE-VERSIONS", "STATUS")
 
 	for _, addon := range addons {
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
 			return err
 		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, status.AddonPhase)
+		statusRow := status.AddonPhase
+		if len(status.InstalledVersion) != 0 {
+			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
+		}
+		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status), statusRow)
 		onlineAddon[addon.Name] = true
 	}
 	appList := v1alpha2.ApplicationList{}
@@ -490,6 +513,22 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 		time.Sleep(trackInterval)
 	}
 
+}
+
+func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+	res := "["
+	for _, version := range versions {
+		if version == status.InstalledVersion {
+			col := color.New(color.Bold, color.FgGreen)
+			res += col.Sprintf("%s", version)
+		} else {
+			res += version
+		}
+		res += ", "
+	}
+	res = strings.TrimSuffix(res, ", ")
+	res += "]"
+	return res
 }
 
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy

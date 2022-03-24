@@ -69,6 +69,9 @@ const (
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
 
+	// LabelAddonVersion indicates the version of the corresponding  installed Addon
+	LabelAddonVersion = "addons.oam.dev/version"
+
 	// LabelAddonRegistry indicates the name of addon-registry
 	LabelAddonRegistry = "addons.oam.dev/registry"
 

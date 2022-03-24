@@ -286,6 +286,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
 		}
 	}
+	addon.AvailableVersions = []string{addon.Version}
 	return addon, nil
 }
 
@@ -595,6 +596,7 @@ func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
 		app.Labels = make(map[string]string)
 	}
 	app.Labels[oam.LabelAddonName] = addon.Name
+	app.Labels[oam.LabelAddonVersion] = addon.Version
 	return app
 }
 
@@ -1051,26 +1053,37 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	return nil
 }
 
-func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
-	metas, err := h.getAddonMeta()
-	if err != nil {
-		return nil, errors.Wrap(err, "fail to get addon meta")
+func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
+	var installPackage *InstallPackage
+	var err error
+	if !IsVersionRegistry(*h.r) {
+		metas, err := h.getAddonMeta()
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to get addon meta")
+		}
+
+		meta, ok := metas[name]
+		if !ok {
+			return nil, ErrNotExist
+		}
+		var uiData *UIData
+		uiData, err = h.cache.GetUIData(*h.r, name, version)
+		if err != nil {
+			return nil, err
+		}
+		// enable this addon if it's invisible
+		installPackage, err = h.r.GetInstallPackage(&meta, uiData)
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
+		}
+	} else {
+		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL)
+		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	meta, ok := metas[name]
-	if !ok {
-		return nil, ErrNotExist
-	}
-	var uiData *UIData
-	uiData, err = h.cache.GetUIData(*h.r, name)
-	if err != nil {
-		return nil, err
-	}
-	// enable this addon if it's invisible
-	installPackage, err := h.r.GetInstallPackage(&meta, uiData)
-	if err != nil {
-		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
-	}
 	return installPackage, nil
 }
 
@@ -1098,7 +1111,8 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		depAddon, err := h.loadInstallPackage(dep.Name)
+		// always install addon's latest version
+		depAddon, err := h.loadInstallPackage(dep.Name, "")
 		if err != nil {
 			return err
 		}

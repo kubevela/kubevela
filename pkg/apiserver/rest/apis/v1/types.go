@@ -106,6 +106,8 @@ type EnableAddonRequest struct {
 	Args map[string]interface{} `json:"args,omitempty"`
 	// Clusters specify the clusters this addon should be installed, if not specified, it will follow the configure in addon metadata.yaml
 	Clusters []string `json:"clusters,omitempty"`
+	// Version specify the version of addon to enable
+	Version string `json:"version,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response
@@ -141,9 +143,10 @@ type DetailAddonResponse struct {
 	UISchema  utils.UISchema   `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
-	Detail       string             `json:"detail,omitempty"`
-	Definitions  []*AddonDefinition `json:"definitions"`
-	RegistryName string             `json:"registryName,omitempty"`
+	Detail            string             `json:"detail,omitempty"`
+	Definitions       []*AddonDefinition `json:"definitions"`
+	RegistryName      string             `json:"registryName,omitempty"`
+	AvailableVersions []string           `json:"availableVersions"`
 }
 
 // AddonDefinition is definition an addon can provide
@@ -161,7 +164,8 @@ type AddonStatusResponse struct {
 	EnablingProgress *EnablingProgress      `json:"enabling_progress,omitempty"`
 	AppStatus        common.AppStatus       `json:"appStatus,omitempty"`
 	// the status of multiple clusters
-	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
+	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
+	InstalledVersion string                            `json:"installedVersion,omitempty"`
 }
 
 // EnablingProgress defines the progress of enabling an addon
