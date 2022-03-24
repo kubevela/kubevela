@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: deploy-podinfo
+steps:
+  - type: deploy
+    name: deploy-worker
+    properties:
+      auto: false
+      policies: ["override-high-availability", "topology-worker"]

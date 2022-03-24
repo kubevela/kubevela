@@ -322,6 +322,23 @@ type PolicyStatus struct {
 	Status *runtime.RawExtension `json:"status,omitempty"`
 }
 
+// WorkflowStep defines how to execute a workflow step.
+type WorkflowStep struct {
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
+
+	DependsOn []string `json:"dependsOn,omitempty"`
+
+	Inputs StepInputs `json:"inputs,omitempty"`
+
+	Outputs StepOutputs `json:"outputs,omitempty"`
+}
+
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`

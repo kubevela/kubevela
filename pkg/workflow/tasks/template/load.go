@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -46,8 +47,7 @@ type Loader interface {
 
 // WorkflowStepLoader load workflowStep task definition template.
 type WorkflowStepLoader struct {
-	client client.Client
-	dm     discoverymapper.DiscoveryMapper
+	loadCapabilityDefinition func(ctx context.Context, capName string) (*appfile.Template, error)
 }
 
 // LoadTaskTemplate gets the workflowStep definition.
@@ -65,7 +65,7 @@ func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name str
 		}
 	}
 
-	templ, err := appfile.LoadTemplate(ctx, loader.dm, loader.client, name, types.TypeWorkflowStep)
+	templ, err := loader.loadCapabilityDefinition(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -80,8 +80,18 @@ func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name str
 // NewWorkflowStepTemplateLoader create a task template loader.
 func NewWorkflowStepTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) Loader {
 	return &WorkflowStepLoader{
-		client: client,
-		dm:     dm,
+		loadCapabilityDefinition: func(ctx context.Context, capName string) (*appfile.Template, error) {
+			return appfile.LoadTemplate(ctx, dm, client, capName, types.TypeWorkflowStep)
+		},
+	}
+}
+
+// NewWorkflowStepTemplateRevisionLoader create a task template loader from ApplicationRevision.
+func NewWorkflowStepTemplateRevisionLoader(rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) Loader {
+	return &WorkflowStepLoader{
+		loadCapabilityDefinition: func(ctx context.Context, capName string) (*appfile.Template, error) {
+			return appfile.LoadTemplateFromRevision(capName, types.TypeWorkflowStep, rev, dm)
+		},
 	}
 }
 

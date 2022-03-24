@@ -119,8 +119,6 @@ var _ = Describe("Test Workflow", func() {
 			Namespace: namespace,
 		}, appRev)).Should(BeNil())
 
-		Expect(appRev.Spec.ResourcesConfigMap.Name).ShouldNot(BeEmpty())
-
 		cm := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Name:      appRev.Name,

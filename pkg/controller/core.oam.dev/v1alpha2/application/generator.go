@@ -68,7 +68,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
-	taskDiscover := tasks.NewTaskDiscover(handlerProviders, h.r.pd, h.r.Client, h.r.dm, pCtx)
+	taskDiscover := tasks.NewTaskDiscoverFromRevision(handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
@@ -80,8 +80,8 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 			ID: generateStepID(step.Name, app.Status.Workflow),
 		}
 		generatorName := step.Type
-		if generatorName == "apply-component" {
-			generatorName = "builtin-apply-component"
+		if generatorName == wfTypes.WorkflowStepTypeApplyComponent {
+			generatorName = wfTypes.WorkflowStepTypeBuiltinApplyComponent
 			options.StepConvertor = func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
 				copierStep := lstep.DeepCopy()
 				if err := convertStepProperties(copierStep, app); err != nil {

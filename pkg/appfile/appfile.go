@@ -30,6 +30,7 @@ import (
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,12 +42,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
+	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
-	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -153,18 +153,21 @@ func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namesp
 
 // Appfile describes application
 type Appfile struct {
-	Name            string
-	Namespace       string
+	Name      string
+	Namespace string
+	Workloads []*Workload
+
+	AppRevision     *v1beta1.ApplicationRevision
 	AppRevisionName string
-	Workloads       []*Workload
-
 	AppRevisionHash string
-	AppLabels       map[string]string
-	AppAnnotations  map[string]string
 
-	RelatedTraitDefinitions     map[string]*v1beta1.TraitDefinition
-	RelatedComponentDefinitions map[string]*v1beta1.ComponentDefinition
-	RelatedScopeDefinitions     map[string]*v1beta1.ScopeDefinition
+	AppLabels      map[string]string
+	AppAnnotations map[string]string
+
+	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
+	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
+	RelatedWorkflowStepDefinitions map[string]*v1beta1.WorkflowStepDefinition
+	RelatedScopeDefinitions        map[string]*v1beta1.ScopeDefinition
 
 	Policies        []v1beta1.AppPolicy
 	PolicyWorkloads []*Workload
@@ -173,46 +176,25 @@ type Appfile struct {
 	Artifacts       []*types.ComponentManifest
 	WorkflowMode    common.WorkflowMode
 
+	ExternalPolicies map[string]*v1alpha1.Policy
+	ExternalWorkflow *v1alpha1.Workflow
+
 	parser *Parser
 	app    *v1beta1.Application
 }
 
-// Handler handles reconcile
-type Handler interface {
-	HandleComponentsRevision(ctx context.Context, compManifests []*types.ComponentManifest) error
-	Dispatch(ctx context.Context, manifests ...*unstructured.Unstructured) error
-}
-
-// PrepareWorkflowAndPolicy generates workflow steps and policies from an appFile
-func (af *Appfile) PrepareWorkflowAndPolicy(ctx context.Context) ([]*unstructured.Unstructured, error) {
-	if ctx, ok := ctx.(monitorContext.Context); ok {
-		subCtx := ctx.Fork("prepare-workflow-and-policy", monitorContext.DurationMetric(func(v float64) {
-			metrics.PrepareWorkflowAndPolicyDurationHistogram.WithLabelValues("application").Observe(v)
-		}))
-		defer subCtx.Commit("finish prepare workflow and policy")
-	}
-
-	var externalPolicies []*unstructured.Unstructured
+// GeneratePolicyManifests generates policy manifests from an appFile
+// internal policies like apply-once, topology, will not render manifests
+func (af *Appfile) GeneratePolicyManifests(ctx context.Context) ([]*unstructured.Unstructured, error) {
+	var manifests []*unstructured.Unstructured
 	for _, policy := range af.PolicyWorkloads {
-		if policy == nil {
-			continue
+		un, err := af.generateUnstructured(policy)
+		if err != nil {
+			return nil, err
 		}
-		switch policy.Type {
-		case v1alpha1.ApplyOncePolicyType:
-		case v1alpha1.GarbageCollectPolicyType:
-		case v1alpha1.EnvBindingPolicyType:
-		case v1alpha1.TopologyPolicyType:
-		case v1alpha1.OverridePolicyType:
-		default:
-			un, err := af.generateUnstructured(policy)
-			if err != nil {
-				return nil, err
-			}
-			externalPolicies = append(externalPolicies, un)
-		}
+		manifests = append(manifests, un)
 	}
-
-	return externalPolicies, nil
+	return manifests, nil
 }
 
 func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstructured, error) {
@@ -881,4 +863,54 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.Con
 		data.AppLabels = appfile.AppLabels
 	}
 	return data
+}
+
+// WorkflowClient cache retrieved workflow if ApplicationRevision not exists in appfile
+// else use the workflow in ApplicationRevision
+func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
+	return velaclient.GetterClient{
+		Client: cli,
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			if wf, ok := obj.(*v1alpha1.Workflow); ok {
+				if af.AppRevision != nil {
+					if af.ExternalWorkflow != nil && af.ExternalWorkflow.Name == key.Name && af.ExternalWorkflow.Namespace == key.Namespace {
+						af.ExternalWorkflow.DeepCopyInto(wf)
+						return nil
+					}
+					return kerrors.NewNotFound(v1alpha1.SchemeGroupVersion.WithResource("workflow").GroupResource(), key.Name)
+				}
+				if err := cli.Get(ctx, key, obj); err != nil {
+					return err
+				}
+				af.ExternalWorkflow = obj.(*v1alpha1.Workflow)
+				return nil
+			}
+			return cli.Get(ctx, key, obj)
+		},
+	}
+}
+
+// PolicyClient cache retrieved policy if ApplicationRevision not exists in appfile
+// else use the policy in ApplicationRevision
+func (af *Appfile) PolicyClient(cli client.Client) client.Client {
+	return velaclient.GetterClient{
+		Client: cli,
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			if po, ok := obj.(*v1alpha1.Policy); ok {
+				if af.AppRevision != nil {
+					if p, found := af.ExternalPolicies[key.String()]; found {
+						p.DeepCopyInto(po)
+						return nil
+					}
+					return kerrors.NewNotFound(v1alpha1.SchemeGroupVersion.WithResource("policy").GroupResource(), key.Name)
+				}
+				if err := cli.Get(ctx, key, obj); err != nil {
+					return err
+				}
+				af.ExternalPolicies[key.String()] = obj.(*v1alpha1.Policy)
+				return nil
+			}
+			return cli.Get(ctx, key, obj)
+		},
+	}
 }
