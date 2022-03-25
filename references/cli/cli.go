@@ -88,6 +88,7 @@ func NewCommand() *cobra.Command {
 		NewLogsCommand(commandArgs, "4", ioStream),
 		NewLiveDiffCommand(commandArgs, "3", ioStream),
 		NewDryRunCommand(commandArgs, ioStream),
+		NewQlCommand(commandArgs, "10", ioStream),
 
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
