@@ -617,8 +617,12 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 }
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
+	var projetNames []string
+	if req.QueryParameter("project") != "" {
+		projetNames = append(projetNames, req.QueryParameter("project"))
+	}
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{
-		Project:    req.QueryParameter("project"),
+		Project:    projetNames,
 		Env:        req.QueryParameter("env"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),

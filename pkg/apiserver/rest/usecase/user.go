@@ -18,17 +18,24 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/time"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // UserUsecase User manage api
@@ -42,6 +49,7 @@ type UserUsecase interface {
 	DisableUser(ctx context.Context, user *model.User) error
 	EnableUser(ctx context.Context, user *model.User) error
 	updateUserLoginTime(ctx context.Context, user *model.User) error
+	Init(ctx context.Context) error
 }
 
 type userUsecaseImpl struct {
@@ -63,6 +71,54 @@ func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUs
 		projectUsecase: projectUsecase,
 		sysUsecase:     sysUsecase,
 	}
+}
+
+func (u *userUsecaseImpl) Init(ctx context.Context) error {
+	admin := model.DefaultAdminUserName
+	if err := u.ds.Get(ctx, &model.User{
+		Name: admin,
+	}); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			pwd := utils2.RandomString(8)
+			encrypted, err := GeneratePasswordHash(pwd)
+			if err != nil {
+				return err
+			}
+			if err := u.ds.Add(ctx, &model.User{
+				Name:      admin,
+				Password:  encrypted,
+				UserRoles: []string{"admin"},
+			}); err != nil {
+				return err
+			}
+			// print default password of admin user in log
+			log.Logger.Infof("init admin user, password is %s", pwd)
+			secret := &corev1.Secret{}
+			if err := u.k8sClient.Get(ctx, k8stypes.NamespacedName{
+				Name:      admin,
+				Namespace: types.DefaultKubeVelaNS,
+			}, secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					if err := u.k8sClient.Create(ctx, &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      admin,
+							Namespace: types.DefaultKubeVelaNS,
+						},
+						StringData: map[string]string{
+							admin: pwd,
+						},
+					}); err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetUser get user

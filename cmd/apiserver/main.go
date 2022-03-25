@@ -120,5 +120,5 @@ func (s *Server) buildSwagger() (*spec.Swagger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create apiserver failed : %w ", err)
 	}
-	return restfulspec.BuildSwagger(server.RegisterServices()), nil
+	return restfulspec.BuildSwagger(server.RegisterServices(context.Background(), false)), nil
 }

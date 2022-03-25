@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -38,6 +39,7 @@ var _ = Describe("Test project usecase functions", func() {
 	var (
 		projectUsecase   *projectUsecaseImpl
 		envImpl          *envUsecaseImpl
+		userUsecase      *userUsecaseImpl
 		targetImpl       *targetUsecaseImpl
 		defaultNamespace = "project-default-ns1-test"
 	)
@@ -45,10 +47,12 @@ var _ = Describe("Test project usecase functions", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "target-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
+		userUsecase = &userUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		var ns = corev1.Namespace{}
 		ns.Name = defaultNamespace
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		projectUsecase = &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: &rbacUsecaseImpl{ds: ds}}
 		pp, err := projectUsecase.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
@@ -57,8 +61,9 @@ var _ = Describe("Test project usecase functions", func() {
 			_ = projectUsecase.DeleteProject(context.TODO(), p.Name)
 		}
 
-		envImpl = &envUsecaseImpl{kubeClient: k8sClient, ds: ds}
-		envs, err := envImpl.ListEnvs(context.TODO(), 0, 0, apisv1.ListEnvOptions{})
+		envImpl = &envUsecaseImpl{kubeClient: k8sClient, ds: ds, projectUsecase: projectUsecase}
+		ctx := context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "admin")
+		envs, err := envImpl.ListEnvs(ctx, 0, 0, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
 		// reset all projects
 		for _, e := range envs.Envs {
@@ -74,7 +79,17 @@ var _ = Describe("Test project usecase functions", func() {
 	})
 	It("Test project initialize function", func() {
 
-		projectUsecase.InitDefaultProjectEnvTarget(defaultNamespace)
+		// init admin user
+		var ns = corev1.Namespace{}
+		ns.Name = velatypes.DefaultKubeVelaNS
+		err := k8sClient.Create(context.TODO(), &ns)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		err = userUsecase.Init(context.TODO())
+		Expect(err).Should(BeNil())
+
+		// init default project
+		err = projectUsecase.InitDefaultProjectEnvTarget(context.WithValue(context.TODO(), &apisv1.CtxKeyUser, model.DefaultAdminUserName), defaultNamespace)
+		Expect(err).Should(BeNil())
 		By("test env created")
 		var namespace corev1.Namespace
 		Eventually(func() error {

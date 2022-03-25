@@ -17,6 +17,8 @@ limitations under the License.
 package webservice
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -37,7 +39,7 @@ type WebService interface {
 
 var registeredWebService []WebService
 
-// RegisterWebService regist webservice
+// RegisterWebService register webservice
 func RegisterWebService(ws WebService) {
 	registeredWebService = append(registeredWebService, ws)
 }
@@ -59,13 +61,13 @@ func returns500(b *restful.RouteBuilder) {
 
 // Init init all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
-func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
+func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Duration, initDatabase bool) map[string]interface{} {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
-	envUsecase := usecase.NewEnvUsecase(ds)
 	rbacUsecase := usecase.NewRBACUsecase(ds)
+	projectUsecase := usecase.NewProjectUsecase(ds, rbacUsecase)
+	envUsecase := usecase.NewEnvUsecase(ds, projectUsecase)
 	targetUsecase := usecase.NewTargetUsecase(ds)
 	workflowUsecase := usecase.NewWorkflowUsecase(ds, envUsecase)
-	projectUsecase := usecase.NewProjectUsecase(ds, rbacUsecase)
 	oamApplicationUsecase := usecase.NewOAMApplicationUsecase()
 	velaQLUsecase := usecase.NewVelaQLUsecase()
 	definitionUsecase := usecase.NewDefinitionUsecase()
@@ -77,9 +79,10 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 	helmUsecase := usecase.NewHelmUsecase()
 	userUsecase := usecase.NewUserUsecase(ds, projectUsecase, systemInfoUsecase)
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
-
 	// Modules that require default data initialization, Call it here in order
-	initData(rbacUsecase, projectUsecase)
+	if initDatabase {
+		initData(ctx, userUsecase, rbacUsecase, projectUsecase)
+	}
 
 	// Application
 	RegisterWebService(NewApplicationWebService(applicationUsecase, envBindingUsecase, workflowUsecase, rbacUsecase))
@@ -109,15 +112,20 @@ func Init(ds datastore.DataStore, addonCacheTime time.Duration) {
 
 	// RBAC
 	RegisterWebService(NewRBACWebService(rbacUsecase))
+
+	// return some usecase instance
+	return map[string]interface{}{"workflow": workflowUsecase}
 }
 
 // InitUsecase the usecase set that needs init data
 type InitUsecase interface {
-	Init()
+	Init(ctx context.Context) error
 }
 
-func initData(inits ...InitUsecase) {
+func initData(ctx context.Context, inits ...InitUsecase) {
 	for _, init := range inits {
-		init.Init()
+		if err := init.Init(ctx); err != nil {
+			log.Fatalf("database init failure %s", err.Error())
+		}
 	}
 }

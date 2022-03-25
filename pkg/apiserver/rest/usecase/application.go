@@ -147,9 +147,6 @@ func NewApplicationUsecase(ds datastore.DataStore,
 
 func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.ListApplicationOptions) ([]*model.Application, error) {
 	var app = model.Application{}
-	if listOptions.Project != "" {
-		app.Project = listOptions.Project
-	}
 	var err error
 	var envBinding []*apisv1.EnvBindingBase
 	if listOptions.Env != "" || listOptions.TargetName != "" {
@@ -159,8 +156,14 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 			return nil, err
 		}
 	}
-
-	entities, err := ds.List(ctx, &app, &datastore.ListOptions{})
+	var filterOptions datastore.FilterOptions
+	if len(listOptions.Project) > 0 {
+		filterOptions.In = append(filterOptions.In, datastore.InQueryOption{
+			Key:    "project",
+			Values: listOptions.Project,
+		})
+	}
+	entities, err := ds.List(ctx, &app, &datastore.ListOptions{FilterOptions: filterOptions})
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +205,29 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 
 // ListApplications list applications
 func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptions apisv1.ListApplicationOptions) ([]*apisv1.ApplicationBase, error) {
+	userName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := c.projectUsecase.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var availableProjectNames []string
+	for _, project := range projects {
+		availableProjectNames = append(availableProjectNames, project.Name)
+	}
+	if len(availableProjectNames) == 0 {
+		return []*apisv1.ApplicationBase{}, nil
+	}
+	if len(listOptions.Project) > 0 {
+		if !utils2.SliceIncludeSlice(availableProjectNames, listOptions.Project) {
+			return []*apisv1.ApplicationBase{}, nil
+		}
+	}
+	if len(listOptions.Project) == 0 {
+		listOptions.Project = availableProjectNames
+	}
 	apps, err := listApp(ctx, c.ds, listOptions)
 	if err != nil {
 		return nil, err

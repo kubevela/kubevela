@@ -101,8 +101,20 @@ func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envL
 	if err != nil {
 		return nil, err
 	}
-	// TODO: list by project
-	envs, err := listEnvs(ctx, ds, "", nil)
+	var listOption *datastore.ListOptions
+	if option.projectName != "" {
+		listOption = &datastore.ListOptions{
+			FilterOptions: datastore.FilterOptions{
+				In: []datastore.InQueryOption{
+					{
+						Key:    "project",
+						Values: []string{option.projectName},
+					},
+				},
+			},
+		}
+	}
+	envs, err := listEnvs(ctx, ds, listOption)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +131,7 @@ func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envL
 }
 
 func (e *envBindingUsecaseImpl) GetEnvBindings(ctx context.Context, app *model.Application) ([]*apisv1.EnvBindingBase, error) {
-	full, err := listFullEnvBinding(ctx, e.ds, envListOption{appPrimaryKey: app.PrimaryKey()})
+	full, err := listFullEnvBinding(ctx, e.ds, envListOption{appPrimaryKey: app.PrimaryKey(), projectName: app.Project})
 	if err != nil {
 		log.Logger.Errorf("list envbinding for app %s err: %v\n", app.Name, err)
 		return nil, err

@@ -59,7 +59,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		Expect(err).Should(BeNil())
 		rbacUsecase := &rbacUsecaseImpl{ds: ds}
 		projectUsecase = &projectUsecaseImpl{ds: ds, rbacUsecase: rbacUsecase}
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		workflowUsecase = &workflowUsecaseImpl{
 			ds:         ds,
 			kubeClient: k8sClient,

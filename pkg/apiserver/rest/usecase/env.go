@@ -46,17 +46,18 @@ type EnvUsecase interface {
 }
 
 type envUsecaseImpl struct {
-	ds         datastore.DataStore
-	kubeClient client.Client
+	ds             datastore.DataStore
+	projectUsecase ProjectUsecase
+	kubeClient     client.Client
 }
 
 // NewEnvUsecase new env usecase
-func NewEnvUsecase(ds datastore.DataStore) EnvUsecase {
+func NewEnvUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) EnvUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
-	return &envUsecaseImpl{kubeClient: kubecli, ds: ds}
+	return &envUsecaseImpl{kubeClient: kubecli, ds: ds, projectUsecase: projectUsecase}
 }
 
 // GetEnv get env
@@ -97,7 +98,43 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 
 // ListEnvs list envs
 func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error) {
-	entities, err := listEnvs(ctx, p.ds, listOption.Project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	userName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := p.projectUsecase.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var availableProjectNames []string
+	for _, project := range projects {
+		availableProjectNames = append(availableProjectNames, project.Name)
+	}
+	if len(availableProjectNames) == 0 {
+		return &apisv1.ListEnvResponse{Envs: []*apisv1.Env{}, Total: 0}, nil
+	}
+	if listOption.Project != "" {
+		if !util.StringsContain(availableProjectNames, listOption.Project) {
+			return &apisv1.ListEnvResponse{Envs: []*apisv1.Env{}, Total: 0}, nil
+		}
+	}
+	projectNames := []string{listOption.Project}
+	if len(projectNames) == 0 {
+		projectNames = availableProjectNames
+	}
+	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+		FilterOptions: datastore.FilterOptions{
+			In: []datastore.InQueryOption{
+				{
+					Key:    "project",
+					Values: projectNames,
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

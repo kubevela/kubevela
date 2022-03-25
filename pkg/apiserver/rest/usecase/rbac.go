@@ -296,7 +296,7 @@ type RBACUsecase interface {
 	ListPermPolicyTemplate(ctx context.Context, projectName string) ([]apisv1.PermPolicyTemplateBase, error)
 	ListPermPolicies(ctx context.Context, projectName string) ([]apisv1.PermPolicyBase, error)
 	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
-	Init()
+	Init(ctx context.Context) error
 }
 
 // NewRBACUsecase is the usecase service of RBAC
@@ -307,8 +307,30 @@ func NewRBACUsecase(ds datastore.DataStore) RBACUsecase {
 	return rbacUsecase
 }
 
-func (p *rbacUsecaseImpl) Init() {
-	p.initPlatformPermPolicies()
+func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
+	count, _ := p.ds.Count(ctx, &model.PermPolicy{}, nil)
+	if count > 0 {
+		return nil
+	}
+	var batchData []datastore.Entity
+	for _, policy := range defaultPlatformPermPolicy {
+		batchData = append(batchData, &model.PermPolicy{
+			Name:      policy.Name,
+			Alias:     policy.Alias,
+			Resources: policy.Resources,
+			Actions:   policy.Actions,
+			Effect:    policy.Effect,
+		})
+	}
+	batchData = append(batchData, &model.Role{
+		Name:         "admin",
+		Alias:        "Admin",
+		PermPolicies: []string{"admin"},
+	})
+	if err := p.ds.BatchAdd(context.Background(), batchData); err != nil {
+		return fmt.Errorf("init the platform perm policies failure %w", err)
+	}
+	return nil
 }
 
 func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.User, projectName string) ([]*model.PermPolicy, error) {
@@ -613,31 +635,6 @@ func (p *rbacUsecaseImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	return p.ds.BatchAdd(ctx, batchData)
 }
 
-func (p *rbacUsecaseImpl) initPlatformPermPolicies() {
-	count, _ := p.ds.Count(context.Background(), &model.PermPolicy{}, nil)
-	if count > 0 {
-		return
-	}
-	var batchData []datastore.Entity
-	for _, policy := range defaultPlatformPermPolicy {
-		batchData = append(batchData, &model.PermPolicy{
-			Name:      policy.Name,
-			Alias:     policy.Alias,
-			Resources: policy.Resources,
-			Actions:   policy.Actions,
-			Effect:    policy.Effect,
-		})
-	}
-	batchData = append(batchData, &model.Role{
-		Name:         "admin",
-		Alias:        "Admin",
-		PermPolicies: []string{"admin"},
-	})
-	if err := p.ds.BatchAdd(context.Background(), batchData); err != nil {
-		log.Logger.Errorf("init the platform perm policies failure %s", err.Error())
-	}
-}
-
 // ConvertRole2Model convert role model to role base struct
 func ConvertRole2Model(role *model.Role, policies []*model.PermPolicy) *apisv1.RoleBase {
 	return &apisv1.RoleBase{
@@ -685,6 +682,7 @@ func ParseResourceName(resource string) *ResourceName {
 }
 
 // Match the resource types same with target and resource value include
+// target resource means request resources
 func (r *ResourceName) Match(target *ResourceName) bool {
 	current := r
 	currentTarget := target
@@ -703,6 +701,9 @@ func (r *ResourceName) Match(target *ResourceName) bool {
 		}
 		current = current.Next
 		currentTarget = currentTarget.Next
+	}
+	if currentTarget != nil && currentTarget.Type != "" {
+		return false
 	}
 	return true
 }

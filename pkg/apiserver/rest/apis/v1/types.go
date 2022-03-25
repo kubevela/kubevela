@@ -289,10 +289,10 @@ type ClusterBase struct {
 
 // ListApplicationOptions list application  query options
 type ListApplicationOptions struct {
-	Project    string `json:"project"`
-	Env        string `json:"env"`
-	TargetName string `json:"targetName"`
-	Query      string `json:"query"`
+	Project    []string `json:"project"`
+	Env        string   `json:"env"`
+	TargetName string   `json:"targetName"`
+	Query      string   `json:"query"`
 }
 
 // ListApplicationResponse list applications by query params
@@ -678,7 +678,7 @@ type ProjectBase struct {
 	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
-	Owner       NameAlias `json:"owner"`
+	Owner       NameAlias `json:"owner,omitempty"`
 }
 
 // CreateProjectRequest create project request body

@@ -32,6 +32,9 @@ func init() {
 	RegisterModel(&PermPolicyTemplate{})
 }
 
+// DefaultAdminUserName default admin user name
+var DefaultAdminUserName = "admin"
+
 // User is the model of user
 type User struct {
 	BaseModel

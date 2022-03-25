@@ -172,6 +172,9 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	if err != nil {
 		return nil, err
 	}
+	if userBase.Disabled {
+		return nil, bcode.ErrUserAlreadyDisabled
+	}
 	accessToken, err := a.generateJWTToken(userBase.Name, GrantTypeAccess, time.Hour)
 	if err != nil {
 		return nil, err
@@ -287,8 +290,12 @@ func (a *authenticationUsecaseImpl) GetLoginType(ctx context.Context) (*apisv1.G
 	if err != nil {
 		return nil, err
 	}
+	loginType := sysInfo.LoginType
+	if loginType == "" {
+		loginType = model.LoginTypeLocal
+	}
 	return &apisv1.GetLoginTypeResponse{
-		LoginType: sysInfo.LoginType,
+		LoginType: loginType,
 	}, nil
 }
 

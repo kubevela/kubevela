@@ -66,6 +66,10 @@ var _ = Describe("Test rbac service", func() {
 		path, err = checkResourcePath("project/workflow")
 		Expect(err).Should(BeNil())
 		Expect(path).Should(BeEquivalentTo("project:{projectName}/workflow:{workflowName}"))
+
+		path, err = checkResourcePath("component")
+		Expect(err).Should(BeNil())
+		Expect(path).Should(BeEquivalentTo("project:{projectName}/application:{appName}/component:{compName}"))
 	})
 
 	It("Test resource action", func() {
@@ -139,7 +143,7 @@ var _ = Describe("Test rbac service", func() {
 		Expect(pass).Should(BeTrue())
 
 		rbac.CheckPerm("component", "list")(restful.NewRequest(req), res, filter)
-		Expect(pass).Should(BeFalse())
+		Expect(res.StatusCode()).Should(Equal(int(bcode.ErrForbidden.HTTPCode)))
 	})
 
 	It("Test initDefaultRoleAndUsersForProject", func() {
@@ -193,6 +197,6 @@ func TestRequestResourceActionMatch(t *testing.T) {
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*", "project:*/application:app1/component:*"}, Actions: []string{"list", "delete"}}}), true)
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"list", "detail"}}}), false)
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}}), true)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}, {Resources: []string{"*"}, Actions: []string{"project:*/application:app1/component:*"}, Effect: "Deny"}}), false)
+	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}, {Actions: []string{"*"}, Resources: []string{"project:*/application:app1/component:*"}, Effect: "Deny"}}), false)
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:projectName/application:*/*"}, Actions: []string{"*"}}}), true)
 }

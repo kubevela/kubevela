@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -36,6 +37,7 @@ type ProjectUsecase interface {
 	GetProject(ctx context.Context, projectName string) (*model.Project, error)
 	DetailProject(ctx context.Context, projectName string) (*apisv1.ProjectBase, error)
 	ListProjects(ctx context.Context, page, pageSize int) (*apisv1.ListProjectResponse, error)
+	ListUserProjects(ctx context.Context, userName string) ([]*apisv1.ProjectBase, error)
 	CreateProject(ctx context.Context, req apisv1.CreateProjectRequest) (*apisv1.ProjectBase, error)
 	DeleteProject(ctx context.Context, projectName string) error
 	UpdateProject(ctx context.Context, projectName string, req apisv1.UpdateProjectRequest) (*apisv1.ProjectBase, error)
@@ -43,8 +45,7 @@ type ProjectUsecase interface {
 	AddProjectUser(ctx context.Context, projectName string, req apisv1.AddProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
-	InitDefaultProjectEnvTarget(defaultNamespace string)
-	Init()
+	Init(ctx context.Context) error
 }
 
 type projectUsecaseImpl struct {
@@ -64,27 +65,24 @@ func NewProjectUsecase(ds datastore.DataStore, rbacUsecase RBACUsecase) ProjectU
 }
 
 // Init init default data
-func (p *projectUsecaseImpl) Init() {
-	p.InitDefaultProjectEnvTarget(model.DefaultInitNamespace)
+func (p *projectUsecaseImpl) Init(ctx context.Context) error {
+	return p.InitDefaultProjectEnvTarget(ctx, model.DefaultInitNamespace)
 }
 
 // initDefaultProjectEnvTarget will initialize a default project with a default env that contain a default target
 // the default env and default target both using the `default` namespace in control plane cluster
-func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(defaultNamespace string) {
-	ctx := context.Background()
+func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(ctx context.Context, defaultNamespace string) error {
 	projResp, err := listProjects(ctx, p.ds, 0, 0)
 	if err != nil {
-		log.Logger.Errorf("initialize project failed %v", err)
-		return
+		return fmt.Errorf("initialize project failed %w", err)
 	}
 	if len(projResp.Projects) > 0 {
-		return
+		return nil
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
 
 	if err := createTargetNamespace(ctx, p.k8sClient, multicluster.ClusterLocalName, defaultNamespace, model.DefaultInitName); err != nil {
-		log.Logger.Errorf("initialize default target namespace failed %v", err)
-		return
+		return fmt.Errorf("initialize default target namespace failed %w", err)
 	}
 	// initialize default target first
 	err = createTarget(ctx, p.ds, &model.Target{
@@ -98,8 +96,7 @@ func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(defaultNamespace string
 	})
 	// for idempotence, ignore default target already exist error
 	if err != nil && errors.Is(err, bcode.ErrTargetExist) {
-		log.Logger.Errorf("initialize default target failed %v", err)
-		return
+		return fmt.Errorf("initialize default target failed %w", err)
 	}
 
 	// initialize default target first
@@ -113,20 +110,20 @@ func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(defaultNamespace string
 	})
 	// for idempotence, ignore default env already exist error
 	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {
-		log.Logger.Errorf("initialize default environment failed %v", err)
-		return
+
+		return fmt.Errorf("initialize default environment failed %w", err)
 	}
 
 	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
 		Name:        model.DefaultInitName,
 		Alias:       "Default",
 		Description: model.DefaultProjectDescription,
+		Owner:       model.DefaultAdminUserName,
 	})
 	if err != nil {
-		log.Logger.Errorf("initialize project failed %v", err)
-		return
+		return fmt.Errorf("initialize project failed %w", err)
 	}
-
+	return nil
 }
 
 // GetProject get project
@@ -177,6 +174,35 @@ func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize in
 		return nil, err
 	}
 	return &apisv1.ListProjectResponse{Projects: projects, Total: total}, nil
+}
+
+func (p *projectUsecaseImpl) ListUserProjects(ctx context.Context, userName string) ([]*apisv1.ProjectBase, error) {
+	var projectUser = model.ProjectUser{
+		Username: userName,
+	}
+	entities, err := p.ds.List(ctx, &projectUser, nil)
+	if err != nil {
+		return nil, err
+	}
+	var projectNames []string
+	for _, entity := range entities {
+		projectNames = append(projectNames, entity.(*model.ProjectUser).ProjectName)
+	}
+	if len(projectNames) == 0 {
+		return []*apisv1.ProjectBase{}, nil
+	}
+	projectEntities, err := p.ds.List(ctx, &model.Project{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{{
+		Key:    "name",
+		Values: projectNames,
+	}}}})
+	if err != nil {
+		return nil, err
+	}
+	var projectBases []*apisv1.ProjectBase
+	for _, entity := range projectEntities {
+		projectBases = append(projectBases, ConvertProjectModel2Base(entity.(*model.Project), nil))
+	}
+	return projectBases, nil
 }
 
 // ListProjects list projects

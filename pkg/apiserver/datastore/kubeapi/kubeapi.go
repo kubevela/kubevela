@@ -351,6 +351,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 		for _, inFilter := range op.In {
 			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
 			if err != nil {
+				log.Logger.Errorf("new list requirement failure %s", err.Error())
 				return nil, datastore.ErrIndexInvalid
 			}
 			selector = selector.Add(*rq)

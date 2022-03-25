@@ -49,13 +49,13 @@ var _ = Describe("Test application usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		rbacUsecase := &rbacUsecaseImpl{ds: ds}
 		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,

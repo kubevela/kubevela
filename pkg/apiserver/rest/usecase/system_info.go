@@ -51,6 +51,9 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 	}
 	if len(entities) != 0 {
 		info := entities[0].(*model.SystemInfo)
+		if info.LoginType == "" {
+			info.LoginType = model.LoginTypeLocal
+		}
 		return &v1.SystemInfoResponse{SystemInfo: *info, SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision}}, nil
 	}
 	installID := rand.String(16)
