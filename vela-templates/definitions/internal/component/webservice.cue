@@ -17,53 +17,36 @@ webservice: {
 		}
 		status: {
 			customStatus: #"""
-				import "strconv"
 				ready: {
-					if context.output.status.readyReplicas == _|_ {
-						readyReplicas: 0
-					}
-
+					readyReplicas: *0 | int
+				} & {
 					if context.output.status.readyReplicas != _|_ {
 						readyReplicas: context.output.status.readyReplicas
 					}
 				}
-
-				message: "Ready:" + strconv.FormatInt(ready.readyReplicas, 10) + "/" + strconv.FormatInt(context.output.spec.replicas, 10)
+				message: "Ready:\(ready.readyReplicas)/\(context.output.spec.replicas)"
 				"""#
 			healthPolicy: #"""
 				ready: {
-					if context.output.status.updatedReplicas == _|_  {
-						updatedReplicas : 0
+					updatedReplicas:    *0 | int
+					readyReplicas:      *0 | int
+					replicas:           *0 | int
+					observedGeneration: *0 | int
+				} & {
+					if context.output.status.updatedReplicas != _|_ {
+						updatedReplicas: context.output.status.updatedReplicas
 					}
-
-					if context.output.status.updatedReplicas != _|_  {
-						updatedReplicas : context.output.status.updatedReplicas
-					}
-
-					if context.output.status.readyReplicas == _|_ {
-						readyReplicas: 0
-					}
-
 					if context.output.status.readyReplicas != _|_ {
 						readyReplicas: context.output.status.readyReplicas
-					}
-
-					if context.output.status.replicas == _|_ {
-						replicas: 0
 					}
 					if context.output.status.replicas != _|_ {
 						replicas: context.output.status.replicas
 					}
-
 					if context.output.status.observedGeneration != _|_ {
 						observedGeneration: context.output.status.observedGeneration
 					}
-
-					if context.output.status.observedGeneration == _|_ {
-						observedGeneration: 0
-					}
 				}
-					isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
+				isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
 				"""#
 		}
 	}

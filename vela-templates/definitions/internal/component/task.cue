@@ -3,12 +3,41 @@ task: {
 	annotations: {}
 	labels: {}
 	description: "Describes jobs that run code or a script to completion."
-	attributes: workload: {
-		definition: {
-			apiVersion: "batch/v1"
-			kind:       "Job"
+	attributes: {
+		workload: {
+			definition: {
+				apiVersion: "batch/v1"
+				kind:       "Job"
+			}
+			type: "jobs.batch"
 		}
-		type: "jobs.batch"
+		status: {
+			customStatus: #"""
+				status: {
+					active:    *0 | int
+					failed:    *0 | int
+					succeeded: *0 | int
+				} & {
+					if context.output.status.active != _|_ {
+						active: context.output.status.active
+					}
+					if context.output.status.failed != _|_ {
+						failed: context.output.status.failed
+					}
+					if context.output.status.succeeded != _|_ {
+						succeeded: context.output.status.succeeded
+					}
+				}
+				message: "Active/Failed/Succeeded:\(status.active)/\(status.failed)/\(status.succeeded)"
+				"""#
+			healthPolicy: #"""
+				succeeded: *0 | int
+				if context.output.status.succeeded != _|_ {
+					succeeded: context.output.status.succeeded
+				}
+				isHealth: succeeded == context.output.spec.parallelism
+				"""#
+		}
 	}
 }
 template: {
