@@ -126,6 +126,7 @@ func (r *rbacWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", []apis.PermPolicyBase{}).
 		Writes([]apis.PermPolicyBase{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

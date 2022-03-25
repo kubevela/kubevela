@@ -77,7 +77,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
 	helmUsecase := usecase.NewHelmUsecase()
-	userUsecase := usecase.NewUserUsecase(ds, projectUsecase, systemInfoUsecase)
+	userUsecase := usecase.NewUserUsecase(ds, projectUsecase, systemInfoUsecase, rbacUsecase)
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
 	// Modules that require default data initialization, Call it here in order
 	if initDatabase {
@@ -106,7 +106,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	RegisterWebService(NewHelmWebService(helmUsecase))
 
 	// Authentication
-	RegisterWebService(NewAuthenticationWebService(authenticationUsecase))
+	RegisterWebService(NewAuthenticationWebService(authenticationUsecase, userUsecase))
 	RegisterWebService(NewUserWebService(userUsecase, rbacUsecase))
 	RegisterWebService(NewSystemInfoWebService(systemInfoUsecase, rbacUsecase))
 

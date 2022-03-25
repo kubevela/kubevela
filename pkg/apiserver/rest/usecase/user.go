@@ -48,7 +48,8 @@ type UserUsecase interface {
 	ListUsers(ctx context.Context, page, pageSize int, listOptions apisv1.ListUserOptions) (*apisv1.ListUserResponse, error)
 	DisableUser(ctx context.Context, user *model.User) error
 	EnableUser(ctx context.Context, user *model.User) error
-	updateUserLoginTime(ctx context.Context, user *model.User) error
+	DetailLoginUserInfo(ctx context.Context) (*apisv1.LoginUserInfoResponse, error)
+	UpdateUserLoginTime(ctx context.Context, user *model.User) error
 	Init(ctx context.Context) error
 }
 
@@ -56,11 +57,12 @@ type userUsecaseImpl struct {
 	ds             datastore.DataStore
 	k8sClient      client.Client
 	projectUsecase ProjectUsecase
+	rbacUsecase    RBACUsecase
 	sysUsecase     SystemInfoUsecase
 }
 
 // NewUserUsecase new User usecase
-func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUsecase SystemInfoUsecase) UserUsecase {
+func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUsecase SystemInfoUsecase, rbacUsecase RBACUsecase) UserUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
@@ -70,6 +72,7 @@ func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUs
 		ds:             ds,
 		projectUsecase: projectUsecase,
 		sysUsecase:     sysUsecase,
+		rbacUsecase:    rbacUsecase,
 	}
 }
 
@@ -118,6 +121,7 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 			return err
 		}
 	}
+	log.Logger.Info("admin user is exist")
 	return nil
 }
 
@@ -298,10 +302,71 @@ func (u *userUsecaseImpl) EnableUser(ctx context.Context, user *model.User) erro
 	return u.ds.Put(ctx, user)
 }
 
-// updateUserLoginTime update user login time
-func (u *userUsecaseImpl) updateUserLoginTime(ctx context.Context, user *model.User) error {
+// UpdateUserLoginTime update user login time
+func (u *userUsecaseImpl) UpdateUserLoginTime(ctx context.Context, user *model.User) error {
 	user.LastLoginTime = time.Now().Time
 	return u.ds.Put(ctx, user)
+}
+
+// DetailLoginUserInfo get projects and permission policies of login user
+func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.LoginUserInfoResponse, error) {
+	userName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	user, err := u.GetUser(ctx, userName)
+	if !ok {
+		log.Logger.Errorf("get login user model failure %s", err.Error())
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := u.projectUsecase.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var projectPermPolicies = make(map[string][]apisv1.PermPolicyBase)
+	for _, project := range projects {
+		perms, err := u.rbacUsecase.GetUserPermPolicies(ctx, user, project.Name, false)
+		if err != nil {
+			log.Logger.Errorf("list user %s perm policies from project %s failure %s", user.Name, project.Name, err.Error())
+			continue
+		}
+		projectPermPolicies[project.Name] = func() (list []apisv1.PermPolicyBase) {
+			for _, perm := range perms {
+				list = append(list, apisv1.PermPolicyBase{
+					Name:       perm.Name,
+					Alias:      perm.Alias,
+					Resources:  perm.Resources,
+					Actions:    perm.Actions,
+					Effect:     perm.Effect,
+					CreateTime: perm.CreateTime,
+					UpdateTime: perm.UpdateTime,
+				})
+			}
+			return
+		}()
+	}
+	perms, err := u.rbacUsecase.GetUserPermPolicies(ctx, user, "", true)
+	if err != nil {
+		log.Logger.Errorf("list user %s  platform perm policies failure %s", user.Name, err.Error())
+	}
+	var platformPermPolicies []apisv1.PermPolicyBase
+	for _, perm := range perms {
+		platformPermPolicies = append(platformPermPolicies, apisv1.PermPolicyBase{
+			Name:       perm.Name,
+			Alias:      perm.Alias,
+			Resources:  perm.Resources,
+			Actions:    perm.Actions,
+			Effect:     perm.Effect,
+			CreateTime: perm.CreateTime,
+			UpdateTime: perm.UpdateTime,
+		})
+	}
+	return &apisv1.LoginUserInfoResponse{
+		UserBase:             *convertUserBase(user),
+		Projects:             projects,
+		ProjectPermPolicies:  projectPermPolicies,
+		PlatformPermPolicies: platformPermPolicies,
+	}, nil
 }
 
 func convertUserModel(user *model.User) *apisv1.DetailUserResponse {

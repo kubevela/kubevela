@@ -344,7 +344,7 @@ func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) 
 	if err := compareHashWithPassword(user.Password, l.password); err != nil {
 		return nil, err
 	}
-	if err := l.userUsecase.updateUserLoginTime(ctx, user); err != nil {
+	if err := l.userUsecase.UpdateUserLoginTime(ctx, user); err != nil {
 		return nil, err
 	}
 	return &apisv1.UserBase{

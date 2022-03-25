@@ -77,6 +77,21 @@ func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 		return fmt.Errorf("initialize project failed %w", err)
 	}
 	if len(projResp.Projects) > 0 {
+		for _, project := range projResp.Projects {
+			// owner is empty, it is old data
+			if project.Owner.Name == "" {
+				pro, err := p.GetProject(ctx, project.Name)
+				if err == nil {
+					pro.Owner = model.DefaultAdminUserName
+					if err := p.ds.Put(ctx, pro); err != nil {
+						return err
+					}
+					if err := p.rbacUsecase.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
+						return fmt.Errorf("init default role and users for project failure %w", err)
+					}
+				}
+			}
+		}
 		return nil
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")

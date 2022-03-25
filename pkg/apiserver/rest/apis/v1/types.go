@@ -289,7 +289,7 @@ type ClusterBase struct {
 
 // ListApplicationOptions list application  query options
 type ListApplicationOptions struct {
-	Project    []string `json:"project"`
+	Projects   []string `json:"projects"`
 	Env        string   `json:"env"`
 	TargetName string   `json:"targetName"`
 	Query      string   `json:"query"`
@@ -1250,4 +1250,12 @@ type PermPolicyBase struct {
 	Effect     string    `json:"effect"`
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`
+}
+
+// LoginUserInfoResponse the response body of login user info
+type LoginUserInfoResponse struct {
+	UserBase
+	Projects             []*ProjectBase              `json:"projects"`
+	PlatformPermPolicies []PermPolicyBase            `json:"platformPermPolicies"`
+	ProjectPermPolicies  map[string][]PermPolicyBase `json:"projectPermPolicies"`
 }

@@ -24,10 +24,6 @@ import (
 )
 
 var _ = Describe("Test system info  rest api", func() {
-	BeforeEach(func() {
-		res := delete("/system_info/")
-		Expect(decodeResponseBody(res, nil)).Should(Succeed())
-	})
 
 	It("Test get SystemInfo", func() {
 		res := get("/system_info/")

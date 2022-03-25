@@ -622,7 +622,7 @@ func (c *applicationWebService) listApplications(req *restful.Request, res *rest
 		projetNames = append(projetNames, req.QueryParameter("project"))
 	}
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{
-		Project:    projetNames,
+		Projects:   projetNames,
 		Env:        req.QueryParameter("env"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),

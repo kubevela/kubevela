@@ -356,6 +356,14 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 			}
 			selector = selector.Add(*rq)
 		}
+		for _, notFilter := range op.IsNotExist {
+			rq, err := labels.NewRequirement(notFilter.Key, selection.DoesNotExist, []string{})
+			if err != nil {
+				log.Logger.Errorf("new list requirement failure %s", err.Error())
+				return nil, datastore.ErrIndexInvalid
+			}
+			selector = selector.Add(*rq)
+		}
 	}
 	options := &client.ListOptions{
 		LabelSelector: selector,
@@ -429,6 +437,14 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		for _, inFilter := range filterOptions.In {
 			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
 			if err != nil {
+				return 0, datastore.ErrIndexInvalid
+			}
+			selector = selector.Add(*rq)
+		}
+		for _, notFilter := range filterOptions.IsNotExist {
+			rq, err := labels.NewRequirement(notFilter.Key, selection.DoesNotExist, []string{})
+			if err != nil {
+				log.Logger.Errorf("new list requirement failure %s", err.Error())
 				return 0, datastore.ErrIndexInvalid
 			}
 			selector = selector.Add(*rq)

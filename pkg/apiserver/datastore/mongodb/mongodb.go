@@ -192,12 +192,14 @@ func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
 }
 
 func _applyFilterOptions(filter bson.D, filterOptions datastore.FilterOptions) bson.D {
-
 	for _, queryOp := range filterOptions.Queries {
 		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bsonx.Regex(".*"+queryOp.Query+".*", "s")})
 	}
 	for _, queryOp := range filterOptions.In {
 		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bson.D{bson.E{Key: "$in", Value: queryOp.Values}}})
+	}
+	for _, queryOp := range filterOptions.IsNotExist {
+		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bson.D{bson.E{Key: "$eq", Value: ""}}})
 	}
 	return filter
 }

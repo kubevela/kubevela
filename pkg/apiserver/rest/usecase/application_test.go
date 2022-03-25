@@ -136,7 +136,7 @@ var _ = Describe("Test application usecase function", func() {
 
 	It("Test ListApplications and filter by targetName function", func() {
 		list, err := appUsecase.ListApplications(context.WithValue(context.TODO(), &v1.CtxKeyUser, model.DefaultAdminUserName), v1.ListApplicationOptions{
-			Project:    []string{testProject},
+			Projects:   []string{testProject},
 			TargetName: defaultTarget})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(list), 1)).Should(BeEmpty())

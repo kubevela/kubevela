@@ -157,10 +157,10 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 		}
 	}
 	var filterOptions datastore.FilterOptions
-	if len(listOptions.Project) > 0 {
+	if len(listOptions.Projects) > 0 {
 		filterOptions.In = append(filterOptions.In, datastore.InQueryOption{
 			Key:    "project",
-			Values: listOptions.Project,
+			Values: listOptions.Projects,
 		})
 	}
 	entities, err := ds.List(ctx, &app, &datastore.ListOptions{FilterOptions: filterOptions})
@@ -220,13 +220,13 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	if len(availableProjectNames) == 0 {
 		return []*apisv1.ApplicationBase{}, nil
 	}
-	if len(listOptions.Project) > 0 {
-		if !utils2.SliceIncludeSlice(availableProjectNames, listOptions.Project) {
+	if len(listOptions.Projects) > 0 {
+		if !utils2.SliceIncludeSlice(availableProjectNames, listOptions.Projects) {
 			return []*apisv1.ApplicationBase{}, nil
 		}
 	}
-	if len(listOptions.Project) == 0 {
-		listOptions.Project = availableProjectNames
+	if len(listOptions.Projects) == 0 {
+		listOptions.Projects = availableProjectNames
 	}
 	apps, err := listApp(ctx, c.ds, listOptions)
 	if err != nil {

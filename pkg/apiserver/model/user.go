@@ -33,7 +33,7 @@ func init() {
 }
 
 // DefaultAdminUserName default admin user name
-var DefaultAdminUserName = "admin"
+const DefaultAdminUserName = "admin"
 
 // User is the model of user
 type User struct {
@@ -226,8 +226,8 @@ type PermPolicyTemplate struct {
 	BaseModel
 	Name  string `json:"name"`
 	Alias string `json:"alias"`
-	// Level options: project or platform
-	Level     string     `json:"level"`
+	// Scope options: project or platform
+	Scope     string     `json:"scope"`
 	Resources []string   `json:"resources"`
 	Actions   []string   `json:"actions"`
 	Effect    string     `json:"effect"`
@@ -255,8 +255,8 @@ func (p *PermPolicyTemplate) Index() map[string]string {
 	if p.Name != "" {
 		index["name"] = p.Name
 	}
-	if p.Level != "" {
-		index["level"] = p.Level
+	if p.Scope != "" {
+		index["scope"] = p.Scope
 	}
 	return index
 }

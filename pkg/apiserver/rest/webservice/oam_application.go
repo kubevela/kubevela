@@ -73,6 +73,7 @@ func (c *oamApplicationWebService) GetWebService() *restful.WebService {
 		Param(ws.PathParameter("namespace", "identifier of the namespace").DataType("string")).
 		Param(ws.PathParameter("appname", "identifier of the oam application").DataType("string")))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

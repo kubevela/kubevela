@@ -199,4 +199,9 @@ func TestRequestResourceActionMatch(t *testing.T) {
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}}), true)
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}, {Actions: []string{"*"}, Resources: []string{"project:*/application:app1/component:*"}, Effect: "Deny"}}), false)
 	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:projectName/application:*/*"}, Actions: []string{"*"}}}), true)
+
+	ra3 := &RequestResourceAction{}
+	ra3.SetResourceWithName("project:test-123", testPathParameter)
+	ra3.SetActions([]string{"detail"})
+	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
 }

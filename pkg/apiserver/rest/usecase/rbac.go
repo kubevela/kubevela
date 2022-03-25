@@ -46,7 +46,7 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 		Resources: []string{"project:${projectName}/application:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "project",
+		Scope:     "project",
 	},
 	{
 		Name:      "env-management",
@@ -54,7 +54,7 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 		Resources: []string{"project:${projectName}/environment:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "project",
+		Scope:     "project",
 	},
 	{
 		Name:      "role-management",
@@ -62,7 +62,7 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 		Resources: []string{"project:${projectName}/role:*", "project:${projectName}/projectUser:*", "project:${projectName}/permPolicy:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "project",
+		Scope:     "project",
 	},
 }
 
@@ -73,7 +73,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"cluster:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "project-manage",
@@ -81,7 +81,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"project:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "addon-manage",
@@ -89,7 +89,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"addon:*", "addonRegistry:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "target-manage",
@@ -97,7 +97,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"target:*", "cluster:*/namespace:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "user-manage",
@@ -105,7 +105,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"user:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "role-manage",
@@ -113,7 +113,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"role:*", "permPolicy:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 	{
 		Name:      "admin",
@@ -121,7 +121,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Resources: []string{"*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
-		Level:     "platform",
+		Scope:     "platform",
 	},
 }
 
@@ -288,7 +288,7 @@ type rbacUsecaseImpl struct {
 // RBACUsecase implement RBAC-related business logic.
 type RBACUsecase interface {
 	CheckPerm(resource string, actions ...string) func(req *restful.Request, res *restful.Response, chain *restful.FilterChain)
-	GetUserPermPolicies(ctx context.Context, user *model.User, projectName string) ([]*model.PermPolicy, error)
+	GetUserPermPolicies(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.PermPolicy, error)
 	CreateRole(ctx context.Context, projectName string, req apisv1.CreateRoleRequest) (*apisv1.RoleBase, error)
 	DeleteRole(ctx context.Context, projectName, roleName string) error
 	UpdateRole(ctx context.Context, projectName, roleName string, req apisv1.UpdateRoleRequest) (*apisv1.RoleBase, error)
@@ -333,40 +333,80 @@ func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
 	return nil
 }
 
-func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.User, projectName string) ([]*model.PermPolicy, error) {
-	roles := user.UserRoles
+// GetUserPermPolicies get user permission policies, if projectName is empty, will only get the platform permission policies
+func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.PermPolicy, error) {
+	var permPolicyNames []string
+	var perms []*model.PermPolicy
+	if withPlatform && len(user.UserRoles) > 0 {
+		entities, err := p.ds.List(ctx, &model.Role{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
+			In: []datastore.InQueryOption{
+				{
+					Key:    "name",
+					Values: user.UserRoles,
+				},
+			},
+			IsNotExist: []datastore.IsNotExistQueryOption{
+				{
+					Key: "project",
+				},
+			},
+		}})
+		if err != nil {
+			return nil, err
+		}
+		for _, entity := range entities {
+			permPolicyNames = append(permPolicyNames, entity.(*model.Role).PermPolicies...)
+		}
+		perms, err = p.listPermPolices(ctx, "", permPolicyNames)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if projectName != "" {
 		var projectUser = model.ProjectUser{
 			ProjectName: projectName,
 			Username:    user.Name,
 		}
+		var roles []string
 		if err := p.ds.Get(ctx, &projectUser); err == nil {
 			roles = append(roles, projectUser.UserRoles...)
 		}
+		if len(roles) > 0 {
+			entities, err := p.ds.List(ctx, &model.Role{Project: projectName}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+				{
+					Key:    "name",
+					Values: roles,
+				},
+			}}})
+			if err != nil {
+				return nil, err
+			}
+			for _, entity := range entities {
+				permPolicyNames = append(permPolicyNames, entity.(*model.Role).PermPolicies...)
+			}
+			projectPerms, err := p.listPermPolices(ctx, projectName, permPolicyNames)
+			if err != nil {
+				return nil, err
+			}
+			perms = append(perms, projectPerms...)
+		}
 	}
-	entities, err := p.ds.List(ctx, &model.Role{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
-		{
-			Key:    "name",
-			Values: roles,
-		},
-	}}})
-	if err != nil {
-		return nil, err
-	}
-	var permPolicyNames []string
-	for _, entity := range entities {
-		permPolicyNames = append(permPolicyNames, entity.(*model.Role).PermPolicies...)
-	}
-	return p.listPermPolices(ctx, projectName, permPolicyNames)
+	return perms, nil
 }
 
 func (p *rbacUsecaseImpl) listPermPolices(ctx context.Context, projectName string, permPolicyNames []string) ([]*model.PermPolicy, error) {
-	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+	filter := datastore.FilterOptions{In: []datastore.InQueryOption{
 		{
 			Key:    "name",
 			Values: permPolicyNames,
 		},
-	}}})
+	}}
+	if projectName == "" {
+		filter.IsNotExist = append(filter.IsNotExist, datastore.IsNotExistQueryOption{
+			Key: "project",
+		})
+	}
+	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
 	if err != nil {
 		return nil, err
 	}
@@ -406,6 +446,9 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 					if value := req.QueryParameter("project"); value != "" {
 						return value
 					}
+					if value := req.QueryParameter("projectName"); value != "" {
+						return value
+					}
 					if appName := req.PathParameter(ResourceMaps["project"].subResources["application"].pathName); appName != "" {
 						app := &model.Application{Name: appName}
 						if err := p.ds.Get(req.Request.Context(), app); err == nil {
@@ -430,7 +473,7 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 		if projectName == "" {
 			projectName = req.QueryParameter("project")
 		}
-		permPolicies, err := p.GetUserPermPolicies(req.Request.Context(), user, projectName)
+		permPolicies, err := p.GetUserPermPolicies(req.Request.Context(), user, projectName, true)
 		if err != nil {
 			log.Logger.Errorf("get user's perm policies failure %s, user is %s", err.Error(), user.Name)
 			bcode.ReturnError(req, res, bcode.ErrForbidden)

@@ -78,7 +78,8 @@ type restServer struct {
 	webContainer *restful.Container
 	cfg          Config
 	dataStore    datastore.DataStore
-	someUsecases map[string]interface{}
+	// usecases, we register part of the usecase instances
+	usecases map[string]interface{}
 }
 
 // New create restserver with config data
@@ -161,7 +162,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 
 func (s *restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
 	klog.Infof("start to syncing workflow record")
-	w := s.someUsecases["workflow"].(usecase.WorkflowUsecase)
+	w := s.usecases["workflow"].(usecase.WorkflowUsecase)
 	t := time.NewTicker(duration)
 	defer t.Stop()
 
@@ -179,7 +180,7 @@ func (s *restServer) runWorkflowRecordSync(ctx context.Context, duration time.Du
 
 // RegisterServices register web service
 func (s *restServer) RegisterServices(ctx context.Context, initDatabase bool) restfulspec.Config {
-	s.someUsecases = webservice.Init(ctx, s.dataStore, s.cfg.AddonCacheTime, initDatabase)
+	s.usecases = webservice.Init(ctx, s.dataStore, s.cfg.AddonCacheTime, initDatabase)
 
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
