@@ -24,6 +24,7 @@
 		properties: {...}
 	}]
 	externalRevision?: string
+	dependsOn?: [...string]
 }
 
 #ReadPlacementDecisions: {
