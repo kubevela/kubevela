@@ -18,6 +18,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -81,6 +82,9 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 				return err
 			}
 			if err := ctx.SetVar(v, output.Name); err != nil {
+				if errv, _ := taskValue.LookupValue("output", "err"); errv != nil {
+					return fmt.Errorf("%w: %v", err, errv.CueValue())
+				}
 				return err
 			}
 		}

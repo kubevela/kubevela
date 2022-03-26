@@ -94,6 +94,25 @@ output: score: 99
 `)
 }
 
+func TestOutputWithErr(t *testing.T) {
+	wfCtx := mockContext(t)
+	taskValue, err := value.NewValue("", nil, "")
+	require.NoError(t, err)
+	err = taskValue.FillObject("test-error", "output", "err")
+	require.NoError(t, err)
+	err = Output(wfCtx, taskValue, v1beta1.WorkflowStep{
+		Properties: &runtime.RawExtension{
+			Raw: []byte("{\"name\":\"mystep\"}"),
+		},
+		Outputs: common.StepOutputs{{
+			ValueFrom: "output.score",
+			Name:      "myscore",
+		}},
+	}, common.WorkflowStepPhaseSucceeded)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "\"test-error\"")
+}
+
 func mockContext(t *testing.T) wfContext.Context {
 	cli := &test.MockClient{
 		MockCreate: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
