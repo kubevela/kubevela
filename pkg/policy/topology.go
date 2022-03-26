@@ -28,7 +28,7 @@ func GetClusterLabelSelectorInTopology(topology *v1alpha1.TopologyPolicySpec) ma
 	if topology.ClusterLabelSelector != nil {
 		return topology.ClusterLabelSelector
 	}
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.DeprecatedPolicySpecCompatible) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.DeprecatedPolicySpec) {
 		return topology.DeprecatedClusterSelector
 	}
 	return nil

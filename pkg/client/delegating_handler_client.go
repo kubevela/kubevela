@@ -22,13 +22,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetterClient override the original client's get function
-type GetterClient struct {
+// DelegatingHandlerClient override the original client's function
+type DelegatingHandlerClient struct {
 	client.Client
 	Getter func(ctx context.Context, key client.ObjectKey, obj client.Object) error
+	Lister func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
 }
 
 // Get resource by overridden getter
-func (c GetterClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	return c.Getter(ctx, key, obj)
+func (c DelegatingHandlerClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+	if c.Getter != nil {
+		return c.Getter(ctx, key, obj)
+	}
+	return c.Client.Get(ctx, key, obj)
+}
+
+// List resource by overridden lister
+func (c DelegatingHandlerClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if c.Lister != nil {
+		return c.Lister(ctx, list, opts...)
+	}
+	return c.Client.List(ctx, list, opts...)
 }

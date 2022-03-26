@@ -10,8 +10,7 @@ spec:
       type: ref-objects
       properties:
         objects:
-          - apiVersion: apps/v1
-            kind: Deployment
+          - resource: deployment
             name: podinfo
   policies:
     - type: topology

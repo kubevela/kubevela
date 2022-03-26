@@ -56,6 +56,10 @@ type ApplicationRevisionSpec struct {
 
 	// Workflow records the external workflow
 	Workflow *v1alpha1.Workflow `json:"workflow,omitempty"`
+
+	// ReferredObjects records the referred objects used in the ref-object typed components
+	// +kubebuilder:pruning:PreserveUnknownFields
+	ReferredObjects []common.ReferredObject `json:"referredObjects,omitempty"`
 }
 
 // ApplicationRevisionStatus is the status of ApplicationRevision

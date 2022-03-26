@@ -178,6 +178,7 @@ type Appfile struct {
 
 	ExternalPolicies map[string]*v1alpha1.Policy
 	ExternalWorkflow *v1alpha1.Workflow
+	ReferredObjects  []*unstructured.Unstructured
 
 	parser *Parser
 	app    *v1beta1.Application
@@ -868,7 +869,7 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.Con
 // WorkflowClient cache retrieved workflow if ApplicationRevision not exists in appfile
 // else use the workflow in ApplicationRevision
 func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
-	return velaclient.GetterClient{
+	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 			if wf, ok := obj.(*v1alpha1.Workflow); ok {
@@ -893,7 +894,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 // PolicyClient cache retrieved policy if ApplicationRevision not exists in appfile
 // else use the policy in ApplicationRevision
 func (af *Appfile) PolicyClient(cli client.Client) client.Client {
-	return velaclient.GetterClient{
+	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 			if po, ok := obj.(*v1alpha1.Policy); ok {

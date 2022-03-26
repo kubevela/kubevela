@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -268,6 +269,10 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	for name, po := range af.ExternalPolicies {
 		appRev.Spec.Policies[name] = *po
 	}
+	var err error
+	if appRev.Spec.ReferredObjects, err = component.ConvertUnstructuredsToReferredObjects(af.ReferredObjects); err != nil {
+		return nil, "", errors.Wrapf(err, "failed to marshal referred object")
+	}
 	appRev.Spec.Workflow = af.ExternalWorkflow
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
@@ -309,6 +314,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		WorkflowStepDefinitionHash map[string]string
 		PolicyHash                 map[string]string
 		WorkflowHash               string
+		ReferredObjectsHash        string
 	}{
 		WorkloadDefinitionHash:     make(map[string]string),
 		ComponentDefinitionHash:    make(map[string]string),
@@ -377,6 +383,10 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		if err != nil {
 			return "", err
 		}
+	}
+	revHash.ReferredObjectsHash, err = utils.ComputeSpecHash(appRevision.Spec.ReferredObjects)
+	if err != nil {
+		return "", err
 	}
 	return utils.ComputeSpecHash(&revHash)
 }

@@ -3407,6 +3407,16 @@ spec:
                 description: PolicyDefinitions records the snapshot of the PolicyDefinitions
                   related with the created/modified Application
                 type: object
+              referredObjects:
+                description: ReferredObjects records the referred objects used in
+                  the ref-object typed components
+                items:
+                  description: ReferredObject the referred Kubernetes object
+                  type: object
+                  x-kubernetes-embedded-resource: true
+                  x-kubernetes-preserve-unknown-fields: true
+                type: array
+                x-kubernetes-preserve-unknown-fields: true
               scopeDefinitions:
                 additionalProperties:
                   description: A ScopeDefinition registers a kind of Kubernetes custom
