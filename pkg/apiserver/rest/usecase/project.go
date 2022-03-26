@@ -161,7 +161,7 @@ func (p *projectUsecaseImpl) DetailProject(ctx context.Context, projectName stri
 	var user = &model.User{Name: project.Owner}
 	if project.Owner != "" {
 		if err := p.ds.Get(ctx, user); err != nil {
-			log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
+			log.Logger.Warnf("get project owner %s info failure %s", project.Owner, err.Error())
 		}
 	}
 	return ConvertProjectModel2Base(project, user), nil
@@ -179,7 +179,7 @@ func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize in
 		var user = &model.User{Name: project.Owner}
 		if project.Owner != "" {
 			if err := ds.Get(ctx, user); err != nil {
-				log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
+				log.Logger.Warnf("get project owner %s info failure %s", project.Owner, err.Error())
 			}
 		}
 		projects = append(projects, ConvertProjectModel2Base(project, user))
@@ -353,7 +353,8 @@ func (p *projectUsecaseImpl) AddProjectUser(ctx context.Context, projectName str
 	// check user roles
 	for _, role := range req.UserRoles {
 		var projectUser = model.Role{
-			Name: role,
+			Name:    role,
+			Project: projectName,
 		}
 		if err := p.ds.Get(ctx, &projectUser); err != nil {
 			return nil, bcode.ErrProjectRoleCheckFailure
@@ -402,7 +403,8 @@ func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName 
 	// check user roles
 	for _, role := range req.UserRoles {
 		var projectUser = model.Role{
-			Name: role,
+			Name:    role,
+			Project: projectName,
 		}
 		if err := p.ds.Get(ctx, &projectUser); err != nil {
 			return nil, bcode.ErrProjectRoleCheckFailure
@@ -436,6 +438,7 @@ func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1
 		Alias:       project.Alias,
 		CreateTime:  project.CreateTime,
 		UpdateTime:  project.UpdateTime,
+		Owner:       apisv1.NameAlias{Name: project.Owner},
 	}
 	if owner != nil {
 		base.Owner = apisv1.NameAlias{Name: owner.Name, Alias: owner.Alias}

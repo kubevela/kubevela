@@ -50,7 +50,8 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.list).
 		Operation("envlist").
 		Doc("list all envs").
-		Filter(n.rbacUsecase.CheckPerm("environment", "list")).
+		// This api will filter the environments by user's permissions
+		// Filter(n.rbacUsecase.CheckPerm("environment", "list")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListEnvResponse{}).
 		Writes(apis.ListEnvResponse{}))

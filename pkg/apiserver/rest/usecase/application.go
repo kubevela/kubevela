@@ -234,7 +234,7 @@ func (c *applicationUsecaseImpl) ListApplications(ctx context.Context, listOptio
 	}
 	var list []*apisv1.ApplicationBase
 	for _, app := range apps {
-		appBase := c.convertAppModelToBase(ctx, app)
+		appBase := c.convertAppModelToBase(app, projects)
 		list = append(list, appBase)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -259,8 +259,16 @@ func (c *applicationUsecaseImpl) GetApplication(ctx context.Context, appName str
 
 // DetailApplication detail application  info
 func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *model.Application) (*apisv1.DetailApplicationResponse, error) {
-	base := c.convertAppModelToBase(ctx, app)
-	policys, err := c.queryApplicationPolicies(ctx, app)
+	var project *apisv1.ProjectBase
+	if app.Project != "" {
+		var err error
+		project, err = c.projectUsecase.DetailProject(ctx, app.Project)
+		if err != nil {
+			return nil, bcode.ErrProjectIsNotExist
+		}
+	}
+	base := c.convertAppModelToBase(app, []*apisv1.ProjectBase{project})
+	policies, err := c.queryApplicationPolicies(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +282,7 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 	}
 	var policyNames []string
 	var envBindingNames []string
-	for _, p := range policys {
+	for _, p := range policies {
 		policyNames = append(policyNames, p.Name)
 	}
 	for _, e := range envBindings {
@@ -375,9 +383,9 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, bcode.ErrApplicationExist
 	}
 	// check project
-	project, err := c.projectUsecase.GetProject(ctx, req.Project)
+	project, err := c.projectUsecase.DetailProject(ctx, req.Project)
 	if err != nil {
-		return nil, err
+		return nil, bcode.ErrProjectIsNotExist
 	}
 	application.Project = project.Name
 
@@ -411,7 +419,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		return nil, err
 	}
 	// render app base info.
-	base := c.convertAppModelToBase(ctx, &application)
+	base := c.convertAppModelToBase(&application, []*apisv1.ProjectBase{project})
 	return base, nil
 }
 
@@ -532,6 +540,14 @@ func (c *applicationUsecaseImpl) saveApplicationEnvBinding(ctx context.Context, 
 }
 
 func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *model.Application, req apisv1.UpdateApplicationRequest) (*apisv1.ApplicationBase, error) {
+	var project *apisv1.ProjectBase
+	if app.Project != "" {
+		var err error
+		project, err = c.projectUsecase.DetailProject(ctx, app.Project)
+		if err != nil {
+			return nil, bcode.ErrProjectIsNotExist
+		}
+	}
 	app.Alias = req.Alias
 	app.Description = req.Description
 	app.Labels = req.Labels
@@ -539,7 +555,7 @@ func (c *applicationUsecaseImpl) UpdateApplication(ctx context.Context, app *mod
 	if err := c.ds.Put(ctx, app); err != nil {
 		return nil, err
 	}
-	return c.convertAppModelToBase(ctx, app), nil
+	return c.convertAppModelToBase(app, []*apisv1.ProjectBase{project}), nil
 }
 
 // ListRecords list application record
@@ -919,7 +935,7 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 	return app, nil
 }
 
-func (c *applicationUsecaseImpl) convertAppModelToBase(ctx context.Context, app *model.Application) *apisv1.ApplicationBase {
+func (c *applicationUsecaseImpl) convertAppModelToBase(app *model.Application, projects []*apisv1.ProjectBase) *apisv1.ApplicationBase {
 	appBase := &apisv1.ApplicationBase{
 		Name:        app.Name,
 		Alias:       app.Alias,
@@ -928,23 +944,15 @@ func (c *applicationUsecaseImpl) convertAppModelToBase(ctx context.Context, app 
 		Description: app.Description,
 		Icon:        app.Icon,
 		Labels:      app.Labels,
+		Project:     &apisv1.ProjectBase{Name: app.Project},
 	}
 	if app.IsSynced() {
 		appBase.ReadOnly = true
 	}
-
-	project, err := c.projectUsecase.GetProject(ctx, app.Project)
-	if err != nil {
-		log.Logger.Errorf("query project info failure %s", err.Error())
-	}
-	if project != nil {
-		var user = &model.User{Name: project.Owner}
-		if project.Owner != "" {
-			if err := c.ds.Get(ctx, user); err != nil {
-				log.Logger.Errorf("get project owner %s info failure %s", project.Owner, err.Error())
-			}
+	for _, project := range projects {
+		if project.Name == app.Project {
+			appBase.Project = project
 		}
-		appBase.Project = ConvertProjectModel2Base(project, user)
 	}
 	return appBase
 }

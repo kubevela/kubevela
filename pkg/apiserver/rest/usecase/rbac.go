@@ -41,17 +41,41 @@ var reg = regexp.MustCompile(`(?U)\{.*\}`)
 
 var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 	{
+		Name:      "project-read",
+		Alias:     "Project Read",
+		Resources: []string{"project:{projectName}"},
+		Actions:   []string{"detail"},
+		Effect:    "Allow",
+		Scope:     "project",
+	},
+	{
 		Name:      "app-management",
 		Alias:     "App Management",
-		Resources: []string{"project:${projectName}/application:*/*"},
+		Resources: []string{"project:{projectName}/application:*/*", "definition:*"},
 		Actions:   []string{"*"},
+		Effect:    "Allow",
+		Scope:     "project",
+	},
+	{
+		Name:      "app-list",
+		Alias:     "App List",
+		Resources: []string{"project:*/application:*"},
+		Actions:   []string{"list"},
+		Effect:    "Allow",
+		Scope:     "project",
+	},
+	{
+		Name:      "env-list",
+		Alias:     "App List",
+		Resources: []string{"project:*/environment:*"},
+		Actions:   []string{"list"},
 		Effect:    "Allow",
 		Scope:     "project",
 	},
 	{
 		Name:      "env-management",
 		Alias:     "Environment Management",
-		Resources: []string{"project:${projectName}/environment:*"},
+		Resources: []string{"project:{projectName}/environment:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
@@ -59,7 +83,7 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 	{
 		Name:      "role-management",
 		Alias:     "Role Management",
-		Resources: []string{"project:${projectName}/role:*", "project:${projectName}/projectUser:*", "project:${projectName}/permPolicy:*"},
+		Resources: []string{"project:{projectName}/role:*", "project:{projectName}/projectUser:*", "project:{projectName}/permPolicy:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
@@ -76,7 +100,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "project-manage",
+		Name:      "project-management",
 		Alias:     "Project Management",
 		Resources: []string{"project:*"},
 		Actions:   []string{"*"},
@@ -84,7 +108,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "addon-manage",
+		Name:      "addon-management",
 		Alias:     "Addon Management",
 		Resources: []string{"addon:*", "addonRegistry:*"},
 		Actions:   []string{"*"},
@@ -166,9 +190,13 @@ var ResourceMaps = map[string]resourceMetadata{
 			"workflow": {
 				pathName: "workflowName",
 			},
-			"role":                {},
-			"permPolicy":          {},
-			"projectUser":         {},
+			"role": {
+				pathName: "roleName",
+			},
+			"permPolicy": {},
+			"projectUser": {
+				pathName: "userName",
+			},
 			"applicationTemplate": {},
 		},
 		pathName: "projectName",
@@ -188,7 +216,9 @@ var ResourceMaps = map[string]resourceMetadata{
 	"target": {
 		pathName: "targetName",
 	},
-	"user":          {},
+	"user": {
+		pathName: "userName",
+	},
 	"role":          {},
 	"permPolicy":    {},
 	"systemSetting": {},
@@ -203,6 +233,12 @@ type resourceMetadata struct {
 }
 
 func checkResourcePath(resource string) (string, error) {
+	if sub, exist := ResourceMaps[resource]; exist {
+		if sub.pathName != "" {
+			return fmt.Sprintf("%s:{%s}", resource, sub.pathName), nil
+		}
+		return fmt.Sprintf("%s:*", resource), nil
+	}
 	path := ""
 	exist := 0
 	lastResourceName := resource[strings.LastIndex(resource, "/")+1:]
@@ -263,13 +299,11 @@ func registerResourceAction(resource string, actions ...string) {
 	if resourceActions == nil {
 		resourceActions = make(map[string][]string)
 	}
-	if _, exist := ResourceMaps[resource]; !exist {
-		path, err := checkResourcePath(resource)
-		if err != nil {
-			panic(fmt.Sprintf("resource %s is not exist", resource))
-		}
-		resource = path
+	path, err := checkResourcePath(resource)
+	if err != nil {
+		panic(fmt.Sprintf("resource %s is not exist", resource))
 	}
+	resource = path
 	if _, exist := resourceActions[resource]; exist {
 		for _, action := range actions {
 			if !utils.StringsContain(resourceActions[resource], action) {
@@ -308,7 +342,13 @@ func NewRBACUsecase(ds datastore.DataStore) RBACUsecase {
 }
 
 func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
-	count, _ := p.ds.Count(ctx, &model.PermPolicy{}, nil)
+	count, _ := p.ds.Count(ctx, &model.PermPolicy{}, &datastore.FilterOptions{
+		IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		},
+	})
 	if count > 0 {
 		return nil
 	}
@@ -394,7 +434,40 @@ func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.U
 	return perms, nil
 }
 
+func (p *rbacUsecaseImpl) UpdatePermPolicy(ctx context.Context, projetName string, permissionName string, req *apisv1.UpdatePermPolicyRequest) (*apisv1.PermPolicyBase, error) {
+	perm := &model.PermPolicy{
+		Project: projetName,
+		Name:    permissionName,
+	}
+	err := p.ds.Get(ctx, perm)
+	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrPermissionNotExist
+		}
+	}
+	//TODO: check req validate
+	perm.Actions = req.Actions
+	perm.Alias = req.Alias
+	perm.Resources = req.Resources
+	perm.Effect = req.Effect
+	if err := p.ds.Put(ctx, perm); err != nil {
+		return nil, err
+	}
+	return &apisv1.PermPolicyBase{
+		Name:       perm.Name,
+		Alias:      perm.Alias,
+		Resources:  perm.Resources,
+		Actions:    perm.Actions,
+		Effect:     perm.Effect,
+		CreateTime: perm.CreateTime,
+		UpdateTime: perm.UpdateTime,
+	}, nil
+}
+
 func (p *rbacUsecaseImpl) listPermPolices(ctx context.Context, projectName string, permPolicyNames []string) ([]*model.PermPolicy, error) {
+	if len(permPolicyNames) == 0 {
+		return []*model.PermPolicy{}, nil
+	}
 	filter := datastore.FilterOptions{In: []datastore.InQueryOption{
 		{
 			Key:    "name",
@@ -437,42 +510,43 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
+
+		// multiple method for get the project name.
+		getProjectName := func() string {
+			if value := req.PathParameter("projectName"); value != "" {
+				return value
+			}
+			if value := req.QueryParameter("project"); value != "" {
+				return value
+			}
+			if value := req.QueryParameter("projectName"); value != "" {
+				return value
+			}
+			if appName := req.PathParameter(ResourceMaps["project"].subResources["application"].pathName); appName != "" {
+				app := &model.Application{Name: appName}
+				if err := p.ds.Get(req.Request.Context(), app); err == nil {
+					return app.Project
+				}
+			}
+			if envName := req.PathParameter(ResourceMaps["project"].subResources["environment"].pathName); envName != "" {
+				env := &model.Env{Name: envName}
+				if err := p.ds.Get(req.Request.Context(), env); err == nil {
+					return env.Project
+				}
+			}
+			return ""
+		}
+
 		ra := &RequestResourceAction{}
 		ra.SetResourceWithName(path, func(name string) string {
-			value := req.PathParameter(name)
-			if name == ResourceMaps["project"].pathName && value == "" {
-				// multiple method for get the project name.
-				getProjectName := func() string {
-					if value := req.QueryParameter("project"); value != "" {
-						return value
-					}
-					if value := req.QueryParameter("projectName"); value != "" {
-						return value
-					}
-					if appName := req.PathParameter(ResourceMaps["project"].subResources["application"].pathName); appName != "" {
-						app := &model.Application{Name: appName}
-						if err := p.ds.Get(req.Request.Context(), app); err == nil {
-							return app.Project
-						}
-					}
-					if envName := req.PathParameter(ResourceMaps["project"].subResources["environment"].pathName); envName != "" {
-						env := &model.Env{Name: envName}
-						if err := p.ds.Get(req.Request.Context(), env); err == nil {
-							return env.Project
-						}
-					}
-					return ""
-				}
-				value = getProjectName()
+			if name == ResourceMaps["project"].pathName {
+				return getProjectName()
 			}
-			return value
+			return req.PathParameter(name)
 		})
 
 		// get user's perm list.
-		projectName := req.PathParameter(ResourceMaps["project"].pathName)
-		if projectName == "" {
-			projectName = req.QueryParameter("project")
-		}
+		projectName := getProjectName()
 		permPolicies, err := p.GetUserPermPolicies(req.Request.Context(), user, projectName, true)
 		if err != nil {
 			log.Logger.Errorf("get user's perm policies failure %s, user is %s", err.Error(), user.Name)
@@ -571,7 +645,13 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 	var role = model.Role{
 		Project: projectName,
 	}
-	entities, err := p.ds.List(ctx, &role, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	var filter datastore.FilterOptions
+	if projectName == "" {
+		filter.IsNotExist = append(filter.IsNotExist, datastore.IsNotExistQueryOption{
+			Key: "project",
+		})
+	}
+	entities, err := p.ds.List(ctx, &role, &datastore.ListOptions{FilterOptions: filter, Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
 	if err != nil {
 		return nil, err
 	}
@@ -581,6 +661,7 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 			policySet[p] = p
 		}
 	}
+
 	policies, err := p.listPermPolices(ctx, projectName, utils.MapKey2Array(policySet))
 	if err != nil {
 		log.Logger.Errorf("list perm policies failure %s", err.Error())
@@ -589,7 +670,6 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 	for i, policy := range policies {
 		policyMap[policy.Name] = policies[i]
 	}
-
 	var res apisv1.ListRolesResponse
 	for _, entity := range entities {
 		role := entity.(*model.Role)
@@ -599,7 +679,7 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 		}
 		res.Roles = append(res.Roles, ConvertRole2Model(entity.(*model.Role), rolePolicies))
 	}
-	count, err := p.ds.Count(ctx, &role, nil)
+	count, err := p.ds.Count(ctx, &role, &filter)
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +693,13 @@ func (p *rbacUsecaseImpl) ListPermPolicyTemplate(ctx context.Context, projectNam
 }
 
 func (p *rbacUsecaseImpl) ListPermPolicies(ctx context.Context, projectName string) ([]apisv1.PermPolicyBase, error) {
-	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, nil)
+	var filter datastore.FilterOptions
+	if projectName == "" {
+		filter.IsNotExist = append(filter.IsNotExist, datastore.IsNotExistQueryOption{
+			Key: "project",
+		})
+	}
+	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
 	if err != nil {
 		return nil, err
 	}
@@ -659,12 +745,12 @@ func (p *rbacUsecaseImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	batchData = append(batchData, &model.Role{
 		Name:         "app-developer",
 		Alias:        "App Developer",
-		PermPolicies: []string{"app-management", "env-management"},
+		PermPolicies: []string{"project-read", "app-management", "env-management", "app-list", "env-list"},
 		Project:      project.Name,
 	}, &model.Role{
 		Name:         "project-admin",
 		Alias:        "Project Admin",
-		PermPolicies: []string{"app-management", "env-management", "role-management"},
+		PermPolicies: []string{"app-management", "env-management", "role-management", "app-list", "env-list"},
 		Project:      project.Name,
 	})
 	if project.Owner != "" {
@@ -687,7 +773,9 @@ func ConvertRole2Model(role *model.Role, policies []*model.PermPolicy) *apisv1.R
 		Alias:      role.Alias,
 		PermPolicies: func() (list []apisv1.NameAlias) {
 			for _, policy := range policies {
-				list = append(list, apisv1.NameAlias{Name: policy.Name, Alias: policy.Alias})
+				if policy != nil {
+					list = append(list, apisv1.NameAlias{Name: policy.Name, Alias: policy.Alias})
+				}
 			}
 			return
 		}(),

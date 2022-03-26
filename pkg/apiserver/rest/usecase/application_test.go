@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -91,9 +92,15 @@ var _ = Describe("Test application usecase function", func() {
 
 	It("Test CreateApplication function", func() {
 
-		By("test sample create")
-		err := userUsecase.Init(context.TODO())
+		By("init default admin user")
+		var ns = corev1.Namespace{}
+		ns.Name = types.DefaultKubeVelaNS
+		err := k8sClient.Create(context.TODO(), &ns)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		err = userUsecase.Init(context.TODO())
 		Expect(err).Should(BeNil())
+
+		By("prepare test project")
 		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject, Owner: model.DefaultAdminUserName})
 		Expect(err).Should(BeNil())
 
@@ -120,6 +127,7 @@ var _ = Describe("Test application usecase function", func() {
 				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
+		By("test create application")
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())

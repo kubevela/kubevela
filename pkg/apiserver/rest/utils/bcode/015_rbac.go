@@ -23,4 +23,6 @@ var (
 	ErrRoleIsExist = NewBcode(400, 15002, "the role name is exist")
 	// ErrRoleIsNotExist means the role is not exist
 	ErrRoleIsNotExist = NewBcode(400, 15003, "the role is not exist")
+	// ErrPermissionNotExist means the permission is not exist
+	ErrPermissionNotExist = NewBcode(404, 15004, "the permission is not exist")
 )

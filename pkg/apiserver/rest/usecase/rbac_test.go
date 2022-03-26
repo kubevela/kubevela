@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/emicklei/go-restful/v3"
@@ -70,6 +71,11 @@ var _ = Describe("Test rbac service", func() {
 		path, err = checkResourcePath("component")
 		Expect(err).Should(BeNil())
 		Expect(path).Should(BeEquivalentTo("project:{projectName}/application:{appName}/component:{compName}"))
+
+		path, err = checkResourcePath("role")
+		Expect(err).Should(BeNil())
+		Expect(path).Should(BeEquivalentTo("role:*"))
+
 	})
 
 	It("Test resource action", func() {
@@ -82,15 +88,18 @@ var _ = Describe("Test rbac service", func() {
 		Expect(ra.GetResource().String()).Should(BeEquivalentTo("project:projectName/workflow:*"))
 	})
 
+	It("Test init and list platform permissions", func() {
+		rbacUsecase := rbacUsecaseImpl{ds: ds}
+		err := rbacUsecase.Init(context.TODO())
+		Expect(err).Should(BeNil())
+		policies, err := rbacUsecase.ListPermPolicies(context.TODO(), "")
+		Expect(err).Should(BeNil())
+		Expect(len(policies)).Should(BeEquivalentTo(int64(7)))
+	})
+
 	It("Test checkPerm by admin user", func() {
 
-		err := ds.Add(context.TODO(), &model.User{Name: "admin", UserRoles: []string{"admin-role"}})
-		Expect(err).Should(BeNil())
-
-		err = ds.Add(context.TODO(), &model.Role{Name: "admin-role", PermPolicies: []string{"admin"}})
-		Expect(err).Should(BeNil())
-
-		err = ds.Add(context.TODO(), &model.PermPolicy{Name: "admin", Resources: []string{"*"}, Actions: []string{"*"}})
+		err := ds.Add(context.TODO(), &model.User{Name: "admin", UserRoles: []string{"admin"}})
 		Expect(err).Should(BeNil())
 
 		rbac := rbacUsecaseImpl{ds: ds}
@@ -105,17 +114,27 @@ var _ = Describe("Test rbac service", func() {
 		}
 		rbac.CheckPerm("cluster", "create")(restful.NewRequest(req), res, filter)
 		Expect(pass).Should(BeTrue())
+		pass = false
+		rbac.CheckPerm("role", "list")(restful.NewRequest(req), res, filter)
+		Expect(pass).Should(BeTrue())
 	})
 
 	It("Test checkPerm by dev user", func() {
+		var projectName = "test-app-project"
 
-		err := ds.Add(context.TODO(), &model.User{Name: "dev", UserRoles: []string{"application-admin"}})
+		err := ds.Add(context.TODO(), &model.User{Name: "dev"})
 		Expect(err).Should(BeNil())
 
-		err = ds.Add(context.TODO(), &model.Role{Name: "application-admin", PermPolicies: []string{"application-manage"}})
+		err = ds.Add(context.TODO(), &model.Project{Name: projectName})
 		Expect(err).Should(BeNil())
 
-		err = ds.Add(context.TODO(), &model.PermPolicy{Name: "application-manage", Resources: []string{"project:*/application:*"}, Actions: []string{"*"}})
+		err = ds.Add(context.TODO(), &model.ProjectUser{Username: "dev", ProjectName: projectName, UserRoles: []string{"application-admin"}})
+		Expect(err).Should(BeNil())
+
+		err = ds.Add(context.TODO(), &model.Role{Project: projectName, Name: "application-admin", PermPolicies: []string{"application-manage"}})
+		Expect(err).Should(BeNil())
+
+		err = ds.Add(context.TODO(), &model.PermPolicy{Project: projectName, Name: "application-manage", Resources: []string{"project:test-app-project/application:*"}, Actions: []string{"*"}})
 		Expect(err).Should(BeNil())
 
 		rbac := rbacUsecaseImpl{ds: ds}
@@ -126,6 +145,9 @@ var _ = Describe("Test rbac service", func() {
 			Header: header,
 		}
 		req = req.WithContext(context.WithValue(req.Context(), &apisv1.CtxKeyUser, "dev"))
+		req.Form = url.Values{}
+		req.Form.Set("project", projectName)
+
 		record := httptest.NewRecorder()
 		res := restful.NewResponse(record)
 		res.SetRequestAccepts("application/json")
@@ -139,17 +161,28 @@ var _ = Describe("Test rbac service", func() {
 		Expect(pass).Should(BeFalse())
 		Expect(res.StatusCode()).Should(Equal(int(bcode.ErrForbidden.HTTPCode)))
 
-		rbac.CheckPerm("application", "list")(restful.NewRequest(req), res, filter)
-		Expect(pass).Should(BeTrue())
-
 		rbac.CheckPerm("component", "list")(restful.NewRequest(req), res, filter)
 		Expect(res.StatusCode()).Should(Equal(int(bcode.ErrForbidden.HTTPCode)))
+
+		// add list application permission to role
+		// err = ds.Add(context.TODO(), &model.PermPolicy{Project: projectName, Name: "application-list", Resources: []string{"project:*/application:*"}, Actions: []string{"list"}})
+		// Expect(err).Should(BeNil())
+		// _, err = rbac.UpdateRole(context.TODO(), projectName, "application-admin", apisv1.UpdateRoleRequest{
+		// 	PermPolicies: []string{"application-list", "application-manage"},
+		// })
+		// Expect(err).Should(BeNil())
+
+		// req.Form.Del("project")
+		// pass = false
+		// rbac.CheckPerm("application", "list")(restful.NewRequest(req), res, filter)
+		// Expect(pass).Should(BeTrue())
 	})
 
 	It("Test initDefaultRoleAndUsersForProject", func() {
 		rbacUsecase := rbacUsecaseImpl{ds: ds}
 		err := ds.Add(context.TODO(), &model.User{Name: "test-user"})
 		Expect(err).Should(BeNil())
+
 		err = ds.Add(context.TODO(), &model.Project{Name: "init-test", Owner: "test-user"})
 		Expect(err).Should(BeNil())
 		err = rbacUsecase.InitDefaultRoleAndUsersForProject(context.TODO(), &model.Project{Name: "init-test"})
@@ -161,7 +194,18 @@ var _ = Describe("Test rbac service", func() {
 
 		policies, err := rbacUsecase.ListPermPolicies(context.TODO(), "init-test")
 		Expect(err).Should(BeNil())
-		Expect(len(policies)).Should(BeEquivalentTo(int64(3)))
+		Expect(len(policies)).Should(BeEquivalentTo(int64(6)))
+	})
+
+	It("Test UpdatePermPolicy", func() {
+		rbacUsecase := rbacUsecaseImpl{ds: ds}
+		base, err := rbacUsecase.UpdatePermPolicy(context.TODO(), "test-app-project", "application-manage", &apisv1.UpdatePermPolicyRequest{
+			Resources: []string{"project:{projectName}/application:*/*"},
+			Actions:   []string{"*"},
+			Alias:     "App Management Update",
+		})
+		Expect(err).Should(BeNil())
+		Expect(base.Alias).Should(BeEquivalentTo("App Management Update"))
 	})
 })
 
@@ -178,6 +222,10 @@ func TestRequestResourceAction(t *testing.T) {
 	assert.Equal(t, ra.GetResource().Value, "projectName")
 	assert.NotEqual(t, ra.GetResource().Next, nil)
 	assert.Equal(t, ra.GetResource().Next.Value, "*")
+
+	ra2 := &RequestResourceAction{}
+	ra2.SetResourceWithName("project:{empty}/application:{empty}", testPathParameter)
+	assert.Equal(t, ra2.GetResource().String(), "project:*/application:*")
 }
 
 func TestRequestResourceActionMatch(t *testing.T) {
@@ -203,5 +251,35 @@ func TestRequestResourceActionMatch(t *testing.T) {
 	ra3 := &RequestResourceAction{}
 	ra3.SetResourceWithName("project:test-123", testPathParameter)
 	ra3.SetActions([]string{"detail"})
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
+	assert.Equal(t, ra3.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
+
+	ra4 := &RequestResourceAction{}
+	ra4.SetResourceWithName("role:*", testPathParameter)
+	ra4.SetActions([]string{"list"})
+	assert.Equal(t, ra4.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
+
+	ra5 := &RequestResourceAction{}
+	ra5.SetResourceWithName("project:*/application:*", testPathParameter)
+	ra5.SetActions([]string{"list"})
+	assert.Equal(t, ra5.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:*"}, Actions: []string{"list"}, Effect: "Allow"}}), true)
+
 }
+
+func TestRegisterResourceAction(t *testing.T) {
+	registerResourceAction("role", "list")
+	registerResourceAction("project/role", "list")
+	t.Log(resourceActions)
+}
+
+// func TestDev(t *testing.T) {
+// 	// dev
+// 	ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "kubevela"})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	rbacUsecase := rbacUsecaseImpl{ds: ds}
+// 	err = rbacUsecase.InitDefaultRoleAndUsersForProject(context.TODO(), &model.Project{Name: "default", Owner: "admin"})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// }

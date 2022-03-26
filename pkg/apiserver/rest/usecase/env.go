@@ -107,8 +107,10 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		return nil, err
 	}
 	var availableProjectNames []string
+	var projectNameAlias = make(map[string]string)
 	for _, project := range projects {
 		availableProjectNames = append(availableProjectNames, project.Name)
+		projectNameAlias[project.Name] = project.Alias
 	}
 	if len(availableProjectNames) == 0 {
 		return &apisv1.ListEnvResponse{Envs: []*apisv1.Env{}, Total: 0}, nil
@@ -119,49 +121,42 @@ func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listO
 		}
 	}
 	projectNames := []string{listOption.Project}
-	if len(projectNames) == 0 {
+	if listOption.Project == "" {
 		projectNames = availableProjectNames
 	}
-	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{
-		Page:     page,
-		PageSize: pageSize,
-		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
-		FilterOptions: datastore.FilterOptions{
-			In: []datastore.InQueryOption{
-				{
-					Key:    "project",
-					Values: projectNames,
-				},
+	filter := datastore.FilterOptions{
+		In: []datastore.InQueryOption{
+			{
+				Key:    "project",
+				Values: projectNames,
 			},
 		},
+	}
+	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+		FilterOptions: filter,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds, "", nil)
+	targets, err := listTarget(ctx, p.ds, listOption.Project, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var envs []*apisv1.Env
 	for _, ee := range entities {
-		envs = append(envs, convertEnvModel2Base(ee, Targets))
+		envs = append(envs, convertEnvModel2Base(ee, targets))
 	}
 
-	projectResp, err := listProjects(ctx, p.ds, 0, 0)
-	if err != nil {
-		return nil, err
+	for i := range envs {
+		envs[i].Project.Alias = projectNameAlias[envs[i].Project.Name]
 	}
-	for _, e := range envs {
-		for _, pj := range projectResp.Projects {
-			if e.Project.Name == pj.Name {
-				e.Project.Alias = pj.Alias
-				break
-			}
-		}
-	}
-	total, err := p.ds.Count(ctx, &model.Env{Project: listOption.Project}, nil)
+
+	total, err := p.ds.Count(ctx, &model.Env{Project: listOption.Project}, &filter)
 	if err != nil {
 		return nil, err
 	}

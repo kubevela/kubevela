@@ -278,6 +278,7 @@ func (s *enabledAddonWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

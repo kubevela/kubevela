@@ -1130,6 +1130,7 @@ type DexConfigResponse struct {
 type DetailUserResponse struct {
 	UserBase
 	Projects []*ProjectBase `json:"projects"`
+	Roles    []NameAlias    `json:"roles"`
 }
 
 // ProjectUserBase project user base
@@ -1250,6 +1251,14 @@ type PermPolicyBase struct {
 	Effect     string    `json:"effect"`
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`
+}
+
+// UpdatePermPolicyRequest the request body that update permission policy
+type UpdatePermPolicyRequest struct {
+	Alias     string   `json:"alias" validate:"checkalias"`
+	Resources []string `json:"resources"`
+	Actions   []string `json:"actions"`
+	Effect    string   `json:"effect" validate:"oneof=Allow Deny"`
 }
 
 // LoginUserInfoResponse the response body of login user info

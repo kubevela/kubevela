@@ -42,8 +42,8 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(d.listDefinitions).
 		Doc("list all definitions").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		// Have the application detail perm can list and detail the definitions
-		Filter(d.rbacUsecase.CheckPerm("application", "detail")).
+		// TODO: provide project scope api for query definition list
+		// Filter(d.rbacUsecase.CheckPerm("definition", "list")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
 		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload.").DataType("string")).
@@ -52,7 +52,7 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 
 	ws.Route(ws.GET("/{definitionName}").To(d.detailDefinition).
 		Doc("detail definition").
-		Filter(d.rbacUsecase.CheckPerm("application", "detail")).
+		// Filter(d.rbacUsecase.CheckPerm("definition", "detail")).
 		Param(ws.PathParameter("definitionName", "identifier of the definition").DataType("string")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).

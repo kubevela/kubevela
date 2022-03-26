@@ -50,7 +50,8 @@ func (v *velaQLWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(v.queryView).
 		Doc("use velaQL to query resource status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(v.rbacUsecase.CheckPerm("application", "detail")).
+		// TODO: VelaQL is an open data query API that is currently not compatible with RBAC.
+		// Filter(v.rbacUsecase.CheckPerm("application", "detail")).
 		Param(ws.QueryParameter("velaql", "velaql query statement").DataType("string")).
 		Returns(200, "OK", apis.VelaQLViewResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).

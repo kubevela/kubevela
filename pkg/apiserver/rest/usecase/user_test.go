@@ -49,7 +49,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		rbacUsecase := &rbacUsecaseImpl{ds: ds}
 		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: rbacUsecase}
 		sysUsecase := &systemInfoUsecaseImpl{ds: ds}
-		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase}
+		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase, rbacUsecase: rbacUsecase}
 	})
 	AfterEach(func() {
 		err := k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: db}})

@@ -138,7 +138,11 @@ func (u *userUsecaseImpl) GetUser(ctx context.Context, username string) (*model.
 
 // DetailUser return user detail
 func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*apisv1.DetailUserResponse, error) {
-	detailUser := convertUserModel(user)
+	roles, err := u.rbacUsecase.ListRole(ctx, "", 0, 0)
+	if err != nil {
+		log.Logger.Warnf("list platform roles failure %s", err.Error())
+	}
+	detailUser := convertUserModel(user, roles)
 	pUser := &model.ProjectUser{
 		Username: user.Name,
 	}
@@ -267,10 +271,14 @@ func (u *userUsecaseImpl) ListUsers(ctx context.Context, page, pageSize int, lis
 	if err != nil {
 		return nil, err
 	}
+	roles, err := u.rbacUsecase.ListRole(ctx, "", 0, 0)
+	if err != nil {
+		log.Logger.Warnf("list platform roles failure %s", err.Error())
+	}
 	for _, v := range users {
 		user, ok := v.(*model.User)
 		if ok {
-			userList = append(userList, convertUserModel(user))
+			userList = append(userList, convertUserModel(user, roles))
 		}
 	}
 	count, err := u.ds.Count(ctx, user, &fo)
@@ -369,9 +377,22 @@ func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 	}, nil
 }
 
-func convertUserModel(user *model.User) *apisv1.DetailUserResponse {
+func convertUserModel(user *model.User, roles *apisv1.ListRolesResponse) *apisv1.DetailUserResponse {
+
+	var nameAlias = make(map[string]string)
+	if roles != nil {
+		for _, role := range roles.Roles {
+			nameAlias[role.Name] = role.Alias
+		}
+	}
 	return &apisv1.DetailUserResponse{
 		UserBase: *convertUserBase(user),
+		Roles: func() (list []apisv1.NameAlias) {
+			for _, r := range user.UserRoles {
+				list = append(list, apisv1.NameAlias{Name: r, Alias: nameAlias[r]})
+			}
+			return
+		}(),
 		Projects: make([]*apisv1.ProjectBase, 0),
 	}
 }

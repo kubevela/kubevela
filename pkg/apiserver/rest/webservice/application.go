@@ -67,7 +67,8 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Param(ws.QueryParameter("project", "search base on project name").DataType("string")).
 		Param(ws.QueryParameter("env", "search base on env name").DataType("string")).
 		Param(ws.QueryParameter("targetName", "Name of the application delivery target").DataType("string")).
-		Filter(c.rbacUsecase.CheckPerm("application", "list")).
+		// This api will filter the app by user's permissions
+		// Filter(c.rbacUsecase.CheckPerm("application", "list")).
 		Returns(200, "OK", apis.ListApplicationResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListApplicationResponse{}))
