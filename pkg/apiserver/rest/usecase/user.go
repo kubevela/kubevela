@@ -89,6 +89,7 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 			}
 			if err := u.ds.Add(ctx, &model.User{
 				Name:      admin,
+				Alias:     "Administrator",
 				Password:  encrypted,
 				UserRoles: []string{"admin"},
 			}); err != nil {

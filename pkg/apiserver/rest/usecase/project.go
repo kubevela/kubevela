@@ -267,7 +267,29 @@ func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) err
 		return bcode.ErrProjectDenyDeleteByEnvironment
 	}
 
-	// TODO: delete all roles、projectUsers、permissions and other project level data
+	users, _ := p.ListProjectUser(ctx, name, 0, 0)
+	for _, user := range users.Users {
+		err := p.DeleteProjectUser(ctx, name, user.UserName)
+		if err != nil {
+			return err
+		}
+	}
+
+	roles, _ := p.rbacUsecase.ListRole(ctx, name, 0, 0)
+	for _, role := range roles.Roles {
+		err := p.rbacUsecase.DeleteRole(ctx, name, role.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	permissions, _ := p.rbacUsecase.ListPermissions(ctx, name)
+	for _, perm := range permissions {
+		err := p.rbacUsecase.DeletePermission(ctx, name, perm.Name)
+		if err != nil {
+			return err
+		}
+	}
 	return p.ds.Delete(ctx, &model.Project{Name: name})
 }
 
@@ -325,6 +347,9 @@ func (p *projectUsecaseImpl) UpdateProject(ctx context.Context, projectName stri
 	var user = &model.User{Name: req.Owner}
 	if req.Owner != "" {
 		if err := p.ds.Get(ctx, user); err != nil {
+			if errors.Is(err, datastore.ErrRecordNotExist) {
+				return nil, bcode.ErrProjectOwnerIsNotExist
+			}
 			return nil, err
 		}
 		project.Owner = req.Owner

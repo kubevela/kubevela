@@ -313,6 +313,7 @@ type RBACUsecase interface {
 	ListRole(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListRolesResponse, error)
 	ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error)
 	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
+	DeletePermission(ctx context.Context, projectName, permName string) error
 	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
 }
@@ -583,6 +584,20 @@ func (p *rbacUsecaseImpl) DeleteRole(ctx context.Context, projectName, roleName 
 		Project: projectName,
 	}
 	if err := p.ds.Delete(ctx, &role); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return bcode.ErrRoleIsNotExist
+		}
+		return err
+	}
+	return nil
+}
+
+func (p *rbacUsecaseImpl) DeletePermission(ctx context.Context, projectName, permName string) error {
+	var perm = model.Permission{
+		Name:    permName,
+		Project: projectName,
+	}
+	if err := p.ds.Delete(ctx, &perm); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrRoleIsNotExist
 		}

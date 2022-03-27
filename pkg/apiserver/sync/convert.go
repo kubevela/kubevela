@@ -69,7 +69,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 
 	// 2. convert component and trait
 	for _, cmp := range targetApp.Spec.Components {
-		compModel, err := convert.ConvertFromCRComponent(appMeta.PrimaryKey(), cmp)
+		compModel, err := convert.FromCRComponent(appMeta.PrimaryKey(), cmp)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	}
 
 	// 3. convert workflow
-	wf, steps, err := convert.ConvertFromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp)
+	wf, steps, err := convert.FromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		return nil, err
 	}
 	for _, plc := range outsidePLC {
-		plcModel, err := convert.ConvertFromCRPolicy(appMeta.PrimaryKey(), plc, model.AutoGenRefPolicy)
+		plcModel, err := convert.FromCRPolicy(appMeta.PrimaryKey(), plc, model.AutoGenRefPolicy)
 		if _, ok := innerPlc[plc.Name]; ok {
 			plcModel.Creator = model.AutoGenPolicy
 		}

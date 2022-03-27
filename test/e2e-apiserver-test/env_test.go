@@ -46,6 +46,7 @@ var _ = Describe("Test env rest api", func() {
 			Name:        testtarget1,
 			Alias:       "my-target-for-env1",
 			Description: "KubeVela Target",
+			Project:     "my-pro",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
@@ -100,6 +101,7 @@ var _ = Describe("Test env rest api", func() {
 			Name:        testtarget1,
 			Alias:       "my-target-for-env2",
 			Description: "KubeVela Target",
+			Project:     "my-pro",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget1},
 		}
 		var tgBase apisv1.TargetBase
@@ -109,6 +111,7 @@ var _ = Describe("Test env rest api", func() {
 			Name:        testtarget2,
 			Alias:       "my-target-for-env3",
 			Description: "KubeVela Target",
+			Project:     "my-pro",
 			Cluster:     &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: testtarget2},
 		}
 		resp = post("/targets", reqt)

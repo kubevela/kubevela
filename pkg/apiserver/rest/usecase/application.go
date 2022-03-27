@@ -1650,7 +1650,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
-			compModel, err := syncconvert.ConvertFromCRComponent(appPrimaryKey, comp)
+			compModel, err := syncconvert.FromCRComponent(appPrimaryKey, comp)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
 			}

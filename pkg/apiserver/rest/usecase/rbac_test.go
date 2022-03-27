@@ -270,16 +270,3 @@ func TestRegisterResourceAction(t *testing.T) {
 	registerResourceAction("project/role", "list")
 	t.Log(resourceActions)
 }
-
-// func TestDev(t *testing.T) {
-// 	// dev
-// 	ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "kubevela"})
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	rbacUsecase := rbacUsecaseImpl{ds: ds}
-// 	err = rbacUsecase.InitDefaultRoleAndUsersForProject(context.TODO(), &model.Project{Name: "default", Owner: "admin"})
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// }

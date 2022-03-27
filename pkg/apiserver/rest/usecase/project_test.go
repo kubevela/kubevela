@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -150,22 +151,96 @@ var _ = Describe("Test project usecase functions", func() {
 	})
 
 	It("Test Update project function", func() {
+		req := apisv1.CreateProjectRequest{
+			Name:        "test-project",
+			Description: "this is a project description",
+		}
+		_, err := projectUsecase.CreateProject(context.TODO(), req)
+		Expect(err).Should(BeNil())
 
-	})
+		base, err := projectUsecase.UpdateProject(context.TODO(), "test-project", apisv1.UpdateProjectRequest{
+			Alias:       "Change alias",
+			Description: "Change description",
+			Owner:       "admin",
+		})
+		Expect(err).Should(BeNil())
+		Expect(base.Alias).Should(BeEquivalentTo("Change alias"))
+		Expect(base.Description).Should(BeEquivalentTo("Change description"))
+		Expect(base.Owner.Alias).Should(BeEquivalentTo("Administrator"))
 
-	It("Test Delete project function", func() {
-
+		_, err = projectUsecase.UpdateProject(context.TODO(), "test-project", apisv1.UpdateProjectRequest{
+			Alias:       "Change alias",
+			Description: "Change description",
+			Owner:       "admin-error",
+		})
+		Expect(err).Should(BeEquivalentTo(bcode.ErrProjectOwnerIsNotExist))
+		err = projectUsecase.DeleteProject(context.TODO(), "test-project")
+		Expect(err).Should(BeNil())
 	})
 
 	It("Test Create project user function", func() {
+		req := apisv1.CreateProjectRequest{
+			Name:        "test-project",
+			Description: "this is a project description",
+		}
+		_, err := projectUsecase.CreateProject(context.TODO(), req)
+		Expect(err).Should(BeNil())
 
+		_, err = projectUsecase.AddProjectUser(context.TODO(), "test-project", apisv1.AddProjectUserRequest{
+			UserName:  "admin",
+			UserRoles: []string{"project-admin"},
+		})
+		Expect(err).Should(BeNil())
 	})
 
 	It("Test Update project user function", func() {
+		req := apisv1.CreateProjectRequest{
+			Name:        "test-project",
+			Description: "this is a project description",
+		}
+		_, err := projectUsecase.CreateProject(context.TODO(), req)
+		Expect(err).Should(BeNil())
 
+		_, err = projectUsecase.AddProjectUser(context.TODO(), "test-project", apisv1.AddProjectUserRequest{
+			UserName:  "admin",
+			UserRoles: []string{"project-admin"},
+		})
+		Expect(err).Should(BeNil())
+
+		_, err = projectUsecase.UpdateProjectUser(context.TODO(), "test-project", "admin", apisv1.UpdateProjectUserRequest{
+			UserRoles: []string{"project-admin", "app-developer"},
+		})
+		Expect(err).Should(BeNil())
+
+		_, err = projectUsecase.UpdateProjectUser(context.TODO(), "test-project", "admin", apisv1.UpdateProjectUserRequest{
+			UserRoles: []string{"project-admin", "app-developer", "xxx"},
+		})
+		Expect(err).Should(BeEquivalentTo(bcode.ErrProjectRoleCheckFailure))
 	})
 
-	It("Test Delete project user function", func() {
+	It("Test delete project user and delete project function", func() {
+		req := apisv1.CreateProjectRequest{
+			Name:        "test-project",
+			Description: "this is a project description",
+		}
+		_, err := projectUsecase.CreateProject(context.TODO(), req)
+		Expect(err).Should(BeNil())
 
+		_, err = projectUsecase.AddProjectUser(context.TODO(), "test-project", apisv1.AddProjectUserRequest{
+			UserName:  "admin",
+			UserRoles: []string{"project-admin"},
+		})
+		Expect(err).Should(BeNil())
+
+		err = projectUsecase.DeleteProjectUser(context.TODO(), "test-project", "admin")
+		Expect(err).Should(BeNil())
+		err = projectUsecase.DeleteProject(context.TODO(), "test-project")
+		Expect(err).Should(BeNil())
+		perms, err := projectUsecase.rbacUsecase.ListPermissions(context.TODO(), "test-project")
+		Expect(err).Should(BeNil())
+		Expect(len(perms)).Should(BeEquivalentTo(0))
+		roles, err := projectUsecase.rbacUsecase.ListRole(context.TODO(), "test-project", 0, 0)
+		Expect(err).Should(BeNil())
+		Expect(roles.Total).Should(BeEquivalentTo(0))
 	})
 })

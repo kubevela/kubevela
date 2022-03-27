@@ -31,8 +31,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
-// ConvertFromCRComponent concerts Application CR Component object into velaux data store component
-func ConvertFromCRComponent(appPrimaryKey string, component common.ApplicationComponent) (model.ApplicationComponent, error) {
+// FromCRComponent concerts Application CR Component object into velaux data store component
+func FromCRComponent(appPrimaryKey string, component common.ApplicationComponent) (model.ApplicationComponent, error) {
 	bc := model.ApplicationComponent{
 		AppPrimaryKey:    appPrimaryKey,
 		Name:             component.Name,
@@ -61,8 +61,8 @@ func ConvertFromCRComponent(appPrimaryKey string, component common.ApplicationCo
 	return bc, nil
 }
 
-// ConvertFromCRPolicy converts Application CR Policy object into velaux data store policy
-func ConvertFromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creator string) (model.ApplicationPolicy, error) {
+// FromCRPolicy converts Application CR Policy object into velaux data store policy
+func FromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creator string) (model.ApplicationPolicy, error) {
 	plc := model.ApplicationPolicy{
 		AppPrimaryKey: appPrimaryKey,
 		Name:          policyCR.Name,
@@ -79,8 +79,8 @@ func ConvertFromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creat
 	return plc, nil
 }
 
-// ConvertFromCRWorkflow converts Application CR Workflow section into velaux data store workflow
-func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
+// FromCRWorkflow converts Application CR Workflow section into velaux data store workflow
+func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
 	dataWf := model.Workflow{
 		AppPrimaryKey: appPrimaryKey,
 		// every namespace has a synced env
@@ -124,8 +124,8 @@ func ConvertFromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey
 	return dataWf, steps, nil
 }
 
-// ConvertFromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
-func ConvertFromCRTargets(targetApp *v1beta1.Application) []*model.Target {
+// FromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
+func FromCRTargets(targetApp *v1beta1.Application) []*model.Target {
 	var targets []*model.Target
 	nc := make(map[string]struct{})
 	for _, v := range targetApp.Status.AppliedResources {
