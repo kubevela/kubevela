@@ -36,7 +36,9 @@ import (
 	"sigs.k8s.io/yaml"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -178,6 +180,87 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(len(deploys.Items)).Should(Equal(1))
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(3)))
 		}, 30*time.Second).Should(Succeed())
+	})
+
+	It("Test rollback application with publish version", func() {
+		By("Apply application successfully")
+		applyFile("topology-policy.yaml")
+		applyFile("workflow-deploy-worker.yaml")
+		applyFile("app-with-publish-version-native.yaml")
+		app := &v1beta1.Application{}
+		appKey := types.NamespacedName{Namespace: namespace, Name: "busybox"}
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+		}, 30*time.Second).Should(Succeed())
+
+		By("Update Application to first failed version")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			app.Annotations[oam.AnnotationPublishVersion] = "alpha2"
+			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"image":"busybox:bad"}`)}
+			g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunningWorkflow))
+		}, 30*time.Second).Should(Succeed())
+
+		By("Update Application to second failed version")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			app.Annotations[oam.AnnotationPublishVersion] = "alpha3"
+			app.Spec.Components[0].Name = "busybox-bad"
+			g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			deploy := &v1.Deployment{}
+			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
+			g.Expect(k8sClient.Delete(workerCtx, deploy)).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
+
+		By("Change external policy")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "busybox-v3"}, &v1beta1.ApplicationRevision{})).Should(Succeed())
+			policy := &v1alpha1.Policy{}
+			g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "topology-worker"}, policy)).Should(Succeed())
+			policy.Properties = &runtime.RawExtension{Raw: []byte(`{"clusters":["changed"]}`)}
+			g.Expect(k8sClient.Update(hubCtx, policy)).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
+
+		By("Live-diff application")
+		outputs, err := execCommand("live-diff", "-r", "busybox-v3,busybox-v1", "-n", namespace)
+		Expect(err).Should(Succeed())
+		Expect(outputs).Should(SatisfyAll(
+			ContainSubstring("Application (busybox) has been modified(*)"),
+			ContainSubstring("External Policy (topology-worker) has no change"),
+			ContainSubstring("External Workflow (busybox) has no change"),
+		))
+		outputs, err = execCommand("live-diff", "busybox", "-n", namespace)
+		Expect(err).Should(Succeed())
+		Expect(outputs).Should(SatisfyAll(
+			ContainSubstring("Application (busybox) has no change"),
+			ContainSubstring("External Policy (topology-worker) has been modified(*)"),
+			ContainSubstring("External Workflow (busybox) has no change"),
+		))
+
+		By("Rollback application")
+		_, err = execCommand("workflow", "suspend", "busybox", "-n", namespace)
+		Expect(err).Should(Succeed())
+		_, err = execCommand("workflow", "rollback", "busybox", "-n", namespace)
+		Expect(err).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+			deploy := &v1.Deployment{}
+			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
+			g.Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
+			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
+			g.Expect(err).Should(Succeed())
+			g.Expect(len(revs)).Should(Equal(1))
+		})
 	})
 
 	It("Test large application parallel apply and delete", func() {

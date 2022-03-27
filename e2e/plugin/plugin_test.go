@@ -728,9 +728,7 @@ spec:
 ---
 `
 
-var livediffResult = `---
-# Application (test-vela-app) has been modified(*)
----
+var livediffResult = `Application (test-vela-app) has been modified(*)
   apiVersion: core.oam.dev/v1beta1
   kind: Application
   metadata:
@@ -759,15 +757,11 @@ var livediffResult = `---
       type: test-webservice
   status: {}
   
----
-## Component (express-server) has been removed(-)
----
+* Component (express-server) has been removed(-)
 - apiVersion: apps/v1
 - kind: Deployment
 - metadata:
--   annotations: {}
 -   labels:
--     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
 -     app.oam.dev/namespace: default
@@ -790,15 +784,11 @@ var livediffResult = `---
 -         ports:
 -         - containerPort: 80
   
----
-### Component (express-server) / Trait (test-ingress/service) has been removed(-)
----
+* Component (express-server) / Trait (test-ingress/service) has been removed(-)
 - apiVersion: v1
 - kind: Service
 - metadata:
--   annotations: {}
 -   labels:
--     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
 -     app.oam.dev/namespace: default
@@ -814,15 +804,11 @@ var livediffResult = `---
 -   selector:
 -     app.oam.dev/component: express-server
   
----
-### Component (express-server) / Trait (test-ingress/ingress) has been removed(-)
----
+* Component (express-server) / Trait (test-ingress/ingress) has been removed(-)
 - apiVersion: networking.k8s.io/v1beta1
 - kind: Ingress
 - metadata:
--   annotations: {}
 -   labels:
--     app.oam.dev/appRevision: ""
 -     app.oam.dev/component: express-server
 -     app.oam.dev/name: test-vela-app
 -     app.oam.dev/namespace: default
@@ -841,15 +827,11 @@ var livediffResult = `---
 -           servicePort: 80
 -         path: /
   
----
-## Component (new-express-server) has been added(+)
----
+* Component (new-express-server) has been added(+)
 + apiVersion: apps/v1
 + kind: Deployment
 + metadata:
-+   annotations: {}
 +   labels:
-+     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
 +     app.oam.dev/namespace: default
@@ -877,15 +859,11 @@ var livediffResult = `---
 +           requests:
 +             cpu: "0.5"
   
----
-### Component (new-express-server) / Trait (test-ingress/service) has been added(+)
----
+* Component (new-express-server) / Trait (test-ingress/service) has been added(+)
 + apiVersion: v1
 + kind: Service
 + metadata:
-+   annotations: {}
 +   labels:
-+     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
 +     app.oam.dev/namespace: default
@@ -901,15 +879,11 @@ var livediffResult = `---
 +   selector:
 +     app.oam.dev/component: new-express-server
   
----
-### Component (new-express-server) / Trait (test-ingress/ingress) has been added(+)
----
+* Component (new-express-server) / Trait (test-ingress/ingress) has been added(+)
 + apiVersion: networking.k8s.io/v1beta1
 + kind: Ingress
 + metadata:
-+   annotations: {}
 +   labels:
-+     app.oam.dev/appRevision: ""
 +     app.oam.dev/component: new-express-server
 +     app.oam.dev/name: test-vela-app
 +     app.oam.dev/namespace: default

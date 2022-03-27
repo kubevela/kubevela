@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: deploy-livediff-demo
+steps:
+  - type: deploy
+    name: deploy-local
+    properties:
+      policies: ["topology-local"]

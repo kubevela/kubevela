@@ -18,6 +18,7 @@ package dryrun
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -50,6 +53,9 @@ const (
 	AppConfigCompKind ManifestKind = "AppConfigComponent"
 	RawCompKind       ManifestKind = "Component"
 	TraitKind         ManifestKind = "Trait"
+	PolicyKind        ManifestKind = "Policy"
+	WorkflowKind      ManifestKind = "Workflow"
+	ReferredObject    ManifestKind = "ReferredObject"
 )
 
 // DiffEntry records diff info of OAM object
@@ -84,11 +90,134 @@ type manifest struct {
 	Subs []*manifest
 }
 
+func (m *manifest) key() string {
+	return string(m.Kind) + "/" + m.Name
+}
+
 // LiveDiffOption contains options for comparing an application with a
 // living AppRevision in the cluster
 type LiveDiffOption struct {
 	DryRun
 	Parser *appfile.Parser
+}
+
+// LiveDiffObject wraps the objects for diff
+type LiveDiffObject struct {
+	*v1beta1.Application
+	*v1beta1.ApplicationRevision
+}
+
+// RenderlessDiff will not compare the rendered component results but only compare the application spec and
+// original external dependency objects such as external workflow/policies
+func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor LiveDiffObject) (*DiffEntry, error) {
+	genManifest := func(obj LiveDiffObject) (*manifest, error) {
+		var af *appfile.Appfile
+		var err error
+		var app *v1beta1.Application
+		switch {
+		case obj.Application != nil:
+			app = obj.Application.DeepCopy()
+			af, err = l.Parser.GenerateAppFileFromApp(ctx, obj.Application)
+		case obj.ApplicationRevision != nil:
+			app = obj.ApplicationRevision.Spec.Application.DeepCopy()
+			af, err = l.Parser.GenerateAppFileFromRevision(obj.ApplicationRevision)
+		default:
+			err = errors.Errorf("either application or application revision should be set for LiveDiffObject")
+		}
+		var appfileError error
+		if err != nil {
+			appfileError = err
+		}
+		bs, err := marshalObject(app)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal application")
+		}
+		m := &manifest{Name: app.Name, Kind: AppKind, Data: string(bs)}
+		if appfileError != nil {
+			m.Data += "Error: " + appfileError.Error() + "\n"
+			return m, nil //nolint
+		}
+		for _, policy := range af.ExternalPolicies {
+			if bs, err = marshalObject(policy); err == nil {
+				m.Subs = append(m.Subs, &manifest{Name: policy.Name, Kind: PolicyKind, Data: string(bs)})
+			} else {
+				m.Subs = append(m.Subs, &manifest{Name: policy.Name, Kind: PolicyKind, Data: "Error: " + errors.Wrapf(err, "failed to marshal external policy %s", policy.Name).Error()})
+			}
+		}
+		if af.ExternalWorkflow != nil {
+			if bs, err = marshalObject(af.ExternalWorkflow); err == nil {
+				m.Subs = append(m.Subs, &manifest{Name: af.Name, Kind: WorkflowKind, Data: string(bs)})
+			} else {
+				m.Subs = append(m.Subs, &manifest{Name: af.Name, Kind: WorkflowKind, Data: "Error: " + errors.Wrapf(err, "failed to marshal external workflow %s", af.ExternalWorkflow.Name).Error()})
+			}
+		}
+		return m, nil
+	}
+	baseManifest, err := genManifest(base)
+	if err != nil {
+		return nil, err
+	}
+	comparorManifest, err := genManifest(comparor)
+	if err != nil {
+		return nil, err
+	}
+	diffResult := l.diffManifest(baseManifest, comparorManifest)
+	return diffResult, nil
+}
+
+func calDiffType(diffs []difflib.DiffRecord) DiffType {
+	hasAdd, hasRemove := false, false
+	for _, d := range diffs {
+		switch d.Delta {
+		case difflib.LeftOnly:
+			hasRemove = true
+		case difflib.RightOnly:
+			hasAdd = true
+		default:
+		}
+	}
+	switch {
+	case hasAdd && hasRemove:
+		return ModifyDiff
+	case hasAdd && !hasRemove:
+		return AddDiff
+	case !hasAdd && hasRemove:
+		return RemoveDiff
+	default:
+		return NoDiff
+	}
+}
+
+func (l *LiveDiffOption) diffManifest(base, comparor *manifest) *DiffEntry {
+	if base == nil {
+		base = &manifest{}
+	}
+	if comparor == nil {
+		comparor = &manifest{}
+	}
+	entry := &DiffEntry{Name: base.Name, Kind: base.Kind}
+	if base.Name == "" {
+		entry = &DiffEntry{Name: comparor.Name, Kind: comparor.Kind}
+	}
+	const sep = "\n"
+	entry.Diffs = difflib.Diff(strings.Split(comparor.Data, sep), strings.Split(base.Data, sep))
+	entry.DiffType = calDiffType(entry.Diffs)
+	baseManifestMap, comparorManifestMap := make(map[string]*manifest), make(map[string]*manifest)
+	var keys []string
+	for _, _base := range base.Subs {
+		baseManifestMap[_base.key()] = _base
+		keys = append(keys, _base.key())
+	}
+	for _, _comparor := range comparor.Subs {
+		comparorManifestMap[_comparor.key()] = _comparor
+		if _, found := baseManifestMap[_comparor.key()]; !found {
+			keys = append(keys, _comparor.key())
+		}
+	}
+	for _, key := range keys {
+		entry.Subs = append(entry.Subs, l.diffManifest(baseManifestMap[key], comparorManifestMap[key]))
+	}
+	return entry
 }
 
 // Diff does three phases, dry-run on input app, preparing manifest for diff, and
@@ -373,29 +502,39 @@ func extractNameFromRevisionName(r string) string {
 	return strings.Join(s[0:len(s)-1], "-")
 }
 
-// removeRevisionRelatedLabelAndAnnotation will set label oam.LabelAppRevision to empty
-// because dry-run cannot set value to this label
-func removeRevisionRelatedLabelAndAnnotation(o client.Object) {
+func clearedLabels(labels map[string]string) map[string]string {
 	newLabels := map[string]string{}
-	labels := o.GetLabels()
 	for k, v := range labels {
 		if k == oam.LabelAppRevision {
-			newLabels[k] = ""
 			continue
 		}
 		newLabels[k] = v
 	}
-	o.SetLabels(newLabels)
+	if len(newLabels) == 0 {
+		return nil
+	}
+	return newLabels
+}
 
+func clearedAnnotations(annotations map[string]string) map[string]string {
 	newAnnotations := map[string]string{}
-	annotations := o.GetAnnotations()
 	for k, v := range annotations {
 		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision || k == "kubectl.kubernetes.io/last-applied-configuration" {
 			continue
 		}
 		newAnnotations[k] = v
 	}
-	o.SetAnnotations(newAnnotations)
+	if len(newAnnotations) == 0 {
+		return nil
+	}
+	return newAnnotations
+}
+
+// removeRevisionRelatedLabelAndAnnotation will set label oam.LabelAppRevision to empty
+// because dry-run cannot set value to this label
+func removeRevisionRelatedLabelAndAnnotation(o client.Object) {
+	o.SetLabels(clearedLabels(o.GetLabels()))
+	o.SetAnnotations(clearedAnnotations(o.GetAnnotations()))
 }
 
 // hasChanges checks whether existing change in diff records
@@ -407,4 +546,38 @@ func hasChanges(diffs []difflib.DiffRecord) bool {
 		}
 	}
 	return false
+}
+
+func marshalObject(o client.Object) ([]byte, error) {
+	switch obj := o.(type) {
+	case *v1beta1.Application:
+		obj.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
+		obj.Status = common.AppStatus{}
+	case *v1alpha1.Policy:
+		obj.SetGroupVersionKind(v1alpha1.PolicyGroupVersionKind)
+	case *v1alpha1.Workflow:
+		obj.SetGroupVersionKind(v1alpha1.WorkflowGroupVersionKind)
+	}
+	o.SetLabels(clearedLabels(o.GetLabels()))
+	o.SetAnnotations(clearedAnnotations(o.GetAnnotations()))
+	bs, err := json.Marshal(o)
+	if err != nil {
+		return bs, err
+	}
+	m := make(map[string]interface{})
+	if err = json.Unmarshal(bs, &m); err != nil {
+		return bs, err
+	}
+	if metadata, found := m["metadata"]; found {
+		if md, ok := metadata.(map[string]interface{}); ok {
+			_m := make(map[string]interface{})
+			for k, v := range md {
+				if k == "name" || k == "namespace" || k == "labels" || k == "annotations" {
+					_m[k] = v
+				}
+			}
+			m["metadata"] = _m
+		}
+	}
+	return yaml.Marshal(m)
 }

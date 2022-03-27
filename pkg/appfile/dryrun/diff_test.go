@@ -19,12 +19,18 @@ package dryrun
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 )
 
 var _ = Describe("Test Live-Diff", func() {
@@ -149,6 +155,62 @@ var _ = Describe("Test Live-Diff", func() {
 		))
 		Expect(diffResultStr).ShouldNot(SatisfyAny(
 			ContainSubstring("added"),
+		))
+	})
+
+	It("Test renderless diff", func() {
+		liveDiffOpt := LiveDiffOption{
+			DryRun: NewDryRunOption(k8sClient, cfg, dm, pd, nil),
+			Parser: appfile.NewApplicationParser(k8sClient, dm, pd),
+		}
+		applyFile := func(filename string, ns string) {
+			bs, err := ioutil.ReadFile("./testdata/" + filename)
+			Expect(err).Should(Succeed())
+			un := &unstructured.Unstructured{}
+			Expect(yaml.Unmarshal(bs, un)).Should(Succeed())
+			un.SetNamespace(ns)
+			Expect(k8sClient.Create(context.Background(), un)).Should(Succeed())
+		}
+		ctx := context.Background()
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(Succeed())
+		applyFile("diff-input-app-with-externals.yaml", "default")
+		applyFile("diff-apprevision.yaml", "default")
+		app := &v1beta1.Application{}
+		apprev := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "livediff-demo"}, app)).Should(Succeed())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "livediff-demo-v1"}, apprev)).Should(Succeed())
+		reverse := false
+		runDiff := func() string {
+			a, b := LiveDiffObject{Application: app}, LiveDiffObject{ApplicationRevision: apprev}
+			if reverse {
+				a, b = b, a
+			}
+			de, err := liveDiffOpt.RenderlessDiff(ctx, a, b)
+			Expect(err).Should(Succeed())
+			buff := &bytes.Buffer{}
+			reportOpt := NewReportDiffOption(-1, buff)
+			reportOpt.PrintDiffReport(de)
+			return buff.String()
+		}
+		Expect(runDiff()).Should(ContainSubstring("\"myworker\" not found"))
+		applyFile("td-myingress.yaml", "vela-system")
+		applyFile("td-myscaler.yaml", "vela-system")
+		applyFile("cd-myworker.yaml", "vela-system")
+		applyFile("wd-deploy.yaml", "vela-system")
+		Expect(runDiff()).Should(ContainSubstring("\"deploy-livediff-demo\" not found"))
+		applyFile("external-workflow.yaml", "default")
+		Expect(runDiff()).Should(ContainSubstring("topology-local not found"))
+		applyFile("external-policy.yaml", "default")
+		Expect(runDiff()).Should(SatisfyAll(
+			ContainSubstring("Application (livediff-demo) has been modified(*)"),
+			ContainSubstring("External Policy (topology-local) has been added(+)"),
+			ContainSubstring("External Workflow (livediff-demo) has been added(+)"),
+		))
+		reverse = true
+		Expect(runDiff()).Should(SatisfyAll(
+			ContainSubstring("Application (livediff-demo) has been modified(*)"),
+			ContainSubstring("External Policy (topology-local) has been removed(-)"),
+			ContainSubstring("External Workflow (livediff-demo) has been removed(-)"),
 		))
 	})
 
