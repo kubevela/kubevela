@@ -39,7 +39,7 @@ var resourceActions map[string][]string
 var lock sync.Mutex
 var reg = regexp.MustCompile(`(?U)\{.*\}`)
 
-var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
+var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
 		Name:      "project-read",
 		Alias:     "Project Read",
@@ -57,22 +57,6 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 		Scope:     "project",
 	},
 	{
-		Name:      "app-list",
-		Alias:     "App List",
-		Resources: []string{"project:*/application:*"},
-		Actions:   []string{"list"},
-		Effect:    "Allow",
-		Scope:     "project",
-	},
-	{
-		Name:      "env-list",
-		Alias:     "App List",
-		Resources: []string{"project:*/environment:*"},
-		Actions:   []string{"list"},
-		Effect:    "Allow",
-		Scope:     "project",
-	},
-	{
 		Name:      "env-management",
 		Alias:     "Environment Management",
 		Resources: []string{"project:{projectName}/environment:*"},
@@ -83,14 +67,14 @@ var defaultProjectPermPolicyTemplate = []*model.PermPolicyTemplate{
 	{
 		Name:      "role-management",
 		Alias:     "Role Management",
-		Resources: []string{"project:{projectName}/role:*", "project:{projectName}/projectUser:*", "project:{projectName}/permPolicy:*"},
+		Resources: []string{"project:{projectName}/role:*", "project:{projectName}/projectUser:*", "project:{projectName}/permission:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
 	},
 }
 
-var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
+var defaultPlatformPermission = []*model.PermissionTemplate{
 	{
 		Name:      "cluster-manage",
 		Alias:     "Cluster Management",
@@ -134,7 +118,7 @@ var defaultPlatformPermPolicy = []*model.PermPolicyTemplate{
 	{
 		Name:      "role-manage",
 		Alias:     "Platform Role Management",
-		Resources: []string{"role:*", "permPolicy:*"},
+		Resources: []string{"role:*", "permission:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "platform",
@@ -193,7 +177,7 @@ var ResourceMaps = map[string]resourceMetadata{
 			"role": {
 				pathName: "roleName",
 			},
-			"permPolicy": {},
+			"permission": {},
 			"projectUser": {
 				pathName: "userName",
 			},
@@ -220,7 +204,7 @@ var ResourceMaps = map[string]resourceMetadata{
 		pathName: "userName",
 	},
 	"role":          {},
-	"permPolicy":    {},
+	"permission":    {},
 	"systemSetting": {},
 	"definition":    {},
 }
@@ -322,13 +306,13 @@ type rbacUsecaseImpl struct {
 // RBACUsecase implement RBAC-related business logic.
 type RBACUsecase interface {
 	CheckPerm(resource string, actions ...string) func(req *restful.Request, res *restful.Response, chain *restful.FilterChain)
-	GetUserPermPolicies(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.PermPolicy, error)
+	GetUserPermissions(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.Permission, error)
 	CreateRole(ctx context.Context, projectName string, req apisv1.CreateRoleRequest) (*apisv1.RoleBase, error)
 	DeleteRole(ctx context.Context, projectName, roleName string) error
 	UpdateRole(ctx context.Context, projectName, roleName string, req apisv1.UpdateRoleRequest) (*apisv1.RoleBase, error)
 	ListRole(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListRolesResponse, error)
-	ListPermPolicyTemplate(ctx context.Context, projectName string) ([]apisv1.PermPolicyTemplateBase, error)
-	ListPermPolicies(ctx context.Context, projectName string) ([]apisv1.PermPolicyBase, error)
+	ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error)
+	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
 	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
 }
@@ -342,7 +326,7 @@ func NewRBACUsecase(ds datastore.DataStore) RBACUsecase {
 }
 
 func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
-	count, _ := p.ds.Count(ctx, &model.PermPolicy{}, &datastore.FilterOptions{
+	count, _ := p.ds.Count(ctx, &model.Permission{}, &datastore.FilterOptions{
 		IsNotExist: []datastore.IsNotExistQueryOption{
 			{
 				Key: "project",
@@ -353,8 +337,8 @@ func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
 		return nil
 	}
 	var batchData []datastore.Entity
-	for _, policy := range defaultPlatformPermPolicy {
-		batchData = append(batchData, &model.PermPolicy{
+	for _, policy := range defaultPlatformPermission {
+		batchData = append(batchData, &model.Permission{
 			Name:      policy.Name,
 			Alias:     policy.Alias,
 			Resources: policy.Resources,
@@ -363,9 +347,9 @@ func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
 		})
 	}
 	batchData = append(batchData, &model.Role{
-		Name:         "admin",
-		Alias:        "Admin",
-		PermPolicies: []string{"admin"},
+		Name:        "admin",
+		Alias:       "Admin",
+		Permissions: []string{"admin"},
 	})
 	if err := p.ds.BatchAdd(context.Background(), batchData); err != nil {
 		return fmt.Errorf("init the platform perm policies failure %w", err)
@@ -373,10 +357,10 @@ func (p *rbacUsecaseImpl) Init(ctx context.Context) error {
 	return nil
 }
 
-// GetUserPermPolicies get user permission policies, if projectName is empty, will only get the platform permission policies
-func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.PermPolicy, error) {
-	var permPolicyNames []string
-	var perms []*model.PermPolicy
+// GetUserPermissions get user permission policies, if projectName is empty, will only get the platform permission policies
+func (p *rbacUsecaseImpl) GetUserPermissions(ctx context.Context, user *model.User, projectName string, withPlatform bool) ([]*model.Permission, error) {
+	var permissionNames []string
+	var perms []*model.Permission
 	if withPlatform && len(user.UserRoles) > 0 {
 		entities, err := p.ds.List(ctx, &model.Role{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
 			In: []datastore.InQueryOption{
@@ -395,9 +379,9 @@ func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.U
 			return nil, err
 		}
 		for _, entity := range entities {
-			permPolicyNames = append(permPolicyNames, entity.(*model.Role).PermPolicies...)
+			permissionNames = append(permissionNames, entity.(*model.Role).Permissions...)
 		}
-		perms, err = p.listPermPolices(ctx, "", permPolicyNames)
+		perms, err = p.listPermPolices(ctx, "", permissionNames)
 		if err != nil {
 			return nil, err
 		}
@@ -422,9 +406,9 @@ func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.U
 				return nil, err
 			}
 			for _, entity := range entities {
-				permPolicyNames = append(permPolicyNames, entity.(*model.Role).PermPolicies...)
+				permissionNames = append(permissionNames, entity.(*model.Role).Permissions...)
 			}
-			projectPerms, err := p.listPermPolices(ctx, projectName, permPolicyNames)
+			projectPerms, err := p.listPermPolices(ctx, projectName, permissionNames)
 			if err != nil {
 				return nil, err
 			}
@@ -434,8 +418,8 @@ func (p *rbacUsecaseImpl) GetUserPermPolicies(ctx context.Context, user *model.U
 	return perms, nil
 }
 
-func (p *rbacUsecaseImpl) UpdatePermPolicy(ctx context.Context, projetName string, permissionName string, req *apisv1.UpdatePermPolicyRequest) (*apisv1.PermPolicyBase, error) {
-	perm := &model.PermPolicy{
+func (p *rbacUsecaseImpl) UpdatePermission(ctx context.Context, projetName string, permissionName string, req *apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error) {
+	perm := &model.Permission{
 		Project: projetName,
 		Name:    permissionName,
 	}
@@ -453,7 +437,7 @@ func (p *rbacUsecaseImpl) UpdatePermPolicy(ctx context.Context, projetName strin
 	if err := p.ds.Put(ctx, perm); err != nil {
 		return nil, err
 	}
-	return &apisv1.PermPolicyBase{
+	return &apisv1.PermissionBase{
 		Name:       perm.Name,
 		Alias:      perm.Alias,
 		Resources:  perm.Resources,
@@ -464,14 +448,14 @@ func (p *rbacUsecaseImpl) UpdatePermPolicy(ctx context.Context, projetName strin
 	}, nil
 }
 
-func (p *rbacUsecaseImpl) listPermPolices(ctx context.Context, projectName string, permPolicyNames []string) ([]*model.PermPolicy, error) {
-	if len(permPolicyNames) == 0 {
-		return []*model.PermPolicy{}, nil
+func (p *rbacUsecaseImpl) listPermPolices(ctx context.Context, projectName string, permissionNames []string) ([]*model.Permission, error) {
+	if len(permissionNames) == 0 {
+		return []*model.Permission{}, nil
 	}
 	filter := datastore.FilterOptions{In: []datastore.InQueryOption{
 		{
 			Key:    "name",
-			Values: permPolicyNames,
+			Values: permissionNames,
 		},
 	}}
 	if projectName == "" {
@@ -479,13 +463,13 @@ func (p *rbacUsecaseImpl) listPermPolices(ctx context.Context, projectName strin
 			Key: "project",
 		})
 	}
-	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
+	permEntities, err := p.ds.List(ctx, &model.Permission{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
 	if err != nil {
 		return nil, err
 	}
-	var perms []*model.PermPolicy
+	var perms []*model.Permission
 	for _, entity := range permEntities {
-		perms = append(perms, entity.(*model.PermPolicy))
+		perms = append(perms, entity.(*model.Permission))
 	}
 	return perms, nil
 }
@@ -547,13 +531,13 @@ func (p *rbacUsecaseImpl) CheckPerm(resource string, actions ...string) func(req
 
 		// get user's perm list.
 		projectName := getProjectName()
-		permPolicies, err := p.GetUserPermPolicies(req.Request.Context(), user, projectName, true)
+		permissions, err := p.GetUserPermissions(req.Request.Context(), user, projectName, true)
 		if err != nil {
 			log.Logger.Errorf("get user's perm policies failure %s, user is %s", err.Error(), user.Name)
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
-		if !ra.Match(permPolicies) {
+		if !ra.Match(permissions) {
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
@@ -571,18 +555,18 @@ func (p *rbacUsecaseImpl) CreateRole(ctx context.Context, projectName string, re
 			return nil, bcode.ErrProjectIsNotExist
 		}
 	}
-	if len(req.PermPolicies) == 0 {
-		return nil, bcode.ErrRolePermPolicyCheckFailure
+	if len(req.Permissions) == 0 {
+		return nil, bcode.ErrRolePermissionCheckFailure
 	}
-	policies, err := p.listPermPolices(ctx, projectName, req.PermPolicies)
-	if err != nil || len(policies) != len(req.PermPolicies) {
-		return nil, bcode.ErrRolePermPolicyCheckFailure
+	policies, err := p.listPermPolices(ctx, projectName, req.Permissions)
+	if err != nil || len(policies) != len(req.Permissions) {
+		return nil, bcode.ErrRolePermissionCheckFailure
 	}
 	var role = model.Role{
-		Name:         req.Name,
-		Alias:        req.Alias,
-		Project:      projectName,
-		PermPolicies: req.PermPolicies,
+		Name:        req.Name,
+		Alias:       req.Alias,
+		Project:     projectName,
+		Permissions: req.Permissions,
 	}
 	if err := p.ds.Add(ctx, &role); err != nil {
 		if errors.Is(err, datastore.ErrRecordExist) {
@@ -616,12 +600,12 @@ func (p *rbacUsecaseImpl) UpdateRole(ctx context.Context, projectName, roleName 
 			return nil, bcode.ErrProjectIsNotExist
 		}
 	}
-	if len(req.PermPolicies) == 0 {
-		return nil, bcode.ErrRolePermPolicyCheckFailure
+	if len(req.Permissions) == 0 {
+		return nil, bcode.ErrRolePermissionCheckFailure
 	}
-	policies, err := p.listPermPolices(ctx, projectName, req.PermPolicies)
-	if err != nil || len(policies) != len(req.PermPolicies) {
-		return nil, bcode.ErrRolePermPolicyCheckFailure
+	policies, err := p.listPermPolices(ctx, projectName, req.Permissions)
+	if err != nil || len(policies) != len(req.Permissions) {
+		return nil, bcode.ErrRolePermissionCheckFailure
 	}
 	var role = model.Role{
 		Name:    roleName,
@@ -634,7 +618,7 @@ func (p *rbacUsecaseImpl) UpdateRole(ctx context.Context, projectName, roleName 
 		return nil, err
 	}
 	role.Alias = req.Alias
-	role.PermPolicies = req.PermPolicies
+	role.Permissions = req.Permissions
 	if err := p.ds.Put(ctx, &role); err != nil {
 		return nil, err
 	}
@@ -657,7 +641,7 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 	}
 	var policySet = make(map[string]string)
 	for _, entity := range entities {
-		for _, p := range entity.(*model.Role).PermPolicies {
+		for _, p := range entity.(*model.Role).Permissions {
 			policySet[p] = p
 		}
 	}
@@ -666,15 +650,15 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 	if err != nil {
 		log.Logger.Errorf("list perm policies failure %s", err.Error())
 	}
-	var policyMap = make(map[string]*model.PermPolicy)
+	var policyMap = make(map[string]*model.Permission)
 	for i, policy := range policies {
 		policyMap[policy.Name] = policies[i]
 	}
 	var res apisv1.ListRolesResponse
 	for _, entity := range entities {
 		role := entity.(*model.Role)
-		var rolePolicies []*model.PermPolicy
-		for _, perm := range role.PermPolicies {
+		var rolePolicies []*model.Permission
+		for _, perm := range role.Permissions {
 			rolePolicies = append(rolePolicies, policyMap[perm])
 		}
 		res.Roles = append(res.Roles, ConvertRole2Model(entity.(*model.Role), rolePolicies))
@@ -687,26 +671,26 @@ func (p *rbacUsecaseImpl) ListRole(ctx context.Context, projectName string, page
 	return &res, nil
 }
 
-// ListPermPolicyTemplate TODO:
-func (p *rbacUsecaseImpl) ListPermPolicyTemplate(ctx context.Context, projectName string) ([]apisv1.PermPolicyTemplateBase, error) {
+// ListPermissionTemplate TODO:
+func (p *rbacUsecaseImpl) ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error) {
 	return nil, nil
 }
 
-func (p *rbacUsecaseImpl) ListPermPolicies(ctx context.Context, projectName string) ([]apisv1.PermPolicyBase, error) {
+func (p *rbacUsecaseImpl) ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error) {
 	var filter datastore.FilterOptions
 	if projectName == "" {
 		filter.IsNotExist = append(filter.IsNotExist, datastore.IsNotExistQueryOption{
 			Key: "project",
 		})
 	}
-	permEntities, err := p.ds.List(ctx, &model.PermPolicy{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
+	permEntities, err := p.ds.List(ctx, &model.Permission{Project: projectName}, &datastore.ListOptions{FilterOptions: filter})
 	if err != nil {
 		return nil, err
 	}
-	var perms []apisv1.PermPolicyBase
+	var perms []apisv1.PermissionBase
 	for _, entity := range permEntities {
-		perm := entity.(*model.PermPolicy)
-		perms = append(perms, apisv1.PermPolicyBase{
+		perm := entity.(*model.Permission)
+		perms = append(perms, apisv1.PermissionBase{
 			Name:       perm.Name,
 			Alias:      perm.Alias,
 			Resources:  perm.Resources,
@@ -721,10 +705,10 @@ func (p *rbacUsecaseImpl) ListPermPolicies(ctx context.Context, projectName stri
 
 func (p *rbacUsecaseImpl) InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
 	var batchData []datastore.Entity
-	for _, permPolicyTemp := range defaultProjectPermPolicyTemplate {
+	for _, permissionTemp := range defaultProjectPermissionTemplate {
 		var rra = RequestResourceAction{}
 		var formatedResource []string
-		for _, resource := range permPolicyTemp.Resources {
+		for _, resource := range permissionTemp.Resources {
 			rra.SetResourceWithName(resource, func(name string) string {
 				if name == ResourceMaps["project"].pathName {
 					return project.Name
@@ -733,25 +717,25 @@ func (p *rbacUsecaseImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 			})
 			formatedResource = append(formatedResource, rra.GetResource().String())
 		}
-		batchData = append(batchData, &model.PermPolicy{
-			Name:      permPolicyTemp.Name,
-			Alias:     permPolicyTemp.Alias,
+		batchData = append(batchData, &model.Permission{
+			Name:      permissionTemp.Name,
+			Alias:     permissionTemp.Alias,
 			Project:   project.Name,
 			Resources: formatedResource,
-			Actions:   permPolicyTemp.Actions,
-			Effect:    permPolicyTemp.Effect,
+			Actions:   permissionTemp.Actions,
+			Effect:    permissionTemp.Effect,
 		})
 	}
 	batchData = append(batchData, &model.Role{
-		Name:         "app-developer",
-		Alias:        "App Developer",
-		PermPolicies: []string{"project-read", "app-management", "env-management", "app-list", "env-list"},
-		Project:      project.Name,
+		Name:        "app-developer",
+		Alias:       "App Developer",
+		Permissions: []string{"project-read", "app-management", "env-management"},
+		Project:     project.Name,
 	}, &model.Role{
-		Name:         "project-admin",
-		Alias:        "Project Admin",
-		PermPolicies: []string{"app-management", "env-management", "role-management", "app-list", "env-list"},
-		Project:      project.Name,
+		Name:        "project-admin",
+		Alias:       "Project Admin",
+		Permissions: []string{"project-read", "app-management", "env-management", "role-management"},
+		Project:     project.Name,
 	})
 	if project.Owner != "" {
 		var projectUser = &model.ProjectUser{
@@ -765,13 +749,13 @@ func (p *rbacUsecaseImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 }
 
 // ConvertRole2Model convert role model to role base struct
-func ConvertRole2Model(role *model.Role, policies []*model.PermPolicy) *apisv1.RoleBase {
+func ConvertRole2Model(role *model.Role, policies []*model.Permission) *apisv1.RoleBase {
 	return &apisv1.RoleBase{
 		CreateTime: role.CreateTime,
 		UpdateTime: role.UpdateTime,
 		Name:       role.Name,
 		Alias:      role.Alias,
-		PermPolicies: func() (list []apisv1.NameAlias) {
+		Permissions: func() (list []apisv1.NameAlias) {
 			for _, policy := range policies {
 				if policy != nil {
 					list = append(list, apisv1.NameAlias{Name: policy.Name, Alias: policy.Alias})
@@ -818,11 +802,11 @@ func (r *ResourceName) Match(target *ResourceName) bool {
 	current := r
 	currentTarget := target
 	for current != nil && current.Type != "" {
-		if currentTarget == nil || currentTarget.Type == "" {
-			return false
-		}
 		if current.Type == "*" {
 			return true
+		}
+		if currentTarget == nil || currentTarget.Type == "" {
+			return false
 		}
 		if current.Type != currentTarget.Type {
 			return false
@@ -879,7 +863,7 @@ func (r *RequestResourceAction) SetActions(actions []string) {
 	r.actions = actions
 }
 
-func (r *RequestResourceAction) match(policy *model.PermPolicy) bool {
+func (r *RequestResourceAction) match(policy *model.Permission) bool {
 	// match actions, the policy actions will include the actions of request
 	if !utils.SliceIncludeSlice(policy.Actions, r.actions) && !utils.StringsContain(policy.Actions, "*") {
 		return false
@@ -895,7 +879,7 @@ func (r *RequestResourceAction) match(policy *model.PermPolicy) bool {
 }
 
 // Match determines whether the request resources and actions matches the user permission set.
-func (r *RequestResourceAction) Match(policies []*model.PermPolicy) bool {
+func (r *RequestResourceAction) Match(policies []*model.Permission) bool {
 	for _, policy := range policies {
 		if strings.EqualFold(policy.Effect, "deny") {
 			if r.match(policy) {

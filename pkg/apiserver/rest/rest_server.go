@@ -140,7 +140,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		RetryPeriod:   time.Second * 2,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				go velasync.Start(ctx, s.dataStore, restCfg)
+				go velasync.Start(ctx, s.dataStore, restCfg, s.usecases)
 				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 			},
 			OnStoppedLeading: func() {

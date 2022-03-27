@@ -50,5 +50,8 @@ func (p *Project) Index() map[string]string {
 	if p.Name != "" {
 		index["name"] = p.Name
 	}
+	if p.Owner != "" {
+		index["owner"] = p.Owner
+	}
 	return index
 }

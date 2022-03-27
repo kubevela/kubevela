@@ -89,7 +89,6 @@ func listTarget(ctx context.Context, ds datastore.DataStore, project string, dsO
 	if dsOption == nil {
 		dsOption = &datastore.ListOptions{}
 	}
-
 	target := model.Target{}
 	if project != "" {
 		target.Project = project

@@ -27,6 +27,7 @@ import (
 	"github.com/form3tech-oss/jwt-go"
 	"golang.org/x/oauth2"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -258,6 +259,9 @@ func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.D
 		Name:      secretDexConfig,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, bcode.ErrDexConfigNotFound
+		}
 		log.Logger.Errorf("failed to get dex config: %s", err.Error())
 		return nil, err
 	}

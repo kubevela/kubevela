@@ -28,8 +28,8 @@ func init() {
 	RegisterModel(&User{})
 	RegisterModel(&ProjectUser{})
 	RegisterModel(&Role{})
-	RegisterModel(&PermPolicy{})
-	RegisterModel(&PermPolicyTemplate{})
+	RegisterModel(&Permission{})
+	RegisterModel(&PermissionTemplate{})
 }
 
 // DefaultAdminUserName default admin user name
@@ -127,14 +127,14 @@ type CustomClaims struct {
 // Role is a model for a new RBAC mode.
 type Role struct {
 	BaseModel
-	Name         string   `json:"name"`
-	Alias        string   `json:"alias"`
-	Project      string   `json:"project,omitempty"`
-	PermPolicies []string `json:"permPolicies"`
+	Name        string   `json:"name"`
+	Alias       string   `json:"alias"`
+	Project     string   `json:"project,omitempty"`
+	Permissions []string `json:"permissions"`
 }
 
-// PermPolicy is a model for a new RBAC mode.
-type PermPolicy struct {
+// Permission is a model for a new RBAC mode.
+type Permission struct {
 	BaseModel
 	Name      string   `json:"name"`
 	Alias     string   `json:"alias"`
@@ -189,17 +189,17 @@ func (r *Role) Index() map[string]string {
 }
 
 // TableName return custom table name
-func (p *PermPolicy) TableName() string {
+func (p *Permission) TableName() string {
 	return tableNamePrefix + "perm"
 }
 
 // ShortTableName return custom table name
-func (p *PermPolicy) ShortTableName() string {
+func (p *Permission) ShortTableName() string {
 	return "perm"
 }
 
 // PrimaryKey return custom primary key
-func (p *PermPolicy) PrimaryKey() string {
+func (p *Permission) PrimaryKey() string {
 	if p.Project == "" {
 		return p.Name
 	}
@@ -207,7 +207,7 @@ func (p *PermPolicy) PrimaryKey() string {
 }
 
 // Index return custom index
-func (p *PermPolicy) Index() map[string]string {
+func (p *Permission) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name
@@ -221,8 +221,8 @@ func (p *PermPolicy) Index() map[string]string {
 	return index
 }
 
-// PermPolicyTemplate is a model for a new RBAC mode.
-type PermPolicyTemplate struct {
+// PermissionTemplate is a model for a new RBAC mode.
+type PermissionTemplate struct {
 	BaseModel
 	Name  string `json:"name"`
 	Alias string `json:"alias"`
@@ -235,22 +235,22 @@ type PermPolicyTemplate struct {
 }
 
 // TableName return custom table name
-func (p *PermPolicyTemplate) TableName() string {
+func (p *PermissionTemplate) TableName() string {
 	return tableNamePrefix + "perm_temp"
 }
 
 // ShortTableName return custom table name
-func (p *PermPolicyTemplate) ShortTableName() string {
+func (p *PermissionTemplate) ShortTableName() string {
 	return "perm_temp"
 }
 
 // PrimaryKey return custom primary key
-func (p *PermPolicyTemplate) PrimaryKey() string {
+func (p *PermissionTemplate) PrimaryKey() string {
 	return p.Name
 }
 
 // Index return custom index
-func (p *PermPolicyTemplate) Index() map[string]string {
+func (p *PermissionTemplate) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name

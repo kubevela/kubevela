@@ -72,26 +72,37 @@ func (p *projectUsecaseImpl) Init(ctx context.Context) error {
 // initDefaultProjectEnvTarget will initialize a default project with a default env that contain a default target
 // the default env and default target both using the `default` namespace in control plane cluster
 func (p *projectUsecaseImpl) InitDefaultProjectEnvTarget(ctx context.Context, defaultNamespace string) error {
-	projResp, err := listProjects(ctx, p.ds, 0, 0)
+	var project = model.Project{}
+	entities, err := p.ds.List(ctx, &project, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
+		IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "owner",
+			},
+		},
+	}})
 	if err != nil {
 		return fmt.Errorf("initialize project failed %w", err)
 	}
-	if len(projResp.Projects) > 0 {
-		for _, project := range projResp.Projects {
+	if len(entities) > 0 {
+		for _, project := range entities {
+			pro := project.(*model.Project)
+			var init = pro.Owner == ""
+			pro.Owner = model.DefaultAdminUserName
+			if err := p.ds.Put(ctx, pro); err != nil {
+				return err
+			}
 			// owner is empty, it is old data
-			if project.Owner.Name == "" {
-				pro, err := p.GetProject(ctx, project.Name)
-				if err == nil {
-					pro.Owner = model.DefaultAdminUserName
-					if err := p.ds.Put(ctx, pro); err != nil {
-						return err
-					}
-					if err := p.rbacUsecase.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
-						return fmt.Errorf("init default role and users for project failure %w", err)
-					}
+			if init {
+				if err := p.rbacUsecase.InitDefaultRoleAndUsersForProject(ctx, pro); err != nil {
+					return fmt.Errorf("init default role and users for project %s failure %w", pro.Name, err)
 				}
 			}
 		}
+		return nil
+	}
+
+	count, _ := p.ds.Count(ctx, &project, nil)
+	if count > 0 {
 		return nil
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
@@ -184,7 +195,7 @@ func listProjects(ctx context.Context, ds datastore.DataStore, page, pageSize in
 		}
 		projects = append(projects, ConvertProjectModel2Base(project, user))
 	}
-	total, err := ds.Count(ctx, &model.Project{}, nil)
+	total, err := ds.Count(ctx, &project, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +267,7 @@ func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) err
 		return bcode.ErrProjectDenyDeleteByEnvironment
 	}
 
-	// TODO: delete all roles、projectUsers、permPolicies and other project level data
+	// TODO: delete all roles、projectUsers、permissions and other project level data
 	return p.ds.Delete(ctx, &model.Project{Name: name})
 }
 
@@ -440,7 +451,7 @@ func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1
 		UpdateTime:  project.UpdateTime,
 		Owner:       apisv1.NameAlias{Name: project.Owner},
 	}
-	if owner != nil {
+	if owner != nil && owner.Name == project.Owner {
 		base.Owner = apisv1.NameAlias{Name: owner.Name, Alias: owner.Alias}
 	}
 	return base

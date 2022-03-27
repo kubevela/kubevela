@@ -81,7 +81,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
 	// Modules that require default data initialization, Call it here in order
 	if initDatabase {
-		initData(ctx, userUsecase, rbacUsecase, projectUsecase)
+		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase)
 	}
 
 	// Application
@@ -114,7 +114,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	RegisterWebService(NewRBACWebService(rbacUsecase))
 
 	// return some usecase instance
-	return map[string]interface{}{"workflow": workflowUsecase}
+	return map[string]interface{}{"workflow": workflowUsecase, "project": projectUsecase}
 }
 
 // InitUsecase the usecase set that needs init data

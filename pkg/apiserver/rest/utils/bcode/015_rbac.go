@@ -17,8 +17,8 @@ limitations under the License.
 package bcode
 
 var (
-	// ErrRolePermPolicyCheckFailure means the perm policy is invalid where create or update role
-	ErrRolePermPolicyCheckFailure = NewBcode(400, 15001, "the perm policies are invalid")
+	// ErrRolePermissionCheckFailure means the perm policy is invalid where create or update role
+	ErrRolePermissionCheckFailure = NewBcode(400, 15001, "the permissions are invalid")
 	// ErrRoleIsExist means the role is exist
 	ErrRoleIsExist = NewBcode(400, 15002, "the role name is exist")
 	// ErrRoleIsNotExist means the role is not exist

@@ -75,12 +75,12 @@ func (r *rbacWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/permPolicies").To(r.listPlatformPermPolicies).
+	ws.Route(ws.GET("/permissions").To(r.listPlatformPermissions).
 		Doc("list all project level perm policies").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(r.rbacUsecase.CheckPerm("permPolicy", "list")).
-		Returns(200, "OK", []apis.PermPolicyBase{}).
-		Writes([]apis.PermPolicyBase{}))
+		Filter(r.rbacUsecase.CheckPerm("permission", "list")).
+		Returns(200, "OK", []apis.PermissionBase{}).
+		Writes([]apis.PermissionBase{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -168,8 +168,8 @@ func (r *rbacWebService) deletePlatformRole(req *restful.Request, res *restful.R
 	}
 }
 
-func (r *rbacWebService) listPlatformPermPolicies(req *restful.Request, res *restful.Response) {
-	policies, err := r.rbacUsecase.ListPermPolicies(req.Request.Context(), "")
+func (r *rbacWebService) listPlatformPermissions(req *restful.Request, res *restful.Response) {
+	policies, err := r.rbacUsecase.ListPermissions(req.Request.Context(), "")
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

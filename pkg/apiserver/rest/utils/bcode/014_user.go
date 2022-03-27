@@ -27,4 +27,6 @@ var (
 	ErrUserCannotModified = NewBcode(400, 14004, "the user cannot be modified in dex login mode")
 	// ErrUserInvalidPassword is the error of user invalid password
 	ErrUserInvalidPassword = NewBcode(400, 14005, "the password is invalid")
+	// ErrDexConfigNotFound means the dex config is not configured
+	ErrDexConfigNotFound = NewBcode(200, 14006, "the dex config is not found")
 )

@@ -21,15 +21,15 @@ Role:
 ```yaml
 name: app-developer
 project: demo
-permPolicies: ["app-manage"]
+permissions: ["app-manage"]
 ```
 
 ```yaml
 name: admin
-permPolicies: ["all"]
+permissions: ["all"]
 ```
 
-PermPolicy:
+Permission:
 
 ```yaml
 name: app-manage
@@ -86,7 +86,7 @@ principal: {}
 condition: {}
 ```
 
-PermPolicyTemplate:
+PermissionTemplate:
 
 ```yaml
 name: app-manage

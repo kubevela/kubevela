@@ -92,7 +92,7 @@ var _ = Describe("Test rbac service", func() {
 		rbacUsecase := rbacUsecaseImpl{ds: ds}
 		err := rbacUsecase.Init(context.TODO())
 		Expect(err).Should(BeNil())
-		policies, err := rbacUsecase.ListPermPolicies(context.TODO(), "")
+		policies, err := rbacUsecase.ListPermissions(context.TODO(), "")
 		Expect(err).Should(BeNil())
 		Expect(len(policies)).Should(BeEquivalentTo(int64(7)))
 	})
@@ -131,10 +131,10 @@ var _ = Describe("Test rbac service", func() {
 		err = ds.Add(context.TODO(), &model.ProjectUser{Username: "dev", ProjectName: projectName, UserRoles: []string{"application-admin"}})
 		Expect(err).Should(BeNil())
 
-		err = ds.Add(context.TODO(), &model.Role{Project: projectName, Name: "application-admin", PermPolicies: []string{"application-manage"}})
+		err = ds.Add(context.TODO(), &model.Role{Project: projectName, Name: "application-admin", Permissions: []string{"application-manage"}})
 		Expect(err).Should(BeNil())
 
-		err = ds.Add(context.TODO(), &model.PermPolicy{Project: projectName, Name: "application-manage", Resources: []string{"project:test-app-project/application:*"}, Actions: []string{"*"}})
+		err = ds.Add(context.TODO(), &model.Permission{Project: projectName, Name: "application-manage", Resources: []string{"project:test-app-project/application:*"}, Actions: []string{"*"}})
 		Expect(err).Should(BeNil())
 
 		rbac := rbacUsecaseImpl{ds: ds}
@@ -165,10 +165,10 @@ var _ = Describe("Test rbac service", func() {
 		Expect(res.StatusCode()).Should(Equal(int(bcode.ErrForbidden.HTTPCode)))
 
 		// add list application permission to role
-		// err = ds.Add(context.TODO(), &model.PermPolicy{Project: projectName, Name: "application-list", Resources: []string{"project:*/application:*"}, Actions: []string{"list"}})
+		// err = ds.Add(context.TODO(), &model.Permission{Project: projectName, Name: "application-list", Resources: []string{"project:*/application:*"}, Actions: []string{"list"}})
 		// Expect(err).Should(BeNil())
 		// _, err = rbac.UpdateRole(context.TODO(), projectName, "application-admin", apisv1.UpdateRoleRequest{
-		// 	PermPolicies: []string{"application-list", "application-manage"},
+		// 	Permissions: []string{"application-list", "application-manage"},
 		// })
 		// Expect(err).Should(BeNil())
 
@@ -192,14 +192,14 @@ var _ = Describe("Test rbac service", func() {
 		Expect(err).Should(BeNil())
 		Expect(roles.Total).Should(BeEquivalentTo(int64(2)))
 
-		policies, err := rbacUsecase.ListPermPolicies(context.TODO(), "init-test")
+		policies, err := rbacUsecase.ListPermissions(context.TODO(), "init-test")
 		Expect(err).Should(BeNil())
-		Expect(len(policies)).Should(BeEquivalentTo(int64(6)))
+		Expect(len(policies)).Should(BeEquivalentTo(int64(4)))
 	})
 
-	It("Test UpdatePermPolicy", func() {
+	It("Test UpdatePermission", func() {
 		rbacUsecase := rbacUsecaseImpl{ds: ds}
-		base, err := rbacUsecase.UpdatePermPolicy(context.TODO(), "test-app-project", "application-manage", &apisv1.UpdatePermPolicyRequest{
+		base, err := rbacUsecase.UpdatePermission(context.TODO(), "test-app-project", "application-manage", &apisv1.UpdatePermissionRequest{
 			Resources: []string{"project:{projectName}/application:*/*"},
 			Actions:   []string{"*"},
 			Alias:     "App Management Update",
@@ -232,36 +232,36 @@ func TestRequestResourceActionMatch(t *testing.T) {
 	ra := &RequestResourceAction{}
 	ra.SetResourceWithName("project:{projectName}/workflow:{empty}", testPathParameter)
 	ra.SetActions([]string{"create"})
-	assert.Equal(t, ra.Match([]*model.PermPolicy{{Resources: []string{"project:*/workflow:*"}, Actions: []string{"*"}}}), true)
-	assert.Equal(t, ra.Match([]*model.PermPolicy{{Resources: []string{"project:ddd/workflow:*"}, Actions: []string{"create"}}}), false)
-	assert.Equal(t, ra.Match([]*model.PermPolicy{{Resources: []string{"project:projectName/workflow:*"}, Actions: []string{"create"}}}), true)
-	assert.Equal(t, ra.Match([]*model.PermPolicy{{Resources: []string{"project:projectName/workflow:*"}, Actions: []string{"create"}, Effect: "Deny"}}), false)
+	assert.Equal(t, ra.Match([]*model.Permission{{Resources: []string{"project:*/workflow:*"}, Actions: []string{"*"}}}), true)
+	assert.Equal(t, ra.Match([]*model.Permission{{Resources: []string{"project:ddd/workflow:*"}, Actions: []string{"create"}}}), false)
+	assert.Equal(t, ra.Match([]*model.Permission{{Resources: []string{"project:projectName/workflow:*"}, Actions: []string{"create"}}}), true)
+	assert.Equal(t, ra.Match([]*model.Permission{{Resources: []string{"project:projectName/workflow:*"}, Actions: []string{"create"}, Effect: "Deny"}}), false)
 
 	ra2 := &RequestResourceAction{}
 	ra2.SetResourceWithName("project:{projectName}/application:{app1}/component:{empty}", testPathParameter)
 	ra2.SetActions([]string{"delete"})
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"*"}}}), true)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"list", "delete"}}}), true)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*", "project:*/application:app1/component:*"}, Actions: []string{"list", "delete"}}}), true)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"list", "detail"}}}), false)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}}), true)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}}, {Actions: []string{"*"}, Resources: []string{"project:*/application:app1/component:*"}, Effect: "Deny"}}), false)
-	assert.Equal(t, ra2.Match([]*model.PermPolicy{{Resources: []string{"project:projectName/application:*/*"}, Actions: []string{"*"}}}), true)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"*"}}}), true)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"list", "delete"}}}), true)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"project:*", "project:*/application:app1/component:*"}, Actions: []string{"list", "delete"}}}), true)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"project:*/application:app1/component:*"}, Actions: []string{"list", "detail"}}}), false)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"*"}, Actions: []string{"*"}}}), true)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"*"}, Actions: []string{"*"}}, {Actions: []string{"*"}, Resources: []string{"project:*/application:app1/component:*"}, Effect: "Deny"}}), false)
+	assert.Equal(t, ra2.Match([]*model.Permission{{Resources: []string{"project:projectName/application:*/*"}, Actions: []string{"*"}}}), true)
 
 	ra3 := &RequestResourceAction{}
 	ra3.SetResourceWithName("project:test-123", testPathParameter)
 	ra3.SetActions([]string{"detail"})
-	assert.Equal(t, ra3.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
+	assert.Equal(t, ra3.Match([]*model.Permission{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
 
 	ra4 := &RequestResourceAction{}
 	ra4.SetResourceWithName("role:*", testPathParameter)
 	ra4.SetActions([]string{"list"})
-	assert.Equal(t, ra4.Match([]*model.PermPolicy{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
+	assert.Equal(t, ra4.Match([]*model.Permission{{Resources: []string{"*"}, Actions: []string{"*"}, Effect: "Allow"}}), true)
 
 	ra5 := &RequestResourceAction{}
 	ra5.SetResourceWithName("project:*/application:*", testPathParameter)
 	ra5.SetActions([]string{"list"})
-	assert.Equal(t, ra5.Match([]*model.PermPolicy{{Resources: []string{"project:*/application:*"}, Actions: []string{"list"}, Effect: "Allow"}}), true)
+	assert.Equal(t, ra5.Match([]*model.Permission{{Resources: []string{"project:*/application:*"}, Actions: []string{"list"}, Effect: "Allow"}}), true)
 
 }
 

@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,6 +41,7 @@ type TargetUsecase interface {
 	UpdateTarget(ctx context.Context, Target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error)
 	ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error)
 	ListTargetCount(ctx context.Context, projectName string) (int64, error)
+	Init(ctx context.Context) error
 }
 
 type targetUsecaseImpl struct {
@@ -58,9 +60,28 @@ func NewTargetUsecase(ds datastore.DataStore) TargetUsecase {
 		ds:        ds,
 	}
 }
-
+func (dt *targetUsecaseImpl) Init(ctx context.Context) error {
+	targets, err := dt.ds.List(ctx, &model.Target{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
+		IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		},
+	}})
+	if err != nil {
+		return fmt.Errorf("list target failure %w", err)
+	}
+	for _, target := range targets {
+		t := target.(*model.Target)
+		t.Project = model.DefaultInitName
+		if err := dt.ds.Put(ctx, t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error) {
-	Targets, err := listTarget(ctx, dt.ds, projectName, &datastore.ListOptions{
+	targets, err := listTarget(ctx, dt.ds, projectName, &datastore.ListOptions{
 		Page:     page,
 		PageSize: pageSize,
 		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
@@ -71,7 +92,7 @@ func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int
 	resp := &apisv1.ListTargetResponse{
 		Targets: []apisv1.TargetBase{},
 	}
-	for _, raw := range Targets {
+	for _, raw := range targets {
 		resp.Targets = append(resp.Targets, *(dt.convertFromTargetModel(ctx, raw)))
 	}
 	count, err := dt.ds.Count(ctx, &model.Target{Project: projectName}, nil)
@@ -89,7 +110,7 @@ func (dt *targetUsecaseImpl) ListTargetCount(ctx context.Context, projectName st
 
 // DeleteTarget delete application Target
 func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string) error {
-	Target := &model.Target{
+	target := &model.Target{
 		Name: targetName,
 	}
 	ddt, err := dt.GetTarget(ctx, targetName)
@@ -102,7 +123,7 @@ func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string
 	if err = deleteTargetNamespace(ctx, dt.k8sClient, ddt.Cluster.ClusterName, ddt.Cluster.Namespace, targetName); err != nil {
 		return err
 	}
-	if err = dt.ds.Delete(ctx, Target); err != nil {
+	if err = dt.ds.Delete(ctx, target); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrTargetNotExist
 		}
@@ -135,11 +156,11 @@ func (dt *targetUsecaseImpl) CreateTarget(ctx context.Context, req apisv1.Create
 }
 
 func (dt *targetUsecaseImpl) UpdateTarget(ctx context.Context, target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error) {
-	TargetModel := convertUpdateReqToTargetModel(target, req)
-	if err := dt.ds.Put(ctx, TargetModel); err != nil {
+	targetModel := convertUpdateReqToTargetModel(target, req)
+	if err := dt.ds.Put(ctx, targetModel); err != nil {
 		return nil, err
 	}
-	return dt.DetailTarget(ctx, TargetModel)
+	return dt.DetailTarget(ctx, targetModel)
 }
 
 // DetailTarget detail Target

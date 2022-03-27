@@ -48,7 +48,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/apiserver/sync"
+	syncconvert "github.com/oam-dev/kubevela/pkg/apiserver/sync/convert"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -130,7 +130,7 @@ func NewApplicationUsecase(ds datastore.DataStore,
 ) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
-		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
+		log.Logger.Fatalf("get kube client failure %s", err.Error())
 	}
 	return &applicationUsecaseImpl{
 		ds:                ds,
@@ -1650,7 +1650,7 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 	for _, comp := range targetComps {
 		// add or update new app's components from old app
 		if utils.StringsContain(readyToAdd, comp.Name) || utils.StringsContain(readyToUpdate, comp.Name) {
-			compModel, err := sync.ConvertFromCRComponent(appPrimaryKey, comp)
+			compModel, err := syncconvert.ConvertFromCRComponent(appPrimaryKey, comp)
 			if err != nil {
 				return &apisv1.AppResetResponse{}, bcode.ErrInvalidProperties
 			}

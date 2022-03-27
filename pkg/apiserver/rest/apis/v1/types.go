@@ -1158,10 +1158,10 @@ type CreateUserRequest struct {
 
 // UpdateUserRequest update user request
 type UpdateUserRequest struct {
-	Alias    string   `json:"alias,omitempty" optional:"true"`
-	Password string   `json:"password,omitempty" validate:"checkpassword" optional:"true"`
-	Email    string   `json:"email,omitempty" validate:"checkemail" optional:"true"`
-	Roles    []string `json:"roles"`
+	Alias    string    `json:"alias,omitempty" optional:"true"`
+	Password string    `json:"password,omitempty" validate:"checkpassword" optional:"true"`
+	Email    string    `json:"email,omitempty" validate:"checkemail" optional:"true"`
+	Roles    *[]string `json:"roles"`
 }
 
 // ListUserResponse list user response
@@ -1205,24 +1205,24 @@ type UpdateProjectUserRequest struct {
 
 // CreateRoleRequest the request body that create a role
 type CreateRoleRequest struct {
-	Name         string   `json:"name" validate:"checkname"`
-	Alias        string   `json:"alias" validate:"checkalias"`
-	PermPolicies []string `json:"permPolicies"`
+	Name        string   `json:"name" validate:"checkname"`
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
 }
 
 // UpdateRoleRequest the request body that update a role
 type UpdateRoleRequest struct {
-	Alias        string   `json:"alias" validate:"checkalias"`
-	PermPolicies []string `json:"permPolicies"`
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
 }
 
 // RoleBase the base struct of role
 type RoleBase struct {
-	CreateTime   time.Time   `json:"createTime"`
-	UpdateTime   time.Time   `json:"updateTime"`
-	Name         string      `json:"name"`
-	Alias        string      `json:"alias,omitempty"`
-	PermPolicies []NameAlias `json:"permPolicies"`
+	CreateTime  time.Time   `json:"createTime"`
+	UpdateTime  time.Time   `json:"updateTime"`
+	Name        string      `json:"name"`
+	Alias       string      `json:"alias,omitempty"`
+	Permissions []NameAlias `json:"permissions"`
 }
 
 // ListRolesResponse the response body of list roles
@@ -1231,8 +1231,8 @@ type ListRolesResponse struct {
 	Roles []*RoleBase `json:"roles"`
 }
 
-// PermPolicyTemplateBase the perm policy template base struct
-type PermPolicyTemplateBase struct {
+// PermissionTemplateBase the perm policy template base struct
+type PermissionTemplateBase struct {
 	Name       string    `json:"name"`
 	Alias      string    `json:"alias"`
 	Resources  []string  `json:"resources"`
@@ -1242,8 +1242,8 @@ type PermPolicyTemplateBase struct {
 	UpdateTime time.Time `json:"updateTime"`
 }
 
-// PermPolicyBase the perm policy base struct
-type PermPolicyBase struct {
+// PermissionBase the perm policy base struct
+type PermissionBase struct {
 	Name       string    `json:"name"`
 	Alias      string    `json:"alias"`
 	Resources  []string  `json:"resources"`
@@ -1253,8 +1253,8 @@ type PermPolicyBase struct {
 	UpdateTime time.Time `json:"updateTime"`
 }
 
-// UpdatePermPolicyRequest the request body that update permission policy
-type UpdatePermPolicyRequest struct {
+// UpdatePermissionRequest the request body that update permission policy
+type UpdatePermissionRequest struct {
 	Alias     string   `json:"alias" validate:"checkalias"`
 	Resources []string `json:"resources"`
 	Actions   []string `json:"actions"`
@@ -1264,7 +1264,7 @@ type UpdatePermPolicyRequest struct {
 // LoginUserInfoResponse the response body of login user info
 type LoginUserInfoResponse struct {
 	UserBase
-	Projects             []*ProjectBase              `json:"projects"`
-	PlatformPermPolicies []PermPolicyBase            `json:"platformPermPolicies"`
-	ProjectPermPolicies  map[string][]PermPolicyBase `json:"projectPermPolicies"`
+	Projects            []*ProjectBase              `json:"projects"`
+	PlatformPermissions []PermissionBase            `json:"platformPermissions"`
+	ProjectPermissions  map[string][]PermissionBase `json:"projectPermissions"`
 }

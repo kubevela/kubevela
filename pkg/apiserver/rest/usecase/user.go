@@ -202,12 +202,14 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err != nil {
 		return nil, err
 	}
+	// TODO: validate the roles, them must all are platform role
 	user := &model.User{
-		Name:     req.Name,
-		Alias:    req.Alias,
-		Email:    req.Email,
-		Password: hash,
-		Disabled: false,
+		Name:      req.Name,
+		Alias:     req.Alias,
+		Email:     req.Email,
+		UserRoles: req.Roles,
+		Password:  hash,
+		Disabled:  false,
 	}
 	if err := u.ds.Add(ctx, user); err != nil {
 		return nil, err
@@ -239,6 +241,10 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 			return nil, bcode.ErrUnsupportedEmailModification
 		}
 		user.Email = req.Email
+	}
+	// TODO: validate the roles, them must all are platform role
+	if req.Roles != nil {
+		user.UserRoles = *req.Roles
 	}
 	if err := u.ds.Put(ctx, user); err != nil {
 		return nil, err
@@ -331,16 +337,16 @@ func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 	if err != nil {
 		return nil, err
 	}
-	var projectPermPolicies = make(map[string][]apisv1.PermPolicyBase)
+	var projectPermissions = make(map[string][]apisv1.PermissionBase)
 	for _, project := range projects {
-		perms, err := u.rbacUsecase.GetUserPermPolicies(ctx, user, project.Name, false)
+		perms, err := u.rbacUsecase.GetUserPermissions(ctx, user, project.Name, false)
 		if err != nil {
 			log.Logger.Errorf("list user %s perm policies from project %s failure %s", user.Name, project.Name, err.Error())
 			continue
 		}
-		projectPermPolicies[project.Name] = func() (list []apisv1.PermPolicyBase) {
+		projectPermissions[project.Name] = func() (list []apisv1.PermissionBase) {
 			for _, perm := range perms {
-				list = append(list, apisv1.PermPolicyBase{
+				list = append(list, apisv1.PermissionBase{
 					Name:       perm.Name,
 					Alias:      perm.Alias,
 					Resources:  perm.Resources,
@@ -353,13 +359,13 @@ func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 			return
 		}()
 	}
-	perms, err := u.rbacUsecase.GetUserPermPolicies(ctx, user, "", true)
+	perms, err := u.rbacUsecase.GetUserPermissions(ctx, user, "", true)
 	if err != nil {
 		log.Logger.Errorf("list user %s  platform perm policies failure %s", user.Name, err.Error())
 	}
-	var platformPermPolicies []apisv1.PermPolicyBase
+	var platformPermissions []apisv1.PermissionBase
 	for _, perm := range perms {
-		platformPermPolicies = append(platformPermPolicies, apisv1.PermPolicyBase{
+		platformPermissions = append(platformPermissions, apisv1.PermissionBase{
 			Name:       perm.Name,
 			Alias:      perm.Alias,
 			Resources:  perm.Resources,
@@ -370,10 +376,10 @@ func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.Logi
 		})
 	}
 	return &apisv1.LoginUserInfoResponse{
-		UserBase:             *convertUserBase(user),
-		Projects:             projects,
-		ProjectPermPolicies:  projectPermPolicies,
-		PlatformPermPolicies: platformPermPolicies,
+		UserBase:            *convertUserBase(user),
+		Projects:            projects,
+		ProjectPermissions:  projectPermissions,
+		PlatformPermissions: platformPermissions,
 	}, nil
 }
 

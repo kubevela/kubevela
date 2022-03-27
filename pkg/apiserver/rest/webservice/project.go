@@ -168,13 +168,13 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{projectName}/permPolicies").To(n.listProjectPermPolicies).
+	ws.Route(ws.GET("/{projectName}/permissions").To(n.listProjectPermissions).
 		Doc("list all project level perm policies").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
-		Filter(n.rbacUsecase.CheckPerm("project/permPolicy", "list")).
-		Returns(200, "OK", []apis.PermPolicyBase{}).
-		Writes([]apis.PermPolicyBase{}))
+		Filter(n.rbacUsecase.CheckPerm("project/permission", "list")).
+		Returns(200, "OK", []apis.PermissionBase{}).
+		Writes([]apis.PermissionBase{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -488,12 +488,12 @@ func (n *projectWebService) deleteProjectRole(req *restful.Request, res *restful
 	}
 }
 
-func (n *projectWebService) listProjectPermPolicies(req *restful.Request, res *restful.Response) {
+func (n *projectWebService) listProjectPermissions(req *restful.Request, res *restful.Response) {
 	if req.PathParameter("projectName") == "" {
 		bcode.ReturnError(req, res, bcode.ErrProjectIsNotExist)
 		return
 	}
-	policies, err := n.rbacUsecase.ListPermPolicies(req.Request.Context(), req.PathParameter("projectName"))
+	policies, err := n.rbacUsecase.ListPermissions(req.Request.Context(), req.PathParameter("projectName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
