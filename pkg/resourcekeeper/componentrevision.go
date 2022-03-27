@@ -31,6 +31,8 @@ import (
 
 // DispatchComponentRevision create component revision (also add record in resourcetracker)
 func (h *resourceKeeper) DispatchComponentRevision(ctx context.Context, cr *v1.ControllerRevision) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	rt, err := h.getComponentRevisionRT(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
@@ -50,6 +52,8 @@ func (h *resourceKeeper) DispatchComponentRevision(ctx context.Context, cr *v1.C
 
 // DeleteComponentRevision delete component revision (also remove record in resourcetracker)
 func (h *resourceKeeper) DeleteComponentRevision(ctx context.Context, cr *v1.ControllerRevision) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	rt, err := h.getComponentRevisionRT(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
