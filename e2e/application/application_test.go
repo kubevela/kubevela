@@ -18,8 +18,11 @@ package e2e
 
 import (
 	context2 "context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/Netflix/go-expect"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -42,6 +45,7 @@ var (
 	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80,"scaler":{"replicas":2}}}}`
+	velaQL                      = "test-component-pod-view{appNs=default,appName=nginx-vela,name=nginx}"
 )
 
 var _ = ginkgo.Describe("Test Vela Application", func() {
@@ -67,6 +71,9 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 
 	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
 	ApplicationDeleteWithForceOptions("test delete with force option", "test-vela-delete")
+
+	e2e.JsonAppFileContext("json appfile apply", testDeleteJsonAppFile)
+	VelaQLPodListContext("ql", velaQL)
 })
 
 var ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
@@ -226,6 +233,78 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 			output, err = e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
+		})
+	})
+}
+
+type PodList struct {
+	PodList []Pod `form:"podList" json:"podList"`
+}
+
+type Pod struct {
+	Status   Status   `form:"status" json:"status"`
+	Cluster  string   `form:"cluster" json:"cluster"`
+	Metadata Metadata `form:"metadata" json:"metadata"`
+	Workload Workload `form:"workload" json:"workload"`
+}
+
+type Status struct {
+	Phase    string `form:"phase" json:"phase"`
+	NodeName string `form:"nodeName" json:"nodeName"`
+}
+
+type Metadata struct {
+	Namespace string `form:"namespace" json:"namespace"`
+}
+
+type Workload struct {
+	ApiVersion string `form:"apiVersion" json:"apiVersion"`
+	Kind       string `form:"kind" json:"kind"`
+}
+
+var VelaQLPodListContext = func(context string, velaQL string) bool {
+	return ginkgo.Context(context, func() {
+		ginkgo.It("should get successful result for executing vela ql", func() {
+			args := common.Args{
+				Schema: common.Scheme,
+			}
+			ctx := context2.Background()
+
+			k8sClient, err := args.GetClient()
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			componentView := new(corev1.ConfigMap)
+			gomega.Eventually(func(g gomega.Gomega) {
+				g.Expect(common.ReadYamlToObject("./component-pod-view.yaml", componentView)).Should(gomega.BeNil())
+				g.Expect(k8sClient.Create(ctx, componentView)).Should(gomega.Succeed())
+			}, time.Second*3, time.Millisecond*300).Should(gomega.Succeed())
+
+			cli := fmt.Sprintf("vela ql %s", velaQL)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var list PodList
+			err = json.Unmarshal([]byte(output), &list)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			for _, v := range list.PodList {
+				if v.Cluster != "" {
+					gomega.Expect(v.Cluster).To(gomega.ContainSubstring("local"))
+				}
+				if v.Status.Phase != "" {
+					gomega.Expect(v.Status.Phase).To(gomega.ContainSubstring("Running"))
+				}
+				if v.Status.NodeName != "" {
+					gomega.Expect(v.Status.NodeName).To(gomega.ContainSubstring("kind-control-plane"))
+				}
+				if v.Metadata.Namespace != "" {
+					gomega.Expect(v.Metadata.Namespace).To(gomega.ContainSubstring("default"))
+				}
+				if v.Workload.ApiVersion != "" {
+					gomega.Expect(v.Workload.ApiVersion).To(gomega.ContainSubstring("apps/v1"))
+				}
+				if v.Workload.Kind != "" {
+					gomega.Expect(v.Workload.Kind).To(gomega.ContainSubstring("Deployment"))
+				}
+			}
 		})
 	})
 }
