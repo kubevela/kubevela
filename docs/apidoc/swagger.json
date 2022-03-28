@@ -235,6 +235,19 @@
 					{
 						"type": "string",
 						"description": "addon name to query detail",
+						"name": "name",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "specify addon version to enable",
+						"name": "version",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "addon name to query detail",
 						"name": "addonName",
 						"in": "path",
 						"required": true
@@ -5280,6 +5293,13 @@
 				}
 			}
 		},
+		"addon.HelmSource": {
+			"properties": {
+				"url": {
+					"type": "string"
+				}
+			}
+		},
 		"addon.Meta": {
 			"required": [
 				"name",
@@ -6958,6 +6978,9 @@
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
 				},
+				"helm": {
+					"$ref": "#/definitions/addon.HelmSource"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -6973,6 +6996,12 @@
 				"args"
 			],
 			"properties": {
+				"allClusters": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.NameAlias"
+					}
+				},
 				"appStatus": {
 					"$ref": "#/definitions/common.AppStatus"
 				},
@@ -6987,6 +7016,9 @@
 				},
 				"enabling_progress": {
 					"$ref": "#/definitions/v1.EnablingProgress"
+				},
+				"installedVersion": {
+					"type": "string"
 				},
 				"name": {
 					"type": "string"
@@ -7116,12 +7148,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"createTime",
 				"version",
+				"note",
 				"status",
 				"envName",
-				"triggerType",
-				"createTime",
-				"note"
+				"triggerType"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7704,6 +7736,9 @@
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
 				},
+				"helm": {
+					"$ref": "#/definitions/addon.HelmSource"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -8208,16 +8243,23 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"version",
-				"description",
+				"name",
 				"icon",
 				"invisible",
-				"name",
+				"version",
+				"description",
 				"schema",
 				"uiSchema",
-				"definitions"
+				"definitions",
+				"availableVersions"
 			],
 			"properties": {
+				"availableVersions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
 				"definitions": {
 					"type": "array",
 					"items": {
@@ -8285,12 +8327,12 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
 				"alias",
-				"project",
-				"createTime",
-				"updateTime",
 				"description",
+				"createTime",
+				"name",
+				"project",
+				"updateTime",
 				"icon",
 				"policies",
 				"envBindings",
@@ -8352,20 +8394,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"status",
+				"updateTime",
 				"kubeConfig",
-				"createTime",
-				"labels",
+				"name",
+				"icon",
 				"reason",
 				"provider",
-				"kubeConfigSecret",
-				"icon",
-				"name",
-				"alias",
-				"description",
 				"apiServerURL",
 				"dashboardURL",
-				"updateTime",
+				"createTime",
+				"alias",
+				"description",
+				"labels",
+				"status",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8423,14 +8465,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"appPrimaryKey",
-				"main",
-				"creator",
-				"name",
-				"type",
-				"createTime",
 				"updateTime",
+				"appPrimaryKey",
+				"creator",
 				"alias",
+				"name",
+				"main",
+				"createTime",
+				"type",
 				"definition"
 			],
 			"properties": {
@@ -8568,17 +8610,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
+				"envName",
 				"reason",
 				"deployUser",
-				"workflowName",
-				"createTime",
 				"updateTime",
-				"appPrimaryKey",
-				"version",
 				"status",
 				"note",
 				"triggerType",
-				"envName"
+				"workflowName",
+				"createTime",
+				"appPrimaryKey",
+				"version"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -8632,10 +8674,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"name",
 				"createTime",
-				"updateTime",
 				"project",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -8675,11 +8717,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"createTime",
-				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
+				"createTime",
+				"lastLoginTime",
 				"projects",
 				"roles"
 			],
@@ -8777,13 +8819,13 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
+				"description",
 				"enable",
-				"default",
 				"createTime",
 				"updateTime",
+				"name",
 				"alias",
-				"description",
+				"default",
 				"envName"
 			],
 			"properties": {
@@ -8854,6 +8896,9 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"version": {
+					"type": "string"
 				}
 			}
 		},
@@ -9360,11 +9405,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"name",
+				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
-				"name",
-				"email",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -9688,11 +9733,11 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"installID",
 				"enableCollection",
 				"loginType",
-				"createTime",
 				"systemVersion"
 			],
 			"properties": {
@@ -9782,6 +9827,9 @@
 				},
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
+				"helm": {
+					"$ref": "#/definitions/addon.HelmSource"
 				},
 				"oss": {
 					"$ref": "#/definitions/addon.OSSAddonSource"

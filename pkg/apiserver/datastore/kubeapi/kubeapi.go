@@ -330,7 +330,7 @@ func _filterConfigMapByFuzzyQueryOptions(items []corev1.ConfigMap, queries []dat
 	return _items
 }
 
-// TableName() can't return zero value.
+// List will list all database records by select labels according to table name
 func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datastore.ListOptions) ([]datastore.Entity, error) {
 	if entity.TableName() == "" {
 		return nil, datastore.ErrTableNameEmpty
@@ -340,6 +340,10 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	if err != nil {
 		return nil, datastore.NewDBError(err)
 	}
+
+	rq, _ := labels.NewRequirement(MigrateKey, selection.DoesNotExist, []string{"ok"})
+	selector = selector.Add(*rq)
+
 	for k, v := range entity.Index() {
 		rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
 		if err != nil {

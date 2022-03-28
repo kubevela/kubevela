@@ -91,7 +91,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 
 	// Extension
 	RegisterWebService(NewDefinitionWebservice(definitionUsecase, rbacUsecase))
-	RegisterWebService(NewAddonWebService(addonUsecase, rbacUsecase))
+	RegisterWebService(NewAddonWebService(addonUsecase, rbacUsecase, clusterUsecase))
 	RegisterWebService(NewEnabledAddonWebService(addonUsecase, rbacUsecase))
 	RegisterWebService(NewAddonRegistryWebService(addonUsecase, rbacUsecase))
 

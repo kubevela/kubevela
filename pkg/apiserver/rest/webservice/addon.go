@@ -29,10 +29,11 @@ import (
 )
 
 // NewAddonWebService returns addon web service
-func NewAddonWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACUsecase) WebService {
+func NewAddonWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACUsecase, cluster usecase.ClusterUsecase) WebService {
 	return &addonWebService{
-		handler:     u,
-		rbacUsecase: rbacUsecase,
+		handler:        u,
+		rbacUsecase:    rbacUsecase,
+		clusterHandler: cluster,
 	}
 }
 
@@ -45,8 +46,9 @@ func NewEnabledAddonWebService(u usecase.AddonHandler, rbacUsecase usecase.RBACU
 }
 
 type addonWebService struct {
-	rbacUsecase usecase.RBACUsecase
-	handler     usecase.AddonHandler
+	rbacUsecase    usecase.RBACUsecase
+	handler        usecase.AddonHandler
+	clusterHandler usecase.ClusterUsecase
 }
 
 func (s *addonWebService) GetWebService() *restful.WebService {
@@ -217,6 +219,18 @@ func (s *addonWebService) statusAddon(req *restful.Request, res *restful.Respons
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
+	}
+	clusters, err := s.clusterHandler.ListKubeClusters(req.Request.Context(), "", 0, 0)
+	if err == nil {
+		// align the alias here
+		for _, c := range clusters.Clusters {
+			for i := range status.AllClusters {
+				if c.Name == status.AllClusters[i].Name {
+					status.AllClusters[i].Alias = c.Alias
+					break
+				}
+			}
+		}
 	}
 
 	err = res.WriteEntity(*status)
