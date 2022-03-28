@@ -100,7 +100,6 @@ jobs:
           export ALIYUN_ACCESS_KEY_ID=${{ secrets.ALIYUN_ACCESS_KEY_ID }}
           export ALIYUN_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
           export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          make e2e-apiserver-test
 
       - name: Expose Aliyun credentials
         run: |
