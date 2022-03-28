@@ -101,6 +101,7 @@ func NewCommand() *cobra.Command {
 		NewRegistryCommand(ioStream, "6"),
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
+		NewProviderCommand(commandArgs, "10", ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),
