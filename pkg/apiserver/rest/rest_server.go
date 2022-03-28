@@ -129,7 +129,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		Identity: s.cfg.LeaderConfig.ID,
 	}, restCfg, time.Second*10)
 	if err != nil {
-		klog.ErrorS(err, "Unable to setup the resource lock")
+		klog.ErrorS(err, "Unable to setup the resource")
 		return nil, err
 	}
 

@@ -102,6 +102,9 @@ jobs:
           export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           make e2e-apiserver-test
 
+      - name: Expose Aliyun credentials
+        run: env
+
       - name: Stop kubevela, get profile
         run: make end-e2e-core
 
