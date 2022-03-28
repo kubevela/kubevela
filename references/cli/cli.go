@@ -106,7 +106,6 @@ func NewCommand() *cobra.Command {
 		NewUnInstallCommand(commandArgs, "2", ioStream),
 		NewExportCommand(commandArgs, ioStream),
 		NewCUEPackageCommand(commandArgs, ioStream),
-		NewCtrlPlaneCommand(commandArgs, ioStream),
 		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
 
