@@ -76,7 +76,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 
 var defaultPlatformPermission = []*model.PermissionTemplate{
 	{
-		Name:      "cluster-manage",
+		Name:      "cluster-management",
 		Alias:     "Cluster Management",
 		Resources: []string{"cluster:*/*"},
 		Actions:   []string{"*"},
@@ -100,7 +100,7 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "target-manage",
+		Name:      "target-management",
 		Alias:     "Target Management",
 		Resources: []string{"target:*", "cluster:*/namespace:*"},
 		Actions:   []string{"*"},
@@ -108,7 +108,7 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "user-manage",
+		Name:      "user-management",
 		Alias:     "User Management",
 		Resources: []string{"user:*"},
 		Actions:   []string{"*"},
@@ -116,7 +116,7 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Scope:     "platform",
 	},
 	{
-		Name:      "role-manage",
+		Name:      "role-management",
 		Alias:     "Platform Role Management",
 		Resources: []string{"role:*", "permission:*"},
 		Actions:   []string{"*"},
