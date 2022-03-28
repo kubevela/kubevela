@@ -42,7 +42,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := ref.GenerateReferenceDocs(ctx, c, path, types.DefaultKubeVelaNS); err != nil {
+	ref.Remote = &plugins.Remote{Namespace: types.DefaultKubeVelaNS}
+	if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

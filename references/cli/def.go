@@ -457,31 +457,39 @@ func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
 				return fmt.Errorf("please specify definition name or a definition file")
 			}
 
-			var namespace string
-			if !strings.HasSuffix(args[0], ".yaml") {
-				var err error
-				namespace, err = cmd.Flags().GetString(FlagNamespace)
-				if err != nil {
-					return errors.Wrapf(err, "failed to get `%s` or `%s`", Namespace, Local)
+			ref := &plugins.MarkdownReference{}
+			if strings.HasSuffix(args[0], ".yaml") {
+				// read from local file
+				localFilePath := args[0]
+				fileName := filepath.Base(localFilePath)
+				if !strings.HasSuffix(fileName, ".yaml") {
+					return fmt.Errorf("invalid local file path `%s`", localFilePath)
 				}
+				ref.DefinitionName = strings.TrimSuffix(fileName, ".yaml")
+				ref.Local = &plugins.Local{Path: localFilePath}
+			} else {
+				namespace, err := cmd.Flags().GetString(FlagNamespace)
+				if err != nil {
+					return errors.Wrapf(err, "failed to get `%s`", Namespace)
+				}
+				ref.DefinitionName = args[0]
+				ref.Remote = &plugins.Remote{Namespace: namespace}
 			}
 
-			ref := &plugins.MarkdownReference{}
 			ctx := context.Background()
-			ref.DefinitionName = args[0]
 			pathEn := plugins.KubeVelaIOTerraformPath
 			ref.I18N = plugins.En
-			if err := ref.GenerateReferenceDocs(ctx, c, pathEn, namespace); err != nil {
+			if err := ref.GenerateReferenceDocs(ctx, c, pathEn); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
-			cmd.Printf("Generated docs in English for %s in %s/%s.md\n", args[0], pathEn, args[0])
+			cmd.Printf("Generated docs in English for %s in %s/%s.md\n", args[0], pathEn, ref.DefinitionName)
 
 			pathZh := plugins.KubeVelaIOTerraformPathZh
 			ref.I18N = plugins.Zh
-			if err := ref.GenerateReferenceDocs(ctx, c, pathZh, namespace); err != nil {
+			if err := ref.GenerateReferenceDocs(ctx, c, pathZh); err != nil {
 				return errors.Wrap(err, "failed to generate reference docs")
 			}
-			cmd.Printf("Generated docs in Chinese for %s in %s/%s.md\n", args[0], pathZh, args[0])
+			cmd.Printf("Generated docs in Chinese for %s in %s/%s.md\n", args[0], pathZh, ref.DefinitionName)
 
 			return nil
 		},
