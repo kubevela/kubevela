@@ -28,20 +28,20 @@ var ErrProjectNamespaceFail = NewBcode(400, 30003, "project bind namespace failu
 // ErrProjectNamespaceIsExist the namespace belongs to the other project
 var ErrProjectNamespaceIsExist = NewBcode(400, 30004, "the namespace belongs to the other project")
 
-// ErrProjectDenyDeleteByApplication the project cannot be deleted because there are some applications
-var ErrProjectDenyDeleteByApplication = NewBcode(400, 30005, "the project cannot be deleted because there are some applications")
+// ErrProjectDenyDeleteByApplication the project can't be deleted as there are applications inside
+var ErrProjectDenyDeleteByApplication = NewBcode(400, 30005, "the project can't be deleted as there are applications inside")
 
-// ErrProjectDenyDeleteByEnvironment the project cannot be deleted because there are some environments
-var ErrProjectDenyDeleteByEnvironment = NewBcode(400, 30006, "the project cannot be deleted because there are some environments")
+// ErrProjectDenyDeleteByEnvironment the project can't be deleted because there are environments inside
+var ErrProjectDenyDeleteByEnvironment = NewBcode(400, 30006, "the project can't be deleted before you clean up all the environments inside")
 
-// ErrProjectDenyDeleteByTarget the project cannot be deleted because there are some targets
-var ErrProjectDenyDeleteByTarget = NewBcode(400, 30007, "the project cannot be deleted because there are some targets")
+// ErrProjectDenyDeleteByTarget the project can't be deleted as there are targets inside
+var ErrProjectDenyDeleteByTarget = NewBcode(400, 30007, "the project can't be deleted before you clean up all these targets inside")
 
-// ErrProjectRoleCheckFailure means role is not exit or role is not belong to this project.
-var ErrProjectRoleCheckFailure = NewBcode(400, 30008, "the role is not exit or not belong to this project")
+// ErrProjectRoleCheckFailure means the specified role does't belong to this project or not exist
+var ErrProjectRoleCheckFailure = NewBcode(400, 30008, "the specified role does't belong to this project or not exist")
 
-// ErrProjectUserExist means the use is exit in this project
-var ErrProjectUserExist = NewBcode(400, 30009, "the use is exit in this project")
+// ErrProjectUserExist means the user is already exist in this project
+var ErrProjectUserExist = NewBcode(400, 30009, "the user is already exist in this project")
 
-// ErrProjectOwnerIsNotExist means the owner is invalid
-var ErrProjectOwnerIsNotExist = NewBcode(400, 30010, "the project owner is invalid")
+// ErrProjectOwnerIsNotExist means the project owner name is invalid
+var ErrProjectOwnerIsNotExist = NewBcode(400, 30010, "the project owner name is invalid")

@@ -203,7 +203,7 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err != nil {
 		return nil, err
 	}
-	// TODO: validate the roles, them must all are platform role
+	// TODO: validate the roles, they must be platform roles
 	user := &model.User{
 		Name:      req.Name,
 		Alias:     req.Alias,
@@ -243,7 +243,7 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 		}
 		user.Email = req.Email
 	}
-	// TODO: validate the roles, them must all are platform role
+	// TODO: validate the roles, they must be platform roles
 	if req.Roles != nil {
 		user.UserRoles = *req.Roles
 	}
