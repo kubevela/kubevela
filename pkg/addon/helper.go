@@ -141,7 +141,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	}
 
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
-		return Status{AddonPhase: suspend, AppStatus: &app.Status, Clusters: clusters}, nil
+		return Status{AddonPhase: suspend, AppStatus: &app.Status, Clusters: clusters, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
 	}
 	switch app.Status.Phase {
 	case commontypes.ApplicationRunning:

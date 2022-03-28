@@ -186,16 +186,6 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	if err != nil {
 		return nil, bcode.ErrGetAddonApplication
 	}
-
-	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
-		return &apis.AddonStatusResponse{
-			AddonBaseStatus: apis.AddonBaseStatus{
-				Name:  name,
-				Phase: apis.AddonPhase(status.AddonPhase),
-			},
-		}, nil
-	}
-
 	var allClusters []apis.NameAlias
 	clusters, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
 	if err != nil {
@@ -205,6 +195,17 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	for _, c := range clusters {
 		allClusters = append(allClusters, apis.NameAlias{Name: c.Name, Alias: c.Name})
 	}
+	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
+		return &apis.AddonStatusResponse{
+			AddonBaseStatus: apis.AddonBaseStatus{
+				Name:  name,
+				Phase: apis.AddonPhase(status.AddonPhase),
+			},
+			InstalledVersion: status.InstalledVersion,
+			AllClusters:      allClusters,
+		}, nil
+	}
+
 	res := apis.AddonStatusResponse{
 		AddonBaseStatus: apis.AddonBaseStatus{
 			Name:  name,
