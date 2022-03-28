@@ -124,8 +124,8 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	for i, v := range versions {
 		if v.Version == version {
 			addonVersion = versions[i]
-			availableVersions = append(availableVersions, v.Version)
 		}
+		availableVersions = append(availableVersions, v.Version)
 	}
 	if addonVersion == nil {
 		return nil, nil
