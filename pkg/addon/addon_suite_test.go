@@ -319,7 +319,7 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		Expect(err).Should(BeNil())
 		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: "specified-addon-clusters",
 			Type:       v1alpha12.TopologyPolicyType,
-			Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["add-c1","add-c2"]}`)}}}))
+			Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["add-c1","add-c2","local"]}`)}}}))
 	})
 })
 
