@@ -29,4 +29,8 @@ var (
 	ErrUserInvalidPassword = NewBcode(400, 14005, "the password is invalid")
 	// ErrDexConfigNotFound means the dex config is not configured
 	ErrDexConfigNotFound = NewBcode(200, 14006, "the dex config is not found")
+	// ErrUserInconsistentPassword is the error of user inconsistent password
+	ErrUserInconsistentPassword = NewBcode(401, 14007, "the password is inconsistent with the user")
+	// ErrUsernameNotExist is the error of username not exist
+	ErrUsernameNotExist = NewBcode(401, 14008, "the username is not exist")
 )
