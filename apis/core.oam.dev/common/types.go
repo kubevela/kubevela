@@ -622,3 +622,17 @@ func ParseApplicationConditionType(s string) (ApplicationConditionType, error) {
 	}
 	return -1, errors.New("unknown condition type")
 }
+
+// ReferredObject the referred Kubernetes object
+type ReferredObject struct {
+	// +kubebuilder:validation:EmbeddedResource
+	// +kubebuilder:pruning:PreserveUnknownFields
+	runtime.RawExtension `json:",inline"`
+}
+
+// ReferredObjectList a list of referred Kubernetes objects
+type ReferredObjectList struct {
+	// Objects a list of Kubernetes objects.
+	// +optional
+	Objects []ReferredObject `json:"objects,omitempty"`
+}

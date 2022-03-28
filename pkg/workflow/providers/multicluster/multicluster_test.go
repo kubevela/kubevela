@@ -515,7 +515,7 @@ func TestListClusters(t *testing.T) {
 }
 
 func TestExpandTopology(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpecCompatible, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpec, true)()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

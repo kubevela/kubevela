@@ -18,11 +18,14 @@ package appfile
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -39,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -125,6 +130,9 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	}
 	if err = p.parsePolicies(ctx, appfile); err != nil {
 		return nil, errors.Wrapf(err, "failed to parsePolicies")
+	}
+	if err = p.parseReferredObjects(ctx, appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseReferredObjects")
 	}
 
 	for _, w := range wds {
@@ -265,7 +273,10 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		return nil, errors.Wrapf(err, "failed to parseWorkflowStepsFromRevision")
 	}
 	if err := p.parsePoliciesFromRevision(context.Background(), appfile); err != nil {
-		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+		return nil, errors.Wrapf(err, "failed to parsePolicies")
+	}
+	if err := p.parseReferredObjectsFromRevision(appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseReferredObjects")
 	}
 
 	for k, v := range appRev.Spec.ComponentDefinitions {
@@ -282,6 +293,44 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	}
 
 	return appfile, nil
+}
+
+func (p *Parser) parseReferredObjectsFromRevision(af *Appfile) error {
+	af.ReferredObjects = []*unstructured.Unstructured{}
+	for _, obj := range af.AppRevision.Spec.ReferredObjects {
+		un := &unstructured.Unstructured{}
+		if err := json.Unmarshal(obj.Raw, un); err != nil {
+			return errors.Errorf("failed to unmarshal referred objects %s", obj.Raw)
+		}
+		af.ReferredObjects = append(af.ReferredObjects, un)
+	}
+	return nil
+}
+
+func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
+	for _, comp := range af.Components {
+		if comp.Type != v1alpha1.RefObjectsComponentType {
+			return nil
+		}
+		spec := &v1alpha1.RefObjectsComponentSpec{}
+		if err := utils.StrictUnmarshal(comp.Properties.Raw, spec); err != nil {
+			return errors.Wrapf(err, "invalid properties for ref-objects in component %s", comp.Name)
+		}
+		for _, selector := range spec.Objects {
+			objs, err := component.SelectRefObjectsForDispatch(ctx, p.client, af.app.GetNamespace(), comp.Name, selector)
+			if err != nil {
+				return err
+			}
+			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
+		}
+	}
+	sort.Slice(af.ReferredObjects, func(i, j int) bool {
+		a, b := af.ReferredObjects[i], af.ReferredObjects[j]
+		keyA := a.GroupVersionKind().String() + "|" + client.ObjectKeyFromObject(a).String()
+		keyB := b.GroupVersionKind().String() + "|" + client.ObjectKeyFromObject(b).String()
+		return keyA < keyB
+	})
+	return nil
 }
 
 func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (err error) {
