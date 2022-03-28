@@ -6,3 +6,5 @@ coverage:
     patch:
       default:
         target: 70%
+ignore:
+  - "**/zz_generated.deepcopy.go"
