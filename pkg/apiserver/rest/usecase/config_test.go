@@ -101,8 +101,9 @@ func TestListConfigTypes(t *testing.T) {
 			want: want{
 				configTypes: []*apis.ConfigType{
 					{
-						Name:  "def2",
-						Alias: "Def2",
+						Name:        "def2",
+						Alias:       "Def2",
+						Definitions: []string{"def2"},
 					},
 					{
 						Alias: "Terraform Cloud Provider",
