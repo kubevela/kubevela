@@ -1,0 +1,36 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: livediff-demo
+  namespace: default
+spec:
+  components:
+    - name: myweb-1
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 80
+        - type: myscaler
+          properties:
+            replicas: 2
+    - name: myweb-3
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+  workflow:
+    ref: deploy-livediff-demo

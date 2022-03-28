@@ -1,0 +1,7 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Policy
+metadata:
+  name: topology-local
+type: topology
+properties:
+  clusters: [ "local" ]

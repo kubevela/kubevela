@@ -20,13 +20,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
@@ -238,7 +247,7 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 				return err
 			}
 
-			err = rollbackWorkflow(client, app)
+			err = rollbackWorkflow(cmd, client, app)
 			if err != nil {
 				return err
 			}
@@ -250,13 +259,18 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 }
 
 func suspendWorkflow(kubecli client.Client, app *v1beta1.Application) error {
-	// set the workflow suspend to true
-	app.Status.Workflow.Suspend = true
-
-	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
+	appKey := client.ObjectKeyFromObject(app)
+	ctx := context.Background()
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err := kubecli.Get(ctx, appKey, app); err != nil {
+			return err
+		}
+		// set the workflow suspend to true
+		app.Status.Workflow.Suspend = true
+		return kubecli.Status().Patch(ctx, app, client.Merge)
+	}); err != nil {
 		return err
 	}
-
 	fmt.Printf("Successfully suspend workflow: %s\n", app.Name)
 	return nil
 }
@@ -297,7 +311,10 @@ func restartWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	return nil
 }
 
-func rollbackWorkflow(kubecli client.Client, app *v1beta1.Application) error {
+func rollbackWorkflow(cmd *cobra.Command, kubecli client.Client, app *v1beta1.Application) error {
+	if oam.GetPublishVersion(app) != "" {
+		return rollbackApplicationWithPublishVersion(cmd, kubecli, app)
+	}
 	if app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == "" {
 		return fmt.Errorf("the latest revision is not set: %s", app.Name)
 	}
@@ -313,5 +330,138 @@ func rollbackWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	}
 
 	fmt.Printf("Successfully rollback workflow to the latest revision: %s\n", app.Name)
+	return nil
+}
+
+func rollbackApplicationWithPublishVersion(cmd *cobra.Command, cli client.Client, app *v1beta1.Application) error {
+	ctx := context.Background()
+	appRevs, err := application.GetSortedAppRevisions(ctx, cli, app.Name, app.Namespace)
+	if err != nil {
+		return errors.Wrapf(err, "failed to list revisions for application %s/%s", app.Namespace, app.Name)
+	}
+
+	// find succeeded revision to rollback
+	var rev *v1beta1.ApplicationRevision
+	var outdatedRev []*v1beta1.ApplicationRevision
+	for i := range appRevs {
+		candidate := appRevs[len(appRevs)-i-1]
+		_rev := candidate.DeepCopy()
+		if !candidate.Status.Succeeded || oam.GetPublishVersion(_rev) == "" {
+			outdatedRev = append(outdatedRev, _rev)
+			continue
+		}
+		rev = _rev
+		break
+	}
+	if rev == nil {
+		return errors.Errorf("failed to find previous succeeded revision for application %s/%s", app.Namespace, app.Name)
+	}
+	publishVersion := oam.GetPublishVersion(rev)
+	revisionNumber, err := utils.ExtractRevision(rev.Name)
+	if err != nil {
+		return errors.Wrapf(err, "failed to extract revision number from revision %s", rev.Name)
+	}
+	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	if err != nil {
+		return errors.Wrapf(err, "failed to list resource trackers for application %s/%s", app.Namespace, app.Name)
+	}
+	var matchRT *v1beta1.ResourceTracker
+	for _, rt := range append(historyRTs, currentRT) {
+		if rt == nil {
+			continue
+		}
+		labels := rt.GetLabels()
+		if labels != nil && labels[oam.LabelAppRevision] == rev.Name {
+			matchRT = rt.DeepCopy()
+		}
+	}
+	if matchRT == nil {
+		return errors.Errorf("cannot find resource tracker for previous revision %s, unable to rollback", rev.Name)
+	}
+	if matchRT.DeletionTimestamp != nil {
+		return errors.Errorf("previous revision %s is being recycled, unable to rollback", rev.Name)
+	}
+	cmd.Printf("Find succeeded application revision %s (PublishVersion: %s) to rollback.\n", rev.Name, publishVersion)
+
+	appKey := client.ObjectKeyFromObject(app)
+	var controllerRequirement string
+	// rollback application spec and freeze
+	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err = cli.Get(ctx, appKey, app); err != nil {
+			return err
+		}
+		v1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationPublishVersion, publishVersion)
+		controllerRequirement = app.GetAnnotations()[oam.AnnotationControllerRequirement]
+		v1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationControllerRequirement, "Not Available")
+		app.Spec = rev.Spec.Application.Spec
+		return cli.Update(ctx, app)
+	}); err != nil {
+		return errors.Wrapf(err, "failed to rollback application spec to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
+	}
+	cmd.Printf("Application spec rollback successfully.\n")
+
+	// rollback application status
+	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err = cli.Get(ctx, appKey, app); err != nil {
+			return err
+		}
+		app.Status.Workflow = rev.Status.Workflow
+		app.Status.Services = []oamcommon.ApplicationComponentStatus{}
+		app.Status.AppliedResources = []oamcommon.ClusterObjectReference{}
+		for _, rsc := range matchRT.Spec.ManagedResources {
+			app.Status.AppliedResources = append(app.Status.AppliedResources, rsc.ClusterObjectReference)
+		}
+		app.Status.LatestRevision = &oamcommon.Revision{
+			Name:         rev.Name,
+			Revision:     int64(revisionNumber),
+			RevisionHash: rev.GetLabels()[oam.LabelAppRevisionHash],
+		}
+		return cli.Status().Update(ctx, app)
+	}); err != nil {
+		return errors.Wrapf(err, "failed to rollback application status to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
+	}
+	cmd.Printf("Application status rollback successfully.\n")
+
+	// update resource tracker generation
+	matchRTKey := client.ObjectKeyFromObject(matchRT)
+	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err = cli.Get(ctx, matchRTKey, matchRT); err != nil {
+			return err
+		}
+		matchRT.Spec.ApplicationGeneration = app.Generation
+		return cli.Update(ctx, matchRT)
+	}); err != nil {
+		return errors.Wrapf(err, "failed to update application generation in resource tracker")
+	}
+
+	// unfreeze application
+	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err = cli.Get(ctx, appKey, app); err != nil {
+			return err
+		}
+		annotations := app.GetAnnotations()
+		if controllerRequirement != "" {
+			annotations[oam.AnnotationControllerRequirement] = controllerRequirement
+		} else {
+			delete(annotations, oam.AnnotationControllerRequirement)
+		}
+		app.SetAnnotations(annotations)
+		return cli.Update(ctx, app)
+	}); err != nil {
+		return errors.Wrapf(err, "failed to resume application to restart")
+	}
+	cmd.Printf("Application rollback completed.\n")
+
+	// clean up outdated revisions
+	var errs velaerrors.ErrorList
+	for _, _rev := range outdatedRev {
+		if err = cli.Delete(ctx, _rev); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if errs.HasError() {
+		return errors.Wrapf(errs, "failed to clean up outdated revisions")
+	}
+	cmd.Printf("Application outdated revision cleaned up.\n")
 	return nil
 }

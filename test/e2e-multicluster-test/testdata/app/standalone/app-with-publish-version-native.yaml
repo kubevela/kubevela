@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: busybox
+  annotations:
+    app.oam.dev/publishVersion: alpha1
+spec:
+  components:
+    - name: busybox
+      type: webservice
+      properties:
+        image: busybox
+        cmd: [ "sleep", "86400" ]
+  workflow:
+    ref: deploy-worker

@@ -125,7 +125,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
-	appFile, err := parser.GenerateAppFile(ctx, app)
+	appFile, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
