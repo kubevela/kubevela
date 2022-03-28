@@ -19,7 +19,6 @@ package usecase
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -276,10 +275,10 @@ func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.D
 
 	if err := yaml.Unmarshal(secret.Data[secretDexConfigKey], &config); err != nil {
 		log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
-		return nil, err
+		return nil, bcode.ErrInvalidDexConfig
 	}
 	if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
-		return nil, fmt.Errorf("invalid dex config")
+		return nil, bcode.ErrInvalidDexConfig
 	}
 	return &apisv1.DexConfigResponse{
 		Issuer:       config.Issuer,
@@ -343,6 +342,9 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	user, err := l.userUsecase.GetUser(ctx, l.username)
 	if err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, bcode.ErrUsernameNotExist
+		}
 		return nil, err
 	}
 	if err := compareHashWithPassword(user.Password, l.password); err != nil {

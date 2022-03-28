@@ -33,4 +33,6 @@ var (
 	ErrNotAccessToken = NewBcode(401, 12007, "the token is not an access token")
 	// ErrInvalidLoginRequest is the error of invalid login request
 	ErrInvalidLoginRequest = NewBcode(400, 12008, "the login request is invalid")
+	// ErrInvalidDexConfig is the error of invalid dex config
+	ErrInvalidDexConfig = NewBcode(400, 12009, "the dex config is invalid")
 )

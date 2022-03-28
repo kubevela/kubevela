@@ -429,5 +429,9 @@ func GeneratePasswordHash(s string) (string, error) {
 }
 
 func compareHashWithPassword(hash, password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+		return bcode.ErrUserInconsistentPassword
+	}
+	return err
 }
