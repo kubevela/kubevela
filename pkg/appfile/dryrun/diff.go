@@ -146,9 +146,19 @@ func (l *LiveDiffOption) RenderlessDiff(ctx context.Context, base, comparor Live
 		}
 		if af.ExternalWorkflow != nil {
 			if bs, err = marshalObject(af.ExternalWorkflow); err == nil {
-				m.Subs = append(m.Subs, &manifest{Name: af.Name, Kind: WorkflowKind, Data: string(bs)})
+				m.Subs = append(m.Subs, &manifest{Name: af.ExternalWorkflow.Name, Kind: WorkflowKind, Data: string(bs)})
 			} else {
-				m.Subs = append(m.Subs, &manifest{Name: af.Name, Kind: WorkflowKind, Data: "Error: " + errors.Wrapf(err, "failed to marshal external workflow %s", af.ExternalWorkflow.Name).Error()})
+				m.Subs = append(m.Subs, &manifest{Name: af.ExternalWorkflow.Name, Kind: WorkflowKind, Data: "Error: " + errors.Wrapf(err, "failed to marshal external workflow %s", af.ExternalWorkflow.Name).Error()})
+			}
+		}
+		if af.ReferredObjects != nil {
+			for _, refObj := range af.ReferredObjects {
+				manifestName := fmt.Sprintf("%s %s %s", refObj.GetAPIVersion(), refObj.GetKind(), client.ObjectKeyFromObject(refObj).String())
+				if bs, err = marshalObject(refObj); err == nil {
+					m.Subs = append(m.Subs, &manifest{Name: manifestName, Kind: ReferredObject, Data: string(bs)})
+				} else {
+					m.Subs = append(m.Subs, &manifest{Name: manifestName, Kind: ReferredObject, Data: "Error: " + errors.Wrapf(err, "failed to marshal referred object").Error()})
+				}
 			}
 		}
 		return m, nil

@@ -310,7 +310,7 @@ func (p *Parser) parseReferredObjectsFromRevision(af *Appfile) error {
 func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 	for _, comp := range af.Components {
 		if comp.Type != v1alpha1.RefObjectsComponentType {
-			return nil
+			continue
 		}
 		spec := &v1alpha1.RefObjectsComponentSpec{}
 		if err := utils.StrictUnmarshal(comp.Properties.Raw, spec); err != nil {

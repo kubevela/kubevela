@@ -186,7 +186,8 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		By("Apply application successfully")
 		applyFile("topology-policy.yaml")
 		applyFile("workflow-deploy-worker.yaml")
-		applyFile("app-with-publish-version-native.yaml")
+		applyFile("deployment-busybox.yaml")
+		applyFile("app-with-publish-version-busybox.yaml")
 		app := &v1beta1.Application{}
 		appKey := types.NamespacedName{Namespace: namespace, Name: "busybox"}
 		Eventually(func(g Gomega) {
@@ -229,20 +230,30 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(k8sClient.Update(hubCtx, policy)).Should(Succeed())
 		}, 30*time.Second).Should(Succeed())
 
+		By("Change referred objects")
+		Eventually(func(g Gomega) {
+			deploy := &v1.Deployment{}
+			g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "busybox-ref"}, deploy)).Should(Succeed())
+			deploy.Spec.Replicas = pointer.Int32(1)
+			g.Expect(k8sClient.Update(hubCtx, deploy)).Should(Succeed())
+		}, 30*time.Second).Should(Succeed())
+
 		By("Live-diff application")
 		outputs, err := execCommand("live-diff", "-r", "busybox-v3,busybox-v1", "-n", namespace)
 		Expect(err).Should(Succeed())
 		Expect(outputs).Should(SatisfyAll(
 			ContainSubstring("Application (busybox) has been modified(*)"),
 			ContainSubstring("External Policy (topology-worker) has no change"),
-			ContainSubstring("External Workflow (busybox) has no change"),
+			ContainSubstring("External Workflow (deploy-worker) has no change"),
+			ContainSubstring(fmt.Sprintf("Referred Object (apps/v1 Deployment %s/busybox-ref) has no change", namespace)),
 		))
 		outputs, err = execCommand("live-diff", "busybox", "-n", namespace)
 		Expect(err).Should(Succeed())
 		Expect(outputs).Should(SatisfyAll(
 			ContainSubstring("Application (busybox) has no change"),
 			ContainSubstring("External Policy (topology-worker) has been modified(*)"),
-			ContainSubstring("External Workflow (busybox) has no change"),
+			ContainSubstring("External Workflow (deploy-worker) has no change"),
+			ContainSubstring(fmt.Sprintf("Referred Object (apps/v1 Deployment %s/busybox-ref) has been modified", namespace)),
 		))
 
 		By("Rollback application")
@@ -257,6 +268,8 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			deploy := &v1.Deployment{}
 			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox"}, deploy)).Should(Succeed())
 			g.Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox"))
+			g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: namespace, Name: "busybox-ref"}, deploy)).Should(Succeed())
+			g.Expect(deploy.Spec.Replicas).Should(Equal(pointer.Int32(0)))
 			revs, err := application.GetSortedAppRevisions(hubCtx, k8sClient, app.Name, namespace)
 			g.Expect(err).Should(Succeed())
 			g.Expect(len(revs)).Should(Equal(1))
