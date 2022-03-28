@@ -188,6 +188,9 @@ func (s *addonWebService) enableAddon(req *restful.Request, res *restful.Respons
 		}
 	}
 	if createReq.Clusters != nil {
+		if createReq.Args == nil {
+			createReq.Args = make(map[string]interface{})
+		}
 		createReq.Args[types.ClustersArg] = createReq.Clusters
 	}
 
@@ -256,6 +259,9 @@ func (s *addonWebService) updateAddon(req *restful.Request, res *restful.Respons
 		}
 	}
 	if createReq.Clusters != nil {
+		if createReq.Args == nil {
+			createReq.Args = make(map[string]interface{})
+		}
 		createReq.Args[types.ClustersArg] = createReq.Clusters
 	}
 

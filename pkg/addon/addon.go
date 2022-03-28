@@ -666,6 +666,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 				Type:       v1alpha1.TopologyPolicyType,
 				Properties: &runtime.RawExtension{Raw: body},
 			})
+			app.Spec.Workflow = &v1beta1.Workflow{}
 		} else {
 			// deploy to all clusters
 			app.Spec.Workflow = &v1beta1.Workflow{Steps: []v1beta1.WorkflowStep{

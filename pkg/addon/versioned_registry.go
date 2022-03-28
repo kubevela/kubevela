@@ -75,7 +75,7 @@ func (i *versionedRegistry) GetAddonUIData(ctx context.Context, addonName, versi
 }
 
 func (i *versionedRegistry) GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error) {
-	wholePackage, err := i.loadAddon(context.Background(), addonName, version)
+	wholePackage, err := i.loadAddon(ctx, addonName, version)
 	if err != nil {
 		return nil, err
 	}
@@ -117,18 +117,18 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	var addonVersion *repo.ChartVersion
 	sort.Sort(sort.Reverse(versions))
 	if len(version) == 0 {
-		// if not specify version will always use latest version
+		// if not specify version will always use the latest version
 		addonVersion = versions[0]
 	}
 	var availableVersions []string
 	for i, v := range versions {
+		availableVersions = append(availableVersions, v.Version)
 		if v.Version == version {
 			addonVersion = versions[i]
-			availableVersions = append(availableVersions, v.Version)
 		}
 	}
 	if addonVersion == nil {
-		return nil, nil
+		return nil, fmt.Errorf("specified version %s not exist", version)
 	}
 	for _, chartURL := range addonVersion.URLs {
 		archive, err := common.HTTPGet(ctx, chartURL)

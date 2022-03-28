@@ -197,12 +197,12 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	}
 
 	var allClusters []apis.NameAlias
-	clusers, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
+	clusters, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
 	if err != nil {
 		log.Logger.Errorf("err while list all clusters: %v", err)
 	}
 
-	for _, c := range clusers {
+	for _, c := range clusters {
 		allClusters = append(allClusters, apis.NameAlias{Name: c.Name, Alias: c.Name})
 	}
 	res := apis.AddonStatusResponse{
@@ -216,9 +216,6 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		AllClusters:      allClusters,
 	}
 
-	if res.Phase != apis.AddonPhaseEnabled {
-		return &res, nil
-	}
 	var sec v1.Secret
 	err = u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
@@ -392,6 +389,11 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			// one registry return addon not exist error, should not break other registry func
 			continue
+		}
+		if strings.Contains(err.Error(), "specified version") {
+			berr := bcode.ErrAddonInvalidVersion
+			berr.Message = err.Error()
+			return berr
 		}
 
 		// wrap this error with special bcode
