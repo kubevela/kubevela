@@ -104,8 +104,9 @@ func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string
 			continue
 		}
 		types = append(types, &apis.ConfigType{
-			Alias: d.Annotations[definitionAlias],
-			Name:  d.Name,
+			Alias:       d.Annotations[definitionAlias],
+			Name:        d.Name,
+			Definitions: []string{d.Name},
 		})
 	}
 
