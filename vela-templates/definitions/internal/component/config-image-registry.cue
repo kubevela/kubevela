@@ -22,26 +22,27 @@ template: {
 		apiVersion: "v1"
 		kind:       "Secret"
 		metadata: {
-			name:      parameter.name
+			name:      context.name
 			namespace: context.namespace
 			labels: {
 				"config.oam.dev/catalog":       "velacore-config"
 				"config.oam.dev/type":          "image-registry"
 				"config.oam.dev/multi-cluster": "true"
 				"config.oam.dev/identifier":    parameter.registry
+				"config.oam.dev/sub-type":      "auth"
 			}
 		}
 		type: "kubernetes.io/dockerconfigjson"
 		stringData: {
-			if parameter.type == "account" {
+			if parameter.auth != _|_ {
 				".dockerconfigjson": json.Marshal({
 					"auths": "\(parameter.registry)": {
-						"username": parameter.username
-						"password": parameter.password
-						if parameter.email != _|_ {
-							"email": parameter.email
+						"username": parameter.auth.username
+						"password": parameter.auth.password
+						if parameter.auth.email != _|_ {
+							"email": parameter.auth.email
 						}
-						"auth": base64.Encode(null, (parameter.username + ":" + parameter.password))
+						"auth": base64.Encode(null, (parameter.auth.username + ":" + parameter.auth.password))
 					}
 				})
 			}
@@ -49,13 +50,10 @@ template: {
 	}
 
 	parameter: {
-		// +usage=Config name
-		name: string
-		// +usage=Private Image registry FQDN
+		// +usage=Image registry FQDN
 		registry: string
-		// +usage=Config type
-		type: "account"
-		auth ?: {
+		// +usage=Authenticate the image registry
+		auth?: {
 			// +usage=Private Image registry username
 			username: string
 			// +usage=Private Image registry password

@@ -8,8 +8,8 @@ spec:
     - name: dev
       type: config-dex-connector
       properties:
-        name: dex-connector-dev
         type: github
-        clientID: "aa"
-        clientSecret: "bb"
-        callbackURL: "http://localhost:8080/callback"
+        github:
+          clientID: "aa"
+          clientSecret: "bb"
+          callbackURL: "http://localhost:8080/callback"

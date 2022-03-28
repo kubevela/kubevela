@@ -8,9 +8,8 @@ spec:
     - name: account-auth
       type: config-image-registry
       properties:
-        name: image-registry-dev
-        type: account
         registry: "registry.cn-beijing.aliyuncs.com"
-        username: "xxx"
-        password: "PfwrjwifjFaked"
-        email: "a@gmail.com"
+        auth:
+          username: "xxx"
+          password: "PfwrjwifjFaked"
+          email: "a@gmail.com"

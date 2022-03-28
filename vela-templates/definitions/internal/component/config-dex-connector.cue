@@ -24,34 +24,23 @@ template: {
 				"config.oam.dev/type":          "dex-connector"
 				"config.oam.dev/multi-cluster": "false"
 				"config.oam.dev/identifier":    parameter.name
+				"config.oam.dev/sub-type":      parameter.type
 			}
 		}
 		type: "Opaque"
 
 		if parameter.type == "github" {
-			stringData: {
-				clientID:     parameter.clientID
-				clientSecret: parameter.clientSecret
-				callbackURL:  parameter.callbackURL
-			}
+			stringData: parameter.github
 		}
 		if parameter.type == "ldap" {
-			stringData: {
-				host:               parameter.host
-				insecureNoSSL:      parameter.insecureNoSSL
-				insecureSkipVerify: parameter.insecureSkipVerify
-				startTLS:           parameter.startTLS
-				userSearch:         parameter.userSearch
-			}
+			stringData: parameter.ldap
 		}
 	}
 
 	parameter: {
-		// +usage=Config name
-		name: string
 		// +usage=Config type
 		type: "github" | "ldap"
-		if type == "github" {
+		github?: {
 			// +usage=GitHub client ID
 			clientID: string
 			// +usage=GitHub client secret
@@ -59,7 +48,7 @@ template: {
 			// +usage=GitHub call back URL
 			callbackURL: string
 		}
-		if type == "ldap" {
+		ldap?: {
 			host:               string
 			insecureNoSSL:      *true | bool
 			insecureSkipVerify: bool
