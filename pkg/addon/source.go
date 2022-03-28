@@ -63,6 +63,7 @@ type GiteeAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
+// HelmSource  defines the information about the helm repo addon source
 type HelmSource struct {
 	URL string `json:"url,omitempty" validate:"required"`
 }

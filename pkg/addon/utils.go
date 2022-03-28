@@ -220,9 +220,7 @@ func usingAppsInfo(apps []v1beta1.Application) string {
 	return res
 }
 
+// IsVersionRegistry  check the repo source if support multi-version addon
 func IsVersionRegistry(r Registry) bool {
-	if r.Helm != nil {
-		return true
-	}
-	return false
+	return r.Helm != nil
 }

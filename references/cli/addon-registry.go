@@ -198,7 +198,7 @@ func listAddonRegistry(ctx context.Context, c common.Args) error {
 			repoURL = fmt.Sprintf("%s/tree/master/%s", registry.Gitee.URL, registry.Gitee.Path)
 		case registry.Helm != nil:
 			repoType = "helm"
-			repoURL = fmt.Sprintf("%s", registry.Helm.URL)
+			repoURL = registry.Helm.URL
 		}
 		table.AddRow(registry.Name, repoType, repoURL)
 	}

@@ -7,10 +7,8 @@ data:
   registries: '{
   "KubeVela":{
     "name": "KubeVela",
-    "oss": {
-      "end_point": "https://addons.kubevela.net",
-      "bucket": "",
-      "path": ""
+    "helm": {
+      "url": "https://addons.kubevela.net",
     }
   }
 }'

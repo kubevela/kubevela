@@ -186,6 +186,7 @@ func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool) 
 	return i.Entries[chartName], nil
 }
 
+// GetIndexInfo get index.yaml form given repo url
 func (h *Helper) GetIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, error) {
 	if h.cache != nil && !skipCache {
 		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {

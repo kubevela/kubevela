@@ -22,23 +22,25 @@ import (
 	"fmt"
 	"sort"
 
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
-	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// VersionedRegistry is the interface of support version registry
 type VersionedRegistry interface {
 	ListAddon() ([]*UIData, error)
 	GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error)
 	GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error)
 }
 
-func BuildVersionedRegistry(name, repoUrl string) VersionedRegistry {
+// BuildVersionedRegistry is build versioned addon registry
+func BuildVersionedRegistry(name, repoURL string) VersionedRegistry {
 	return &versionedRegistry{
 		name: name,
-		url:  repoUrl,
+		url:  repoURL,
 		h:    helm.NewHelperWithCache(),
 	}
 }
@@ -137,7 +139,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		if err != nil {
 			continue
 		}
-		addonPkg, err := loadAddonPackage(ctx, name, bufferedFile)
+		addonPkg, err := loadAddonPackage(name, bufferedFile)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +149,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	return nil, fmt.Errorf("cannot fetch addon package")
 }
 
-func loadAddonPackage(ctx context.Context, addonName string, files []*loader.BufferedFile) (*WholeAddonPackage, error) {
+func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAddonPackage, error) {
 	mr := MemoryReader{Name: addonName, Files: files}
 	metas, err := mr.ListAddonMeta()
 	if err != nil {

@@ -23,12 +23,14 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// MemoryReader is async reader for memory data
 type MemoryReader struct {
 	Name     string
 	Files    []*loader.BufferedFile
 	fileData map[string]string
 }
 
+// ListAddonMeta list all metadata of helm repo registry
 func (l *MemoryReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	metas := SourceMeta{Name: l.Name}
 	for _, f := range l.Files {
@@ -41,11 +43,15 @@ func (l *MemoryReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	return map[string]SourceMeta{l.Name: metas}, nil
 }
 
+// ReadFile ready file from memory
 func (l *MemoryReader) ReadFile(path string) (string, error) {
-	return l.fileData[path], nil
-	//return l.fileData[strings.TrimPrefix(path, l.Name+"/")], nil
+	if file, ok := l.fileData[path]; ok {
+		return file, nil
+	}
+	return l.fileData[strings.TrimPrefix(path, l.Name+"/")], nil
 }
 
+// RelativePath calculate the relative path of one file
 func (l *MemoryReader) RelativePath(item Item) string {
 	if strings.HasPrefix(item.GetName(), l.Name) {
 		return item.GetName()

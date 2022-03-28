@@ -75,6 +75,7 @@ type NameAlias struct {
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
 	Name  string                  `json:"name" validate:"checkname"`
+	Helm  *addon.HelmSource       `json:"helm,omitempty"`
 	Git   *addon.GitAddonSource   `json:"git,omitempty" `
 	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
 	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
@@ -82,6 +83,7 @@ type CreateAddonRegistryRequest struct {
 
 // UpdateAddonRegistryRequest defines the format for addon registry update request
 type UpdateAddonRegistryRequest struct {
+	Helm  *addon.HelmSource       `json:"helm,omitempty"`
 	Git   *addon.GitAddonSource   `json:"git,omitempty"`
 	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
 	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
@@ -90,6 +92,7 @@ type UpdateAddonRegistryRequest struct {
 // AddonRegistry defines the format for a single addon registry
 type AddonRegistry struct {
 	Name  string                  `json:"name" validate:"required"`
+	Helm  *addon.HelmSource       `json:"helm,omitempty"`
 	Git   *addon.GitAddonSource   `json:"git,omitempty"`
 	OSS   *addon.OSSAddonSource   `json:"oss,omitempty"`
 	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
