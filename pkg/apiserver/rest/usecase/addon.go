@@ -82,6 +82,10 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 			Description: obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
+	if impl.Meta.DeployTo != nil && impl.Meta.DeployTo.LegacyRuntimeCluster != impl.Meta.DeployTo.RuntimeCluster {
+		impl.Meta.DeployTo.LegacyRuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
+		impl.Meta.DeployTo.RuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
+	}
 	return &apis.DetailAddonResponse{
 		Meta:              impl.Meta,
 		APISchema:         impl.APISchema,
@@ -306,12 +310,17 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 		return nil, err
 	}
 
+	return convertAddonRegistry(r), nil
+}
+
+func convertAddonRegistry(r pkgaddon.Registry) *apis.AddonRegistry {
 	return &apis.AddonRegistry{
 		Name:  r.Name,
 		Git:   r.Git,
-		OSS:   r.OSS,
 		Gitee: r.Gitee,
-	}, nil
+		OSS:   r.OSS,
+		Helm:  r.Helm,
+	}
 }
 
 func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistry, error) {
@@ -319,11 +328,7 @@ func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string)
 	if err != nil {
 		return nil, err
 	}
-	return &apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}, nil
+	return convertAddonRegistry(r), nil
 }
 
 func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistry, error) {
@@ -331,18 +336,23 @@ func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name strin
 	if err != nil {
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
-	r.Git = req.Git
-	r.OSS = req.Oss
+	switch {
+	case req.Git != nil:
+		r.Git = req.Git
+	case req.Gitee != nil:
+		r.Gitee = req.Gitee
+	case req.Oss != nil:
+		r.OSS = req.Oss
+	case req.Helm != nil:
+		r.Helm = req.Helm
+	}
+
 	err = u.addonRegistryDS.UpdateRegistry(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
-	return &apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}, nil
+	return convertAddonRegistry(r), nil
 }
 
 func (u *defaultAddonHandler) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error) {
@@ -357,8 +367,8 @@ func (u *defaultAddonHandler) ListAddonRegistries(ctx context.Context) ([]*apis.
 		return nil, err
 	}
 	for _, registry := range registries {
-		r := ConvertAddonRegistryModel2AddonRegistryMeta(registry)
-		list = append(list, &r)
+		r := convertAddonRegistry(registry)
+		list = append(list, r)
 	}
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].Name < list[j].Name
@@ -466,6 +476,7 @@ func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegist
 		Git:   req.Git,
 		OSS:   req.Oss,
 		Gitee: req.Gitee,
+		Helm:  req.Helm,
 	}
 }
 
@@ -521,13 +532,4 @@ func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName
 		return defaultSchema
 	}
 	return patchSchema(defaultSchema, schema)
-}
-
-// ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistry
-func ConvertAddonRegistryModel2AddonRegistryMeta(r pkgaddon.Registry) apis.AddonRegistry {
-	return apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}
 }
