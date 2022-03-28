@@ -1,6 +1,7 @@
-package image
+package utils
 
 import (
+	"fmt"
 	"github.com/heroku/docker-registry-client/registry"
 )
 
@@ -21,6 +22,13 @@ func (r Registry) GetPrivateImages() ([]Image, error) {
 	username := r.Username
 	password := r.Password
 	hub, err := registry.New(url, username, password)
+	if err != nil {
+		return nil, err
+	}
 	repositories, err := hub.Repositories()
-
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(repositories)
+	return nil, nil
 }

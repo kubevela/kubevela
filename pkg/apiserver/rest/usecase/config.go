@@ -96,17 +96,18 @@ func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string
 	}
 
 	var tfDefs []v1beta1.ComponentDefinition
-	var types []*apis.ConfigType
+	var configTypes []*apis.ConfigType
 
 	for _, d := range defs.Items {
 		if d.Labels[definitionType] == terraformProviderType {
 			tfDefs = append(tfDefs, d)
 			continue
 		}
-		types = append(types, &apis.ConfigType{
+		configTypes = append(configTypes, &apis.ConfigType{
 			Alias:       d.Annotations[definitionAlias],
 			Name:        d.Name,
 			Definitions: []string{d.Name},
+			Description: d.Annotations[types.AnnoDefinitionDescription],
 		})
 	}
 
@@ -121,7 +122,7 @@ func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string
 	}
 	tfType.Definitions = definitions
 
-	return append(types, tfType), nil
+	return append(configTypes, tfType), nil
 }
 
 // GetConfigType returns a config type
@@ -180,12 +181,4 @@ func (u *defaultConfigHandler) GetConfig(ctx context.Context, configType, name s
 	}
 
 	return config, nil
-}
-
-func (u *defaultConfigHandler) DeleteConfig(ctx context.Context, configType, name string) error {
-	var a = &v1beta1.Application{}
-	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
-		return err
-	}
-	return u.kubeClient.Delete(ctx, a)
 }
