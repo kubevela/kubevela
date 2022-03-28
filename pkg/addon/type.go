@@ -37,6 +37,8 @@ type UIData struct {
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
 	Parameters     string        `json:"parameters"`
 	RegistryName   string        `json:"registryName"`
+
+	AvailableVersions []string `json:"availableVersions"`
 }
 
 // InstallPackage contains all necessary files that can be installed for an addon
@@ -47,7 +49,7 @@ type InstallPackage struct {
 	Definitions    []ElementFile `json:"definitions"`
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
 	// DefSchemas are UI schemas read by VelaUX, it will only be installed in control plane clusters
-	DefSchemas []ElementFile `json:"def_schemas,omitempty"`
+	DefSchemas []ElementFile `json:"defSchemas,omitempty"`
 
 	Parameters string `json:"parameters"`
 
@@ -55,6 +57,17 @@ type InstallPackage struct {
 	CUETemplates  []ElementFile        `json:"CUETemplates"`
 	YAMLTemplates []ElementFile        `json:"YAMLTemplates,omitempty"`
 	AppTemplate   *v1beta1.Application `json:"appTemplate"`
+}
+
+// WholeAddonPackage contains all infos of an addon
+type WholeAddonPackage struct {
+	InstallPackage
+
+	APISchema *openapi3.Schema `json:"schema"`
+
+	// Detail is README.md in an addon
+	Detail            string   `json:"detail,omitempty"`
+	AvailableVersions []string `json:"availableVersions"`
 }
 
 // Meta defines the format for a single addon

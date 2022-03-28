@@ -63,6 +63,11 @@ type GiteeAddonSource struct {
 	Token string `json:"token,omitempty"`
 }
 
+// HelmSource  defines the information about the helm repo addon source
+type HelmSource struct {
+	URL string `json:"url,omitempty" validate:"required"`
+}
+
 // Item is a partial interface for github.RepositoryContent
 type Item interface {
 	// GetType return "dir" or "file"

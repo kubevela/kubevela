@@ -179,14 +179,15 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 
 // ListVersions list available versions from repo
 func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool) (repo.ChartVersions, error) {
-	i, err := h.getIndexInfo(repoURL, skipCache)
+	i, err := h.GetIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}
 	return i.Entries[chartName], nil
 }
 
-func (h *Helper) getIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, error) {
+// GetIndexInfo get index.yaml form given repo url
+func (h *Helper) GetIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, error) {
 	if h.cache != nil && !skipCache {
 		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
 			return i.(*repo.IndexFile), nil
@@ -220,8 +221,6 @@ func (h *Helper) getIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, 
 	if h.cache != nil {
 		h.cache.Put(fmt.Sprintf(repoPatten, repoURL), i, calculateCacheTimeFromIndex(len(i.Entries)))
 	}
-
-	fmt.Println(len(i.Entries))
 	return i, nil
 }
 
@@ -286,7 +285,7 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 
 // ListChartsFromRepo list available helm charts in a repo
 func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool) ([]string, error) {
-	i, err := h.getIndexInfo(repoURL, skipCache)
+	i, err := h.GetIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +305,7 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 			return v.(map[string]interface{}), nil
 		}
 	}
-	i, err := h.getIndexInfo(repoURL, skipCache)
+	i, err := h.GetIndexInfo(repoURL, skipCache)
 	if err != nil {
 		return nil, err
 	}

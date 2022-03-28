@@ -37,6 +37,7 @@ const registriesKey = "registries"
 type Registry struct {
 	Name string `json:"name"`
 
+	Helm  *HelmSource       `json:"helm,omitempty"`
 	Git   *GitAddonSource   `json:"git,omitempty"`
 	OSS   *OSSAddonSource   `json:"oss,omitempty"`
 	Gitee *GiteeAddonSource `json:"gitee,omitempty"`

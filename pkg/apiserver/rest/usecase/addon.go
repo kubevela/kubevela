@@ -58,7 +58,7 @@ type AddonHandler interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error)
 	ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
-	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
+	GetAddon(ctx context.Context, name string, registry string, version string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 	DisableAddon(ctx context.Context, name string, force bool) error
 	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
@@ -82,12 +82,13 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 		})
 	}
 	return &apis.DetailAddonResponse{
-		Meta:         impl.Meta,
-		APISchema:    impl.APISchema,
-		UISchema:     impl.UISchema,
-		Detail:       impl.Detail,
-		Definitions:  defs,
-		RegistryName: impl.RegistryName,
+		Meta:              impl.Meta,
+		APISchema:         impl.APISchema,
+		UISchema:          impl.UISchema,
+		Detail:            impl.Detail,
+		Definitions:       defs,
+		RegistryName:      impl.RegistryName,
+		AvailableVersions: impl.AvailableVersions,
 	}, nil
 }
 
@@ -134,7 +135,7 @@ type defaultAddonHandler struct {
 }
 
 // GetAddon will get addon information
-func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
+func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registry string, version string) (*apis.DetailAddonResponse, error) {
 	var addon *pkgaddon.UIData
 	var err error
 	if registry == "" {
@@ -143,7 +144,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 			return nil, err
 		}
 		for _, r := range registries {
-			addon, err = u.addonRegistryCache.GetUIData(r, name)
+			addon, err = u.addonRegistryCache.GetUIData(r, name, version)
 			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
 			}
@@ -156,7 +157,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 		if err != nil {
 			return nil, err
 		}
-		addon, err = u.addonRegistryCache.GetUIData(addonRegistry, name)
+		addon, err = u.addonRegistryCache.GetUIData(addonRegistry, name, version)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -195,8 +196,9 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 			Name:  name,
 			Phase: apis.AddonPhase(status.AddonPhase),
 		},
-		AppStatus: *status.AppStatus,
-		Clusters:  status.Clusters,
+		InstalledVersion: status.InstalledVersion,
+		AppStatus:        *status.AppStatus,
+		Clusters:         status.Clusters,
 	}
 
 	if res.Phase != apis.AddonPhaseEnabled {
@@ -360,7 +362,7 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 		return err
 	}
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}
@@ -428,7 +430,7 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 	}
 
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}

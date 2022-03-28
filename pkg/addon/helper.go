@@ -21,10 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	"k8s.io/client-go/discovery"
-
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
@@ -34,8 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -53,9 +52,9 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
+func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
 	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache)
-	pkg, err := h.loadInstallPackage(name)
+	pkg, err := h.loadInstallPackage(name, version)
 	if err != nil {
 		return err
 	}
@@ -172,11 +171,11 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			}
 			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
 		}
-		return Status{AddonPhase: enabled, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: enabled, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
 	case commontypes.ApplicationDeleting:
 		return Status{AddonPhase: disabling, AppStatus: &app.Status}, nil
 	default:
-		return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: enabling, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
 	}
 }
 
@@ -235,5 +234,6 @@ type Status struct {
 	AddonPhase string
 	AppStatus  *commontypes.AppStatus
 	// the status of multiple clusters
-	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
+	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
+	InstalledVersion string
 }

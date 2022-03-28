@@ -43,6 +43,8 @@ type Cache struct {
 
 	registry map[string]Registry
 
+	versionedUIData map[string]map[string]*UIData
+
 	mutex *sync.RWMutex
 
 	ds RegistryDataStore
@@ -51,11 +53,12 @@ type Cache struct {
 // NewCache will build a new cache instance
 func NewCache(ds RegistryDataStore) *Cache {
 	return &Cache{
-		uiData:       make(map[string][]*UIData),
-		registryMeta: make(map[string]map[string]SourceMeta),
-		registry:     make(map[string]Registry),
-		mutex:        new(sync.RWMutex),
-		ds:           ds,
+		uiData:          make(map[string][]*UIData),
+		registryMeta:    make(map[string]map[string]SourceMeta),
+		registry:        make(map[string]Registry),
+		versionedUIData: make(map[string]map[string]*UIData),
+		mutex:           new(sync.RWMutex),
+		ds:              ds,
 	}
 }
 
@@ -80,21 +83,35 @@ func (u *Cache) ListAddonMeta(r Registry) (map[string]SourceMeta, error) {
 }
 
 // GetUIData get addon data for UI display from cache, if cache not found, it will find from source
-func (u *Cache) GetUIData(r Registry, addonName string) (*UIData, error) {
-	addon := u.getCachedUIData(r.Name, addonName)
+func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error) {
+	addon := u.getCachedUIData(r, addonName, version)
 	if addon != nil {
 		return addon, nil
 	}
 	var err error
-	registryMeta, err := u.ListAddonMeta(r)
-	if err != nil {
-		return nil, err
+	if !IsVersionRegistry(r) {
+		registryMeta, err := u.ListAddonMeta(r)
+		if err != nil {
+			return nil, err
+		}
+		meta, ok := registryMeta[addonName]
+		if !ok {
+			return nil, ErrNotExist
+		}
+		addon, err = r.GetUIData(&meta, UIMetaOptions)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
+		if err != nil {
+			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
+			return nil, err
+		}
 	}
-	meta, ok := registryMeta[addonName]
-	if !ok {
-		return nil, ErrNotExist
-	}
-	return r.GetUIData(&meta, UIMetaOptions)
+
+	return addon, nil
 }
 
 // ListUIData will always list UIData from cache first, if not exist, read from source.
@@ -104,24 +121,40 @@ func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 	if listAddons != nil {
 		return listAddons, nil
 	}
-	addonMeta, err := u.ListAddonMeta(r)
-	if err != nil {
-		return nil, err
-	}
-	listAddons, err = r.ListUIData(addonMeta, UIMetaOptions)
-	if err != nil {
-		return nil, fmt.Errorf("fail to get addons from registry %s, %w", r.Name, err)
+	if !IsVersionRegistry(r) {
+		addonMeta, err := u.ListAddonMeta(r)
+		if err != nil {
+			return nil, err
+		}
+		listAddons, err = r.ListUIData(addonMeta, UIMetaOptions)
+		if err != nil {
+			return nil, fmt.Errorf("fail to get addons from registry %s, %w", r.Name, err)
+		}
+	} else {
+		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+		listAddons, err = versionedRegistry.ListAddon()
+		if err != nil {
+			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
+			return nil, err
+		}
 	}
 	u.putAddonUIData2Cache(r.Name, listAddons)
 	return listAddons, nil
 }
 
-func (u *Cache) getCachedUIData(registry, addonName string) *UIData {
-	addons := u.listCachedUIData(registry)
-	for _, a := range addons {
-		if a.Name == addonName {
-			return a
+func (u *Cache) getCachedUIData(registry Registry, addonName, version string) *UIData {
+	if !IsVersionRegistry(registry) {
+		addons := u.listCachedUIData(registry.Name)
+		for _, a := range addons {
+			if a.Name == addonName {
+				return a
+			}
 		}
+	} else {
+		if len(version) == 0 {
+			version = "latest"
+		}
+		return u.versionedUIData[registry.Name][fmt.Sprintf("%s-%s", addonName, version)]
 	}
 	return nil
 }
@@ -201,6 +234,20 @@ func (u *Cache) putRegistry2Cache(registry []Registry) {
 	}
 }
 
+func (u *Cache) putVersionedUIData2Cache(registryName, addonName, version string, uiData *UIData) {
+	if u == nil {
+		return
+	}
+
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
+	if u.versionedUIData[registryName] == nil {
+		u.versionedUIData[registryName] = make(map[string]*UIData)
+	}
+	u.versionedUIData[registryName][fmt.Sprintf("%s-%s", addonName, version)] = uiData
+}
+
 func (u *Cache) discoverAndRefreshRegistry() {
 	registries, err := u.ds.ListRegistries(context.Background())
 	if err != nil {
@@ -210,17 +257,36 @@ func (u *Cache) discoverAndRefreshRegistry() {
 	u.putRegistry2Cache(registries)
 
 	for _, r := range registries {
-		registryMeta, err := r.ListAddonMeta()
-		if err != nil {
-			log.Logger.Errorf("fail to list registry %s metadata,  %v", r.Name, err)
-			continue
+		if !IsVersionRegistry(r) {
+			registryMeta, err := r.ListAddonMeta()
+			if err != nil {
+				log.Logger.Errorf("fail to list registry %s metadata,  %v", r.Name, err)
+				continue
+			}
+			u.putAddonMeta2Cache(r.Name, registryMeta)
+			uiData, err := r.ListUIData(registryMeta, UIMetaOptions)
+			if err != nil {
+				log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
+				continue
+			}
+			u.putAddonUIData2Cache(r.Name, uiData)
+		} else {
+			versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+			uiDatas, err := versionedRegistry.ListAddon()
+			if err != nil {
+				log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
+				continue
+			}
+			for _, addon := range uiDatas {
+				uiData, err := versionedRegistry.GetAddonUIData(context.Background(), addon.Name, addon.Version)
+				if err != nil {
+					log.Logger.Errorf("fail to get addon from registry %s, addon %s version %s for cache updating, %v", addon.Name, r.Name, err)
+					continue
+				}
+				u.putVersionedUIData2Cache(r.Name, addon.Name, addon.Version, uiData)
+				// we also no version key, if use get addonUIData without version will return this vale as latest data.
+				u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
+			}
 		}
-		u.putAddonMeta2Cache(r.Name, registryMeta)
-		uiData, err := r.ListUIData(registryMeta, UIMetaOptions)
-		if err != nil {
-			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
-			continue
-		}
-		u.putAddonUIData2Cache(r.Name, uiData)
 	}
 }
