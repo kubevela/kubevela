@@ -652,34 +652,38 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 	}
 
 	switch {
-	case app.Spec.Workflow != nil && (len(app.Spec.Workflow.Steps) > 0 || app.Spec.Workflow.Ref != ""):
-		// if users have already specified workflow in addon, this won't work
 	case isDeployToRuntimeOnly(addon):
-		if len(deployClusters) > 0 {
-			// deploy to specified clusters
-			if app.Spec.Policies == nil {
-				app.Spec.Policies = []v1beta1.AppPolicy{}
+		if len(deployClusters) == 0 {
+			allclusters, err := multicluster.ListVirtualClusters(ctx, k8sClient)
+			if err != nil {
+				return nil, err
 			}
-			body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
-			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-				Name:       "specified-addon-clusters",
-				Type:       v1alpha1.TopologyPolicyType,
-				Properties: &runtime.RawExtension{Raw: body},
-			})
-			app.Spec.Workflow = &v1beta1.Workflow{}
-		} else {
-			// deploy to all clusters
-			app.Spec.Workflow = &v1beta1.Workflow{Steps: []v1beta1.WorkflowStep{
-				{
-					Name: "deploy-control-plane",
-					Type: "apply-application",
-				},
-				{
-					Name: "deploy-runtime",
-					Type: "deploy2runtime",
-				},
-			}}
+			for _, c := range allclusters {
+				deployClusters = append(deployClusters, c.Name)
+			}
 		}
+		var found bool
+		for _, c := range deployClusters {
+			if c == multicluster.ClusterLocalName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			deployClusters = append(deployClusters, multicluster.ClusterLocalName)
+		}
+		// deploy to specified clusters
+		if app.Spec.Policies == nil {
+			app.Spec.Policies = []v1beta1.AppPolicy{}
+		}
+		body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+			Name:       "specified-addon-clusters",
+			Type:       v1alpha1.TopologyPolicyType,
+			Properties: &runtime.RawExtension{Raw: body},
+		})
+		// addon should not contain workflow, this also update legacy addon with deploy2runtime steps
+		app.Spec.Workflow = &v1beta1.Workflow{}
 	case addon.Name == ObservabilityAddon:
 		clusters, err := allocateDomainForAddon(ctx, k8sClient)
 		if err != nil {
@@ -1174,7 +1178,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
 
-	err = h.apply.Apply(h.ctx, app, apply.DisableUpdateAnnotation())
+	err = h.cli.Update(h.ctx, app)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
 		return errors.Wrap(err, "fail to create application")
