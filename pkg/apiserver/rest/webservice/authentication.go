@@ -30,12 +30,14 @@ import (
 
 type authenticationWebService struct {
 	authenticationUsecase usecase.AuthenticationUsecase
+	userUsecase           usecase.UserUsecase
 }
 
 // NewAuthenticationWebService is the webservice of authentication
-func NewAuthenticationWebService(authenticationUsecase usecase.AuthenticationUsecase) WebService {
+func NewAuthenticationWebService(authenticationUsecase usecase.AuthenticationUsecase, userUsecase usecase.UserUsecase) WebService {
 	return &authenticationWebService{
 		authenticationUsecase: authenticationUsecase,
+		userUsecase:           userUsecase,
 	}
 }
 
@@ -56,26 +58,34 @@ func (c *authenticationWebService) GetWebService() *restful.WebService {
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.LoginResponse{}))
 
-	ws.Route(ws.GET("/dexConfig").To(c.getDexConfig).
+	ws.Route(ws.GET("/dex_config").To(c.getDexConfig).
 		Doc("get Dex config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.DexConfigResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.DexConfigResponse{}))
 
-	ws.Route(ws.GET("/refreshToken").To(c.refreshToken).
+	ws.Route(ws.GET("/refresh_token").To(c.refreshToken).
 		Doc("refresh token").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.RefreshTokenResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.RefreshTokenResponse{}))
 
-	ws.Route(ws.GET("/loginType").To(c.getLoginType).
+	ws.Route(ws.GET("/login_type").To(c.getLoginType).
 		Doc("get login type").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "", apis.GetLoginTypeResponse{}).
 		Returns(400, "", bcode.Bcode{}).
 		Writes(apis.GetLoginTypeResponse{}))
+
+	ws.Route(ws.GET("/user_info").To(c.getLoginUserInfo).
+		Doc("get login user detail info").
+		Filter(authCheckFilter).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Returns(200, "", apis.LoginUserInfoResponse{}).
+		Returns(400, "", bcode.Bcode{}).
+		Writes(apis.LoginUserInfoResponse{}))
 	return ws
 }
 
@@ -153,6 +163,18 @@ func (c *authenticationWebService) getLoginType(req *restful.Request, res *restf
 		return
 	}
 	if err := res.WriteEntity(base); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *authenticationWebService) getLoginUserInfo(req *restful.Request, res *restful.Response) {
+	info, err := c.userUsecase.DetailLoginUserInfo(req.Request.Context())
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(info); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

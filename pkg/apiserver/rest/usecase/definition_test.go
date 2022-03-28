@@ -179,11 +179,6 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(len(uiSchema), 12)).Should(BeEmpty())
 		Expect(cmp.Diff(uiSchema[7].JSONKey, "livenessProbe")).Should(BeEmpty())
 		Expect(cmp.Diff(len(uiSchema[7].SubParameters), 8)).Should(BeEmpty())
-
-		outdata, err := yaml.Marshal(uiSchema)
-		Expect(err).Should(Succeed())
-		err = ioutil.WriteFile("./testdata/ui-schema.yaml", outdata, 0755)
-		Expect(err).Should(Succeed())
 	})
 
 	It("Test sortDefaultUISchema", testSortDefaultUISchema)

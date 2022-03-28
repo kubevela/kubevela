@@ -61,7 +61,7 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		By("Start syncing")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go Start(ctx, ds, cfg)
+		go Start(ctx, ds, cfg, nil)
 
 		By("create test app1 and check the syncing results")
 		app1 := &v1beta1.Application{}

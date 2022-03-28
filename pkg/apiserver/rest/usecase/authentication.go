@@ -27,6 +27,7 @@ import (
 	"github.com/form3tech-oss/jwt-go"
 	"golang.org/x/oauth2"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -172,6 +173,9 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	if err != nil {
 		return nil, err
 	}
+	if userBase.Disabled {
+		return nil, bcode.ErrUserAlreadyDisabled
+	}
 	accessToken, err := a.generateJWTToken(userBase.Name, GrantTypeAccess, time.Hour)
 	if err != nil {
 		return nil, err
@@ -255,6 +259,9 @@ func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.D
 		Name:      secretDexConfig,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, bcode.ErrDexConfigNotFound
+		}
 		log.Logger.Errorf("failed to get dex config: %s", err.Error())
 		return nil, err
 	}
@@ -287,8 +294,12 @@ func (a *authenticationUsecaseImpl) GetLoginType(ctx context.Context) (*apisv1.G
 	if err != nil {
 		return nil, err
 	}
+	loginType := sysInfo.LoginType
+	if loginType == "" {
+		loginType = model.LoginTypeLocal
+	}
 	return &apisv1.GetLoginTypeResponse{
-		LoginType: sysInfo.LoginType,
+		LoginType: loginType,
 	}, nil
 }
 
@@ -337,7 +348,7 @@ func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) 
 	if err := compareHashWithPassword(user.Password, l.password); err != nil {
 		return nil, err
 	}
-	if err := l.userUsecase.updateUserLoginTime(ctx, user); err != nil {
+	if err := l.userUsecase.UpdateUserLoginTime(ctx, user); err != nil {
 		return nil, err
 	}
 	return &apisv1.UserBase{

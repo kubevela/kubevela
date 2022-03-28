@@ -289,10 +289,10 @@ type ClusterBase struct {
 
 // ListApplicationOptions list application  query options
 type ListApplicationOptions struct {
-	Project    string `json:"project"`
-	Env        string `json:"env"`
-	TargetName string `json:"targetName"`
-	Query      string `json:"query"`
+	Projects   []string `json:"projects"`
+	Env        string   `json:"env"`
+	TargetName string   `json:"targetName"`
+	Query      string   `json:"query"`
 }
 
 // ListApplicationResponse list applications by query params
@@ -678,6 +678,7 @@ type ProjectBase struct {
 	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
+	Owner       NameAlias `json:"owner,omitempty"`
 }
 
 // CreateProjectRequest create project request body
@@ -685,6 +686,14 @@ type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
+}
+
+// UpdateProjectRequest update a project request body
+type UpdateProjectRequest struct {
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
 }
 
 // Env models the data of env in API
@@ -989,6 +998,7 @@ type ApplicationTrait struct {
 type CreateTargetRequest struct {
 	Name        string                 `json:"name" validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Project     string                 `json:"project" validate:"checkname"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
@@ -1029,6 +1039,7 @@ type TargetBase struct {
 	CreateTime   time.Time              `json:"createTime"`
 	UpdateTime   time.Time              `json:"updateTime"`
 	AppNum       int64                  `json:"appNum,omitempty"`
+	Project      NameAlias              `json:"project"`
 }
 
 // ApplicationRevisionBase application revision base spec
@@ -1118,29 +1129,39 @@ type DexConfigResponse struct {
 // DetailUserResponse is the response of user detail
 type DetailUserResponse struct {
 	UserBase
-	Projects []ProjectUserBase `json:"projects"`
+	Projects []*ProjectBase `json:"projects"`
+	Roles    []NameAlias    `json:"roles"`
 }
 
 // ProjectUserBase project user base
 type ProjectUserBase struct {
-	Name      string   `json:"name"`
-	Alias     string   `json:"alias"`
-	UserRoles []string `json:"userRoles"`
+	UserName   string    `json:"name"`
+	UserRoles  []string  `json:"userRoles"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// ListProjectUsersResponse the response body that list users belong to a project
+type ListProjectUsersResponse struct {
+	Users []*ProjectUserBase `json:"users"`
+	Total int64              `json:"total"`
 }
 
 // CreateUserRequest create user request
 type CreateUserRequest struct {
-	Name     string `json:"name" validate:"checkname"`
-	Alias    string `json:"alias,omitempty" validate:"checkalias" optional:"true"`
-	Email    string `json:"email" validate:"checkemail"`
-	Password string `json:"password" validate:"checkpassword"`
+	Name     string   `json:"name" validate:"checkname"`
+	Alias    string   `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Email    string   `json:"email" validate:"checkemail"`
+	Password string   `json:"password" validate:"checkpassword"`
+	Roles    []string `json:"roles"`
 }
 
 // UpdateUserRequest update user request
 type UpdateUserRequest struct {
-	Alias    string `json:"alias,omitempty" optional:"true"`
-	Password string `json:"password,omitempty" validate:"checkpassword" optional:"true"`
-	Email    string `json:"email,omitempty" validate:"checkemail" optional:"true"`
+	Alias    string    `json:"alias,omitempty" optional:"true"`
+	Password string    `json:"password,omitempty" validate:"checkpassword" optional:"true"`
+	Email    string    `json:"email,omitempty" validate:"checkemail" optional:"true"`
+	Roles    *[]string `json:"roles"`
 }
 
 // ListUserResponse list user response
@@ -1169,4 +1190,81 @@ type ListUserOptions struct {
 // GetLoginTypeResponse get login type response
 type GetLoginTypeResponse struct {
 	LoginType string `json:"loginType"`
+}
+
+// AddProjectUserRequest the request body that add user to project
+type AddProjectUserRequest struct {
+	UserName  string   `json:"userName" validate:"checkname"`
+	UserRoles []string `json:"userRoles"`
+}
+
+// UpdateProjectUserRequest the request body that update user role in a project
+type UpdateProjectUserRequest struct {
+	UserRoles []string `json:"userRoles"`
+}
+
+// CreateRoleRequest the request body that create a role
+type CreateRoleRequest struct {
+	Name        string   `json:"name" validate:"checkname"`
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
+}
+
+// UpdateRoleRequest the request body that update a role
+type UpdateRoleRequest struct {
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
+}
+
+// RoleBase the base struct of role
+type RoleBase struct {
+	CreateTime  time.Time   `json:"createTime"`
+	UpdateTime  time.Time   `json:"updateTime"`
+	Name        string      `json:"name"`
+	Alias       string      `json:"alias,omitempty"`
+	Permissions []NameAlias `json:"permissions"`
+}
+
+// ListRolesResponse the response body of list roles
+type ListRolesResponse struct {
+	Total int64       `json:"total"`
+	Roles []*RoleBase `json:"roles"`
+}
+
+// PermissionTemplateBase the perm policy template base struct
+type PermissionTemplateBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// PermissionBase the perm policy base struct
+type PermissionBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// UpdatePermissionRequest the request body that update permission policy
+type UpdatePermissionRequest struct {
+	Alias     string   `json:"alias" validate:"checkalias"`
+	Resources []string `json:"resources"`
+	Actions   []string `json:"actions"`
+	Effect    string   `json:"effect" validate:"oneof=Allow Deny"`
+}
+
+// LoginUserInfoResponse the response body of login user info
+type LoginUserInfoResponse struct {
+	UserBase
+	Projects            []*ProjectBase              `json:"projects"`
+	PlatformPermissions []PermissionBase            `json:"platformPermissions"`
+	ProjectPermissions  map[string][]PermissionBase `json:"projectPermissions"`
 }

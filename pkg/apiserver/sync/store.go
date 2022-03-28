@@ -24,11 +24,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // StoreProject will create project for synced application
-func StoreProject(ctx context.Context, name string, ds datastore.DataStore) error {
+func StoreProject(ctx context.Context, name string, ds datastore.DataStore, projectUsecase usecase.ProjectUsecase) error {
 	err := ds.Get(ctx, &model.Project{Name: name})
 	if err == nil {
 		// it means the record already exists, don't need to add anything
@@ -38,12 +40,15 @@ func StoreProject(ctx context.Context, name string, ds datastore.DataStore) erro
 		// other database error, return it
 		return err
 	}
-	proj := &model.Project{
-		Name:        name,
-		Description: model.AutoGenProj,
-		Alias:       strings.Title(name),
+	if projectUsecase != nil {
+		_, err := projectUsecase.CreateProject(ctx, v1.CreateProjectRequest{
+			Name:        name,
+			Alias:       strings.Title(name),
+			Owner:       model.DefaultAdminUserName,
+			Description: model.AutoGenProj})
+		return err
 	}
-	return ds.Add(ctx, proj)
+	return nil
 }
 
 // StoreAppMeta will sync application metadata from CR to datastore

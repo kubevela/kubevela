@@ -46,9 +46,10 @@ var _ = Describe("Test authentication usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: db})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: rbacUsecase}
 		sysUsecase := &systemInfoUsecaseImpl{ds: ds}
-		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase}
+		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase, rbacUsecase: rbacUsecase}
 	})
 	AfterEach(func() {
 		err := k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: db}})
@@ -111,18 +112,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(user.Name).Should(Equal("name"))
 		Expect(user.Alias).Should(Equal("alias"))
 		Expect(user.Email).Should(Equal("email@example.com"))
-		Expect(user.Projects).Should(Equal([]apisv1.ProjectUserBase{
-			{
-				Name:      "project-1",
-				Alias:     "project-alias-1",
-				UserRoles: []string{"user-role-1"},
-			},
-			{
-				Name:      "project-0",
-				Alias:     "project-alias-0",
-				UserRoles: []string{"user-role-0"},
-			},
-		}))
+		Expect(len(user.Projects)).Should(Equal(2))
 	})
 
 	It("Test list users", func() {

@@ -18,17 +18,24 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/time"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // UserUsecase User manage api
@@ -41,18 +48,21 @@ type UserUsecase interface {
 	ListUsers(ctx context.Context, page, pageSize int, listOptions apisv1.ListUserOptions) (*apisv1.ListUserResponse, error)
 	DisableUser(ctx context.Context, user *model.User) error
 	EnableUser(ctx context.Context, user *model.User) error
-	updateUserLoginTime(ctx context.Context, user *model.User) error
+	DetailLoginUserInfo(ctx context.Context) (*apisv1.LoginUserInfoResponse, error)
+	UpdateUserLoginTime(ctx context.Context, user *model.User) error
+	Init(ctx context.Context) error
 }
 
 type userUsecaseImpl struct {
 	ds             datastore.DataStore
 	k8sClient      client.Client
 	projectUsecase ProjectUsecase
+	rbacUsecase    RBACUsecase
 	sysUsecase     SystemInfoUsecase
 }
 
 // NewUserUsecase new User usecase
-func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUsecase SystemInfoUsecase) UserUsecase {
+func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUsecase SystemInfoUsecase, rbacUsecase RBACUsecase) UserUsecase {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get k8sClient failure: %s", err.Error())
@@ -62,7 +72,58 @@ func NewUserUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase, sysUs
 		ds:             ds,
 		projectUsecase: projectUsecase,
 		sysUsecase:     sysUsecase,
+		rbacUsecase:    rbacUsecase,
 	}
+}
+
+func (u *userUsecaseImpl) Init(ctx context.Context) error {
+	admin := model.DefaultAdminUserName
+	if err := u.ds.Get(ctx, &model.User{
+		Name: admin,
+	}); err != nil {
+		if errors.Is(err, datastore.ErrRecordNotExist) {
+			pwd := utils2.RandomString(8)
+			encrypted, err := GeneratePasswordHash(pwd)
+			if err != nil {
+				return err
+			}
+			if err := u.ds.Add(ctx, &model.User{
+				Name:      admin,
+				Alias:     "Administrator",
+				Password:  encrypted,
+				UserRoles: []string{"admin"},
+			}); err != nil {
+				return err
+			}
+			// print default password of admin user in log
+			log.Logger.Infof("init admin user, password is %s", pwd)
+			secret := &corev1.Secret{}
+			if err := u.k8sClient.Get(ctx, k8stypes.NamespacedName{
+				Name:      admin,
+				Namespace: types.DefaultKubeVelaNS,
+			}, secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					if err := u.k8sClient.Create(ctx, &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      admin,
+							Namespace: types.DefaultKubeVelaNS,
+						},
+						StringData: map[string]string{
+							admin: pwd,
+						},
+					}); err != nil {
+						return err
+					}
+				} else {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+	log.Logger.Info("admin user is exist")
+	return nil
 }
 
 // GetUser get user
@@ -78,7 +139,11 @@ func (u *userUsecaseImpl) GetUser(ctx context.Context, username string) (*model.
 
 // DetailUser return user detail
 func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*apisv1.DetailUserResponse, error) {
-	detailUser := convertUserModel(user)
+	roles, err := u.rbacUsecase.ListRole(ctx, "", 0, 0)
+	if err != nil {
+		log.Logger.Warnf("list platform roles failure %s", err.Error())
+	}
+	detailUser := convertUserModel(user, roles)
 	pUser := &model.ProjectUser{
 		Username: user.Name,
 	}
@@ -91,16 +156,12 @@ func (u *userUsecaseImpl) DetailUser(ctx context.Context, user *model.User) (*ap
 	for _, v := range projectUsers {
 		pu, ok := v.(*model.ProjectUser)
 		if ok {
-			project, err := u.projectUsecase.GetProject(ctx, pu.ProjectName)
+			project, err := u.projectUsecase.DetailProject(ctx, pu.ProjectName)
 			if err != nil {
 				log.Logger.Errorf("failed to delete project(%s) info: %s", pu.ProjectName, err.Error())
 				continue
 			}
-			detailUser.Projects = append(detailUser.Projects, apisv1.ProjectUserBase{
-				Name:      pu.ProjectName,
-				Alias:     project.Alias,
-				UserRoles: pu.UserRoles,
-			})
+			detailUser.Projects = append(detailUser.Projects, project)
 		}
 	}
 	return detailUser, nil
@@ -142,12 +203,14 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err != nil {
 		return nil, err
 	}
+	// TODO: validate the roles, they must be platform roles
 	user := &model.User{
-		Name:     req.Name,
-		Alias:    req.Alias,
-		Email:    req.Email,
-		Password: hash,
-		Disabled: false,
+		Name:      req.Name,
+		Alias:     req.Alias,
+		Email:     req.Email,
+		UserRoles: req.Roles,
+		Password:  hash,
+		Disabled:  false,
 	}
 	if err := u.ds.Add(ctx, user); err != nil {
 		return nil, err
@@ -180,6 +243,10 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 		}
 		user.Email = req.Email
 	}
+	// TODO: validate the roles, they must be platform roles
+	if req.Roles != nil {
+		user.UserRoles = *req.Roles
+	}
 	if err := u.ds.Put(ctx, user); err != nil {
 		return nil, err
 	}
@@ -211,10 +278,14 @@ func (u *userUsecaseImpl) ListUsers(ctx context.Context, page, pageSize int, lis
 	if err != nil {
 		return nil, err
 	}
+	roles, err := u.rbacUsecase.ListRole(ctx, "", 0, 0)
+	if err != nil {
+		log.Logger.Warnf("list platform roles failure %s", err.Error())
+	}
 	for _, v := range users {
 		user, ok := v.(*model.User)
 		if ok {
-			userList = append(userList, convertUserModel(user))
+			userList = append(userList, convertUserModel(user, roles))
 		}
 	}
 	count, err := u.ds.Count(ctx, user, &fo)
@@ -246,16 +317,90 @@ func (u *userUsecaseImpl) EnableUser(ctx context.Context, user *model.User) erro
 	return u.ds.Put(ctx, user)
 }
 
-// updateUserLoginTime update user login time
-func (u *userUsecaseImpl) updateUserLoginTime(ctx context.Context, user *model.User) error {
+// UpdateUserLoginTime update user login time
+func (u *userUsecaseImpl) UpdateUserLoginTime(ctx context.Context, user *model.User) error {
 	user.LastLoginTime = time.Now().Time
 	return u.ds.Put(ctx, user)
 }
 
-func convertUserModel(user *model.User) *apisv1.DetailUserResponse {
+// DetailLoginUserInfo get projects and permission policies of login user
+func (u *userUsecaseImpl) DetailLoginUserInfo(ctx context.Context) (*apisv1.LoginUserInfoResponse, error) {
+	userName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	user, err := u.GetUser(ctx, userName)
+	if !ok {
+		log.Logger.Errorf("get login user model failure %s", err.Error())
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := u.projectUsecase.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var projectPermissions = make(map[string][]apisv1.PermissionBase)
+	for _, project := range projects {
+		perms, err := u.rbacUsecase.GetUserPermissions(ctx, user, project.Name, false)
+		if err != nil {
+			log.Logger.Errorf("list user %s perm policies from project %s failure %s", user.Name, project.Name, err.Error())
+			continue
+		}
+		projectPermissions[project.Name] = func() (list []apisv1.PermissionBase) {
+			for _, perm := range perms {
+				list = append(list, apisv1.PermissionBase{
+					Name:       perm.Name,
+					Alias:      perm.Alias,
+					Resources:  perm.Resources,
+					Actions:    perm.Actions,
+					Effect:     perm.Effect,
+					CreateTime: perm.CreateTime,
+					UpdateTime: perm.UpdateTime,
+				})
+			}
+			return
+		}()
+	}
+	perms, err := u.rbacUsecase.GetUserPermissions(ctx, user, "", true)
+	if err != nil {
+		log.Logger.Errorf("list user %s  platform perm policies failure %s", user.Name, err.Error())
+	}
+	var platformPermissions []apisv1.PermissionBase
+	for _, perm := range perms {
+		platformPermissions = append(platformPermissions, apisv1.PermissionBase{
+			Name:       perm.Name,
+			Alias:      perm.Alias,
+			Resources:  perm.Resources,
+			Actions:    perm.Actions,
+			Effect:     perm.Effect,
+			CreateTime: perm.CreateTime,
+			UpdateTime: perm.UpdateTime,
+		})
+	}
+	return &apisv1.LoginUserInfoResponse{
+		UserBase:            *convertUserBase(user),
+		Projects:            projects,
+		ProjectPermissions:  projectPermissions,
+		PlatformPermissions: platformPermissions,
+	}, nil
+}
+
+func convertUserModel(user *model.User, roles *apisv1.ListRolesResponse) *apisv1.DetailUserResponse {
+
+	var nameAlias = make(map[string]string)
+	if roles != nil {
+		for _, role := range roles.Roles {
+			nameAlias[role.Name] = role.Alias
+		}
+	}
 	return &apisv1.DetailUserResponse{
 		UserBase: *convertUserBase(user),
-		Projects: make([]apisv1.ProjectUserBase, 0),
+		Roles: func() (list []apisv1.NameAlias) {
+			for _, r := range user.UserRoles {
+				list = append(list, apisv1.NameAlias{Name: r, Alias: nameAlias[r]})
+			}
+			return
+		}(),
+		Projects: make([]*apisv1.ProjectBase, 0),
 	}
 }
 

@@ -31,12 +31,14 @@ import (
 
 type userWebService struct {
 	userUsecase usecase.UserUsecase
+	rbacUsecase usecase.RBACUsecase
 }
 
 // NewUserWebService is the webservice of user
-func NewUserWebService(userUsecase usecase.UserUsecase) WebService {
+func NewUserWebService(userUsecase usecase.UserUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &userWebService{
 		userUsecase: userUsecase,
+		rbacUsecase: rbacUsecase,
 	}
 }
 
@@ -52,6 +54,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(c.listUser).
 		Doc("list users").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "list")).
 		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "query the page size number").DataType("integer")).
 		Param(ws.QueryParameter("name", "fuzzy search based on name").DataType("string")).
@@ -63,6 +66,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 
 	ws.Route(ws.POST("/").To(c.createUser).
 		Doc("create a user").
+		Filter(c.rbacUsecase.CheckPerm("user", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateUserRequest{}).
 		Returns(200, "OK", apis.UserBase{}).
@@ -72,6 +76,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{username}").To(c.detailUser).
 		Doc("get user detail").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "detail")).
 		Filter(c.userCheckFilter).
 		Returns(200, "OK", apis.DetailUserResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -80,6 +85,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{username}").To(c.updateUser).
 		Doc("update a user's alias or password").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "update")).
 		Filter(c.userCheckFilter).
 		Returns(200, "OK", apis.UserBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -88,6 +94,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.DELETE("/{username}").To(c.deleteUser).
 		Doc("delete a user").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "delete")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -95,6 +102,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{username}/disable").To(c.disableUser).
 		Doc("disable a user").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "disable")).
 		Filter(c.userCheckFilter).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -103,6 +111,7 @@ func (c *userWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{username}/enable").To(c.enableUser).
 		Doc("enable a user").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("user", "enable")).
 		Filter(c.userCheckFilter).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).

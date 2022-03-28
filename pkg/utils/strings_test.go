@@ -77,3 +77,25 @@ func TestEqual(t *testing.T) {
 	caseB = []string{"b", "a", "c"}
 	assert.Equal(t, EqualSlice(caseA, caseB), false)
 }
+
+func TestSliceIncludeSlice(t *testing.T) {
+	caseA := []string{"b", "a", "c"}
+	caseB := []string{}
+	assert.Equal(t, SliceIncludeSlice(caseA, caseB), true)
+
+	caseA = []string{"b", "a", "c"}
+	caseB = []string{"b"}
+	assert.Equal(t, SliceIncludeSlice(caseA, caseB), true)
+
+	caseA = []string{"b", "a", "c"}
+	caseB = []string{"b", "c"}
+	assert.Equal(t, SliceIncludeSlice(caseA, caseB), true)
+
+	caseA = []string{"b", "a", "c"}
+	caseB = []string{"b", "c", "d"}
+	assert.Equal(t, SliceIncludeSlice(caseA, caseB), false)
+
+	caseA = []string{"b", "a", "c"}
+	caseB = []string{"b", "c", "a"}
+	assert.Equal(t, SliceIncludeSlice(caseA, caseB), true)
+}

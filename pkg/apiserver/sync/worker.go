@@ -37,7 +37,7 @@ import (
 )
 
 // Start prepares watchers and run their controllers, then waits for process termination signals
-func Start(ctx context.Context, ds datastore.DataStore, cfg *rest.Config) {
+func Start(ctx context.Context, ds datastore.DataStore, cfg *rest.Config, usecases map[string]interface{}) {
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		logrus.Fatal(err)
@@ -50,10 +50,10 @@ func Start(ctx context.Context, ds datastore.DataStore, cfg *rest.Config) {
 
 	f := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, v1.NamespaceAll, nil)
 
-	startAppSyncing(ctx, f, ds, k8sClient)
+	startAppSyncing(ctx, f, ds, k8sClient, usecases)
 }
 
-func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedInformerFactory, ds datastore.DataStore, cli client.Client) {
+func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedInformerFactory, ds datastore.DataStore, cli client.Client, usecases map[string]interface{}) {
 	var err error
 	informer := factory.ForResource(v1beta1.SchemeGroupVersion.WithResource("applications")).Informer()
 	getApp := func(obj interface{}) *v1beta1.Application {
@@ -62,10 +62,14 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		_ = json.Unmarshal(bs, app)
 		return app
 	}
+	if usecases == nil {
+		usecases = make(map[string]interface{})
+	}
 	cu := &CR2UX{
-		ds:    ds,
-		cli:   cli,
-		cache: sync.Map{},
+		ds:       ds,
+		cli:      cli,
+		cache:    sync.Map{},
+		usecases: usecases,
 	}
 	if err = cu.initCache(ctx); err != nil {
 		klog.Fatal("sync app init err", err)

@@ -25,6 +25,7 @@ type Project struct {
 	BaseModel
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`
+	Owner       string `json:"owner"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -48,6 +49,9 @@ func (p *Project) Index() map[string]string {
 	index := make(map[string]string)
 	if p.Name != "" {
 		index["name"] = p.Name
+	}
+	if p.Owner != "" {
+		index["owner"] = p.Owner
 	}
 	return index
 }

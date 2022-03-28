@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -79,9 +80,10 @@ func (c *CR2UX) getApp(ctx context.Context, name, namespace string) (*model.Appl
 
 // CR2UX provides the Add/Update/Delete method
 type CR2UX struct {
-	ds    datastore.DataStore
-	cli   client.Client
-	cache sync.Map
+	ds       datastore.DataStore
+	cli      client.Client
+	cache    sync.Map
+	usecases map[string]interface{}
 }
 
 func formatAppComposedName(name, namespace string) string {
@@ -106,8 +108,11 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		log.Logger.Errorf("Convert App to data store err %v", err)
 		return err
 	}
-
-	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds); err != nil {
+	pu, ok := c.usecases["project"].(usecase.ProjectUsecase)
+	if !ok {
+		log.Logger.Warnf("not provide project usecase instance")
+	}
+	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds, pu); err != nil {
 		log.Logger.Errorf("get or create project for sync process err %v", err)
 		return err
 	}

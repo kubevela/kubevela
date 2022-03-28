@@ -29,11 +29,12 @@ import (
 // ClusterWebService cluster manage webservice
 type ClusterWebService struct {
 	clusterUsecase usecase.ClusterUsecase
+	rbacUsecase    usecase.RBACUsecase
 }
 
 // NewClusterWebService new cluster webservice
-func NewClusterWebService(clusterUsecase usecase.ClusterUsecase) *ClusterWebService {
-	return &ClusterWebService{clusterUsecase: clusterUsecase}
+func NewClusterWebService(clusterUsecase usecase.ClusterUsecase, rbacUsecase usecase.RBACUsecase) *ClusterWebService {
+	return &ClusterWebService{clusterUsecase: clusterUsecase, rbacUsecase: rbacUsecase}
 }
 
 // GetWebService -
@@ -49,6 +50,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(c.listKubeClusters).
 		Doc("list all clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "list")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer").DefaultValue("20")).
@@ -60,6 +62,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Doc("create cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateClusterRequest{}).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Returns(200, "OK", apis.ClusterBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ClusterBase{}))
@@ -67,6 +70,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/{clusterName}").To(c.getKubeCluster).
 		Doc("detail cluster info").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "detail")).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Returns(200, "OK", apis.DetailClusterResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -75,6 +79,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.PUT("/{clusterName}").To(c.modifyKubeCluster).
 		Doc("modify cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "update")).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Reads(apis.CreateClusterRequest{}).
 		Returns(200, "OK", apis.ClusterBase{}).
@@ -84,6 +89,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.DELETE("/{clusterName}").To(c.deleteKubeCluster).
 		Doc("delete cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "delete")).
 		Param(ws.PathParameter("clusterName", "identifier of the cluster").DataType("string")).
 		Returns(200, "OK", apis.ClusterBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -94,6 +100,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("clusterName", "name of the target cluster").DataType("string")).
 		Reads(apis.CreateClusterNamespaceRequest{}).
+		Filter(c.rbacUsecase.CheckPerm("cluster/namespace", "create")).
 		Returns(200, "OK", apis.CreateClusterNamespaceResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.CreateClusterNamespaceResponse{}))
@@ -101,6 +108,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud_clusters/{provider}").To(c.listCloudClusters).
 		Doc("list cloud clusters").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer").DefaultValue("0")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer").DefaultValue("20")).
@@ -112,6 +120,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud_clusters/{provider}/connect").To(c.connectCloudCluster).
 		Doc("create cluster from cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Reads(apis.ConnectCloudClusterRequest{}).
 		Returns(200, "OK", apis.ClusterBase{}).
@@ -121,6 +130,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/cloud_clusters/{provider}/create").To(c.createCloudCluster).
 		Doc("create cloud cluster").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string").Required(true)).
 		Reads(apis.CreateCloudClusterRequest{}).
 		Returns(200, "OK", apis.CreateCloudClusterResponse{}).
@@ -130,6 +140,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/cloud_clusters/{provider}/creation/{cloudClusterName}").To(c.getCloudClusterCreationStatus).
 		Doc("check cloud cluster create status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Param(ws.PathParameter("cloudClusterName", "identifier for cloud cluster which is creating").DataType("string")).
 		Returns(200, "OK", apis.CreateCloudClusterResponse{}).
@@ -138,6 +149,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 
 	ws.Route(ws.GET("/cloud_clusters/{provider}/creation").To(c.listCloudClusterCreation).
 		Doc("list cloud cluster creation").
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Returns(200, "OK", apis.ListCloudClusterCreationResponse{}).
@@ -147,6 +159,7 @@ func (c *ClusterWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.DELETE("/cloud_clusters/{provider}/creation/{cloudClusterName}").To(c.deleteCloudClusterCreation).
 		Doc("delete cloud cluster creation").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("cluster", "create")).
 		Param(ws.PathParameter("provider", "identifier of the cloud provider").DataType("string")).
 		Param(ws.PathParameter("cloudClusterName", "identifier for cloud cluster which is creating").DataType("string")).
 		Returns(200, "OK", apis.CreateCloudClusterResponse{}).

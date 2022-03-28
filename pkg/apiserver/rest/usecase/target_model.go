@@ -85,13 +85,15 @@ func createTarget(ctx context.Context, ds datastore.DataStore, tg *model.Target)
 	return nil
 }
 
-func listTarget(ctx context.Context, ds datastore.DataStore, dsOption *datastore.ListOptions) ([]*model.Target, error) {
+func listTarget(ctx context.Context, ds datastore.DataStore, project string, dsOption *datastore.ListOptions) ([]*model.Target, error) {
 	if dsOption == nil {
 		dsOption = &datastore.ListOptions{}
 	}
-
-	Target := model.Target{}
-	Targets, err := ds.List(ctx, &Target, dsOption)
+	target := model.Target{}
+	if project != "" {
+		target.Project = project
+	}
+	Targets, err := ds.List(ctx, &target, dsOption)
 	if err != nil {
 		log.Logger.Errorf("list target err %v", err)
 		return nil, err

@@ -17,11 +17,9 @@
 package e2e_apiserver_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -70,14 +68,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		req := apiv1.ApplicationRequest{
 			Components: app.Spec.Components,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).Should(BeNil())
-		res, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName), req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 
@@ -218,14 +209,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		req := apiv1.ApplicationRequest{
 			Components: appWithHelm.Spec.Components,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).Should(BeNil())
-		res, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name), req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 
@@ -248,7 +232,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			defer queryRes.Body.Close()
 
 			status := new(Status)
-			err = json.NewDecoder(queryRes.Body).Decode(status)
+			err := json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
@@ -269,14 +253,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			Components: appWithGC.Spec.Components,
 			Policies:   appWithGC.Spec.Policies,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).Should(BeNil())
-		res, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name), req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 
@@ -299,7 +276,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			defer queryRes.Body.Close()
 
 			status := new(Status)
-			err = json.NewDecoder(queryRes.Body).Decode(status)
+			err := json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
@@ -317,14 +294,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			Components: appWithGC.Spec.Components,
 			Policies:   appWithGC.Spec.Policies,
 		}
-		bodyByte, err = json.Marshal(updateReq)
-		Expect(err).Should(BeNil())
-		res, err = http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res = post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name), updateReq)
 		Expect(res).ShouldNot(BeNil())
 		Expect(res.StatusCode).Should(Equal(200))
 
@@ -346,7 +316,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			defer queryRes.Body.Close()
 
 			status := new(Status)
-			err = json.NewDecoder(queryRes.Body).Decode(status)
+			err := json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}
@@ -367,7 +337,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			defer queryRes.Body.Close()
 
 			status := new(Status)
-			err = json.NewDecoder(queryRes.Body).Decode(status)
+			err := json.NewDecoder(queryRes.Body).Decode(status)
 			if err != nil {
 				return err
 			}

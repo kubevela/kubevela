@@ -28,13 +28,14 @@ import (
 )
 
 type envWebService struct {
-	envUsecase usecase.EnvUsecase
-	appUsecase usecase.ApplicationUsecase
+	envUsecase  usecase.EnvUsecase
+	appUsecase  usecase.ApplicationUsecase
+	rbacUsecase usecase.RBACUsecase
 }
 
 // NewEnvWebService new env webservice
-func NewEnvWebService(envUsecase usecase.EnvUsecase, appUseCase usecase.ApplicationUsecase) WebService {
-	return &envWebService{envUsecase: envUsecase, appUsecase: appUseCase}
+func NewEnvWebService(envUsecase usecase.EnvUsecase, appUseCase usecase.ApplicationUsecase, rbacUsecase usecase.RBACUsecase) WebService {
+	return &envWebService{envUsecase: envUsecase, appUsecase: appUseCase, rbacUsecase: rbacUsecase}
 }
 
 func (n *envWebService) GetWebService() *restful.WebService {
@@ -49,6 +50,8 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(n.list).
 		Operation("envlist").
 		Doc("list all envs").
+		// This api will filter the environments by user's permissions
+		// Filter(n.rbacUsecase.CheckPerm("environment", "list")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListEnvResponse{}).
 		Writes(apis.ListEnvResponse{}))
@@ -56,25 +59,28 @@ func (n *envWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.POST("/").To(n.create).
 		Operation("envcreate").
 		Doc("create an env").
+		Filter(n.rbacUsecase.CheckPerm("environment", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
-	ws.Route(ws.PUT("/{name}").To(n.update).
+	ws.Route(ws.PUT("/{envName}").To(n.update).
 		Operation("envupdate").
 		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Filter(n.rbacUsecase.CheckPerm("environment", "update")).
+		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
 
-	ws.Route(ws.DELETE("/{name}").To(n.delete).
+	ws.Route(ws.DELETE("/{envName}").To(n.delete).
 		Operation("envdelete").
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Filter(n.rbacUsecase.CheckPerm("environment", "delete")).
+		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -103,7 +109,7 @@ func (n *envWebService) list(req *restful.Request, res *restful.Response) {
 
 // it will prevent the deletion if there's still application in it.
 func (n *envWebService) delete(req *restful.Request, res *restful.Response) {
-	envname := req.PathParameter("name")
+	envname := req.PathParameter("envName")
 
 	ctx := req.Request.Context()
 	lists, err := n.appUsecase.ListApplications(ctx, apis.ListApplicationOptions{Env: envname})
@@ -166,7 +172,7 @@ func (n *envWebService) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), req.PathParameter("name"), updateReq)
+	env, err := n.envUsecase.UpdateEnv(req.Request.Context(), req.PathParameter("envName"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

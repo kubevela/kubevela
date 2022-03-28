@@ -49,12 +49,13 @@ var _ = Describe("Test application usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,
@@ -73,10 +74,10 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test HandleApplicationWebhook function", func() {
-		_, err := targetUsecase.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook"})
+		_, err := projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
 		Expect(err).Should(BeNil())
 
-		_, err = projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
+		_, err = targetUsecase.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook", Project: "project-webhook"})
 		Expect(err).Should(BeNil())
 
 		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "webhook-dev", Namespace: "webhook-dev", Targets: []string{"dev-target-webhook"}, Project: "project-webhook"})

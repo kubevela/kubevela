@@ -18,7 +18,6 @@ package rest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,22 +26,16 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/kubeapi"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore/mongodb"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/webservice"
@@ -78,13 +71,15 @@ type leaderConfig struct {
 // APIServer interface for call api server
 type APIServer interface {
 	Run(context.Context) error
-	RegisterServices() restfulspec.Config
+	RegisterServices(ctx context.Context, initDatabase bool) restfulspec.Config
 }
 
 type restServer struct {
 	webContainer *restful.Container
 	cfg          Config
 	dataStore    datastore.DataStore
+	// usecases, we register part of the usecase instances
+	usecases map[string]interface{}
 }
 
 // New create restserver with config data
@@ -114,11 +109,7 @@ func New(cfg Config) (a APIServer, err error) {
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	s.RegisterServices()
-
-	if err := s.InitAdmin(ctx); err != nil {
-		return err
-	}
+	s.RegisterServices(ctx, true)
 
 	l, err := s.setupLeaderElection()
 	if err != nil {
@@ -149,7 +140,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		RetryPeriod:   time.Second * 2,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				go velasync.Start(ctx, s.dataStore, restCfg)
+				go velasync.Start(ctx, s.dataStore, restCfg, s.usecases)
 				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 			},
 			OnStoppedLeading: func() {
@@ -169,10 +160,9 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 	}, nil
 }
 
-func (s restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
+func (s *restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
 	klog.Infof("start to syncing workflow record")
-	w := usecase.NewWorkflowUsecase(s.dataStore, usecase.NewEnvUsecase(s.dataStore))
-
+	w := s.usecases["workflow"].(usecase.WorkflowUsecase)
 	t := time.NewTicker(duration)
 	defer t.Stop()
 
@@ -189,8 +179,9 @@ func (s restServer) runWorkflowRecordSync(ctx context.Context, duration time.Dur
 }
 
 // RegisterServices register web service
-func (s *restServer) RegisterServices() restfulspec.Config {
-	webservice.Init(s.dataStore, s.cfg.AddonCacheTime)
+func (s *restServer) RegisterServices(ctx context.Context, initDatabase bool) restfulspec.Config {
+	s.usecases = webservice.Init(ctx, s.dataStore, s.cfg.AddonCacheTime, initDatabase)
+
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */
@@ -221,57 +212,6 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 		PostBuildSwaggerObjectHandler: enrichSwaggerObject}
 	s.webContainer.Add(restfulspec.NewOpenAPIService(config))
 	return config
-}
-
-// RegisterServices register web service
-func (s *restServer) InitAdmin(ctx context.Context) error {
-	admin := "admin"
-	if err := s.dataStore.Get(ctx, &model.User{
-		Name: admin,
-	}); err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			pwd := utils2.RandomString(8)
-			encrypted, err := usecase.GeneratePasswordHash(pwd)
-			if err != nil {
-				return err
-			}
-			if err := s.dataStore.Add(ctx, &model.User{
-				Name:     admin,
-				Password: encrypted,
-			}); err != nil {
-				return err
-			}
-			kubecli, err := clients.GetKubeClient()
-			if err != nil {
-				log.Logger.Fatalf("failed to get kube client: %s", err.Error())
-				return err
-			}
-			secret := &corev1.Secret{}
-			if err := kubecli.Get(ctx, k8stypes.NamespacedName{
-				Name:      admin,
-				Namespace: types.DefaultKubeVelaNS,
-			}, secret); err != nil {
-				if apierrors.IsNotFound(err) {
-					if err := kubecli.Create(ctx, &corev1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      admin,
-							Namespace: types.DefaultKubeVelaNS,
-						},
-						StringData: map[string]string{
-							admin: pwd,
-						},
-					}); err != nil {
-						return err
-					}
-				} else {
-					return err
-				}
-			}
-		} else {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {

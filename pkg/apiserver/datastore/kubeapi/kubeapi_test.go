@@ -96,7 +96,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 			&model.Application{Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.Application{Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Application{Name: "kubevela-app-4", Project: "testProject", Description: "this is demo 4"},
 		}
 		err := kubeStore.BatchAdd(context.TODO(), datas)
 		Expect(err).ToNot(HaveOccurred())
@@ -106,7 +106,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = kubeStore.BatchAdd(context.TODO(), datas2)
-		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
+		equal := cmp.Diff(strings.Contains(err.Error(), "save entities occur error"), true)
 		Expect(equal).To(BeEmpty())
 	})
 
@@ -157,6 +157,26 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 4)
 		Expect(diff).Should(BeEmpty())
+
+		list, err = kubeStore.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 2)
+		Expect(diff).Should(BeEmpty())
+
+		list, err = kubeStore.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 3)
+		Expect(diff).Should(BeEmpty())
+
 	})
 
 	It("Test list clusters with sort and fuzzy query", func() {
@@ -221,6 +241,23 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		})
 		Expect(err).Should(Succeed())
 		Expect(count).Should(Equal(int64(2)))
+
+		count, err = kubeStore.Count(context.TODO(), &app, &datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(2)))
+
+		count, err = kubeStore.Count(context.TODO(), &app, &datastore.FilterOptions{IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(3)))
 	})
 
 	It("Test isExist function", func() {

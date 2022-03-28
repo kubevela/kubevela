@@ -112,9 +112,22 @@ type FuzzyQueryOption struct {
 	Query string
 }
 
+// InQueryOption defines the include search filter option
+type InQueryOption struct {
+	Key    string
+	Values []string
+}
+
+// IsNotExistQueryOption means the value is empty
+type IsNotExistQueryOption struct {
+	Key string
+}
+
 // FilterOptions filter query returned items
 type FilterOptions struct {
-	Queries []FuzzyQueryOption
+	Queries    []FuzzyQueryOption
+	In         []InQueryOption
+	IsNotExist []IsNotExistQueryOption
 }
 
 // ListOptions list api options
