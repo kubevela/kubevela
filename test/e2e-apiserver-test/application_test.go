@@ -80,7 +80,8 @@ var _ = Describe("Test application rest api", func() {
 		var envName = "dev"
 		// create target
 		var createTarget = apisv1.CreateTargetRequest{
-			Name: targetName,
+			Name:    targetName,
+			Project: appProject,
 			Cluster: &apisv1.ClusterTarget{
 				ClusterName: "local",
 				Namespace:   targetName,

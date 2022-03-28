@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -38,12 +37,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 var k8sClient client.Client
 var token string
 
 const (
+	baseDomain   = "http://127.0.0.1:8000"
 	baseURL      = "http://127.0.0.1:8000/api/v1"
 	testNSprefix = "api-e2e-test-"
 )
@@ -101,11 +102,11 @@ var _ = BeforeSuite(func() {
 			if err != nil {
 				return err
 			}
-			loginResp := &apisv1.LoginResponse{}
-			err = json.NewDecoder(resp.Body).Decode(loginResp)
-			Expect(err).Should(BeNil())
-			token = "Bearer " + loginResp.AccessToken
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode == 200 {
+				loginResp := &apisv1.LoginResponse{}
+				err = json.NewDecoder(resp.Body).Decode(loginResp)
+				Expect(err).Should(BeNil())
+				token = "Bearer " + loginResp.AccessToken
 				var req = apisv1.CreateProjectRequest{
 					Name:        appProject,
 					Description: "test project",
@@ -113,8 +114,11 @@ var _ = BeforeSuite(func() {
 				_ = post("/projects", req)
 				return nil
 			}
-			return errors.New("rest service not ready")
-		}, time.Second*5, time.Millisecond*200).Should(BeNil())
+			code := &bcode.Bcode{}
+			err = json.NewDecoder(resp.Body).Decode(code)
+			Expect(err).Should(BeNil())
+			return fmt.Errorf("rest service not ready code:%d message:%s", resp.StatusCode, code.Message)
+		}, time.Second*10, time.Millisecond*200).Should(BeNil())
 	By("api server started")
 })
 
@@ -134,7 +138,12 @@ func post(path string, body interface{}) *http.Response {
 	b, err := json.Marshal(body)
 	Expect(err).Should(BeNil())
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPost, baseURL+path, bytes.NewBuffer(b))
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodPost, path, bytes.NewBuffer(b))
 	Expect(err).Should(BeNil())
 	req.Header.Add("Authorization", token)
 	req.Header.Add("Content-Type", "application/json")
@@ -148,7 +157,12 @@ func put(path string, body interface{}) *http.Response {
 	b, err := json.Marshal(body)
 	Expect(err).Should(BeNil())
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPut, baseURL+path, bytes.NewBuffer(b))
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodPut, path, bytes.NewBuffer(b))
 	Expect(err).Should(BeNil())
 	req.Header.Add("Authorization", token)
 	req.Header.Set("Content-Type", "application/json")
@@ -160,7 +174,12 @@ func put(path string, body interface{}) *http.Response {
 
 func get(path string) *http.Response {
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodGet, path, nil)
 	Expect(err).Should(BeNil())
 	req.Header.Add("Authorization", token)
 
@@ -171,10 +190,14 @@ func get(path string) *http.Response {
 
 func delete(path string) *http.Response {
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodDelete, baseURL+path, nil)
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodDelete, path, nil)
 	Expect(err).Should(BeNil())
 	req.Header.Add("Authorization", token)
-
 	response, err := client.Do(req)
 	Expect(err).Should(BeNil())
 	defer response.Body.Close()

@@ -92,10 +92,10 @@ jobs:
           kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
           kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
-      - name: Run apiserver unit test
+      - name: Run api server unit test
         run: make unit-test-apiserver
 
-      - name: Run apiserver e2e test
+      - name: Run api server e2e test
         run: |
           export ALIYUN_ACCESS_KEY_ID=${{ secrets.ALIYUN_ACCESS_KEY_ID }}
           export ALIYUN_ACCESS_KEY_SECRET=${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
