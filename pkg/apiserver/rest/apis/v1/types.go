@@ -166,9 +166,11 @@ type AddonStatusResponse struct {
 	Args             map[string]interface{} `json:"args"`
 	EnablingProgress *EnablingProgress      `json:"enabling_progress,omitempty"`
 	AppStatus        common.AppStatus       `json:"appStatus,omitempty"`
+	InstalledVersion string                 `json:"installedVersion,omitempty"`
+
 	// the status of multiple clusters
-	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
-	InstalledVersion string                            `json:"installedVersion,omitempty"`
+	Clusters    map[string]map[string]interface{} `json:"clusters,omitempty"`
+	AllClusters []NameAlias                       `json:"allClusters,omitempty"`
 }
 
 // EnablingProgress defines the progress of enabling an addon

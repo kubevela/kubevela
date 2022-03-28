@@ -131,21 +131,27 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 		}
 		return Status{}, err
 	}
+	var clusters = make(map[string]map[string]interface{})
+	for _, r := range app.Status.AppliedResources {
+		// TODO(wonderflow): we should collect all the necessary information as observability, currently we only collect cluster name
+		clusters[r.Cluster] = make(map[string]interface{})
+	}
 
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
-		return Status{AddonPhase: suspend, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: suspend, AppStatus: &app.Status, Clusters: clusters}, nil
 	}
 	switch app.Status.Phase {
 	case commontypes.ApplicationRunning:
+
 		if name == ObservabilityAddon {
+			// TODO(wonderflow): this is a hack Implementation and need be fixed in a unified way
 			var (
-				clusters = make(map[string]map[string]interface{})
-				sec      v1.Secret
-				domain   string
+				sec    v1.Secret
+				domain string
 			)
 			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec); err != nil {
 				klog.ErrorS(err, "failed to get observability secret")
-				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+				return Status{AddonPhase: enabling, AppStatus: &app.Status, Clusters: clusters}, nil
 			}
 
 			if v, ok := sec.Data[ObservabilityAddonDomainArg]; ok {
@@ -154,7 +160,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			observability, err := GetObservabilityAccessibilityInfo(ctx, cli, domain)
 			if err != nil {
 				klog.ErrorS(err, "failed to get observability accessibility info")
-				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+				return Status{AddonPhase: enabling, AppStatus: &app.Status, Clusters: clusters}, nil
 			}
 
 			for _, o := range observability {
@@ -171,11 +177,11 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			}
 			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
 		}
-		return Status{AddonPhase: enabled, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
+		return Status{AddonPhase: enabled, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion], Clusters: clusters}, nil
 	case commontypes.ApplicationDeleting:
-		return Status{AddonPhase: disabling, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: disabling, AppStatus: &app.Status, Clusters: clusters}, nil
 	default:
-		return Status{AddonPhase: enabling, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
+		return Status{AddonPhase: enabling, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion], Clusters: clusters}, nil
 	}
 }
 

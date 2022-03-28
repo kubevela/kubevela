@@ -44,6 +44,7 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -191,6 +192,15 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		}, nil
 	}
 
+	var allClusters []apis.NameAlias
+	clusers, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
+	if err != nil {
+		log.Logger.Errorf("err while list all clusters: %v", err)
+	}
+
+	for _, c := range clusers {
+		allClusters = append(allClusters, apis.NameAlias{Name: c.Name, Alias: c.Name})
+	}
 	res := apis.AddonStatusResponse{
 		AddonBaseStatus: apis.AddonBaseStatus{
 			Name:  name,
@@ -199,6 +209,7 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		InstalledVersion: status.InstalledVersion,
 		AppStatus:        *status.AppStatus,
 		Clusters:         status.Clusters,
+		AllClusters:      allClusters,
 	}
 
 	if res.Phase != apis.AddonPhaseEnabled {
