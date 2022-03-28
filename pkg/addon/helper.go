@@ -133,6 +133,9 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	}
 	var clusters = make(map[string]map[string]interface{})
 	for _, r := range app.Status.AppliedResources {
+		if r.Cluster == "" {
+			r.Cluster = multicluster.ClusterLocalName
+		}
 		// TODO(wonderflow): we should collect all the necessary information as observability, currently we only collect cluster name
 		clusters[r.Cluster] = make(map[string]interface{})
 	}
