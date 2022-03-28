@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: livediff-demo
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: livediff-demo
+  template:
+    metadata:
+      labels:
+        app: livediff-demo
+    spec:
+      containers:
+        - image: busybox
+          name: livediff-demo

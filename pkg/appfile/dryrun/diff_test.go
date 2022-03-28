@@ -197,20 +197,27 @@ var _ = Describe("Test Live-Diff", func() {
 		applyFile("td-myscaler.yaml", "vela-system")
 		applyFile("cd-myworker.yaml", "vela-system")
 		applyFile("wd-deploy.yaml", "vela-system")
+		applyFile("wd-ref-objects.yaml", "vela-system")
 		Expect(runDiff()).Should(ContainSubstring("\"deploy-livediff-demo\" not found"))
 		applyFile("external-workflow.yaml", "default")
 		Expect(runDiff()).Should(ContainSubstring("topology-local not found"))
 		applyFile("external-policy.yaml", "default")
+		Expect(runDiff()).Should(ContainSubstring("deployments.apps \"livediff-demo\" not found"))
+		applyFile("livediff-demo-deploy.yaml", "default")
+		e := runDiff()
+		_ = e
 		Expect(runDiff()).Should(SatisfyAll(
 			ContainSubstring("Application (livediff-demo) has been modified(*)"),
 			ContainSubstring("External Policy (topology-local) has been added(+)"),
-			ContainSubstring("External Workflow (livediff-demo) has been added(+)"),
+			ContainSubstring("External Workflow (deploy-livediff-demo) has been added(+)"),
+			ContainSubstring("Referred Object (apps/v1 Deployment default/livediff-demo) has been added(+)"),
 		))
 		reverse = true
 		Expect(runDiff()).Should(SatisfyAll(
 			ContainSubstring("Application (livediff-demo) has been modified(*)"),
 			ContainSubstring("External Policy (topology-local) has been removed(-)"),
-			ContainSubstring("External Workflow (livediff-demo) has been removed(-)"),
+			ContainSubstring("External Workflow (deploy-livediff-demo) has been removed(-)"),
+			ContainSubstring("Referred Object (apps/v1 Deployment default/livediff-demo) has been removed(-)"),
 		))
 	})
 

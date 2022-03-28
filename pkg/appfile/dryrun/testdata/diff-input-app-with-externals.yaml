@@ -23,14 +23,10 @@ spec:
         - type: myscaler
           properties:
             replicas: 2
-    - name: myweb-3
-      type: myworker
+    - name: livediff-demo
+      type: ref-objects
       properties:
-        image: "busybox"
-        cmd:
-          - sleep
-          - "1000"
-        lives: "3"
-        enemies: "alien"
+        objects:
+          - resource: deployment
   workflow:
     ref: deploy-livediff-demo

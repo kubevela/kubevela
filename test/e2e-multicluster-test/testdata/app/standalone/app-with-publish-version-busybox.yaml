@@ -11,5 +11,10 @@ spec:
       properties:
         image: busybox
         cmd: [ "sleep", "86400" ]
+    - name: busybox-ref
+      type: ref-objects
+      properties:
+        objects:
+          - resource: deployment
   workflow:
     ref: deploy-worker
