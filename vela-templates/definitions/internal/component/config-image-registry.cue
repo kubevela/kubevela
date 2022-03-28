@@ -55,7 +55,7 @@ template: {
 		registry: string
 		// +usage=Config type
 		type: "account"
-		if type == "account" {
+		auth ?: {
 			// +usage=Private Image registry username
 			username: string
 			// +usage=Private Image registry password
