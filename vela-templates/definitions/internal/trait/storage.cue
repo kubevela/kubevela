@@ -80,12 +80,12 @@ template: {
 	] | []
 
 	configMapEnvMountsList: *[
-				for v in parameter.configMap if v.mountToEnv != _|_ {
+				for v in parameter.configMap if v.mountToEnv != _|_ for k in v.mountToEnv {
 			{
-				name: v.mountToEnv.envName
+				name: k.envName
 				valueFrom: configMapKeyRef: {
 					name: v.name
-					key:  v.mountToEnv.configMapKey
+					key:  k.configMapKey
 				}
 			}
 		},
@@ -101,12 +101,12 @@ template: {
 	] | []
 
 	secretEnvMountsList: *[
-				for v in parameter.secret if v.mountToEnv != _|_ {
+				for v in parameter.secret if v.mountToEnv != _|_ for k in v.mountToEnv {
 			{
-				name: v.mountToEnv.envName
+				name: k.envName
 				valueFrom: secretKeyRef: {
 					name: v.name
-					key:  v.mountToEnv.secretKey
+					key:  k.secretKey
 				}
 			}
 		},
@@ -256,10 +256,10 @@ template: {
 		configMap?: [...{
 			name:      string
 			mountOnly: *false | bool
-			mountToEnv?: {
+			mountToEnv?: [...{
 				envName:      string
 				configMapKey: string
-			}
+			}]
 			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
@@ -275,10 +275,10 @@ template: {
 		secret?: [...{
 			name:      string
 			mountOnly: *false | bool
-			mountToEnv?: {
+			mountToEnv?: [...{
 				envName:   string
 				secretKey: string
-			}
+			}]
 			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
