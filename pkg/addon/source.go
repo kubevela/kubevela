@@ -18,13 +18,13 @@ package addon
 
 import (
 	"fmt"
-	"github.com/xanzy/go-gitlab"
 	"net/url"
 	"path"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
+	"github.com/xanzy/go-gitlab"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )

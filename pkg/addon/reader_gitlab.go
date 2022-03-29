@@ -18,8 +18,10 @@ package addon
 
 import (
 	"encoding/base64"
-	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/xanzy/go-gitlab"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var _ AsyncReader = &gitlabReader{}
