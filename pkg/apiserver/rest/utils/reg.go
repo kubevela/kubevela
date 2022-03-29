@@ -6,6 +6,7 @@ import (
 	"github.com/heroku/docker-registry-client/registry"
 )
 
+// Registry is the metadata for an image registry.
 type Registry struct {
 	Registry string `json:"registry"`
 	Username string `json:"username"`
@@ -13,11 +14,13 @@ type Registry struct {
 	Email    string `json:"email"`
 }
 
+// Image is the metadata for an image.
 type Image struct {
 	Name string `json:"name"`
 	Tag  string `json:"tag"`
 }
 
+// GetPrivateImages returns a list of private images.
 func (r Registry) GetPrivateImages() ([]Image, error) {
 	url := r.Registry
 	username := r.Username
