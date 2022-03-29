@@ -73,6 +73,8 @@ const (
 var forceDisable bool
 var addonVersion string
 
+var addonClusters string
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -140,6 +142,7 @@ Enable addon for specific clusters, (local means control plane):
 			if err != nil {
 				return err
 			}
+			addonArgs[types.ClustersArg] = transClusters(addonClusters)
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -182,6 +185,7 @@ Enable addon for specific clusters, (local means control plane):
 	}
 
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
+	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
 	return cmd
 }
 
@@ -239,6 +243,7 @@ Upgrade addon for specific clusters, (local means control plane):
 			if err != nil {
 				return err
 			}
+			addonArgs[types.ClustersArg] = transClusters(addonClusters)
 			addonOrDir := args[0]
 			var name string
 			if file, err := os.Stat(addonOrDir); err == nil {
@@ -286,22 +291,6 @@ func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 		if err := strvals.ParseIntoString(arg, res); err != nil {
 			return nil, err
 		}
-	}
-	clusters, ok := res[types.ClustersArg]
-	if ok {
-		var clusterL []string
-		clusterList, ok := clusters.([]interface{})
-		if !ok {
-			return nil, errors.Errorf("you must specify string list for --clusters instead of %v", clusters)
-		}
-		for _, v := range clusterList {
-			val, strOk := v.(string)
-			if !strOk {
-				return nil, errors.Errorf("only string allowed in parameter --clusters list instead of %v", v)
-			}
-			clusterL = append(clusterL, strings.TrimSpace(val))
-		}
-		res[types.ClustersArg] = clusterL
 	}
 	return res, nil
 }
@@ -553,6 +542,16 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 		}
 	}
 	return false
+}
+
+func transClusters(cstr string) []string {
+	cstr = strings.TrimPrefix(strings.TrimSuffix(cstr, "}"), "{")
+	var clusterL []string
+	clusterList := strings.Split(cstr, ",")
+	for _, v := range clusterList {
+		clusterL = append(clusterL, strings.TrimSpace(v))
+	}
+	return clusterL
 }
 
 // TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times
