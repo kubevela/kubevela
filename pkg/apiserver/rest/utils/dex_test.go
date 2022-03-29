@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestGetDexConnectors(t *testing.T) {
 		k8sClient client.Client
 	}
 	type want struct {
-		connectors map[string]interface{}
+		connectors []map[string]interface{}
 		err        error
 	}
 
@@ -76,25 +77,31 @@ func TestGetDexConnectors(t *testing.T) {
 			k8sClient: k8sClient,
 		},
 			want: want{
-				connectors: map[string]interface{}{
-					"connectors": []map[string]interface{}{ldap},
-				},
-				err: nil,
+				connectors: []map[string]interface{}{{
+					"id":   "a",
+					"name": "a",
+					"type": "ldap",
+					"config": map[string]interface{}{
+						"clientID":     "clientID",
+						"clientSecret": "clientSecret",
+						"callbackURL":  "redirectURL",
+						"xxx":          map[string]interface{}{"aaa": "bbb", "ccc": "ddd"},
+					},
+				}},
 			},
 		},
 	}
 
 	for name, tc := range testcaes {
 		t.Run(name, func(t *testing.T) {
-			_, err := GetDexConnectors(ctx, tc.args.k8sClient)
+			got, err := GetDexConnectors(ctx, tc.args.k8sClient)
 			if err != tc.want.err {
 				t.Errorf("%s: GetDexConnectors() error = %v, wantErr %v", name, err, tc.want.err)
 				return
 			}
-			//if !reflect.DeepEqual(got, tc.want.connectors) {
-			//	t.Errorf("%s: GetDexConnectors() = %v, want %v", name, got, tc.want.connectors)
-			//}
+			if !reflect.DeepEqual(got, tc.want.connectors) {
+				t.Errorf("%s: GetDexConnectors() = %v, want %v", name, got, tc.want.connectors)
+			}
 		})
 	}
-
 }

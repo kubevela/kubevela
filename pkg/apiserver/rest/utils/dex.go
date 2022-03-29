@@ -27,7 +27,7 @@ import (
 )
 
 // GetDexConnectors returns the dex connectors for Dex connector controller
-func GetDexConnectors(ctx context.Context, k8sClient client.Client) (map[string]interface{}, error) {
+func GetDexConnectors(ctx context.Context, k8sClient client.Client) ([]map[string]interface{}, error) {
 	secrets := &v1.SecretList{}
 	if err := k8sClient.List(ctx, secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{types.LabelConfigType: "config-dex-connector"}); err != nil {
@@ -49,7 +49,5 @@ func GetDexConnectors(ctx context.Context, k8sClient client.Client) (map[string]
 		}
 	}
 
-	return map[string]interface{}{
-		"connectors": connectors,
-	}, nil
+	return connectors, nil
 }
