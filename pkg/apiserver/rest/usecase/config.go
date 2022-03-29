@@ -156,7 +156,7 @@ func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.Create
 			Labels: map[string]string{
 				model.LabelSourceOfTruth: model.FromInner,
 				types.LabelConfigCatalog: velaCoreConfig,
-				types.LabelConfigType:    "config-dex-connector",
+				types.LabelConfigType:    req.Component.ComponentType,
 				types.LabelConfigProject: req.Project,
 				types.LabelConfigEnv:     env,
 			},
