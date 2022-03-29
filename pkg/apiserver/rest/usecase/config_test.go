@@ -18,8 +18,9 @@ package usecase
 
 import (
 	"context"
-	corev1 "k8s.io/api/core/v1"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 
 	. "github.com/agiledragon/gomonkey/v2"
 	"gotest.tools/assert"
