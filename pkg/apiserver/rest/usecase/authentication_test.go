@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"reflect"
 	"strconv"
 	"time"
@@ -30,7 +31,12 @@ import (
 	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
@@ -106,20 +112,36 @@ var _ = Describe("Test authentication usecase functions", func() {
 			},
 		})
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		err = k8sClient.Create(context.Background(), &corev1.Secret{
+		webserver, err := ioutil.ReadFile("./testdata/dex-config-def.yaml")
+		Expect(err).Should(Succeed())
+		var cd v1beta1.ComponentDefinition
+		err = yaml.Unmarshal(webserver, &cd)
+		Expect(err).Should(Succeed())
+		err = k8sClient.Create(context.Background(), &cd)
+		Expect(err).Should(Succeed())
+		err = k8sClient.Create(context.Background(), &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      secretDexConfig,
+				Name:      "addon-dex",
 				Namespace: "vela-system",
 			},
-			StringData: map[string]string{
-				secretDexConfigKey: `
-issuer: https://dex.oam.dev
-staticClients:
-- id: client-id
-  secret: client-secret
-  redirectURIs:
-  - http://localhost:8080/auth/callback
-`,
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "dex-config",
+						Type:       "dex-config",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","redirectURIS":["http://localhost:8080/auth/callback"],"secret":"client-secret"}]}`)},
+						Traits:     []common.ApplicationTrait{},
+						Scopes:     map[string]string{},
+					},
+					{
+						Name: "dex",
+						// only for test here
+						Type:       "dex-config",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"values":{"test":"test"}}`)},
+						Traits:     []common.ApplicationTrait{},
+						Scopes:     map[string]string{},
+					},
+				},
 			},
 		})
 		Expect(err).Should(BeNil())
@@ -132,4 +154,15 @@ staticClients:
 		Expect(config.RedirectURL).Should(Equal("http://localhost:8080/auth/callback"))
 	})
 
+	It("Test update dex config", func() {
+		err := authUsecase.UpdateDexConfig(context.Background())
+		Expect(err).Should(BeNil())
+		dexApp := &v1beta1.Application{}
+		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-dex", Namespace: "vela-system"}, dexApp)
+		Expect(err).Should(BeNil())
+		config := &dexConfig{}
+		err = json.Unmarshal(dexApp.Spec.Components[0].Properties.Raw, config)
+		Expect(err).Should(BeNil())
+		Expect(len(config.Connectors)).Should(Equal(1))
+	})
 })
