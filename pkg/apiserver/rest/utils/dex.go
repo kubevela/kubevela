@@ -24,19 +24,19 @@ func GetDexConnectors(ctx context.Context, k8sClient client.Client) (map[string]
 		return nil, err
 	}
 	connectors := make([]map[string]interface{}, len(secrets.Items))
-	for _, s := range secrets.Items {
+	for i, s := range secrets.Items {
 		var data map[string]interface{}
 		key := s.Labels[types.LabelConfigSubType]
 		err := json.Unmarshal(s.Data[key], &data)
 		if err != nil {
 			return nil, err
 		}
-		connectors = append(connectors, map[string]interface{}{
+		connectors[i] = map[string]interface{}{
 			"type":   s.Labels[types.LabelConfigSubType],
 			"id":     s.Name,
 			"name":   s.Name,
 			"config": data,
-		})
+		}
 	}
 
 	return map[string]interface{}{

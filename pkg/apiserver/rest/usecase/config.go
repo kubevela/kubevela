@@ -142,6 +142,11 @@ func (u *defaultConfigHandler) GetConfigType(ctx context.Context, configType str
 }
 
 func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.CreateApplicationRequest) error {
+	var env = "Unknown"
+	if len(req.EnvBinding) > 0 {
+		env = req.EnvBinding[0].Name
+	}
+
 	app := v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
@@ -151,6 +156,7 @@ func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.Create
 				types.LabelConfigCatalog: velaCoreConfig,
 				types.LabelConfigType:    "config-dex-connector",
 				types.LabelConfigProject: req.Project,
+				types.LabelConfigEnv:     env,
 			},
 		},
 		Spec: v1beta1.ApplicationSpec{

@@ -1,3 +1,7 @@
+import (
+	"encoding/json"
+)
+
 "config-dex-connector": {
 	type: "component"
 	annotations: {
@@ -30,10 +34,10 @@ template: {
 		type: "Opaque"
 
 		if parameter.type == "github" {
-			stringData: "github": parameter.github
+			stringData: "github": json.Marshal(parameter.github)
 		}
 		if parameter.type == "ldap" {
-			stringData: "ldap": parameter.ldap
+			stringData: "ldap": json.Marshal(parameter.ldap)
 		}
 	}
 

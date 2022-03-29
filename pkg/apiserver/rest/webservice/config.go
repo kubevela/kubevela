@@ -96,7 +96,6 @@ func (s *configWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
 		Param(ws.PathParameter("name", "identifier of the config").DataType("string")).
-		Reads(apis.CreateApplicationRequest{}).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Returns(404, "Not Found", bcode.Bcode{}).

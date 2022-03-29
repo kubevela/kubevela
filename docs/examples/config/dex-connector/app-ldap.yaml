@@ -17,7 +17,7 @@ spec:
         ldap:
           host: string
           insecureNoSSL: true
-          insecureSkipVerify: ture
+          insecureSkipVerify: true
           startTLS: true
           usernamePrompt: "a"
           userSearch:

@@ -69,6 +69,8 @@ const (
 	LabelConfigSubType = "config.oam.dev/sub-type"
 	// LabelConfigProject is the label for config project
 	LabelConfigProject = "config.oam.dev/project"
+	// LabelConfigEnv is the label for config env
+	LabelConfigEnv = "config.oam.dev/env"
 )
 
 const (
