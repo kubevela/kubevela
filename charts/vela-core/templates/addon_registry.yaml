@@ -8,7 +8,7 @@ data:
   "KubeVela":{
     "name": "KubeVela",
     "helm": {
-      "url": "https://addons.kubevela.net",
+      "url": "https://addons.kubevela.net"
     }
   }
 }'
