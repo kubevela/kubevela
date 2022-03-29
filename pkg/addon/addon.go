@@ -589,6 +589,9 @@ func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
 			},
 		}
 	}
+	if app.Spec.Components == nil {
+		app.Spec.Components = []common2.ApplicationComponent{}
+	}
 	app.Name = Convert2AppName(addon.Name)
 	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
 	app.SetNamespace(types.DefaultKubeVelaNS)
