@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -62,6 +64,7 @@ var _ = Describe("Addon Test", func() {
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
 			Eventually(func(g Gomega) {
 				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "vela-system"}, &v1beta1.Application{}))).Should(BeTrue())
+				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-secret-test-addon", Namespace: "vela-system"}, &v1.Secret{}))).Should(BeTrue())
 			}, 60*time.Second).Should(Succeed())
 		})
 
