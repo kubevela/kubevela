@@ -59,7 +59,7 @@ func returns500(b *restful.RouteBuilder) {
 	b.Returns(http.StatusInternalServerError, "Bummer, something went wrong", nil)
 }
 
-// Init init all webservice, pass in the required parameter object.
+// Init inits all webservice, pass in the required parameter object.
 // It can be implemented using the idea of dependency injection.
 func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Duration, initDatabase bool) map[string]interface{} {
 	clusterUsecase := usecase.NewClusterUsecase(ds)
