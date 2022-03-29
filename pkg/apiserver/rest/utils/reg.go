@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+
 	"github.com/heroku/docker-registry-client/registry"
 )
 

@@ -18,10 +18,12 @@ package usecase
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"sync"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sync"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 
