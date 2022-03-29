@@ -37,6 +37,11 @@ jobs:
     runs-on: aliyun
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
+    strategy:
+      matrix:
+        kind_node_image:
+          - kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4
+          - kindest/node:v1.20.15@sha256:2d93744654696ea4270c04ec83e7940177295aac99223b224b052c79d4e7693e
 
     steps:
       - name: Check out code into the Go module directory
@@ -60,7 +65,7 @@ jobs:
       - name: Setup Kind Cluster
         run: |
           kind delete cluster
-          kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4
+          kind create cluster --image ${{ matrix.kind_node_image }}
           kubectl version
           kubectl cluster-info
 
