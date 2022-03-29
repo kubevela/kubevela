@@ -1,0 +1,89 @@
+package utils
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"testing"
+)
+
+func TestGetDexConnectors(t *testing.T) {
+	ctx := context.Background()
+	type args struct {
+		k8sClient client.Client
+	}
+	type want struct {
+		connectors []map[string]interface{}
+		err        error
+	}
+
+	ldap := map[string]interface{}{
+		"clientID":     "clientID",
+		"clientSecret": "clientSecret",
+		"callbackURL":  "redirectURL",
+		"xxx":          map[string]interface{}{"aaa": "bbb", "ccc": "ddd"},
+	}
+	data, err := json.Marshal(ldap)
+	assert.NoError(t, err)
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "a",
+			Namespace: "vela-system",
+			Labels: map[string]string{
+				"app.oam.dev/source-of-truth": "from-inner-system",
+				"config.oam.dev/catalog":      "velacore-config",
+				"config.oam.dev/type":         "config-dex-connector",
+				"config.oam.dev/sub-type":     "ldap",
+				"project":                     "abc",
+			},
+		},
+		Data: map[string][]byte{
+			"ldap": data,
+		},
+		Type: v1.SecretTypeOpaque,
+	}
+
+	k8sClient := fake.NewClientBuilder().WithObjects(secret).Build()
+
+	testcaes := map[string]struct {
+		args args
+		want want
+	}{
+
+		"test": {args: args{
+			k8sClient: k8sClient,
+		},
+			want: want{
+				connectors: []map[string]interface{}{
+					{
+						"clientID":     "clientID",
+						"clientSecret": "clientSecret",
+						"callbackURL":  "redirectURL",
+						"xxx":          `{"aaa":"bbb","ccc":"ddd"}`,
+					},
+				},
+				err: nil,
+			},
+		},
+	}
+
+	for name, tc := range testcaes {
+		t.Run(name, func(t *testing.T) {
+			got, err := GetDexConnectors(ctx, tc.args.k8sClient)
+			if err != tc.want.err {
+				t.Errorf("%s: GetDexConnectors() error = %v, wantErr %v", name, err, tc.want.err)
+				return
+			}
+			if !reflect.DeepEqual(got, tc.want.connectors) {
+				t.Errorf("%s: GetDexConnectors() = %v, want %v", name, got, tc.want.connectors)
+			}
+		})
+	}
+
+}

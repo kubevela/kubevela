@@ -17,23 +17,23 @@ template: {
 		apiVersion: "v1"
 		kind:       "Secret"
 		metadata: {
-			name:      parameter.name
+			name:      context.name
 			namespace: context.namespace
 			labels: {
 				"config.oam.dev/catalog":       "velacore-config"
 				"config.oam.dev/type":          "dex-connector"
 				"config.oam.dev/multi-cluster": "false"
-				"config.oam.dev/identifier":    parameter.name
+				"config.oam.dev/identifier":    context.name
 				"config.oam.dev/sub-type":      parameter.type
 			}
 		}
 		type: "Opaque"
 
 		if parameter.type == "github" {
-			stringData: parameter.github
+			stringData: "github": parameter.github
 		}
 		if parameter.type == "ldap" {
-			stringData: parameter.ldap
+			stringData: "ldap": parameter.ldap
 		}
 	}
 

@@ -18,6 +18,9 @@ package usecase
 
 import (
 	"context"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -36,19 +39,17 @@ import (
 )
 
 const (
-	labelVal              = "velacore-config"
 	definitionAlias       = definition.UserPrefix + "alias.config.oam.dev"
 	definitionType        = definition.UserPrefix + "type.config.oam.dev"
 	terraformProviderType = "terraform-provider"
-	// LabelProject is the label to store project name in an application
-	LabelProject = "project"
+	velaCoreConfig        = "velacore-config"
 )
 
 // ConfigHandler handle CRUD of configs
 type ConfigHandler interface {
 	ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error)
 	GetConfigType(ctx context.Context, configType string) (*apis.ConfigType, error)
-	CreateConfig(ctx context.Context, req apis.CreateApplicationRequest) (*apis.ApplicationBase, error)
+	CreateConfig(ctx context.Context, req apis.CreateApplicationRequest) error
 	GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error)
 	GetConfig(ctx context.Context, configType, name string) (*apis.Config, error)
 	DeleteConfig(ctx context.Context, configType, name string) error
@@ -91,7 +92,7 @@ type defaultConfigHandler struct {
 func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": labelVal}); err != nil {
+		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig}); err != nil {
 		return nil, err
 	}
 
@@ -140,8 +141,29 @@ func (u *defaultConfigHandler) GetConfigType(ctx context.Context, configType str
 	return t, nil
 }
 
-func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.CreateApplicationRequest) (*apis.ApplicationBase, error) {
-	return u.applicationUseCase.CreateApplication(ctx, req)
+func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.CreateApplicationRequest) error {
+	app := v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      req.Name,
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				model.LabelSourceOfTruth: model.FromInner,
+				types.LabelConfigCatalog: velaCoreConfig,
+				types.LabelConfigType:    "config-dex-connector",
+				types.LabelConfigProject: req.Project,
+			},
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       req.Name,
+					Type:       req.Component.ComponentType,
+					Properties: &runtime.RawExtension{Raw: []byte(req.Component.Properties)},
+				},
+			},
+		},
+	}
+	return u.kubeClient.Create(ctx, &app)
 }
 
 func (u *defaultConfigHandler) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
@@ -149,7 +171,7 @@ func (u *defaultConfigHandler) GetConfigs(ctx context.Context, configType string
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			model.LabelSourceOfTruth: model.FromInner,
-			types.LabelConfigCatalog: "velacore-config",
+			types.LabelConfigCatalog: velaCoreConfig,
 			types.LabelConfigType:    configType,
 		}); err != nil {
 		return nil, err
@@ -160,7 +182,7 @@ func (u *defaultConfigHandler) GetConfigs(ctx context.Context, configType string
 		configs[i] = &apis.Config{
 			ConfigType:  a.Labels[types.LabelConfigType],
 			Name:        a.Name,
-			Project:     a.Labels[LabelProject],
+			Project:     a.Labels[types.LabelConfigProject],
 			CreatedTime: &(a.CreationTimestamp.Time),
 		}
 	}
@@ -176,7 +198,7 @@ func (u *defaultConfigHandler) GetConfig(ctx context.Context, configType, name s
 	config := &apis.Config{
 		ConfigType:  a.Labels[types.LabelConfigType],
 		Name:        a.Name,
-		Project:     a.Labels[LabelProject],
+		Project:     a.Labels[types.LabelConfigProject],
 		CreatedTime: &a.CreationTimestamp.Time,
 	}
 

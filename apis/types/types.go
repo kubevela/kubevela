@@ -65,6 +65,10 @@ const (
 	LabelConfigType = "config.oam.dev/type"
 	// LabelConfigCatalog is the label for config catalog
 	LabelConfigCatalog = "config.oam.dev/catalog"
+	// LabelConfigSubType is the sub-type for a config type
+	LabelConfigSubType = "config.oam.dev/sub-type"
+	// LabelConfigProject is the label for config project
+	LabelConfigProject = "config.oam.dev/project"
 )
 
 const (

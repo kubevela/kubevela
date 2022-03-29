@@ -69,9 +69,10 @@ func (s *configWebService) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
 		Reads(apis.CreateApplicationRequest{}).
-		Returns(200, "OK", apis.ConfigType{}).
+		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.ApplicationBase{}))
+		Returns(404, "Not Found", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/{configType}/configs").To(s.getConfigs).
 		Doc("get configs from a config type").
@@ -146,19 +147,13 @@ func (s *configWebService) createConfig(req *restful.Request, res *restful.Respo
 		model.LabelSourceOfTruth: model.FromInner,
 		"config.oam.dev/catalog": "velacore-config",
 		types.LabelConfigType:    req.PathParameter("configType"),
-		usecase.LabelProject:     createReq.Project,
+		types.LabelConfigProject: createReq.Project,
 	}
 
 	// Call the usecase layer code
-	appBase, err := s.handler.CreateConfig(req.Request.Context(), createReq)
+	err := s.handler.CreateConfig(req.Request.Context(), createReq)
 	if err != nil {
 		log.Logger.Errorf("failed to create config: %s", err.Error())
-		bcode.ReturnError(req, res, err)
-		return
-	}
-
-	// Write back response data
-	if err := res.WriteEntity(appBase); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

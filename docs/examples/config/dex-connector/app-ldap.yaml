@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ldap-dev
+  namespace: vela-system
+  labels:
+    "app.oam.dev/source-of-truth": "from-inner-system"
+    "config.oam.dev/catalog": "velacore-config"
+    "config.oam.dev/type": "config-dex-connector"
+    "config.oam.dev/project": "abc"
+spec:
+  components:
+    - name: ldap-dev
+      type: config-dex-connector
+      properties:
+        type: ldap
+        ldap:
+          host: string
+          insecureNoSSL: true
+          insecureSkipVerify: ture
+          startTLS: true
+          usernamePrompt: "a"
+          userSearch:
+            baseDN: "b"
+            username: "c"
+            idAttr: "d"
+            emailAttr: "e"
+            nameAttr: "f"
+
