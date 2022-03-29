@@ -65,16 +65,6 @@ func TestParseMap(t *testing.T) {
 			},
 			nilError: true,
 		},
-		{
-			args: []string{"clusters={c1, c2, c3}", "image.tag=1.1"},
-			res: map[string]interface{}{
-				"clusters": []string{"c1", "c2", "c3"},
-				"image": map[string]interface{}{
-					"tag": "1.1",
-				},
-			},
-			nilError: true,
-		},
 	}
 	for _, s := range testcase {
 		r, err := parseAddonArgsToMap(s.args)
@@ -136,5 +126,28 @@ func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
 		cmd.SetArgs(s.args)
 		err := cmd.Execute()
 		assert.Error(t, err, s.errMsg)
+	}
+}
+
+func TestTransCluster(t *testing.T) {
+	testcase := []struct {
+		str string
+		res []string
+	}{
+		{
+			str: "{cluster1, cluster2}",
+			res: []string{"cluster1", "cluster2"},
+		},
+		{
+			str: "{cluster1,cluster2}",
+			res: []string{"cluster1", "cluster2"},
+		},
+		{
+			str: "{cluster1,  cluster2   }",
+			res: []string{"cluster1", "cluster2"},
+		},
+	}
+	for _, s := range testcase {
+		assert.DeepEqual(t, transClusters(s.str), s.res)
 	}
 }
