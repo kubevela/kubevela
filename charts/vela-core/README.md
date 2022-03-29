@@ -86,7 +86,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.replicaCount`            | ClusterGateway replica count     | `1`                              |
 | `multicluster.clusterGateway.port`                    | ClusterGateway port              | `9443`                           |
 | `multicluster.clusterGateway.image.repository`        | ClusterGateway image repository  | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.1.7`                         |
+| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.3.0`                         |
 | `multicluster.clusterGateway.image.pullPolicy`        | ClusterGateway image pull policy | `IfNotPresent`                   |
 | `multicluster.clusterGateway.resources.limits.cpu`    | ClusterGateway cpu limit         | `100m`                           |
 | `multicluster.clusterGateway.resources.limits.memory` | ClusterGateway memory limit      | `200Mi`                          |
