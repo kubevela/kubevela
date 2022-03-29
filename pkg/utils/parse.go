@@ -36,6 +36,9 @@ const TypeGithub = "github"
 // TypeGitee represents gitee
 const TypeGitee = "gitee"
 
+// TypeGitlab represents gitlab
+const TypeGitlab = "gitlab"
+
 // TypeUnknown represents parse failed
 const TypeUnknown = "unknown"
 
@@ -44,6 +47,7 @@ type Content struct {
 	OssContent
 	GithubContent
 	GiteeContent
+	GitlabContent
 	LocalContent
 }
 
@@ -72,6 +76,16 @@ type GiteeContent struct {
 	Repo  string `json:"gitee_repo"`
 	Path  string `json:"gitee_path"`
 	Ref   string `json:"gitee_ref"`
+}
+
+// GitlabContent for cap center
+type GitlabContent struct {
+	Host  string `json:"gitlab_host"`
+	Owner string `json:"gitlab_owner"`
+	Repo  string `json:"gitlab_repo"`
+	Path  string `json:"gitlab_path"`
+	Ref   string `json:"gitlab_ref"`
+	PId   int    `json:"gitlab_pid"`
 }
 
 // Parse will parse config from address
@@ -197,4 +211,25 @@ func ByteCountIEC(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %ciB",
 		float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// ParseGitlab will parse gitlab config from address
+func ParseGitlab(addr, owner string) (string, *Content, error) {
+	// We support two valid format:
+	// https://example.gitlab.com/<owner>/<repo>
+	URL, err := url.Parse(addr)
+	if err != nil {
+		return "", nil, err
+	}
+	repo := strings.Split(addr, owner)
+
+	// https://example.gitlab.com/<owner>/<repo>
+	return TypeGitlab, &Content{
+		GitlabContent: GitlabContent{
+			Host:  URL.Scheme + "://" + URL.Host,
+			Owner: owner,
+			Repo:  repo[1][1:],
+			Ref:   "", // use default branch
+		},
+	}, nil
 }

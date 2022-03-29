@@ -18,6 +18,7 @@ package addon
 
 import (
 	"fmt"
+	"github.com/xanzy/go-gitlab"
 	"net/url"
 	"path"
 	"strings"
@@ -35,6 +36,10 @@ const (
 	DirType = "dir"
 	// FileType means a file
 	FileType = "file"
+	// BlobType means a blob
+	BlobType = "blob"
+	// TreeType means a blob
+	TreeType = "tree"
 
 	bucketTmpl        = "%s://%s.%s"
 	singleOSSFileTmpl = "%s/%s"
@@ -59,6 +64,14 @@ type GitAddonSource struct {
 // GiteeAddonSource defines the information about the Gitee as addon source
 type GiteeAddonSource struct {
 	URL   string `json:"url,omitempty" validate:"required"`
+	Path  string `json:"path,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
+// GitlabAddonSource defines the information about the Gitlab as addon source
+type GitlabAddonSource struct {
+	URL   string `json:"url,omitempty" validate:"required"`
+	Owner string `json:"owner,omitempty" validate:"required"`
 	Path  string `json:"path,omitempty"`
 	Token string `json:"token,omitempty"`
 }
@@ -122,15 +135,16 @@ func pathWithParent(subPath, parent string) string {
 type ReaderType string
 
 const (
-	gitType   ReaderType = "git"
-	ossType   ReaderType = "oss"
-	giteeType ReaderType = "gitee"
+	gitType    ReaderType = "git"
+	ossType    ReaderType = "oss"
+	giteeType  ReaderType = "gitee"
+	gitlabType ReaderType = "gitlab"
 )
 
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
-func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (AsyncReader, error) {
+func NewAsyncReader(baseURL, bucket, owner, subPath, token string, rdType ReaderType) (AsyncReader, error) {
 
 	switch rdType {
 	case gitType:
@@ -182,23 +196,62 @@ func NewAsyncReader(baseURL, bucket, subPath, token string, rdType ReaderType) (
 		return &giteeReader{
 			h: gitee,
 		}, nil
+	case gitlabType:
+		baseURL = strings.TrimSuffix(baseURL, ".git")
+		u, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, errors.New("addon registry invalid")
+		}
+		_, content, err := utils.ParseGitlab(u.String(), owner)
+		content.GitlabContent.Path = subPath
+		if err != nil {
+			return nil, err
+		}
+		gitlabHelper := createGitlabHelper(content, token)
+		err = gitlabHelper.getGitlabProject(content)
+		if err != nil {
+			return nil, err
+		}
+
+		return &gitlabReader{
+			h: gitlabHelper,
+		}, nil
 	}
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
+}
+
+//getGitlabProject get gitlab project , set project id
+func (h *gitlabHelper) getGitlabProject(content *utils.Content) error {
+	//get gitlab project id
+	options := gitlab.ListProjectsOptions{
+		Search: &content.GitlabContent.Repo,
+	}
+	projects, _, err := h.Client.Projects.ListProjects(&options)
+	if err != nil {
+		return err
+	}
+	content.GitlabContent.PId = projects[0].ID
+
+	return nil
 }
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
 func (r *Registry) BuildReader() (AsyncReader, error) {
 	if r.OSS != nil {
 		o := r.OSS
-		return NewAsyncReader(o.Endpoint, o.Bucket, o.Path, "", ossType)
+		return NewAsyncReader(o.Endpoint, o.Bucket, "", o.Path, "", ossType)
 	}
 	if r.Git != nil {
 		g := r.Git
-		return NewAsyncReader(g.URL, "", g.Path, g.Token, gitType)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, gitType)
 	}
 	if r.Gitee != nil {
 		g := r.Gitee
-		return NewAsyncReader(g.URL, "", g.Path, g.Token, giteeType)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, giteeType)
+	}
+	if r.Gitlab != nil {
+		g := r.Gitlab
+		return NewAsyncReader(g.URL, "", g.Owner, g.Path, g.Token, gitlabType)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
 }

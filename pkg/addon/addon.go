@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xanzy/go-gitlab"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -443,6 +444,15 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 	cli := NewGiteeClient(tc, nil)
 	return &giteeHelper{
 		Client: cli,
+		Meta:   content,
+	}
+}
+
+func createGitlabHelper(content *utils.Content, token string) *gitlabHelper {
+	newClient, _ := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+
+	return &gitlabHelper{
+		Client: newClient,
 		Meta:   content,
 	}
 }
