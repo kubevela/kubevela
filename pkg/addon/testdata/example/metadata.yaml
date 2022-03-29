@@ -1,5 +1,5 @@
 name: example
-version: 1.0.0
+version: 1.0.1
 description: Extended workload to do continuous and progressive delivery
 icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
 url: https://fluxcd.io

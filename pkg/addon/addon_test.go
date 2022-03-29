@@ -880,3 +880,20 @@ func TestReadDefFile(t *testing.T) {
 	// verify
 	assert.True(t, len(uiData.Definitions) == 1)
 }
+
+func TestRenderCUETemplate(t *testing.T) {
+	fileDate, err := os.ReadFile("./testdata/example/resources/configmap.cue")
+	assert.NoError(t, err)
+	component, err := renderCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, "{\"example\": \"\"}", map[string]interface{}{
+		"example": "render",
+	}, Meta{
+		Version: "1.0.1",
+	})
+	assert.NoError(t, err)
+	assert.True(t, component.Type == "raw")
+	var config = make(map[string]interface{})
+	err = json.Unmarshal(component.Properties.Raw, &config)
+	assert.NoError(t, err)
+	assert.True(t, component.Type == "raw")
+	assert.True(t, config["metadata"].(map[string]interface{})["labels"].(map[string]interface{})["version"] == "1.0.1")
+}

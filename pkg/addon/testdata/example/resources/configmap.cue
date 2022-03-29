@@ -6,6 +6,9 @@ output: {
 		metadata: {
 			name:      "exampleinput"
 			namespace: "default"
+			labels: {
+			  version: context.metadata.version
+			}
 		}
 		data: input: parameter.example
 	}
