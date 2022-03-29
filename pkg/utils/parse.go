@@ -215,7 +215,7 @@ func ByteCountIEC(b int64) string {
 
 // ParseGitlab will parse gitlab config from address
 func ParseGitlab(addr, owner string) (string, *Content, error) {
-	// We support two valid format:
+	// We support one valid format:
 	// https://example.gitlab.com/<owner>/<repo>
 	URL, err := url.Parse(addr)
 	if err != nil {
