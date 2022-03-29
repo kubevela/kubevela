@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	corev1 "k8s.io/api/core/v1"
 	"testing"
 
 	. "github.com/agiledragon/gomonkey/v2"
@@ -38,6 +39,7 @@ import (
 func TestListConfigTypes(t *testing.T) {
 	s := runtime.NewScheme()
 	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
 	def1 := &v1beta1.ComponentDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ComponentDefinition",
@@ -131,6 +133,7 @@ func TestListConfigTypes(t *testing.T) {
 func TestGetConfigType(t *testing.T) {
 	s := runtime.NewScheme()
 	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
 	def2 := &v1beta1.ComponentDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ComponentDefinition",
