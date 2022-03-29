@@ -95,7 +95,32 @@ spec:
       properties:
         rules:
           - selector:
-             componentTypes:
-               - webservice
-           strategy: never
+              componentTypes:
+                - webservice
+            strategy: never
+```
+
+A more straightforward way is to specify `compNames` to match specified components.
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: create-ns-app
+spec:
+  components:
+    - name: example-addon-namespace
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: Namespace
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              componentNames:
+                - example-addon-namespace
+            strategy: never
 ```
