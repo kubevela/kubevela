@@ -7,7 +7,7 @@ WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-# It's a proxy for CN developer, please unblock it if you have network issue
+# It's a proxy for CN developer, please set the arg if you have network issue
 ARG GOPROXY
 ENV GOPROXY=${GOPROXY:-https://goproxy.cn}
 
