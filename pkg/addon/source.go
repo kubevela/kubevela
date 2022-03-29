@@ -38,7 +38,7 @@ const (
 	FileType = "file"
 	// BlobType means a blob
 	BlobType = "blob"
-	// TreeType means a blob
+	// TreeType means a tree
 	TreeType = "tree"
 
 	bucketTmpl        = "%s://%s.%s"
