@@ -47,7 +47,7 @@ func TestPathWithParent(t *testing.T) {
 
 func TestConvert2OssItem(t *testing.T) {
 	subPath := "sub-addons"
-	reader, err := NewAsyncReader("ep-beijing.com", "bucket", subPath, "", ossType)
+	reader, err := NewAsyncReader("ep-beijing.com", "bucket", "", subPath, "", ossType)
 
 	assert.NoError(t, err)
 

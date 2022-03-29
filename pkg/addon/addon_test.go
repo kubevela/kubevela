@@ -146,7 +146,7 @@ func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", "", "", ossType)
 	assert.NoError(t, err)
 	testReaderFunc(t, reader)
 }
@@ -616,9 +616,9 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 }
 
 func TestGetPatternFromItem(t *testing.T) {
-	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "some-sub-path", "", ossType)
+	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "", "some-sub-path", "", ossType)
 	assert.NoError(t, err)
-	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "addons", "", gitType)
+	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "", "addons", "", gitType)
 	assert.NoError(t, err)
 	gitItemName := "parameter.cue"
 	gitItemType := FileType
@@ -656,7 +656,7 @@ func TestGetPatternFromItem(t *testing.T) {
 }
 
 func TestGitLabReaderNotPanic(t *testing.T) {
-	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
+	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "", "addons", "", gitType)
 	assert.EqualError(t, err, "git type repository only support github for now")
 }
 
