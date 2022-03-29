@@ -182,3 +182,11 @@ func (u *defaultConfigHandler) GetConfig(ctx context.Context, configType, name s
 
 	return config, nil
 }
+
+func (u *defaultConfigHandler) DeleteConfig(ctx context.Context, configType, name string) error {
+	var a = &v1beta1.Application{}
+	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
+		return err
+	}
+	return u.kubeClient.Delete(ctx, a)
+}
