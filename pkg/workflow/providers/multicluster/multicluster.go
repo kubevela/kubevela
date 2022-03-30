@@ -180,10 +180,7 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 				return errors.Wrapf(e, "failed to get cluster %s", cluster)
 			}
 		}
-		if ns == "" {
-			ns = p.app.GetNamespace()
-		}
-		if !resourcekeeper.AllowCrossNamespaceResource && ns != p.app.GetNamespace() {
+		if !resourcekeeper.AllowCrossNamespaceResource && (ns != p.app.GetNamespace() && ns != "") {
 			return errors.Errorf("cannot cross namespace")
 		}
 		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: ns}
