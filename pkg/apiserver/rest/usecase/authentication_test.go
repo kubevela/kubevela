@@ -172,6 +172,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 			},
 			Type: corev1.SecretTypeOpaque,
 		})
+		Expect(err).Should(BeNil())
 		err = authUsecase.UpdateDexConfig(context.Background())
 		Expect(err).Should(BeNil())
 		dexApp := &v1beta1.Application{}
