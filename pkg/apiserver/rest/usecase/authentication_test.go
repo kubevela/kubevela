@@ -155,7 +155,24 @@ var _ = Describe("Test authentication usecase functions", func() {
 	})
 
 	It("Test update dex config", func() {
-		err := authUsecase.UpdateDexConfig(context.Background())
+		err := k8sClient.Create(context.Background(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "a",
+				Namespace: "vela-system",
+				Labels: map[string]string{
+					"app.oam.dev/source-of-truth": "from-inner-system",
+					"config.oam.dev/catalog":      "velacore-config",
+					"config.oam.dev/type":         "config-dex-connector",
+					"config.oam.dev/sub-type":     "ldap",
+					"project":                     "abc",
+				},
+			},
+			StringData: map[string]string{
+				"ldap": `{"clientID":"clientID","clientSecret":"clientSecret"}`,
+			},
+			Type: corev1.SecretTypeOpaque,
+		})
+		err = authUsecase.UpdateDexConfig(context.Background())
 		Expect(err).Should(BeNil())
 		dexApp := &v1beta1.Application{}
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-dex", Namespace: "vela-system"}, dexApp)

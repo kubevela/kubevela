@@ -36,8 +36,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -255,7 +255,7 @@ func ParseToken(tokenString string) (*model.CustomClaims, error) {
 }
 
 func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.DexConfigResponse, error) {
-	_, config, err := getDexConfig(ctx, a.kubeClient)
+	config, err := getDexConfig(ctx, a.kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -268,23 +268,27 @@ func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.D
 }
 
 func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
-	dexApp, config, err := getDexConfig(ctx, a.kubeClient)
+	connectors, err := utils.GetDexConnectors(ctx, a.kubeClient)
 	if err != nil {
 		return err
 	}
-	// TODO: use the real connection data
-	test := []interface{}{
-		map[string]string{
-			"id":   "mock",
-			"name": "Example",
-			"type": "mockCallback",
-		},
+	dexApp := &v1beta1.Application{}
+	if err := a.kubeClient.Get(ctx, types.NamespacedName{
+		Name:      dexAddonName,
+		Namespace: velatypes.DefaultKubeVelaNS,
+	}, dexApp); err != nil {
+		return err
 	}
-	config.Connectors = test
-	raw := util.Object2RawExtension(config)
+
+	var config model.JSONStruct
 	for i, comp := range dexApp.Spec.Components {
 		if comp.Name == keyDexConfig {
-			dexApp.Spec.Components[i].Properties = raw
+			err := json.Unmarshal(comp.Properties.Raw, &config)
+			if err != nil {
+				return err
+			}
+			config["connectors"] = connectors
+			dexApp.Spec.Components[i].Properties = config.RawExtension()
 		}
 		if comp.Name == keyDex {
 			var v model.JSONStruct
@@ -319,13 +323,13 @@ type dexConfig struct {
 	Connectors []interface{} `json:"connectors,omitempty"`
 }
 
-func getDexConfig(ctx context.Context, kubeClient client.Client) (*v1beta1.Application, *dexConfig, error) {
+func getDexConfig(ctx context.Context, kubeClient client.Client) (*dexConfig, error) {
 	dexApp := &v1beta1.Application{}
 	if err := kubeClient.Get(ctx, types.NamespacedName{
 		Name:      dexAddonName,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexApp); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	config := &dexConfig{}
@@ -333,16 +337,16 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*v1beta1.Appli
 		if comp.Name == keyDexConfig {
 			if err := json.Unmarshal(comp.Properties.Raw, &config); err != nil {
 				log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
-				return nil, nil, bcode.ErrInvalidDexConfig
+				return nil, bcode.ErrInvalidDexConfig
 			}
 			if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
-				return nil, nil, bcode.ErrInvalidDexConfig
+				return nil, bcode.ErrInvalidDexConfig
 			}
-			return dexApp, config, nil
+			return config, nil
 		}
 	}
 
-	return nil, nil, bcode.ErrInvalidDexConfig
+	return nil, bcode.ErrInvalidDexConfig
 }
 
 func (a *authenticationUsecaseImpl) GetLoginType(ctx context.Context) (*apisv1.GetLoginTypeResponse, error) {
