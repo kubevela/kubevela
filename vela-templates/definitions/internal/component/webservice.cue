@@ -499,6 +499,12 @@ template: {
 
 		// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
 		readinessProbe?: #HealthProbe
+
+		// +usage=Specify the hostAliases to add
+		hostAliases: [...{
+			ip: string
+			hostnames: [...string]
+		}]
 	}
 
 	#HealthProbe: {
@@ -541,11 +547,5 @@ template: {
 
 		// +usage=Number of consecutive failures required to determine the container is not alive (liveness probe) or not ready (readiness probe).
 		failureThreshold: *3 | int
-
-		// +usage=Specify the hostAliases to add
-		hostAliases: [...{
-			ip: string
-			hostnames: [...string]
-		}]
 	}
 }
