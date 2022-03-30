@@ -57,10 +57,10 @@ func TestParser(t *testing.T) {
 	r.Equal(outStr, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
-	name: "rss-site"
 	labels: {
 		app: "web"
 	}
+	name: "rss-site"
 }
 `)
 
@@ -72,10 +72,10 @@ metadata: {
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
-		name: "service"
 		labels: {
 			"trait.oam.dev/resource": "service"
 		}
+		name: "service"
 	}
 }
 `)

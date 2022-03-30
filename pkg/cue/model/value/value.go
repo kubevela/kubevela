@@ -248,8 +248,7 @@ func (val *Value) FillRaw(x string, paths ...string) error {
 		return err
 	}
 	xInst := val.r.BuildFile(file)
-
-	v := val.v.FillPath(cue.ParsePath(strings.Join(paths, ".")), xInst.Value())
+	v := val.v.FillPath(fieldPath(MakePath(paths...)), xInst.Value())
 	if v.Err() != nil {
 		return v.Err()
 	}
@@ -260,7 +259,12 @@ func (val *Value) FillRaw(x string, paths ...string) error {
 // FillValueByScript unify the value x at the given script path.
 func (val *Value) FillValueByScript(x *Value, path string) error {
 	if !strings.Contains(path, "[") {
-		return val.FillObject(x, strings.Split(path, ".")...)
+		newV := val.v.FillPath(fieldPath(path), x.v)
+		if err := newV.Err(); err != nil {
+			return err
+		}
+		val.v = newV
+		return nil
 	}
 	s, err := x.String()
 	if err != nil {
@@ -307,14 +311,14 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		}
 		insert = v.v
 	}
-	newV := val.v.FillPath(cue.ParsePath(strings.Join(paths, ".")), insert)
+	newV := val.v.FillPath(fieldPath(MakePath(paths...)), insert)
 	val.v = newV
 	return nil
 }
 
 // LookupValue reports the value at a path starting from val
 func (val *Value) LookupValue(path string) (*Value, error) {
-	v := val.v.LookupPath(cue.ParsePath(path))
+	v := val.v.LookupPath(fieldPath(path))
 	if !v.Exists() {
 		return nil, errors.Errorf("var(path=%s) not exist", path)
 	}
@@ -323,6 +327,33 @@ func (val *Value) LookupValue(path string) (*Value, error) {
 		r:          val.r,
 		addImports: val.addImports,
 	}, nil
+}
+
+func isScript(content string) (bool, error) {
+	content = strings.TrimSpace(content)
+	scriptFile, err := parser.ParseFile("-", content)
+	if err != nil {
+		return false, errors.WithMessage(err, "parse script")
+	}
+	if len(scriptFile.Imports) != 0 {
+		return true, nil
+	}
+	if len(scriptFile.Decls) == 0 || len(scriptFile.Decls) > 1 {
+		return true, nil
+	}
+
+	return !isSelector(scriptFile.Decls[0]), nil
+}
+
+func isSelector(node ast.Node) bool {
+	switch v := node.(type) {
+	case *ast.EmbedDecl:
+		return isSelector(v.Expr)
+	case *ast.SelectorExpr, *ast.IndexExpr, *ast.Ident:
+		return true
+	default:
+		return false
+	}
 }
 
 // LookupByScript reports the value by cue script.
@@ -334,8 +365,12 @@ func (val *Value) LookupByScript(script string) (*Value, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "parse script")
 	}
+	isScriptPath, err := isScript(script)
+	if err != nil {
+		return nil, err
+	}
 
-	if len(scriptFile.Imports) == 0 {
+	if !isScriptPath {
 		return val.LookupValue(script)
 	}
 
@@ -493,7 +528,7 @@ func (iter *stepsIterator) assemble() {
 }
 
 func (iter *stepsIterator) value() *Value {
-	v := iter.target.v.LookupPath(cue.ParsePath(iter.name()))
+	v := iter.target.v.LookupPath(fieldPath(iter.name()))
 	return &Value{
 		r:          iter.target.r,
 		v:          v,
@@ -552,7 +587,7 @@ func (val *Value) Field(label string) (cue.Value, error) {
 
 // GetString get the string value at a path starting from v.
 func (val *Value) GetString(paths ...string) (string, error) {
-	v, err := val.LookupValue(strings.Join(paths, "."))
+	v, err := val.LookupValue(MakePath(paths...))
 	if err != nil {
 		return "", err
 	}
@@ -561,7 +596,7 @@ func (val *Value) GetString(paths ...string) (string, error) {
 
 // GetInt64 get the int value at a path starting from v.
 func (val *Value) GetInt64(paths ...string) (int64, error) {
-	v, err := val.LookupValue(strings.Join(paths, "."))
+	v, err := val.LookupValue(MakePath(paths...))
 	if err != nil {
 		return 0, err
 	}
@@ -570,7 +605,7 @@ func (val *Value) GetInt64(paths ...string) (int64, error) {
 
 // GetBool get the int value at a path starting from v.
 func (val *Value) GetBool(paths ...string) (bool, error) {
-	v, err := val.LookupValue(strings.Join(paths, "."))
+	v, err := val.LookupValue(MakePath(paths...))
 	if err != nil {
 		return false, err
 	}
@@ -659,4 +694,39 @@ func (a *assembler) installTo(expr ast.Expr) error {
 		return errors.New("invalid path")
 	}
 	return nil
+}
+
+// MakePath creates a Path from a sequence of string.
+func MakePath(paths ...string) string {
+	mergedPath := ""
+	if len(paths) > 0 {
+		mergedPath = paths[0]
+		if isNumber(mergedPath) {
+			mergedPath = fmt.Sprintf("\"%s\"", mergedPath)
+		}
+		for _, p := range paths[1:] {
+			if strings.Contains(p, "-") {
+				mergedPath += fmt.Sprintf("[\"%s\"]", p)
+				continue
+			}
+			if isNumber(p) {
+				mergedPath += fmt.Sprintf("\"%s\"", p)
+				continue
+			}
+			mergedPath += fmt.Sprintf(".%s", p)
+		}
+	}
+	return mergedPath
+}
+
+func isNumber(s string) bool {
+	_, err := strconv.ParseInt(s, 10, 64)
+	return err == nil
+}
+
+func fieldPath(s string) cue.Path {
+	if isNumber(s) {
+		return cue.MakePath(cue.Str(s))
+	}
+	return cue.ParsePath(s)
 }

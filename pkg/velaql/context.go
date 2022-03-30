@@ -18,7 +18,6 @@ package velaql
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -57,7 +56,7 @@ func (c ViewContext) PatchComponent(name string, patchValue *value.Value) error 
 
 // GetVar get variable from workflow context.
 func (c ViewContext) GetVar(paths ...string) (*value.Value, error) {
-	return c.vars.LookupValue(strings.Join(paths, "."))
+	return c.vars.LookupValue(value.MakePath(paths...))
 }
 
 // SetVar set variable to workflow context.
@@ -66,7 +65,8 @@ func (c ViewContext) SetVar(v *value.Value, paths ...string) error {
 	if err != nil {
 		return errors.WithMessage(err, "compile var")
 	}
-	if err := c.vars.FillRaw(str, paths...); err != nil {
+
+	if err := c.vars.FillRaw(str, value.MakePath(paths...)); err != nil {
 		return err
 	}
 	return c.vars.Error()

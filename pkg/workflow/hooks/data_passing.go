@@ -70,8 +70,10 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 			if err != nil {
 				return err
 			}
-			if err := ctx.SetVar(ready, ReadyComponent, o.Name); err != nil {
-				return err
+			if len(o.Name) > 0 {
+				if err := ctx.SetVar(ready, ReadyComponent, o.Name); err != nil {
+					return err
+				}
 			}
 		}
 

@@ -42,7 +42,6 @@ var _ = Describe("Test VelaQL View", func() {
 
 		queryValue, err := viewHandler.QueryView(context.Background(), query)
 		Expect(err).Should(BeNil())
-
 		podStatus := corev1.PodStatus{}
 		Expect(queryValue.UnmarshalTo(&podStatus)).Should(BeNil())
 	})
