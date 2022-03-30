@@ -208,9 +208,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			exec.tracer = tracer
-			if isDebugMode(taskv) {
+			if debugLog(taskv) {
 				exec.printStep("workflowStepStart", "workflow", "", taskv)
 				defer exec.printStep("workflowStepEnd", "workflow", "", taskv)
+			}
+			if options.Debug != nil {
+				defer func() {
+					if err := options.Debug(exec.wfStatus.Name, taskv); err != nil {
+						tracer.Error(err, "failed to debug")
+					}
+				}()
 			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				tracer.Error(err, "do steps")
@@ -318,7 +325,7 @@ func (exec *executor) printStep(phase string, provider string, do string, v *val
 
 // Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
-	if isDebugMode(v) {
+	if debugLog(v) {
 		exec.printStep("stepStart", provider, do, v)
 		defer exec.printStep("stepEnd", provider, do, v)
 	}
@@ -392,7 +399,7 @@ func isStepList(fieldName string) bool {
 	return strings.HasPrefix(fieldName, "#up_")
 }
 
-func isDebugMode(v *value.Value) bool {
+func debugLog(v *value.Value) bool {
 	debug, _ := v.CueValue().LookupDef("#debug").Bool()
 	return debug
 }

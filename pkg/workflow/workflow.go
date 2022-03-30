@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -69,10 +70,11 @@ type workflow struct {
 	cli     client.Client
 	wfCtx   wfContext.Context
 	dagMode bool
+	debug   bool
 }
 
 // NewWorkflow returns a Workflow implementation.
-func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode) Workflow {
+func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode, debug bool) Workflow {
 	dagMode := false
 	if mode == common.WorkflowModeDAG {
 		dagMode = true
@@ -81,6 +83,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 		app:     app,
 		cli:     cli,
 		dagMode: dagMode,
+		debug:   debug,
 	}
 }
 
@@ -170,6 +173,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		monitorCtx: ctx,
 		app:        w.app,
 		wfCtx:      wfCtx,
+		cli:        w.cli,
+		debug:      w.debug,
 	}
 
 	err = e.run(taskRunners)
@@ -436,13 +441,23 @@ func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRun
 func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 	wfCtx := e.wfCtx
 	for _, runner := range taskRunners {
-		status, operation, err := runner.Run(wfCtx, &wfTypes.TaskRunOptions{
+		options := &wfTypes.TaskRunOptions{
 			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
 				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
 					metrics.StepDurationHistogram.WithLabelValues("application", stepStatus.Type).Observe(v)
 				}))
 			},
-		})
+		}
+		if e.debug {
+			options.Debug = func(step string, v *value.Value) error {
+				debugContext := debug.NewContext(e.cli, e.app, step)
+				if err := debugContext.Set(v); err != nil {
+					return err
+				}
+				return nil
+			}
+		}
+		status, operation, err := runner.Run(wfCtx, options)
 		if err != nil {
 			return err
 		}
@@ -479,10 +494,12 @@ type engine struct {
 	dagMode            bool
 	failedAfterRetries bool
 	waiting            bool
+	debug              bool
 	status             *common.WorkflowStatus
 	monitorCtx         monitorContext.Context
 	wfCtx              wfContext.Context
 	app                *oamcore.Application
+	cli                client.Client
 }
 
 func (e *engine) isDag() bool {

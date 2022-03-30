@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -143,10 +144,16 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 }
 
 // RecordManifestsInResourceTracker records resources in ResourceTracker
-func RecordManifestsInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifests []*unstructured.Unstructured, metaOnly bool) error {
+func RecordManifestsInResourceTracker(
+	ctx context.Context,
+	cli client.Client,
+	rt *v1beta1.ResourceTracker,
+	manifests []*unstructured.Unstructured,
+	metaOnly bool,
+	creator common.ResourceCreatorRole) error {
 	if len(manifests) != 0 {
 		for _, manifest := range manifests {
-			rt.AddManagedResource(manifest, metaOnly)
+			rt.AddManagedResource(manifest, metaOnly, creator)
 		}
 		return cli.Update(ctx, rt)
 	}

@@ -47,6 +47,7 @@ type TaskRunOptions struct {
 	PostStopHooks []TaskPostStopHook
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
+	Debug         func(step string, v *value.Value) error
 }
 
 // TaskPreStartHook run before task execution.

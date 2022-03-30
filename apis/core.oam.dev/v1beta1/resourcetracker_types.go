@@ -187,7 +187,7 @@ func (in *ResourceTracker) findMangedResourceIndex(mr ManagedResource) int {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) (updated bool) {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, creator common.ResourceCreatorRole) (updated bool) {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
 	mr := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
@@ -204,6 +204,9 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) 
 	}
 	if !metaOnly {
 		mr.Data = &runtime.RawExtension{Object: rsc}
+	}
+	if creator != "" {
+		mr.Creator = creator
 	}
 	if idx := in.findMangedResourceIndex(mr); idx >= 0 {
 		if reflect.DeepEqual(in.Spec.ManagedResources[idx], mr) {

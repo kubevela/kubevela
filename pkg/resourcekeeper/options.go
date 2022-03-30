@@ -17,6 +17,7 @@ limitations under the License.
 package resourcekeeper
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
@@ -30,6 +31,14 @@ type MetaOnlyOption struct{}
 
 // ApplyToDispatchConfig apply change to dispatch config
 func (option MetaOnlyOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.metaOnly = true }
+
+// CreatorOption set the creator of the resource
+type CreatorOption struct {
+	Creator common.ResourceCreatorRole
+}
+
+// ApplyToDispatchConfig apply change to dispatch config
+func (option CreatorOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.creator = option.Creator }
 
 // SkipRTOption skip the rt recording during dispatch/delete resources, which means the resource will not be controlled
 // by application resourcetracker

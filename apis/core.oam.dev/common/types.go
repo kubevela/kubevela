@@ -496,6 +496,8 @@ const (
 	PolicyResourceCreator ResourceCreatorRole = "policy"
 	// WorkflowResourceCreator create the resource in workflow.
 	WorkflowResourceCreator ResourceCreatorRole = "workflow"
+	// DebugResourceCreator create the debug resource.
+	DebugResourceCreator ResourceCreatorRole = "debug"
 )
 
 // OAMObjectReference defines the object reference for an oam resource
