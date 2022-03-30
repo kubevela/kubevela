@@ -19,6 +19,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/time"
@@ -82,7 +84,15 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 		Name: admin,
 	}); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			pwd := utils2.RandomString(8)
+			pwd := func() string {
+				p := utils2.RandomString(8)
+				p += strconv.Itoa(rand.Intn(9))                 // #nosec
+				r := append([]rune(p), 'a'+rune(rand.Intn(26))) // #nosec
+				rand.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
+				p = string(r)
+				return p
+			}()
+
 			encrypted, err := GeneratePasswordHash(pwd)
 			if err != nil {
 				return err
