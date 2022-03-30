@@ -220,9 +220,8 @@ func NewAsyncReader(baseURL, bucket, owner, subPath, token string, rdType Reader
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }
 
-//getGitlabProject get gitlab project , set project id
+// getGitlabProject get gitlab project , set project id
 func (h *gitlabHelper) getGitlabProject(content *utils.Content) error {
-	//get gitlab project id
 	options := gitlab.ListProjectsOptions{
 		Search: &content.GitlabContent.Repo,
 	}
