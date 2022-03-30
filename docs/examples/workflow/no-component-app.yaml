@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: no-component-app
+  namespace: examples
+spec:
+  components: []
+  workflow:
+    steps:
+      - name: manual-approve
+        type: suspend
+      - name: send-message
+        type: notification
+        properties:
+          dingding:
+            url:
+              value: <webhook url>
+            message:
+              msgtype: text
+              text:
+                content: Hello KubeVela

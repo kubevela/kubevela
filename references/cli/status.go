@@ -33,6 +33,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -103,6 +105,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if err != nil {
 				return err
 			}
+			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
+				return printApplicationTree(c, cmd, appName, namespace)
+			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
@@ -125,6 +130,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
 	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
+	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -343,4 +349,34 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 		return green
 	}
 	return yellow
+}
+
+func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {
+	config, err := c.GetConfig()
+	if err != nil {
+		return err
+	}
+	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+
+	app, err := loadRemoteApplication(cli, appNs, appName)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	_, rt, _, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	if err != nil {
+		return err
+	}
+	if rt == nil {
+		return errors.Errorf("no resources applied for the current application (generation: %d)", app.Generation)
+	}
+
+	options := resourcetracker.ResourceTreePrintOptions{
+		MessageRetriever: resourcetracker.RetrieveKubeCtlGetMessageGenerator(cli),
+	}
+	return options.PrintResourceTree(cmd.OutOrStdout(), rt)
 }
