@@ -37,6 +37,7 @@ type gitlabHelper struct {
 	Meta   *utils.Content
 }
 
+// GitLabItem  addon's sub item
 type GitLabItem struct {
 	basePath string
 	tp       string
@@ -44,19 +45,22 @@ type GitLabItem struct {
 	name     string
 }
 
+// GetType get addon's sub item type
 func (g GitLabItem) GetType() string {
 	return g.tp
 }
 
+// GetPath get addon's sub item path
 func (g GitLabItem) GetPath() string {
 	return g.path[len(g.basePath)+1:]
 }
 
+// GetName get addon's sub item name
 func (g GitLabItem) GetName() string {
 	return g.name
 }
 
-//GetRef ref is empty , use default branch master
+// GetRef ref is empty , use default branch master
 func (g *gitlabReader) GetRef() string {
 	ref := ""
 	if g.h.Meta.GitlabContent.Ref == "" {
@@ -65,12 +69,12 @@ func (g *gitlabReader) GetRef() string {
 	return ref
 }
 
-//GetProjectId get gitlab project id
-func (g *gitlabReader) GetProjectId() int {
+// GetProjectID get gitlab project id
+func (g *gitlabReader) GetProjectID() int {
 	return g.h.Meta.GitlabContent.PId
 }
 
-//GetProjectPath get gitlab project path
+// GetProjectPath get gitlab project path
 func (g *gitlabReader) GetProjectPath() string {
 	return g.h.Meta.GitlabContent.Path
 }
@@ -78,9 +82,8 @@ func (g *gitlabReader) GetProjectPath() string {
 // ListAddonMeta relative path to repoURL/basePath
 func (g *gitlabReader) ListAddonMeta() (addonCandidates map[string]SourceMeta, err error) {
 	addonCandidates = make(map[string]SourceMeta)
-	//the first dir is addonName
 	path := g.GetProjectPath()
-	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectId(), &gitlab.ListTreeOptions{Path: &path})
+	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path})
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +105,7 @@ func (g *gitlabReader) ListAddonMeta() (addonCandidates map[string]SourceMeta, e
 }
 
 func (g *gitlabReader) listAddonItem(item []Item, path string) ([]Item, error) {
-	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectId(), &gitlab.ListTreeOptions{Path: &path})
+	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path})
 	if err != nil {
 		return item, err
 	}
@@ -128,7 +131,7 @@ func (g *gitlabReader) listAddonItem(item []Item, path string) ([]Item, error) {
 // ReadFile read file content from gitlab
 func (g *gitlabReader) ReadFile(path string) (content string, err error) {
 	ref := g.GetRef()
-	getFile, _, err := g.h.Client.RepositoryFiles.GetFile(g.GetProjectId(), g.GetProjectPath()+"/"+path, &gitlab.GetFileOptions{Ref: &ref})
+	getFile, _, err := g.h.Client.RepositoryFiles.GetFile(g.GetProjectID(), g.GetProjectPath()+"/"+path, &gitlab.GetFileOptions{Ref: &ref})
 	if err != nil {
 		return "", err
 	}
