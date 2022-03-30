@@ -68,6 +68,7 @@ const (
 const (
 	statusEnabled  = "enabled"
 	statusDisabled = "disabled"
+	statusSuspend  = "suspend"
 )
 
 var forceDisable bool
@@ -399,7 +400,9 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	if err != nil {
 		return err
 	}
-	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
+
+	fmt.Print(generateAddonInfo(name, status))
+
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
 		err := printAppStatus(context.Background(), k8sClient, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
@@ -408,6 +411,35 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 		}
 	}
 	return nil
+}
+
+func generateAddonInfo(name string, status pkgaddon.Status) string {
+	var res string
+	var phase string
+
+	switch status.AddonPhase {
+	case statusEnabled:
+		c := color.New(color.FgGreen)
+		phase = c.Sprintf("%s", status.AddonPhase)
+	case statusSuspend:
+		c := color.New(color.FgRed)
+		phase = c.Sprintf("%s", status.AddonPhase)
+	default:
+		phase = status.AddonPhase
+	}
+	res += fmt.Sprintf("addon %s status is %s \n", name, phase)
+	if len(status.InstalledVersion) != 0 {
+		res += fmt.Sprintf("installedVersion: %s \n", status.InstalledVersion)
+	}
+
+	if len(status.Clusters) != 0 {
+		var ic []string
+		for c := range status.Clusters {
+			ic = append(ic, c)
+		}
+		res += fmt.Sprintf("installedClusters: %s \n", ic)
+	}
+	return res
 }
 
 func listAddons(ctx context.Context, clt client.Client, registry string) error {
@@ -504,9 +536,31 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 
 }
 
+// generate the available version
+// this func put the installed version as the first version and keep the origin order
+// print ... if available version too much
 func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+	var v []string
+
+	// put installed-version as the first version and keep the origin order
+	if len(status.InstalledVersion) != 0 {
+		for i, version := range versions {
+			if version == status.InstalledVersion {
+				v = append(v, version)
+				versions = append(versions[:i], versions[i+1:]...)
+			}
+		}
+	}
+	v = append(v, versions...)
+
 	res := "["
-	for _, version := range versions {
+	var count int
+	for _, version := range v {
+		if count == 3 {
+			// just show  newest 3 versions
+			res += "..."
+			break
+		}
 		if version == status.InstalledVersion {
 			col := color.New(color.Bold, color.FgGreen)
 			res += col.Sprintf("%s", version)
@@ -514,6 +568,7 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 			res += version
 		}
 		res += ", "
+		count++
 	}
 	res = strings.TrimSuffix(res, ", ")
 	res += "]"
