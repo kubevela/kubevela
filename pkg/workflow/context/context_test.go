@@ -53,13 +53,13 @@ metadata: {
 }
 spec: {
 	containers: [{
-		name: "main"
 		env: [{
 			name:  "APP"
 			value: "nginx"
 		}, ...]
 		image:           "nginx:1.14.2"
 		imagePullPolicy: "IfNotPresent"
+		name:            "main"
 		ports: [{
 			containerPort: 8080
 			protocol:      "TCP"
@@ -75,8 +75,8 @@ metadata: {
 }
 spec: {
 	ports: [{
-		protocol:   "TCP"
 		port:       80
+		protocol:   "TCP"
 		targetPort: 8080
 	}, ...]
 	selector: {
@@ -105,7 +105,6 @@ metadata: {
 }
 spec: {
 	containers: [{
-		name: "main"
 		// +patchKey=name
 		env: [{
 			name:  "APP"
@@ -116,6 +115,7 @@ spec: {
 		}, ...]
 		image:           "nginx:1.14.2"
 		imagePullPolicy: "IfNotPresent"
+		name:            "main"
 		ports: [{
 			containerPort: 8080
 			protocol:      "TCP"
@@ -201,7 +201,7 @@ result: 101
 	conflictV, err := value.NewValue(`score: 101`, nil, "")
 	r.NoError(err)
 	err = wfCtx.SetVar(conflictV, "football")
-	r.Equal(err.Error(), "football.result: conflicting values 100 and 101")
+	r.Equal(err.Error(), "football.score: conflicting values 101 and 100")
 }
 
 func TestRefObj(t *testing.T) {

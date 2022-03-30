@@ -200,7 +200,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				}
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
-
 			taskv, err := t.makeValue(ctx, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 			if err != nil {
 				exec.err(ctx, err, StatusReasonRendering)
@@ -242,7 +241,6 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, p
 		contextTempl = fmt.Sprintf("\ncontext: {%s}\ncontext: stepSessionID: \"%s\"", ms, id)
 	}
 	contextTempl += "\n" + pCtx.ExtendedContextFile()
-
 	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }
 
@@ -344,7 +342,7 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 			if err != nil {
 				errInfo = "value is _|_"
 			}
-			return true, errors.New(errInfo + "(bottom kind)")
+			return true, errors.Errorf("step %s (bottom kind): %s", fieldName, errInfo)
 		}
 		if retErr := in.CueValue().Err(); retErr != nil {
 			errInfo, err := sets.ToString(in.CueValue())
