@@ -127,17 +127,28 @@ var _ = Describe("Test authentication usecase functions", func() {
 			Spec: v1beta1.ApplicationSpec{
 				Components: []common.ApplicationComponent{
 					{
-						Name:       "dex-config",
-						Type:       "dex-config",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","redirectURIS":["http://localhost:8080/auth/callback"],"secret":"client-secret"}]}`)},
-						Traits:     []common.ApplicationTrait{},
-						Scopes:     map[string]string{},
-					},
-					{
 						Name: "dex",
 						// only for test here
 						Type:       "dex-config",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"values":{"test":"test"}}`)},
+						Traits:     []common.ApplicationTrait{},
+						Scopes:     map[string]string{},
+					},
+				},
+			},
+		})
+		Expect(err).Should(BeNil())
+		err = k8sClient.Create(context.Background(), &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "dex-config",
+				Namespace: "vela-system",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "dex-config",
+						Type:       "dex-config",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","redirectURIS":["http://localhost:8080/auth/callback"],"secret":"client-secret"}]}`)},
 						Traits:     []common.ApplicationTrait{},
 						Scopes:     map[string]string{},
 					},
@@ -175,11 +186,11 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		err = authUsecase.UpdateDexConfig(context.Background())
 		Expect(err).Should(BeNil())
-		dexApp := &v1beta1.Application{}
-		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-dex", Namespace: "vela-system"}, dexApp)
+		dexConfigApp := &v1beta1.Application{}
+		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigApp)
 		Expect(err).Should(BeNil())
 		config := &dexConfig{}
-		err = json.Unmarshal(dexApp.Spec.Components[0].Properties.Raw, config)
+		err = json.Unmarshal(dexConfigApp.Spec.Components[0].Properties.Raw, config)
 		Expect(err).Should(BeNil())
 		Expect(len(config.Connectors)).Should(Equal(1))
 	})

@@ -26,6 +26,7 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/form3tech-oss/jwt-go"
 	"golang.org/x/oauth2"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -272,31 +273,49 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	dexApp := &v1beta1.Application{}
+	dexConfigApp := &v1beta1.Application{}
 	if err := a.kubeClient.Get(ctx, types.NamespacedName{
-		Name:      dexAddonName,
+		Name:      keyDexConfig,
 		Namespace: velatypes.DefaultKubeVelaNS,
-	}, dexApp); err != nil {
+	}, dexConfigApp); err != nil {
+		if kerrors.IsNotFound(err) {
+			return bcode.ErrDexConfigNotFound
+		}
 		return err
 	}
-
-	var config model.JSONStruct
-	for i, comp := range dexApp.Spec.Components {
+	for i, comp := range dexConfigApp.Spec.Components {
 		if comp.Name == keyDexConfig {
+			var config model.JSONStruct
 			err := json.Unmarshal(comp.Properties.Raw, &config)
 			if err != nil {
 				return err
 			}
 			config["connectors"] = connectors
-			dexApp.Spec.Components[i].Properties = config.RawExtension()
+			dexConfigApp.Spec.Components[i].Properties = config.RawExtension()
+			if err := a.kubeClient.Update(ctx, dexConfigApp); err != nil {
+				return err
+			}
+			break
 		}
+	}
+
+	dexApp := &v1beta1.Application{}
+	if err := a.kubeClient.Get(ctx, types.NamespacedName{
+		Name:      dexAddonName,
+		Namespace: velatypes.DefaultKubeVelaNS,
+	}, dexApp); err != nil {
+		if kerrors.IsNotFound(err) {
+			return bcode.ErrDexNotFound
+		}
+		return err
+	}
+	for i, comp := range dexApp.Spec.Components {
 		if comp.Name == keyDex {
 			var v model.JSONStruct
 			err := json.Unmarshal(comp.Properties.Raw, &v)
 			if err != nil {
 				return err
 			}
-
 			// restart the dex server
 			if _, ok := v["values"]; ok {
 				v["values"].(map[string]interface{})["env"] = map[string]string{
@@ -304,12 +323,13 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 				}
 			}
 			dexApp.Spec.Components[i].Properties = v.RawExtension()
+			if err := a.kubeClient.Update(ctx, dexApp); err != nil {
+				return err
+			}
+			break
 		}
 	}
 
-	if err := a.kubeClient.Update(ctx, dexApp); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -324,16 +344,16 @@ type dexConfig struct {
 }
 
 func getDexConfig(ctx context.Context, kubeClient client.Client) (*dexConfig, error) {
-	dexApp := &v1beta1.Application{}
+	dexConfigApp := &v1beta1.Application{}
 	if err := kubeClient.Get(ctx, types.NamespacedName{
-		Name:      dexAddonName,
+		Name:      keyDexConfig,
 		Namespace: velatypes.DefaultKubeVelaNS,
-	}, dexApp); err != nil {
+	}, dexConfigApp); err != nil {
 		return nil, err
 	}
 
 	config := &dexConfig{}
-	for _, comp := range dexApp.Spec.Components {
+	for _, comp := range dexConfigApp.Spec.Components {
 		if comp.Name == keyDexConfig {
 			if err := json.Unmarshal(comp.Properties.Raw, &config); err != nil {
 				log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
