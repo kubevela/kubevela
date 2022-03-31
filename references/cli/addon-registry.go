@@ -199,7 +199,11 @@ func listAddonRegistry(ctx context.Context, c common.Args) error {
 		case registry.Helm != nil:
 			repoType = "helm"
 			repoURL = registry.Helm.URL
+		case registry.Gitlab != nil:
+			repoType = "gitlab"
+			repoURL = registry.Gitlab.URL
 		}
+
 		table.AddRow(registry.Name, repoType, repoURL)
 	}
 	fmt.Println(table.String())
