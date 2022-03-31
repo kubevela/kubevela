@@ -81,7 +81,7 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
 	// Modules that require default data initialization, Call it here in order
 	if initDatabase {
-		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase)
+		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase, systemInfoUsecase)
 	}
 
 	// Application

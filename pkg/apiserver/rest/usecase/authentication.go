@@ -28,6 +28,7 @@ import (
 	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -298,24 +299,43 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 		Name:      dexConfigName,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexConfig); err != nil {
-		if kerrors.IsNotFound(err) {
-			return bcode.ErrDexConfigNotFound
+		if !kerrors.IsNotFound(err) {
+			return err
 		}
-		return err
 	}
-	var config model.JSONStruct
-	err = yaml.Unmarshal(dexConfig.Data[secretDexConfigKey], &config)
-	if err != nil {
-		return err
-	}
-	config["connectors"] = connectors
-	c, err := yaml.Marshal(config)
-	if err != nil {
-		return err
-	}
-	dexConfig.Data[secretDexConfigKey] = c
-	if err := a.kubeClient.Update(ctx, dexConfig); err != nil {
-		return err
+	config := &model.JSONStruct{}
+	if dexConfig == nil || dexConfig.Data == nil {
+		(*config)["connectors"] = connectors
+		c, err := yaml.Marshal(config)
+		if err != nil {
+			return err
+		}
+		if err := a.kubeClient.Create(ctx, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      dexConfigName,
+				Namespace: velatypes.DefaultKubeVelaNS,
+			},
+			Type: corev1.SecretTypeOpaque,
+			Data: map[string][]byte{
+				secretDexConfigKey: c,
+			},
+		}); err != nil {
+			return err
+		}
+	} else {
+		err = yaml.Unmarshal(dexConfig.Data[secretDexConfigKey], config)
+		if err != nil {
+			return err
+		}
+		(*config)["connectors"] = connectors
+		c, err := yaml.Marshal(config)
+		if err != nil {
+			return err
+		}
+		dexConfig.Data[secretDexConfigKey] = c
+		if err := a.kubeClient.Update(ctx, dexConfig); err != nil {
+			return err
+		}
 	}
 
 	dexApp := &v1beta1.Application{}
@@ -352,17 +372,7 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 	return nil
 }
 
-type dexConfig struct {
-	Issuer        string `json:"issuer"`
-	StaticClients []struct {
-		ID           string   `json:"id"`
-		Secret       string   `json:"secret"`
-		RedirectURIs []string `json:"redirectURIs"`
-	} `json:"staticClients"`
-	Connectors []interface{} `json:"connectors,omitempty"`
-}
-
-func getDexConfig(ctx context.Context, kubeClient client.Client) (*dexConfig, error) {
+func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConfig, error) {
 	dexConfigSecret := &corev1.Secret{}
 	if err := kubeClient.Get(ctx, types.NamespacedName{
 		Name:      dexConfigName,
@@ -377,7 +387,7 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*dexConfig, er
 		return nil, bcode.ErrInvalidDexConfig
 	}
 
-	config := &dexConfig{}
+	config := &model.DexConfig{}
 	if err := yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config); err != nil {
 		log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
 		return nil, bcode.ErrInvalidDexConfig

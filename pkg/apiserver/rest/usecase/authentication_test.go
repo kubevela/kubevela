@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -105,7 +106,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(resp.Name).Should(Equal("test-login"))
 	})
 
-	It("Test get dex config", func() {
+	It("Test update dex config", func() {
 		err := k8sClient.Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-system",
@@ -138,22 +139,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
-			LoginType:   model.LoginTypeDex,
-			VelaAddress: "http://velaux.com",
-		})
-		Expect(err).Should(BeNil())
-
-		config, err := authUsecase.GetDexConfig(context.Background())
-		Expect(err).Should(BeNil())
-		Expect(config.Issuer).Should(Equal("http://velaux.com/dex"))
-		Expect(config.ClientID).Should(Equal("velaux"))
-		Expect(config.ClientSecret).Should(Equal("velaux-secret"))
-		Expect(config.RedirectURL).Should(Equal("http://velaux.com/callback"))
-	})
-
-	It("Test update dex config", func() {
-		err := k8sClient.Create(context.Background(), &corev1.Secret{
+		err = k8sClient.Create(context.Background(), &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "a",
 				Namespace: "vela-system",
@@ -171,14 +157,34 @@ var _ = Describe("Test authentication usecase functions", func() {
 			Type: corev1.SecretTypeOpaque,
 		})
 		Expect(err).Should(BeNil())
+		By("try to update dex config without config secret")
 		err = authUsecase.UpdateDexConfig(context.Background())
 		Expect(err).Should(BeNil())
 		dexConfigSecret := &corev1.Secret{}
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigSecret)
 		Expect(err).Should(BeNil())
-		config := &dexConfig{}
+		config := &model.DexConfig{}
 		err = yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config)
 		Expect(err).Should(BeNil())
 		Expect(len(config.Connectors)).Should(Equal(1))
+		By("try to update dex config with config secret")
+		err = authUsecase.UpdateDexConfig(context.Background())
+		Expect(err).Should(BeNil())
+	})
+
+	It("Test get dex config", func() {
+		_, err := authUsecase.GetDexConfig(context.Background())
+		Expect(err).Should(Equal(bcode.ErrInvalidDexConfig))
+		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
+			LoginType:   model.LoginTypeDex,
+			VelaAddress: "http://velaux.com",
+		})
+		Expect(err).Should(BeNil())
+		config, err := authUsecase.GetDexConfig(context.Background())
+		Expect(err).Should(BeNil())
+		Expect(config.Issuer).Should(Equal("http://velaux.com/dex"))
+		Expect(config.ClientID).Should(Equal("velaux"))
+		Expect(config.ClientSecret).Should(Equal("velaux-secret"))
+		Expect(config.RedirectURL).Should(Equal("http://velaux.com/callback"))
 	})
 })

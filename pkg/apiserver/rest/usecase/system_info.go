@@ -42,6 +42,7 @@ type SystemInfoUsecase interface {
 	Get(ctx context.Context) (*model.SystemInfo, error)
 	GetSystemInfo(ctx context.Context) (*v1.SystemInfoResponse, error)
 	UpdateSystemInfo(ctx context.Context, sysInfo v1.SystemInfoRequest) (*v1.SystemInfoResponse, error)
+	Init(ctx context.Context) error
 }
 
 type systemInfoUsecaseImpl struct {
@@ -131,6 +132,10 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	}, nil
 }
 
+func (u systemInfoUsecaseImpl) Init(ctx context.Context) error {
+	return generateDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
+}
+
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
 		InstallID:        info.InstallID,
@@ -140,14 +145,14 @@ func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 }
 
 func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string, info *model.SystemInfo) error {
-	info.DexConfig = model.DexConfig{
+	dexConfig := model.DexConfig{
 		Issuer: fmt.Sprintf("%s/dex", velaAddress),
-		// Web: model.DexWeb{
-		// 	HTTP: "0.0.0.0:5556",
-		// },
-		// Storage: model.DexStorage{
-		// 	Type: "memory",
-		// },
+		Web: model.DexWeb{
+			HTTP: "0.0.0.0:5556",
+		},
+		Storage: model.DexStorage{
+			Type: "memory",
+		},
 		StaticClients: []model.DexStaticClient{
 			{
 				ID:           "velaux",
@@ -157,17 +162,18 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 			},
 		},
 	}
+	info.DexConfig = dexConfig
 
-	config, err := yaml.Marshal(info.DexConfig)
-	if err != nil {
-		return err
-	}
 	secret := &corev1.Secret{}
 	if err := kubeClient.Get(ctx, types.NamespacedName{
 		Name:      dexConfigName,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, secret); err != nil {
 		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		config, err := yaml.Marshal(info.DexConfig)
+		if err != nil {
 			return err
 		}
 		return kubeClient.Create(ctx, &corev1.Secret{
@@ -182,6 +188,16 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 		})
 	}
 
+	var original model.DexConfig
+	err := yaml.Unmarshal(secret.Data[secretDexConfigKey], &original)
+	if err != nil {
+		return err
+	}
+	dexConfig.Connectors = original.Connectors
+	config, err := yaml.Marshal(info.DexConfig)
+	if err != nil {
+		return err
+	}
 	secret.Data[secretDexConfigKey] = config
 	return kubeClient.Update(ctx, secret)
 }
