@@ -51,7 +51,8 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.
  
   <img src="https://static.kubevela.net/images/barnett-wechat.jpg" width="200" />
-- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
+- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs).
+- Bi-weekly Chinese Community Call: [Video Records](https://space.bilibili.com/180074935/channel/seriesdetail?sid=1842207).
 
 ## Talks and Conferences
 
