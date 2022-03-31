@@ -90,6 +90,12 @@ const (
 	// LabelRuntimeNamespaceUsage mark the usage of the namespace in runtime cluster.
 	// A control plane cluster can also be used as runtime cluster
 	LabelRuntimeNamespaceUsage = "usage.oam.dev/runtime"
+
+	// LabelConfigType means the config type
+	LabelConfigType = "config.oam.dev/type"
+
+	// LabelProject recorde the project the resource belong to
+	LabelProject = "core.oam.dev/project"
 )
 
 const (

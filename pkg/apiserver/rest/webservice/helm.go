@@ -47,6 +47,15 @@ func (h helmWebService) GetWebService() *restful.WebService {
 	tags := []string{"repository", "helm"}
 
 	// List charts
+	ws.Route(ws.GET("").To(h.listRepo).
+		Doc("list chart repo").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("project", "the config project").DataType("string")).
+		Returns(200, "OK", []string{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]string{}))
+
+	// List charts
 	ws.Route(ws.GET("/charts").To(h.listCharts).
 		Doc("list charts").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -133,6 +142,20 @@ func (h helmWebService) chartValues(req *restful.Request, res *restful.Response)
 		return
 	}
 	err = res.WriteEntity(versions)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (h helmWebService) listRepo(req *restful.Request, res *restful.Response) {
+	project := req.QueryParameter("project")
+	repos, err := h.usecase.ListChartRepo(context.Background(), project)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(repos)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
