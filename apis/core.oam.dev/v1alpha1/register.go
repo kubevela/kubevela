@@ -47,7 +47,7 @@ var (
 // Workflow meta
 var (
 	WorkflowKind             = "Workflow"
-	WorkflowGroupVersionKind = SchemeGroupVersion.WithKind(PolicyKind)
+	WorkflowGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowKind)
 )
 
 func init() {
