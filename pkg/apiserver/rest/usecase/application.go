@@ -706,22 +706,19 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 
 	// sync configs to clusters
 	// TODO(zzxwill) need to check the type of the componentDefinition, if it is `Cloud`, skip the sync
-	env, err := c.envUsecase.GetEnv(ctx, workflow.EnvName)
+	targets, err := listTarget(ctx, c.ds, app.Project, nil)
 	if err != nil {
 		return nil, err
 	}
 	var clusterTargets []*model.ClusterTarget
-	for _, t := range env.Targets {
-		target, err := c.targetUsecase.GetTarget(ctx, t)
-		if err != nil {
-			return nil, err
-		}
-		if target.Cluster != nil {
-			clusterTargets = append(clusterTargets, target.Cluster)
+	for i, t := range targets {
+		if t.Cluster != nil {
+			clusterTargets = append(clusterTargets, targets[i].Cluster)
 		}
 	}
+
 	if err := SyncConfigs(ctx, c.kubeClient, app.Project, clusterTargets); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("sync config failure %w", err)
 	}
 
 	// step2: check and create deploy event

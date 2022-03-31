@@ -24,6 +24,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/yaml"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -275,7 +276,9 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 		}); err != nil {
 		return err
 	}
-
+	if len(secrets.Items) == 0 {
+		return nil
+	}
 	objects := make([]map[string]string, len(secrets.Items))
 	for i, s := range secrets.Items {
 		objects[i] = map[string]string{
@@ -352,6 +355,9 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 		}
 	}
 	app.Spec.Policies = mergedPolicies
+	out, _ := yaml.Marshal(app)
+	fmt.Println(string(out))
+
 	return k8sClient.Update(ctx, app)
 }
 
