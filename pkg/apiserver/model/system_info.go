@@ -30,9 +30,37 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID        string `json:"installID"`
-	EnableCollection bool   `json:"enableCollection"`
-	LoginType        string `json:"loginType"`
+	InstallID        string    `json:"installID"`
+	EnableCollection bool      `json:"enableCollection"`
+	LoginType        string    `json:"loginType"`
+	DexConfig        DexConfig `json:"dexConfig,omitempty"`
+}
+
+// DexConfig dex config
+type DexConfig struct {
+	Issuer        string            `json:"issuer"`
+	Web           DexWeb            `json:"web"`
+	Storage       DexStorage        `json:"storage"`
+	StaticClients []DexStaticClient `json:"staticClients"`
+	Connectors    []interface{}     `json:"connectors,omitempty"`
+}
+
+// DexStorage dex storage
+type DexStorage struct {
+	Type string `json:"type"`
+}
+
+// DexWeb dex web
+type DexWeb struct {
+	HTTP string `json:"http"`
+}
+
+// DexStaticClient dex static client
+type DexStaticClient struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Secret       string   `json:"secret"`
+	RedirectURIs []string `json:"redirectURIs"`
 }
 
 // TableName return custom table name

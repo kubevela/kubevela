@@ -192,7 +192,7 @@ func (u *userUsecaseImpl) DeleteUser(ctx context.Context, username string) error
 
 // CreateUser create user
 func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserRequest) (*apisv1.UserBase, error) {
-	sysInfo, err := u.sysUsecase.GetSystemInfo(ctx)
+	sysInfo, err := u.sysUsecase.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func (u *userUsecaseImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 
 // UpdateUser update user
 func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req apisv1.UpdateUserRequest) (*apisv1.UserBase, error) {
-	sysInfo, err := u.sysUsecase.GetSystemInfo(ctx)
+	sysInfo, err := u.sysUsecase.Get(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -1081,14 +1081,22 @@ type DetailRevisionResponse struct {
 
 // SystemInfoResponse get SystemInfo
 type SystemInfoResponse struct {
-	model.SystemInfo
+	SystemInfo
 	SystemVersion SystemVersion `json:"systemVersion"`
+}
+
+// SystemInfo system info
+type SystemInfo struct {
+	InstallID        string `json:"installID"`
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
 }
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
 	EnableCollection bool   `json:"enableCollection"`
 	LoginType        string `json:"loginType"`
+	VelaAddress      string `json:"velaAddress,omitempty"`
 }
 
 // SystemVersion contains KubeVela version
