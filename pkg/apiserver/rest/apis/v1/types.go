@@ -1277,3 +1277,14 @@ type LoginUserInfoResponse struct {
 	PlatformPermissions []PermissionBase            `json:"platformPermissions"`
 	ProjectPermissions  map[string][]PermissionBase `json:"projectPermissions"`
 }
+
+// ChartRepoResponse the response body of  chart repo
+type ChartRepoResponse struct {
+	URL        string `json:"url"`
+	SecretName string `json:"secretName"`
+}
+
+// ChartRepoResponseList the response body of list chart repo
+type ChartRepoResponseList struct {
+	ChartRepoResponse []*ChartRepoResponse `json:"repos"`
+}
