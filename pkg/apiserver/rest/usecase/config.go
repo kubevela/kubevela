@@ -321,7 +321,11 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	}
 	// config sync application exists, update it
 	app.Spec.Components = []common.ApplicationComponent{
-		{Properties: &runtime.RawExtension{Raw: objectsBytes}},
+		{
+			Name:       name,
+			Type:       "ref-objects",
+			Properties: &runtime.RawExtension{Raw: objectsBytes},
+		},
 	}
 	currentTargets := make([]ApplicationDeployTarget, len(app.Spec.Policies))
 	for i, p := range app.Spec.Policies {
