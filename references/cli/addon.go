@@ -205,7 +205,12 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		return
 	}
 	if name == "velaux" {
-		fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard.`)
+		fmt.Println(`To check the initialized admin user name and password by:`)
+		fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		fmt.Println(`To open the dashboard directly by port-forward:`)
+		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
+		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" from the prompt.`)
+		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 }
 
