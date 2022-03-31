@@ -49,9 +49,9 @@ func NewHelmUsecase() HelmHandler {
 
 // HelmHandler responsible handle helm related interface
 type HelmHandler interface {
-	ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error)
-	ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error)
-	GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error)
+	ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error)
+	ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error)
+	GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error)
 	ListChartRepo(ctx context.Context, projectName string) (*v1.ChartRepoResponseList, error)
 }
 
@@ -60,7 +60,8 @@ type defaultHelmHandler struct {
 	k8sClient client.Client
 }
 
-func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skipCache bool) ([]string, error) {
+func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error) {
+	// TODO(wangyikewxgm): support authority helm repo
 	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
@@ -69,7 +70,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, skip
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, skipCache bool) (repo.ChartVersions, error) {
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
 	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
@@ -82,7 +83,7 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 	return chartVersions, nil
 }
 
-func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
+func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
 	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
