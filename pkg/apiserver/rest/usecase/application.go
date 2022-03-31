@@ -686,7 +686,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-// Deploy deploy app to cluster
+// Deploy deploys app to cluster
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
@@ -702,6 +702,23 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
 	if err != nil {
 		return nil, err
+	}
+
+	// sync configs to clusters
+	// TODO(zzxwill) need to check the type of the componentDefinition, if it is `Cloud`, skip the sync
+	targets, err := listTarget(ctx, c.ds, app.Project, nil)
+	if err != nil {
+		return nil, err
+	}
+	var clusterTargets []*model.ClusterTarget
+	for i, t := range targets {
+		if t.Cluster != nil {
+			clusterTargets = append(clusterTargets, targets[i].Cluster)
+		}
+	}
+
+	if err := SyncConfigs(ctx, c.kubeClient, app.Project, clusterTargets); err != nil {
+		return nil, fmt.Errorf("sync config failure %w", err)
 	}
 
 	// step2: check and create deploy event

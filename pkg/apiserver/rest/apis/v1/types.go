@@ -184,6 +184,25 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+}
+
+// Config define the metadata of a config
+type Config struct {
+	ConfigType  string     `json:"configType"`
+	Name        string     `json:"name"`
+	Project     string     `json:"project"`
+	Identifier  string     `json:"identifier"`
+	Description string     `json:"description"`
+	CreatedTime *time.Time `json:"createdTime"`
+	UpdatedTime *time.Time `json:"updatedTime"`
+}
+
 // AccessKeyRequest request parameters to access cloud provider
 type AccessKeyRequest struct {
 	AccessKeyID     string `json:"accessKeyID"`
@@ -380,6 +399,15 @@ type CreateApplicationRequest struct {
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
+}
+
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
+	Name          string `json:"name" validate:"checkname"`
+	Alias         string `json:"alias"`
+	Project       string `json:"project"`
+	ComponentType string `json:"componentType" validate:"checkname"`
+	Properties    string `json:"properties,omitempty"`
 }
 
 // UpdateApplicationRequest update application base config
