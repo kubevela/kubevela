@@ -117,7 +117,6 @@ type applicationUsecaseImpl struct {
 	targetUsecase     TargetUsecase
 	definitionUsecase DefinitionUsecase
 	projectUsecase    ProjectUsecase
-	configUseCase     ConfigHandler
 }
 
 // NewApplicationUsecase new application usecase
@@ -128,7 +127,6 @@ func NewApplicationUsecase(ds datastore.DataStore,
 	targetUsecase TargetUsecase,
 	definitionUsecase DefinitionUsecase,
 	projectUsecase ProjectUsecase,
-	configUseCase ConfigHandler,
 ) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
@@ -144,7 +142,6 @@ func NewApplicationUsecase(ds datastore.DataStore,
 		definitionUsecase: definitionUsecase,
 		projectUsecase:    projectUsecase,
 		envUsecase:        envUsecase,
-		configUseCase:     configUseCase,
 	}
 }
 
@@ -723,7 +720,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 			clusterTargets = append(clusterTargets, target.Cluster)
 		}
 	}
-	if err := c.configUseCase.SyncConfigs(ctx, app.Project, clusterTargets); err != nil {
+	if err := SyncConfigs(ctx, c.kubeClient, app.Project, clusterTargets); err != nil {
 		return nil, err
 	}
 

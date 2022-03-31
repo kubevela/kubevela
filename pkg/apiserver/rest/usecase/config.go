@@ -54,7 +54,6 @@ type ConfigHandler interface {
 	GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error)
 	GetConfig(ctx context.Context, configType, name string) (*apis.Config, error)
 	DeleteConfig(ctx context.Context, configType, name string) error
-	SyncConfigs(ctx context.Context, project string, targets []*model.ClusterTarget) error
 }
 
 // NewConfigUseCase returns a config use case
@@ -264,11 +263,11 @@ type ApplicationDeployTarget struct {
 }
 
 // SyncConfigs will sync configs to working clusters
-func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, targets []*model.ClusterTarget) error {
+func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, targets []*model.ClusterTarget) error {
 	name := fmt.Sprintf("config-sync-%s", project)
 	// get all configs which can be synced to working clusters in the project
 	var secrets v1.SecretList
-	if err := u.kubeClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
+	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			types.LabelConfigCatalog:            velaCoreConfig,
 			types.LabelConfigProject:            project,
@@ -280,9 +279,8 @@ func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, tar
 	objects := make([]map[string]string, len(secrets.Items))
 	for i, s := range secrets.Items {
 		objects[i] = map[string]string{
-			"apiVersion": "v1",
-			"kind":       "Secret",
-			"name":       s.Name,
+			"name":     s.Name,
+			"resource": "secret",
 		}
 	}
 	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
@@ -291,7 +289,7 @@ func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, tar
 	}
 
 	var app = &v1beta1.Application{}
-	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, app); err != nil {
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, app); err != nil {
 		if !kerrors.IsNotFound(err) {
 			return err
 		}
@@ -317,12 +315,14 @@ func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, tar
 				},
 			},
 		}
-		if err := u.kubeClient.Create(ctx, scratch); err != nil {
+		if err := k8sClient.Create(ctx, scratch); err != nil {
 			return err
 		}
 	}
 	// config sync application exists, update it
-	app.Spec.Components[0].Properties.Raw = objectsBytes
+	app.Spec.Components = []common.ApplicationComponent{
+		{Properties: &runtime.RawExtension{Raw: objectsBytes}},
+	}
 	currentTargets := make([]ApplicationDeployTarget, len(app.Spec.Policies))
 	for i, p := range app.Spec.Policies {
 		var t ApplicationDeployTarget
@@ -348,7 +348,7 @@ func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, tar
 		}
 	}
 	app.Spec.Policies = mergedPolicies
-	return u.kubeClient.Update(ctx, app)
+	return k8sClient.Update(ctx, app)
 }
 
 func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.ClusterTarget) []ApplicationDeployTarget {

@@ -77,9 +77,6 @@ var _ = Describe("Test application usecase function", func() {
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.Background())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		sysUseCase := &systemInfoUsecaseImpl{ds: ds, kubeClient: k8sClient}
-		authenticationUseCase := &authenticationUsecaseImpl{sysUsecase: sysUseCase, userUsecase: userUsecase, ds: ds, kubeClient: k8sClient}
-		configUseCase := &configUseCaseImpl{kubeClient: k8sClient, authenticationUseCase: authenticationUseCase}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,
@@ -90,7 +87,6 @@ var _ = Describe("Test application usecase function", func() {
 			definitionUsecase: definitionUsecase,
 			targetUsecase:     targetUsecase,
 			projectUsecase:    projectUsecase,
-			configUseCase:     configUseCase,
 		}
 	})
 
