@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -166,12 +167,14 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 	if err != nil {
 		return err
 	}
-	secret.Data[secretDexConfigKey] = c
-	if err := kubeClient.Update(ctx, secret); err != nil {
-		return err
-	}
-	if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
-		return err
+	if !reflect.DeepEqual(secret.Data[secretDexConfigKey], c) {
+		secret.Data[secretDexConfigKey] = c
+		if err := kubeClient.Update(ctx, secret); err != nil {
+			return err
+		}
+		if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
+			return err
+		}
 	}
 	return nil
 }
