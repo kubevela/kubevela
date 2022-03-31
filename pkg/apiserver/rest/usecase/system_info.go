@@ -196,6 +196,7 @@ func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress st
 				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
 			},
 		},
+		EnablePasswordDB: true,
 	}
 	info.DexConfig = dexConfig
 

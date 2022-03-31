@@ -38,11 +38,12 @@ type SystemInfo struct {
 
 // DexConfig dex config
 type DexConfig struct {
-	Issuer        string            `json:"issuer"`
-	Web           DexWeb            `json:"web"`
-	Storage       DexStorage        `json:"storage"`
-	StaticClients []DexStaticClient `json:"staticClients"`
-	Connectors    []interface{}     `json:"connectors,omitempty"`
+	Issuer           string            `json:"issuer"`
+	Web              DexWeb            `json:"web"`
+	Storage          DexStorage        `json:"storage"`
+	StaticClients    []DexStaticClient `json:"staticClients"`
+	Connectors       []interface{}     `json:"connectors,omitempty"`
+	EnablePasswordDB bool              `json:"enablePasswordDB"`
 }
 
 // DexStorage dex storage
