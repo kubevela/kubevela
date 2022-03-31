@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -135,7 +136,8 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 }
 
 func (u systemInfoUsecaseImpl) Init(ctx context.Context) error {
-	return generateDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
+	_, err := initDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
+	return err
 }
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
@@ -147,6 +149,34 @@ func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 }
 
 func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string, info *model.SystemInfo) error {
+	secret, err := initDexConfig(ctx, kubeClient, velaAddress, info)
+	if err != nil {
+		return err
+	}
+	connectors, err := utils.GetDexConnectors(ctx, kubeClient)
+	if err != nil {
+		return err
+	}
+	config, err := model.NewJSONStructByStruct(info.DexConfig)
+	if err != nil {
+		return err
+	}
+	(*config)["connectors"] = connectors
+	c, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	secret.Data[secretDexConfigKey] = c
+	if err := kubeClient.Update(ctx, secret); err != nil {
+		return err
+	}
+	if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
+		return err
+	}
+	return nil
+}
+
+func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string, info *model.SystemInfo) (*corev1.Secret, error) {
 	dexConfig := model.DexConfig{
 		Issuer: fmt.Sprintf("%s/dex", velaAddress),
 		Web: model.DexWeb{
@@ -172,13 +202,13 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, secret); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return err
+			return nil, err
 		}
 		config, err := yaml.Marshal(info.DexConfig)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return kubeClient.Create(ctx, &corev1.Secret{
+		if err := kubeClient.Create(ctx, &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      dexConfigName,
 				Namespace: velatypes.DefaultKubeVelaNS,
@@ -187,25 +217,9 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 			Data: map[string][]byte{
 				secretDexConfigKey: config,
 			},
-		})
+		}); err != nil {
+			return nil, err
+		}
 	}
-
-	var original model.DexConfig
-	err := yaml.Unmarshal(secret.Data[secretDexConfigKey], &original)
-	if err != nil {
-		return err
-	}
-	dexConfig.Connectors = original.Connectors
-	config, err := yaml.Marshal(info.DexConfig)
-	if err != nil {
-		return err
-	}
-	secret.Data[secretDexConfigKey] = config
-	if err := kubeClient.Update(ctx, secret); err != nil {
-		return err
-	}
-	if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
-		return err
-	}
-	return nil
+	return secret, nil
 }
