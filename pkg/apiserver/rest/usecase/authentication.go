@@ -26,9 +26,11 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/form3tech-oss/jwt-go"
 	"golang.org/x/oauth2"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
@@ -42,17 +44,19 @@ import (
 )
 
 const (
-	keyDexConfig = "dex-config"
-	keyDex       = "dex"
-	dexAddonName = "addon-dex"
-	jwtIssuer    = "vela-issuer"
-	signedKey    = "vela-singned"
+	keyDex             = "dex"
+	dexConfigName      = "dex-config"
+	secretDexConfigKey = "config.yaml"
+	dexAddonName       = "addon-dex"
+	jwtIssuer          = "vela-issuer"
 
 	// GrantTypeAccess is the grant type for access token
 	GrantTypeAccess = "access"
 	// GrantTypeRefresh is the grant type for refresh token
 	GrantTypeRefresh = "refresh"
 )
+
+var signedKey = ""
 
 // AuthenticationUsecase is the usecase of authentication
 type AuthenticationUsecase interface {
@@ -151,7 +155,7 @@ func (a *authenticationUsecaseImpl) newLocalHandler(req apisv1.LoginRequest) (*l
 func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.LoginRequest) (*apisv1.LoginResponse, error) {
 	var handler authHandler
 	var err error
-	sysInfo, err := a.sysUsecase.GetSystemInfo(ctx)
+	sysInfo, err := a.sysUsecase.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,11 +182,11 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	if userBase.Disabled {
 		return nil, bcode.ErrUserAlreadyDisabled
 	}
-	accessToken, err := a.generateJWTToken(userBase.Name, GrantTypeAccess, time.Hour)
+	accessToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeAccess, time.Hour)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := a.generateJWTToken(userBase.Name, GrantTypeRefresh, time.Hour*24)
+	refreshToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeRefresh, time.Hour*24)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +197,7 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	}, nil
 }
 
-func (a *authenticationUsecaseImpl) generateJWTToken(username, grantType string, expireDuration time.Duration) (string, error) {
+func (a *authenticationUsecaseImpl) generateJWTToken(ctx context.Context, username, grantType string, expireDuration time.Duration) (string, error) {
 	expire := time.Now().Add(expireDuration)
 	claims := model.CustomClaims{
 		StandardClaims: jwt.StandardClaims{
@@ -205,8 +209,24 @@ func (a *authenticationUsecaseImpl) generateJWTToken(username, grantType string,
 		GrantType: grantType,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := a.getSignedKey(ctx)
+	if err != nil {
+		return "", err
+	}
+	return token.SignedString([]byte(signed))
+}
 
-	return token.SignedString([]byte(signedKey))
+func (a *authenticationUsecaseImpl) getSignedKey(ctx context.Context) (string, error) {
+	if signedKey != "" {
+		return signedKey, nil
+	}
+	info, err := a.sysUsecase.Get(ctx)
+	if err != nil {
+		return "", err
+	}
+	signedKey = info.InstallID
+
+	return signedKey, nil
 }
 
 func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshToken string) (*apisv1.RefreshTokenResponse, error) {
@@ -215,7 +235,7 @@ func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshTok
 		return nil, err
 	}
 	if claim.GrantType == GrantTypeRefresh {
-		accessToken, err := a.generateJWTToken(claim.Username, GrantTypeAccess, time.Hour)
+		accessToken, err := a.generateJWTToken(ctx, claim.Username, GrantTypeAccess, time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -273,30 +293,29 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	dexConfigApp := &v1beta1.Application{}
+	dexConfig := &corev1.Secret{}
 	if err := a.kubeClient.Get(ctx, types.NamespacedName{
-		Name:      keyDexConfig,
+		Name:      dexConfigName,
 		Namespace: velatypes.DefaultKubeVelaNS,
-	}, dexConfigApp); err != nil {
+	}, dexConfig); err != nil {
 		if kerrors.IsNotFound(err) {
 			return bcode.ErrDexConfigNotFound
 		}
 		return err
 	}
-	for i, comp := range dexConfigApp.Spec.Components {
-		if comp.Name == keyDexConfig {
-			var config model.JSONStruct
-			err := json.Unmarshal(comp.Properties.Raw, &config)
-			if err != nil {
-				return err
-			}
-			config["connectors"] = connectors
-			dexConfigApp.Spec.Components[i].Properties = config.RawExtension()
-			if err := a.kubeClient.Update(ctx, dexConfigApp); err != nil {
-				return err
-			}
-			break
-		}
+	var config model.JSONStruct
+	err = yaml.Unmarshal(dexConfig.Data[secretDexConfigKey], &config)
+	if err != nil {
+		return err
+	}
+	config["connectors"] = connectors
+	c, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	dexConfig.Data[secretDexConfigKey] = c
+	if err := a.kubeClient.Update(ctx, dexConfig); err != nil {
+		return err
 	}
 
 	dexApp := &v1beta1.Application{}
@@ -344,33 +363,33 @@ type dexConfig struct {
 }
 
 func getDexConfig(ctx context.Context, kubeClient client.Client) (*dexConfig, error) {
-	dexConfigApp := &v1beta1.Application{}
+	dexConfigSecret := &corev1.Secret{}
 	if err := kubeClient.Get(ctx, types.NamespacedName{
-		Name:      keyDexConfig,
+		Name:      dexConfigName,
 		Namespace: velatypes.DefaultKubeVelaNS,
-	}, dexConfigApp); err != nil {
+	}, dexConfigSecret); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, bcode.ErrDexConfigNotFound
+		}
 		return nil, err
+	}
+	if dexConfigSecret.Data == nil {
+		return nil, bcode.ErrInvalidDexConfig
 	}
 
 	config := &dexConfig{}
-	for _, comp := range dexConfigApp.Spec.Components {
-		if comp.Name == keyDexConfig {
-			if err := json.Unmarshal(comp.Properties.Raw, &config); err != nil {
-				log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
-				return nil, bcode.ErrInvalidDexConfig
-			}
-			if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
-				return nil, bcode.ErrInvalidDexConfig
-			}
-			return config, nil
-		}
+	if err := yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config); err != nil {
+		log.Logger.Errorf("failed to unmarshal dex config: %s", err.Error())
+		return nil, bcode.ErrInvalidDexConfig
 	}
-
-	return nil, bcode.ErrInvalidDexConfig
+	if len(config.StaticClients) < 1 || len(config.StaticClients[0].RedirectURIs) < 1 {
+		return nil, bcode.ErrInvalidDexConfig
+	}
+	return config, nil
 }
 
 func (a *authenticationUsecaseImpl) GetLoginType(ctx context.Context) (*apisv1.GetLoginTypeResponse, error) {
-	sysInfo, err := a.sysUsecase.GetSystemInfo(ctx)
+	sysInfo, err := a.sysUsecase.Get(ctx)
 	if err != nil {
 		return nil, err
 	}

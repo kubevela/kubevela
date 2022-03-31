@@ -57,7 +57,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
 		authUsecase = &authenticationUsecaseImpl{kubeClient: k8sClient, ds: ds}
-		sysUsecase = &systemInfoUsecaseImpl{ds: ds}
+		sysUsecase = &systemInfoUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		userUsecase = &userUsecaseImpl{ds: ds, sysUsecase: sysUsecase}
 	})
 	It("Test Dex login", func() {
@@ -138,31 +138,18 @@ var _ = Describe("Test authentication usecase functions", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		err = k8sClient.Create(context.Background(), &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "dex-config",
-				Namespace: "vela-system",
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{
-						Name:       "dex-config",
-						Type:       "dex-config",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"issuer":"https://dex.oam.dev","staticClients":[{"id":"client-id","redirectURIS":["http://localhost:8080/auth/callback"],"secret":"client-secret"}]}`)},
-						Traits:     []common.ApplicationTrait{},
-						Scopes:     map[string]string{},
-					},
-				},
-			},
+		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
+			LoginType:   model.LoginTypeDex,
+			VelaAddress: "http://velaux.com",
 		})
 		Expect(err).Should(BeNil())
 
 		config, err := authUsecase.GetDexConfig(context.Background())
 		Expect(err).Should(BeNil())
-		Expect(config.Issuer).Should(Equal("https://dex.oam.dev"))
-		Expect(config.ClientID).Should(Equal("client-id"))
-		Expect(config.ClientSecret).Should(Equal("client-secret"))
-		Expect(config.RedirectURL).Should(Equal("http://localhost:8080/auth/callback"))
+		Expect(config.Issuer).Should(Equal("http://velaux.com/dex"))
+		Expect(config.ClientID).Should(Equal("velaux"))
+		Expect(config.ClientSecret).Should(Equal("velaux-secret"))
+		Expect(config.RedirectURL).Should(Equal("http://velaux.com/callback"))
 	})
 
 	It("Test update dex config", func() {
@@ -186,11 +173,11 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		err = authUsecase.UpdateDexConfig(context.Background())
 		Expect(err).Should(BeNil())
-		dexConfigApp := &v1beta1.Application{}
-		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigApp)
+		dexConfigSecret := &corev1.Secret{}
+		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigSecret)
 		Expect(err).Should(BeNil())
 		config := &dexConfig{}
-		err = json.Unmarshal(dexConfigApp.Spec.Components[0].Properties.Raw, config)
+		err = yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config)
 		Expect(err).Should(BeNil())
 		Expect(len(config.Connectors)).Should(Equal(1))
 	})
