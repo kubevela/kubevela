@@ -5,7 +5,7 @@ This guide helps you get started developing KubeVela.
 ## Prerequisites
 
 1. Golang version 1.17+
-2. Kubernetes version v1.18+ with `~/.kube/config` configured.
+2. Kubernetes version v1.20+ with `~/.kube/config` configured.
 3. ginkgo 1.14.0+ (just for [E2E test](./developer-guide.md#e2e-test))
 4. golangci-lint 1.38.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 5. kubebuilder v3.1.0+ and you need to manually install the dependency tools for unit test.
@@ -177,7 +177,7 @@ To execute the e2e test of the API module, the mongodb service needs to exist lo
 # save your config
 mv ~/.kube/config  ~/.kube/config.save
 
-kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4 --name worker
+kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca --name worker
 kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
 kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
 

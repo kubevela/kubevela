@@ -60,7 +60,7 @@ jobs:
       - name: Setup Kind Cluster (Worker)
         run: |
           kind delete cluster --name worker
-          kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4 --name worker
+          kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca --name worker
           kubectl version
           kubectl cluster-info
           kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
@@ -69,7 +69,7 @@ jobs:
       - name: Setup Kind Cluster (Hub)
         run: |
           kind delete cluster
-          kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4
+          kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca
           kubectl version
           kubectl cluster-info
 
