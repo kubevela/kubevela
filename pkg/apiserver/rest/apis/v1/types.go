@@ -1286,5 +1286,5 @@ type ChartRepoResponse struct {
 
 // ChartRepoResponseList the response body of list chart repo
 type ChartRepoResponseList struct {
-	ChartRepoResponse []*ChartRepoResponse `json:"chartRepoResponse"`
+	ChartRepoResponse []*ChartRepoResponse `json:"repos"`
 }
