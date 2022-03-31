@@ -18,6 +18,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -199,5 +201,11 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 		return err
 	}
 	secret.Data[secretDexConfigKey] = config
-	return kubeClient.Update(ctx, secret)
+	if err := kubeClient.Update(ctx, secret); err != nil {
+		return err
+	}
+	if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
+		return err
+	}
+	return nil
 }

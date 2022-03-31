@@ -338,8 +338,12 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 		}
 	}
 
+	return restartDex(ctx, a.kubeClient)
+}
+
+func restartDex(ctx context.Context, kubeClient client.Client) error {
 	dexApp := &v1beta1.Application{}
-	if err := a.kubeClient.Get(ctx, types.NamespacedName{
+	if err := kubeClient.Get(ctx, types.NamespacedName{
 		Name:      dexAddonName,
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexApp); err != nil {
@@ -362,7 +366,7 @@ func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
 				}
 			}
 			dexApp.Spec.Components[i].Properties = v.RawExtension()
-			if err := a.kubeClient.Update(ctx, dexApp); err != nil {
+			if err := kubeClient.Update(ctx, dexApp); err != nil {
 				return err
 			}
 			break
