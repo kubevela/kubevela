@@ -220,7 +220,7 @@ func TestCreateConfig(t *testing.T) {
 
 	k8sClient := fake.NewClientBuilder().WithScheme(s).Build()
 
-	h := &defaultConfigHandler{kubeClient: k8sClient}
+	h := &configUseCaseImpl{kubeClient: k8sClient}
 
 	type args struct {
 		h   ConfigHandler
@@ -297,7 +297,7 @@ func TestGetConfigs(t *testing.T) {
 	}
 	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(def1, def2).Build()
 
-	h := &defaultConfigHandler{kubeClient: k8sClient}
+	h := &configUseCaseImpl{kubeClient: k8sClient}
 
 	type args struct {
 		configType string

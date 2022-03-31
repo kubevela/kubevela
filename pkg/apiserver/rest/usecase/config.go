@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -29,8 +28,6 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -40,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const (
@@ -63,39 +59,23 @@ type ConfigHandler interface {
 
 // NewConfigUseCase returns a config use case
 func NewConfigUseCase(authenticationUseCase AuthenticationUsecase) ConfigHandler {
-	config, err := clients.GetKubeConfig()
-	if err != nil {
-		panic(err)
-	}
 	k8sClient, err := clients.GetKubeClient()
 	if err != nil {
 		panic(err)
 	}
-	dc, err := clients.GetDiscoveryClient()
-	if err != nil {
-		panic(err)
-	}
-	return &defaultConfigHandler{
+	return &configUseCaseImpl{
 		authenticationUseCase: authenticationUseCase,
 		kubeClient:            k8sClient,
-		config:                config,
-		apply:                 apply.NewAPIApplicator(k8sClient),
-		mutex:                 new(sync.RWMutex),
-		discoveryClient:       dc,
 	}
 }
 
-type defaultConfigHandler struct {
+type configUseCaseImpl struct {
 	kubeClient            client.Client
-	config                *rest.Config
-	apply                 apply.Applicator
-	discoveryClient       *discovery.DiscoveryClient
-	mutex                 *sync.RWMutex
 	authenticationUseCase AuthenticationUsecase
 }
 
 // ListConfigTypes returns all config types
-func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
+func (u *configUseCaseImpl) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig}); err != nil {
@@ -133,7 +113,7 @@ func (u *defaultConfigHandler) ListConfigTypes(ctx context.Context, query string
 }
 
 // GetConfigType returns a config type
-func (u *defaultConfigHandler) GetConfigType(ctx context.Context, configType string) (*apis.ConfigType, error) {
+func (u *configUseCaseImpl) GetConfigType(ctx context.Context, configType string) (*apis.ConfigType, error) {
 	d := &v1beta1.ComponentDefinition{}
 	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: configType}, d); err != nil {
 		return nil, errors.Wrap(err, "failed to get config type")
@@ -147,7 +127,7 @@ func (u *defaultConfigHandler) GetConfigType(ctx context.Context, configType str
 	return t, nil
 }
 
-func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.CreateConfigRequest) error {
+func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateConfigRequest) error {
 	app := v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
@@ -203,7 +183,7 @@ func (u *defaultConfigHandler) CreateConfig(ctx context.Context, req apis.Create
 	return nil
 }
 
-func (u *defaultConfigHandler) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
+func (u *configUseCaseImpl) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
 	switch configType {
 	case types.TerraformProvider:
 		defs := &v1beta1.ComponentDefinitionList{}
@@ -230,7 +210,7 @@ func (u *defaultConfigHandler) GetConfigs(ctx context.Context, configType string
 	}
 }
 
-func (u *defaultConfigHandler) getConfigsByConfigType(ctx context.Context, configType string) ([]*apis.Config, error) {
+func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configType string) ([]*apis.Config, error) {
 	var apps = &v1beta1.ApplicationList{}
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
@@ -253,7 +233,7 @@ func (u *defaultConfigHandler) getConfigsByConfigType(ctx context.Context, confi
 	return configs, nil
 }
 
-func (u *defaultConfigHandler) GetConfig(ctx context.Context, configType, name string) (*apis.Config, error) {
+func (u *configUseCaseImpl) GetConfig(ctx context.Context, configType, name string) (*apis.Config, error) {
 	var a = &v1beta1.Application{}
 	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
 		return nil, err
@@ -269,7 +249,7 @@ func (u *defaultConfigHandler) GetConfig(ctx context.Context, configType, name s
 	return config, nil
 }
 
-func (u *defaultConfigHandler) DeleteConfig(ctx context.Context, configType, name string) error {
+func (u *configUseCaseImpl) DeleteConfig(ctx context.Context, configType, name string) error {
 	var a = &v1beta1.Application{}
 	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
 		return err
@@ -284,7 +264,7 @@ type ApplicationDeployTarget struct {
 }
 
 // SyncConfigs will sync configs to working clusters
-func (u *defaultConfigHandler) SyncConfigs(ctx context.Context, project string, targets []*model.ClusterTarget) error {
+func (u *configUseCaseImpl) SyncConfigs(ctx context.Context, project string, targets []*model.ClusterTarget) error {
 	name := fmt.Sprintf("config-sync-%s", project)
 	// get all configs which can be synced to working clusters in the project
 	var secrets v1.SecretList
