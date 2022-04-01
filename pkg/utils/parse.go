@@ -214,22 +214,38 @@ func ByteCountIEC(b int64) string {
 }
 
 // ParseGitlab will parse gitlab config from address
-func ParseGitlab(addr, owner string) (string, *Content, error) {
-	// We support one valid format:
-	// https://example.gitlab.com/<owner>/<repo>
+func ParseGitlab(addr, repo string) (string, *Content, error) {
+	// We support two valid format:
+	// 1. https://example.gitlab.com/<owner>/<repo>
+	// 2. https://example.gitlab.com/<owner>/<repo>/tree/<branch>
 	URL, err := url.Parse(addr)
 	if err != nil {
 		return "", nil, err
 	}
-	repo := strings.Split(addr, owner)
 
-	// https://example.gitlab.com/<owner>/<repo>
+	arr := strings.Split(addr, repo)
+	owner := strings.Split(arr[0], URL.Host+"/")
+	if !strings.Contains(arr[1], "/") {
+		// https://example.gitlab.com/<owner>/<repo>
+		return TypeGitlab, &Content{
+			GitlabContent: GitlabContent{
+				Host:  URL.Scheme + "://" + URL.Host,
+				Owner: owner[1][:len(owner[1])-1],
+				Repo:  repo,
+				Ref:   "", // use default branch
+			},
+		}, nil
+	}
+
+	// https://example.gitlab.com/<owner>/<repo>/tree/<branch>
+	l := strings.Split(arr[1], "/")
+
 	return TypeGitlab, &Content{
 		GitlabContent: GitlabContent{
 			Host:  URL.Scheme + "://" + URL.Host,
-			Owner: owner,
-			Repo:  repo[1][1:],
-			Ref:   "", // use default branch
+			Owner: owner[1][:len(owner[1])-1],
+			Repo:  repo,
+			Ref:   l[2],
 		},
 	}, nil
 }

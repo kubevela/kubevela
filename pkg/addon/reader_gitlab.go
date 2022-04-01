@@ -62,9 +62,9 @@ func (g GitLabItem) GetName() string {
 
 // GetRef ref is empty , use default branch master
 func (g *gitlabReader) GetRef() string {
-	ref := ""
-	if g.h.Meta.GitlabContent.Ref == "" {
-		ref = "master"
+	var ref = "master"
+	if g.h.Meta.GitlabContent.Ref != "" {
+		return g.h.Meta.GitlabContent.Ref
 	}
 	return ref
 }
@@ -83,7 +83,9 @@ func (g *gitlabReader) GetProjectPath() string {
 func (g *gitlabReader) ListAddonMeta() (addonCandidates map[string]SourceMeta, err error) {
 	addonCandidates = make(map[string]SourceMeta)
 	path := g.GetProjectPath()
-	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path})
+	ref := g.GetRef()
+	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path, Ref: &ref})
+
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +107,8 @@ func (g *gitlabReader) ListAddonMeta() (addonCandidates map[string]SourceMeta, e
 }
 
 func (g *gitlabReader) listAddonItem(item []Item, path string) ([]Item, error) {
-	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path})
+	ref := g.GetRef()
+	tree, _, err := g.h.Client.Repositories.ListTree(g.GetProjectID(), &gitlab.ListTreeOptions{Path: &path, Ref: &ref})
 	if err != nil {
 		return item, err
 	}

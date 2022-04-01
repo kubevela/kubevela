@@ -71,7 +71,7 @@ type GiteeAddonSource struct {
 // GitlabAddonSource defines the information about the Gitlab as addon source
 type GitlabAddonSource struct {
 	URL   string `json:"url,omitempty" validate:"required"`
-	Owner string `json:"owner,omitempty" validate:"required"`
+	Repo  string `json:"repo,omitempty" validate:"required"`
 	Path  string `json:"path,omitempty"`
 	Token string `json:"token,omitempty"`
 }
@@ -144,7 +144,7 @@ const (
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
-func NewAsyncReader(baseURL, bucket, owner, subPath, token string, rdType ReaderType) (AsyncReader, error) {
+func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType) (AsyncReader, error) {
 
 	switch rdType {
 	case gitType:
@@ -202,12 +202,16 @@ func NewAsyncReader(baseURL, bucket, owner, subPath, token string, rdType Reader
 		if err != nil {
 			return nil, errors.New("addon registry invalid")
 		}
-		_, content, err := utils.ParseGitlab(u.String(), owner)
+		_, content, err := utils.ParseGitlab(u.String(), repo)
 		content.GitlabContent.Path = subPath
 		if err != nil {
 			return nil, err
 		}
-		gitlabHelper := createGitlabHelper(content, token)
+		gitlabHelper, err := createGitlabHelper(content, token)
+		if err != nil {
+			return nil, errors.New("addon registry connect fail")
+		}
+
 		err = gitlabHelper.getGitlabProject(content)
 		if err != nil {
 			return nil, err
@@ -222,14 +226,12 @@ func NewAsyncReader(baseURL, bucket, owner, subPath, token string, rdType Reader
 
 // getGitlabProject get gitlab project , set project id
 func (h *gitlabHelper) getGitlabProject(content *utils.Content) error {
-	options := gitlab.ListProjectsOptions{
-		Search: &content.GitlabContent.Repo,
-	}
-	projects, _, err := h.Client.Projects.ListProjects(&options)
+	projectURL := content.GitlabContent.Owner + "/" + content.GitlabContent.Repo
+	projects, _, err := h.Client.Projects.GetProject(projectURL, &gitlab.GetProjectOptions{})
 	if err != nil {
 		return err
 	}
-	content.GitlabContent.PId = projects[0].ID
+	content.GitlabContent.PId = projects.ID
 
 	return nil
 }
@@ -250,7 +252,7 @@ func (r *Registry) BuildReader() (AsyncReader, error) {
 	}
 	if r.Gitlab != nil {
 		g := r.Gitlab
-		return NewAsyncReader(g.URL, "", g.Owner, g.Path, g.Token, gitlabType)
+		return NewAsyncReader(g.URL, "", g.Repo, g.Path, g.Token, gitlabType)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
 }

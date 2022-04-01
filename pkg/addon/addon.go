@@ -448,13 +448,13 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 	}
 }
 
-func createGitlabHelper(content *utils.Content, token string) *gitlabHelper {
-	newClient, _ := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
+	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
 
 	return &gitlabHelper{
 		Client: newClient,
 		Meta:   content,
-	}
+	}, err
 }
 
 // readRepo will read relative path (relative to Meta.Path)
