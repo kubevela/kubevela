@@ -25,9 +25,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xanzy/go-gitlab"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/xanzy/go-gitlab"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -44,9 +43,8 @@ func gitlabSetup() (client *gitlab.Client, mux *http.ServeMux, teardown func()) 
 	// server is a test HTTP server used to provide mock API responses.
 	server := httptest.NewServer(apiHandler)
 
-	// client is the GitHub client being tested and is
+	// client is the Gitlab client being tested and is
 	// configured to use test server.
-
 	client, err := gitlab.NewClient("", gitlab.WithBaseURL(server.URL+baseUrl+"/"))
 	if err != nil {
 		return
