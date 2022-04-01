@@ -323,6 +323,45 @@ var _ = Describe("Test render addon with specified clusters", func() {
 	})
 })
 
+var _ = Describe("func addon update ", func() {
+	It("test update addon app label", func() {
+		app_test_update := v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(addonUpdateAppYaml), &app_test_update)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &app_test_update)).Should(BeNil())
+
+		Eventually(func() error {
+			var err error
+			appCheck := v1beta1.Application{}
+			err = k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-update"}, &appCheck)
+			if err != nil {
+				return err
+			}
+			if appCheck.Labels["addons.oam.dev/version"] != "v1.2.0" {
+				return fmt.Errorf("label missmatch")
+			}
+			return nil
+		}, time.Millisecond*500, 30*time.Second).Should(BeNil())
+
+		pkg := &InstallPackage{Meta: Meta{Name: "test-update", Version: "1.3.0"}}
+		h := NewAddonInstaller(context.Background(), k8sClient, nil, nil, nil, &Registry{Name: "test"}, nil, nil)
+		h.addon = pkg
+		Expect(h.dispatchAddonResource(pkg)).Should(BeNil())
+
+		Eventually(func() error {
+			var err error
+			appCheck := v1beta1.Application{}
+			err = k8sClient.Get(context.Background(), types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-update"}, &appCheck)
+			if err != nil {
+				return err
+			}
+			if appCheck.Labels["addons.oam.dev/version"] != "1.3.0" {
+				return fmt.Errorf("label missmatch")
+			}
+			return nil
+		}, time.Second*3, 300*time.Second).Should(BeNil())
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -400,4 +439,21 @@ spec:
       schedulerName: default-scheduler
       securityContext: {}
       terminationGracePeriodSeconds: 30`
+
+	addonUpdateAppYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-test-update
+  namespace: vela-system
+  labels:
+    addons.oam.dev/version: v1.2.0
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+`
 )
