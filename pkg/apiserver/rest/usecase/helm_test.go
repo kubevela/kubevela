@@ -249,7 +249,7 @@ stringData:
 kind: Secret
 metadata:
   labels:
-    config.oam.dev/type: helm-repository
+    config.oam.dev/type: config-helm-repository
   name: global-helm-repo
   namespace: vela-system
 type: Opaque
@@ -261,8 +261,8 @@ metadata:
   name: project-helm-repo
   namespace: vela-system
   labels:
-    config.oam.dev/type: helm-repository
-    core.oam.dev/project: my-project
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project
 stringData:
   url: https://kedacore.github.io/charts
 type: Opaque
