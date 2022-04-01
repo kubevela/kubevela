@@ -1188,6 +1188,8 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
 		return err
 	}
 	getapp.Spec = app.Spec
+	getapp.Labels = app.Labels
+	getapp.Annotations = app.Annotations
 	err = h.cli.Update(h.ctx, &getapp)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
