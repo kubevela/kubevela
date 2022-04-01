@@ -101,7 +101,7 @@ func (d defaultHelmHandler) ListChartRepo(ctx context.Context, projectName strin
 	if len(projectName) != 0 {
 		projectSecrets := corev1.SecretList{}
 		opts := []client.ListOption{
-			client.MatchingLabels{oam.LabelConfigType: "helm-repository", oam.LabelProject: projectName},
+			client.MatchingLabels{oam.LabelConfigType: "config-helm-repository", types.LabelConfigProject: projectName},
 			client.InNamespace(types.DefaultKubeVelaNS),
 		}
 		err = d.k8sClient.List(ctx, &projectSecrets, opts...)
@@ -116,9 +116,9 @@ func (d defaultHelmHandler) ListChartRepo(ctx context.Context, projectName strin
 
 	globalSecrets := corev1.SecretList{}
 	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{oam.LabelConfigType: "helm-repository"},
+		MatchLabels: map[string]string{oam.LabelConfigType: "config-helm-repository"},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{Key: oam.LabelProject, Operator: metav1.LabelSelectorOpDoesNotExist},
+			{Key: types.LabelConfigProject, Operator: metav1.LabelSelectorOpDoesNotExist},
 		},
 	}
 
