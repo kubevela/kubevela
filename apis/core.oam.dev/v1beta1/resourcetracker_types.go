@@ -206,7 +206,7 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, 
 		mr.Data = &runtime.RawExtension{Object: rsc}
 	}
 	if creator != "" {
-		mr.Creator = creator
+		mr.ClusterObjectReference.Creator = creator
 	}
 	if idx := in.findMangedResourceIndex(mr); idx >= 0 {
 		if reflect.DeepEqual(in.Spec.ManagedResources[idx], mr) {
