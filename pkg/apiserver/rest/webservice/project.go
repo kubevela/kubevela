@@ -176,6 +176,16 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
 
+	ws.Route(ws.GET("/{projectName}/config_types/{configType}/configs/").To(n.getConfigs).
+		Doc("get configs from a config type").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("project/configType", "list")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("configType", "identifier of the config").DataType("string")).
+		Returns(200, "OK", []*apis.Config{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]*apis.Config{}))
+
 	ws.Filter(authCheckFilter)
 	return ws
 }
@@ -499,6 +509,26 @@ func (n *projectWebService) listProjectPermissions(req *restful.Request, res *re
 		return
 	}
 	if err := res.WriteEntity(policies); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) getConfigs(req *restful.Request, res *restful.Response) {
+	configs, err := n.projectUsecase.GetConfigs(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("configType"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if configs == nil {
+		if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+			bcode.ReturnError(req, res, err)
+			return
+		}
+		return
+	}
+	err = res.WriteEntity(configs)
+	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

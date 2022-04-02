@@ -20,9 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -46,6 +50,7 @@ type ProjectUsecase interface {
 	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
+	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
 }
 
 type projectUsecaseImpl struct {
@@ -464,6 +469,40 @@ func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName 
 		return nil, err
 	}
 	return ConvertProjectUserModel2Base(&projectUser), nil
+}
+
+func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
+	return getConfigsByProjectAndConfigType(ctx, p.k8sClient, projectName, configType)
+}
+
+func getConfigsByProjectAndConfigType(ctx context.Context, k8sClient client.Client, projectName, configType string) ([]*apisv1.Config, error) {
+	if configType != types.TerraformProvider {
+		return nil, errors.New("unsupported config type")
+	}
+	var apps = &v1beta1.ApplicationList{}
+	if err := k8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			model.LabelSourceOfTruth: model.FromInner,
+			types.LabelConfigCatalog: velaCoreConfig,
+		}); err != nil {
+		return nil, err
+	}
+
+	var configs []*apisv1.Config
+	for _, a := range apps.Items {
+		appProject := a.Labels[types.LabelConfigProject]
+		if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
+			!strings.Contains(a.Labels[types.LabelConfigType], "terraform-") {
+			continue
+		}
+		configs = append(configs, &apisv1.Config{
+			ConfigType:  a.Labels[types.LabelConfigType],
+			Name:        a.Name,
+			Project:     appProject,
+			CreatedTime: &(a.CreationTimestamp.Time),
+		})
+	}
+	return configs, nil
 }
 
 // ConvertProjectModel2Base convert project model to base struct
