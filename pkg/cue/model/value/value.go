@@ -297,8 +297,6 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		return newV.Err()
 	}
 	val.v = newV
-	// test, _ := val.String()
-	// fmt.Println("===================123", test)
 	return nil
 }
 

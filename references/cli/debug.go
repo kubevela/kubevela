@@ -46,7 +46,7 @@ type debugOpts struct {
 	step  string
 	focus string
 	// TODO: (fog) add watch flag
-	watch bool
+	// watch bool
 }
 
 // NewDebugCommand create `debug` command
@@ -123,7 +123,7 @@ func (d *debugOpts) getDebugStep(app *v1beta1.Application) error {
 	var step string
 	err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
 	if err != nil {
-		return fmt.Errorf("failed to select %s: %v", s, err.Error())
+		return fmt.Errorf("failed to select %s: %w", s, err)
 	}
 	d.step = step
 	return nil
@@ -132,7 +132,7 @@ func (d *debugOpts) getDebugStep(app *v1beta1.Application) error {
 func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, config *rest.Config, app *v1beta1.Application) (*value.Value, error) {
 	debugCM := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(app.Name, d.step), Namespace: app.Namespace}, debugCM); err != nil {
-		return nil, fmt.Errorf("failed to get debug configmap: %v", err.Error())
+		return nil, fmt.Errorf("failed to get debug configmap: %w", err)
 	}
 
 	if debugCM.Data == nil || debugCM.Data["debug"] == "" {
@@ -144,7 +144,7 @@ func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, con
 	}
 	v, err := value.NewValue(debugCM.Data["debug"], pd, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse debug configmap: %v", err.Error())
+		return nil, fmt.Errorf("failed to parse debug configmap: %w", err)
 	}
 	return v, nil
 }
@@ -171,7 +171,7 @@ func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) 
 }
 
 func separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams) error {
-	fieldMap := make(map[string]*value.Value, 0)
+	fieldMap := make(map[string]*value.Value)
 	fieldList := make([]string, 0)
 	if err := v.StepByFields(func(fieldName string, in *value.Value) (bool, error) {
 		if in.CueValue().IncompleteKind() == cue.BottomKind {
@@ -185,19 +185,20 @@ func separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams) error {
 		fieldMap[fieldName] = in
 		return false, nil
 	}); err != nil {
-		return fmt.Errorf("failed to parse debug configmap by field: %v", err.Error())
+		return fmt.Errorf("failed to parse debug configmap by field: %w", err)
 	}
 
-	opts := append(fieldList, "all fields", "exit debug mode")
+	opts := fieldList
+	opts = append(opts, "all fields", "exit debug mode")
 	for {
 		prompt := &survey.Select{
-			Message: fmt.Sprintf("Select the field to debug: "),
+			Message: "Select the field to debug: ",
 			Options: opts,
 		}
 		var field string
 		err := survey.AskOne(prompt, &field, survey.WithValidator(survey.Required))
 		if err != nil {
-			return fmt.Errorf("failed to select: %v", err.Error())
+			return fmt.Errorf("failed to select: %w", err)
 		}
 		if field == "exit debug mode" {
 			break

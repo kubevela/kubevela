@@ -97,8 +97,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0
 )
 
-require github.com/rs/zerolog v1.26.1 // indirect
-
 require (
 	github.com/docker/distribution v2.8.0-beta.1+incompatible // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

@@ -404,6 +404,7 @@ func debugLog(v *value.Value) bool {
 	return debug
 }
 
+// OpTpy get label do
 func OpTpy(v *value.Value) string {
 	return getLabel(v, "#do")
 }

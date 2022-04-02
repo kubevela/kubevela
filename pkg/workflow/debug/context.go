@@ -35,20 +35,20 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-// Context is workflow debug context interface
-type Context interface {
+// ContextImpl is workflow debug context interface
+type ContextImpl interface {
 	Set(v *value.Value) error
 }
 
-// DebugContext is debug context.
-type DebugContext struct {
+// Context is debug context.
+type Context struct {
 	cli  client.Client
 	app  *v1beta1.Application
 	step string
 }
 
 // Set sets debug content into context
-func (d *DebugContext) Set(v *value.Value) error {
+func (d *Context) Set(v *value.Value) error {
 	data, err := v.String()
 	if err != nil {
 		return err
@@ -96,7 +96,6 @@ func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, 
 	cm.Data = map[string]string{
 		"debug": data,
 	}
-	fmt.Println(123123123123123, data)
 	if err := cli.Update(ctx, cm); err != nil {
 		return err
 	}
@@ -105,14 +104,15 @@ func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, 
 }
 
 // NewContext new workflow context without initialize data.
-func NewContext(cli client.Client, app *v1beta1.Application, step string) Context {
-	return &DebugContext{
+func NewContext(cli client.Client, app *v1beta1.Application, step string) ContextImpl {
+	return &Context{
 		cli:  cli,
 		app:  app,
 		step: step,
 	}
 }
 
+// GenerateContextName generate context name
 func GenerateContextName(app, step string) string {
 	return fmt.Sprintf("%s-%s-debug", app, step)
 }

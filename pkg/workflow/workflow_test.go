@@ -69,7 +69,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -111,7 +111,7 @@ var _ = Describe("Test Workflow", func() {
 		})
 
 		app.Status.Workflow = workflowStatus
-		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateTerminated))
@@ -161,7 +161,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -205,7 +205,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false)
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -246,7 +246,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false)
 		_, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
@@ -310,7 +310,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -386,7 +386,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -428,7 +428,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
@@ -452,7 +452,7 @@ var _ = Describe("Test Workflow", func() {
 	It("skip workflow", func() {
 		app, runners := makeTestCase([]oamcore.WorkflowStep{})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateFinished))
@@ -474,7 +474,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		pending = true
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false)
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
@@ -541,7 +541,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 		})
 		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
-		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep)
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false)
 		state, err := wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
