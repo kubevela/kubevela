@@ -65,14 +65,14 @@ func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, 
 	cm := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, types.NamespacedName{
 		Namespace: app.Namespace,
-		Name:      generateContextName(app.Name, step),
+		Name:      GenerateContextName(app.Name, step),
 	}, cm); err != nil {
 		if errors.IsNotFound(err) {
 			rk, err := resourcekeeper.NewResourceKeeper(ctx, cli, app)
 			if err != nil {
 				return err
 			}
-			cm.Name = generateContextName(app.Name, step)
+			cm.Name = GenerateContextName(app.Name, step)
 			cm.Namespace = app.Namespace
 			cm.Data = map[string]string{
 				"debug": data,
@@ -96,7 +96,8 @@ func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, 
 	cm.Data = map[string]string{
 		"debug": data,
 	}
-	if err := cli.Patch(ctx, cm, client.MergeFrom(cm)); err != nil {
+	fmt.Println(123123123123123, data)
+	if err := cli.Update(ctx, cm); err != nil {
 		return err
 	}
 
@@ -112,6 +113,6 @@ func NewContext(cli client.Client, app *v1beta1.Application, step string) Contex
 	}
 }
 
-func generateContextName(app, step string) string {
+func GenerateContextName(app, step string) string {
 	return fmt.Sprintf("%s-%s-debug", app, step)
 }

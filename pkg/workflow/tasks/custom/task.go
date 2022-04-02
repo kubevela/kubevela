@@ -337,7 +337,7 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 }
 
 func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
-	do := opTpy(v)
+	do := OpTpy(v)
 	if do != "" && do != "steps" {
 		provider := opProvider(v)
 		if err := exec.Handle(ctx, provider, do, v); err != nil {
@@ -363,14 +363,14 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 
 		if isStepList(fieldName) {
 			return false, in.StepByList(func(name string, item *value.Value) (bool, error) {
-				do := opTpy(item)
+				do := OpTpy(item)
 				if do == "" {
 					return false, nil
 				}
 				return false, exec.doSteps(ctx, item)
 			})
 		}
-		do := opTpy(in)
+		do := OpTpy(in)
 		if do == "" {
 			return false, nil
 		}
@@ -404,7 +404,7 @@ func debugLog(v *value.Value) bool {
 	return debug
 }
 
-func opTpy(v *value.Value) string {
+func OpTpy(v *value.Value) string {
 	return getLabel(v, "#do")
 }
 

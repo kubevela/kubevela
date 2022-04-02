@@ -96,6 +96,9 @@ func NewCommand() *cobra.Command {
 		NewWorkflowCommand(commandArgs, ioStream),
 		ClusterCommandGroup(commandArgs, ioStream),
 
+		// Debug
+		NewDebugCommand(commandArgs, ioStream),
+
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),
 		NewUISchemaCommand(commandArgs, "8", ioStream),

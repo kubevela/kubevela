@@ -297,6 +297,8 @@ func (val *Value) FillObject(x interface{}, paths ...string) error {
 		return newV.Err()
 	}
 	val.v = newV
+	// test, _ := val.String()
+	// fmt.Println("===================123", test)
 	return nil
 }
 
@@ -458,6 +460,9 @@ func (val *Value) fields() ([]*field, error) {
 		no, err := attr.Int(0)
 		if err != nil {
 			no = 100
+			if v.Name == "#do" || v.Name == "#provider" {
+				no = 0
+			}
 		}
 		fields = append(fields, &field{
 			no:   no,

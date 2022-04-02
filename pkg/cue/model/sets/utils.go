@@ -221,7 +221,7 @@ func toString(v cue.Value, opts ...func(node ast.Node) ast.Node) (string, error)
 		for _, opt := range opts {
 			node = opt(node)
 		}
-		b, err := format.Node(node)
+		b, err := format.Node(node, format.UseSpaces(2), format.TabIndent(false))
 		if err != nil {
 			return err
 		}
