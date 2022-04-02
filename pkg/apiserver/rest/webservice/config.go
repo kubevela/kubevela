@@ -189,4 +189,8 @@ func (s *configWebService) deleteConfig(req *restful.Request, res *restful.Respo
 		bcode.ReturnError(req, res, err)
 		return
 	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
 }
