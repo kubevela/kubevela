@@ -137,6 +137,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			if err := json.Unmarshal(bt, &params); err != nil {
 				return nil, err
 			}
+			params["dependsOn"] = wfStep.DependsOn
 		}
 
 		tRunner := new(taskRunner)

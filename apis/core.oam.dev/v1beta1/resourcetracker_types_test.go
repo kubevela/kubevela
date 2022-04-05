@@ -156,16 +156,16 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 	r := require.New(t)
 	input := &ResourceTracker{}
 	deploy1 := v12.Deployment{ObjectMeta: v13.ObjectMeta{Name: "deploy1"}}
-	input.AddManagedResource(&deploy1, true)
+	input.AddManagedResource(&deploy1, nil, true)
 	r.Equal(1, len(input.Spec.ManagedResources))
 	cm2 := v1.ConfigMap{ObjectMeta: v13.ObjectMeta{Name: "cm2"}}
-	input.AddManagedResource(&cm2, false)
+	input.AddManagedResource(&cm2, nil, false)
 	r.Equal(2, len(input.Spec.ManagedResources))
 	pod3 := v1.Pod{ObjectMeta: v13.ObjectMeta{Name: "pod3"}}
-	input.AddManagedResource(&pod3, false)
+	input.AddManagedResource(&pod3, nil, false)
 	r.Equal(3, len(input.Spec.ManagedResources))
 	deploy1.Spec.Replicas = pointer.Int32(5)
-	input.AddManagedResource(&deploy1, false)
+	input.AddManagedResource(&deploy1, nil, false)
 	r.Equal(3, len(input.Spec.ManagedResources))
 	input.DeleteManagedResource(&cm2, false)
 	r.Equal(3, len(input.Spec.ManagedResources))

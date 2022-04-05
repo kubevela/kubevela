@@ -101,3 +101,13 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 	}
 	return entry
 }
+
+func (cache *resourceCache) setNotExist(mr v1beta1.ManagedResource) {
+	key := mr.ResourceKey()
+	entry, cached := cache.m[key]
+	if !cached {
+		entry = &resourceCacheEntry{obj: mr.ToUnstructured(), mr: mr}
+	}
+	entry.exists = false
+	cache.m[key] = entry
+}

@@ -245,21 +245,69 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 }
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
+	var (
+		pendingDelMRs []*v1beta1.ManagedResource
+		todoDelMRs    []*v1beta1.ManagedResource
+	)
+	var err error
 	for _, mr := range rt.Spec.ManagedResources {
-		entry := h.cache.get(ctx, mr)
-		if entry.gcExecutorRT != rt {
-			continue
+		todoDelMRs, pendingDelMRs, err = h.checkPending(ctx, mr, rt, todoDelMRs, pendingDelMRs)
+		if err != nil {
+			return err
 		}
-		if entry.err != nil {
-			return entry.err
-		}
-		if entry.exists {
-			if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil && !kerrors.IsNotFound(err) {
-				return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
+	}
+	if len(todoDelMRs) > 0 {
+		for _, mr := range todoDelMRs {
+			entry := h.cache.get(ctx, *mr)
+			if entry.gcExecutorRT != rt {
+				continue
 			}
+			if entry.err != nil {
+				return entry.err
+			}
+			if entry.exists {
+				if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil && !kerrors.IsNotFound(err) {
+					return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
+				}
+				h.cache.setNotExist(*mr)
+			}
+		}
+		if len(todoDelMRs) == 0 && len(pendingDelMRs) == 0 {
+			return nil
+		}
+		if len(pendingDelMRs) > 0 {
+			return h.recycleResourceTracker(ctx, rt)
 		}
 	}
 	return nil
+}
+
+func (h *gcHandler) checkPending(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker, todoDelMRs []*v1beta1.ManagedResource, pendingDelMRs []*v1beta1.ManagedResource) ([]*v1beta1.ManagedResource, []*v1beta1.ManagedResource, error) {
+	// if the ManagedResource is not exist so return directly
+	getEntry := h.cache.get(ctx, mr)
+	if getEntry.err != nil {
+		return nil, nil, getEntry.err
+	}
+	if !getEntry.exists {
+		return todoDelMRs, pendingDelMRs, nil
+	}
+	// iterate RT's resource to find the dependent
+	for _, managedResource := range rt.Spec.ManagedResources {
+		for _, dependsOnComp := range managedResource.DependsOn {
+			if mr.Component == dependsOnComp {
+				entry := h.cache.get(ctx, managedResource)
+				if entry.err != nil {
+					return nil, nil, entry.err
+				}
+				if entry.exists {
+					pendingDelMRs = append(pendingDelMRs, &mr)
+					return todoDelMRs, pendingDelMRs, nil
+				}
+			}
+		}
+	}
+	todoDelMRs = append(todoDelMRs, &mr)
+	return todoDelMRs, pendingDelMRs, nil
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {

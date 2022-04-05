@@ -53,7 +53,7 @@ func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
 }
 
 // Dispatch dispatch resources
-func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) (err error) {
+func (h *resourceKeeper) Dispatch(ctx context.Context, dependsOn []string, manifests []*unstructured.Unstructured, options ...DispatchOption) (err error) {
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
 		options = append(options, MetaOnlyOption{})
 	}
@@ -62,7 +62,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		return err
 	}
 	// 1. record manifests in resourcetracker
-	if err = h.record(ctx, manifests, options...); err != nil {
+	if err = h.record(ctx, manifests, dependsOn, options...); err != nil {
 		return err
 	}
 	// 2. apply manifests
@@ -72,7 +72,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	return nil
 }
 
-func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
+func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, dependsOn []string, options ...DispatchOption) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var rootManifests []*unstructured.Unstructured
@@ -103,7 +103,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 		if err != nil {
 			return errors.Wrapf(err, "failed to get resourcetracker")
 		}
-		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly); err != nil {
+		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, dependsOn, cfg.metaOnly); err != nil {
 			return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 		}
 	}
@@ -112,7 +112,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
 	}
-	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly); err != nil {
+	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, dependsOn, cfg.metaOnly); err != nil {
 		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
 	return nil

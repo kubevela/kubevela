@@ -81,6 +81,8 @@ type ManagedResource struct {
 	Data *runtime.RawExtension `json:"raw,omitempty"`
 	// Deleted marks the resource to be deleted
 	Deleted bool `json:"deleted,omitempty"`
+	// DependsOn records the component that was dependent
+	DependsOn []string `json:"dependsOn,omitempty"`
 }
 
 // Equal check if two managed resource equals
@@ -187,7 +189,7 @@ func (in *ResourceTracker) findMangedResourceIndex(mr ManagedResource) int {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) (updated bool) {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, dependsOn []string, metaOnly bool) (updated bool) {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
 	mr := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
@@ -201,6 +203,7 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) 
 		},
 		OAMObjectReference: common.NewOAMObjectReferenceFromObject(rsc),
 		Deleted:            false,
+		DependsOn:          dependsOn,
 	}
 	if !metaOnly {
 		mr.Data = &runtime.RawExtension{Object: rsc}

@@ -166,7 +166,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			return nil, nil, false, err
 		}
 		if len(manifest.PackagedWorkloadResources) != 0 {
-			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, manifest.PackagedWorkloadResources...); err != nil {
+			if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, comp.DependsOn, manifest.PackagedWorkloadResources...); err != nil {
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
@@ -183,7 +183,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
 		}
 
-		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
+		if err := h.Dispatch(ctx, clusterName, common.WorkflowResourceCreator, comp.DependsOn, dispatchResources...); err != nil {
 			return nil, nil, false, errors.WithMessage(err, "Dispatch")
 		}
 

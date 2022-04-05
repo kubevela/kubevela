@@ -80,9 +80,9 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, dependsOn []string, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
-	if err := h.resourceKeeper.Dispatch(ctx, manifests); err != nil {
+	if err := h.resourceKeeper.Dispatch(ctx, dependsOn, manifests); err != nil {
 		return err
 	}
 	for _, mf := range manifests {
@@ -338,7 +338,7 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 		return errors.Wrapf(err, "failed to render policy manifests")
 	}
 	if len(policyManifests) > 0 {
-		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, policyManifests...); err != nil {
+		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, nil, policyManifests...); err != nil {
 			return errors.Wrapf(err, "failed to dispatch policy manifests")
 		}
 	}

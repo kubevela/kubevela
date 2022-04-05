@@ -74,6 +74,11 @@ spec:
                     deleted:
                       description: Deleted marks the resource to be deleted
                       type: boolean
+                    dependsOn:
+                      description: DependsOn records the component that was dependent
+                      items:
+                        type: string
+                      type: array
                     env:
                       type: string
                     fieldPath:

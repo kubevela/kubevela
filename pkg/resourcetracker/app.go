@@ -143,10 +143,10 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 }
 
 // RecordManifestsInResourceTracker records resources in ResourceTracker
-func RecordManifestsInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifests []*unstructured.Unstructured, metaOnly bool) error {
+func RecordManifestsInResourceTracker(ctx context.Context, cli client.Client, rt *v1beta1.ResourceTracker, manifests []*unstructured.Unstructured, dependsOn []string, metaOnly bool) error {
 	if len(manifests) != 0 {
 		for _, manifest := range manifests {
-			rt.AddManagedResource(manifest, metaOnly)
+			rt.AddManagedResource(manifest, dependsOn, metaOnly)
 		}
 		return cli.Update(ctx, rt)
 	}

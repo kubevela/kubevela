@@ -109,7 +109,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	return viewCtx.GetVar(qv.Export)
 }
 
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, dependsOn []string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
