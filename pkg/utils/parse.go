@@ -215,6 +215,10 @@ func ByteCountIEC(b int64) string {
 
 // ParseGitlab will parse gitlab config from address
 func ParseGitlab(addr, repo string) (string, *Content, error) {
+	if !strings.Contains(addr, repo) {
+		return "", nil, errors.New("addon registry repo name invalid")
+	}
+
 	// We support two valid format:
 	// 1. https://example.gitlab.com/<owner>/<repo>
 	// 2. https://example.gitlab.com/<owner>/<repo>/tree/<branch>
