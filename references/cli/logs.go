@@ -86,6 +86,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 
 	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
 	cmd.Flags().StringVarP(&largs.Container, "container", "c", "", "specify container name for output")
+	cmd.Flags().StringVar(&largs.Name, "name", "", "specify resource name for output")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -96,6 +97,7 @@ type Args struct {
 	Args      common.Args
 	Namespace string
 	Container string
+	Name      string
 	App       *v1beta1.Application
 }
 
@@ -111,7 +113,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	selectedRes, err := common.AskToChooseOneEnvResource(l.App)
+	selectedRes, err := common.AskToChooseOneEnvResource(l.App, l.Name)
 	if err != nil {
 		return err
 	}

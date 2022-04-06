@@ -61,6 +61,18 @@ const (
 	AnnoIngressControllerHTTPSPort = "ingress.controller/https-port"
 	// AnnoIngressControllerHTTPPort define ingress controller listen port for http
 	AnnoIngressControllerHTTPPort = "ingress.controller/http-port"
+	// LabelConfigType is the label for config type
+	LabelConfigType = "config.oam.dev/type"
+	// LabelConfigCatalog is the label for config catalog
+	LabelConfigCatalog = "config.oam.dev/catalog"
+	// LabelConfigSubType is the sub-type for a config type
+	LabelConfigSubType = "config.oam.dev/sub-type"
+	// LabelConfigProject is the label for config project
+	LabelConfigProject = "config.oam.dev/project"
+	// LabelConfigSyncToMultiCluster is the label to decide whether a config will be synchronized to multi-cluster
+	LabelConfigSyncToMultiCluster = "config.oam.dev/multi-cluster"
+	// AnnotationConfigAlias is the annotation for config alias
+	AnnotationConfigAlias = "config.oam.dev/alias"
 )
 
 const (
@@ -118,3 +130,13 @@ var DefaultFilterAnnots = []string{
 	oam.AnnotationFilterAnnotationKeys,
 	oam.AnnotationLastAppliedConfiguration,
 }
+
+// ConfigType is the type of config
+type ConfigType string
+
+const (
+	// TerraformProvider is the config type for terraform provider
+	TerraformProvider = "terraform-provider"
+	// DexConnector is the config type for dex connector
+	DexConnector = "config-dex-connector"
+)

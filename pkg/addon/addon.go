@@ -577,7 +577,7 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 	}
 
 	for _, tmpl := range addon.CUETemplates {
-		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
+		comp, err := renderCUETemplate(tmpl, addon.Parameters, args, addon.Meta)
 		if err != nil {
 			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
 		}
@@ -598,6 +598,9 @@ func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
 				Components: []common2.ApplicationComponent{},
 			},
 		}
+	}
+	if app.Spec.Components == nil {
+		app.Spec.Components = []common2.ApplicationComponent{}
 	}
 	app.Name = Convert2AppName(addon.Name)
 	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
@@ -939,17 +942,28 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 }
 
 // renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
+func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}, metadata Meta) (*common2.ApplicationComponent, error) {
 	bt, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
 	}
+	var contextFile = strings.Builder{}
 	var paramFile = cuemodel.ParameterFieldName + ": {}"
 	if string(bt) != "null" {
 		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
 	}
-	param := fmt.Sprintf("%s\n%s", paramFile, parameters)
-	v, err := value.NewValue(param, nil, "")
+	// addon metadata context
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+	contextFile.WriteString(fmt.Sprintf("context: metadata: %s\n", string(metadataJSON)))
+	// parameter definition
+	contextFile.WriteString(paramFile + "\n")
+	// user custom parameter
+	contextFile.WriteString(parameters + "\n")
+
+	v, err := value.NewValue(contextFile.String(), nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1184,6 +1198,8 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
 		return err
 	}
 	getapp.Spec = app.Spec
+	getapp.Labels = app.Labels
+	getapp.Annotations = app.Annotations
 	err = h.cli.Update(h.ctx, &getapp)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)

@@ -187,6 +187,25 @@ type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
 }
 
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+}
+
+// Config define the metadata of a config
+type Config struct {
+	ConfigType  string     `json:"configType"`
+	Name        string     `json:"name"`
+	Project     string     `json:"project"`
+	Identifier  string     `json:"identifier"`
+	Description string     `json:"description"`
+	CreatedTime *time.Time `json:"createdTime"`
+	UpdatedTime *time.Time `json:"updatedTime"`
+}
+
 // AccessKeyRequest request parameters to access cloud provider
 type AccessKeyRequest struct {
 	AccessKeyID     string `json:"accessKeyID"`
@@ -383,6 +402,15 @@ type CreateApplicationRequest struct {
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
+}
+
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
+	Name          string `json:"name" validate:"checkname"`
+	Alias         string `json:"alias"`
+	Project       string `json:"project"`
+	ComponentType string `json:"componentType" validate:"checkname"`
+	Properties    string `json:"properties,omitempty"`
 }
 
 // UpdateApplicationRequest update application base config
@@ -1084,14 +1112,22 @@ type DetailRevisionResponse struct {
 
 // SystemInfoResponse get SystemInfo
 type SystemInfoResponse struct {
-	model.SystemInfo
+	SystemInfo
 	SystemVersion SystemVersion `json:"systemVersion"`
+}
+
+// SystemInfo system info
+type SystemInfo struct {
+	InstallID        string `json:"installID"`
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
 }
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
 	EnableCollection bool   `json:"enableCollection"`
 	LoginType        string `json:"loginType"`
+	VelaAddress      string `json:"velaAddress,omitempty"`
 }
 
 // SystemVersion contains KubeVela version
@@ -1279,4 +1315,15 @@ type LoginUserInfoResponse struct {
 	Projects            []*ProjectBase              `json:"projects"`
 	PlatformPermissions []PermissionBase            `json:"platformPermissions"`
 	ProjectPermissions  map[string][]PermissionBase `json:"projectPermissions"`
+}
+
+// ChartRepoResponse the response body of  chart repo
+type ChartRepoResponse struct {
+	URL        string `json:"url"`
+	SecretName string `json:"secretName"`
+}
+
+// ChartRepoResponseList the response body of list chart repo
+type ChartRepoResponseList struct {
+	ChartRepoResponse []*ChartRepoResponse `json:"repos"`
 }

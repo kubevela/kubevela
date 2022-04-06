@@ -73,15 +73,16 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	definitionUsecase := usecase.NewDefinitionUsecase()
 	addonUsecase := usecase.NewAddonUsecase(addonCacheTime)
 	envBindingUsecase := usecase.NewEnvBindingUsecase(ds, workflowUsecase, definitionUsecase, envUsecase)
-	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
-	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	systemInfoUsecase := usecase.NewSystemInfoUsecase(ds)
 	helmUsecase := usecase.NewHelmUsecase()
 	userUsecase := usecase.NewUserUsecase(ds, projectUsecase, systemInfoUsecase, rbacUsecase)
 	authenticationUsecase := usecase.NewAuthenticationUsecase(ds, systemInfoUsecase, userUsecase)
+	configUseCase := usecase.NewConfigUseCase(authenticationUsecase)
+	applicationUsecase := usecase.NewApplicationUsecase(ds, workflowUsecase, envBindingUsecase, envUsecase, targetUsecase, definitionUsecase, projectUsecase)
+	webhookUsecase := usecase.NewWebhookUsecase(ds, applicationUsecase)
 	// Modules that require default data initialization, Call it here in order
 	if initDatabase {
-		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase)
+		initData(ctx, userUsecase, rbacUsecase, projectUsecase, targetUsecase, systemInfoUsecase)
 	}
 
 	// Application
@@ -94,6 +95,9 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	RegisterWebService(NewAddonWebService(addonUsecase, rbacUsecase, clusterUsecase))
 	RegisterWebService(NewEnabledAddonWebService(addonUsecase, rbacUsecase))
 	RegisterWebService(NewAddonRegistryWebService(addonUsecase, rbacUsecase))
+
+	// Config management
+	RegisterWebService(ConfigWebService(configUseCase, rbacUsecase))
 
 	// Resources
 	RegisterWebService(NewClusterWebService(clusterUsecase, rbacUsecase))

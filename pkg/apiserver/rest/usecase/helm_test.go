@@ -17,8 +17,18 @@ limitations under the License.
 package usecase
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,6 +46,63 @@ func TestFlattenKeyFunc(t *testing.T) {
 	flattenKey("", srcMap, res)
 	assert.Equal(t, dstMap, res)
 }
+
+var _ = Describe("Test helm repo list", func() {
+	ctx := context.Background()
+	var pSec, gSec v1.Secret
+
+	BeforeEach(func() {
+		pSec = v1.Secret{}
+		gSec = v1.Secret{}
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(yaml.Unmarshal([]byte(projectSecret), &pSec)).Should(BeNil())
+		Expect(yaml.Unmarshal([]byte(globalSecret), &gSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &pSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &gSec)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &gSec)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, &pSec)).Should(BeNil())
+	})
+
+	It("Test list with project ", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "my-project")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(2))
+		found := 0
+		for _, response := range list.ChartRepoResponse {
+			if response.SecretName == "project-helm-repo" {
+				Expect(response.URL).Should(BeEquivalentTo("https://kedacore.github.io/charts"))
+				found++
+			}
+			if response.SecretName == "global-helm-repo" {
+				Expect(response.URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+				found++
+			}
+		}
+		Expect(found).Should(BeEquivalentTo(2))
+	})
+
+	It("Test list func with not exist project", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "not-exist-project")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
+		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
+	})
+
+	It("Test list func without project", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
+		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
+	})
+})
 
 var (
 	src = `{
@@ -175,4 +242,29 @@ var (
     "webhookService.port": 11443,
     "webhookService.type": "ClusterIP"
 }`
+	globalSecret = `
+apiVersion: v1
+stringData:
+  url: https://charts.bitnami.com/bitnami
+kind: Secret
+metadata:
+  labels:
+    config.oam.dev/type: config-helm-repository
+  name: global-helm-repo
+  namespace: vela-system
+type: Opaque
+`
+	projectSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: project-helm-repo
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project
+stringData:
+  url: https://kedacore.github.io/charts
+type: Opaque
+`
 )

@@ -18,7 +18,12 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/fatih/color"
+
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -61,16 +66,6 @@ func TestParseMap(t *testing.T) {
 				"image": map[string]interface{}{
 					"repo": "www.test.com",
 					"tag":  "1.1",
-				},
-			},
-			nilError: true,
-		},
-		{
-			args: []string{"clusters={c1, c2, c3}", "image.tag=1.1"},
-			res: map[string]interface{}{
-				"clusters": []string{"c1", "c2", "c3"},
-				"image": map[string]interface{}{
-					"tag": "1.1",
 				},
 			},
 			nilError: true,
@@ -136,5 +131,87 @@ func TestAddonUpgradeCmdWithErrLocalPath(t *testing.T) {
 		cmd.SetArgs(s.args)
 		err := cmd.Execute()
 		assert.Error(t, err, s.errMsg)
+	}
+}
+
+func TestTransCluster(t *testing.T) {
+	testcase := []struct {
+		str string
+		res []string
+	}{
+		{
+			str: "{cluster1, cluster2}",
+			res: []string{"cluster1", "cluster2"},
+		},
+		{
+			str: "{cluster1,cluster2}",
+			res: []string{"cluster1", "cluster2"},
+		},
+		{
+			str: "{cluster1,  cluster2   }",
+			res: []string{"cluster1", "cluster2"},
+		},
+	}
+	for _, s := range testcase {
+		assert.DeepEqual(t, transClusters(s.str), s.res)
+	}
+}
+
+func TestGenerateStatusIn(t *testing.T) {
+	testcases := []struct {
+		c   pkgaddon.Status
+		res []string
+	}{
+		{
+			c:   pkgaddon.Status{InstalledVersion: "1.2.1", Clusters: map[string]map[string]interface{}{"cluster1": nil, "cluster2": nil}, AddonPhase: statusEnabled},
+			res: []string{"installedVersion: 1.2.1", "installedClusters: [cluster1 cluster2]", fmt.Sprintf("status is %s", color.New(color.FgGreen).Sprintf(statusEnabled))},
+		},
+		{
+			c:   pkgaddon.Status{InstalledVersion: "1.2.3", AddonPhase: statusSuspend},
+			res: []string{"installedVersion: 1.2.3", fmt.Sprintf("status is %s", color.New(color.FgRed).Sprintf(statusSuspend))},
+		},
+	}
+	for _, testcase := range testcases {
+		res := generateAddonInfo("test", testcase.c)
+		for _, re := range testcase.res {
+			assert.Equal(t, strings.Contains(res, re), true)
+		}
+	}
+}
+
+func TestGenerateAvailableVersions(t *testing.T) {
+	type testcase struct {
+		inVersion string
+		versions  []string
+	}
+	testcases := []struct {
+		c   testcase
+		res string
+	}{
+		{
+			c: testcase{
+				inVersion: "1.2.1",
+				versions:  []string{"1.2.1"},
+			},
+			res: fmt.Sprintf("[%s]", color.New(color.Bold, color.FgGreen).Sprintf("1.2.1")),
+		},
+		{
+			c: testcase{
+				inVersion: "1.2.1",
+				versions:  []string{"1.2.3", "1.2.2", "1.2.1"},
+			},
+			res: fmt.Sprintf("[%s, 1.2.3, 1.2.2]", color.New(color.Bold, color.FgGreen).Sprintf("1.2.1")),
+		},
+		{
+			c: testcase{
+				inVersion: "1.2.1",
+				versions:  []string{"1.2.3", "1.2.2", "1.2.1", "1.2.0"},
+			},
+			res: fmt.Sprintf("[%s, 1.2.3, 1.2.2, ...]", color.New(color.Bold, color.FgGreen).Sprintf("1.2.1")),
+		},
+	}
+	for _, s := range testcases {
+		re := genAvailableVersionInfo(s.c.versions, pkgaddon.Status{InstalledVersion: s.c.inVersion})
+		assert.Equal(t, re, s.res)
 	}
 }
