@@ -47,8 +47,6 @@ const (
 	// ProviderNamespace is the namespace of Terraform Cloud Provider
 	ProviderNamespace = "default"
 
-	labelVal = "terraform-provider"
-
 	providerNameParam = "name"
 )
 
@@ -268,7 +266,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	}
 
 	for _, p := range tcProviders.Items {
-		if p.Labels["config.oam.dev/type"] == labelVal {
+		if p.Labels["config.oam.dev/type"] == types.TerraformProvider {
 			currentProviders = append(currentProviders, p)
 		} else {
 			// if not labeled, the provider is manually created or created by `vela addon enable`.
@@ -279,7 +277,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	defs, err := getTerraformProviderTypes(ctx, k8sClient)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
+			fmt.Println("no Terraform Cloud Provider found, please run `vela addon enable` first")
 		}
 		return errors.Wrap(err, "failed to retrieve providers")
 	}
@@ -330,7 +328,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]v1beta1.ComponentDefinition, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": labelVal}); err != nil {
+		client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": types.TerraformProvider}); err != nil {
 		return nil, err
 	}
 	return defs.Items, nil
