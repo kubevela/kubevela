@@ -35,4 +35,6 @@ var (
 	ErrInvalidLoginRequest = NewBcode(400, 12008, "the login request is invalid")
 	// ErrInvalidDexConfig is the error of invalid dex config
 	ErrInvalidDexConfig = NewBcode(400, 12009, "the dex config is invalid")
+	// ErrRefreshTokenExpired is the error of refresh token expired
+	ErrRefreshTokenExpired = NewBcode(400, 12010, "the refresh token is expired")
 )

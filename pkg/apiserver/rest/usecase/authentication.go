@@ -233,6 +233,9 @@ func (a *authenticationUsecaseImpl) getSignedKey(ctx context.Context) (string, e
 func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshToken string) (*apisv1.RefreshTokenResponse, error) {
 	claim, err := ParseToken(refreshToken)
 	if err != nil {
+		if errors.Is(err, bcode.ErrTokenExpired) {
+			return nil, bcode.ErrRefreshTokenExpired
+		}
 		return nil, err
 	}
 	if claim.GrantType == GrantTypeRefresh {
