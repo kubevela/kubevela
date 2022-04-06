@@ -75,11 +75,11 @@ func NewHelperWithCache() *Helper {
 }
 
 // LoadCharts load helm chart from local or remote
-func (h *Helper) LoadCharts(chartRepoURL string) (*chart.Chart, error) {
+func (h *Helper) LoadCharts(chartRepoURL string, opts *common.HttpOption) (*chart.Chart, error) {
 	var err error
 	var chart *chart.Chart
 	if utils.IsValidURL(chartRepoURL) {
-		chartBytes, err := common.HTTPGet(context.Background(), chartRepoURL)
+		chartBytes, err := common.HTTPGetWithOption(context.Background(), chartRepoURL, opts)
 		if err != nil {
 			return nil, errors.New("error retrieving Helm Chart at " + chartRepoURL + ": " + err.Error())
 		}
@@ -194,8 +194,8 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 }
 
 // ListVersions list available versions from repo
-func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool) (repo.ChartVersions, error) {
-	i, err := h.GetIndexInfo(repoURL, skipCache)
+func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, opts *common.HttpOption) (repo.ChartVersions, error) {
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool) 
 }
 
 // GetIndexInfo get index.yaml form given repo url
-func (h *Helper) GetIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, error) {
+func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HttpOption) (*repo.IndexFile, error) {
 	if h.cache != nil && !skipCache {
 		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
 			return i.(*repo.IndexFile), nil
@@ -218,7 +218,7 @@ func (h *Helper) GetIndexInfo(repoURL string, skipCache bool) (*repo.IndexFile, 
 		parsedURL.RawPath = path.Join(parsedURL.RawPath, "index.yaml")
 		parsedURL.Path = path.Join(parsedURL.Path, "index.yaml")
 		indexURL := parsedURL.String()
-		body, err = common.HTTPGet(context.Background(), indexURL)
+		body, err = common.HTTPGetWithOption(context.Background(), indexURL, opts)
 		if err != nil {
 			return nil, fmt.Errorf("download index file from %s failure %w", repoURL, err)
 		}
@@ -300,8 +300,8 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 }
 
 // ListChartsFromRepo list available helm charts in a repo
-func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool) ([]string, error) {
-	i, err := h.GetIndexInfo(repoURL, skipCache)
+func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common.HttpOption) ([]string, error) {
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -315,13 +315,13 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool) ([]string, e
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool) (map[string]interface{}, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, opts *common.HttpOption) (map[string]interface{}, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
 			return v.(map[string]interface{}), nil
 		}
 	}
-	i, err := h.GetIndexInfo(repoURL, skipCache)
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +336,7 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		}
 	}
 	for _, u := range urls {
-		c, err := h.LoadCharts(u)
+		c, err := h.LoadCharts(u, opts)
 		if err != nil {
 			continue
 		}

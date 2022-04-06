@@ -75,7 +75,7 @@ func TestHTTPGet(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := HTTPGet(ctx, tc.url)
+			got, err := HTTPGetWithOption(ctx, tc.url, nil)
 			if tc.want.errStr != "" {
 				if diff := cmp.Diff(tc.want.errStr, err.Error(), test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nHTTPGet(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -84,6 +84,92 @@ func TestHTTPGet(t *testing.T) {
 
 			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
 				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.reason, diff)
+			}
+		})
+	}
+
+}
+
+func TestHTTPGetWithOption(t *testing.T) {
+	type want struct {
+		data string
+	}
+	var ctx = context.Background()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok {
+			w.Write([]byte(fmt.Sprintf("Error parsing basic auth")))
+			w.WriteHeader(401)
+			return
+		}
+		if u != "test-user" {
+			w.Write([]byte(fmt.Sprintf("Username provided is incorrect: %s", u)))
+			w.WriteHeader(401)
+			return
+		}
+		if p != "test-pass" {
+			w.Write([]byte(fmt.Sprintf("Password provided is incorrect: %s", p)))
+			w.WriteHeader(401)
+			return
+		}
+		w.Write([]byte("correct password"))
+		w.WriteHeader(200)
+		return
+	}))
+	defer testServer.Close()
+
+	cases := map[string]struct {
+		opts *HttpOption
+		url  string
+		want want
+	}{
+		"without auth case": {
+			opts: nil,
+			url:  testServer.URL,
+			want: want{
+				data: "Error parsing basic auth",
+			},
+		},
+		"error user name case": {
+			opts: &HttpOption{
+				Username: "no-user",
+				Password: "test-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "Username provided is incorrect: no-user",
+			},
+		},
+		"error password case": {
+			opts: &HttpOption{
+				Username: "test-user",
+				Password: "error-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "Password provided is incorrect: error-pass",
+			},
+		},
+		"correct password case": {
+			opts: &HttpOption{
+				Username: "test-user",
+				Password: "test-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "correct password",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := HTTPGetWithOption(ctx, tc.url, tc.opts)
+			assert.NoError(t, err)
+
+			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
+				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.want.data, diff)
 			}
 		})
 	}
