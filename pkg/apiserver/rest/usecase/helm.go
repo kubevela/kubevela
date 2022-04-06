@@ -20,6 +20,10 @@ import (
 	"context"
 	"strconv"
 
+	types2 "k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -61,8 +65,15 @@ type defaultHelmHandler struct {
 }
 
 func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error) {
-	// TODO(wangyikewxgm): support authority helm repo
-	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
+	var opts *common.HttpOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	charts, err := d.helper.ListChartsFromRepo(url, skipCache, opts)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
 		return nil, bcode.ErrListHelmChart
@@ -71,7 +82,15 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secr
 }
 
 func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
-	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
+	var opts *common.HttpOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache, opts)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
 		return nil, bcode.ErrListHelmVersions
@@ -84,7 +103,15 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 }
 
 func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
-	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
+	var opts *common.HttpOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache, opts)
 	if err != nil {
 		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
 		return nil, bcode.ErrGetChartValues
@@ -157,4 +184,13 @@ func flattenKey(prefix string, src map[string]interface{}, dest map[string]inter
 			dest[prefix+k] = v
 		}
 	}
+}
+
+func setAuthInfo(ctx context.Context, k8sClient client.Client, secretName string) (*common.HttpOption, error) {
+	sec := corev1.Secret{}
+	err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName}, &sec)
+	if err != nil {
+		return nil, err
+	}
+	return &common.HttpOption{Username: string(sec.Data["username"]), Password: string(sec.Data["password"])}, nil
 }

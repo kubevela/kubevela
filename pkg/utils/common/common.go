@@ -102,6 +102,12 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+// HttpOption define the https options
+type HttpOption struct {
+	Username string
+	Password string
+}
+
 // InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (Args, error) {
 	args := Args{
@@ -134,12 +140,14 @@ func GetClient() (client.Client, error) {
 	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
-// HTTPGet will send GET http request with context
-func HTTPGet(ctx context.Context, url string) ([]byte, error) {
+func HTTPGetWithOption(ctx context.Context, url string, opts *HttpOption) ([]byte, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
+	}
+	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
+		req.SetBasicAuth(opts.Username, opts.Password)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
