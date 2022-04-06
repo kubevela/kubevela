@@ -188,7 +188,7 @@ func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
 					if err != nil {
 						return err
 					}
-					if value == "" {
+					if value == "" && p.Required {
 						return fmt.Errorf("must specify a value for %s", p.Name)
 					}
 					properties[p.Name] = value
@@ -219,9 +219,12 @@ func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
 							},
 						}
 						if err := k8sClient.Create(ctx, a); err != nil {
-							return err
+							return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
 						}
+						fmt.Printf("Successfully authentiate provider %s for %s\n", name, providerType)
+						return nil
 					}
+					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
 				}
 				return fmt.Errorf("terraform provider %s for %s already exists", name, providerType)
 			}
