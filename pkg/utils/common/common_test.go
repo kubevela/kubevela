@@ -98,7 +98,7 @@ func TestHTTPGetWithOption(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, ok := r.BasicAuth()
 		if !ok {
-			w.Write([]byte(fmt.Sprintf("Error parsing basic auth")))
+			w.Write([]byte("Error parsing basic auth"))
 			w.WriteHeader(401)
 			return
 		}
@@ -114,12 +114,11 @@ func TestHTTPGetWithOption(t *testing.T) {
 		}
 		w.Write([]byte("correct password"))
 		w.WriteHeader(200)
-		return
 	}))
 	defer testServer.Close()
 
 	cases := map[string]struct {
-		opts *HttpOption
+		opts *HTTPOption
 		url  string
 		want want
 	}{
@@ -131,7 +130,7 @@ func TestHTTPGetWithOption(t *testing.T) {
 			},
 		},
 		"error user name case": {
-			opts: &HttpOption{
+			opts: &HTTPOption{
 				Username: "no-user",
 				Password: "test-pass",
 			},
@@ -141,7 +140,7 @@ func TestHTTPGetWithOption(t *testing.T) {
 			},
 		},
 		"error password case": {
-			opts: &HttpOption{
+			opts: &HTTPOption{
 				Username: "test-user",
 				Password: "error-pass",
 			},
@@ -151,7 +150,7 @@ func TestHTTPGetWithOption(t *testing.T) {
 			},
 		},
 		"correct password case": {
-			opts: &HttpOption{
+			opts: &HTTPOption{
 				Username: "test-user",
 				Password: "test-pass",
 			},
