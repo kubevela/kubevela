@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestLlistProviders(t *testing.T) {
@@ -69,6 +71,8 @@ func TestLlistProviders(t *testing.T) {
 	}
 	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(p1, p2).Build()
 
+	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+
 	testcases := map[string]struct {
 		args args
 		want want
@@ -82,7 +86,7 @@ func TestLlistProviders(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			err := listProviders(ctx, tc.args.k8sClient)
+			err := listProviders(ctx, tc.args.k8sClient, ioStream)
 			if err != nil || tc.want.errMsg != "" {
 				assert.Contains(t, err.Error(), tc.want.errMsg)
 			}
