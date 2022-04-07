@@ -36,6 +36,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -445,6 +446,15 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 		Client: cli,
 		Meta:   content,
 	}
+}
+
+func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
+	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+
+	return &gitlabHelper{
+		Client: newClient,
+		Meta:   content,
+	}, err
 }
 
 // readRepo will read relative path (relative to Meta.Path)

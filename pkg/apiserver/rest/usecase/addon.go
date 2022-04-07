@@ -313,11 +313,12 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 
 func convertAddonRegistry(r pkgaddon.Registry) *apis.AddonRegistry {
 	return &apis.AddonRegistry{
-		Name:  r.Name,
-		Git:   r.Git,
-		Gitee: r.Gitee,
-		OSS:   r.OSS,
-		Helm:  r.Helm,
+		Name:   r.Name,
+		Git:    r.Git,
+		Gitee:  r.Gitee,
+		OSS:    r.OSS,
+		Helm:   r.Helm,
+		Gitlab: r.Gitlab,
 	}
 }
 
@@ -343,6 +344,8 @@ func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name strin
 		r.OSS = req.Oss
 	case req.Helm != nil:
 		r.Helm = req.Helm
+	case req.Gitlab != nil:
+		r.Gitlab = req.Gitlab
 	}
 
 	err = u.addonRegistryDS.UpdateRegistry(ctx, r)
@@ -475,11 +478,12 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) pkgaddon.Registry {
 	return pkgaddon.Registry{
-		Name:  req.Name,
-		Git:   req.Git,
-		OSS:   req.Oss,
-		Gitee: req.Gitee,
-		Helm:  req.Helm,
+		Name:   req.Name,
+		Git:    req.Git,
+		OSS:    req.Oss,
+		Gitee:  req.Gitee,
+		Helm:   req.Helm,
+		Gitlab: req.Gitlab,
 	}
 }
 
