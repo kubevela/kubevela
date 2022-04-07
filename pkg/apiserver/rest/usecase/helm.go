@@ -65,7 +65,7 @@ type defaultHelmHandler struct {
 }
 
 func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error) {
-	var opts *common.HttpOption
+	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
 		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
@@ -82,7 +82,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secr
 }
 
 func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
-	var opts *common.HttpOption
+	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
 		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
@@ -103,7 +103,7 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 }
 
 func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
-	var opts *common.HttpOption
+	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
 		opts, err = setAuthInfo(ctx, d.k8sClient, secretName)
@@ -186,11 +186,11 @@ func flattenKey(prefix string, src map[string]interface{}, dest map[string]inter
 	}
 }
 
-func setAuthInfo(ctx context.Context, k8sClient client.Client, secretName string) (*common.HttpOption, error) {
+func setAuthInfo(ctx context.Context, k8sClient client.Client, secretName string) (*common.HTTPOption, error) {
 	sec := corev1.Secret{}
 	err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName}, &sec)
 	if err != nil {
 		return nil, err
 	}
-	return &common.HttpOption{Username: string(sec.Data["username"]), Password: string(sec.Data["password"])}, nil
+	return &common.HTTPOption{Username: string(sec.Data["username"]), Password: string(sec.Data["password"])}, nil
 }

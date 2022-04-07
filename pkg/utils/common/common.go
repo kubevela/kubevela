@@ -102,8 +102,8 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-// HttpOption define the https options
-type HttpOption struct {
+// HTTPOption define the https options
+type HTTPOption struct {
 	Username string
 	Password string
 }
@@ -140,7 +140,8 @@ func GetClient() (client.Client, error) {
 	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
-func HTTPGetWithOption(ctx context.Context, url string, opts *HttpOption) ([]byte, error) {
+// HTTPGetWithOption use HTTP option and default client to send get request
+func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

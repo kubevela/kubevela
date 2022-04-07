@@ -75,7 +75,7 @@ func NewHelperWithCache() *Helper {
 }
 
 // LoadCharts load helm chart from local or remote
-func (h *Helper) LoadCharts(chartRepoURL string, opts *common.HttpOption) (*chart.Chart, error) {
+func (h *Helper) LoadCharts(chartRepoURL string, opts *common.HTTPOption) (*chart.Chart, error) {
 	var err error
 	var chart *chart.Chart
 	if utils.IsValidURL(chartRepoURL) {
@@ -194,7 +194,7 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 }
 
 // ListVersions list available versions from repo
-func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, opts *common.HttpOption) (repo.ChartVersions, error) {
+func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, opts *common.HTTPOption) (repo.ChartVersions, error) {
 	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, 
 }
 
 // GetIndexInfo get index.yaml form given repo url
-func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HttpOption) (*repo.IndexFile, error) {
+func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPOption) (*repo.IndexFile, error) {
 	if h.cache != nil && !skipCache {
 		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
 			return i.(*repo.IndexFile), nil
@@ -300,7 +300,7 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 }
 
 // ListChartsFromRepo list available helm charts in a repo
-func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common.HttpOption) ([]string, error) {
+func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common.HTTPOption) ([]string, error) {
 	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
@@ -315,7 +315,7 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, opts *common.HttpOption) (map[string]interface{}, error) {
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, opts *common.HTTPOption) (map[string]interface{}, error) {
 	if h.cache != nil && !skipCache {
 		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
 			return v.(map[string]interface{}), nil
