@@ -21,11 +21,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	set "github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -252,7 +254,6 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			types.LabelConfigCatalog:            velaCoreConfig,
-			types.LabelConfigProject:            project,
 			types.LabelConfigSyncToMultiCluster: "true",
 		}); err != nil {
 		return err
@@ -262,9 +263,11 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	}
 	objects := make([]map[string]string, len(secrets.Items))
 	for i, s := range secrets.Items {
-		objects[i] = map[string]string{
-			"name":     s.Name,
-			"resource": "secret",
+		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
+			objects[i] = map[string]string{
+				"name":     s.Name,
+				"resource": "secret",
+			}
 		}
 	}
 	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
@@ -278,6 +281,26 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 			return err
 		}
 		// config sync application doesn't exist, create one
+		clusterTargets := convertClusterTargets(targets)
+		if len(clusterTargets) == 0 {
+			errMsg := "no policy (no targets found) to sync configs"
+			klog.InfoS(errMsg, "project", project)
+			return errors.New(errMsg)
+		}
+		policies := make([]v1beta1.AppPolicy, len(clusterTargets))
+		for i, t := range clusterTargets {
+			properties, err := json.Marshal(t)
+			if err != nil {
+				return err
+			}
+			policies[i] = v1beta1.AppPolicy{
+				Type: "topology",
+				Name: t.Namespace,
+				Properties: &runtime.RawExtension{
+					Raw: properties,
+				},
+			}
+		}
 
 		scratch := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -297,11 +320,10 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 						Properties: &runtime.RawExtension{Raw: objectsBytes},
 					},
 				},
+				Policies: policies,
 			},
 		}
-		if err := k8sClient.Create(ctx, scratch); err != nil {
-			return err
-		}
+		return k8sClient.Create(ctx, scratch)
 	}
 	// config sync application exists, update it
 	app.Spec.Components = []common.ApplicationComponent{
@@ -321,6 +343,11 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	}
 
 	mergedTarget := mergeTargets(currentTargets, targets)
+	if len(mergedTarget) == 0 {
+		errMsg := "no policy (no targets found) to sync configs"
+		klog.InfoS(errMsg, "project", project)
+		return errors.New(errMsg)
+	}
 	mergedPolicies := make([]v1beta1.AppPolicy, len(mergedTarget))
 	for i, t := range mergedTarget {
 		properties, err := json.Marshal(t)
@@ -340,14 +367,23 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 }
 
 func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.ClusterTarget) []ApplicationDeployTarget {
-	var mergedTargets []ApplicationDeployTarget
+	var (
+		mergedTargets []ApplicationDeployTarget
+		// make sure the clusters of target with same namespace are merged
+		clusterTargets = convertClusterTargets(targets)
+	)
+
 	for _, c := range currentTargets {
 		var hasSameNamespace bool
-		for _, t := range targets {
+		for _, t := range clusterTargets {
 			if c.Namespace == t.Namespace {
 				hasSameNamespace = true
-				clusters := append(c.Clusters, t.ClusterName)
-				mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: c.Namespace, Clusters: clusters})
+				clusters := set.NewSetFromSlice(stringToInterfaceSlice(t.Clusters))
+				for _, cluster := range c.Clusters {
+					clusters.Add(cluster)
+				}
+				mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: c.Namespace,
+					Clusters: interfaceToStringSlice(clusters.ToSlice())})
 			}
 		}
 		if !hasSameNamespace {
@@ -355,7 +391,7 @@ func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.Clu
 		}
 	}
 
-	for _, t := range targets {
+	for _, t := range clusterTargets {
 		var hasSameNamespace bool
 		for _, c := range currentTargets {
 			if c.Namespace == t.Namespace {
@@ -363,9 +399,75 @@ func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.Clu
 			}
 		}
 		if !hasSameNamespace {
-			mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: t.Namespace, Clusters: []string{t.ClusterName}})
+			mergedTargets = append(mergedTargets, t)
 		}
 	}
 
 	return mergedTargets
+}
+
+func convertClusterTargets(targets []*model.ClusterTarget) []ApplicationDeployTarget {
+	type Target struct {
+		Namespace string        `json:"namespace"`
+		Clusters  []interface{} `json:"clusters"`
+	}
+
+	var (
+		clusterTargets []Target
+		namespaceSet   = set.NewSet()
+	)
+
+	for i := 0; i < len(targets); i++ {
+		clusters := set.NewSet(targets[i].ClusterName)
+		for j := i + 1; j < len(targets); j++ {
+			if targets[i].Namespace == targets[j].Namespace {
+				clusters.Add(targets[j].ClusterName)
+			}
+		}
+		if namespaceSet.Contains(targets[i].Namespace) {
+			continue
+		}
+		clusterTargets = append(clusterTargets, Target{
+			Namespace: targets[i].Namespace,
+			Clusters:  clusters.ToSlice(),
+		})
+		namespaceSet.Add(targets[i].Namespace)
+	}
+
+	t := make([]ApplicationDeployTarget, len(clusterTargets))
+	for i, ct := range clusterTargets {
+		t[i] = ApplicationDeployTarget{
+			Namespace: ct.Namespace,
+			Clusters:  interfaceToStringSlice(ct.Clusters),
+		}
+	}
+	return t
+}
+
+func interfaceToStringSlice(i []interface{}) []string {
+	var s []string
+	for _, v := range i {
+		s = append(s, v.(string))
+	}
+	return s
+}
+
+func stringToInterfaceSlice(i []string) []interface{} {
+	var s []interface{}
+	for _, v := range i {
+		s = append(s, v)
+	}
+	return s
+}
+
+// destroySyncConfigsApp will delete the application which is used to sync configs
+func destroySyncConfigsApp(ctx context.Context, k8sClient client.Client, project string) error {
+	name := fmt.Sprintf("config-sync-%s", project)
+	var app = &v1beta1.Application{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, app); err != nil {
+		if !kerrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return k8sClient.Delete(ctx, app)
 }
