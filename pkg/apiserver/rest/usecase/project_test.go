@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -311,6 +312,9 @@ func TestProjectGetConfigs(t *testing.T) {
 			Namespace:         "default",
 			CreationTimestamp: metav1.NewTime(createdTime),
 		},
+		Status: terraformapi.ProviderStatus{
+			State: terraformtypes.ProviderIsReady,
+		},
 	}
 
 	provider2 := &terraformapi.Provider{
@@ -320,6 +324,9 @@ func TestProjectGetConfigs(t *testing.T) {
 			Labels: map[string]string{
 				velatypes.LabelConfigCatalog: velaCoreConfig,
 			},
+		},
+		Status: terraformapi.ProviderStatus{
+			State: terraformtypes.ProviderIsNotReady,
 		},
 	}
 
@@ -354,18 +361,23 @@ func TestProjectGetConfigs(t *testing.T) {
 			},
 			want: want{
 				configs: []*apisv1.Config{{
-					ConfigType:  "terraform-provider",
-					Name:        "a1",
-					Project:     "p1",
-					CreatedTime: &createdTime,
+					ConfigType:        "terraform-provider",
+					Name:              "a1",
+					Project:           "p1",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}, {
-					ConfigType:  "terraform-provider",
-					Name:        "a2",
-					Project:     "",
-					CreatedTime: &createdTime,
+					ConfigType:        "terraform-provider",
+					Name:              "a2",
+					Project:           "",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}, {
 					Name:        "provider1",
 					CreatedTime: &createdTime,
+					Status:      "Ready",
 				}},
 			},
 		},
@@ -378,13 +390,16 @@ func TestProjectGetConfigs(t *testing.T) {
 			},
 			want: want{
 				configs: []*apisv1.Config{{
-					ConfigType:  "terraform-provider",
-					Name:        "a2",
-					Project:     "",
-					CreatedTime: &createdTime,
+					ConfigType:        "terraform-provider",
+					Name:              "a2",
+					Project:           "",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}, {
 					Name:        "provider1",
 					CreatedTime: &createdTime,
+					Status:      "Ready",
 				}},
 			},
 		},
@@ -397,18 +412,23 @@ func TestProjectGetConfigs(t *testing.T) {
 			},
 			want: want{
 				configs: []*apisv1.Config{{
-					ConfigType:  "terraform-provider",
-					Name:        "a2",
-					Project:     "",
-					CreatedTime: &createdTime,
+					ConfigType:        "terraform-provider",
+					Name:              "a2",
+					Project:           "",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}, {
-					ConfigType:  "dex-connector",
-					Name:        "a3",
-					Project:     "p3",
-					CreatedTime: &createdTime,
+					ConfigType:        "dex-connector",
+					Name:              "a3",
+					Project:           "p3",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}, {
 					Name:        "provider1",
 					CreatedTime: &createdTime,
+					Status:      "Ready",
 				}},
 			},
 		},
@@ -421,10 +441,12 @@ func TestProjectGetConfigs(t *testing.T) {
 			},
 			want: want{
 				configs: []*apisv1.Config{{
-					ConfigType:  "dex-connector",
-					Name:        "a3",
-					Project:     "p3",
-					CreatedTime: &createdTime,
+					ConfigType:        "dex-connector",
+					Name:              "a3",
+					Project:           "p3",
+					CreatedTime:       &createdTime,
+					ApplicationStatus: "running",
+					Status:            "Ready",
 				}},
 			},
 		},

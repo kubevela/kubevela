@@ -194,13 +194,16 @@ type ConfigType struct {
 
 // Config define the metadata of a config
 type Config struct {
-	ConfigType  string     `json:"configType"`
-	Name        string     `json:"name"`
-	Project     string     `json:"project"`
-	Identifier  string     `json:"identifier"`
-	Description string     `json:"description"`
-	CreatedTime *time.Time `json:"createdTime"`
-	UpdatedTime *time.Time `json:"updatedTime"`
+	ConfigType        string                  `json:"configType"`
+	ConfigTypeAlias   string                  `json:"configTypeAlias"`
+	Name              string                  `json:"name"`
+	Project           string                  `json:"project"`
+	Identifier        string                  `json:"identifier"`
+	Description       string                  `json:"description"`
+	CreatedTime       *time.Time              `json:"createdTime"`
+	UpdatedTime       *time.Time              `json:"updatedTime"`
+	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
+	Status            string                  `json:"status"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider
