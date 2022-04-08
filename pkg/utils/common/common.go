@@ -312,9 +312,17 @@ func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterOb
 var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
 var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment",
 	"StatefulSet", "CloneSet", "Job", "Service", "HelmRelease")
-var resourceNameClusterObjectReferenceFilter = func(resourceName string) clusterObjectReferenceFilter {
+var resourceNameClusterObjectReferenceFilter = func(resourceName []string) clusterObjectReferenceFilter {
 	return func(reference common.ClusterObjectReference) bool {
-		return resourceName == reference.Name
+		if len(resourceName) == 0 {
+			return true
+		}
+		for _, r := range resourceName {
+			if r == reference.Name {
+				return true
+			}
+		}
+		return false
 	}
 }
 
@@ -421,24 +429,31 @@ func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObje
 	return resources
 }
 
+func removeEmptyString(items []string) []string {
+	r := []string{}
+	for _, i := range items {
+		if i != "" {
+			r = append(r, i)
+		}
+	}
+	return r
+}
+
 // AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
 // resource is a map for component to applied resources
 // return the selected ClusterObjectReference
 func AskToChooseOneEnvResource(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
 	filters := []clusterObjectReferenceFilter{isWorkloadClusterObjectReferenceFilter}
-	for _, n := range resourceName {
-		filters = append(filters, resourceNameClusterObjectReferenceFilter(n))
-	}
+	_resourceName := removeEmptyString(resourceName)
+	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
 	return askToChooseOneResource(app, filters...)
 }
 
 // AskToChooseOnePortForwardEndpoint will ask user to select one applied resource as port forward endpoint
 func AskToChooseOnePortForwardEndpoint(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
 	filters := []clusterObjectReferenceFilter{isPortForwardEndpointClusterObjectReferenceFilter}
-	for _, n := range resourceName {
-		filters = append(filters, resourceNameClusterObjectReferenceFilter(n))
-	}
-
+	_resourceName := removeEmptyString(resourceName)
+	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
 	return askToChooseOneResource(app, filters...)
 }
 
