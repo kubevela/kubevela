@@ -136,7 +136,6 @@ func getModifiedConfiguration(obj runtime.Object, updateAnnotation bool) ([]byte
 
 	if updateAnnotation {
 		annots[oam.AnnotationLastAppliedConfig] = string(modified)
-		annots[oam.AnnotationLastAppliedTime] = time.Now().Format(time.RFC3339)
 		err = metadataAccessor.SetAnnotations(obj, annots)
 		if err != nil {
 			return nil, err
@@ -149,6 +148,7 @@ func getModifiedConfiguration(obj runtime.Object, updateAnnotation bool) ([]byte
 
 	// restore original annotations back to the object
 	annots[oam.AnnotationLastAppliedConfig] = original
+	annots[oam.AnnotationLastAppliedTime] = time.Now().Format(time.RFC3339)
 	_ = metadataAccessor.SetAnnotations(obj, annots)
 	return modified, nil
 }

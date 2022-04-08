@@ -30,10 +30,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -363,6 +367,14 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
+	pd, err := c.GetPackageDiscover()
+	if err != nil {
+		return err
+	}
+	dm, err := discoverymapper.New(config)
+	if err != nil {
+		return err
+	}
 
 	app, err := loadRemoteApplication(cli, appNs, appName)
 	if err != nil {
@@ -373,10 +385,18 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	if currentRT == nil {
-		return errors.Errorf("no resources applied for the current application (generation: %d)", app.Generation)
-	}
 
+	svc, err := multicluster.GetClusterGatewayService(context.Background(), cli)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
+	}
+	multicluster.ClusterGatewaySecretNamespace = svc.Namespace
+
+	var placements []v1alpha1.PlacementDecision
+	af, err := pkgappfile.NewApplicationParser(cli, dm, pd).GenerateAppFile(context.Background(), app)
+	if err == nil {
+		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app, af.Policies, true)
+	}
 	options := resourcetracker.ResourceTreePrintOptions{}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	format, _ := cmd.Flags().GetString("detail-format")
@@ -387,6 +407,6 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		}
 		options.DetailRetriever = msgRetriever
 	}
-	options.PrintResourceTree(cmd.OutOrStdout(), currentRT, historyRTs)
+	options.PrintResourceTree(cmd.OutOrStdout(), placements, currentRT, historyRTs)
 	return nil
 }

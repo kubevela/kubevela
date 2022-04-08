@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -51,8 +53,9 @@ type ResourceTreePrintOptions struct {
 }
 
 const (
-	resourceRowStatusUpdated  = "updated"
-	resourceRowStatusOutdated = "outdated"
+	resourceRowStatusUpdated     = "updated"
+	resourceRowStatusNotDeployed = "not-deployed"
+	resourceRowStatusOutdated    = "outdated"
 )
 
 type resourceRow struct {
@@ -71,14 +74,16 @@ type resourceRow struct {
 
 func (options ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) []*resourceRow {
 	var rows []*resourceRow
-	for _, mr := range currentRT.Spec.ManagedResources {
-		if mr.Deleted {
-			continue
+	if currentRT != nil {
+		for _, mr := range currentRT.Spec.ManagedResources {
+			if mr.Deleted {
+				continue
+			}
+			rows = append(rows, &resourceRow{
+				mr:     mr.DeepCopy(),
+				status: resourceRowStatusUpdated,
+			})
 		}
-		rows = append(rows, &resourceRow{
-			mr:     mr.DeepCopy(),
-			status: resourceRowStatusUpdated,
-		})
 	}
 	for _, rt := range historyRT {
 		for _, mr := range rt.Spec.ManagedResources {
@@ -96,6 +101,10 @@ func (options ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.Reso
 			}
 		}
 	}
+	return rows
+}
+
+func (options ResourceTreePrintOptions) sortRows(rows []*resourceRow) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].mr.Cluster != rows[j].mr.Cluster {
 			return rows[i].mr.Cluster < rows[j].mr.Cluster
@@ -105,10 +114,12 @@ func (options ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.Reso
 		}
 		return rows[i].mr.ResourceKey() < rows[j].mr.ResourceKey()
 	})
-	return rows
 }
 
 func (options ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, colsWidth []int) {
+	for i := 0; i < 4; i++ {
+		colsWidth[i] = 10
+	}
 	connectLastRow := func(rowIdx int, cluster bool, namespace bool) {
 		rows[rowIdx].connectClusterUp = cluster
 		rows[rowIdx-1].connectClusterDown = cluster
@@ -123,6 +134,9 @@ func (options ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, co
 			row.mr.Namespace = "-"
 		}
 		row.cluster, row.namespace, row.resourceName = row.mr.Cluster, row.mr.Namespace, fmt.Sprintf("%s/%s", row.mr.Kind, row.mr.Name)
+		if row.status == resourceRowStatusNotDeployed {
+			row.resourceName = "-"
+		}
 		if rowIdx > 0 && row.mr.Cluster == rows[rowIdx-1].mr.Cluster {
 			connectLastRow(rowIdx, true, false)
 			row.cluster = ""
@@ -183,7 +197,7 @@ func (options ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows
 	outdatedColorizer := color.WhiteString
 
 	for _, row := range rows {
-		if options.DetailRetriever != nil {
+		if options.DetailRetriever != nil && row.status != resourceRowStatusNotDeployed {
 			if err := options.DetailRetriever(row); err != nil {
 				row.details = "Error: " + err.Error()
 			}
@@ -191,7 +205,7 @@ func (options ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows
 		for lineIdx, line := range strings.Split(row.details, "\n") {
 			var sb strings.Builder
 			rscName, rscStatus, applyTime := row.resourceName, row.status, row.applyTime
-			if row.status == resourceRowStatusOutdated {
+			if row.status != resourceRowStatusUpdated {
 				rscName, rscStatus, applyTime, line = outdatedColorizer(row.resourceName), outdatedColorizer(row.status), outdatedColorizer(applyTime), outdatedColorizer(line)
 			}
 			if lineIdx == 0 {
@@ -217,9 +231,29 @@ func (options ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows
 	}
 }
 
+func (options ResourceTreePrintOptions) addNonExistingPlacementToRows(placements []v1alpha1.PlacementDecision, rows []*resourceRow) []*resourceRow {
+	existingClusters := map[string]struct{}{}
+	for _, row := range rows {
+		existingClusters[row.mr.Cluster] = struct{}{}
+	}
+	for _, p := range placements {
+		if _, found := existingClusters[p.Cluster]; !found {
+			rows = append(rows, &resourceRow{
+				mr: &v1beta1.ManagedResource{
+					ClusterObjectReference: apicommon.ClusterObjectReference{Cluster: p.Cluster},
+				},
+				status: resourceRowStatusNotDeployed,
+			})
+		}
+	}
+	return rows
+}
+
 // PrintResourceTree print resource tree to writer
-func (options ResourceTreePrintOptions) PrintResourceTree(writer io.Writer, currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) {
+func (options ResourceTreePrintOptions) PrintResourceTree(writer io.Writer, currentPlacements []v1alpha1.PlacementDecision, currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) {
 	rows := options.loadResourceRows(currentRT, historyRT)
+	rows = options.addNonExistingPlacementToRows(currentPlacements, rows)
+	options.sortRows(rows)
 
 	colsWidth := make([]int, 4)
 	options.fillResourceRows(rows, colsWidth)
