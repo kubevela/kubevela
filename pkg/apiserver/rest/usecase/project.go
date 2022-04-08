@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"strings"
 
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -475,7 +477,6 @@ func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName 
 func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
 	var (
 		configs                  []*apisv1.Config
-		terraformProviders       []*apisv1.Config
 		legacyTerraformProviders []*apisv1.Config
 		apps                     = &v1beta1.ApplicationList{}
 	)
@@ -498,9 +499,14 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 				continue
 			}
 			t := p.CreationTimestamp.Time
+			var status = configIsNotReady
+			if p.Status.State == terraformtypes.ProviderIsReady {
+				status = configIsReady
+			}
 			legacyTerraformProviders = append(legacyTerraformProviders, &apisv1.Config{
 				Name:        p.Name,
 				CreatedTime: &t,
+				Status:      status,
 			})
 		}
 	}
@@ -513,16 +519,16 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 				!strings.Contains(a.Labels[types.LabelConfigType], "terraform-") {
 				continue
 			}
-			terraformProviders = append(terraformProviders, &apisv1.Config{
-				ConfigType:  a.Labels[types.LabelConfigType],
-				Name:        a.Name,
-				Project:     appProject,
-				CreatedTime: &(a.CreationTimestamp.Time),
+			configs = append(configs, &apisv1.Config{
+				ConfigType:        a.Labels[types.LabelConfigType],
+				Name:              a.Name,
+				Project:           appProject,
+				CreatedTime:       &(a.CreationTimestamp.Time),
+				ApplicationStatus: a.Status.Phase,
 			})
 		}
 
-		terraformProviders = append(terraformProviders, legacyTerraformProviders...)
-		return terraformProviders, nil
+		configs = append(configs, legacyTerraformProviders...)
 	case "":
 		for _, a := range apps.Items {
 			appProject := a.Labels[types.LabelConfigProject]
@@ -530,14 +536,14 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 				continue
 			}
 			configs = append(configs, &apisv1.Config{
-				ConfigType:  a.Labels[types.LabelConfigType],
-				Name:        a.Name,
-				Project:     appProject,
-				CreatedTime: &(a.CreationTimestamp.Time),
+				ConfigType:        a.Labels[types.LabelConfigType],
+				Name:              a.Name,
+				Project:           appProject,
+				CreatedTime:       &(a.CreationTimestamp.Time),
+				ApplicationStatus: a.Status.Phase,
 			})
 		}
 		configs = append(configs, legacyTerraformProviders...)
-		return configs, nil
 	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
 		t := strings.ReplaceAll(configType, "config-", "")
 		for _, a := range apps.Items {
@@ -547,17 +553,37 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 			}
 			if a.Labels[types.LabelConfigType] == t {
 				configs = append(configs, &apisv1.Config{
-					ConfigType:  a.Labels[types.LabelConfigType],
-					Name:        a.Name,
-					Project:     appProject,
-					CreatedTime: &(a.CreationTimestamp.Time),
+					ConfigType:        a.Labels[types.LabelConfigType],
+					Name:              a.Name,
+					Project:           appProject,
+					CreatedTime:       &(a.CreationTimestamp.Time),
+					ApplicationStatus: a.Status.Phase,
 				})
 			}
 		}
-		return configs, nil
 	default:
 		return nil, errors.New("unsupported config type")
 	}
+
+	for i, c := range configs {
+		if c.ConfigType != "" {
+			d := &v1beta1.ComponentDefinition{}
+			err := p.k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: c.ConfigType}, d)
+			if err != nil {
+				klog.InfoS("failed to get component definition", "ComponentDefinition", configType, "err", err)
+			} else {
+				configs[i].ConfigTypeAlias = d.Annotations[definitionAlias]
+			}
+		}
+		if c.ApplicationStatus != "" {
+			if c.ApplicationStatus == common.ApplicationRunning {
+				configs[i].Status = configIsReady
+			} else {
+				configs[i].Status = configIsNotReady
+			}
+		}
+	}
+	return configs, nil
 }
 
 // ConvertProjectModel2Base convert project model to base struct

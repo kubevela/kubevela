@@ -20,13 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
-
-	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/yaml"
 
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,7 +41,10 @@ const (
 	definitionAlias = definition.UserPrefix + "alias.config.oam.dev"
 	definitionType  = definition.UserPrefix + "type.config.oam.dev"
 
-	velaCoreConfig = "velacore-config"
+	velaCoreConfig         = "velacore-config"
+	configIsReady          = "Ready"
+	configIsNotReady       = "Not ready"
+	terraformProviderAlias = "Terraform Cloud Provider"
 )
 
 // ConfigHandler handle CRUD of configs
@@ -98,18 +98,21 @@ func (u *configUseCaseImpl) ListConfigTypes(ctx context.Context, query string) (
 		})
 	}
 
-	tfType := &apis.ConfigType{
-		Alias: "Terraform Cloud Provider",
-		Name:  types.TerraformProvider,
-	}
-	definitions := make([]string, len(tfDefs))
+	if len(tfDefs) > 0 {
+		tfType := &apis.ConfigType{
+			Alias: terraformProviderAlias,
+			Name:  types.TerraformProvider,
+		}
+		definitions := make([]string, len(tfDefs))
 
-	for i, tf := range tfDefs {
-		definitions[i] = tf.Name
-	}
-	tfType.Definitions = definitions
+		for i, tf := range tfDefs {
+			definitions[i] = tf.Name
+		}
+		tfType.Definitions = definitions
 
-	return append(configTypes, tfType), nil
+		return append(configTypes, tfType), nil
+	}
+	return configTypes, nil
 }
 
 // GetConfigType returns a config type
@@ -152,35 +155,7 @@ func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateCon
 			},
 		},
 	}
-	if err := u.kubeClient.Create(ctx, &app); err != nil {
-		return err
-	}
-
-	// try to check whether the underlying config secrets is successfully created
-	var succeeded bool
-	var configApp v1beta1.Application
-	for i := 0; i < 100; i++ {
-		if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: req.Name}, &configApp); err == nil {
-			if configApp.Status.Phase == common.ApplicationRunning {
-				succeeded = true
-				break
-			}
-		}
-		time.Sleep(time.Second)
-	}
-	// clean up failed application
-	if !succeeded {
-		if err := u.kubeClient.Delete(ctx, &app); err != nil {
-			return err
-		}
-		return errors.New("failed to create config")
-	}
-
-	if succeeded && req.ComponentType == types.DexConnector {
-		return u.authenticationUseCase.UpdateDexConfig(ctx)
-	}
-
-	return nil
+	return u.kubeClient.Create(ctx, &app)
 }
 
 func (u *configUseCaseImpl) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
@@ -228,6 +203,12 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 			Name:        a.Name,
 			Project:     a.Labels[types.LabelConfigProject],
 			CreatedTime: &(a.CreationTimestamp.Time),
+		}
+		switch a.Status.Phase {
+		case common.ApplicationRunning:
+			configs[i].Status = configIsReady
+		default:
+			configs[i].Status = configIsNotReady
 		}
 	}
 	return configs, nil
@@ -355,9 +336,6 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 		}
 	}
 	app.Spec.Policies = mergedPolicies
-	out, _ := yaml.Marshal(app)
-	fmt.Println(string(out))
-
 	return k8sClient.Update(ctx, app)
 }
 
