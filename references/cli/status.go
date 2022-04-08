@@ -33,6 +33,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -103,6 +105,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if err != nil {
 				return err
 			}
+			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
+				return printApplicationTree(c, cmd, appName, namespace)
+			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
@@ -125,6 +130,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
 	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
+	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
+	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources")
+	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details. Can be one of inline (default), wide, list, table, raw.")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -343,4 +351,42 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 		return green
 	}
 	return yellow
+}
+
+func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {
+	config, err := c.GetConfig()
+	if err != nil {
+		return err
+	}
+	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+
+	app, err := loadRemoteApplication(cli, appNs, appName)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	if err != nil {
+		return err
+	}
+	if currentRT == nil {
+		return errors.Errorf("no resources applied for the current application (generation: %d)", app.Generation)
+	}
+
+	options := resourcetracker.ResourceTreePrintOptions{}
+	printDetails, _ := cmd.Flags().GetBool("detail")
+	format, _ := cmd.Flags().GetString("detail-format")
+	if printDetails {
+		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config, format)
+		if err != nil {
+			return err
+		}
+		options.DetailRetriever = msgRetriever
+	}
+	options.PrintResourceTree(cmd.OutOrStdout(), currentRT, historyRTs)
+	return nil
 }

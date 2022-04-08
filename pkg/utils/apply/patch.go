@@ -18,6 +18,7 @@ package apply
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -135,6 +136,7 @@ func getModifiedConfiguration(obj runtime.Object, updateAnnotation bool) ([]byte
 
 	if updateAnnotation {
 		annots[oam.AnnotationLastAppliedConfig] = string(modified)
+		annots[oam.AnnotationLastAppliedTime] = time.Now().Format(time.RFC3339)
 		err = metadataAccessor.SetAnnotations(obj, annots)
 		if err != nil {
 			return nil, err
