@@ -23,8 +23,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/FogDong/uitable"
 	"github.com/fatih/color"
-	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
