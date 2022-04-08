@@ -67,6 +67,9 @@ func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		Long:    "Debug running application with debug policy.",
 		Example: `vela debug <application-name>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("must specify application name")
+			}
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
@@ -100,17 +103,19 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 
 	s, opts, errMap := d.getDebugOptions(app)
 	if s == "workflow steps" {
-		prompt := &survey.Select{
-			Message: fmt.Sprintf("Select the %s to debug:", s),
-			Options: opts,
+		if d.step == "" {
+			prompt := &survey.Select{
+				Message: fmt.Sprintf("Select the %s to debug:", s),
+				Options: opts,
+			}
+			var step string
+			err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
+			if err != nil {
+				return fmt.Errorf("failed to select %s: %w", s, err)
+			}
+			d.step = unwrapStepName(step)
+			d.errMsg = errMap[d.step]
 		}
-		var step string
-		err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
-		if err != nil {
-			return fmt.Errorf("failed to select %s: %w", s, err)
-		}
-		d.step = unwrapStepName(step)
-		d.errMsg = errMap[d.step]
 
 		// debug workflow steps
 		rawValue, err := d.getDebugRawValue(ctx, cli, pd, app)
@@ -133,19 +138,29 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
 			return nil
 		}
-		if err := debugComponents(opts, comps, ioStreams); err != nil {
+		if err := d.debugComponents(opts, comps, ioStreams); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
 
-func debugComponents(compList []string, comps []*types.ComponentManifest, ioStreams cmdutil.IOStreams) error {
+func (d *debugOpts) debugComponents(compList []string, comps []*types.ComponentManifest, ioStreams cmdutil.IOStreams) error {
 	opts := compList
 	all := color.YellowString("all fields")
 	exit := color.CyanString("exit debug mode")
 	opts = append(opts, all, exit)
+
+	var components = make(map[string]*unstructured.Unstructured)
+	var traits = make(map[string][]*unstructured.Unstructured)
+	for _, comp := range comps {
+		components[comp.Name] = comp.StandardWorkload
+		traits[comp.Name] = comp.Traits
+	}
+
+	if d.step != "" {
+		return renderComponents(d.step, components[d.step], traits[d.step], ioStreams)
+	}
 	for {
 		prompt := &survey.Select{
 			Message: "Select the components to debug:",
@@ -155,13 +170,6 @@ func debugComponents(compList []string, comps []*types.ComponentManifest, ioStre
 		err := survey.AskOne(prompt, &step, survey.WithValidator(survey.Required))
 		if err != nil {
 			return fmt.Errorf("failed to select components: %w", err)
-		}
-
-		var components = make(map[string]*unstructured.Unstructured)
-		var traits = make(map[string][]*unstructured.Unstructured)
-		for _, comp := range comps {
-			components[comp.Name] = comp.StandardWorkload
-			traits[comp.Name] = comp.Traits
 		}
 
 		if step == exit {
