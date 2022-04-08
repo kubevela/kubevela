@@ -194,6 +194,18 @@ var _ = Describe("test helm usecasae", func() {
 		Expect(values).ShouldNot(BeNil())
 		Expect(len(values)).ShouldNot(BeEquivalentTo(0))
 	})
+
+	It("coverage not secret notExist error", func() {
+		u := NewHelmUsecase()
+		_, err := u.ListChartNames(ctx, "http://127.0.0.1:8080", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.ListChartVersions(ctx, "http://127.0.0.1:8080", "mysql", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.GetChartValues(ctx, "http://127.0.0.1:8080", "mysql", "8.8.23", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+	})
 })
 
 var (
