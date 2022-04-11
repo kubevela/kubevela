@@ -182,9 +182,7 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "userName",
 			},
 			"applicationTemplate": {},
-			"configType": {
-				pathName: "configType",
-			},
+			"configs":             {},
 		},
 		pathName: "projectName",
 	},

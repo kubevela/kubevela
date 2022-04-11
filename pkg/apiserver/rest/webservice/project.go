@@ -176,12 +176,11 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
 
-	ws.Route(ws.GET("/{projectName}/config_types/{configType}/configs/").To(n.getConfigs).
-		Doc("get configs from a config type").
+	ws.Route(ws.GET("/{projectName}/configs/").To(n.getConfigs).
+		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.rbacUsecase.CheckPerm("project/configType", "list")).
+		Filter(n.rbacUsecase.CheckPerm("project", "list")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
-		Param(ws.PathParameter("configType", "identifier of the config").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]*apis.Config{}))
@@ -515,7 +514,7 @@ func (n *projectWebService) listProjectPermissions(req *restful.Request, res *re
 }
 
 func (n *projectWebService) getConfigs(req *restful.Request, res *restful.Response) {
-	configs, err := n.projectUsecase.GetConfigs(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("configType"))
+	configs, err := n.projectUsecase.GetConfigs(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("configType"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

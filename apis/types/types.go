@@ -143,4 +143,8 @@ const (
 	TerraformProvider = "terraform-provider"
 	// DexConnector is the config type for dex connector
 	DexConnector = "config-dex-connector"
+	// ImageRegistry is the config type for image registry
+	ImageRegistry = "config-image-registry"
+	// HelmRepository is the config type for Helm chart repository
+	HelmRepository = "config-helm-repository"
 )
