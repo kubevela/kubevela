@@ -71,6 +71,10 @@ const (
 	LabelConfigProject = "config.oam.dev/project"
 	// LabelConfigSyncToMultiCluster is the label to decide whether a config will be synchronized to multi-cluster
 	LabelConfigSyncToMultiCluster = "config.oam.dev/multi-cluster"
+	// LabelConfigIdentifier is the label for config identifier
+	LabelConfigIdentifier = "config.oam.dev/identifier"
+	// LabelConfigDescription is the label for config description
+	LabelConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
 )
@@ -139,4 +143,8 @@ const (
 	TerraformProvider = "terraform-provider"
 	// DexConnector is the config type for dex connector
 	DexConnector = "config-dex-connector"
+	// ImageRegistry is the config type for image registry
+	ImageRegistry = "config-image-registry"
+	// HelmRepository is the config type for Helm chart repository
+	HelmRepository = "config-helm-repository"
 )

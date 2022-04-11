@@ -3337,6 +3337,284 @@
 				}
 			}
 		},
+		"/api/v1/config_types": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "list all config types",
+				"operationId": "listConfigTypes",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Fuzzy search based on name and description.",
+						"name": "query",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/v1.ConfigType"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/config_types/{configType}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "get a config type",
+				"operationId": "getConfigType",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config type",
+						"name": "configType",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ConfigType"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "create or update a config",
+				"operationId": "createConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config type",
+						"name": "configType",
+						"in": "path",
+						"required": true
+					},
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreateConfigRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/config_types/{configType}/configs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "get configs from a config type",
+				"operationId": "getConfigs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "configType",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.Config"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/config_types/{configType}/configs/{name}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "get a config from a config type",
+				"operationId": "getConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config type",
+						"name": "configType",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.Config"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			},
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"config"
+				],
+				"summary": "delete a config",
+				"operationId": "deleteConfig",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the config type",
+						"name": "configType",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the config",
+						"name": "name",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/definitions": {
 			"get": {
 				"consumes": [
@@ -3857,6 +4135,55 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/v1.EmptyResponse"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/configs": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "get configs which are in a project",
+				"operationId": "getConfigs",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "config type",
+						"name": "configType",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.Config"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
 						}
 					}
 				}
@@ -5302,6 +5629,7 @@
 	},
 	"definitions": {
 		"*v1.ApplicationTriggerBase": {},
+		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
 		"addon.Dependency": {
 			"properties": {
@@ -5344,6 +5672,22 @@
 		"addon.GiteeAddonSource": {
 			"properties": {
 				"path": {
+					"type": "string"
+				},
+				"token": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				}
+			}
+		},
+		"addon.GitlabAddonSource": {
+			"properties": {
+				"path": {
+					"type": "string"
+				},
+				"repo": {
 					"type": "string"
 				},
 				"token": {
@@ -6623,34 +6967,6 @@
 				}
 			}
 		},
-		"model.SystemInfo": {
-			"required": [
-				"createTime",
-				"updateTime",
-				"installID",
-				"enableCollection",
-				"loginType"
-			],
-			"properties": {
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"enableCollection": {
-					"type": "boolean"
-				},
-				"installID": {
-					"type": "string"
-				},
-				"loginType": {
-					"type": "string"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
-				}
-			}
-		},
 		"model.WorkflowStepStatus": {
 			"required": [
 				"id",
@@ -7039,6 +7355,9 @@
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
 				},
+				"gitlab": {
+					"$ref": "#/definitions/addon.GitlabAddonSource"
+				},
 				"helm": {
 					"$ref": "#/definitions/addon.HelmSource"
 				},
@@ -7209,12 +7528,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
-				"status",
 				"note",
-				"createTime",
 				"envName",
-				"triggerType"
+				"triggerType",
+				"createTime",
+				"version",
+				"status"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7748,6 +8067,31 @@
 				}
 			}
 		},
+		"v1.ConfigType": {
+			"required": [
+				"definitions",
+				"alias",
+				"name",
+				"description"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"definitions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"description": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.ConnectCloudClusterRequest": {
 			"required": [
 				"accessKeyID",
@@ -7796,6 +8140,9 @@
 				},
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
+				"gitlab": {
+					"$ref": "#/definitions/addon.GitlabAddonSource"
 				},
 				"helm": {
 					"$ref": "#/definitions/addon.HelmSource"
@@ -8093,6 +8440,31 @@
 				}
 			}
 		},
+		"v1.CreateConfigRequest": {
+			"required": [
+				"name",
+				"alias",
+				"project",
+				"componentType"
+			],
+			"properties": {
+				"alias": {
+					"type": "string"
+				},
+				"componentType": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"project": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.CreateEnvRequest": {
 			"required": [
 				"name",
@@ -8304,11 +8676,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"name",
-				"description",
-				"icon",
 				"version",
+				"description",
 				"invisible",
+				"name",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -8388,12 +8760,12 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"alias",
+				"icon",
 				"project",
 				"description",
-				"icon",
-				"name",
 				"createTime",
+				"name",
+				"alias",
 				"updateTime",
 				"policies",
 				"envBindings",
@@ -8455,20 +8827,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"status",
-				"apiServerURL",
-				"dashboardURL",
-				"kubeConfigSecret",
-				"icon",
-				"labels",
-				"kubeConfig",
-				"updateTime",
+				"reason",
+				"provider",
 				"name",
 				"alias",
-				"description",
-				"reason",
+				"icon",
+				"dashboardURL",
 				"createTime",
-				"provider",
+				"description",
+				"status",
+				"updateTime",
+				"apiServerURL",
+				"kubeConfig",
+				"labels",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8526,14 +8898,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"appPrimaryKey",
-				"type",
-				"main",
 				"name",
+				"updateTime",
+				"createTime",
 				"creator",
 				"alias",
+				"type",
+				"main",
+				"appPrimaryKey",
 				"definition"
 			],
 			"properties": {
@@ -8635,13 +9007,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"name",
 				"type",
 				"description",
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime",
-				"name"
+				"updateTime"
 			],
 			"properties": {
 				"createTime": {
@@ -8671,17 +9043,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"updateTime",
 				"triggerType",
+				"updateTime",
 				"version",
-				"deployUser",
+				"reason",
 				"createTime",
 				"status",
+				"deployUser",
+				"note",
 				"workflowName",
 				"envName",
-				"appPrimaryKey",
-				"reason",
-				"note"
+				"appPrimaryKey"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -8737,8 +9109,8 @@
 			"required": [
 				"project",
 				"createTime",
-				"name",
-				"updateTime"
+				"updateTime",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -8778,11 +9150,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
-				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
+				"createTime",
 				"projects",
 				"roles"
 			],
@@ -8823,12 +9195,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
+				"status",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -8880,14 +9252,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"envName",
-				"createTime",
 				"updateTime",
+				"name",
 				"enable",
 				"default",
-				"description",
-				"name",
-				"alias"
+				"envName",
+				"createTime",
+				"alias",
+				"description"
 			],
 			"properties": {
 				"alias": {
@@ -9466,11 +9838,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -9778,6 +10150,24 @@
 				}
 			}
 		},
+		"v1.SystemInfo": {
+			"required": [
+				"installID",
+				"enableCollection",
+				"loginType"
+			],
+			"properties": {
+				"enableCollection": {
+					"type": "boolean"
+				},
+				"installID": {
+					"type": "string"
+				},
+				"loginType": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.SystemInfoRequest": {
 			"required": [
 				"enableCollection",
@@ -9789,6 +10179,9 @@
 				},
 				"loginType": {
 					"type": "string"
+				},
+				"velaAddress": {
+					"type": "string"
 				}
 			}
 		},
@@ -9797,15 +10190,9 @@
 				"installID",
 				"enableCollection",
 				"loginType",
-				"createTime",
-				"updateTime",
 				"systemVersion"
 			],
 			"properties": {
-				"createTime": {
-					"type": "string",
-					"format": "date-time"
-				},
 				"enableCollection": {
 					"type": "boolean"
 				},
@@ -9817,10 +10204,6 @@
 				},
 				"systemVersion": {
 					"$ref": "#/definitions/v1.SystemVersion"
-				},
-				"updateTime": {
-					"type": "string",
-					"format": "date-time"
 				}
 			}
 		},
@@ -9888,6 +10271,9 @@
 				},
 				"gitee": {
 					"$ref": "#/definitions/addon.GiteeAddonSource"
+				},
+				"gitlab": {
+					"$ref": "#/definitions/addon.GitlabAddonSource"
 				},
 				"helm": {
 					"$ref": "#/definitions/addon.HelmSource"
