@@ -29,6 +29,7 @@ var _ = Describe("Test addon rest api", func() {
 	Describe("addon registry apiServer test", func() {
 		It("list addon registry", func() {
 			resp := get("/addon_registries")
+			defer resp.Body.Close()
 			var addonRegistry apisv1.ListAddonRegistryResponse
 			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
 			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(1))
@@ -42,6 +43,7 @@ var _ = Describe("Test addon rest api", func() {
 				},
 			}
 			res := post("/addon_registries", req)
+			defer res.Body.Close()
 			var registry apisv1.AddonRegistry
 			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
 			Expect(registry.Git).ShouldNot(BeNil())
@@ -60,6 +62,7 @@ var _ = Describe("Test addon rest api", func() {
 				},
 			}
 			res := put("/addon_registries"+"/test-registry", req)
+			defer res.Body.Close()
 			var registry apisv1.AddonRegistry
 			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
 			Expect(registry.Git).ShouldNot(BeNil())
@@ -74,6 +77,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		It("delete an addon registry", func() {
 			res := delete("/addon_registries" + "/test-registry")
+			defer res.Body.Close()
 			var registry apisv1.AddonRegistry
 			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
 		})
@@ -82,6 +86,7 @@ var _ = Describe("Test addon rest api", func() {
 	Describe("addon apiServer test", func() {
 		It("list addons", func() {
 			res := get("/addons")
+			defer res.Body.Close()
 			var addons apisv1.ListAddonResponse
 			Expect(decodeResponseBody(res, &addons)).Should(Succeed())
 			Expect(len(addons.Addons)).ShouldNot(BeEquivalentTo(0))
@@ -89,6 +94,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		It("get addon detail", func() {
 			res := get("/addons/fluxcd")
+			defer res.Body.Close()
 			var addon apisv1.DetailAddonResponse
 			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
 			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
@@ -101,6 +107,7 @@ var _ = Describe("Test addon rest api", func() {
 				},
 			}
 			res := post("/addons/fluxcd/enable", req)
+			defer res.Body.Close()
 			var addon apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
 			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
@@ -110,6 +117,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		It("addon status", func() {
 			res := get("/addons/fluxcd/status")
+			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
 			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
@@ -124,6 +132,7 @@ var _ = Describe("Test addon rest api", func() {
 				},
 			}
 			res := put("/addons/fluxcd/update", req)
+			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
 			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
@@ -140,6 +149,7 @@ var _ = Describe("Test addon rest api", func() {
 
 		It("disable addon ", func() {
 			res := post("/addons/fluxcd/disable", nil)
+			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
 			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
