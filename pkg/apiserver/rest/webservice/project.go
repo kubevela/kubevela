@@ -180,6 +180,7 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.rbacUsecase.CheckPerm("project", "list")).
+		Param(ws.QueryParameter("configType", "config type").DataType("string")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
