@@ -18,14 +18,22 @@ package usecase
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -244,3 +252,201 @@ var _ = Describe("Test project usecase functions", func() {
 		Expect(roles.Total).Should(BeEquivalentTo(0))
 	})
 })
+
+func TestProjectGetConfigs(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	terraformapi.AddToScheme(s)
+
+	createdTime, _ := time.Parse(time.UnixDate, "Wed Apr 7 11:06:39 PST 2022")
+
+	app1 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "a1",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				model.LabelSourceOfTruth:     model.FromInner,
+				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigType:    "terraform-provider",
+				"config.oam.dev/project":     "p1",
+			},
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: common.AppStatus{Phase: common.ApplicationRunning},
+	}
+
+	app2 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "a2",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				model.LabelSourceOfTruth:     model.FromInner,
+				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigType:    "terraform-provider",
+			},
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: common.AppStatus{Phase: common.ApplicationRunning},
+	}
+
+	app3 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "a3",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				model.LabelSourceOfTruth:     model.FromInner,
+				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigType:    "dex-connector",
+				"config.oam.dev/project":     "p3",
+			},
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: common.AppStatus{Phase: common.ApplicationRunning},
+	}
+
+	provider1 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "provider1",
+			Namespace:         "default",
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+	}
+
+	provider2 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "provider2",
+			Namespace: "default",
+			Labels: map[string]string{
+				velatypes.LabelConfigCatalog: velaCoreConfig,
+			},
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(app1, app2, app3, provider1, provider2).Build()
+
+	h := &projectUsecaseImpl{k8sClient: k8sClient}
+
+	type args struct {
+		projectName string
+		configType  string
+		h           ProjectUsecase
+	}
+
+	type want struct {
+		configs []*apisv1.Config
+		errMsg  string
+	}
+
+	ctx := context.Background()
+
+	testcases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "project is matched",
+			args: args{
+				projectName: "p1",
+				configType:  "terraform-provider",
+				h:           h,
+			},
+			want: want{
+				configs: []*apisv1.Config{{
+					ConfigType:  "terraform-provider",
+					Name:        "a1",
+					Project:     "p1",
+					CreatedTime: &createdTime,
+				}, {
+					ConfigType:  "terraform-provider",
+					Name:        "a2",
+					Project:     "",
+					CreatedTime: &createdTime,
+				}, {
+					Name:        "provider1",
+					CreatedTime: &createdTime,
+				}},
+			},
+		},
+		{
+			name: "project is not matched",
+			args: args{
+				projectName: "p999",
+				configType:  "terraform-provider",
+				h:           h,
+			},
+			want: want{
+				configs: []*apisv1.Config{{
+					ConfigType:  "terraform-provider",
+					Name:        "a2",
+					Project:     "",
+					CreatedTime: &createdTime,
+				}, {
+					Name:        "provider1",
+					CreatedTime: &createdTime,
+				}},
+			},
+		},
+		{
+			name: "config type is empty",
+			args: args{
+				projectName: "p3",
+				configType:  "",
+				h:           h,
+			},
+			want: want{
+				configs: []*apisv1.Config{{
+					ConfigType:  "terraform-provider",
+					Name:        "a2",
+					Project:     "",
+					CreatedTime: &createdTime,
+				}, {
+					ConfigType:  "dex-connector",
+					Name:        "a3",
+					Project:     "p3",
+					CreatedTime: &createdTime,
+				}, {
+					Name:        "provider1",
+					CreatedTime: &createdTime,
+				}},
+			},
+		},
+		{
+			name: "config type is dex",
+			args: args{
+				projectName: "p3",
+				configType:  "config-dex-connector",
+				h:           h,
+			},
+			want: want{
+				configs: []*apisv1.Config{{
+					ConfigType:  "dex-connector",
+					Name:        "a3",
+					Project:     "p3",
+					CreatedTime: &createdTime,
+				}},
+			},
+		},
+		{
+			name: "config type is invalid",
+			args: args{
+				configType: "xxx",
+				h:          h,
+			},
+			want: want{
+				errMsg: "unsupported config type",
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.args.h.GetConfigs(ctx, tc.args.projectName, tc.args.configType)
+			if tc.want.errMsg != "" || err != nil {
+				assert.ErrorContains(t, err, tc.want.errMsg)
+			}
+			assert.DeepEqual(t, got, tc.want.configs)
+		})
+	}
+}
