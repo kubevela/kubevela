@@ -176,7 +176,7 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
 
-	ws.Route(ws.GET("/{projectName}/configs/").To(n.getConfigs).
+	ws.Route(ws.GET("/{projectName}/configs").To(n.getConfigs).
 		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.rbacUsecase.CheckPerm("project", "list")).
