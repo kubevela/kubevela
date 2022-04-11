@@ -138,7 +138,6 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details. Can be one of inline (default), wide, list, table, raw.")
 	addNamespaceAndEnvArg(cmd)
-	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 

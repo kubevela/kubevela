@@ -82,7 +82,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 					return nil, errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
 				if len(clusters) == 0 {
-					return nil, errors.Errorf("failed to find any cluster matches given labels")
+					return nil, errors.New("failed to find any cluster matches given labels")
 				}
 				for _, cluster := range clusters {
 					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {

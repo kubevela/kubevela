@@ -72,7 +72,7 @@ type resourceRow struct {
 	details              string
 }
 
-func (options ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) []*resourceRow {
+func (options *ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) []*resourceRow {
 	var rows []*resourceRow
 	if currentRT != nil {
 		for _, mr := range currentRT.Spec.ManagedResources {
@@ -104,7 +104,7 @@ func (options ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.Reso
 	return rows
 }
 
-func (options ResourceTreePrintOptions) sortRows(rows []*resourceRow) {
+func (options *ResourceTreePrintOptions) sortRows(rows []*resourceRow) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].mr.Cluster != rows[j].mr.Cluster {
 			return rows[i].mr.Cluster < rows[j].mr.Cluster
@@ -116,7 +116,7 @@ func (options ResourceTreePrintOptions) sortRows(rows []*resourceRow) {
 	})
 }
 
-func (options ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, colsWidth []int) {
+func (options *ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, colsWidth []int) {
 	for i := 0; i < 4; i++ {
 		colsWidth[i] = 10
 	}
@@ -171,7 +171,7 @@ func (options ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, co
 	colsWidth[1] += 4
 }
 
-func (options ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows []*resourceRow, colsWidth []int) {
+func (options *ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows []*resourceRow, colsWidth []int) {
 	applyTimeWidth := 20
 
 	writePaddedString := func(sb *strings.Builder, head string, tail string, width int) {
@@ -231,7 +231,7 @@ func (options ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows
 	}
 }
 
-func (options ResourceTreePrintOptions) addNonExistingPlacementToRows(placements []v1alpha1.PlacementDecision, rows []*resourceRow) []*resourceRow {
+func (options *ResourceTreePrintOptions) addNonExistingPlacementToRows(placements []v1alpha1.PlacementDecision, rows []*resourceRow) []*resourceRow {
 	existingClusters := map[string]struct{}{}
 	for _, row := range rows {
 		existingClusters[row.mr.Cluster] = struct{}{}
@@ -250,7 +250,7 @@ func (options ResourceTreePrintOptions) addNonExistingPlacementToRows(placements
 }
 
 // PrintResourceTree print resource tree to writer
-func (options ResourceTreePrintOptions) PrintResourceTree(writer io.Writer, currentPlacements []v1alpha1.PlacementDecision, currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) {
+func (options *ResourceTreePrintOptions) PrintResourceTree(writer io.Writer, currentPlacements []v1alpha1.PlacementDecision, currentRT *v1beta1.ResourceTracker, historyRT []*v1beta1.ResourceTracker) {
 	rows := options.loadResourceRows(currentRT, historyRT)
 	rows = options.addNonExistingPlacementToRows(currentPlacements, rows)
 	options.sortRows(rows)
