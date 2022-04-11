@@ -17,12 +17,20 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"os"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/google/go-cmp/cmp"
+	v1 "k8s.io/api/core/v1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
+
+	types2 "github.com/oam-dev/kubevela/apis/types"
+	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -72,3 +80,45 @@ var _ = Describe("Test helm helper", func() {
 		Expect(values).ShouldNot(BeEmpty())
 	})
 })
+
+var _ = Describe("Test helm associated func", func() {
+	ctx := context.Background()
+	var aSec v1.Secret
+
+	BeforeEach(func() {
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+		aSec = v1.Secret{}
+		Expect(yaml.Unmarshal([]byte(authSecret), &aSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &aSec)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+	})
+
+	It("Test auth info secret func", func() {
+		opts, err := SetBasicAuthInfo(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret"})
+		Expect(err).Should(BeNil())
+		Expect(opts.Username).Should(BeEquivalentTo("admin"))
+		Expect(opts.Password).Should(BeEquivalentTo("admin"))
+	})
+
+	It("Test auth info secret func", func() {
+		_, err := SetBasicAuthInfo(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret-1"})
+		Expect(err).ShouldNot(BeNil())
+	})
+})
+
+var (
+	authSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secret
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project-1
+stringData:
+  url: https://kedacore.github.io/charts
+  username: admin
+  password: admin
+type: Opaque
+`
+)

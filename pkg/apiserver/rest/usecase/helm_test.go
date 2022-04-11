@@ -53,25 +53,21 @@ func TestFlattenKeyFunc(t *testing.T) {
 
 var _ = Describe("Test helm repo list", func() {
 	ctx := context.Background()
-	var pSec, gSec, aSec v1.Secret
+	var pSec, gSec v1.Secret
 
 	BeforeEach(func() {
 		pSec = v1.Secret{}
 		gSec = v1.Secret{}
-		aSec = v1.Secret{}
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(yaml.Unmarshal([]byte(projectSecret), &pSec)).Should(BeNil())
 		Expect(yaml.Unmarshal([]byte(globalSecret), &gSec)).Should(BeNil())
-		Expect(yaml.Unmarshal([]byte(authSecret), &aSec)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &pSec)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &gSec)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, &aSec)).Should(BeNil())
 	})
 
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, &gSec)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, &pSec)).Should(BeNil())
-		Expect(k8sClient.Delete(ctx, &aSec)).Should(BeNil())
 	})
 
 	It("Test list with project ", func() {
@@ -109,18 +105,6 @@ var _ = Describe("Test helm repo list", func() {
 		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
 		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
 		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
-	})
-
-	It("Test auth info secret func", func() {
-		opts, err := setAuthInfo(context.Background(), k8sClient, "auth-secret")
-		Expect(err).Should(BeNil())
-		Expect(opts.Username).Should(BeEquivalentTo("admin"))
-		Expect(opts.Password).Should(BeEquivalentTo("admin"))
-	})
-
-	It("Test auth info secret func", func() {
-		_, err := setAuthInfo(context.Background(), k8sClient, "auth-secret-1")
-		Expect(err).ShouldNot(BeNil())
 	})
 })
 
@@ -369,21 +353,6 @@ metadata:
     config.oam.dev/project: my-project
 stringData:
   url: https://kedacore.github.io/charts
-type: Opaque
-`
-	authSecret = `
-apiVersion: v1
-kind: Secret
-metadata:
-  name: auth-secret
-  namespace: vela-system
-  labels:
-    config.oam.dev/type: config-helm-repository
-    config.oam.dev/project: my-project-1
-stringData:
-  url: https://kedacore.github.io/charts
-  username: admin
-  password: admin
 type: Opaque
 `
 	repoSecret = `
