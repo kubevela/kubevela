@@ -95,7 +95,6 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(resp.Email).Should(Equal("test@test.com"))
 		Expect(resp.Name).Should(Equal("exist-user"))
-		Expect(resp.Alias).Should(Equal("test"))
 	})
 
 	It("Test local login", func() {

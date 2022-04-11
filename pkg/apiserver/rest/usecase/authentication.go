@@ -427,14 +427,13 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	}
 
 	user := &model.User{Email: claims.Email}
-	userBase := &apisv1.UserBase{Email: claims.Email, Alias: claims.Name, Name: claims.Name}
+	userBase := &apisv1.UserBase{Email: claims.Email, Name: claims.Name}
 	users, err := d.ds.List(ctx, user, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	if len(users) > 0 {
 		u := users[0].(*model.User)
-		u.Alias = claims.Name
 		u.LastLoginTime = time.Now()
 		if err := d.ds.Put(ctx, u); err != nil {
 			return nil, err
@@ -443,7 +442,6 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	} else if err := d.ds.Add(ctx, &model.User{
 		Email:         claims.Email,
 		Name:          claims.Name,
-		Alias:         claims.Name,
 		LastLoginTime: time.Now(),
 	}); err != nil {
 		return nil, err
