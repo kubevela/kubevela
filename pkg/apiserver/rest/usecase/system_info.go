@@ -118,6 +118,13 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
+		admin := &model.User{Name: model.DefaultAdminUserName}
+		if err := u.ds.Get(ctx, admin); err != nil {
+			return nil, err
+		}
+		if admin.Email == "" {
+			return nil, bcode.ErrEmptyAdminEmail
+		}
 		if err := generateDexConfig(ctx, u.kubeClient, sysInfo.VelaAddress, &modifiedInfo); err != nil {
 			return nil, err
 		}
