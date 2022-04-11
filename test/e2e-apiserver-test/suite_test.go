@@ -200,7 +200,6 @@ func delete(path string) *http.Response {
 	req.Header.Add("Authorization", token)
 	response, err := client.Do(req)
 	Expect(err).Should(BeNil())
-	defer response.Body.Close()
 	return response
 }
 
