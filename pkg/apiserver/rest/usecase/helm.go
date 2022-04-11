@@ -68,7 +68,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secr
 	if len(secretName) != 0 {
 		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
-			return nil, err
+			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
 	charts, err := d.helper.ListChartsFromRepo(url, skipCache, opts)
@@ -85,7 +85,7 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 	if len(secretName) != 0 {
 		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
-			return nil, err
+			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
 	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache, opts)
@@ -106,7 +106,7 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, char
 	if len(secretName) != 0 {
 		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
-			return nil, err
+			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
 	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache, opts)
