@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -472,15 +473,13 @@ func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName 
 }
 
 func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
-	return getConfigsByProjectAndConfigType(ctx, p.k8sClient, projectName, configType)
-}
-
-func getConfigsByProjectAndConfigType(ctx context.Context, k8sClient client.Client, projectName, configType string) ([]*apisv1.Config, error) {
-	if configType != types.TerraformProvider {
-		return nil, errors.New("unsupported config type")
-	}
-	var apps = &v1beta1.ApplicationList{}
-	if err := k8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
+	var (
+		configs                  []*apisv1.Config
+		terraformProviders       []*apisv1.Config
+		legacyTerraformProviders []*apisv1.Config
+		apps                     = &v1beta1.ApplicationList{}
+	)
+	if err := p.k8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			model.LabelSourceOfTruth: model.FromInner,
 			types.LabelConfigCatalog: velaCoreConfig,
@@ -488,21 +487,77 @@ func getConfigsByProjectAndConfigType(ctx context.Context, k8sClient client.Clie
 		return nil, err
 	}
 
-	var configs []*apisv1.Config
-	for _, a := range apps.Items {
-		appProject := a.Labels[types.LabelConfigProject]
-		if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
-			!strings.Contains(a.Labels[types.LabelConfigType], "terraform-") {
-			continue
+	if configType == types.TerraformProvider || configType == "" {
+		// legacy providers
+		var providers = &terraformapi.ProviderList{}
+		if err := p.k8sClient.List(ctx, providers, client.InNamespace(types.DefaultAppNamespace)); err != nil {
+			return nil, err
 		}
-		configs = append(configs, &apisv1.Config{
-			ConfigType:  a.Labels[types.LabelConfigType],
-			Name:        a.Name,
-			Project:     appProject,
-			CreatedTime: &(a.CreationTimestamp.Time),
-		})
+		for _, p := range providers.Items {
+			if p.Labels[types.LabelConfigCatalog] == velaCoreConfig {
+				continue
+			}
+			t := p.CreationTimestamp.Time
+			legacyTerraformProviders = append(legacyTerraformProviders, &apisv1.Config{
+				Name:        p.Name,
+				CreatedTime: &t,
+			})
+		}
 	}
-	return configs, nil
+
+	switch configType {
+	case types.TerraformProvider:
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
+				!strings.Contains(a.Labels[types.LabelConfigType], "terraform-") {
+				continue
+			}
+			terraformProviders = append(terraformProviders, &apisv1.Config{
+				ConfigType:  a.Labels[types.LabelConfigType],
+				Name:        a.Name,
+				Project:     appProject,
+				CreatedTime: &(a.CreationTimestamp.Time),
+			})
+		}
+
+		terraformProviders = append(terraformProviders, legacyTerraformProviders...)
+		return terraformProviders, nil
+	case "":
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if appProject != "" && appProject != projectName {
+				continue
+			}
+			configs = append(configs, &apisv1.Config{
+				ConfigType:  a.Labels[types.LabelConfigType],
+				Name:        a.Name,
+				Project:     appProject,
+				CreatedTime: &(a.CreationTimestamp.Time),
+			})
+		}
+		configs = append(configs, legacyTerraformProviders...)
+		return configs, nil
+	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
+		t := strings.Replace(configType, "config-", "", -1)
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) {
+				continue
+			}
+			if a.Labels[types.LabelConfigType] == t {
+				configs = append(configs, &apisv1.Config{
+					ConfigType:  a.Labels[types.LabelConfigType],
+					Name:        a.Name,
+					Project:     appProject,
+					CreatedTime: &(a.CreationTimestamp.Time),
+				})
+			}
+		}
+		return configs, nil
+	default:
+		return nil, errors.New("unsupported config type")
+	}
 }
 
 // ConvertProjectModel2Base convert project model to base struct
