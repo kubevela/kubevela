@@ -8,3 +8,4 @@ coverage:
         target: 70%
 ignore:
   - "**/zz_generated.deepcopy.go"
+  - "references/cli/"
