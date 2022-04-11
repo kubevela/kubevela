@@ -111,7 +111,7 @@ func TestGarbageCollectPolicySpec_FindStrategy(t *testing.T) {
 		},
 		"resource type rule match": {
 			rules: []GarbageCollectPolicyRule{{
-				Selector: GarbageCollectPolicyRuleSelector{ResourceTypes: []string{"TRAIT"}},
+				Selector: GarbageCollectPolicyRuleSelector{OAMResourceTypes: []string{"TRAIT"}},
 				Strategy: GarbageCollectStrategyNever,
 			}},
 			input: &unstructured.Unstructured{Object: map[string]interface{}{

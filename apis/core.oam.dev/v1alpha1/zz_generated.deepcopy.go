@@ -291,8 +291,8 @@ func (in *GarbageCollectPolicyRuleSelector) DeepCopyInto(out *GarbageCollectPoli
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.ResourceTypes != nil {
-		in, out := &in.ResourceTypes, &out.ResourceTypes
+	if in.OAMResourceTypes != nil {
+		in, out := &in.OAMResourceTypes, &out.OAMResourceTypes
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
