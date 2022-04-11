@@ -168,11 +168,8 @@ var _ = Describe("Test addon rest api", func() {
 				if err != nil {
 					return err
 				}
-				if len(addonList.EnabledAddons) != 1 {
+				if len(addonList.EnabledAddons) == 0 {
 					return fmt.Errorf("error number")
-				}
-				if addonList.EnabledAddons[0].Name != "fluxcd" {
-					return fmt.Errorf("error addon name")
 				}
 				return nil
 			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
