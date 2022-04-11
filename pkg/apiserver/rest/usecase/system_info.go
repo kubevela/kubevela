@@ -165,6 +165,9 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 	if err != nil {
 		return err
 	}
+	if len(connectors) < 1 {
+		return bcode.ErrNoDexConnector
+	}
 	config, err := model.NewJSONStructByStruct(info.DexConfig)
 	if err != nil {
 		return err
