@@ -17,6 +17,9 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"fmt"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -125,6 +128,15 @@ var _ = Describe("Test addon rest api", func() {
 			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("testvalue"))
 		})
 
+		It("not enabled addon status", func() {
+			res := get("/addons/example/status")
+			defer res.Body.Close()
+			var addonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+			Expect(addonStatus.Name).Should(BeEquivalentTo("example"))
+			Expect(addonStatus.Phase).Should(BeEquivalentTo("disabled"))
+		})
+
 		It("update addon ", func() {
 			req := apisv1.EnableAddonRequest{
 				Args: map[string]interface{}{
@@ -145,6 +157,25 @@ var _ = Describe("Test addon rest api", func() {
 			Expect(newaddonStatus.Name).Should(BeEquivalentTo("fluxcd"))
 			Expect(len(newaddonStatus.Args)).Should(BeEquivalentTo(1))
 			Expect(newaddonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+		})
+
+		It("list enabled addon", func() {
+			Eventually(func() error {
+				res := get("/enabled_addon/")
+				defer res.Body.Close()
+				var addonList apisv1.ListEnabledAddonResponse
+				err := decodeResponseBody(res, &addonList)
+				if err != nil {
+					return err
+				}
+				if len(addonList.EnabledAddons) != 1 {
+					return fmt.Errorf("error number")
+				}
+				if addonList.EnabledAddons[0].Name != "fluxcd" {
+					return fmt.Errorf("error addon name")
+				}
+				return nil
+			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
 		})
 
 		It("disable addon ", func() {
