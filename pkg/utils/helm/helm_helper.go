@@ -32,8 +32,10 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
+	relutil "helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
@@ -118,7 +120,7 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 	var newRelease *release.Release
 	timeoutInMinutes := 18
 	releases, err := histClient.Run(releaseName)
-	if err != nil {
+	if err != nil || len(releases) == 0 {
 		if errors.Is(err, driver.ErrReleaseNotFound) {
 			// fresh install
 			install := action.NewInstall(cfg)
@@ -139,6 +141,20 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 				r.Info.Status == release.StatusPendingRollback {
 				return nil, fmt.Errorf("previous installation (e.g., using vela install or helm upgrade) is still in progress. Please try again in %d minutes", timeoutInMinutes)
 			}
+
+		}
+
+		// merge un-existing values into the values as user-input, because the helm chart upgrade didn't handle the new default values in the chart.
+		if config.ReuseValues {
+			// sort will sort the release by revision from old to new
+			relutil.SortByRevision(releases)
+			rel := releases[len(releases)-1]
+			// merge new chart values into old values, the values of old chart has the high priority
+			mergedWithNewValues := chartutil.CoalesceTables(rel.Chart.Values, ch.Values)
+			// merge the chart with the released chart config but follow the old config
+			mergeWithConfigs := chartutil.CoalesceTables(rel.Config, mergedWithNewValues)
+			// merge new values as the user input, follow the new user input for --set
+			values = chartutil.CoalesceTables(values, mergeWithConfigs)
 		}
 
 		// overwrite existing installation
