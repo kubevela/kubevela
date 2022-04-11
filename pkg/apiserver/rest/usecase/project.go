@@ -539,7 +539,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 		configs = append(configs, legacyTerraformProviders...)
 		return configs, nil
 	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
-		t := strings.Replace(configType, "config-", "", -1)
+		t := strings.ReplaceAll(configType, "config-", "")
 		for _, a := range apps.Items {
 			appProject := a.Labels[types.LabelConfigProject]
 			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) {
