@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -188,6 +189,10 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 		In:     cmd.InOrStdin(),
 		Out:    cmd.OutOrStdout(),
 		ErrOut: cmd.ErrOrStderr(),
+	}
+	if common.IsAppfile(body) { // legacy compatibility
+		o := &common.AppfileOptions{Kubecli: cli, IO: ioStream, Namespace: opt.Namespace}
+		return o.Run(opt.File, o.Namespace, utilcommon.Args{Schema: utilcommon.Scheme})
 	}
 	var app v1beta1.Application
 	err = yaml.Unmarshal(body, &app)
