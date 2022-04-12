@@ -108,7 +108,7 @@ func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, pro
 
 func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
-		return common.HTTPGet(context.Background(), pathOrURL)
+		return common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
 	}
 	return os.ReadFile(path.Clean(pathOrURL))
 }
