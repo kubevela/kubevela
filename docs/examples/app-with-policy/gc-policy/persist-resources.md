@@ -131,9 +131,9 @@ spec:
             strategy: never
 ```
 
-### resourceTypes
+### oamTypes
 
-Users can also persist resources using `resourceTypes`, where the values of `resourceType` can be `TRAIT` and `WORKLOAD`.
+Users can also persist resources using `oamTypes`, where the values of `oamTypes` can be `TRAIT` and `WORKLOAD`.
 
 ```shell
 $ cat <<EOF | kubectl apply -f -
@@ -157,7 +157,7 @@ spec:
       properties:
         rules:
           - selector:
-              resourceTypes:
+              oamTypes:
                 - TRAIT
             strategy: onAppDelete
 EOF
@@ -187,7 +187,7 @@ spec:
       properties:
         rules:
           - selector:
-              resourceTypes:
+              oamTypes:
                 - TRAIT
             strategy: onAppDelete
 EOF
