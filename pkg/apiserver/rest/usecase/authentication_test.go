@@ -28,7 +28,6 @@ import (
 	"github.com/coreos/go-oidc"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,10 +67,6 @@ var _ = Describe("Test authentication usecase functions", func() {
 		})
 		defer patch.Reset()
 		dexHandler := dexHandlerImpl{
-			token: &oauth2.Token{
-				AccessToken:  "access-token",
-				RefreshToken: "refresh-token",
-			},
 			idToken: testIDToken,
 			ds:      ds,
 		}
@@ -86,6 +81,20 @@ var _ = Describe("Test authentication usecase functions", func() {
 		err = ds.Get(context.Background(), user)
 		Expect(err).Should(BeNil())
 		Expect(user.Email).Should(Equal("test@test.com"))
+
+		existUser := &model.User{
+			Name: "test",
+		}
+		err = ds.Delete(context.Background(), existUser)
+		Expect(err).Should(BeNil())
+		existUser.Name = "exist-user"
+		existUser.Email = "test@test.com"
+		err = ds.Add(context.Background(), existUser)
+		Expect(err).Should(BeNil())
+		resp, err = dexHandler.login(context.Background())
+		Expect(err).Should(BeNil())
+		Expect(resp.Email).Should(Equal("test@test.com"))
+		Expect(resp.Name).Should(Equal("exist-user"))
 	})
 
 	It("Test local login", func() {
@@ -175,6 +184,8 @@ var _ = Describe("Test authentication usecase functions", func() {
 	It("Test get dex config", func() {
 		_, err := authUsecase.GetDexConfig(context.Background())
 		Expect(err).Should(Equal(bcode.ErrInvalidDexConfig))
+		err = ds.Add(context.Background(), &model.User{Name: "admin", Email: "test@test.com"})
+		Expect(err).Should(BeNil())
 		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
 			LoginType:   model.LoginTypeDex,
 			VelaAddress: "http://velaux.com",

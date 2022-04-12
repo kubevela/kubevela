@@ -118,6 +118,13 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
+		admin := &model.User{Name: model.DefaultAdminUserName}
+		if err := u.ds.Get(ctx, admin); err != nil {
+			return nil, err
+		}
+		if admin.Email == "" {
+			return nil, bcode.ErrEmptyAdminEmail
+		}
 		if err := generateDexConfig(ctx, u.kubeClient, sysInfo.VelaAddress, &modifiedInfo); err != nil {
 			return nil, err
 		}
@@ -157,6 +164,9 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddres
 	connectors, err := utils.GetDexConnectors(ctx, kubeClient)
 	if err != nil {
 		return err
+	}
+	if len(connectors) < 1 {
+		return bcode.ErrNoDexConnector
 	}
 	config, err := model.NewJSONStructByStruct(info.DexConfig)
 	if err != nil {

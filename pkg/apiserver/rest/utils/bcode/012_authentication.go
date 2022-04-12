@@ -37,4 +37,6 @@ var (
 	ErrInvalidDexConfig = NewBcode(400, 12009, "the dex config is invalid")
 	// ErrRefreshTokenExpired is the error of refresh token expired
 	ErrRefreshTokenExpired = NewBcode(400, 12010, "the refresh token is expired")
+	// ErrNoDexConnector is the error of no dex connector
+	ErrNoDexConnector = NewBcode(400, 12011, "there is no dex connector")
 )
