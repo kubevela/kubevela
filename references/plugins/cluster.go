@@ -270,7 +270,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		}
 	}
 	if tmp.CueTemplateURI != "" {
-		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
+		b, err := common.HTTPGetWithOption(context.Background(), tmp.CueTemplateURI, nil)
 		if err != nil {
 			return types.Capability{}, err
 		}
