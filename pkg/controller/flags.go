@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"flag"
+	flag "github.com/spf13/pflag"
 
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
