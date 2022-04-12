@@ -16,6 +16,8 @@ limitations under the License.
 
 package model
 
+import "time"
+
 func init() {
 	RegisterModel(&SystemInfo{})
 }
@@ -30,10 +32,11 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID        string    `json:"installID"`
-	EnableCollection bool      `json:"enableCollection"`
-	LoginType        string    `json:"loginType"`
-	DexConfig        DexConfig `json:"dexConfig,omitempty"`
+	InstallID        string        `json:"installID"`
+	EnableCollection bool          `json:"enableCollection"`
+	LoginType        string        `json:"loginType"`
+	DexConfig        DexConfig     `json:"dexConfig,omitempty"`
+	StatisticInfo    StatisticInfo `json:"statisticInfo,omitempty"`
 }
 
 // DexConfig dex config
@@ -44,6 +47,15 @@ type DexConfig struct {
 	StaticClients    []DexStaticClient `json:"staticClients"`
 	Connectors       []interface{}     `json:"connectors,omitempty"`
 	EnablePasswordDB bool              `json:"enablePasswordDB"`
+}
+
+type StatisticInfo struct {
+	ClusterCount string            `json:"clusterCount,omitempty"`
+	AppCount     string            `json:"appCount,omitempty"`
+	EnabledAddon map[string]string `json:"enabledAddon,omitempty"`
+	TopKCompDef  []string          `json:"topKCompDef,omitempty"`
+	TopKTraitDef []string          `json:"topKTraitDef,omitempty"`
+	UpdateTime   time.Time         `json:"updateTime,omitempty"`
 }
 
 // DexStorage dex storage

@@ -100,6 +100,14 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 			VelaVersion: version.VelaVersion,
 			GitVersion:  version.GitRevision,
 		},
+		StatisticInfo: v1.StatisticInfo{
+			AppCount:     info.StatisticInfo.AppCount,
+			ClusterCount: info.StatisticInfo.ClusterCount,
+			EnabledAddon: info.StatisticInfo.EnabledAddon,
+			TopKCompDef:  info.StatisticInfo.TopKCompDef,
+			TopKTraitDef: info.StatisticInfo.TopKTraitDef,
+			UpdateTime:   info.StatisticInfo.UpdateTime,
+		},
 	}, nil
 }
 
@@ -115,6 +123,7 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 		BaseModel: model.BaseModel{
 			CreateTime: info.CreateTime,
 		},
+		StatisticInfo: info.StatisticInfo,
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
