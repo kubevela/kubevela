@@ -94,7 +94,6 @@ type authHandler interface {
 }
 
 type dexHandlerImpl struct {
-	token   *oauth2.Token
 	idToken *oidc.IDToken
 	ds      datastore.DataStore
 }
@@ -135,7 +134,6 @@ func (a *authenticationUsecaseImpl) newDexHandler(ctx context.Context, req apisv
 		return nil, err
 	}
 	return &dexHandlerImpl{
-		token:   token,
 		idToken: idToken,
 		ds:      a.ds,
 	}, nil
@@ -429,19 +427,18 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	}
 
 	user := &model.User{Email: claims.Email}
+	userBase := &apisv1.UserBase{Email: claims.Email, Name: claims.Name}
 	users, err := d.ds.List(ctx, user, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	if len(users) > 0 {
 		u := users[0].(*model.User)
-		if u.Name != claims.Name {
-			u.Name = claims.Name
-		}
 		u.LastLoginTime = time.Now()
 		if err := d.ds.Put(ctx, u); err != nil {
 			return nil, err
 		}
+		userBase.Name = u.Name
 	} else if err := d.ds.Add(ctx, &model.User{
 		Email:         claims.Email,
 		Name:          claims.Name,
@@ -450,10 +447,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 		return nil, err
 	}
 
-	return &apisv1.UserBase{
-		Name:  claims.Name,
-		Email: claims.Email,
-	}, nil
+	return userBase, nil
 }
 
 func (l *localHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
