@@ -168,58 +168,13 @@ func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfT
 	if err != nil {
 		return err
 	}
-	policies := &[]*v1beta1.AppPolicy{}
+	policies := &[]v1beta1.AppPolicy{}
 	if err = policiesRaw.UnmarshalTo(policies); err != nil {
 		return errors.Wrapf(err, "failed to parse policies")
 	}
-	var placements []v1alpha1.PlacementDecision
-	placementMap := map[string]struct{}{}
-	addCluster := func(cluster string, ns string, validateCluster bool) error {
-		if validateCluster {
-			if _, e := multicluster.GetVirtualCluster(context.Background(), p, cluster); e != nil {
-				return errors.Wrapf(e, "failed to get cluster %s", cluster)
-			}
-		}
-		if !resourcekeeper.AllowCrossNamespaceResource && (ns != p.app.GetNamespace() && ns != "") {
-			return errors.Errorf("cannot cross namespace")
-		}
-		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: ns}
-		name := placement.String()
-		if _, found := placementMap[name]; !found {
-			placementMap[name] = struct{}{}
-			placements = append(placements, placement)
-		}
-		return nil
-	}
-	for _, policy := range *policies {
-		if policy.Type == v1alpha1.TopologyPolicyType {
-			topologySpec := &v1alpha1.TopologyPolicySpec{}
-			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
-				return errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
-			}
-			clusterLabelSelector := pkgpolicy.GetClusterLabelSelectorInTopology(topologySpec)
-			switch {
-			case topologySpec.Clusters != nil:
-				for _, cluster := range topologySpec.Clusters {
-					if err := addCluster(cluster, topologySpec.Namespace, true); err != nil {
-						return err
-					}
-				}
-			case clusterLabelSelector != nil:
-				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, clusterLabelSelector)
-				if err != nil {
-					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
-				}
-				if len(clusters) == 0 {
-					return errors.Errorf("failed to find any cluster matches given labels")
-				}
-				for _, cluster := range clusters {
-					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
-						return err
-					}
-				}
-			}
-		}
+	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(context.Background(), p, p.app, *policies, resourcekeeper.AllowCrossNamespaceResource)
+	if err != nil {
+		return err
 	}
 	return v.FillObject(placements, "outputs", "decisions")
 }
