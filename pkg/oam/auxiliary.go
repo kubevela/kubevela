@@ -17,6 +17,8 @@ limitations under the License.
 package oam
 
 import (
+	"time"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -48,4 +50,15 @@ func GetPublishVersion(o client.Object) string {
 		return annotations[AnnotationPublishVersion]
 	}
 	return ""
+}
+
+// GetLastAppliedTime .
+func GetLastAppliedTime(o client.Object) time.Time {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		s := annotations[AnnotationLastAppliedTime]
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t
+		}
+	}
+	return o.GetCreationTimestamp().Time
 }

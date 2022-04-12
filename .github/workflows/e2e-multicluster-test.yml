@@ -96,7 +96,7 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: /tmp/e2e-profile.out
+          files: /tmp/e2e-profile.out,/tmp/e2e_multicluster_test.out
           flags: e2e-multicluster-test
           name: codecov-umbrella
 
