@@ -184,7 +184,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 	It("Test get dex config", func() {
 		_, err := authUsecase.GetDexConfig(context.Background())
 		Expect(err).Should(Equal(bcode.ErrInvalidDexConfig))
-		err = ds.Add(context.Background(), &model.User{Name: "test", Email: "test@test.com"})
+		err = ds.Add(context.Background(), &model.User{Name: "admin", Email: "test@test.com"})
 		Expect(err).Should(BeNil())
 		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
 			LoginType:   model.LoginTypeDex,
