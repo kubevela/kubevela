@@ -54,6 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 )
 
@@ -2655,6 +2656,64 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, secret)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
+	It("app with debug policy", func() {
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-debug",
+				Namespace: "default",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myworker",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"firstValue\"}]}")},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Type: "debug",
+						Name: "debug",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		By("Check debug Config Map is created")
+		debugCM := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Namespace: "default",
+		}, debugCM)).Should(BeNil())
+
+		By("Update the application to update the debug Config Map")
+		app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"updateValue\"}]}")}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		updatedCM := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Namespace: "default",
+		}, updatedCM)).Should(BeNil())
+
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 })
