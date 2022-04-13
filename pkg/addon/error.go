@@ -17,6 +17,8 @@ limitations under the License.
 package addon
 
 import (
+	"fmt"
+
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 )
@@ -35,9 +37,6 @@ var (
 
 	// ErrNotExist  means addon not exists
 	ErrNotExist = NewAddonError("addon not exist")
-
-	// ErrVersionMismatch  means addon version requirement mismatch
-	ErrVersionMismatch = NewAddonError("addon version requirements mismatch")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
@@ -47,4 +46,13 @@ func WrapErrRateLimit(err error) error {
 		return ErrRateLimit
 	}
 	return err
+}
+
+type VersionUnMatchError struct {
+	err       error
+	addonName string
+}
+
+func (v VersionUnMatchError) Error() string {
+	return fmt.Sprintf("addon %s system requirement miss match: %v", v.addonName, v.err)
 }
