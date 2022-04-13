@@ -45,6 +45,7 @@ type Context struct {
 	cli  client.Client
 	app  *v1beta1.Application
 	step string
+	rk   resourcekeeper.ResourceKeeper
 }
 
 // Set sets debug content into context
@@ -53,7 +54,7 @@ func (d *Context) Set(v *value.Value) error {
 	if err != nil {
 		return err
 	}
-	err = setStore(context.Background(), d.cli, d.app, d.step, data)
+	err = setStore(context.Background(), d.cli, d.rk, d.app, d.step, data)
 	if err != nil {
 		return err
 	}
@@ -61,17 +62,13 @@ func (d *Context) Set(v *value.Value) error {
 	return nil
 }
 
-func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, step, data string) error {
+func setStore(ctx context.Context, cli client.Client, rk resourcekeeper.ResourceKeeper, app *v1beta1.Application, step, data string) error {
 	cm := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, types.NamespacedName{
 		Namespace: app.Namespace,
 		Name:      GenerateContextName(app.Name, step),
 	}, cm); err != nil {
 		if errors.IsNotFound(err) {
-			rk, err := resourcekeeper.NewResourceKeeper(ctx, cli, app)
-			if err != nil {
-				return err
-			}
 			cm.Name = GenerateContextName(app.Name, step)
 			cm.Namespace = app.Namespace
 			cm.Data = map[string]string{
@@ -104,11 +101,12 @@ func setStore(ctx context.Context, cli client.Client, app *v1beta1.Application, 
 }
 
 // NewContext new workflow context without initialize data.
-func NewContext(cli client.Client, app *v1beta1.Application, step string) ContextImpl {
+func NewContext(cli client.Client, rk resourcekeeper.ResourceKeeper, app *v1beta1.Application, step string) ContextImpl {
 	return &Context{
 		cli:  cli,
 		app:  app,
 		step: step,
+		rk:   rk,
 	}
 }
 

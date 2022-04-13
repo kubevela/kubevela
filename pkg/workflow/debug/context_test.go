@@ -18,7 +18,6 @@ package debug
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -27,7 +26,6 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	yamlUtil "sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -35,7 +33,7 @@ import (
 
 func TestSetContext(t *testing.T) {
 	r := require.New(t)
-	cli := newCliForTest(t, &corev1.ConfigMap{
+	cli := newCliForTest(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: GenerateContextName("test", "step1"),
 		},
@@ -43,7 +41,7 @@ func TestSetContext(t *testing.T) {
 			"debug": "test",
 		},
 	})
-	debugCtx := NewContext(cli, &v1beta1.Application{
+	debugCtx := NewContext(cli, nil, &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
 		},
@@ -56,26 +54,19 @@ test: test
 	r.NoError(err)
 }
 
-func newCliForTest(t *testing.T, wfCm *corev1.ConfigMap) *test.MockClient {
-	r := require.New(t)
+func newCliForTest(wfCm *corev1.ConfigMap) *test.MockClient {
 	return &test.MockClient{
 		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 			o, ok := obj.(*corev1.ConfigMap)
 			if ok {
 				switch key.Name {
-				case "app-v1":
-					var cm corev1.ConfigMap
-					testCaseJson, err := yamlUtil.YAMLToJSON([]byte(testCaseYaml))
-					r.NoError(err)
-					err = json.Unmarshal(testCaseJson, &cm)
-					r.NoError(err)
-					*o = cm
-					return nil
 				case GenerateContextName("test", "step1"):
 					if wfCm != nil {
 						*o = *wfCm
 						return nil
 					}
+				default:
+					return kerrors.NewNotFound(corev1.Resource("configMap"), o.Name)
 				}
 			}
 			return kerrors.NewNotFound(corev1.Resource("configMap"), key.Name)

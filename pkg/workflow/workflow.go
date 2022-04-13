@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
@@ -69,12 +70,13 @@ type workflow struct {
 	app     *oamcore.Application
 	cli     client.Client
 	wfCtx   wfContext.Context
+	rk      resourcekeeper.ResourceKeeper
 	dagMode bool
 	debug   bool
 }
 
 // NewWorkflow returns a Workflow implementation.
-func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode, debug bool) Workflow {
+func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.WorkflowMode, debug bool, rk resourcekeeper.ResourceKeeper) Workflow {
 	dagMode := false
 	if mode == common.WorkflowModeDAG {
 		dagMode = true
@@ -84,6 +86,7 @@ func NewWorkflow(app *oamcore.Application, cli client.Client, mode common.Workfl
 		cli:     cli,
 		dagMode: dagMode,
 		debug:   debug,
+		rk:      rk,
 	}
 }
 
@@ -175,6 +178,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		wfCtx:      wfCtx,
 		cli:        w.cli,
 		debug:      w.debug,
+		rk:         w.rk,
 	}
 
 	err = e.run(taskRunners)
@@ -450,7 +454,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		}
 		if e.debug {
 			options.Debug = func(step string, v *value.Value) error {
-				debugContext := debug.NewContext(e.cli, e.app, step)
+				debugContext := debug.NewContext(e.cli, e.rk, e.app, step)
 				if err := debugContext.Set(v); err != nil {
 					return err
 				}
@@ -500,6 +504,7 @@ type engine struct {
 	wfCtx              wfContext.Context
 	app                *oamcore.Application
 	cli                client.Client
+	rk                 resourcekeeper.ResourceKeeper
 }
 
 func (e *engine) isDag() bool {
