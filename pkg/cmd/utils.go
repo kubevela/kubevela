@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ func GetNamespace(f Factory, cmd *cobra.Command) string {
 	} else {
 		envMeta, err = env.GetCurrentEnv()
 	}
-	cmdutil.CheckErr(err)
+	if err != nil {
+		return ""
+	}
 	return envMeta.Namespace
 }

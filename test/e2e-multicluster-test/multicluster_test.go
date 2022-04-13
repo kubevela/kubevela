@@ -493,7 +493,7 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
 				err := k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox-v2", Namespace: testNamespace}, &appsv1.Deployment{})
 				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
-			}, time.Minute).Should(Succeed())
+			}, 2*time.Minute).Should(Succeed())
 		})
 	})
 })

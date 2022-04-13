@@ -386,6 +386,7 @@ func rollbackApplicationWithPublishVersion(cmd *cobra.Command, cli client.Client
 	// rollback application spec and freeze
 	controllerRequirement, err := utils.FreezeApplication(ctx, cli, app, func() {
 		app.Spec = rev.Spec.Application.Spec
+		oam.SetPublishVersion(app, publishVersion)
 	})
 	if err != nil {
 		return errors.Wrapf(err, "failed to rollback application spec to revision %s (PublishVersion: %s)", rev.Name, publishVersion)

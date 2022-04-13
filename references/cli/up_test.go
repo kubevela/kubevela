@@ -129,7 +129,7 @@ spec:
 
 			var buf bytes.Buffer
 			cmd := NewUpCommand(velacmd.NewDefaultFactory(args.GetClient), "")
-			cmd.SetIn(os.Stdin)
+			cmd.SetArgs([]string{})
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
 			if c.namespace != "" {

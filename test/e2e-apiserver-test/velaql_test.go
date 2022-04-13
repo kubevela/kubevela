@@ -209,9 +209,11 @@ var _ = Describe("Test velaQL rest api", func() {
 		req := apiv1.ApplicationRequest{
 			Components: appWithHelm.Spec.Components,
 		}
-		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name), req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
+		Eventually(func(g Gomega) {
+			res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name), req)
+			g.Expect(res).ShouldNot(BeNil())
+			g.Expect(res.StatusCode).Should(Equal(200))
+		}, 1*time.Minute).Should(Succeed())
 
 		newApp := new(v1beta1.Application)
 		Eventually(func() error {
