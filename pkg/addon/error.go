@@ -48,6 +48,7 @@ func WrapErrRateLimit(err error) error {
 	return err
 }
 
+// VersionUnMatchError means addon system requirement cannot meet requirement
 type VersionUnMatchError struct {
 	err       error
 	addonName string

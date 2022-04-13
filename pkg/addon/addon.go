@@ -1382,7 +1382,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s requir: %s", k8sVersion.GitVersion, require.KubernetesVersion)
+			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 
