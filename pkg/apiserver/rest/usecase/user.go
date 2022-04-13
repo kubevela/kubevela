@@ -184,7 +184,7 @@ func (u *userUsecaseImpl) DeleteUser(ctx context.Context, username string) error
 		}
 	}
 	if err := u.ds.Delete(ctx, &model.User{Name: username}); err != nil {
-		log.Logger.Errorf("failed to delete user", username, err.Error())
+		log.Logger.Errorf("failed to delete user %v", err.Error())
 		return err
 	}
 	return nil
