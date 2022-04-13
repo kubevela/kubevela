@@ -216,6 +216,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
+
+		doDelay, delayDuration, err := wf.HandleSuspendDelay(logCtx)
+		if err != nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
+		}
+		if doDelay {
+			logCtx.Info("Workflow do delay suspend")
+			if delayDuration > 0 {
+				return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationWorkflowSuspending)).requeue(delayDuration).ret()
+			}
+			app.Status.Workflow.Suspend = false
+			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+		}
 		if !workflow.IsFailedAfterRetry(app) {
 			r.stateKeep(logCtx, handler, app)
 		}

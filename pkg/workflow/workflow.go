@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
+	wfTasks "github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -225,6 +226,54 @@ func (w *workflow) GetBackoffWaitTime() time.Duration {
 	}
 
 	return time.Second
+}
+
+func (w *workflow) HandleSuspendDelay(ctx monitorContext.Context) (doDelay bool, delayDuration time.Duration, errRet error) {
+	ctx.Info("handle suspend delay")
+	for i, stepStatus := range w.app.Status.Workflow.Steps {
+		if stepStatus.Type != wfTypes.WorkflowStepTypeSuspend || stepStatus.Phase != common.WorkflowStepPhaseRunning {
+			continue
+		}
+
+		step := w.getWorkflowStepByName(stepStatus.Name)
+		if step.Name == "" {
+			errRet = fmt.Errorf("failed to get workflow step by name: %s", stepStatus.Name)
+			return
+		}
+
+		d, dd, err := wfTasks.GetSuspendStepDelayDuration(step)
+		if err != nil {
+			ctx.Error(err, "failed to get suspend step delay duration")
+			errRet = err
+			return
+		}
+
+		if d {
+			doDelay = d
+			durationReserve := time.Since(stepStatus.FirstExecuteTime.Time)
+			if durationReserve < dd && delayDuration < dd {
+				delayDuration = dd
+			} else {
+				w.app.Status.Workflow.Steps[i].Phase = common.WorkflowStepPhaseSucceeded
+			}
+		}
+
+		if !w.dagMode {
+			return
+		}
+	}
+
+	return doDelay, delayDuration, errRet
+}
+
+func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
+	for _, s := range w.app.Spec.Workflow.Steps {
+		if s.Name == name {
+			return s
+		}
+	}
+
+	return oamcore.WorkflowStep{}
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
@@ -451,26 +500,28 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 
 		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
 		e.waiting = e.waiting || operation.Waiting
-		if status.Phase != common.WorkflowStepPhaseSucceeded {
-			wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		if status.Phase == common.WorkflowStepPhaseSucceeded || (status.Phase == common.WorkflowStepPhaseRunning && status.Type == wfTypes.WorkflowStepTypeSuspend) {
+			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
 			if err := wfCtx.Commit(); err != nil {
 				return errors.WithMessage(err, "commit workflow context")
 			}
-			if e.isDag() {
-				continue
+
+			e.finishStep(operation)
+			if e.needStop() {
+				return nil
 			}
-			e.checkFailedAfterRetries()
-			return nil
+			continue
 		}
-		wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+
+		wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
 		if err := wfCtx.Commit(); err != nil {
 			return errors.WithMessage(err, "commit workflow context")
 		}
-
-		e.finishStep(operation)
-		if e.needStop() {
-			return nil
+		if e.isDag() {
+			continue
 		}
+		e.checkFailedAfterRetries()
+		return nil
 	}
 	return nil
 }

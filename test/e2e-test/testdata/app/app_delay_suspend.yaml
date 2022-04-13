@@ -1,0 +1,27 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: delay-suspend-test
+spec:
+  components:
+    - name: delay-suspend-comp
+      type: webservice
+      properties:
+        image: nginx:1.9.4
+        port: 80
+  policies:
+    - name: local-deploy
+      type: topology
+      properties:
+        clusters: [ "local" ]
+        namespace: default
+  workflow:
+    steps:
+      - name: suspend-test
+        type: suspend
+        properties:
+          delayDuration: 30s
+      - name: deploy-to-local
+        type: deploy
+        properties:
+          policies: [ "local-deploy" ]

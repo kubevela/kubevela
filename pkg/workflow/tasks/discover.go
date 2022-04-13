@@ -18,6 +18,8 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
+	builtintime "time"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
@@ -68,10 +70,20 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 }
 
 func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
-	return &suspendTaskRunner{
-		id:   opt.ID,
-		name: step.Name,
-	}, nil
+	tr := &suspendTaskRunner{
+		id:    opt.ID,
+		name:  step.Name,
+		delay: false,
+	}
+
+	doDelay, _, err := GetSuspendStepDelayDuration(step)
+	if err != nil {
+		return nil, err
+	}
+
+	tr.delay = doDelay
+
+	return tr, nil
 }
 
 func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
@@ -102,8 +114,9 @@ func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packa
 }
 
 type suspendTaskRunner struct {
-	id   string
-	name string
+	id    string
+	name  string
+	delay bool
 }
 
 // Name return suspend step name.
@@ -113,12 +126,18 @@ func (tr *suspendTaskRunner) Name() string {
 
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-	return common.WorkflowStepStatus{
+	stepStatus := common.WorkflowStepStatus{
 		ID:    tr.id,
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: common.WorkflowStepPhaseSucceeded,
-	}, &types.Operation{Suspend: true}, nil
+	}
+
+	if tr.delay {
+		stepStatus.Phase = common.WorkflowStepPhaseRunning
+	}
+
+	return stepStatus, &types.Operation{Suspend: true}, nil
 }
 
 // Pending check task should be executed or not.
@@ -142,4 +161,28 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
 		templateLoader:     templateLoader,
 	}
+}
+
+// GetSuspendStepDelayDuration get suspend step delay duration
+func GetSuspendStepDelayDuration(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+	if step.Properties.Size() > 0 {
+		o := struct {
+			DelayDuration string `json:"delayDuration"`
+		}{}
+		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
+		if err != nil {
+			return false, 0, err
+		}
+
+		if err := json.Unmarshal(js, &o); err != nil {
+			return false, 0, err
+		}
+
+		if o.DelayDuration != "" {
+			delayDuration, err := builtintime.ParseDuration(o.DelayDuration)
+			return true, delayDuration, err
+		}
+	}
+
+	return false, 0, nil
 }
