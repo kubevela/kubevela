@@ -111,6 +111,14 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(out).ShouldNot(ContainSubstring("purpose"))
 		})
 
+		It("Test alias for cluster", func() {
+			_, err := execCommand("cluster", "alias", WorkerClusterName, "alias-worker")
+			Expect(err).Should(Succeed())
+			out, err := execCommand("cluster", "list")
+			Expect(err).Should(Succeed())
+			Expect(out).Should(ContainSubstring("alias-worker"))
+		})
+
 		It("Test detach cluster with application use", func() {
 			const testClusterName = "test-cluster"
 			_, err := execCommand("cluster", "join", "/tmp/worker.kubeconfig", "--name", testClusterName)
