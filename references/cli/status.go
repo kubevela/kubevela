@@ -27,6 +27,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -396,11 +398,15 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err == nil {
 		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app, af.Policies, true)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{}
-	printDetails, _ := cmd.Flags().GetBool("detail")
 	format, _ := cmd.Flags().GetString("detail-format")
+	var maxWidth *int
+	if w, _, err := term.GetSize(0); err == nil && w > 0 {
+		maxWidth = pointer.Int(w)
+	}
+	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format}
+	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
-		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config, format)
+		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
 		if err != nil {
 			return err
 		}
