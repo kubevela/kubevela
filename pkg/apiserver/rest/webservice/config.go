@@ -20,7 +20,6 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -151,7 +150,10 @@ func (s *configWebService) createConfig(req *restful.Request, res *restful.Respo
 
 	err := s.handler.CreateConfig(req.Request.Context(), createReq)
 	if err != nil {
-		log.Logger.Errorf("failed to create config: %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
