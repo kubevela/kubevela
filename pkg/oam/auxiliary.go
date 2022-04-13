@@ -62,3 +62,34 @@ func GetLastAppliedTime(o client.Object) time.Time {
 	}
 	return o.GetCreationTimestamp().Time
 }
+
+// SetPublishVersion set PublishVersion for object
+func SetPublishVersion(o client.Object, publishVersion string) {
+	annotations := o.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationPublishVersion] = publishVersion
+	o.SetAnnotations(annotations)
+}
+
+// GetControllerRequirement get ControllerRequirement from object
+func GetControllerRequirement(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationControllerRequirement]
+	}
+	return ""
+}
+
+// SetControllerRequirement set ControllerRequirement for object
+func SetControllerRequirement(o client.Object, controllerRequirement string) {
+	annotations := o.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationControllerRequirement] = controllerRequirement
+	if controllerRequirement == "" {
+		delete(annotations, AnnotationControllerRequirement)
+	}
+	o.SetAnnotations(annotations)
+}

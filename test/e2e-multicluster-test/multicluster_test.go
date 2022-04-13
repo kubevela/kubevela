@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 
 	. "github.com/onsi/ginkgo"
@@ -446,6 +447,53 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
 				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: "test-busybox", Namespace: prodNamespace}, &appsv1.Deployment{})).Should(Succeed())
 			}, time.Minute).Should(Succeed())
+		})
+
+		It("Test re-deploy application with old revisions", func() {
+			By("apply application")
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "test-app-target"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name:       "test-busybox",
+						Type:       "webservice",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox","cmd":["sleep","86400"]}`)},
+					}},
+					Policies: []v1beta1.AppPolicy{{
+						Name:       "topology-local",
+						Type:       "topology",
+						Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["local"],"namespace":"%s"}`, testNamespace))},
+					},
+					}}}
+			oam.SetPublishVersion(app, "alpha")
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
+			}, time.Minute).Should(Succeed())
+
+			By("update application to new version")
+			appKey := client.ObjectKeyFromObject(app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
+				app.Spec.Components[0].Name = "test-busybox-v2"
+				oam.SetPublishVersion(app, "beta")
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox-v2", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
+				err := k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})
+				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+			}, time.Minute).Should(Succeed())
+
+			By("Re-publish application to v1")
+			_, err := execCommand("up", appKey.Name, "-n", appKey.Namespace, "--revision", appKey.Name+"-v1", "--publish-version", "v1.0")
+			Expect(err).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox", Namespace: testNamespace}, &appsv1.Deployment{})).Should(Succeed())
+				err := k8sClient.Get(hubCtx, types.NamespacedName{Name: "test-busybox-v2", Namespace: testNamespace}, &appsv1.Deployment{})
+				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+			}, 2*time.Minute).Should(Succeed())
 		})
 	})
 })
