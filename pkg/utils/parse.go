@@ -253,3 +253,10 @@ func ParseGitlab(addr, repo string) (string, *Content, error) {
 		},
 	}, nil
 }
+
+// ParseUserInputBeforeLog trim user Input info befor logging refer to: https://owasp.org/www-community/attacks/Log_Injection
+func ParseUserInputBeforeLog(input string) string {
+	output := strings.ReplaceAll(input, "\n", "")
+	output = strings.ReplaceAll(output, "\r", "")
+	return output
+}

@@ -20,14 +20,13 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/pkg/utils"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
@@ -78,7 +77,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, repoURL string, 
 	}
 	charts, err := d.helper.ListChartsFromRepo(repoURL, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch charts error: %s", err.Error())
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.ParseUserInputBeforeLog(repoURL), err.Error())
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
@@ -98,11 +97,11 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, repoURL strin
 	}
 	chartVersions, err := d.helper.ListVersions(repoURL, chartName, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart versions error: %s", err.Error())
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName), err.Error())
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
-		log.Logger.Error("no chart exist in this repo \n")
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName))
 		return nil, bcode.ErrChartNotExist
 	}
 	return chartVersions, nil
@@ -122,7 +121,7 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, repoURL string, 
 	}
 	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart values error: %s", err.Error())
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName), utils.ParseUserInputBeforeLog(version), err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
@@ -149,6 +148,7 @@ func (d defaultHelmHandler) ListChartRepo(ctx context.Context, projectName strin
 			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
 		}
 	}
+
 	globalSecrets := corev1.SecretList{}
 	selector := metav1.LabelSelector{
 		MatchLabels: map[string]string{oam.LabelConfigType: "config-helm-repository"},

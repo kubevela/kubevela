@@ -19,6 +19,8 @@ package utils
 import (
 	"testing"
 
+	"gotest.tools/assert"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,5 +51,29 @@ func TestByteCountIEC(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r.Equal(tt.Output, ByteCountIEC(tt.Input))
 		})
+	}
+}
+
+func TestParseUserInputBeforeLog(t *testing.T) {
+	testcase := []struct {
+		c   string
+		res string
+	}{
+		{
+			c: `test
+
+input`,
+			res: "testinput",
+		},
+		{
+			c: `test
+input
+`, res: "testinput",
+		},
+	}
+
+	for _, s := range testcase {
+		out := ParseUserInputBeforeLog(s.c)
+		assert.Equal(t, out, s.res)
 	}
 }

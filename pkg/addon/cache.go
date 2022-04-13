@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 )
 
@@ -106,7 +108,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
-			log.Logger.Errorf("fail to get addons from registryfor cache updating, %v", err)
+			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", utils.ParseUserInputBeforeLog(r.Name), err)
 			return nil, err
 		}
 	}
