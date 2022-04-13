@@ -1,0 +1,290 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.7.0
+  creationTimestamp: null
+  name: rollouts.rollouts.kruise.io
+spec:
+  group: rollouts.kruise.io
+  names:
+    kind: Rollout
+    listKind: RolloutList
+    plural: rollouts
+    singular: rollout
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: The rollout status phase
+          jsonPath: .status.phase
+          name: STATUS
+          type: string
+        - description: The rollout canary status step
+          jsonPath: .status.canaryStatus.currentStepIndex
+          name: CANARY_STEP
+          type: integer
+        - description: The rollout canary status step state
+          jsonPath: .status.canaryStatus.currentStepState
+          name: CANARY_STATE
+          type: string
+        - description: The rollout canary status message
+          jsonPath: .status.message
+          name: MESSAGE
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: AGE
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Rollout is the Schema for the rollouts API
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: RolloutSpec defines the desired state of Rollout
+              properties:
+                objectRef:
+                  description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                  ObjectRef indicates workload'
+                  properties:
+                    workloadRef:
+                      description: WorkloadRef contains enough information to let you
+                        identify a workload for Rollout Batch release of the bypass
+                      properties:
+                        apiVersion:
+                          description: API Version of the referent
+                          type: string
+                        kind:
+                          description: Kind of the referent
+                          type: string
+                        name:
+                          description: Name of the referent
+                          type: string
+                      required:
+                        - apiVersion
+                        - kind
+                        - name
+                      type: object
+                  type: object
+                strategy:
+                  description: rollout strategy
+                  properties:
+                    canary:
+                      description: CanaryStrategy defines parameters for a Replica Based
+                        Canary
+                      properties:
+                        steps:
+                          description: Steps define the order of phases to execute release
+                            in batches(20%, 40%, 60%, 80%, 100%)
+                          items:
+                            description: CanaryStep defines a step of a canary workload.
+                            properties:
+                              pause:
+                                description: Pause defines a pause stage for a rollout,
+                                  manual or auto
+                                properties:
+                                  duration:
+                                    description: Duration the amount of time to wait
+                                      before moving to the next step.
+                                    format: int32
+                                    type: integer
+                                type: object
+                              replicas:
+                                anyOf:
+                                  - type: integer
+                                  - type: string
+                                description: 'Replicas is the number of expected canary
+                                pods in this batch it can be an absolute number (ex:
+                                5) or a percentage of total pods.'
+                                x-kubernetes-int-or-string: true
+                              weight:
+                                description: SetWeight sets what percentage of the canary
+                                  pods should receive
+                                format: int32
+                                type: integer
+                            type: object
+                          type: array
+                        trafficRoutings:
+                          description: TrafficRoutings hosts all the supported service
+                            meshes supported to enable more fine-grained traffic routing
+                            todo current only support one
+                          items:
+                            description: TrafficRouting hosts all the different configuration
+                              for supported service meshes to enable more fine-grained
+                              traffic routing
+                            properties:
+                              gracePeriodSeconds:
+                                description: Optional duration in seconds the traffic
+                                  provider(e.g. nginx ingress controller) consumes the
+                                  service, ingress configuration changes gracefully.
+                                format: int32
+                                type: integer
+                              ingress:
+                                description: Ingress holds Ingress specific configuration
+                                  to route traffic, e.g. Nginx, Alb.
+                                properties:
+                                  name:
+                                    description: Name refers to the name of an `Ingress`
+                                      resource in the same namespace as the `Rollout`
+                                    type: string
+                                required:
+                                  - name
+                                type: object
+                              service:
+                                description: Service holds the name of a service which
+                                  selects pods with stable version and don't select
+                                  any pods with canary version.
+                                type: string
+                              type:
+                                description: nginx, alb, istio etc.
+                                type: string
+                            required:
+                              - service
+                              - type
+                            type: object
+                          type: array
+                      type: object
+                    paused:
+                      description: Paused indicates that the Rollout is paused. Default
+                        value is false
+                      type: boolean
+                  type: object
+              required:
+                - objectRef
+                - strategy
+              type: object
+            status:
+              description: RolloutStatus defines the observed state of Rollout
+              properties:
+                canaryStatus:
+                  description: Canary describes the state of the canary rollout
+                  properties:
+                    canaryReadyReplicas:
+                      description: CanaryReadyReplicas the numbers of ready canary revision
+                        pods
+                      format: int32
+                      type: integer
+                    canaryReplicas:
+                      description: CanaryReplicas the numbers of canary revision pods
+                      format: int32
+                      type: integer
+                    canaryRevision:
+                      description: CanaryRevision is calculated by rollout based on
+                        podTemplateHash, and the internal logic flow uses It may be
+                        different from rs podTemplateHash in different k8s versions,
+                        so it cannot be used as service selector label
+                      type: string
+                    canaryService:
+                      description: CanaryService holds the name of a service which selects
+                        pods with canary version and don't select any pods with stable
+                        version.
+                      type: string
+                    currentStepIndex:
+                      description: CurrentStepIndex defines the current step of the
+                        rollout is on. If the current step index is null, the controller
+                        will execute the rollout.
+                      format: int32
+                      type: integer
+                    currentStepState:
+                      type: string
+                    lastReadyTime:
+                      description: The last time this step pods is ready.
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedWorkloadGeneration:
+                      description: observedWorkloadGeneration is the most recent generation
+                        observed for this Rollout ref workload generation.
+                      format: int64
+                      type: integer
+                    podTemplateHash:
+                      description: pod template hash is used as service selector label
+                      type: string
+                    rolloutHash:
+                      description: RolloutHash from rollout.spec object
+                      type: string
+                  required:
+                    - canaryReadyReplicas
+                    - canaryReplicas
+                    - canaryService
+                    - currentStepState
+                    - podTemplateHash
+                  type: object
+                conditions:
+                  description: Conditions a list of conditions a rollout can have.
+                  items:
+                    description: RolloutCondition describes the state of a rollout at
+                      a certain point.
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one status
+                          to another.
+                        format: date-time
+                        type: string
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        format: date-time
+                        type: string
+                      message:
+                        description: A human readable message indicating details about
+                          the transition.
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        type: string
+                      status:
+                        description: Phase of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: Type of rollout condition.
+                        type: string
+                    required:
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                message:
+                  description: Message provides details on why the rollout is in its
+                    current phase
+                  type: string
+                observedGeneration:
+                  description: observedGeneration is the most recent generation observed
+                    for this Rollout.
+                  format: int64
+                  type: integer
+                phase:
+                  description: BlueGreenStatus *BlueGreenStatus `json:"blueGreenStatus,omitempty"`
+                    Phase is the rollout phase.
+                  type: string
+                stableRevision:
+                  description: CanaryRevision the hash of the canary pod template CanaryRevision
+                    string `json:"canaryRevision,omitempty"` StableRevision indicates
+                    the revision pods that has successfully rolled out
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

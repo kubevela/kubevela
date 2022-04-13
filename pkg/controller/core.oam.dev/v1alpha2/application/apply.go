@@ -280,6 +280,9 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
 		}
+		if status.Message == "" || traitStatus.Message != "" {
+			status.Message = traitStatus.Message
+		}
 		traitStatusList = append(traitStatusList, traitStatus)
 		namespace = appRev.GetNamespace()
 		wl.Ctx.SetCtx(context.WithValue(wl.Ctx.GetCtx(), multicluster.ClusterContextKey, status.Cluster))

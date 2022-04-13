@@ -37,6 +37,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
+	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -102,6 +103,7 @@ func init() {
 	_ = ocmworkv1.Install(Scheme)
 	_ = clustergatewayapi.AddToScheme(Scheme)
 	_ = metricsV1beta1api.AddToScheme(Scheme)
+	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = prismclusterv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
