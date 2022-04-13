@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -45,11 +46,15 @@ import (
 )
 
 // ResourceDetailRetriever retriever to get details for resource
-type ResourceDetailRetriever func(*resourceRow) error
+type ResourceDetailRetriever func(*resourceRow, string) error
 
 // ResourceTreePrintOptions print options for resource tree
 type ResourceTreePrintOptions struct {
 	DetailRetriever ResourceDetailRetriever
+	// MaxWidth if set, the detail part will auto wrap
+	MaxWidth *int
+	// Format for details
+	Format string
 }
 
 const (
@@ -171,9 +176,64 @@ func (options *ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, c
 	colsWidth[1] += 4
 }
 
-func (options *ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows []*resourceRow, colsWidth []int) {
-	applyTimeWidth := 20
+const (
+	applyTimeWidth = 20
+	detailMinWidth = 20
+)
 
+func (options *ResourceTreePrintOptions) _getWidthForDetails(colsWidth []int) int {
+	detailWidth := 0
+	if options.MaxWidth == nil {
+		return math.MaxInt
+	}
+	detailWidth = *options.MaxWidth - applyTimeWidth
+	for _, width := range colsWidth {
+		detailWidth -= width
+	}
+	// if the space for details exceeds the max allowed width, give up wrapping lines
+	if detailWidth < detailMinWidth {
+		detailWidth = math.MaxInt
+	}
+	return detailWidth
+}
+
+func (options *ResourceTreePrintOptions) _wrapDetails(detail string, width int) (lines []string) {
+	for _, row := range strings.Split(detail, "\n") {
+		var sb strings.Builder
+		row = strings.ReplaceAll(row, "\t", " ")
+		for _, token := range strings.Split(row, "  ") {
+			if sb.Len()+len(token)+2 <= width {
+				if sb.Len() > 0 {
+					sb.WriteString("  ")
+				}
+				sb.WriteString(token)
+			} else {
+				if sb.Len() > 0 {
+					lines = append(lines, sb.String())
+					sb.Reset()
+				}
+				offset := 0
+				for {
+					if offset+width > len(token) {
+						break
+					}
+					lines = append(lines, token[offset:offset+width])
+					offset += width
+				}
+				sb.WriteString(token[offset:])
+			}
+		}
+		if sb.Len() > 0 {
+			lines = append(lines, sb.String())
+		}
+	}
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	return lines
+}
+
+func (options *ResourceTreePrintOptions) writeResourceTree(writer io.Writer, rows []*resourceRow, colsWidth []int) {
 	writePaddedString := func(sb *strings.Builder, head string, tail string, width int) {
 		sb.WriteString(head)
 		for c := strutil.StringWidth(head) + strutil.StringWidth(tail); c < width; c++ {
@@ -195,14 +255,15 @@ func (options *ResourceTreePrintOptions) writeResourceTree(writer io.Writer, row
 
 	connectorColorizer := color.WhiteString
 	outdatedColorizer := color.WhiteString
+	detailWidth := options._getWidthForDetails(colsWidth)
 
 	for _, row := range rows {
 		if options.DetailRetriever != nil && row.status != resourceRowStatusNotDeployed {
-			if err := options.DetailRetriever(row); err != nil {
+			if err := options.DetailRetriever(row, options.Format); err != nil {
 				row.details = "Error: " + err.Error()
 			}
 		}
-		for lineIdx, line := range strings.Split(row.details, "\n") {
+		for lineIdx, line := range options._wrapDetails(row.details, detailWidth) {
 			var sb strings.Builder
 			rscName, rscStatus, applyTime := row.resourceName, row.status, row.applyTime
 			if row.status != resourceRowStatusUpdated {
@@ -275,7 +336,7 @@ func (rt tableRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 // RetrieveKubeCtlGetMessageGenerator get details like kubectl get
-func RetrieveKubeCtlGetMessageGenerator(cfg *rest.Config, format string) (ResourceDetailRetriever, error) {
+func RetrieveKubeCtlGetMessageGenerator(cfg *rest.Config) (ResourceDetailRetriever, error) {
 	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return tableRoundTripper{rt: rt}
 	})
@@ -283,7 +344,7 @@ func RetrieveKubeCtlGetMessageGenerator(cfg *rest.Config, format string) (Resour
 	if err != nil {
 		return nil, err
 	}
-	return func(row *resourceRow) error {
+	return func(row *resourceRow, format string) error {
 		mr := row.mr
 		un := &unstructured.Unstructured{}
 		un.SetAPIVersion(mr.APIVersion)
