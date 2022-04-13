@@ -22,7 +22,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -384,18 +383,12 @@ func rollbackApplicationWithPublishVersion(cmd *cobra.Command, cli client.Client
 	cmd.Printf("Find succeeded application revision %s (PublishVersion: %s) to rollback.\n", rev.Name, publishVersion)
 
 	appKey := client.ObjectKeyFromObject(app)
-	var controllerRequirement string
 	// rollback application spec and freeze
-	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		if err = cli.Get(ctx, appKey, app); err != nil {
-			return err
-		}
-		v1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationPublishVersion, publishVersion)
-		controllerRequirement = app.GetAnnotations()[oam.AnnotationControllerRequirement]
-		v1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationControllerRequirement, "Not Available")
+	controllerRequirement, err := utils.FreezeApplication(ctx, cli, app, func() {
 		app.Spec = rev.Spec.Application.Spec
-		return cli.Update(ctx, app)
-	}); err != nil {
+		oam.SetPublishVersion(app, publishVersion)
+	})
+	if err != nil {
 		return errors.Wrapf(err, "failed to rollback application spec to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
 	}
 	cmd.Printf("Application spec rollback successfully.\n")
@@ -435,19 +428,7 @@ func rollbackApplicationWithPublishVersion(cmd *cobra.Command, cli client.Client
 	}
 
 	// unfreeze application
-	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		if err = cli.Get(ctx, appKey, app); err != nil {
-			return err
-		}
-		annotations := app.GetAnnotations()
-		if controllerRequirement != "" {
-			annotations[oam.AnnotationControllerRequirement] = controllerRequirement
-		} else {
-			delete(annotations, oam.AnnotationControllerRequirement)
-		}
-		app.SetAnnotations(annotations)
-		return cli.Update(ctx, app)
-	}); err != nil {
+	if err = utils.UnfreezeApplication(ctx, cli, app, nil, controllerRequirement); err != nil {
 		return errors.Wrapf(err, "failed to resume application to restart")
 	}
 	cmd.Printf("Application rollback completed.\n")

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -442,6 +443,7 @@ func generateAddonInfo(name string, status pkgaddon.Status) string {
 		for c := range status.Clusters {
 			ic = append(ic, c)
 		}
+		sort.Strings(ic)
 		res += fmt.Sprintf("installedClusters: %s \n", ic)
 	}
 	return res
