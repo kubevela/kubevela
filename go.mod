@@ -47,11 +47,11 @@ require (
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.4.2
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.3 // indirect
-	github.com/openkruise/kruise-api v0.9.0
+	github.com/openkruise/kruise-api v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
@@ -62,7 +62,7 @@ require (
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.5.1
-	go.uber.org/zap v1.18.1
+	go.uber.org/zap v1.19.0
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
@@ -74,23 +74,23 @@ require (
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.6.1
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
-	k8s.io/api v0.22.1
-	k8s.io/apiextensions-apiserver v0.22.1
-	k8s.io/apimachinery v0.22.1
-	k8s.io/apiserver v0.22.1
+	k8s.io/api v0.22.6
+	k8s.io/apiextensions-apiserver v0.22.6
+	k8s.io/apimachinery v0.22.6
+	k8s.io/apiserver v0.22.6
 	k8s.io/cli-runtime v0.21.0
-	k8s.io/client-go v0.22.1
-	k8s.io/component-base v0.22.1
+	k8s.io/client-go v0.22.6
+	k8s.io/component-base v0.22.6
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/kube-aggregator v0.22.1
-	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
+	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c
 	k8s.io/kubectl v0.21.0
 	k8s.io/metrics v0.21.0
-	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
+	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/controller-runtime v0.9.5
+	sigs.k8s.io/controller-runtime v0.10.3
 	sigs.k8s.io/controller-tools v0.6.2
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0
@@ -101,6 +101,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.0 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
+	github.com/openkruise/rollouts v0.0.0-20220331070852-6c1ae60f9c3b
 	github.com/xanzy/go-gitlab v0.60.0
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
 	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
@@ -277,16 +278,17 @@ require (
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.24 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.27 // indirect
 	sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2 // indirect
 	sigs.k8s.io/kustomize/api v0.8.5 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.10.15 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )
 
 replace (
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
+	github.com/openkruise/rollouts => github.com/zmberg/rollouts v0.0.0-20220412081748-c6fabf54ab85
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
 )

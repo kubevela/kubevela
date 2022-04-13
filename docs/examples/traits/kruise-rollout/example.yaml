@@ -1,0 +1,54 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: ackone-demo
+spec:
+  components:
+    - name: podinfo
+      type: ref-objects
+      properties:
+        objects:
+          - apiVersion: apps/v1
+            kind: Deployment
+          - apiVersion: v1
+            kind: Service
+          - apiVersion: networking.k8s.io/v1
+            kind: Ingress
+      traits:
+        - type: container-image
+          properties:
+            image: stefanprodan/podinfo:6.0.2
+        - type: scaler
+          properties:
+            replicas: 5
+        - type: kruise-rollout
+          properties:
+            canary:
+              steps:
+                - weight: 20
+                  duration: 0
+                - weight: 60
+                - weight: 100
+                  duration: 10
+              trafficRoutings:
+                type: nginx
+  policies:
+    - type: topology
+      name: topology-beijing-1-cluster
+      properties:
+        clusters: ["beijing-1"]
+    - type: topology
+      name: topology-beijing-2-cluster
+      properties:
+        clusters: ["beijing-2"]
+  workflow:
+    steps:
+      - type: deploy
+        name: deploy-beijing-1
+        properties:
+          policies: ["topology-beijing-1-cluster"]
+      - type: deploy
+        name: deploy-beijing-2
+        properties:
+          policies: ["topology-beijing-2-cluster", "override-auto-rollout"]

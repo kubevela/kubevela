@@ -31,8 +31,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/rollout"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -81,12 +83,19 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			err = suspendWorkflow(client, app)
-			if err != nil {
+			if err = rollout.SuspendRollout(context.Background(), client, app, cmd.OutOrStdout()); err != nil {
+				return err
+			}
+			if err = suspendWorkflow(client, app); err != nil {
 				return err
 			}
 			return nil
@@ -121,21 +130,31 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			if app.Status.Workflow.Terminated {
 				return fmt.Errorf("can not resume a terminated workflow")
 			}
-			if !app.Status.Workflow.Suspend {
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			client, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
+			var rolloutResumed bool
+			if rolloutResumed, err = rollout.ResumeRollout(context.Background(), client, app, cmd.OutOrStdout()); err != nil {
+				return err
+			}
+			if !rolloutResumed && !app.Status.Workflow.Suspend {
 				_, err := ioStream.Out.Write([]byte("the workflow is not suspending\n"))
 				if err != nil {
 					return err
 				}
 				return nil
 			}
-			client, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
-			err = resumeWorkflow(client, app)
-			if err != nil {
-				return err
+			if app.Status.Workflow.Suspend {
+				if err = resumeWorkflow(client, app); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -203,10 +222,16 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if app.Status.Workflow == nil {
 				return fmt.Errorf("the workflow in application is not running")
 			}
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
+			_, _ = rollout.ResumeRollout(context.Background(), client, app, cmd.OutOrStdout())
 
 			err = restartWorkflow(client, app)
 			if err != nil {
@@ -241,10 +266,16 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
 				return fmt.Errorf("can not rollback a running workflow")
 			}
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 			client, err := c.GetClient()
 			if err != nil {
 				return err
 			}
+			_, _ = rollout.ResumeRollout(context.Background(), client, app, cmd.OutOrStdout())
 
 			err = rollbackWorkflow(cmd, client, app)
 			if err != nil {
@@ -270,6 +301,7 @@ func suspendWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	}); err != nil {
 		return err
 	}
+
 	fmt.Printf("Successfully suspend workflow: %s\n", app.Name)
 	return nil
 }
