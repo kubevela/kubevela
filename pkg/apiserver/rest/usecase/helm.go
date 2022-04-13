@@ -77,7 +77,7 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, repoURL string, 
 	}
 	charts, err := d.helper.ListChartsFromRepo(repoURL, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.ParseUserInputBeforeLog(repoURL), err.Error())
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.Sanitize(repoURL), err.Error())
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
@@ -97,11 +97,11 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, repoURL strin
 	}
 	chartVersions, err := d.helper.ListVersions(repoURL, chartName, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName), err.Error())
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), err.Error())
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName))
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName))
 		return nil, bcode.ErrChartNotExist
 	}
 	return chartVersions, nil
@@ -121,7 +121,7 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, repoURL string, 
 	}
 	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.ParseUserInputBeforeLog(repoURL), utils.ParseUserInputBeforeLog(chartName), utils.ParseUserInputBeforeLog(version), err.Error())
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))

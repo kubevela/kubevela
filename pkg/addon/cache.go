@@ -108,7 +108,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
-			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", utils.ParseUserInputBeforeLog(r.Name), err)
+			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", utils.Sanitize(r.Name), err)
 			return nil, err
 		}
 	}
