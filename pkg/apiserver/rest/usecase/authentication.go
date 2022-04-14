@@ -208,24 +208,7 @@ func (a *authenticationUsecaseImpl) generateJWTToken(ctx context.Context, userna
 		GrantType: grantType,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := a.getSignedKey(ctx)
-	if err != nil {
-		return "", err
-	}
-	return token.SignedString([]byte(signed))
-}
-
-func (a *authenticationUsecaseImpl) getSignedKey(ctx context.Context) (string, error) {
-	if signedKey != "" {
-		return signedKey, nil
-	}
-	info, err := a.sysUsecase.Get(ctx)
-	if err != nil {
-		return "", err
-	}
-	signedKey = info.InstallID
-
-	return signedKey, nil
+	return token.SignedString([]byte(signedKey))
 }
 
 func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshToken string) (*apisv1.RefreshTokenResponse, error) {
