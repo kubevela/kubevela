@@ -48,7 +48,9 @@ var _ = Describe("Test envBindingUsecase functions", func() {
 		testApp = &model.Application{
 			Name: "test-app-env",
 		}
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, kubeClient: k8sClient, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.TODO())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, workflowUsecase: workflowUsecase, definitionUsecase: definitionUsecase, kubeClient: k8sClient, envUsecase: envUsecase}

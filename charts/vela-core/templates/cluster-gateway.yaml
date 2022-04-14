@@ -89,9 +89,19 @@ spec:
 {{ end }}
 ---
 {{ if .Values.multicluster.enabled }}
+# 1.  Check whether APIService ""v1alpha1.cluster.core.oam.dev" is already present in the cluster
+# 2.a If the APIService doesn't exist, create it.
+# 2.b If the APIService exists without helm-chart related annotation, skip creating it to the
+#     cluster because the APIService can be managed by an external controller.
+# 2.c If the APIService exists with valid helm-chart annotations, which means that the APIService
+#     is previously managed by helm commands, hence update the APIService consistently.
 {{ $apiSvc := (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev") }}
 {{ $shouldAdopt := (not $apiSvc) }}
-{{ if not $shouldAdopt }}{{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}{{ end }}
+{{ if not $shouldAdopt }}
+  {{ if $apiSvc.metadata.annotations }}
+    {{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}
+  {{ end }}
+{{ end }}
 {{ if $shouldAdopt }}
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService

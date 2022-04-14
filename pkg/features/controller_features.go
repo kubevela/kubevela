@@ -23,12 +23,18 @@ import (
 )
 
 const (
-	// DeprecatedPolicySpecCompatible enable the use of deprecated policy spec
-	DeprecatedPolicySpecCompatible featuregate.Feature = "DeprecatedPolicySpecCompatible"
+	// DeprecatedPolicySpec enable the use of deprecated policy spec
+	DeprecatedPolicySpec featuregate.Feature = "DeprecatedPolicySpec"
+	// LegacyObjectTypeIdentifier enable the use of legacy object type identifier for selecting ref-object
+	LegacyObjectTypeIdentifier featuregate.Feature = "LegacyObjectTypeIdentifier"
+	// DeprecatedObjectLabelSelector enable the use of deprecated object label selector for selecting ref-object
+	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	DeprecatedPolicySpecCompatible: {Default: false, PreRelease: featuregate.Alpha},
+	DeprecatedPolicySpec:          {Default: false, PreRelease: featuregate.Alpha},
+	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
+	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

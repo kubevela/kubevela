@@ -30,9 +30,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 )
 
+// MigrateKey marks the label key of the migrated data
+const MigrateKey = "db.oam.dev/migrated"
+
 // migrate will migrate the configmap to new short table name, it won't delete the configmaps:
 // users can delete by the following commands:
-// kubectl -n kubevela delete cm -l migrated=ok
+// kubectl -n kubevela delete cm -l db.oam.dev/migrated=ok
 func migrate(dbns string) {
 	kubeClient, err := clients.GetKubeClient()
 	if err != nil {
@@ -68,14 +71,14 @@ func migrate(dbns string) {
 				continue
 			}
 
-			cm.Labels["migrated"] = "ok"
+			cm.Labels[MigrateKey] = "ok"
 			err = kubeClient.Update(context.Background(), &cm)
 			if err != nil {
 				klog.Errorf("update migrated record %s for kubeapi storage err: %v", cm.Name, err)
 			}
 			cm.Name = strings.ReplaceAll(k.ShortTableName()+strings.TrimPrefix(cm.Name, checkprefix), "_", "-")
 			cm.ResourceVersion = ""
-			delete(cm.Labels, "migrated")
+			delete(cm.Labels, MigrateKey)
 			err = kubeClient.Create(context.Background(), &cm)
 			if err != nil {
 				klog.Errorf("migrate record %s for kubeapi storage err: %v", cm.Name, err)

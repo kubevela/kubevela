@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -30,16 +30,24 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	e2e_apiserver "github.com/oam-dev/kubevela/test/e2e-apiserver-test"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
 var k8sClient client.Client
+var token string
+
+const (
+	baseDomain   = "http://127.0.0.1:8000"
+	baseURL      = "http://127.0.0.1:8000/api/v1"
+	testNSprefix = "api-e2e-test-"
+)
 
 func TestE2eApiserverTest(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -79,23 +87,38 @@ var _ = BeforeSuite(func() {
 	By("wait for api server to start")
 	Eventually(
 		func() error {
-			res, err := http.Get("http://127.0.0.1:8000/api/v1/projects")
+			secret := &v1.Secret{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: "admin", Namespace: "vela-system"}, secret)
 			if err != nil {
 				return err
 			}
-			if res.StatusCode == http.StatusOK {
+			var req = apisv1.LoginRequest{
+				Username: "admin",
+				Password: string(secret.Data["admin"]),
+			}
+			bodyByte, err := json.Marshal(req)
+			Expect(err).Should(BeNil())
+			resp, err := http.Post("http://127.0.0.1:8000/api/v1/auth/login", "application/json", bytes.NewBuffer(bodyByte))
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode == 200 {
+				loginResp := &apisv1.LoginResponse{}
+				err = json.NewDecoder(resp.Body).Decode(loginResp)
+				Expect(err).Should(BeNil())
+				token = "Bearer " + loginResp.AccessToken
 				var req = apisv1.CreateProjectRequest{
 					Name:        appProject,
 					Description: "test project",
 				}
-				bodyByte, err := json.Marshal(req)
-				Expect(err).ShouldNot(HaveOccurred())
-				_, err = http.Post("http://127.0.0.1:8000/api/v1/projects", "application/json", bytes.NewBuffer(bodyByte))
-				Expect(err).ShouldNot(HaveOccurred())
+				_ = post("/projects", req)
 				return nil
 			}
-			return errors.New("rest service not ready")
-		}, time.Second*5, time.Millisecond*200).Should(BeNil())
+			code := &bcode.Bcode{}
+			err = json.NewDecoder(resp.Body).Decode(code)
+			Expect(err).Should(BeNil())
+			return fmt.Errorf("rest service not ready code:%d message:%s", resp.StatusCode, code.Message)
+		}, time.Second*10, time.Millisecond*200).Should(BeNil())
 	By("api server started")
 })
 
@@ -105,8 +128,92 @@ var _ = AfterSuite(func() {
 	err := k8sClient.List(context.TODO(), &nsList)
 	Expect(err).ToNot(HaveOccurred())
 	for _, ns := range nsList.Items {
-		if strings.HasPrefix(ns.Name, e2e_apiserver.TestNSprefix) {
+		if strings.HasPrefix(ns.Name, testNSprefix) {
 			_ = k8sClient.Delete(context.TODO(), &ns)
 		}
 	}
 })
+
+func post(path string, body interface{}) *http.Response {
+	b, err := json.Marshal(body)
+	Expect(err).Should(BeNil())
+	client := &http.Client{}
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodPost, path, bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	req.Header.Add("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func put(path string, body interface{}) *http.Response {
+	b, err := json.Marshal(body)
+	Expect(err).Should(BeNil())
+	client := &http.Client{}
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodPut, path, bytes.NewBuffer(b))
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func get(path string) *http.Response {
+	client := &http.Client{}
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodGet, path, nil)
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func delete(path string) *http.Response {
+	client := &http.Client{}
+	if !strings.HasPrefix(path, "/v1") {
+		path = baseURL + path
+	} else {
+		path = baseDomain + path
+	}
+	req, err := http.NewRequest(http.MethodDelete, path, nil)
+	Expect(err).Should(BeNil())
+	req.Header.Add("Authorization", token)
+	response, err := client.Do(req)
+	Expect(err).Should(BeNil())
+	return response
+}
+
+func decodeResponseBody(resp *http.Response, dst interface{}) error {
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("response code is not 200: %d", resp.StatusCode)
+	}
+	if resp.Body == nil {
+		return fmt.Errorf("response body is nil")
+	}
+	if dst != nil {
+		err := json.NewDecoder(resp.Body).Decode(dst)
+		Expect(err).Should(BeNil())
+		return resp.Body.Close()
+	}
+	return resp.Body.Close()
+}

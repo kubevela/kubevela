@@ -36,6 +36,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -53,6 +54,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -113,6 +115,9 @@ var (
 
 	// CLIMetaOptions get Addon metadata for CLI display
 	CLIMetaOptions = ListOptions{}
+
+	// UnInstallOptions used for addon uninstalling
+	UnInstallOptions = ListOptions{GetDefinition: true}
 )
 
 const (
@@ -282,6 +287,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
 		}
 	}
+	addon.AvailableVersions = []string{addon.Version}
 	return addon, nil
 }
 
@@ -442,6 +448,15 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 	}
 }
 
+func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
+	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+
+	return &gitlabHelper{
+		Client: newClient,
+		Meta:   content,
+	}, err
+}
+
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
 	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
@@ -520,32 +535,22 @@ func genAddonAPISchema(addonRes *UIData) error {
 	return nil
 }
 
-// RenderApp render a K8s application
-func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
-	if args == nil {
-		args = map[string]interface{}{}
+func getClusters(args map[string]interface{}) []string {
+	ccr, ok := args[types.ClustersArg]
+	if !ok {
+		return nil
 	}
-	app := addon.AppTemplate
-	if app == nil {
-		app = &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      Convert2AppName(addon.Name),
-				Namespace: types.DefaultKubeVelaNS,
-				Labels: map[string]string{
-					oam.LabelAddonName: addon.Name,
-				},
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common2.ApplicationComponent{},
-			},
-		}
+	cc, ok := ccr.([]string)
+	if !ok {
+		return nil
 	}
-	app.Labels = util.MergeMapOverrideWithDst(app.Labels, map[string]string{oam.LabelAddonName: addon.Name})
+	return cc
+}
 
-	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
-	app.SetNamespace(types.DefaultKubeVelaNS)
-
+// renderNeededNamespaceAsComps will convert namespace as app components to create namespace for managed clusters
+func renderNeededNamespaceAsComps(addon *InstallPackage) []common2.ApplicationComponent {
+	var nscomps []common2.ApplicationComponent
+	// create namespace for managed clusters
 	for _, namespace := range addon.NeedNamespace {
 		// vela-system must exist before rendering vela addon
 		if namespace == types.DefaultKubeVelaNS {
@@ -556,42 +561,157 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 			Name:       fmt.Sprintf("%s-namespace", namespace),
 			Properties: util.Object2RawExtension(renderNamespace(namespace)),
 		}
-		app.Spec.Components = append(app.Spec.Components, comp)
+		nscomps = append(nscomps, comp)
 	}
+	return nscomps
+}
 
+func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
+	var resources []common2.ApplicationComponent
 	if len(addon.YAMLTemplates) != 0 {
 		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
 		if err != nil {
 			return nil, err
 		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
+		resources = append(resources, *comp)
 	}
 
 	for _, tmpl := range addon.CUETemplates {
-		comp, err := renderCUETemplate(tmpl, addon.Parameters, args)
+		comp, err := renderCUETemplate(tmpl, addon.Parameters, args, addon.Meta)
 		if err != nil {
 			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
 		}
 		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
 			comp.Name = strings.Split(comp.Name, ".cue")[0]
 		}
-		app.Spec.Components = append(app.Spec.Components, *comp)
+		resources = append(resources, *comp)
+	}
+	return resources, nil
+}
+
+func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
+	app := addon.AppTemplate
+	if app == nil {
+		app = &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common2.ApplicationComponent{},
+			},
+		}
+	}
+	if app.Spec.Components == nil {
+		app.Spec.Components = []common2.ApplicationComponent{}
+	}
+	app.Name = Convert2AppName(addon.Name)
+	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
+	app.SetNamespace(types.DefaultKubeVelaNS)
+	if app.Labels == nil {
+		app.Labels = make(map[string]string)
+	}
+	app.Labels[oam.LabelAddonName] = addon.Name
+	app.Labels[oam.LabelAddonVersion] = addon.Version
+	return app
+}
+
+func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[string]interface{}) ([]string, error) {
+	deployClusters := getClusters(args)
+	if len(deployClusters) == 0 || k8sClient == nil {
+		return nil, nil
+	}
+	vcs, err := multicluster.ListVirtualClusters(ctx, k8sClient)
+	if err != nil {
+		return nil, err
+	}
+	var res []string
+	for _, c := range deployClusters {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		var found bool
+		for _, vc := range vcs {
+			if c == vc.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, errors.Errorf("cluster %s not exist", c)
+		}
+		res = append(res, c)
+	}
+	return res, nil
+}
+
+// RenderApp render a K8s application
+func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
+
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+
+	app := formatAppFramework(addon)
+	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
+
+	resources, err := renderResources(addon, args)
+	if err != nil {
+		return nil, err
+	}
+	app.Spec.Components = append(app.Spec.Components, resources...)
+
+	deployClusters, err := checkDeployClusters(ctx, k8sClient, args)
+	if err != nil {
+		return nil, err
 	}
 
 	switch {
 	case isDeployToRuntimeOnly(addon):
-		if app.Spec.Workflow == nil {
-			app.Spec.Workflow = &v1beta1.Workflow{Steps: make([]v1beta1.WorkflowStep, 0)}
-		}
-		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps,
-			v1beta1.WorkflowStep{
-				Name: "deploy-control-plane",
-				Type: "apply-application",
-			},
-			v1beta1.WorkflowStep{
-				Name: "deploy-runtime",
-				Type: "deploy2runtime",
+		if len(deployClusters) == 0 {
+			// deploy to all clusters
+			app.Spec.Workflow = &v1beta1.Workflow{Steps: []v1beta1.WorkflowStep{
+				{
+					Name: "deploy-control-plane",
+					Type: "apply-application",
+				},
+				{
+					Name: "deploy-runtime",
+					Type: "deploy2runtime",
+				},
+			}}
+			// TODO(wonderflow): this can be merged into len(deployClusters) > 0 case
+			/*
+				allclusters, err := multicluster.ListVirtualClusters(ctx, k8sClient)
+				if err != nil {
+					return nil, err
+				}
+				for _, c := range allclusters {
+					deployClusters = append(deployClusters, c.Name)
+				}
+			*/
+		} else {
+			var found bool
+			for _, c := range deployClusters {
+				if c == multicluster.ClusterLocalName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				deployClusters = append(deployClusters, multicluster.ClusterLocalName)
+			}
+			// deploy to specified clusters
+			if app.Spec.Policies == nil {
+				app.Spec.Policies = []v1beta1.AppPolicy{}
+			}
+			body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+				Name:       "specified-addon-clusters",
+				Type:       v1alpha1.TopologyPolicyType,
+				Properties: &runtime.RawExtension{Raw: body},
 			})
+			// addon should not contain workflow, this also update legacy addon with deploy2runtime steps
+			app.Spec.Workflow = nil
+		}
 	case addon.Name == ObservabilityAddon:
 		clusters, err := allocateDomainForAddon(ctx, k8sClient)
 		if err != nil {
@@ -627,36 +747,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, config *rest.Config, 
 		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, workflowSteps...)
 
 	default:
-		for _, cueDef := range addon.CUEDefinitions {
-			def := definition.Definition{Unstructured: unstructured.Unstructured{}}
-			err := def.FromCUEString(cueDef.Data, config)
-			if err != nil {
-				return nil, errors.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
-			}
-			if def.Unstructured.GetNamespace() == "" {
-				def.Unstructured.SetNamespace(types.DefaultKubeVelaNS)
-			}
-			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
-				Name:       cueDef.Name,
-				Type:       "raw",
-				Properties: util.Object2RawExtension(&def.Unstructured),
-			})
-		}
-		for _, teml := range addon.DefSchemas {
-			u, err := renderSchemaConfigmap(teml)
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Components = append(app.Spec.Components, common2.ApplicationComponent{
-				Name:       teml.Name,
-				Type:       "raw",
-				Properties: util.Object2RawExtension(u),
-			})
-		}
-		// set to nil so workflow mode will be set to "DAG" automatically
-		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) == 0 {
-			app.Spec.Workflow = nil
-		}
+
 	}
 
 	return app, nil
@@ -695,14 +786,13 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	schemaConfigmaps := make([]*unstructured.Unstructured, 0)
 
-	if isDeployToRuntimeOnly(addon) {
-		for _, teml := range addon.DefSchemas {
-			u, err := renderSchemaConfigmap(teml)
-			if err != nil {
-				return nil, err
-			}
-			schemaConfigmaps = append(schemaConfigmaps, u)
+	// No matter runtime mode or control mode , definition schemas only needs to control plane k8s.
+	for _, teml := range addon.DefSchemas {
+		u, err := renderSchemaConfigmap(teml)
+		if err != nil {
+			return nil, err
 		}
+		schemaConfigmaps = append(schemaConfigmaps, u)
 	}
 	return schemaConfigmaps, nil
 }
@@ -852,17 +942,28 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 }
 
 // renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}) (*common2.ApplicationComponent, error) {
+func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}, metadata Meta) (*common2.ApplicationComponent, error) {
 	bt, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
 	}
+	var contextFile = strings.Builder{}
 	var paramFile = cuemodel.ParameterFieldName + ": {}"
 	if string(bt) != "null" {
 		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
 	}
-	param := fmt.Sprintf("%s\n%s", paramFile, parameters)
-	v, err := value.NewValue(param, nil, "")
+	// addon metadata context
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+	contextFile.WriteString(fmt.Sprintf("context: metadata: %s\n", string(metadataJSON)))
+	// parameter definition
+	contextFile.WriteString(paramFile + "\n")
+	// user custom parameter
+	contextFile.WriteString(parameters + "\n")
+
+	v, err := value.NewValue(contextFile.String(), nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -979,7 +1080,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	h.addon = addon
 	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
-		return ErrVersionMismatch
+		return VersionUnMatchError{addonName: addon.Name, err: err}
 	}
 
 	if err = h.installDependency(addon); err != nil {
@@ -996,26 +1097,37 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	return nil
 }
 
-func (h *Installer) loadInstallPackage(name string) (*InstallPackage, error) {
-	metas, err := h.getAddonMeta()
-	if err != nil {
-		return nil, errors.Wrap(err, "fail to get addon meta")
+func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
+	var installPackage *InstallPackage
+	var err error
+	if !IsVersionRegistry(*h.r) {
+		metas, err := h.getAddonMeta()
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to get addon meta")
+		}
+
+		meta, ok := metas[name]
+		if !ok {
+			return nil, ErrNotExist
+		}
+		var uiData *UIData
+		uiData, err = h.cache.GetUIData(*h.r, name, version)
+		if err != nil {
+			return nil, err
+		}
+		// enable this addon if it's invisible
+		installPackage, err = h.r.GetInstallPackage(&meta, uiData)
+		if err != nil {
+			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
+		}
+	} else {
+		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL)
+		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	meta, ok := metas[name]
-	if !ok {
-		return nil, ErrNotExist
-	}
-	var uiData *UIData
-	uiData, err = h.cache.GetUIData(*h.r, name)
-	if err != nil {
-		return nil, err
-	}
-	// enable this addon if it's invisible
-	installPackage, err := h.r.GetInstallPackage(&meta, uiData)
-	if err != nil {
-		return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
-	}
 	return installPackage, nil
 }
 
@@ -1043,7 +1155,8 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		depAddon, err := h.loadInstallPackage(dep.Name)
+		// always install addon's latest version
+		depAddon, err := h.loadInstallPackage(dep.Name, "")
 		if err != nil {
 			return err
 		}
@@ -1075,9 +1188,29 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 	}
 	return needEnable, nil
 }
+func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
+	var getapp v1beta1.Application
+	err := h.cli.Get(h.ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, &getapp)
+	if apierrors.IsNotFound(err) {
+		return h.cli.Create(h.ctx, app)
+	}
+	if err != nil {
+		return err
+	}
+	getapp.Spec = app.Spec
+	getapp.Labels = app.Labels
+	getapp.Annotations = app.Annotations
+	err = h.cli.Update(h.ctx, &getapp)
+	if err != nil {
+		klog.Errorf("fail to create application: %v", err)
+		return errors.Wrap(err, "fail to create application")
+	}
+	getapp.DeepCopyInto(app)
+	return nil
+}
 
 func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
-	app, err := RenderApp(h.ctx, addon, h.config, h.cli, h.args)
+	app, err := RenderApp(h.ctx, addon, h.cli, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
@@ -1100,10 +1233,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
-	err = h.apply.Apply(h.ctx, app, apply.DisableUpdateAnnotation())
-	if err != nil {
-		klog.Errorf("fail to create application: %v", err)
-		return errors.Wrap(err, "fail to create application")
+	if err := passDefInAppAnnotation(defs, app); err != nil {
+		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
+	}
+
+	if err = h.createOrUpdate(app); err != nil {
+		return err
 	}
 
 	for _, def := range defs {
@@ -1219,7 +1354,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
+			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1236,7 +1371,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
+			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1257,7 +1392,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
+			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

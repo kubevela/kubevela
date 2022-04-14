@@ -32,8 +32,10 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
+	relutil "helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
@@ -44,13 +46,20 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/yaml"
 
+	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
+const (
+	repoPatten   = " repoUrl: %s"
+	valuesPatten = "repoUrl: %s, chart: %s, version: %s"
+)
+
 // Helper provides helper functions for common Helm operations
 type Helper struct {
+	cache *utils2.MemoryCacheStore
 }
 
 // NewHelper creates a Helper
@@ -58,12 +67,19 @@ func NewHelper() *Helper {
 	return &Helper{}
 }
 
+// NewHelperWithCache creates a Helper with cache usually used by apiserver
+func NewHelperWithCache() *Helper {
+	return &Helper{
+		cache: utils2.NewMemoryCacheStore(context.Background()),
+	}
+}
+
 // LoadCharts load helm chart from local or remote
-func (h *Helper) LoadCharts(chartRepoURL string) (*chart.Chart, error) {
+func (h *Helper) LoadCharts(chartRepoURL string, opts *common.HTTPOption) (*chart.Chart, error) {
 	var err error
 	var chart *chart.Chart
 	if utils.IsValidURL(chartRepoURL) {
-		chartBytes, err := common.HTTPGet(context.Background(), chartRepoURL)
+		chartBytes, err := common.HTTPGetWithOption(context.Background(), chartRepoURL, opts)
 		if err != nil {
 			return nil, errors.New("error retrieving Helm Chart at " + chartRepoURL + ": " + err.Error())
 		}
@@ -104,7 +120,7 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 	var newRelease *release.Release
 	timeoutInMinutes := 18
 	releases, err := histClient.Run(releaseName)
-	if err != nil {
+	if err != nil || len(releases) == 0 {
 		if errors.Is(err, driver.ErrReleaseNotFound) {
 			// fresh install
 			install := action.NewInstall(cfg)
@@ -125,6 +141,20 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 				r.Info.Status == release.StatusPendingRollback {
 				return nil, fmt.Errorf("previous installation (e.g., using vela install or helm upgrade) is still in progress. Please try again in %d minutes", timeoutInMinutes)
 			}
+
+		}
+
+		// merge un-existing values into the values as user-input, because the helm chart upgrade didn't handle the new default values in the chart.
+		if config.ReuseValues {
+			// sort will sort the release by revision from old to new
+			relutil.SortByRevision(releases)
+			rel := releases[len(releases)-1]
+			// merge new chart values into old values, the values of old chart has the high priority
+			mergedWithNewValues := chartutil.CoalesceTables(rel.Chart.Values, ch.Values)
+			// merge the chart with the released chart config but follow the old config
+			mergeWithConfigs := chartutil.CoalesceTables(rel.Config, mergedWithNewValues)
+			// merge new values as the user input, follow the new user input for --set
+			values = chartutil.CoalesceTables(values, mergeWithConfigs)
 		}
 
 		// overwrite existing installation
@@ -164,15 +194,21 @@ func (h *Helper) UninstallRelease(releaseName, namespace string, config *rest.Co
 }
 
 // ListVersions list available versions from repo
-func (h *Helper) ListVersions(repoURL string, chartName string) (repo.ChartVersions, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, opts *common.HTTPOption) (repo.ChartVersions, error) {
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
 	return i.Entries[chartName], nil
 }
 
-func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
+// GetIndexInfo get index.yaml form given repo url
+func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPOption) (*repo.IndexFile, error) {
+	if h.cache != nil && !skipCache {
+		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
+			return i.(*repo.IndexFile), nil
+		}
+	}
 	var body []byte
 	if utils.IsValidURL(repoURL) {
 		parsedURL, err := url.Parse(repoURL)
@@ -182,7 +218,7 @@ func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
 		parsedURL.RawPath = path.Join(parsedURL.RawPath, "index.yaml")
 		parsedURL.Path = path.Join(parsedURL.Path, "index.yaml")
 		indexURL := parsedURL.String()
-		body, err = common.HTTPGet(context.Background(), indexURL)
+		body, err = common.HTTPGetWithOption(context.Background(), indexURL, opts)
 		if err != nil {
 			return nil, fmt.Errorf("download index file from %s failure %w", repoURL, err)
 		}
@@ -196,6 +232,10 @@ func (h *Helper) getIndexInfo(repoURL string) (*repo.IndexFile, error) {
 	i := &repo.IndexFile{}
 	if err := yaml.UnmarshalStrict(body, i); err != nil {
 		return nil, fmt.Errorf("parse index file from %s failure %w", repoURL, err)
+	}
+
+	if h.cache != nil {
+		h.cache.Put(fmt.Sprintf(repoPatten, repoURL), i, calculateCacheTimeFromIndex(len(i.Entries)))
 	}
 	return i, nil
 }
@@ -260,8 +300,8 @@ func newActionConfig(config *rest.Config, namespace string, showDetail bool, log
 }
 
 // ListChartsFromRepo list available helm charts in a repo
-func (h *Helper) ListChartsFromRepo(repoURL string) ([]string, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common.HTTPOption) ([]string, error) {
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -275,8 +315,13 @@ func (h *Helper) ListChartsFromRepo(repoURL string) ([]string, error) {
 }
 
 // GetValuesFromChart will extract the parameter from a helm chart
-func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string) (map[string]interface{}, error) {
-	i, err := h.getIndexInfo(repoURL)
+func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, opts *common.HTTPOption) (map[string]interface{}, error) {
+	if h.cache != nil && !skipCache {
+		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
+			return v.(map[string]interface{}), nil
+		}
+	}
+	i, err := h.GetIndexInfo(repoURL, skipCache, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -291,11 +336,24 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 		}
 	}
 	for _, u := range urls {
-		c, err := h.LoadCharts(u)
+		c, err := h.LoadCharts(u, opts)
 		if err != nil {
 			continue
+		}
+		if h.cache != nil {
+			h.cache.Put(fmt.Sprintf(valuesPatten, repoURL, chartName, version), c.Values, calculateCacheTimeFromIndex(len(i.Entries)))
 		}
 		return c.Values, nil
 	}
 	return nil, fmt.Errorf("cannot load chart from chart repo")
+}
+
+func calculateCacheTimeFromIndex(length int) time.Duration {
+	cacheTime := 3 * time.Minute
+	if length > 20 {
+		// huge helm repo like https://charts.bitnami.com/bitnami have too many(106) charts, generally user cannot modify it.
+		// need more cache time
+		cacheTime = 1 * time.Hour
+	}
+	return cacheTime
 }

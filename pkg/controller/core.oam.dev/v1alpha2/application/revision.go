@@ -30,18 +30,19 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -155,6 +156,15 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 		}))
 		defer subCtx.Commit("finish prepare current appRevision")
 	}
+
+	if af.AppRevision != nil {
+		h.isNewRevision = false
+		h.latestAppRev = af.AppRevision
+		h.currentAppRev = af.AppRevision
+		h.currentRevHash = af.AppRevisionHash
+		return nil
+	}
+
 	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
 	if err != nil {
 		return err
@@ -187,7 +197,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
-	copiedApp.Spec.Workflow = nil
+	if !metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationPublishVersion) {
+		copiedApp.Spec.Workflow = nil
+	}
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			Application:             *copiedApp,
@@ -198,9 +210,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 			WorkflowStepDefinitions: make(map[string]v1beta1.WorkflowStepDefinition),
 			ScopeGVK:                make(map[string]metav1.GroupVersionKind),
-
-			// add an empty appConfig here just for compatible as old version kubevela need appconfig as required value
-			ApplicationConfiguration: runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1alpha2","kind":"ApplicationConfiguration"}`)},
+			Policies:                make(map[string]v1alpha1.Policy),
 		},
 	}
 	for _, w := range af.Workloads {
@@ -253,6 +263,17 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	for name, def := range af.RelatedTraitDefinitions {
 		appRev.Spec.TraitDefinitions[name] = *def
 	}
+	for name, def := range af.RelatedWorkflowStepDefinitions {
+		appRev.Spec.WorkflowStepDefinitions[name] = *def
+	}
+	for name, po := range af.ExternalPolicies {
+		appRev.Spec.Policies[name] = *po
+	}
+	var err error
+	if appRev.Spec.ReferredObjects, err = component.ConvertUnstructuredsToReferredObjects(af.ReferredObjects); err != nil {
+		return nil, "", errors.Wrapf(err, "failed to marshal referred object")
+	}
+	appRev.Spec.Workflow = af.ExternalWorkflow
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
@@ -282,24 +303,29 @@ func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
 // ComputeAppRevisionHash computes a single hash value for an appRevision object
 // Spec of Application/WorkloadDefinitions/ComponentDefinitions/TraitDefinitions/ScopeDefinitions will be taken into compute
 func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, error) {
-	// we first constructs a AppRevisionHash structure to store all the meaningful spec hashes
-	// and avoid computing the annotations. Those fields are all read from k8s already so their
-	// raw extension value are already byte array. Never include any in-memory objects.
-	type AppRevisionHash struct {
-		ApplicationSpecHash     string
-		WorkloadDefinitionHash  map[string]string
-		ComponentDefinitionHash map[string]string
-		TraitDefinitionHash     map[string]string
-		ScopeDefinitionHash     map[string]string
-	}
-	appRevisionHash := AppRevisionHash{
-		WorkloadDefinitionHash:  make(map[string]string),
-		ComponentDefinitionHash: make(map[string]string),
-		TraitDefinitionHash:     make(map[string]string),
-		ScopeDefinitionHash:     make(map[string]string),
+	// Calculate Hash for New Mode with workflow and policy
+	revHash := struct {
+		ApplicationSpecHash        string
+		WorkloadDefinitionHash     map[string]string
+		ComponentDefinitionHash    map[string]string
+		TraitDefinitionHash        map[string]string
+		ScopeDefinitionHash        map[string]string
+		PolicyDefinitionHash       map[string]string
+		WorkflowStepDefinitionHash map[string]string
+		PolicyHash                 map[string]string
+		WorkflowHash               string
+		ReferredObjectsHash        string
+	}{
+		WorkloadDefinitionHash:     make(map[string]string),
+		ComponentDefinitionHash:    make(map[string]string),
+		TraitDefinitionHash:        make(map[string]string),
+		ScopeDefinitionHash:        make(map[string]string),
+		PolicyDefinitionHash:       make(map[string]string),
+		WorkflowStepDefinitionHash: make(map[string]string),
+		PolicyHash:                 make(map[string]string),
 	}
 	var err error
-	appRevisionHash.ApplicationSpecHash, err = utils.ComputeSpecHash(filterSkipAffectAppRevTrait(appRevision.Spec.Application.Spec, appRevision.Spec.TraitDefinitions))
+	revHash.ApplicationSpecHash, err = utils.ComputeSpecHash(filterSkipAffectAppRevTrait(appRevision.Spec.Application.Spec, appRevision.Spec.TraitDefinitions))
 	if err != nil {
 		return "", err
 	}
@@ -308,69 +334,61 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		if err != nil {
 			return "", err
 		}
-		appRevisionHash.WorkloadDefinitionHash[key] = hash
+		revHash.WorkloadDefinitionHash[key] = hash
 	}
 	for key, cd := range appRevision.Spec.ComponentDefinitions {
 		hash, err := utils.ComputeSpecHash(&cd.Spec)
 		if err != nil {
 			return "", err
 		}
-		appRevisionHash.ComponentDefinitionHash[key] = hash
+		revHash.ComponentDefinitionHash[key] = hash
 	}
 	for key, td := range filterSkipAffectAppRevTraitDefinitions(appRevision.Spec.TraitDefinitions) {
 		hash, err := utils.ComputeSpecHash(&td.Spec)
 		if err != nil {
 			return "", err
 		}
-		appRevisionHash.TraitDefinitionHash[key] = hash
+		revHash.TraitDefinitionHash[key] = hash
 	}
 	for key, sd := range appRevision.Spec.ScopeDefinitions {
 		hash, err := utils.ComputeSpecHash(&sd.Spec)
 		if err != nil {
 			return "", err
 		}
-		appRevisionHash.ScopeDefinitionHash[key] = hash
-	}
-	// compatible for old mode without any policy or workflow
-	if len(appRevision.Spec.PolicyDefinitions) == 0 && len(appRevision.Spec.WorkflowStepDefinitions) == 0 {
-		// compute the hash of the entire structure
-		return utils.ComputeSpecHash(&appRevisionHash)
-	}
-
-	// Calculate Hash for New Mode with workflow and policy
-	type AppRevisionHashWorkflow struct {
-		ApplicationSpecHash        string
-		WorkloadDefinitionHash     map[string]string
-		ComponentDefinitionHash    map[string]string
-		TraitDefinitionHash        map[string]string
-		ScopeDefinitionHash        map[string]string
-		PolicyDefinitionHash       map[string]string
-		WorkflowStepDefinitionHash map[string]string
-	}
-	appRevisionHashWorkflow := AppRevisionHashWorkflow{
-		ApplicationSpecHash:        appRevisionHash.ApplicationSpecHash,
-		WorkloadDefinitionHash:     appRevisionHash.WorkloadDefinitionHash,
-		ComponentDefinitionHash:    appRevisionHash.ComponentDefinitionHash,
-		TraitDefinitionHash:        appRevisionHash.TraitDefinitionHash,
-		ScopeDefinitionHash:        appRevisionHash.ScopeDefinitionHash,
-		PolicyDefinitionHash:       make(map[string]string),
-		WorkflowStepDefinitionHash: make(map[string]string),
+		revHash.ScopeDefinitionHash[key] = hash
 	}
 	for key, pd := range appRevision.Spec.PolicyDefinitions {
 		hash, err := utils.ComputeSpecHash(&pd.Spec)
 		if err != nil {
 			return "", err
 		}
-		appRevisionHashWorkflow.PolicyDefinitionHash[key] = hash
+		revHash.PolicyDefinitionHash[key] = hash
 	}
 	for key, wd := range appRevision.Spec.WorkflowStepDefinitions {
 		hash, err := utils.ComputeSpecHash(&wd.Spec)
 		if err != nil {
 			return "", err
 		}
-		appRevisionHashWorkflow.WorkflowStepDefinitionHash[key] = hash
+		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
-	return utils.ComputeSpecHash(&appRevisionHashWorkflow)
+	for key, po := range appRevision.Spec.Policies {
+		hash, err := utils.ComputeSpecHash(po.Properties)
+		if err != nil {
+			return "", err
+		}
+		revHash.PolicyHash[key] = hash + po.Type
+	}
+	if appRevision.Spec.Workflow != nil {
+		revHash.WorkflowHash, err = utils.ComputeSpecHash(appRevision.Spec.Workflow.Steps)
+		if err != nil {
+			return "", err
+		}
+	}
+	revHash.ReferredObjectsHash, err = utils.ComputeSpecHash(appRevision.Spec.ReferredObjects)
+	if err != nil {
+		return "", err
+	}
+	return utils.ComputeSpecHash(&revHash)
 }
 
 // currentAppRevIsNew check application revision already exist or not
@@ -384,6 +402,9 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationAutoUpdate) {
 		isLatestRev = h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev)
 	}
+	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
+		isLatestRev = false
+	}
 
 	// diff the latest revision first
 	if isLatestRev {
@@ -396,20 +417,19 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		return false, false, nil
 	}
 
-	// list revision histories
-	revisionList := &v1beta1.ApplicationRevisionList{}
-	listOpts := []client.ListOption{client.MatchingLabels{
-		oam.LabelAppName: h.app.Name,
-	}, client.InNamespace(h.app.Namespace)}
-	if err := h.r.Client.List(ctx, revisionList, listOpts...); err != nil {
+	revs, err := GetAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
+	if err != nil {
 		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
 		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
 
-	for i := range revisionList.Items {
-		if revisionList.Items[i].GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash && DeepEqualRevision(&revisionList.Items[i], h.currentAppRev) {
+	for _, _rev := range revs {
+		rev := _rev.DeepCopy()
+		if rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash &&
+			DeepEqualRevision(rev, h.currentAppRev) &&
+			oam.GetPublishVersion(rev) == oam.GetPublishVersion(h.app) {
 			// we set currentAppRev to existRevision
-			h.currentAppRev = revisionList.Items[i].DeepCopy()
+			h.currentAppRev = rev
 			return true, false, nil
 		}
 	}
@@ -459,7 +479,31 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	return deepEqualAppInRevision(old, new)
 }
 
+func deepEqualPolicy(old, new v1alpha1.Policy) bool {
+	return old.Type == new.Type && apiequality.Semantic.DeepEqual(old.Properties, new.Properties)
+}
+
+func deepEqualWorkflow(old, new v1alpha1.Workflow) bool {
+	return apiequality.Semantic.DeepEqual(old.Steps, new.Steps)
+}
+
 func deepEqualAppInRevision(old, new *v1beta1.ApplicationRevision) bool {
+	if len(old.Spec.Policies) != len(new.Spec.Policies) {
+		return false
+	}
+	for key, po := range new.Spec.Policies {
+		if !deepEqualPolicy(old.Spec.Policies[key], po) {
+			return false
+		}
+	}
+	if (old.Spec.Workflow == nil) != (new.Spec.Workflow == nil) {
+		return false
+	}
+	if old.Spec.Workflow != nil && new.Spec.Workflow != nil {
+		if !deepEqualWorkflow(*old.Spec.Workflow, *new.Spec.Workflow) {
+			return false
+		}
+	}
 	return apiequality.Semantic.DeepEqual(filterSkipAffectAppRevTrait(old.Spec.Application.Spec, old.Spec.TraitDefinitions),
 		filterSkipAffectAppRevTrait(new.Spec.Application.Spec, new.Spec.TraitDefinitions))
 }
@@ -724,8 +768,6 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}})
-	// In this stage, the configmap is empty and not generated.
-	appRev.Spec.ResourcesConfigMap.Name = appRev.Name
 
 	gotAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.r.Get(ctx, client.ObjectKey{Name: appRev.Name, Namespace: appRev.Namespace}, gotAppRev); err != nil {
@@ -770,24 +812,17 @@ func cleanUpApplicationRevision(ctx context.Context, h *AppHandler) error {
 	if DisableAllApplicationRevision {
 		return nil
 	}
-	listOpts := []client.ListOption{
-		client.InNamespace(h.app.Namespace),
-		client.MatchingLabels{oam.LabelAppName: h.app.Name},
-	}
-	appRevisionList := new(v1beta1.ApplicationRevisionList)
-	// controller-runtime will cache all appRevision by default, there is no need to watch or own appRevision in manager
-	if err := h.r.List(ctx, appRevisionList, listOpts...); err != nil {
+	sortedRevision, err := GetSortedAppRevisions(ctx, h.r.Client, h.app.Name, h.app.Namespace)
+	if err != nil {
 		return err
 	}
 	appRevisionInUse := gatherUsingAppRevision(h)
-	needKill := len(appRevisionList.Items) - h.r.appRevisionLimit - len(appRevisionInUse)
+	needKill := len(sortedRevision) - h.r.appRevisionLimit - len(appRevisionInUse)
 	if needKill <= 0 {
 		return nil
 	}
 	klog.InfoS("Going to garbage collect app revisions", "limit", h.r.appRevisionLimit,
-		"total", len(appRevisionList.Items), "using", len(appRevisionInUse), "kill", needKill)
-	sortedRevision := appRevisionList.Items
-	sort.Sort(historiesByRevision(sortedRevision))
+		"total", len(sortedRevision), "using", len(appRevisionInUse), "kill", needKill)
 
 	for _, rev := range sortedRevision {
 		if needKill <= 0 {
@@ -851,17 +886,6 @@ func filterSkipAffectAppRevTraitDefinitions(tds map[string]v1beta1.TraitDefiniti
 		}
 	}
 	return res
-}
-
-type historiesByRevision []v1beta1.ApplicationRevision
-
-func (h historiesByRevision) Len() int      { return len(h) }
-func (h historiesByRevision) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h historiesByRevision) Less(i, j int) bool {
-	// the appRevision is generated by vela,  the error always is nil, so ignore it
-	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
-	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
-	return ir < ij
 }
 
 func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error {
@@ -934,4 +958,47 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 	ir, _ := util.ExtractRevisionNum(h[i].Name, "-")
 	ij, _ := util.ExtractRevisionNum(h[j].Name, "-")
 	return ir < ij
+}
+
+// UpdateApplicationRevisionStatus update application revision status
+func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, succeed bool, wfStatus *common.WorkflowStatus) {
+	if appRev == nil {
+		return
+	}
+	appRev.Status.Succeeded = succeed
+	appRev.Status.Workflow = wfStatus
+	if err := h.r.Client.Status().Update(ctx, appRev); err != nil {
+		if logCtx, ok := ctx.(monitorContext.Context); ok {
+			logCtx.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
+		} else {
+			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
+		}
+	}
+}
+
+// GetAppRevisions get application revisions by label
+func GetAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	listOpts := []client.ListOption{
+		client.InNamespace(appNs),
+		client.MatchingLabels{oam.LabelAppName: appName},
+	}
+	appRevisionList := new(v1beta1.ApplicationRevisionList)
+	if err := cli.List(ctx, appRevisionList, listOpts...); err != nil {
+		return nil, err
+	}
+	return appRevisionList.Items, nil
+}
+
+// GetSortedAppRevisions get application revisions by revision number
+func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName string, appNs string) ([]v1beta1.ApplicationRevision, error) {
+	revs, err := GetAppRevisions(ctx, cli, appName, appNs)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(revs, func(i, j int) bool {
+		ir, _ := util.ExtractRevisionNum(revs[i].Name, "-")
+		ij, _ := util.ExtractRevisionNum(revs[j].Name, "-")
+		return ir < ij
+	})
+	return revs, nil
 }

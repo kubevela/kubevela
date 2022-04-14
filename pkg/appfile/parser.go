@@ -18,18 +18,23 @@ package appfile
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
@@ -38,7 +43,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
+	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -77,7 +84,8 @@ func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryM
 	}
 }
 
-// GenerateAppFile converts an application to an Appfile
+// GenerateAppFile generate appfile for the application to run, if the application is controlled by PublishVersion,
+// the application revision will be used to create the appfile
 func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("generate-app-file", monitorContext.DurationMetric(func(v float64) {
@@ -85,6 +93,17 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		}))
 		defer subCtx.Commit("finish generate appFile")
 	}
+	if isLatest, appRev, err := p.isLatestPublishVersion(ctx, app); err != nil {
+		return nil, err
+	} else if isLatest {
+		app.Spec = appRev.Spec.Application.Spec
+		return p.GenerateAppFileFromRevision(appRev)
+	}
+	return p.GenerateAppFileFromApp(ctx, app)
+}
+
+// GenerateAppFileFromApp converts an application to an Appfile
+func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
 	ns := app.Namespace
 	appName := app.Name
 
@@ -106,25 +125,14 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 	appfile.Components = app.Spec.Components
 
 	var err error
-	// parse workflow steps
-	appfile.WorkflowMode = common.WorkflowModeDAG
-	if wfSpec := app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
-		appfile.WorkflowMode = common.WorkflowModeStep
-		appfile.WorkflowSteps = wfSpec.Steps
+	if err = p.parseWorkflowSteps(ctx, appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseWorkflowSteps")
 	}
-	appfile.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
-		&step.RefWorkflowStepGenerator{Client: p.client, Context: ctx},
-		&step.DeployWorkflowStepGenerator{},
-		&step.Deploy2EnvWorkflowStepGenerator{},
-		&step.ApplyComponentWorkflowStepGenerator{},
-		&step.DeployPreApproveWorkflowStepGenerator{},
-	).Generate(appfile.app, appfile.WorkflowSteps)
-	if err != nil {
-		return nil, err
-	}
-
 	if err = p.parsePolicies(ctx, appfile); err != nil {
-		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+		return nil, errors.Wrapf(err, "failed to parsePolicies")
+	}
+	if err = p.parseReferredObjects(ctx, appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseReferredObjects")
 	}
 
 	for _, w := range wds {
@@ -162,11 +170,14 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 		Name:      appName,
 		Namespace: ns,
 
-		AppLabels:                   make(map[string]string),
-		AppAnnotations:              make(map[string]string),
-		RelatedTraitDefinitions:     make(map[string]*v1beta1.TraitDefinition),
-		RelatedComponentDefinitions: make(map[string]*v1beta1.ComponentDefinition),
-		RelatedScopeDefinitions:     make(map[string]*v1beta1.ScopeDefinition),
+		AppLabels:                      make(map[string]string),
+		AppAnnotations:                 make(map[string]string),
+		RelatedTraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
+		RelatedComponentDefinitions:    make(map[string]*v1beta1.ComponentDefinition),
+		RelatedScopeDefinitions:        make(map[string]*v1beta1.ScopeDefinition),
+		RelatedWorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
+
+		ExternalPolicies: make(map[string]*v1alpha1.Policy),
 
 		parser: p,
 		app:    app,
@@ -178,6 +189,31 @@ func (p *Parser) newAppfile(appName, ns string, app *v1beta1.Application) *Appfi
 		file.AppLabels[k] = v
 	}
 	return file
+}
+
+// isLatestPublishVersion checks if the latest application revision has the same publishVersion with the application,
+// return true and the latest ApplicationRevision if they share the same publishVersion
+func (p *Parser) isLatestPublishVersion(ctx context.Context, app *v1beta1.Application) (bool, *v1beta1.ApplicationRevision, error) {
+	if !metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+		return false, nil, nil
+	}
+	if app.Status.LatestRevision == nil {
+		return false, nil, nil
+	}
+	appRev := &v1beta1.ApplicationRevision{}
+	if err := p.client.Get(ctx, ktypes.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.GetNamespace()}, appRev); err != nil {
+		if kerrors.IsNotFound(err) {
+			return false, nil, nil
+		}
+		return false, nil, errors.Wrapf(err, "failed to load latest application revision")
+	}
+	if !metav1.HasAnnotation(appRev.ObjectMeta, oam.AnnotationPublishVersion) {
+		return false, nil, nil
+	}
+	if app.GetAnnotations()[oam.AnnotationPublishVersion] != appRev.GetAnnotations()[oam.AnnotationPublishVersion] {
+		return false, nil, nil
+	}
+	return true, appRev, nil
 }
 
 // inheritLabelAndAnnotationFromAppRev is a compatible function, that we can't record metadata for application object in AppRev
@@ -214,8 +250,14 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	ns := app.Namespace
 	appName := app.Name
 	appfile := p.newAppfile(appName, ns, app)
+	appfile.AppRevision = appRev
 	appfile.AppRevisionName = appRev.Name
 	appfile.AppRevisionHash = appRev.Labels[oam.LabelAppRevisionHash]
+	appfile.ExternalPolicies = make(map[string]*v1alpha1.Policy)
+	for key, po := range appRev.Spec.Policies {
+		appfile.ExternalPolicies[key] = po.DeepCopy()
+	}
+	appfile.ExternalWorkflow = appRev.Spec.Workflow
 
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
@@ -227,11 +269,14 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	}
 	appfile.Workloads = wds
 	appfile.Components = app.Spec.Components
-
-	var err error
-	appfile.PolicyWorkloads, err = p.parsePoliciesFromRevision(app.Spec.Policies, appRev)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+	if err := p.parseWorkflowStepsFromRevision(context.Background(), appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseWorkflowStepsFromRevision")
+	}
+	if err := p.parsePoliciesFromRevision(context.Background(), appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parsePolicies")
+	}
+	if err := p.parseReferredObjectsFromRevision(appfile); err != nil {
+		return nil, errors.Wrapf(err, "failed to parseReferredObjects")
 	}
 
 	for k, v := range appRev.Spec.ComponentDefinitions {
@@ -240,78 +285,150 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	for k, v := range appRev.Spec.TraitDefinitions {
 		appfile.RelatedTraitDefinitions[k] = v.DeepCopy()
 	}
+	for k, v := range appRev.Spec.WorkflowStepDefinitions {
+		appfile.RelatedWorkflowStepDefinitions[k] = v.DeepCopy()
+	}
 	for k, v := range appRev.Spec.ScopeDefinitions {
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
-	}
-
-	if wfSpec := app.Spec.Workflow; wfSpec != nil {
-		appfile.WorkflowSteps = wfSpec.Steps
 	}
 
 	return appfile, nil
 }
 
-func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) error {
-	ws := []*Workload{}
-
-	policies, err := step.LoadExternalPoliciesForWorkflow(ctx, p.client, af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
-	if err != nil {
-		return err
-	}
-
-	var compDefs []*v1beta1.ComponentDefinition
-	var traitDefs []*v1beta1.TraitDefinition
-	for _, policy := range policies {
-		var w *Workload
-		var err error
-		var _compDefs []*v1beta1.ComponentDefinition
-		var _traitDefs []*v1beta1.TraitDefinition
-		switch policy.Type {
-		case v1alpha1.GarbageCollectPolicyType:
-			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-		case v1alpha1.ApplyOncePolicyType:
-			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-		case v1alpha1.EnvBindingPolicyType:
-			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-		case v1alpha1.TopologyPolicyType:
-			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-		case v1alpha1.OverridePolicyType:
-			w, err = p.makeBuiltInPolicy(policy.Name, policy.Type, policy.Properties)
-			if err == nil {
-				_compDefs, _traitDefs, err = policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, af.app, policy)
-			}
-		default:
-			w, err = p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+func (p *Parser) parseReferredObjectsFromRevision(af *Appfile) error {
+	af.ReferredObjects = []*unstructured.Unstructured{}
+	for _, obj := range af.AppRevision.Spec.ReferredObjects {
+		un := &unstructured.Unstructured{}
+		if err := json.Unmarshal(obj.Raw, un); err != nil {
+			return errors.Errorf("failed to unmarshal referred objects %s", obj.Raw)
 		}
-		if err != nil {
-			return err
-		}
-		ws = append(ws, w)
-		compDefs = append(compDefs, _compDefs...)
-		traitDefs = append(traitDefs, _traitDefs...)
+		af.ReferredObjects = append(af.ReferredObjects, un)
 	}
-
-	for _, def := range compDefs {
-		af.RelatedComponentDefinitions[def.Name] = def
-	}
-	for _, def := range traitDefs {
-		af.RelatedTraitDefinitions[def.Name] = def
-	}
-	af.Policies = policies
-	af.PolicyWorkloads = ws
 	return nil
 }
 
-func (p *Parser) parsePoliciesFromRevision(policies []v1beta1.AppPolicy, appRev *v1beta1.ApplicationRevision) ([]*Workload, error) {
-	ws := []*Workload{}
-	for _, policy := range policies {
-		w, err := p.makeWorkloadFromRevision(policy.Name, policy.Type, types.TypePolicy, policy.Properties, appRev)
-		if err != nil {
-			return nil, err
+func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
+	for _, comp := range af.Components {
+		if comp.Type != v1alpha1.RefObjectsComponentType {
+			continue
 		}
-		ws = append(ws, w)
+		spec := &v1alpha1.RefObjectsComponentSpec{}
+		if err := utils.StrictUnmarshal(comp.Properties.Raw, spec); err != nil {
+			return errors.Wrapf(err, "invalid properties for ref-objects in component %s", comp.Name)
+		}
+		for _, selector := range spec.Objects {
+			objs, err := component.SelectRefObjectsForDispatch(ctx, p.client, af.app.GetNamespace(), comp.Name, selector)
+			if err != nil {
+				return err
+			}
+			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
+		}
 	}
-	return ws, nil
+	sort.Slice(af.ReferredObjects, func(i, j int) bool {
+		a, b := af.ReferredObjects[i], af.ReferredObjects[j]
+		keyA := a.GroupVersionKind().String() + "|" + client.ObjectKeyFromObject(a).String()
+		keyB := b.GroupVersionKind().String() + "|" + client.ObjectKeyFromObject(b).String()
+		return keyA < keyB
+	})
+	return nil
+}
+
+func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (err error) {
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	if err != nil {
+		return err
+	}
+	for _, policy := range af.Policies {
+		switch policy.Type {
+		case v1alpha1.GarbageCollectPolicyType:
+		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.EnvBindingPolicyType:
+		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.OverridePolicyType:
+		default:
+			w, err := p.makeWorkloadFromRevision(policy.Name, policy.Type, types.TypePolicy, policy.Properties, af.AppRevision)
+			if err != nil {
+				return err
+			}
+			af.PolicyWorkloads = append(af.PolicyWorkloads, w)
+		}
+	}
+	return nil
+}
+
+func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	if err != nil {
+		return err
+	}
+	for _, policy := range af.Policies {
+		switch policy.Type {
+		case v1alpha1.GarbageCollectPolicyType:
+		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.EnvBindingPolicyType:
+		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.OverridePolicyType:
+			compDefs, traitDefs, err := policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, af.app, policy)
+			if err != nil {
+				return err
+			}
+			for _, def := range compDefs {
+				af.RelatedComponentDefinitions[def.Name] = def
+			}
+			for _, def := range traitDefs {
+				af.RelatedTraitDefinitions[def.Name] = def
+			}
+		default:
+			w, err := p.makeWorkload(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+			if err != nil {
+				return err
+			}
+			af.PolicyWorkloads = append(af.PolicyWorkloads, w)
+		}
+	}
+	return nil
+}
+
+func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
+	var err error
+	// parse workflow steps
+	af.WorkflowMode = common.WorkflowModeDAG
+	if wfSpec := af.app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
+		af.WorkflowMode = common.WorkflowModeStep
+		af.WorkflowSteps = wfSpec.Steps
+	}
+	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
+		&step.RefWorkflowStepGenerator{Client: af.WorkflowClient(p.client), Context: ctx},
+		&step.DeployWorkflowStepGenerator{},
+		&step.Deploy2EnvWorkflowStepGenerator{},
+		&step.ApplyComponentWorkflowStepGenerator{},
+		&step.DeployPreApproveWorkflowStepGenerator{},
+	).Generate(af.app, af.WorkflowSteps)
+	return err
+}
+
+func (p *Parser) parseWorkflowStepsFromRevision(ctx context.Context, af *Appfile) error {
+	return p.loadWorkflowToAppfile(ctx, af)
+}
+
+func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
+	if err := p.loadWorkflowToAppfile(ctx, af); err != nil {
+		return err
+	}
+	for _, workflowStep := range af.WorkflowSteps {
+		if wftypes.IsBuiltinWorkflowStepType(workflowStep.Type) {
+			continue
+		}
+		if _, found := af.RelatedWorkflowStepDefinitions[workflowStep.Type]; found {
+			continue
+		}
+		def := &v1beta1.WorkflowStepDefinition{}
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+			return errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
+		}
+		af.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
+	}
+	return nil
 }
 
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Workload, error) {
@@ -320,21 +437,6 @@ func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType typ
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
 	return p.convertTemplate2Workload(name, typ, props, templ)
-}
-
-func (p *Parser) makeBuiltInPolicy(name, typ string, props *runtime.RawExtension) (*Workload, error) {
-	settings, err := util.RawExtension2Map(props)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
-	}
-	return &Workload{
-		Traits:          []*Trait{},
-		ScopeDefinition: []*v1beta1.ScopeDefinition{},
-		Name:            name,
-		Type:            typ,
-		Params:          settings,
-		engine:          definition.NewWorkloadAbstractEngine(name, p.pd),
-	}, nil
 }
 
 func (p *Parser) makeWorkloadFromRevision(name, typ string, capType types.CapType, props *runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Workload, error) {

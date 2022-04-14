@@ -38,24 +38,26 @@ import (
 // EnvUsecase defines the API of Env.
 type EnvUsecase interface {
 	GetEnv(ctx context.Context, envName string) (*model.Env, error)
-	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error)
+	ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error)
+	ListEnvCount(ctx context.Context, listOption apisv1.ListEnvOptions) (int64, error)
 	DeleteEnv(ctx context.Context, envName string) error
 	CreateEnv(ctx context.Context, req apisv1.CreateEnvRequest) (*apisv1.Env, error)
 	UpdateEnv(ctx context.Context, envName string, req apisv1.UpdateEnvRequest) (*apisv1.Env, error)
 }
 
 type envUsecaseImpl struct {
-	ds         datastore.DataStore
-	kubeClient client.Client
+	ds             datastore.DataStore
+	projectUsecase ProjectUsecase
+	kubeClient     client.Client
 }
 
 // NewEnvUsecase new env usecase
-func NewEnvUsecase(ds datastore.DataStore) EnvUsecase {
+func NewEnvUsecase(ds datastore.DataStore, projectUsecase ProjectUsecase) EnvUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
 		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
 	}
-	return &envUsecaseImpl{kubeClient: kubecli, ds: ds}
+	return &envUsecaseImpl{kubeClient: kubecli, ds: ds, projectUsecase: projectUsecase}
 }
 
 // GetEnv get env
@@ -95,35 +97,74 @@ func (p *envUsecaseImpl) DeleteEnv(ctx context.Context, envName string) error {
 }
 
 // ListEnvs list envs
-func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) ([]*apisv1.Env, error) {
-	entities, err := listEnvs(ctx, p.ds, listOption.Project, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+func (p *envUsecaseImpl) ListEnvs(ctx context.Context, page, pageSize int, listOption apisv1.ListEnvOptions) (*apisv1.ListEnvResponse, error) {
+	userName, ok := ctx.Value(&apisv1.CtxKeyUser).(string)
+	if !ok {
+		return nil, bcode.ErrUnauthorized
+	}
+	projects, err := p.projectUsecase.ListUserProjects(ctx, userName)
+	if err != nil {
+		return nil, err
+	}
+	var availableProjectNames []string
+	var projectNameAlias = make(map[string]string)
+	for _, project := range projects {
+		availableProjectNames = append(availableProjectNames, project.Name)
+		projectNameAlias[project.Name] = project.Alias
+	}
+	if len(availableProjectNames) == 0 {
+		return &apisv1.ListEnvResponse{Envs: []*apisv1.Env{}, Total: 0}, nil
+	}
+	if listOption.Project != "" {
+		if !util.StringsContain(availableProjectNames, listOption.Project) {
+			return &apisv1.ListEnvResponse{Envs: []*apisv1.Env{}, Total: 0}, nil
+		}
+	}
+	projectNames := []string{listOption.Project}
+	if listOption.Project == "" {
+		projectNames = availableProjectNames
+	}
+	filter := datastore.FilterOptions{
+		In: []datastore.InQueryOption{
+			{
+				Key:    "project",
+				Values: projectNames,
+			},
+		},
+	}
+	entities, err := listEnvs(ctx, p.ds, &datastore.ListOptions{
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+		FilterOptions: filter,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	Targets, err := listTarget(ctx, p.ds, nil)
+	targets, err := listTarget(ctx, p.ds, listOption.Project, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var envs []*apisv1.Env
 	for _, ee := range entities {
-		envs = append(envs, convertEnvModel2Base(ee, Targets))
+		envs = append(envs, convertEnvModel2Base(ee, targets))
 	}
 
-	projects, err := listProjects(ctx, p.ds)
+	for i := range envs {
+		envs[i].Project.Alias = projectNameAlias[envs[i].Project.Name]
+	}
+
+	total, err := p.ds.Count(ctx, &model.Env{Project: listOption.Project}, &filter)
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range envs {
-		for _, pj := range projects {
-			if e.Project.Name == pj.Name {
-				e.Project.Alias = pj.Alias
-				break
-			}
-		}
-	}
-	return envs, nil
+	return &apisv1.ListEnvResponse{Envs: envs, Total: total}, nil
+}
+
+func (p *envUsecaseImpl) ListEnvCount(ctx context.Context, listOption apisv1.ListEnvOptions) (int64, error) {
+	return p.ds.Count(ctx, &model.Env{Project: listOption.Project}, nil)
 }
 
 func checkEqual(old, new []string) bool {
@@ -182,7 +223,7 @@ func (p *envUsecaseImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		env.Targets = req.Targets
 	}
 
-	targets, err := listTarget(ctx, p.ds, nil)
+	targets, err := listTarget(ctx, p.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +269,7 @@ func (p *envUsecaseImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 		return nil, bcode.ErrEnvTargetConflict
 	}
 
-	targets, err := listTarget(ctx, p.ds, nil)
+	targets, err := listTarget(ctx, p.ds, "", nil)
 	if err != nil {
 		return nil, err
 	}

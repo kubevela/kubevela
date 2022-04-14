@@ -70,7 +70,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		var datas = []datastore.Entity{
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 			&model.Application{Name: "kubevela-app-3", Description: "this is demo 3"},
-			&model.Application{Name: "kubevela-app-4", Description: "this is demo 4"},
+			&model.Application{Name: "kubevela-app-4", Project: "test-project", Description: "this is demo 4"},
 			&model.Workflow{Name: "kubevela-app-workflow", AppPrimaryKey: "kubevela-app-2", Description: "this is workflow"},
 			&model.ApplicationTrigger{Name: "kubevela-app-trigger", AppPrimaryKey: "kubevela-app-2", Token: "token-test", Description: "this is demo 4"},
 		}
@@ -82,7 +82,7 @@ var _ = Describe("Test mongodb datastore driver", func() {
 			&model.Application{Name: "kubevela-app-2", Description: "this is demo 2"},
 		}
 		err = mongodbDriver.BatchAdd(context.TODO(), datas2)
-		equal := cmp.Diff(strings.Contains(err.Error(), "save components occur error"), true)
+		equal := cmp.Diff(strings.Contains(err.Error(), "save entities occur error"), true)
 		Expect(equal).To(BeEmpty())
 	})
 
@@ -132,6 +132,25 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		list, err = mongodbDriver.List(context.TODO(), &workflow, nil)
 		Expect(err).ShouldNot(HaveOccurred())
 		diff = cmp.Diff(len(list), 1)
+		Expect(diff).Should(BeEmpty())
+
+		list, err = mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 2)
+		Expect(diff).Should(BeEmpty())
+
+		list, err = mongodbDriver.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 3)
 		Expect(diff).Should(BeEmpty())
 	})
 
@@ -196,6 +215,23 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		})
 		Expect(err).Should(Succeed())
 		Expect(count).Should(Equal(int64(2)))
+
+		count, err = mongodbDriver.Count(context.TODO(), &app, &datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"kubevela-app-3", "kubevela-app-2"},
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(2)))
+
+		count, err = mongodbDriver.Count(context.TODO(), &app, &datastore.FilterOptions{IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(3)))
 	})
 
 	It("Test isExist function", func() {

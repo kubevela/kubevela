@@ -29,6 +29,47 @@ spec:
         	}
         }
         parameter: objects: [...#K8sObject]
+  status:
+    customStatus: |-
+      if context.output.apiVersion == "apps/v1" && context.output.kind == "Deployment" {
+      	ready: {
+      		readyReplicas: *0 | int
+      	} & {
+      		if context.output.status.readyReplicas != _|_ {
+      			readyReplicas: context.output.status.readyReplicas
+      		}
+      	}
+      	message: "Ready:\(ready.readyReplicas)/\(context.output.spec.replicas)"
+      }
+      if context.output.apiVersion != "apps/v1" || context.output.kind != "Deployment" {
+      	message: ""
+      }
+    healthPolicy: |-
+      if context.output.apiVersion == "apps/v1" && context.output.kind == "Deployment" {
+      	ready: {
+      		updatedReplicas:    *0 | int
+      		readyReplicas:      *0 | int
+      		replicas:           *0 | int
+      		observedGeneration: *0 | int
+      	} & {
+      		if context.output.status.updatedReplicas != _|_ {
+      			updatedReplicas: context.output.status.updatedReplicas
+      		}
+      		if context.output.status.readyReplicas != _|_ {
+      			readyReplicas: context.output.status.readyReplicas
+      		}
+      		if context.output.status.replicas != _|_ {
+      			replicas: context.output.status.replicas
+      		}
+      		if context.output.status.observedGeneration != _|_ {
+      			observedGeneration: context.output.status.observedGeneration
+      		}
+      	}
+      	isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
+      }
+      if context.output.apiVersion != "apps/v1" || context.output.kind != "Deployment" {
+      	isHealth: true
+      }
   workload:
     type: autodetects.core.oam.dev
 

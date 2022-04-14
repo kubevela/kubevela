@@ -29,6 +29,7 @@ var (
 	red    = color.New(color.FgRed)
 	green  = color.New(color.FgGreen)
 	yellow = color.New(color.FgYellow)
+	white  = color.New(color.FgWhite)
 )
 
 // NewReportDiffOption creats a new ReportDiffOption that can formats and prints
@@ -54,24 +55,44 @@ type ReportDiffOption struct {
 }
 
 // PrintDiffReport formats and prints diff data into target io.Writer
-// 'app' should be a diifEntry whose top-level is an application
-func (r *ReportDiffOption) PrintDiffReport(app *DiffEntry) {
-	_, _ = yellow.Fprintf(r.To, "---\n# Application (%s) %s\n---\n", app.Name, r.DiffMsgs[app.DiffType])
-	printDiffs(app.Diffs, r.Context, r.To)
+func (r *ReportDiffOption) PrintDiffReport(diff *DiffEntry) {
+	r.printDiffReport(diff, "")
+}
 
-	for _, acc := range app.Subs {
-		compName := acc.Name
-		for _, accSub := range acc.Subs {
-			switch accSub.Kind {
-			case RawCompKind:
-				_, _ = yellow.Fprintf(r.To, "---\n## Component (%s) %s\n---\n", compName, r.DiffMsgs[accSub.DiffType])
-			case TraitKind:
-				_, _ = yellow.Fprintf(r.To, "---\n### Component (%s) / Trait (%s) %s\n---\n", compName, accSub.Name, r.DiffMsgs[accSub.DiffType])
-			default:
-				continue
-			}
-			printDiffs(accSub.Diffs, r.Context, r.To)
+func (r *ReportDiffOption) printDiffReport(diff *DiffEntry, prefix string) {
+	var header string
+	switch diff.Kind {
+	case AppKind:
+		header = "Application"
+	case AppConfigCompKind:
+	case RawCompKind:
+		header = "Component"
+	case TraitKind:
+		header = "Trait"
+	case PolicyKind:
+		header = "External Policy"
+	case WorkflowKind:
+		header = "External Workflow"
+	case ReferredObject:
+		header = "Referred Object"
+	default:
+		return
+	}
+	if diff.Kind != AppConfigCompKind {
+		editMsg := r.DiffMsgs[diff.DiffType]
+		if diff.DiffType != NoDiff {
+			_, _ = yellow.Fprintf(r.To, "* %s%s (%s) %s\n", prefix, header, diff.Name, editMsg)
+			printDiffs(diff.Diffs, r.Context, r.To)
+		} else {
+			_, _ = white.Fprintf(r.To, "* %s%s (%s) %s\n", prefix, header, diff.Name, editMsg)
 		}
+	}
+	for _, sub := range diff.Subs {
+		var subPrefix string
+		if sub.Kind == TraitKind && diff.Kind == AppConfigCompKind {
+			subPrefix = fmt.Sprintf("Component (%s) / ", diff.Name)
+		}
+		r.printDiffReport(sub, subPrefix)
 	}
 }
 

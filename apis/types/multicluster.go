@@ -16,7 +16,10 @@ limitations under the License.
 
 package types
 
-import "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+import (
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/config"
+)
 
 const (
 	// CredentialTypeInternal identifies the virtual cluster from internal kubevela system
@@ -25,4 +28,12 @@ const (
 	CredentialTypeOCMManagedCluster v1alpha1.CredentialType = "ManagedCluster"
 	// ClusterBlankEndpoint identifies the endpoint of a cluster as blank (not available)
 	ClusterBlankEndpoint = "-"
+
+	// ClustersArg indicates the argument for specific clusters to install addon
+	ClustersArg = "clusters"
+)
+
+var (
+	// AnnotationClusterAlias the annotation key for cluster alias
+	AnnotationClusterAlias = config.MetaApiGroupName + "/cluster-alias"
 )

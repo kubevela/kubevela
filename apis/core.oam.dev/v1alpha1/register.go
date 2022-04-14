@@ -38,6 +38,18 @@ var (
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
+// Policy meta
+var (
+	PolicyKind             = "Policy"
+	PolicyGroupVersionKind = SchemeGroupVersion.WithKind(PolicyKind)
+)
+
+// Workflow meta
+var (
+	WorkflowKind             = "Workflow"
+	WorkflowGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&Policy{}, &PolicyList{})
 	SchemeBuilder.Register(&Workflow{}, &WorkflowList{})

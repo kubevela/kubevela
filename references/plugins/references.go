@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -30,9 +31,9 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -83,9 +84,21 @@ type ParseReference struct {
 	I18N   Language `json:"i18n"`
 }
 
+// Remote is the struct for input Namespace
+type Remote struct {
+	Namespace string `json:"namespace"`
+}
+
+// Local is the struct for input Definition Path
+type Local struct {
+	Path string `json:"path"`
+}
+
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
-	DefinitionName string `json:"definitionName"`
+	Remote         *Remote `json:"remote"`
+	Local          *Local  `json:"local"`
+	DefinitionName string  `json:"definitionName"`
 	ParseReference
 }
 
@@ -557,23 +570,26 @@ func setDisplayFormat(format string) {
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string, namespace string) error {
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c common.Args, baseRefPath string) error {
 	var (
 		caps []types.Capability
 		err  error
 	)
 	// Get Capability from local file
-	if len(namespace) == 0 {
-		cap, err := ParseLocalFile(ref.DefinitionName)
+	if ref.Local != nil {
+		cap, err := ParseLocalFile(ref.Local.Path)
 		if err != nil {
 			return fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
 		}
-		// truncate the suffix
-		cap.Name = strings.TrimSuffix(cap.Name, ".yaml")
 		cap.Type = types.TypeComponentDefinition
 		cap.Category = types.TerraformCategory
 		caps = append(caps, *cap)
+		// convert from componentDefinition path to componentDefinition name
 		return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath, nil)
+	}
+
+	if ref.Remote == nil {
+		return fmt.Errorf("failed to get capability %s without namespace or local filepath", ref.DefinitionName)
 	}
 
 	config, err := c.GetConfig()
@@ -591,7 +607,7 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 			return fmt.Errorf("failed to get all capabilityes: %w", err)
 		}
 	} else {
-		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, namespace, pd)
+		cap, err := GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace, pd)
 		if err != nil {
 			return fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 		}
@@ -603,16 +619,20 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 
 // ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
 func ParseLocalFile(localFilePath string) (*types.Capability, error) {
-	var localDefinition v1beta1.ComponentDefinition
 
-	yamlFile, err := ioutil.ReadFile(filepath.Clean(localFilePath))
+	yamlData, err := ioutil.ReadFile(filepath.Clean(localFilePath))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read local file")
 	}
 
-	err = yaml.Unmarshal(yamlFile, &localDefinition)
+	jsonData, err := yaml.YAMLToJSON(yamlData)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse local file")
+		return nil, errors.Wrap(err, "failed to convert yaml data into k8s valid json format")
+	}
+
+	var localDefinition v1beta1.ComponentDefinition
+	if err = json.Unmarshal(jsonData, &localDefinition); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal data into componentDefinition")
 	}
 
 	desc := localDefinition.ObjectMeta.Annotations["definition.oam.dev/description"]
@@ -1095,6 +1115,9 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		refParameterList = append(refParameterList, refParam)
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+	sort.SliceStable(refParameterList, func(i, j int) bool {
+		return refParameterList[i].Name < refParameterList[j].Name
+	})
 
 	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), propertiesTitle)
 	tables = append(tables, ReferenceParameterTable{
@@ -1121,6 +1144,9 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
 	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 4), terraform.TerraformWriteConnectionSecretToRefName)
 
+	sort.SliceStable(writeSecretRefParameterList, func(i, j int) bool {
+		return writeSecretRefParameterList[i].Name < writeSecretRefParameterList[j].Name
+	})
 	tables = append(tables, ReferenceParameterTable{
 		Name:       writeSecretTableName,
 		Parameters: writeSecretRefParameterList,
@@ -1134,11 +1160,13 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		outputsList = append(outputsList, refParam)
 	}
 
+	sort.SliceStable(outputsList, func(i, j int) bool {
+		return outputsList[i].Name < outputsList[j].Name
+	})
 	outputsTables = append(outputsTables, ReferenceParameterTable{
 		Name:       outputsTableName,
 		Parameters: outputsList,
 	})
-
 	return tables, outputsTables, nil
 }
 

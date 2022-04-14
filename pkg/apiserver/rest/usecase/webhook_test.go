@@ -25,11 +25,14 @@ import (
 	"github.com/emicklei/go-restful/v3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -49,12 +52,13 @@ var _ = Describe("Test application usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,
@@ -73,10 +77,15 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test HandleApplicationWebhook function", func() {
-		_, err := targetUsecase.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook"})
-		Expect(err).Should(BeNil())
+		var ns = corev1.Namespace{}
+		ns.Name = types.DefaultKubeVelaNS
+		err := k8sClient.Create(context.TODO(), &ns)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		_, err = projectUsecase.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: "project-webhook"})
+		Expect(err).Should(BeNil())
+
+		_, err = targetUsecase.CreateTarget(context.TODO(), apisv1.CreateTargetRequest{Name: "dev-target-webhook", Project: "project-webhook"})
 		Expect(err).Should(BeNil())
 
 		_, err = envUsecase.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "webhook-dev", Namespace: "webhook-dev", Targets: []string{"dev-target-webhook"}, Project: "project-webhook"})

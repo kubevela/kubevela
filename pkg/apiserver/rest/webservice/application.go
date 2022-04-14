@@ -33,17 +33,19 @@ import (
 
 type applicationWebService struct {
 	workflowWebService
+	rbacUsecase        usecase.RBACUsecase
 	applicationUsecase usecase.ApplicationUsecase
 	envBindingUsecase  usecase.EnvBindingUsecase
 }
 
 // NewApplicationWebService new application manage webservice
-func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase, workflowUsecase usecase.WorkflowUsecase) WebService {
+func NewApplicationWebService(applicationUsecase usecase.ApplicationUsecase, envBindingUsecase usecase.EnvBindingUsecase, workflowUsecase usecase.WorkflowUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &applicationWebService{
 		workflowWebService: workflowWebService{
 			workflowUsecase:    workflowUsecase,
 			applicationUsecase: applicationUsecase,
 		},
+		rbacUsecase:        rbacUsecase,
 		applicationUsecase: applicationUsecase,
 		envBindingUsecase:  envBindingUsecase,
 	}
@@ -62,8 +64,11 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("list all applications").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name or description").DataType("string")).
-		Param(ws.QueryParameter("namespace", "The namespace of the managed cluster").DataType("string")).
+		Param(ws.QueryParameter("project", "search base on project name").DataType("string")).
+		Param(ws.QueryParameter("env", "search base on env name").DataType("string")).
 		Param(ws.QueryParameter("targetName", "Name of the application delivery target").DataType("string")).
+		// This api will filter the app by user's permissions
+		// Filter(c.rbacUsecase.CheckPerm("application", "list")).
 		Returns(200, "OK", apis.ListApplicationResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListApplicationResponse{}))
@@ -72,132 +77,146 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Doc("create one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateApplicationRequest{}).
+		Filter(c.rbacUsecase.CheckPerm("application", "create")).
 		Returns(200, "OK", apis.ApplicationBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
 
-	ws.Route(ws.DELETE("/{name}").To(c.deleteApplication).
+	ws.Route(ws.DELETE("/{appName}").To(c.deleteApplication).
 		Doc("delete one application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "delete")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}").To(c.detailApplication).
+	ws.Route(ws.GET("/{appName}").To(c.detailApplication).
 		Doc("detail one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "detail")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.DetailApplicationResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailApplicationResponse{}))
 
-	ws.Route(ws.PUT("/{name}").To(c.updateApplication).
+	ws.Route(ws.PUT("/{appName}").To(c.updateApplication).
 		Doc("update one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "update")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Reads(apis.UpdateApplicationRequest{}).
 		Returns(200, "OK", apis.ApplicationBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationBase{}))
 
-	ws.Route(ws.GET("/{name}/statistics").To(c.applicationStatistics).
+	ws.Route(ws.GET("/{appName}/statistics").To(c.applicationStatistics).
 		Doc("detail one application ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "detail")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.ApplicationStatisticsResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationStatisticsResponse{}))
 
-	ws.Route(ws.POST("/{name}/triggers").To(c.createApplicationTrigger).
+	ws.Route(ws.POST("/{appName}/triggers").To(c.createApplicationTrigger).
 		Doc("create one application trigger").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("trigger", "create")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateApplicationTriggerRequest{}).
 		Returns(200, "OK", apis.ApplicationTriggerBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationTriggerBase{}))
 
-	ws.Route(ws.DELETE("/{name}/triggers/{token}").To(c.deleteApplicationTrigger).
+	ws.Route(ws.DELETE("/{appName}/triggers/{token}").To(c.deleteApplicationTrigger).
 		Doc("delete one application trigger").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("trigger", "delete")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("token", "identifier of the trigger").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]*apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}/triggers").To(c.listApplicationTriggers).
+	ws.Route(ws.GET("/{appName}/triggers").To(c.listApplicationTriggers).
 		Doc("list application triggers").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("trigger", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.ListApplicationTriggerResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]*apis.ApplicationTriggerBase{}))
 
-	ws.Route(ws.POST("/{name}/template").To(c.publishApplicationTemplate).
+	ws.Route(ws.POST("/{appName}/template").To(c.publishApplicationTemplate).
 		Doc("create one application template").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("applicationTemplate", "create")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateApplicationTemplateRequest{}).
 		Returns(200, "OK", apis.ApplicationTemplateBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationTemplateBase{}))
 
-	ws.Route(ws.POST("/{name}/deploy").To(c.deployApplication).
+	ws.Route(ws.POST("/{appName}/deploy").To(c.deployApplication).
 		Doc("deploy or upgrade the application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "deploy")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Reads(apis.ApplicationDeployRequest{}).
 		Returns(200, "OK", apis.ApplicationDeployResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationDeployResponse{}))
 
-	ws.Route(ws.GET("/{name}/components").To(c.listApplicationComponents).
+	ws.Route(ws.GET("/{appName}/components").To(c.listApplicationComponents).
 		Doc("gets the list of application components").
+		Filter(c.rbacUsecase.CheckPerm("component", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.QueryParameter("envName", "list components that deployed in define env").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ComponentListResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ComponentListResponse{}))
 
-	ws.Route(ws.POST("/{name}/components").To(c.createComponent).
+	ws.Route(ws.POST("/{appName}/components").To(c.createComponent).
 		Doc("create component  for application ").
+		Filter(c.rbacUsecase.CheckPerm("component", "create")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateComponentRequest{}).
 		Returns(200, "OK", apis.ComponentBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ComponentBase{}))
 
-	ws.Route(ws.GET("/{name}/components/{compName}").To(c.detailComponent).
+	ws.Route(ws.GET("/{appName}/components/{compName}").To(c.detailComponent).
 		Doc("detail component for application ").
+		Filter(c.rbacUsecase.CheckPerm("component", "detail")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.DetailComponentResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailComponentResponse{}))
 
-	ws.Route(ws.PUT("/{name}/components/{compName}").To(c.updateComponent).
+	ws.Route(ws.PUT("/{appName}/components/{compName}").To(c.updateComponent).
 		Doc("update component config").
+		Filter(c.rbacUsecase.CheckPerm("component", "update")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdateApplicationComponentRequest{}).
@@ -205,11 +224,12 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ComponentBase{}))
 
-	ws.Route(ws.DELETE("/{name}/components/{compName}").To(c.deleteComponent).
+	ws.Route(ws.DELETE("/{appName}/components/{compName}").To(c.deleteComponent).
 		Doc("delete a component").
+		Filter(c.rbacUsecase.CheckPerm("component", "delete")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.EmptyResponse{}).
@@ -217,49 +237,54 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(404, "Not Found", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}/policies").To(c.listApplicationPolicies).
+	ws.Route(ws.GET("/{appName}/policies").To(c.listApplicationPolicies).
 		Doc("list policy for application").
+		Filter(c.rbacUsecase.CheckPerm("policy", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListApplicationPolicy{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListApplicationPolicy{}))
 
-	ws.Route(ws.POST("/{name}/policies").To(c.createApplicationPolicy).
+	ws.Route(ws.POST("/{appName}/policies").To(c.createApplicationPolicy).
 		Doc("create policy for application").
+		Filter(c.rbacUsecase.CheckPerm("policy", "create")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreatePolicyRequest{}).
 		Returns(200, "OK", apis.PolicyBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.PolicyBase{}))
 
-	ws.Route(ws.GET("/{name}/policies/{policyName}").To(c.detailApplicationPolicy).
+	ws.Route(ws.GET("/{appName}/policies/{policyName}").To(c.detailApplicationPolicy).
 		Doc("detail policy for application").
+		Filter(c.rbacUsecase.CheckPerm("policy", "detail")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.DetailPolicyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailPolicyResponse{}))
 
-	ws.Route(ws.DELETE("/{name}/policies/{policyName}").To(c.deleteApplicationPolicy).
+	ws.Route(ws.DELETE("/{appName}/policies/{policyName}").To(c.deleteApplicationPolicy).
 		Doc("detail policy for application").
+		Filter(c.rbacUsecase.CheckPerm("policy", "delete")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.PUT("/{name}/policies/{policyName}").To(c.updateApplicationPolicy).
+	ws.Route(ws.PUT("/{appName}/policies/{policyName}").To(c.updateApplicationPolicy).
 		Doc("update policy for application").
+		Filter(c.rbacUsecase.CheckPerm("policy", "update")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.UpdatePolicyRequest{}).
@@ -267,11 +292,12 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailPolicyResponse{}))
 
-	ws.Route(ws.POST("/{name}/components/{compName}/traits").To(c.addApplicationTrait).
+	ws.Route(ws.POST("/{appName}/components/{compName}/traits").To(c.addApplicationTrait).
 		Doc("add trait for a component").
+		Filter(c.rbacUsecase.CheckPerm("trait", "create")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateApplicationTraitRequest{}).
@@ -279,11 +305,12 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationTrait{}))
 
-	ws.Route(ws.PUT("/{name}/components/{compName}/traits/{traitType}").To(c.updateApplicationTrait).
+	ws.Route(ws.PUT("/{appName}/components/{compName}/traits/{traitType}").To(c.updateApplicationTrait).
 		Doc("update trait from a component").
+		Filter(c.rbacUsecase.CheckPerm("trait", "update")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -292,11 +319,12 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationTrait{}))
 
-	ws.Route(ws.DELETE("/{name}/components/{compName}/traits/{traitType}").To(c.deleteApplicationTrait).
+	ws.Route(ws.DELETE("/{appName}/components/{compName}/traits/{traitType}").To(c.deleteApplicationTrait).
 		Doc("delete trait from a component").
+		Filter(c.rbacUsecase.CheckPerm("trait", "delete")).
 		Filter(c.appCheckFilter).
 		Filter(c.componentCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("compName", "identifier of the component").DataType("string")).
 		Param(ws.PathParameter("traitType", "identifier of the type of trait").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -304,10 +332,11 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}/revisions").To(c.listApplicationRevisions).
+	ws.Route(ws.GET("/{appName}/revisions").To(c.listApplicationRevisions).
 		Doc("list revisions for application").
+		Filter(c.rbacUsecase.CheckPerm("revision", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.QueryParameter("envName", "query identifier of the env").DataType("string")).
 		Param(ws.QueryParameter("status", "query identifier of the status").DataType("string")).
 		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
@@ -317,135 +346,148 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListRevisionsResponse{}))
 
-	ws.Route(ws.GET("/{name}/revisions/{revision}").To(c.detailApplicationRevision).
+	ws.Route(ws.GET("/{appName}/revisions/{revision}").To(c.detailApplicationRevision).
 		Doc("detail revision for application").
+		Filter(c.rbacUsecase.CheckPerm("revision", "detail")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("revision", "identifier of the application revision").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.DetailRevisionResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailRevisionResponse{}))
 
-	ws.Route(ws.GET("/{name}/envs").To(c.listApplicationEnvs).
+	ws.Route(ws.GET("/{appName}/envs").To(c.listApplicationEnvs).
 		Doc("list policy for application").
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListApplicationEnvBinding{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListApplicationEnvBinding{}))
 
-	ws.Route(ws.POST("/{name}/envs").To(c.createApplicationEnv).
+	ws.Route(ws.POST("/{appName}/envs").To(c.createApplicationEnv).
 		Doc("creating an application environment ").
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Reads(apis.CreateApplicationEnvbindingRequest{}).
 		Returns(200, "OK", apis.EnvBinding{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.PUT("/{name}/envs/{envName}").To(c.updateApplicationEnv).
+	ws.Route(ws.PUT("/{appName}/envs/{envName}").To(c.updateApplicationEnv).
 		Doc("set application  differences in the specified environment").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "update")).
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the envBinding ").DataType("string")).
 		Reads(apis.PutApplicationEnvBindingRequest{}).
 		Returns(200, "OK", apis.EnvBinding{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EnvBinding{}))
 
-	ws.Route(ws.DELETE("/{name}/envs/{envName}").To(c.deleteApplicationEnv).
+	ws.Route(ws.DELETE("/{appName}/envs/{envName}").To(c.deleteApplicationEnv).
 		Doc("delete an application environment ").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "delete")).
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the envBinding ").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(404, "Not Found", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}/envs/{envName}/status").To(c.getApplicationStatus).
+	ws.Route(ws.GET("/{appName}/envs/{envName}/status").To(c.getApplicationStatus).
 		Doc("get application status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "detail")).
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string")).
 		Returns(200, "OK", apis.ApplicationStatusResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ApplicationStatusResponse{}))
 
-	ws.Route(ws.POST("/{name}/envs/{envName}/recycle").To(c.recycleApplicationEnv).
+	ws.Route(ws.POST("/{appName}/envs/{envName}/recycle").To(c.recycleApplicationEnv).
 		Doc("get application status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("envBinding", "recycle")).
 		Filter(c.appCheckFilter).
 		Filter(c.envCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string").Required(true)).
 		Param(ws.PathParameter("envName", "identifier of the application envbinding").DataType("string").Required(true)).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
 
-	ws.Route(ws.GET("/{name}/workflows").To(c.listApplicationWorkflows).
+	ws.Route(ws.GET("/{appName}/workflows").To(c.listApplicationWorkflows).
 		Doc("list application workflow").
+		Filter(c.rbacUsecase.CheckPerm("application/workflow", "list")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListWorkflowResponse{}).
 		Writes(apis.ListWorkflowResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.POST("/{name}/workflows").To(c.createOrUpdateApplicationWorkflow).
+	ws.Route(ws.POST("/{appName}/workflows").To(c.createOrUpdateApplicationWorkflow).
 		Doc("create application workflow").
+		Filter(c.rbacUsecase.CheckPerm("application/workflow", "create")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateWorkflowRequest{}).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Returns(200, "create success", apis.DetailWorkflowResponse{}).
 		Returns(400, "create failure", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}").To(c.detailWorkflow).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}").To(c.detailWorkflow).
 		Doc("detail application workflow").
+		Filter(c.rbacUsecase.CheckPerm("application/workflow", "detail")).
 		Filter(c.appCheckFilter).
 		Filter(c.workflowCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workfloc.").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.workflowCheckFilter).
 		Returns(200, "create success", apis.DetailWorkflowResponse{}).
 		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.PUT("/{name}/workflows/{workflowName}").To(c.updateWorkflow).
+	ws.Route(ws.PUT("/{appName}/workflows/{workflowName}").To(c.updateWorkflow).
 		Doc("update application workflow config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow", "update")).
 		Filter(c.appCheckFilter).
 		Filter(c.workflowCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Reads(apis.UpdateWorkflowRequest{}).
 		Returns(200, "OK", apis.DetailWorkflowResponse{}).
 		Writes(apis.DetailWorkflowResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.DELETE("/{name}/workflows/{workflowName}").To(c.deleteWorkflow).
+	ws.Route(ws.DELETE("/{appName}/workflows/{workflowName}").To(c.deleteWorkflow).
 		Doc("deletet workflow").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow", "delete")).
 		Filter(c.appCheckFilter).
 		Filter(c.workflowCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records").To(c.listWorkflowRecords).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records").To(c.listWorkflowRecords).
 		Doc("query application workflow execution record").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "list")).
 		Filter(c.appCheckFilter).
 		Filter(c.workflowCheckFilter).
 		Param(ws.QueryParameter("page", "query the page number").DataType("integer")).
@@ -453,9 +495,10 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.ListWorkflowRecordsResponse{}).
 		Writes(apis.ListWorkflowRecordsResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}").To(c.detailWorkflowRecord).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}").To(c.detailWorkflowRecord).
 		Doc("query application workflow execution record detail").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "detail")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -464,9 +507,10 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(200, "OK", apis.DetailWorkflowRecordResponse{}).
 		Writes(apis.DetailWorkflowRecordResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/resume").To(c.resumeWorkflowRecord).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/resume").To(c.resumeWorkflowRecord).
 		Doc("resume suspend workflow record").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "resume")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the  workflow record").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -476,9 +520,10 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowRecordResponse{}))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/terminate").To(c.terminateWorkflowRecord).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/terminate").To(c.terminateWorkflowRecord).
 		Doc("terminate suspend workflow record").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "terminate")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
@@ -488,9 +533,10 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowRecordResponse{}))
 
-	ws.Route(ws.GET("/{name}/workflows/{workflowName}/records/{record}/rollback").To(c.rollbackWorkflowRecord).
+	ws.Route(ws.GET("/{appName}/workflows/{workflowName}/records/{record}/rollback").To(c.rollbackWorkflowRecord).
 		Doc("rollback suspend application record").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "rollback")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Param(ws.PathParameter("workflowName", "identifier of the workflow").DataType("string")).
 		Param(ws.PathParameter("record", "identifier of the workflow record").DataType("string")).
 		Param(ws.QueryParameter("rollbackVersion", "identifier of the rollback revision").DataType("string")).
@@ -501,42 +547,47 @@ func (c *applicationWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.DetailWorkflowRecordResponse{}))
 
-	ws.Route(ws.GET("/{name}/records").To(c.listApplicationRecords).
+	ws.Route(ws.GET("/{appName}/records").To(c.listApplicationRecords).
 		Doc("list application records").
-		Param(ws.PathParameter("name", "identifier of the application.").DataType("string").Required(true)).
+		Filter(c.rbacUsecase.CheckPerm("application/workflow/record", "list")).
+		Param(ws.PathParameter("appName", "identifier of the application.").DataType("string").Required(true)).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.appCheckFilter).
 		Returns(200, "OK", nil).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
-	ws.Route(ws.POST("/{name}/compare").To(c.compareAppWithLatestRevision).
+	ws.Route(ws.POST("/{appName}/compare").To(c.compareAppWithLatestRevision).
 		Doc("compare application with env latest revision").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "compare")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.ApplicationBase{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AppCompareResponse{}))
 
-	ws.Route(ws.POST("/{name}/reset").To(c.resetAppToLatestRevision).
+	ws.Route(ws.POST("/{appName}/reset").To(c.resetAppToLatestRevision).
 		Doc("reset application to latest revision").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "reset")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.AppResetResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AppResetResponse{}))
 
-	ws.Route(ws.POST("/{name}/dry-run").To(c.dryRunAppOrRevision).
+	ws.Route(ws.POST("/{appName}/dry-run").To(c.dryRunAppOrRevision).
 		Doc("dry-run application to latest revision").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.rbacUsecase.CheckPerm("application", "detail")).
 		Filter(c.appCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.AppDryRunResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AppDryRunResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 
@@ -567,8 +618,12 @@ func (c *applicationWebService) createApplication(req *restful.Request, res *res
 }
 
 func (c *applicationWebService) listApplications(req *restful.Request, res *restful.Response) {
+	var projetNames []string
+	if req.QueryParameter("project") != "" {
+		projetNames = append(projetNames, req.QueryParameter("project"))
+	}
 	apps, err := c.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{
-		Project:    req.QueryParameter("project"),
+		Projects:   projetNames,
 		Env:        req.QueryParameter("env"),
 		TargetName: req.QueryParameter("targetName"),
 		Query:      req.QueryParameter("query"),
@@ -961,13 +1016,13 @@ func (c *applicationWebService) getApplicationStatus(req *restful.Request, res *
 }
 
 func (c *applicationWebService) listApplicationRevisions(req *restful.Request, res *restful.Response) {
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	page, pageSize, err := utils.ExtractPagingParams(req, minPageSize, maxPageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
-
-	revisions, err := c.applicationUsecase.ListRevisions(req.Request.Context(), req.PathParameter("name"), req.QueryParameter("envName"), req.QueryParameter("status"), page, pageSize)
+	revisions, err := c.applicationUsecase.ListRevisions(req.Request.Context(), app.Name, req.QueryParameter("envName"), req.QueryParameter("status"), page, pageSize)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -979,7 +1034,8 @@ func (c *applicationWebService) listApplicationRevisions(req *restful.Request, r
 }
 
 func (c *applicationWebService) detailApplicationRevision(req *restful.Request, res *restful.Response) {
-	detail, err := c.applicationUsecase.DetailRevision(req.Request.Context(), req.PathParameter("name"), req.PathParameter("revision"))
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	detail, err := c.applicationUsecase.DetailRevision(req.Request.Context(), app.Name, req.PathParameter("revision"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -1063,7 +1119,7 @@ func (c *applicationWebService) deleteApplicationEnv(req *restful.Request, res *
 }
 
 func (c *applicationWebService) appCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	app, err := c.applicationUsecase.GetApplication(req.Request.Context(), req.PathParameter("name"))
+	app, err := c.applicationUsecase.GetApplication(req.Request.Context(), req.PathParameter("appName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -1122,7 +1178,8 @@ func (c *applicationWebService) recycleApplicationEnv(req *restful.Request, res 
 }
 
 func (c *applicationWebService) listApplicationRecords(req *restful.Request, res *restful.Response) {
-	records, err := c.applicationUsecase.ListRecords(req.Request.Context(), req.PathParameter("name"))
+	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
+	records, err := c.applicationUsecase.ListRecords(req.Request.Context(), app.Name)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

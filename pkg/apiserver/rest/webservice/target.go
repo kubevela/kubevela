@@ -35,10 +35,11 @@ import (
 )
 
 // NewTargetWebService new Target webservice
-func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase usecase.ApplicationUsecase) WebService {
+func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase usecase.ApplicationUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &TargetWebService{
 		TargetUsecase:      targetUsecase,
 		applicationUsecase: applicationUsecase,
+		rbacUsecase:        rbacUsecase,
 	}
 }
 
@@ -46,6 +47,7 @@ func NewTargetWebService(targetUsecase usecase.TargetUsecase, applicationUsecase
 type TargetWebService struct {
 	TargetUsecase      usecase.TargetUsecase
 	applicationUsecase usecase.ApplicationUsecase
+	rbacUsecase        usecase.RBACUsecase
 }
 
 // GetWebService get web service
@@ -61,8 +63,10 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(dt.listTargets).
 		Doc("list Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(dt.rbacUsecase.CheckPerm("target", "list")).
 		Param(ws.QueryParameter("page", "Page for paging").DataType("integer")).
 		Param(ws.QueryParameter("pageSize", "PageSize for paging").DataType("integer")).
+		Param(ws.QueryParameter("project", "list targets by project name").DataType("string")).
 		Returns(200, "OK", apis.ListTargetResponse{}).
 		Writes(apis.ListTargetResponse{}).Do(returns200, returns500))
 
@@ -70,35 +74,40 @@ func (dt *TargetWebService) GetWebService() *restful.WebService {
 		Doc("create Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.CreateTargetRequest{}).
+		Filter(dt.rbacUsecase.CheckPerm("target", "create")).
 		Returns(200, "create success", apis.DetailTargetResponse{}).
 		Returns(400, "create failure", bcode.Bcode{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}").To(dt.detailTarget).
+	ws.Route(ws.GET("/{targetName}").To(dt.detailTarget).
 		Doc("detail Target").
-		Param(ws.PathParameter("name", "identifier of the Target.").DataType("string")).
+		Param(ws.PathParameter("targetName", "identifier of the Target.").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
+		Filter(dt.rbacUsecase.CheckPerm("target", "detail")).
 		Returns(200, "create success", apis.DetailTargetResponse{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.PUT("/{name}").To(dt.updateTarget).
+	ws.Route(ws.PUT("/{targetName}").To(dt.updateTarget).
 		Doc("update application Target config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the Target").DataType("string")).
+		Param(ws.PathParameter("targetName", "identifier of the Target").DataType("string")).
 		Reads(apis.UpdateTargetRequest{}).
+		Filter(dt.rbacUsecase.CheckPerm("target", "update")).
 		Returns(200, "OK", apis.DetailTargetResponse{}).
 		Writes(apis.DetailTargetResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.DELETE("/{name}").To(dt.deleteTarget).
+	ws.Route(ws.DELETE("/{targetName}").To(dt.deleteTarget).
 		Doc("deletet Target").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(dt.targetCheckFilter).
-		Param(ws.PathParameter("name", "identifier of the Target").DataType("string")).
+		Filter(dt.rbacUsecase.CheckPerm("target", "delete")).
+		Param(ws.PathParameter("targetName", "identifier of the Target").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 
@@ -128,7 +137,7 @@ func (dt *TargetWebService) createTarget(req *restful.Request, res *restful.Resp
 }
 
 func (dt *TargetWebService) targetCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
-	Target, err := dt.TargetUsecase.GetTarget(req.Request.Context(), req.PathParameter("name"))
+	Target, err := dt.TargetUsecase.GetTarget(req.Request.Context(), req.PathParameter("targetName"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -174,7 +183,7 @@ func (dt *TargetWebService) updateTarget(req *restful.Request, res *restful.Resp
 }
 
 func (dt *TargetWebService) deleteTarget(req *restful.Request, res *restful.Response) {
-	TargetName := req.PathParameter("name")
+	TargetName := req.PathParameter("targetName")
 	// Target in use, can't be deleted
 	applications, err := dt.applicationUsecase.ListApplications(req.Request.Context(), apis.ListApplicationOptions{TargetName: TargetName})
 	if err != nil {
@@ -203,7 +212,7 @@ func (dt *TargetWebService) listTargets(req *restful.Request, res *restful.Respo
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	Targets, err := dt.TargetUsecase.ListTargets(req.Request.Context(), page, pageSize)
+	Targets, err := dt.TargetUsecase.ListTargets(req.Request.Context(), page, pageSize, req.QueryParameter("project"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

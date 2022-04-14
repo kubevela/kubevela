@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -463,7 +464,7 @@ spec:
 		_, err := testAppfile.GenerateComponentManifests()
 		Expect(err).Should(BeNil())
 		testAppfile.parser = &Parser{client: k8sClient}
-		gotPolicies, err := testAppfile.PrepareWorkflowAndPolicy(context.Background())
+		gotPolicies, err := testAppfile.GeneratePolicyManifests(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(len(gotPolicies)).ShouldNot(Equal(0))
 
@@ -1387,3 +1388,93 @@ if context.componentType == "stateless" {
 	assert.Equal(t, cm.Traits[0].Object["workflowName"], workflowName)
 	assert.Equal(t, cm.Traits[0].Object["publishVersion"], publishVersion)
 }
+
+var _ = Describe("Test use context.appLabels& context.appAnnotations in componentDefinition ", func() {
+	It("Test generate AppConfig resources from ", func() {
+		af := &Appfile{
+			Name:      "app",
+			Namespace: "ns",
+			AppLabels: map[string]string{
+				"lk1": "lv1",
+				"lk2": "lv2",
+			},
+			AppAnnotations: map[string]string{
+				"ak1": "av1",
+				"ak2": "av2",
+			},
+			Workloads: []*Workload{
+				{
+					Name: "comp1",
+					Type: "deployment",
+					Params: map[string]interface{}{
+						"image": "busybox",
+						"cmd":   []interface{}{"sleep", "1000"},
+					},
+					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
+					FullTemplate: &Template{
+						TemplateStr: `
+						  output: {
+							apiVersion: "apps/v1"
+							kind:       "Deployment"
+							spec: {
+								selector: matchLabels: {
+									"app.oam.dev/component": context.name
+								}
+						  
+								template: {
+									metadata: {
+										labels: {
+											if context.appLabels != _|_ {
+												context.appLabels
+											}
+										}
+										annotations: {
+											if context.appAnnotations != _|_ {
+												context.appAnnotations
+											}
+										}
+									}
+						  
+									spec: {
+										containers: [{
+											name:  context.name
+											image: parameter.image
+						  
+											if parameter["cmd"] != _|_ {
+												command: parameter.cmd
+											}
+										}]
+									}
+								}
+						  
+								selector:
+									matchLabels:
+										"app.oam.dev/component": context.name
+							}
+						  }
+						  
+						  parameter: {
+							// +usage=Which image would you like to use for your service
+							// +short=i
+							image: string
+						  
+							cmd?: [...string]
+						  }`},
+				},
+			},
+		}
+		By("Generate ComponentManifests")
+		componentManifests, err := af.GenerateComponentManifests()
+		Expect(err).To(BeNil())
+		By("Verify expected ComponentManifest")
+		deployment := &appsv1.Deployment{}
+		runtime.DefaultUnstructuredConverter.FromUnstructured(componentManifests[0].StandardWorkload.Object, deployment)
+		labels := deployment.Spec.Template.Labels
+		annotations := deployment.Spec.Template.Annotations
+		Expect(cmp.Diff(len(labels), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(annotations), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(labels["lk1"], "lv1")).Should(BeEmpty())
+		Expect(cmp.Diff(annotations["ak1"], "av1")).Should(BeEmpty())
+	})
+
+})

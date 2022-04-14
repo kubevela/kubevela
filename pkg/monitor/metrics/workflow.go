@@ -38,7 +38,7 @@ var collectorGroup = []prometheus.Collector{
 	ParseAppFileDurationHistogram,
 	PrepareCurrentAppRevisionDurationHistogram,
 	ApplyAppRevisionDurationHistogram,
-	PrepareWorkflowAndPolicyDurationHistogram,
+	ApplyPoliciesDurationHistogram,
 	StepDurationHistogram,
 	GCResourceTrackersDurationHistogram,
 	ListResourceTrackerCounter,

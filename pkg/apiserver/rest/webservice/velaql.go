@@ -27,12 +27,14 @@ import (
 
 type velaQLWebService struct {
 	velaQLUsecase usecase.VelaQLUsecase
+	rbacUsecase   usecase.RBACUsecase
 }
 
 // NewVelaQLWebService new velaQL webservice
-func NewVelaQLWebService(velaQLUsecase usecase.VelaQLUsecase) WebService {
+func NewVelaQLWebService(velaQLUsecase usecase.VelaQLUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &velaQLWebService{
 		velaQLUsecase: velaQLUsecase,
+		rbacUsecase:   rbacUsecase,
 	}
 }
 
@@ -48,11 +50,14 @@ func (v *velaQLWebService) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(v.queryView).
 		Doc("use velaQL to query resource status").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		// TODO: VelaQL is an open data query API that is currently not compatible with RBAC.
+		// Filter(v.rbacUsecase.CheckPerm("application", "detail")).
 		Param(ws.QueryParameter("velaql", "velaql query statement").DataType("string")).
 		Returns(200, "OK", apis.VelaQLViewResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.VelaQLViewResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 

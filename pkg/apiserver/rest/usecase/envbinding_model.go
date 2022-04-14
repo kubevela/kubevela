@@ -26,6 +26,7 @@ import (
 type envListOption struct {
 	appPrimaryKey string
 	envName       string
+	projectName   string
 }
 
 func listEnvBindings(ctx context.Context, ds datastore.DataStore, listOption envListOption) ([]*model.EnvBinding, error) {

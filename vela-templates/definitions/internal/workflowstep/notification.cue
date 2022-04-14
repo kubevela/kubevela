@@ -295,8 +295,10 @@ template: {
 			if parameter.email.from.password.value != _|_ {
 				email1: op.#SendEmail & {
 					from: {
-						address:  parameter.email.from.value
-						alias:    parameter.email.from.alias
+						address: parameter.email.from.address
+						if parameter.email.from.alias != _|_ {
+							alias: parameter.email.from.alias
+						}
 						password: parameter.email.from.password.value
 						host:     parameter.email.from.host
 						port:     parameter.email.from.port
@@ -322,8 +324,10 @@ template: {
 				stringValue: op.#ConvertString & {bt: decoded}
 				email2:      op.#SendEmail & {
 					from: {
-						address:  parameter.email.from.value
-						alias:    parameter.email.from.alias
+						address: parameter.email.from.address
+						if parameter.email.from.alias != _|_ {
+							alias: parameter.email.from.alias
+						}
 						password: stringValue.str
 						host:     parameter.email.from.host
 						port:     parameter.email.from.port

@@ -81,6 +81,26 @@ func (a *Application) GetAppNameForSynced() string {
 	return strings.TrimSuffix(a.Name, "-"+namespace)
 }
 
+// GetAppNamespaceForSynced will return the namespace of synced CR
+func (a *Application) GetAppNamespaceForSynced() string {
+	if a.Labels == nil {
+		return ""
+	}
+	return a.Labels[LabelSyncNamespace]
+}
+
+// IsSynced answer if the app is synced one
+func (a *Application) IsSynced() bool {
+	if a.Labels == nil {
+		return false
+	}
+	sot := a.Labels[LabelSourceOfTruth]
+	if sot == FromCR || sot == FromInner {
+		return true
+	}
+	return false
+}
+
 // ClusterSelector cluster selector
 type ClusterSelector struct {
 	Name string `json:"name"`

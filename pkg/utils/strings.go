@@ -19,6 +19,7 @@ package utils
 import (
 	"reflect"
 	"sort"
+	"strings"
 )
 
 // StringsContain strings contain
@@ -62,4 +63,80 @@ func EqualSlice(a, b []string) bool {
 	sort.Strings(a)
 	sort.Strings(b)
 	return reflect.DeepEqual(a, b)
+}
+
+// SliceIncludeSlice the a slice include the b slice
+func SliceIncludeSlice(a, b []string) bool {
+	if EqualSlice(a, b) {
+		return true
+	}
+	for _, item := range b {
+		if !StringsContain(a, item) {
+			return false
+		}
+	}
+	return true
+}
+
+// MapKey2Array convery map keys to array
+func MapKey2Array(source map[string]string) []string {
+	var list []string
+	for k := range source {
+		list = append(list, k)
+	}
+	return list
+}
+
+// GetBoxDrawingString get line drawing string, see https://en.wikipedia.org/wiki/Box-drawing_character
+// nolint:gocyclo
+func GetBoxDrawingString(up bool, down bool, left bool, right bool, padLeft int, padRight int) string {
+	var c rune
+	switch {
+	case up && down && left && right:
+		c = '┼'
+	case up && down && left && !right:
+		c = '┤'
+	case up && down && !left && right:
+		c = '├'
+	case up && down && !left && !right:
+		c = '│'
+	case up && !down && left && right:
+		c = '┴'
+	case up && !down && left && !right:
+		c = '┘'
+	case up && !down && !left && right:
+		c = '└'
+	case up && !down && !left && !right:
+		c = '╵'
+	case !up && down && left && right:
+		c = '┬'
+	case !up && down && left && !right:
+		c = '┐'
+	case !up && down && !left && right:
+		c = '┌'
+	case !up && down && !left && !right:
+		c = '╷'
+	case !up && !down && left && right:
+		c = '─'
+	case !up && !down && left && !right:
+		c = '╴'
+	case !up && !down && !left && right:
+		c = '╶'
+	case !up && !down && !left && !right:
+		c = ' '
+	}
+	sb := strings.Builder{}
+	writePadding := func(connect bool, width int) {
+		for i := 0; i < width; i++ {
+			if connect {
+				sb.WriteRune('─')
+			} else {
+				sb.WriteRune(' ')
+			}
+		}
+	}
+	writePadding(left, padLeft)
+	sb.WriteRune(c)
+	writePadding(right, padRight)
+	return sb.String()
 }

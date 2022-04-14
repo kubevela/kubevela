@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ import (
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -61,6 +62,10 @@ var paths = []string{
 
 	"test-error-addon/metadata.yaml",
 	"test-error-addon/resources/parameter.cue",
+
+	"test-disable-addon/metadata.yaml",
+	"test-disable-addon/definitions/compDef.yaml",
+	"test-disable-addon/definitions/traitDef.cue",
 }
 
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
@@ -128,7 +133,7 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, len(uiDataList), 3)
+	assert.Equal(t, 4, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package
@@ -142,7 +147,7 @@ func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", "", "", ossType)
 	assert.NoError(t, err)
 	testReaderFunc(t, reader)
 }
@@ -224,15 +229,16 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
-	assert.Equal(t, len(app.Spec.Components), 2)
+	// definition should not be rendered
+	assert.Equal(t, len(app.Spec.Components), 1)
 }
 
 func TestRenderAppWithNeedNamespace(t *testing.T) {
 	addon := baseAddon
-	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS)
-	app, err := RenderApp(ctx, &addon, nil, nil, map[string]interface{}{})
+	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS, "test-ns2")
+	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 	for _, c := range app.Spec.Components {
@@ -253,7 +259,7 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	steps := app.Spec.Workflow.Steps
 	assert.True(t, len(steps) >= 2)
@@ -274,7 +280,7 @@ func TestRenderDefinitions(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	// addon which app work on no-runtime-cluster mode workflow is nil
 	assert.Nil(t, app.Spec.Workflow)
@@ -287,7 +293,7 @@ func TestRenderK8sObjects(t *testing.T) {
 		RuntimeCluster:      false,
 	}
 
-	app, err := RenderApp(ctx, &addonMultiYaml, nil, nil, map[string]interface{}{})
+	app, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 1)
 	comp := app.Spec.Components[0]
@@ -298,7 +304,7 @@ func TestGetAddonStatus(t *testing.T) {
 	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		switch key.Name {
 		case "addon-disabled", "disabled":
-			return errors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
+			return kerrors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
 		case "addon-suspend":
 			o := obj.(*v1beta1.Application)
 			app := &v1beta1.Application{}
@@ -547,12 +553,12 @@ func TestRenderApp4Observability(t *testing.T) {
 				},
 			},
 			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application"}]}},"status":{}}`,
+			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application"}]}},"status":{}}`,
 		},
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
@@ -594,12 +600,12 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 				},
 			},
 			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability"}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":[{"name":"test-secret","placement":{"clusterSelector":{"name":"test-secret"}}}]}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"},{"name":"test-secret","type":"deploy2env","properties":{"env":"test-secret","parallel":true,"policy":"domain"}}]}},"status":{}}`,
+			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":[{"name":"test-secret","placement":{"clusterSelector":{"name":"test-secret"}}}]}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"},{"name":"test-secret","type":"deploy2env","properties":{"env":"test-secret","parallel":true,"policy":"domain"}}]}},"status":{}}`,
 		},
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, nil, k8sClient, tc.args)
+			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
 			assert.Equal(t, tc.err, err)
 			if app != nil {
 				data, err := json.Marshal(app)
@@ -611,9 +617,9 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 }
 
 func TestGetPatternFromItem(t *testing.T) {
-	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "some-sub-path", "", ossType)
+	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "", "some-sub-path", "", ossType)
 	assert.NoError(t, err)
-	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "addons", "", gitType)
+	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "", "addons", "", gitType)
 	assert.NoError(t, err)
 	gitItemName := "parameter.cue"
 	gitItemType := FileType
@@ -651,7 +657,7 @@ func TestGetPatternFromItem(t *testing.T) {
 }
 
 func TestGitLabReaderNotPanic(t *testing.T) {
-	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
+	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "", "addons", "", gitType)
 	assert.EqualError(t, err, "git type repository only support github for now")
 }
 
@@ -874,4 +880,29 @@ func TestReadDefFile(t *testing.T) {
 
 	// verify
 	assert.True(t, len(uiData.Definitions) == 1)
+}
+
+func TestRenderCUETemplate(t *testing.T) {
+	fileDate, err := os.ReadFile("./testdata/example/resources/configmap.cue")
+	assert.NoError(t, err)
+	component, err := renderCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, "{\"example\": \"\"}", map[string]interface{}{
+		"example": "render",
+	}, Meta{
+		Version: "1.0.1",
+	})
+	assert.NoError(t, err)
+	assert.True(t, component.Type == "raw")
+	var config = make(map[string]interface{})
+	err = json.Unmarshal(component.Properties.Raw, &config)
+	assert.NoError(t, err)
+	assert.True(t, component.Type == "raw")
+	assert.True(t, config["metadata"].(map[string]interface{})["labels"].(map[string]interface{})["version"] == "1.0.1")
+}
+
+func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
+	version2.VelaVersion = "v1.3.0"
+	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
+	installer := &Installer{}
+	err := installer.enableAddon(&i)
+	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }

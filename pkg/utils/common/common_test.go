@@ -32,6 +32,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -74,7 +75,7 @@ func TestHTTPGet(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := HTTPGet(ctx, tc.url)
+			got, err := HTTPGetWithOption(ctx, tc.url, nil)
 			if tc.want.errStr != "" {
 				if diff := cmp.Diff(tc.want.errStr, err.Error(), test.EquateErrors()); diff != "" {
 					t.Errorf("\n%s\nHTTPGet(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -83,6 +84,91 @@ func TestHTTPGet(t *testing.T) {
 
 			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
 				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.reason, diff)
+			}
+		})
+	}
+
+}
+
+func TestHTTPGetWithOption(t *testing.T) {
+	type want struct {
+		data string
+	}
+	var ctx = context.Background()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok {
+			w.Write([]byte("Error parsing basic auth"))
+			w.WriteHeader(401)
+			return
+		}
+		if u != "test-user" {
+			w.Write([]byte(fmt.Sprintf("Username provided is incorrect: %s", u)))
+			w.WriteHeader(401)
+			return
+		}
+		if p != "test-pass" {
+			w.Write([]byte(fmt.Sprintf("Password provided is incorrect: %s", p)))
+			w.WriteHeader(401)
+			return
+		}
+		w.Write([]byte("correct password"))
+		w.WriteHeader(200)
+	}))
+	defer testServer.Close()
+
+	cases := map[string]struct {
+		opts *HTTPOption
+		url  string
+		want want
+	}{
+		"without auth case": {
+			opts: nil,
+			url:  testServer.URL,
+			want: want{
+				data: "Error parsing basic auth",
+			},
+		},
+		"error user name case": {
+			opts: &HTTPOption{
+				Username: "no-user",
+				Password: "test-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "Username provided is incorrect: no-user",
+			},
+		},
+		"error password case": {
+			opts: &HTTPOption{
+				Username: "test-user",
+				Password: "error-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "Password provided is incorrect: error-pass",
+			},
+		},
+		"correct password case": {
+			opts: &HTTPOption{
+				Username: "test-user",
+				Password: "test-pass",
+			},
+			url: testServer.URL,
+			want: want{
+				data: "correct password",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := HTTPGetWithOption(ctx, tc.url, tc.opts)
+			assert.NoError(t, err)
+
+			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
+				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.want.data, diff)
 			}
 		})
 	}
@@ -368,4 +454,57 @@ func TestFilterClusterObjectRefFromAddonObservability(t *testing.T) {
 	assert.Equal(t, 1, len(res))
 	assert.Equal(t, "Service", res[0].Kind)
 	assert.Equal(t, "v1", res[0].APIVersion)
+}
+
+func TestResourceNameClusterObjectReferenceFilter(t *testing.T) {
+	fooRef := common.ClusterObjectReference{
+		ObjectReference: corev1.ObjectReference{
+			Name: "foo",
+		}}
+	barRef := common.ClusterObjectReference{
+		ObjectReference: corev1.ObjectReference{
+			Name: "bar",
+		}}
+	bazRef := common.ClusterObjectReference{
+		ObjectReference: corev1.ObjectReference{
+			Name: "baz",
+		}}
+	var refs = []common.ClusterObjectReference{
+		fooRef, barRef, bazRef,
+	}
+
+	testCases := []struct {
+		caseName     string
+		filter       clusterObjectReferenceFilter
+		filteredRefs []common.ClusterObjectReference
+	}{
+		{
+			caseName:     "filter one resource",
+			filter:       resourceNameClusterObjectReferenceFilter([]string{"foo"}),
+			filteredRefs: []common.ClusterObjectReference{fooRef},
+		},
+		{
+			caseName:     "not filter resources",
+			filter:       resourceNameClusterObjectReferenceFilter([]string{}),
+			filteredRefs: []common.ClusterObjectReference{fooRef, barRef, bazRef},
+		},
+		{
+			caseName:     "filter multi resources",
+			filter:       resourceNameClusterObjectReferenceFilter([]string{"foo", "bar"}),
+			filteredRefs: []common.ClusterObjectReference{fooRef, barRef},
+		},
+	}
+	for _, c := range testCases {
+		filteredResource := filterResource(refs, c.filter)
+		assert.Equal(t, c.filteredRefs, filteredResource, c.caseName)
+	}
+}
+
+func TestRemoveEmptyString(t *testing.T) {
+	withEmpty := []string{"foo", "bar", "", "baz", ""}
+	noEmpty := removeEmptyString(withEmpty)
+	assert.Equal(t, len(noEmpty), 3)
+	for _, s := range noEmpty {
+		assert.NotEmpty(t, s)
+	}
 }

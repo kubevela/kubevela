@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Ref-objects allow users to specify ref objects to use. Notice that this component type have special handle logic.
+  name: ref-objects
+spec:
+  schematic:
+    cue:
+      template: |
+        #K8sObject: {
+        	apiVersion: string
+        	kind:       string
+        	metadata: {
+        		name: string
+        		...
+        	}
+        	...
+        }
+        output: parameter.objects[0]
+        outputs: {
+        	for i, v in parameter.objects {
+        		if i > 0 {
+        			"objects-\(i)": v
+        		}
+        	}
+        }
+        parameter: objects: [...#K8sObject]
+  workload:
+    type: autodetects.core.oam.dev
+

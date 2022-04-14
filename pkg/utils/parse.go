@@ -36,6 +36,9 @@ const TypeGithub = "github"
 // TypeGitee represents gitee
 const TypeGitee = "gitee"
 
+// TypeGitlab represents gitlab
+const TypeGitlab = "gitlab"
+
 // TypeUnknown represents parse failed
 const TypeUnknown = "unknown"
 
@@ -44,6 +47,7 @@ type Content struct {
 	OssContent
 	GithubContent
 	GiteeContent
+	GitlabContent
 	LocalContent
 }
 
@@ -72,6 +76,16 @@ type GiteeContent struct {
 	Repo  string `json:"gitee_repo"`
 	Path  string `json:"gitee_path"`
 	Ref   string `json:"gitee_ref"`
+}
+
+// GitlabContent for cap center
+type GitlabContent struct {
+	Host  string `json:"gitlab_host"`
+	Owner string `json:"gitlab_owner"`
+	Repo  string `json:"gitlab_repo"`
+	Path  string `json:"gitlab_path"`
+	Ref   string `json:"gitlab_ref"`
+	PId   int    `json:"gitlab_pid"`
 }
 
 // Parse will parse config from address
@@ -181,4 +195,61 @@ func Parse(addr string) (string, *Content, error) {
 	}
 
 	return TypeUnknown, nil, nil
+}
+
+// ByteCountIEC convert number of bytes into readable string
+// borrowed from https://yourbasic.org/golang/formatting-byte-size-to-human-readable-format/
+func ByteCountIEC(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB",
+		float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// ParseGitlab will parse gitlab config from address
+func ParseGitlab(addr, repo string) (string, *Content, error) {
+	if !strings.Contains(addr, repo) {
+		return "", nil, errors.New("addon registry repo name invalid")
+	}
+
+	// We support two valid format:
+	// 1. https://example.gitlab.com/<owner>/<repo>
+	// 2. https://example.gitlab.com/<owner>/<repo>/tree/<branch>
+	URL, err := url.Parse(addr)
+	if err != nil {
+		return "", nil, err
+	}
+
+	arr := strings.Split(addr, repo)
+	owner := strings.Split(arr[0], URL.Host+"/")
+	if !strings.Contains(arr[1], "/") {
+		// https://example.gitlab.com/<owner>/<repo>
+		return TypeGitlab, &Content{
+			GitlabContent: GitlabContent{
+				Host:  URL.Scheme + "://" + URL.Host,
+				Owner: owner[1][:len(owner[1])-1],
+				Repo:  repo,
+				Ref:   "", // use default branch
+			},
+		}, nil
+	}
+
+	// https://example.gitlab.com/<owner>/<repo>/tree/<branch>
+	l := strings.Split(arr[1], "/")
+
+	return TypeGitlab, &Content{
+		GitlabContent: GitlabContent{
+			Host:  URL.Scheme + "://" + URL.Host,
+			Owner: owner[1][:len(owner[1])-1],
+			Repo:  repo,
+			Ref:   l[2],
+		},
+	}, nil
 }

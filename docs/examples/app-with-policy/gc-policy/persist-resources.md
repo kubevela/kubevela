@@ -2,6 +2,8 @@
 
 By leveraging the garbage-collect policy, users can persist some resources, which skip the normal garbage-collect process when application is updated.
 
+### traitTypes
+
 Take the following app as an example, in the garbage-collect policy, a rule is added which marks all the resources created by the `expose` trait to use the `onAppDelete` strategy. This will keep those services until application is deleted.
 ```shell
 $ cat <<EOF | kubectl apply -f -
@@ -78,6 +80,8 @@ hello-world       ClusterIP   10.96.160.208   <none>        8000/TCP   5m56s
 hello-world-new   ClusterIP   10.96.20.4      <none>        8000/TCP   13s
 ```
 
+### componentTypes
+
 Users can also keep component if they are deploying job-like components. Resources dispatched by `job-like-component` type component will be kept after application is deleted.
 
 ```yaml
@@ -95,7 +99,105 @@ spec:
       properties:
         rules:
           - selector:
-             componentTypes:
-               - webservice
-           strategy: never
+              componentTypes:
+                - webservice
+            strategy: never
+```
+
+### componentNames
+
+A more straightforward way is to specify `compNames` to match specified components.
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: create-ns-app
+spec:
+  components:
+    - name: example-addon-namespace
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: Namespace
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              componentNames:
+                - example-addon-namespace
+            strategy: never
+```
+
+### oamTypes
+
+Users can also persist resources using `oamTypes`, where the values of `oamTypes` can be `TRAIT` and `WORKLOAD`.
+
+```shell
+$ cat <<EOF | kubectl apply -f -
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: garbage-collect-app
+spec:
+  components:
+    - name: hello-world
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+      traits:
+        - type: expose
+          properties:
+            port: [8000]
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              oamTypes:
+                - TRAIT
+            strategy: onAppDelete
+EOF
+```
+
+And then, let's modify the component name.
+
+```shell
+$ cat <<EOF | kubectl apply -f -
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: garbage-collect-app
+spec:
+  components:
+    - name: hello-world-new
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+      traits:
+        - type: expose
+          properties:
+            port: [8000]
+  policies:
+    - name: garbage-collect
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              oamTypes:
+                - TRAIT
+            strategy: onAppDelete
+EOF
+```
+
+List the service in cluster, you will find:
+
+```shell
+$ kubectl get service
+NAME              TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+hello-world       ClusterIP   10.96.31.209   <none>        8000/TCP   31s
+hello-world-new   ClusterIP   10.96.17.103   <none>        8000/TCP   5s
 ```

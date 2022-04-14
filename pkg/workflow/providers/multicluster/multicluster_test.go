@@ -515,7 +515,7 @@ func TestListClusters(t *testing.T) {
 }
 
 func TestExpandTopology(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpecCompatible, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpec, true)()
 	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -576,7 +576,7 @@ func TestExpandTopology(t *testing.T) {
 		},
 		"topology-by-clusters": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-a"]}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}},
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}},
 		},
 		"topology-by-cluster-selector-404": {
 			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"bad-value"}}}]}}`,
@@ -584,11 +584,11 @@ func TestExpandTopology(t *testing.T) {
 		},
 		"topology-by-cluster-selector": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}, {Cluster: "cluster-b", Namespace: ""}},
 		},
 		"topology-by-cluster-label-selector": {
 			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterLabelSelector:{"key":"value"}}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "test"}, {Cluster: "cluster-b", Namespace: "test"}},
+			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}, {Cluster: "cluster-b", Namespace: ""}},
 		},
 		"topology-by-cluster-selector-and-namespace-invalid": {
 			Input:                 `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,

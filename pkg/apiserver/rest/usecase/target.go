@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,7 +39,9 @@ type TargetUsecase interface {
 	DeleteTarget(ctx context.Context, TargetName string) error
 	CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error)
 	UpdateTarget(ctx context.Context, Target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error)
-	ListTargets(ctx context.Context, page, pageSize int) (*apisv1.ListTargetResponse, error)
+	ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error)
+	ListTargetCount(ctx context.Context, projectName string) (int64, error)
+	Init(ctx context.Context) error
 }
 
 type targetUsecaseImpl struct {
@@ -57,20 +60,42 @@ func NewTargetUsecase(ds datastore.DataStore) TargetUsecase {
 		ds:        ds,
 	}
 }
-
-func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int) (*apisv1.ListTargetResponse, error) {
-
-	Targets, err := listTarget(ctx, dt.ds, &datastore.ListOptions{Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+func (dt *targetUsecaseImpl) Init(ctx context.Context) error {
+	targets, err := dt.ds.List(ctx, &model.Target{}, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{
+		IsNotExist: []datastore.IsNotExistQueryOption{
+			{
+				Key: "project",
+			},
+		},
+	}})
+	if err != nil {
+		return fmt.Errorf("list target failure %w", err)
+	}
+	for _, target := range targets {
+		t := target.(*model.Target)
+		t.Project = model.DefaultInitName
+		if err := dt.ds.Put(ctx, t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int, projectName string) (*apisv1.ListTargetResponse, error) {
+	targets, err := listTarget(ctx, dt.ds, projectName, &datastore.ListOptions{
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+	})
 	if err != nil {
 		return nil, err
 	}
 	resp := &apisv1.ListTargetResponse{
 		Targets: []apisv1.TargetBase{},
 	}
-	for _, raw := range Targets {
+	for _, raw := range targets {
 		resp.Targets = append(resp.Targets, *(dt.convertFromTargetModel(ctx, raw)))
 	}
-	count, err := dt.ds.Count(ctx, &model.Target{}, nil)
+	count, err := dt.ds.Count(ctx, &model.Target{Project: projectName}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,9 +104,13 @@ func (dt *targetUsecaseImpl) ListTargets(ctx context.Context, page, pageSize int
 	return resp, nil
 }
 
+func (dt *targetUsecaseImpl) ListTargetCount(ctx context.Context, projectName string) (int64, error) {
+	return dt.ds.Count(ctx, &model.Target{Project: projectName}, nil)
+}
+
 // DeleteTarget delete application Target
 func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string) error {
-	Target := &model.Target{
+	target := &model.Target{
 		Name: targetName,
 	}
 	ddt, err := dt.GetTarget(ctx, targetName)
@@ -94,7 +123,7 @@ func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string
 	if err = deleteTargetNamespace(ctx, dt.k8sClient, ddt.Cluster.ClusterName, ddt.Cluster.Namespace, targetName); err != nil {
 		return err
 	}
-	if err = dt.ds.Delete(ctx, Target); err != nil {
+	if err = dt.ds.Delete(ctx, target); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrTargetNotExist
 		}
@@ -106,26 +135,32 @@ func (dt *targetUsecaseImpl) DeleteTarget(ctx context.Context, targetName string
 // CreateTarget will create a delivery target binding with a cluster and namespace, by default, it will use local cluster and namespace align with targetName
 // TODO(@wonderflow): we should support empty target in the future which only delivery cloud resources
 func (dt *targetUsecaseImpl) CreateTarget(ctx context.Context, req apisv1.CreateTargetRequest) (*apisv1.DetailTargetResponse, error) {
-	Target := convertCreateReqToTargetModel(req)
+	var project = model.Project{
+		Name: req.Project,
+	}
+	if err := dt.ds.Get(ctx, &project); err != nil {
+		return nil, bcode.ErrProjectIsNotExist
+	}
+	target := convertCreateReqToTargetModel(req)
 	if req.Cluster == nil {
 		req.Cluster = &apisv1.ClusterTarget{ClusterName: multicluster.ClusterLocalName, Namespace: req.Name}
 	}
 	if err := createTargetNamespace(ctx, dt.k8sClient, req.Cluster.ClusterName, req.Cluster.Namespace, req.Name); err != nil {
 		return nil, err
 	}
-	err := createTarget(ctx, dt.ds, &Target)
+	err := createTarget(ctx, dt.ds, &target)
 	if err != nil {
 		return nil, err
 	}
-	return dt.DetailTarget(ctx, &Target)
+	return dt.DetailTarget(ctx, &target)
 }
 
 func (dt *targetUsecaseImpl) UpdateTarget(ctx context.Context, target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error) {
-	TargetModel := convertUpdateReqToTargetModel(target, req)
-	if err := dt.ds.Put(ctx, TargetModel); err != nil {
+	targetModel := convertUpdateReqToTargetModel(target, req)
+	if err := dt.ds.Put(ctx, targetModel); err != nil {
 		return nil, err
 	}
-	return dt.DetailTarget(ctx, TargetModel)
+	return dt.DetailTarget(ctx, targetModel)
 }
 
 // DetailTarget detail Target
@@ -154,14 +189,15 @@ func convertUpdateReqToTargetModel(target *model.Target, req apisv1.UpdateTarget
 }
 
 func convertCreateReqToTargetModel(req apisv1.CreateTargetRequest) model.Target {
-	Target := model.Target{
+	target := model.Target{
 		Name:        req.Name,
 		Alias:       req.Alias,
 		Description: req.Description,
 		Cluster:     (*model.ClusterTarget)(req.Cluster),
 		Variable:    req.Variable,
+		Project:     req.Project,
 	}
-	return Target
+	return target
 }
 
 func (dt *targetUsecaseImpl) convertFromTargetModel(ctx context.Context, target *model.Target) *apisv1.TargetBase {
@@ -177,7 +213,15 @@ func (dt *targetUsecaseImpl) convertFromTargetModel(ctx context.Context, target 
 		UpdateTime:  target.UpdateTime,
 		AppNum:      appNum,
 	}
-
+	if target.Project != "" {
+		var project = model.Project{
+			Name: target.Project,
+		}
+		if err := dt.ds.Get(ctx, &project); err != nil {
+			log.Logger.Errorf("get project failure %s", err.Error())
+		}
+		targetBase.Project = apisv1.NameAlias{Name: project.Name, Alias: project.Alias}
+	}
 	if targetBase.Cluster != nil && targetBase.Cluster.ClusterName != "" {
 		cluster, err := _getClusterFromDataStore(ctx, dt.ds, target.Cluster.ClusterName)
 		if err != nil {
@@ -187,6 +231,5 @@ func (dt *targetUsecaseImpl) convertFromTargetModel(ctx context.Context, target 
 			targetBase.ClusterAlias = cluster.Alias
 		}
 	}
-
 	return targetBase
 }

@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: Policy
+metadata:
+  name: override-high-availability
+type: override
+properties:
+  components:
+    - name: podinfo
+      traits:
+        - type: scaler
+          properties:
+            replicas: 0

@@ -71,13 +71,15 @@ type leaderConfig struct {
 // APIServer interface for call api server
 type APIServer interface {
 	Run(context.Context) error
-	RegisterServices() restfulspec.Config
+	RegisterServices(ctx context.Context, initDatabase bool) restfulspec.Config
 }
 
 type restServer struct {
 	webContainer *restful.Container
 	cfg          Config
 	dataStore    datastore.DataStore
+	// usecases, we register part of the usecase instances
+	usecases map[string]interface{}
 }
 
 // New create restserver with config data
@@ -107,7 +109,7 @@ func New(cfg Config) (a APIServer, err error) {
 }
 
 func (s *restServer) Run(ctx context.Context) error {
-	s.RegisterServices()
+	s.RegisterServices(ctx, true)
 
 	l, err := s.setupLeaderElection()
 	if err != nil {
@@ -138,7 +140,7 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		RetryPeriod:   time.Second * 2,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				go velasync.Start(ctx, s.dataStore, restCfg)
+				go velasync.Start(ctx, s.dataStore, restCfg, s.usecases)
 				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 			},
 			OnStoppedLeading: func() {
@@ -158,10 +160,9 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 	}, nil
 }
 
-func (s restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
+func (s *restServer) runWorkflowRecordSync(ctx context.Context, duration time.Duration) {
 	klog.Infof("start to syncing workflow record")
-	w := usecase.NewWorkflowUsecase(s.dataStore, usecase.NewEnvUsecase(s.dataStore))
-
+	w := s.usecases["workflow"].(usecase.WorkflowUsecase)
 	t := time.NewTicker(duration)
 	defer t.Stop()
 
@@ -178,8 +179,9 @@ func (s restServer) runWorkflowRecordSync(ctx context.Context, duration time.Dur
 }
 
 // RegisterServices register web service
-func (s *restServer) RegisterServices() restfulspec.Config {
-	webservice.Init(s.dataStore, s.cfg.AddonCacheTime)
+func (s *restServer) RegisterServices(ctx context.Context, initDatabase bool) restfulspec.Config {
+	s.usecases = webservice.Init(ctx, s.dataStore, s.cfg.AddonCacheTime, initDatabase)
+
 	/* **************************************************************  */
 	/* *************       Open API Route Group     *****************  */
 	/* **************************************************************  */
@@ -187,7 +189,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	// Add container filter to enable CORS
 	cors := restful.CrossOriginResourceSharing{
 		ExposeHeaders:  []string{},
-		AllowedHeaders: []string{"Content-Type", "Accept"},
+		AllowedHeaders: []string{"Content-Type", "Accept", "Authorization", "RefreshToken"},
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		CookiesAllowed: true,
 		Container:      s.webContainer}
@@ -199,7 +201,7 @@ func (s *restServer) RegisterServices() restfulspec.Config {
 	// Add request log
 	s.webContainer.Filter(s.requestLog)
 
-	// Regist all custom webservice
+	// Register all custom webservice
 	for _, handler := range webservice.GetRegisteredWebService() {
 		s.webContainer.Add(handler.GetWebService())
 	}

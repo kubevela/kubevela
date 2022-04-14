@@ -40,5 +40,7 @@ func (c *policyDefinitionWebservice) GetWebService() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "OK", apis.ListPolicyDefinitionResponse{}).
 		Writes(apis.ListPolicyDefinitionResponse{}))
+
+	ws.Filter(authCheckFilter)
 	return ws
 }

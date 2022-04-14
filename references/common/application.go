@@ -257,7 +257,7 @@ func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
 	var body []byte
 	var err error
 	if utils.IsValidURL(pathOrURL) {
-		body, err = common.HTTPGet(context.Background(), pathOrURL)
+		body, err = common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -429,7 +429,7 @@ func Info(app *corev1beta1.Application) string {
 		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
 		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
 		fmt.Sprintf("      App status: vela status %s\n", appName) +
-		fmt.Sprintf("        Endpoint: vela status %s\n --endpoint", appName)
+		fmt.Sprintf("        Endpoint: vela status %s --endpoint\n", appName)
 	return appUpMessage
 }
 

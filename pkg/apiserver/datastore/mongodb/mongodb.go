@@ -84,23 +84,23 @@ func (m *mongodb) Add(ctx context.Context, entity datastore.Entity) error {
 }
 
 // BatchAdd batch add entity, this operation has some atomicity.
-func (m *mongodb) BatchAdd(ctx context.Context, entitys []datastore.Entity) error {
-	donotRollback := make(map[string]int)
-	for i, saveEntity := range entitys {
+func (m *mongodb) BatchAdd(ctx context.Context, entities []datastore.Entity) error {
+	notRollback := make(map[string]int)
+	for i, saveEntity := range entities {
 		if err := m.Add(ctx, saveEntity); err != nil {
 			if errors.Is(err, datastore.ErrRecordExist) {
-				donotRollback[saveEntity.PrimaryKey()] = 1
+				notRollback[saveEntity.PrimaryKey()] = 1
 			}
-			for _, deleteEntity := range entitys[:i] {
-				if _, exit := donotRollback[deleteEntity.PrimaryKey()]; !exit {
+			for _, deleteEntity := range entities[:i] {
+				if _, exit := notRollback[deleteEntity.PrimaryKey()]; !exit {
 					if err := m.Delete(ctx, deleteEntity); err != nil {
 						if !errors.Is(err, datastore.ErrRecordNotExist) {
-							log.Logger.Errorf("rollback delete component failure %w", err)
+							log.Logger.Errorf("rollback delete entity failure %w", err)
 						}
 					}
 				}
 			}
-			return datastore.NewDBError(fmt.Errorf("save components occur error, %w", err))
+			return datastore.NewDBError(fmt.Errorf("save entities occur error, %w", err))
 		}
 	}
 	return nil
@@ -192,10 +192,14 @@ func (m *mongodb) Delete(ctx context.Context, entity datastore.Entity) error {
 }
 
 func _applyFilterOptions(filter bson.D, filterOptions datastore.FilterOptions) bson.D {
-	if len(filterOptions.Queries) > 0 {
-		for _, queryOp := range filterOptions.Queries {
-			filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bsonx.Regex(".*"+queryOp.Query+".*", "s")})
-		}
+	for _, queryOp := range filterOptions.Queries {
+		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bsonx.Regex(".*"+queryOp.Query+".*", "s")})
+	}
+	for _, queryOp := range filterOptions.In {
+		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bson.D{bson.E{Key: "$in", Value: queryOp.Values}}})
+	}
+	for _, queryOp := range filterOptions.IsNotExist {
+		filter = append(filter, bson.E{Key: strings.ToLower(queryOp.Key), Value: bson.D{bson.E{Key: "$eq", Value: ""}}})
 	}
 	return filter
 }
@@ -216,7 +220,7 @@ func (m *mongodb) List(ctx context.Context, entity datastore.Entity, op *datasto
 			})
 		}
 	}
-	if op != nil && len(op.Queries) > 0 {
+	if op != nil {
 		filter = _applyFilterOptions(filter, op.FilterOptions)
 	}
 	var findOptions options.FindOptions
@@ -276,7 +280,7 @@ func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOpti
 			})
 		}
 	}
-	if filterOptions != nil && len(filterOptions.Queries) > 0 {
+	if filterOptions != nil {
 		filter = _applyFilterOptions(filter, *filterOptions)
 	}
 	count, err := collection.CountDocuments(ctx, filter)

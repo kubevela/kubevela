@@ -38,7 +38,8 @@ var _ = Describe("Test target usecase functions", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "target-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
 	})
 	It("Test CreateTarget function", func() {
@@ -49,6 +50,7 @@ var _ = Describe("Test target usecase functions", func() {
 			Name:        "test--target",
 			Alias:       "test-alias",
 			Description: "this is a Target",
+			Project:     testProject,
 			Cluster:     &apisv1.ClusterTarget{ClusterName: "cluster-dev", Namespace: "dev"},
 			Variable:    map[string]interface{}{"terraform-provider": "provider", "region": "us-1"},
 		}
@@ -65,7 +67,7 @@ var _ = Describe("Test target usecase functions", func() {
 		Expect(cmp.Diff(Target.Name, "test--target")).Should(BeEmpty())
 
 		By("Test ListTargets function")
-		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1)
+		resp, err := targetUsecase.ListTargets(context.TODO(), 1, 1, "")
 		Expect(err).Should(BeNil())
 		Expect(resp.Targets[0].ClusterAlias).Should(Equal("dev-alias"))
 

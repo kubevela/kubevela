@@ -61,10 +61,10 @@ var (
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
-	// PrepareWorkflowAndPolicyDurationHistogram report the prepare workflow and policy execution duration.
-	PrepareWorkflowAndPolicyDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "prepare_workflow_and_policy_time_seconds",
-		Help:        "prepare workflow and policy duration distributions.",
+	// ApplyPoliciesDurationHistogram report execution duration for applying policies
+	ApplyPoliciesDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "apply_policies",
+		Help:        "render and dispatch policy duration distributions.",
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})

@@ -1,0 +1,15 @@
+apiVersion: v1
+entries:
+  fluxcd:
+    - created: "2022-03-25T21:04:51.244331+08:00"
+      description: Extended workload to do continuous and progressive delivery
+      home: https://fluxcd.io
+      icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
+      keywords:
+        - extended_workload
+        - gitops
+      name: fluxcd
+      urls:
+        - http://127.0.0.1:18083/fluxcd-1.0.0.tgz
+      version: 1.0.0
+generated: "0001-01-01T00:00:00Z"

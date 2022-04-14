@@ -26,12 +26,13 @@ import (
 )
 
 type systemInfoWebService struct {
-	useCase usecase.SystemInfoUsecase
+	useCase     usecase.SystemInfoUsecase
+	rbacUsecase usecase.RBACUsecase
 }
 
 // NewSystemInfoWebService return systemInfo webservice
-func NewSystemInfoWebService(systemInfoUseCase usecase.SystemInfoUsecase) WebService {
-	return &systemInfoWebService{useCase: systemInfoUseCase}
+func NewSystemInfoWebService(systemInfoUseCase usecase.SystemInfoUsecase, rbacUsecase usecase.RBACUsecase) WebService {
+	return &systemInfoWebService{useCase: systemInfoUseCase, rbacUsecase: rbacUsecase}
 }
 
 // GetWebService return systemInfo webservice
@@ -50,21 +51,16 @@ func (u systemInfoWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
-	// Delete
-	ws.Route(ws.DELETE("/").To(u.deleteSystemInfo).
-		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "OK", apis.SystemInfoResponse{}).
-		Returns(400, "Bad Request", bcode.Bcode{}).
-		Writes(apis.SystemInfoResponse{}))
-
 	// Post
 	ws.Route(ws.PUT("/").To(u.updateSystemInfo).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Reads(apis.SystemInfoRequest{}).
+		Filter(u.rbacUsecase.CheckPerm("systemSetting", "update")).
 		Returns(200, "OK", apis.SystemInfoResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.SystemInfoResponse{}))
 
+	ws.Filter(authCheckFilter)
 	return ws
 }
 
@@ -102,14 +98,6 @@ func (u systemInfoWebService) updateSystemInfo(req *restful.Request, res *restfu
 		return
 	}
 	if err := res.WriteEntity(info); err != nil {
-		bcode.ReturnError(req, res, err)
-		return
-	}
-}
-
-func (u systemInfoWebService) deleteSystemInfo(req *restful.Request, res *restful.Response) {
-	err := u.useCase.DeleteSystemInfo(req.Request.Context())
-	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

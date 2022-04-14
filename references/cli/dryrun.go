@@ -31,12 +31,12 @@ import (
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 )
 
 // DryRunCmdOptions contains dry-run cmd options
@@ -107,13 +107,19 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		return buff, err
 	}
 
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
+	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
+
+	err = dryRunOpt.ValidateApp(ctx, cmdOption.ApplicationFile)
+	if err != nil {
+		return buff, errors.WithMessagef(err, "validate application: %s by dry-run", cmdOption.ApplicationFile)
+	}
+
 	app, err := readApplicationFromFile(cmdOption.ApplicationFile)
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application file: %s", cmdOption.ApplicationFile)
 	}
 
-	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
-	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, errors.WithMessage(err, "generate OAM objects")

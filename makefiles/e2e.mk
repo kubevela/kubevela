@@ -48,6 +48,7 @@ ADDONSERVER = $(shell pgrep vela_addon_mock_server)
 e2e-apiserver-test:
 	pkill vela_addon_mock_server || true
 	go run ./e2e/addon/mock/vela_addon_mock_server.go &
+	sleep 15
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 

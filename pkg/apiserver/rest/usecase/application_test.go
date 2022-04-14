@@ -42,11 +42,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test application usecase function", func() {
 	var (
+		rbacUsecase       *rbacUsecaseImpl
 		appUsecase        *applicationUsecaseImpl
 		workflowUsecase   *workflowUsecaseImpl
 		envUsecase        *envUsecaseImpl
@@ -54,6 +56,7 @@ var _ = Describe("Test application usecase function", func() {
 		targetUsecase     *targetUsecaseImpl
 		definitionUsecase *definitionUsecaseImpl
 		projectUsecase    *projectUsecaseImpl
+		userUsecase       *userUsecaseImpl
 		testProject       = "app-project"
 		testApp           = "test-app"
 		defaultTarget     = "default"
@@ -66,12 +69,14 @@ var _ = Describe("Test application usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		rbacUsecase = &rbacUsecaseImpl{ds: ds}
+		userUsecase = &userUsecaseImpl{ds: ds, k8sClient: k8sClient}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		workflowUsecase = &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		definitionUsecase = &definitionUsecaseImpl{kubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.Background())}
 		envBindingUsecase = &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient, definitionUsecase: definitionUsecase}
 		targetUsecase = &targetUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
 		appUsecase = &applicationUsecaseImpl{
 			ds:                ds,
 			workflowUsecase:   workflowUsecase,
@@ -87,11 +92,19 @@ var _ = Describe("Test application usecase function", func() {
 
 	It("Test CreateApplication function", func() {
 
-		By("test sample create")
-		_, err := targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
+		By("init default admin user")
+		var ns = corev1.Namespace{}
+		ns.Name = types.DefaultKubeVelaNS
+		err := k8sClient.Create(context.TODO(), &ns)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		err = userUsecase.Init(context.TODO())
 		Expect(err).Should(BeNil())
 
-		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		By("prepare test project")
+		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject, Owner: model.DefaultAdminUserName})
+		Expect(err).Should(BeNil())
+
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
 		Expect(err).Should(BeNil())
 
 		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: "app-dev"})
@@ -114,6 +127,7 @@ var _ = Describe("Test application usecase function", func() {
 				Properties:    "{\"image\":\"nginx\"}",
 			},
 		}
+		By("test create application")
 		base, err := appUsecase.CreateApplication(context.TODO(), req)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Description, req.Description)).Should(BeEmpty())
@@ -124,13 +138,13 @@ var _ = Describe("Test application usecase function", func() {
 	})
 
 	It("Test ListApplications function", func() {
-		_, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicationOptions{})
+		_, err := appUsecase.ListApplications(context.WithValue(context.TODO(), &v1.CtxKeyUser, model.DefaultAdminUserName), v1.ListApplicationOptions{})
 		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListApplications and filter by targetName function", func() {
-		list, err := appUsecase.ListApplications(context.TODO(), v1.ListApplicationOptions{
-			Project:    testProject,
+		list, err := appUsecase.ListApplications(context.WithValue(context.TODO(), &v1.CtxKeyUser, model.DefaultAdminUserName), v1.ListApplicationOptions{
+			Projects:   []string{testProject},
 			TargetName: defaultTarget})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(list), 1)).Should(BeEmpty())
@@ -481,7 +495,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
 
 		By("compare when app's env add target, should return true")
-		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
 		Expect(err).Should(BeNil())
 		_, err = envUsecase.UpdateEnv(context.TODO(), "app-dev",
 			v1.UpdateEnvRequest{
@@ -594,8 +608,9 @@ var _ = Describe("Test application component usecase function", func() {
 		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient}
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		workflowUsecase := &workflowUsecaseImpl{ds: ds, envUsecase: envUsecase}
 		envBindingUsecase := &envBindingUsecaseImpl{ds: ds, envUsecase: envUsecase, workflowUsecase: workflowUsecase, kubeClient: k8sClient}
 

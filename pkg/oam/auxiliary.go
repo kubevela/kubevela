@@ -17,6 +17,8 @@ limitations under the License.
 package oam
 
 import (
+	"time"
+
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -40,4 +42,62 @@ func GetServiceAccountNameFromAnnotations(o client.Object) string {
 		return annotations[AnnotationServiceAccountName]
 	}
 	return ""
+}
+
+// GetPublishVersion get PublishVersion from object
+func GetPublishVersion(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationPublishVersion]
+	}
+	return ""
+}
+
+// GetDeployVersion get DeployVersion from object
+func GetDeployVersion(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationDeployVersion]
+	}
+	return ""
+}
+
+// GetLastAppliedTime .
+func GetLastAppliedTime(o client.Object) time.Time {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		s := annotations[AnnotationLastAppliedTime]
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t
+		}
+	}
+	return o.GetCreationTimestamp().Time
+}
+
+// SetPublishVersion set PublishVersion for object
+func SetPublishVersion(o client.Object, publishVersion string) {
+	annotations := o.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationPublishVersion] = publishVersion
+	o.SetAnnotations(annotations)
+}
+
+// GetControllerRequirement get ControllerRequirement from object
+func GetControllerRequirement(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationControllerRequirement]
+	}
+	return ""
+}
+
+// SetControllerRequirement set ControllerRequirement for object
+func SetControllerRequirement(o client.Object, controllerRequirement string) {
+	annotations := o.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationControllerRequirement] = controllerRequirement
+	if controllerRequirement == "" {
+		delete(annotations, AnnotationControllerRequirement)
+	}
+	o.SetAnnotations(annotations)
 }

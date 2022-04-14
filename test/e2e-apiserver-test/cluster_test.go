@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package e2e_apiserver
+package e2e_apiserver_test
 
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"time"
 
@@ -46,41 +45,37 @@ var _ = Describe("Test cluster rest api", func() {
 			clusterName = WorkerClusterName + "-" + util.RandomString(8)
 			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
-			resp, err := CreateRequest(http.MethodPost, "/clusters", v1.CreateClusterRequest{
+			resp := post("/clusters", v1.CreateClusterRequest{
 				Name:       clusterName,
 				KubeConfig: string(kubeconfigBytes),
 			})
-			Expect(err).Should(Succeed())
-			Expect(resp.StatusCode).Should(Equal(200))
-			Expect(resp.Body).ShouldNot(BeNil())
-			Expect(resp.Body.Close()).Should(Succeed())
+			Expect(decodeResponseBody(resp, nil)).Should(Succeed())
 		})
 
 		AfterEach(func() {
-			resp, err := CreateRequest(http.MethodDelete, "/clusters/"+clusterName, nil)
-			Expect(err).Should(Succeed())
-			Expect(resp.StatusCode).Should(Equal(200))
-			Expect(resp.Body).ShouldNot(BeNil())
-			Expect(resp.Body.Close()).Should(Succeed())
+			resp := delete("/clusters/" + clusterName)
+			Expect(decodeResponseBody(resp, nil)).Should(Succeed())
 		})
 
 		It("Test get cluster", func() {
-			resp, err := CreateRequest(http.MethodGet, "/clusters/"+clusterName, nil)
+			resp := get("/clusters/" + clusterName)
 			clusterResp := &v1.DetailClusterResponse{}
-			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterResp)).Should(Succeed())
 			Expect(clusterResp.Status).Should(Equal("Healthy"))
 		})
 
 		It("Test list clusters", func() {
-			resp, err := CreateRequest(http.MethodGet, "/clusters/?page=1&pageSize=5", nil)
+			defer GinkgoRecover()
+
+			resp := get("/clusters/?page=1&pageSize=5")
 			clusterResp := &v1.ListClusterResponse{}
-			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterResp)).Should(Succeed())
 			Expect(len(clusterResp.Clusters) >= 2).Should(BeTrue())
 			Expect(clusterResp.Clusters[0].Name).Should(Equal(multicluster.ClusterLocalName))
 			Expect(clusterResp.Clusters[1].Name).Should(Equal(clusterName))
-			resp, err = CreateRequest(http.MethodGet, "/clusters/?page=1&pageSize=5&query="+WorkerClusterName, nil)
+			resp = get("/clusters/?page=1&pageSize=5&query=" + WorkerClusterName)
 			clusterResp = &v1.ListClusterResponse{}
-			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterResp)).Should(Succeed())
 			Expect(len(clusterResp.Clusters) >= 1).Should(BeTrue())
 			Expect(clusterResp.Clusters[0].Name).Should(Equal(clusterName))
 		})
@@ -88,27 +83,25 @@ var _ = Describe("Test cluster rest api", func() {
 		It("Test modify cluster", func() {
 			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
-			resp, err := CreateRequest(http.MethodPut, "/clusters/"+clusterName, v1.CreateClusterRequest{
+			resp := put("/clusters/"+clusterName, v1.CreateClusterRequest{
 				Name:        clusterName,
 				KubeConfig:  string(kubeconfigBytes),
 				Description: "Example description",
 			})
 			clusterResp := &v1.ClusterBase{}
-			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterResp)).Should(Succeed())
 			Expect(clusterResp.Description).ShouldNot(Equal(""))
 		})
 
 		It("Test create ns in cluster", func() {
 			testNamespace := fmt.Sprintf("test-%d", time.Now().Unix())
-			resp, err := CreateRequest(http.MethodPost, "/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
-			Expect(err).Should(Succeed())
+			resp := post("/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
 			nsResp := &v1.CreateClusterNamespaceResponse{}
-			Expect(DecodeResponseBody(resp, err, nsResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, nsResp)).Should(Succeed())
 			Expect(nsResp.Exists).Should(Equal(false))
-			resp, err = CreateRequest(http.MethodPost, "/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
-			Expect(err).Should(Succeed())
+			resp = post("/clusters/"+clusterName+"/namespaces", v1.CreateClusterNamespaceRequest{Namespace: testNamespace})
 			nsResp = &v1.CreateClusterNamespaceResponse{}
-			Expect(DecodeResponseBody(resp, err, nsResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, nsResp)).Should(Succeed())
 			Expect(nsResp.Exists).Should(Equal(true))
 		})
 
@@ -123,33 +116,30 @@ var _ = Describe("Test cluster rest api", func() {
 		})
 
 		AfterEach(func() {
-			resp, err := CreateRequest(http.MethodDelete, "/clusters/"+clusterName, nil)
-			Expect(err).Should(Succeed())
-			Expect(resp.StatusCode).Should(Equal(200))
-			Expect(resp.Body).ShouldNot(BeNil())
-			Expect(resp.Body.Close()).Should(Succeed())
+			resp := delete("/clusters/" + clusterName)
+			Expect(decodeResponseBody(resp, nil)).Should(Succeed())
 		})
 
 		It("Test list aliyun cloud cluster and connect", func() {
 			AccessKeyID := os.Getenv("ALIYUN_ACCESS_KEY_ID")
 			AccessKeySecret := os.Getenv("ALIYUN_ACCESS_KEY_SECRET")
-			resp, err := CreateRequest(http.MethodPost, "/clusters/cloud-clusters/aliyun/?page=1&pageSize=5", v1.AccessKeyRequest{
+			resp := post("/clusters/cloud-clusters/aliyun/?page=1&pageSize=5", v1.AccessKeyRequest{
 				AccessKeyID:     AccessKeyID,
 				AccessKeySecret: AccessKeySecret,
 			})
 			clusterResp := &v1.ListCloudClusterResponse{}
-			Expect(DecodeResponseBody(resp, err, clusterResp)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterResp)).Should(Succeed())
 			Expect(len(clusterResp.Clusters)).ShouldNot(Equal(0))
 
 			ClusterID := clusterResp.Clusters[0].ID
-			resp, err = CreateRequest(http.MethodPost, "/clusters/cloud-clusters/aliyun/connect", v1.ConnectCloudClusterRequest{
+			resp = post("/clusters/cloud-clusters/aliyun/connect", v1.ConnectCloudClusterRequest{
 				AccessKeyID:     AccessKeyID,
 				AccessKeySecret: AccessKeySecret,
 				ClusterID:       ClusterID,
 				Name:            clusterName,
 			})
 			clusterBase := &v1.ClusterBase{}
-			Expect(DecodeResponseBody(resp, err, clusterBase)).Should(Succeed())
+			Expect(decodeResponseBody(resp, clusterBase)).Should(Succeed())
 			Expect(clusterBase.Status).Should(Equal("Healthy"))
 		})
 

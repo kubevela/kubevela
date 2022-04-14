@@ -23,13 +23,15 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -202,74 +204,31 @@ func lookUpValues(v *value.Value, mu *sync.Mutex) (*common.ApplicationComponent,
 }
 
 func (p *provider) loadDynamicComponent(comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
-	if comp.Type != "ref-objects" {
+	if comp.Type != v1alpha1.RefObjectsComponentType {
 		return comp, nil
 	}
 	_comp := comp.DeepCopy()
-	props := &struct {
-		Objects []struct {
-			APIVersion string            `json:"apiVersion"`
-			Kind       string            `json:"kind"`
-			Name       string            `json:"name,omitempty"`
-			Selector   map[string]string `json:"selector,omitempty"`
-		} `json:"objects"`
-	}{}
-	if err := json.Unmarshal(_comp.Properties.Raw, props); err != nil {
-		return nil, errors.Wrapf(err, "invalid properties for ref-objects")
+	spec := &v1alpha1.RefObjectsComponentSpec{}
+	if err := json.Unmarshal(comp.Properties.Raw, spec); err != nil {
+		return nil, errors.Wrapf(err, "invalid ref-object component properties")
 	}
-	var objects []*unstructured.Unstructured
-	addObj := func(un *unstructured.Unstructured) {
-		un.SetResourceVersion("")
-		un.SetGeneration(0)
-		un.SetOwnerReferences(nil)
-		un.SetDeletionTimestamp(nil)
-		un.SetManagedFields(nil)
-		un.SetUID("")
-		unstructured.RemoveNestedField(un.Object, "metadata", "creationTimestamp")
-		unstructured.RemoveNestedField(un.Object, "status")
-		// TODO(somefive): make the following logic more generalizable
-		if un.GetKind() == "Service" && un.GetAPIVersion() == "v1" {
-			if clusterIP, exist, _ := unstructured.NestedString(un.Object, "spec", "clusterIP"); exist && clusterIP != corev1.ClusterIPNone {
-				unstructured.RemoveNestedField(un.Object, "spec", "clusterIP")
-				unstructured.RemoveNestedField(un.Object, "spec", "clusterIPs")
-			}
+	var uns []*unstructured.Unstructured
+	for _, selector := range spec.Objects {
+		objs, err := component.SelectRefObjectsForDispatch(context.Background(), component.ReferredObjectsDelegatingClient(p.cli, p.af.ReferredObjects), p.af.Namespace, comp.Name, selector)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to select objects from referred objects in revision storage")
 		}
-		objects = append(objects, un)
+		uns = component.AppendUnstructuredObjects(uns, objs...)
 	}
-	for _, obj := range props.Objects {
-		if obj.Name != "" && obj.Selector != nil {
-			return nil, errors.Errorf("invalid properties for ref-objects, name and selector cannot be both set")
-		}
-		if obj.Name == "" && obj.Selector != nil {
-			uns := &unstructured.UnstructuredList{}
-			uns.SetAPIVersion(obj.APIVersion)
-			uns.SetKind(obj.Kind)
-			if err := p.cli.List(context.Background(), uns, client.InNamespace(p.app.GetNamespace()), client.MatchingLabels(obj.Selector)); err != nil {
-				return nil, errors.Wrapf(err, "failed to load ref object %s with selector", obj.Kind)
-			}
-			for _, _un := range uns.Items {
-				addObj(_un.DeepCopy())
-			}
-		} else if obj.Selector == nil {
-			un := &unstructured.Unstructured{}
-			un.SetAPIVersion(obj.APIVersion)
-			un.SetKind(obj.Kind)
-			un.SetName(obj.Name)
-			un.SetNamespace(p.app.GetNamespace())
-			if obj.Name == "" {
-				un.SetName(comp.Name)
-			}
-			if err := p.cli.Get(context.Background(), client.ObjectKeyFromObject(un), un); err != nil {
-				return nil, errors.Wrapf(err, "failed to load ref object %s %s/%s", un.GetKind(), un.GetNamespace(), un.GetName())
-			}
-			addObj(un)
-		}
+	refObjs, err := component.ConvertUnstructuredsToReferredObjects(uns)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal referred object")
 	}
-	bs, err := json.Marshal(map[string]interface{}{"objects": objects})
+	bs, err := json.Marshal(&common.ReferredObjectList{Objects: refObjs})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
 	}
-	_comp.Properties.Raw = bs
+	_comp.Properties = &runtime.RawExtension{Raw: bs}
 	return _comp, nil
 }
 

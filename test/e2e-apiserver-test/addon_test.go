@@ -17,142 +17,170 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/addon"
-	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 )
 
-const baseURL = "http://127.0.0.1:8000"
-
-func post(path string, body interface{}) *http.Response {
-	b, err := json.Marshal(body)
-	Expect(err).Should(BeNil())
-
-	res, err := http.Post(baseURL+path, "application/json", bytes.NewBuffer(b))
-	Expect(err).Should(BeNil())
-	return res
-}
-
-func get(path string) *http.Response {
-	res, err := http.Get(baseURL + path)
-	Expect(err).Should(BeNil())
-	return res
-}
-
 var _ = Describe("Test addon rest api", func() {
-	registryName := "test-addon-registry"
-	createReq := apis.CreateAddonRegistryRequest{
-		Name: registryName,
-		Oss: &addon.OSSAddonSource{
-			Endpoint: "https://oss-cn-hangzhou.aliyuncs.com",
-			Bucket:   "fake-kubevela-addons",
-		},
-	}
-	It("should add and delete a registry, list addons from default registry", func() {
-		defer GinkgoRecover()
 
-		By("add registry")
-		createRes := post("/api/v1/addon_registries", createReq)
-		Expect(createRes).ShouldNot(BeNil())
-		Expect(createRes.Body).ShouldNot(BeNil())
-		Expect(createRes.StatusCode).Should(Equal(200))
+	Describe("addon registry apiServer test", func() {
+		It("list addon registry", func() {
+			resp := get("/addon_registries")
+			defer resp.Body.Close()
+			var addonRegistry apisv1.ListAddonRegistryResponse
+			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(1))
+		})
 
-		defer createRes.Body.Close()
-
-		var rmeta apis.AddonRegistry
-		err := json.NewDecoder(createRes.Body).Decode(&rmeta)
-		Expect(err).Should(BeNil())
-		Expect(rmeta.Name).Should(Equal(createReq.Name))
-		Expect(rmeta.Git).Should(Equal(createReq.Git))
-		Expect(rmeta.OSS).Should(Equal(createReq.Oss))
-
-		deleteReq, err := http.NewRequest(http.MethodDelete, baseURL+"/api/v1/addon_registries/"+createReq.Name, nil)
-		Expect(err).Should(BeNil())
-		deleteRes, err := http.DefaultClient.Do(deleteReq)
-		Expect(err).Should(BeNil())
-		Expect(deleteRes).ShouldNot(BeNil())
-		Expect(deleteRes.StatusCode).Should(Equal(200))
-	})
-
-	It("list addons", func() {
-		DefaultRegistry := "KubeVela"
-		listRes := get("/api/v1/addons/")
-		defer listRes.Body.Close()
-
-		var lres apis.ListAddonResponse
-		err := json.NewDecoder(listRes.Body).Decode(&lres)
-		Expect(err).Should(BeNil())
-		Expect(lres.Addons).ShouldNot(BeZero())
-		Expect(lres.Addons[0].RegistryName).To(Equal(DefaultRegistry))
-
-		By("get addon detail")
-		detailRes := get("/api/v1/addons/terraform-alibaba")
-		defer detailRes.Body.Close()
-
-		var dres *apis.DetailAddonResponse
-		err = json.NewDecoder(detailRes.Body).Decode(&dres)
-		Expect(err).Should(BeNil())
-		Expect(dres.Meta).ShouldNot(BeNil())
-		Expect(dres.UISchema).ShouldNot(BeNil())
-		Expect(dres.APISchema).ShouldNot(BeNil())
-		Expect(dres.RegistryName).Should(Equal(DefaultRegistry))
-	})
-
-	PIt("should enable and disable an addon", func() {
-		defer GinkgoRecover()
-		req := apis.EnableAddonRequest{
-			Args: map[string]interface{}{
-				"example": "test-args",
-			},
-		}
-		testAddon := "example"
-		res := post("/api/v1/addons/"+testAddon+"/enable", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
-
-		defer res.Body.Close()
-
-		var statusRes apis.AddonStatusResponse
-		err := json.NewDecoder(res.Body).Decode(&statusRes)
-
-		Expect(err).Should(BeNil())
-		Expect(statusRes.Phase).Should(Equal(apis.AddonPhaseEnabling))
-
-		// Wait for addon enabled
-
-		period := 30 * time.Second
-		timeout := 2 * time.Minute
-		Eventually(func() error {
-			res = get("/api/v1/addons/" + testAddon + "/status")
-			err = json.NewDecoder(res.Body).Decode(&statusRes)
-			Expect(err).Should(BeNil())
-			if statusRes.Phase == apis.AddonPhaseEnabled {
-				return nil
+		It("add addon registry", func() {
+			req := apisv1.CreateAddonRegistryRequest{
+				Name: "test-registry",
+				Git: &addon.GitAddonSource{
+					URL: "github.com/test-path",
+				},
 			}
-			fmt.Println(statusRes.Phase)
-			return errors.New("not ready")
-		}, timeout, period).Should(BeNil())
+			res := post("/addon_registries", req)
+			defer res.Body.Close()
+			var registry apisv1.AddonRegistry
+			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
+			Expect(registry.Git).ShouldNot(BeNil())
+			Expect(registry.Git.URL).Should(BeEquivalentTo("github.com/test-path"))
 
-		res = post("/api/v1/addons/"+testAddon+"/disable", req)
-		Expect(res).ShouldNot(BeNil())
-		Expect(res.StatusCode).Should(Equal(200))
-		Expect(res.Body).ShouldNot(BeNil())
+			resp := get("/addon_registries")
+			var addonRegistry apisv1.ListAddonRegistryResponse
+			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(2))
+		})
 
-		err = json.NewDecoder(res.Body).Decode(&statusRes)
-		Expect(err).Should(BeNil())
+		It("update an addon registry", func() {
+			req := apisv1.UpdateAddonRegistryRequest{
+				Git: &addon.GitAddonSource{
+					URL: "github.com/another-path",
+				},
+			}
+			res := put("/addon_registries"+"/test-registry", req)
+			defer res.Body.Close()
+			var registry apisv1.AddonRegistry
+			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
+			Expect(registry.Git).ShouldNot(BeNil())
+			Expect(registry.Git.URL).Should(BeEquivalentTo("github.com/another-path"))
+
+			resp := get("/addon_registries")
+			var addonRegistry apisv1.ListAddonRegistryResponse
+			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(2))
+			Expect(addonRegistry.Registries[1].Git.URL).Should(BeEquivalentTo("github.com/another-path"))
+		})
+
+		It("delete an addon registry", func() {
+			res := delete("/addon_registries" + "/test-registry")
+			defer res.Body.Close()
+			var registry apisv1.AddonRegistry
+			Expect(decodeResponseBody(res, &registry)).Should(Succeed())
+		})
 	})
 
-	It("should delete test registry", func() {
-		defer GinkgoRecover()
+	Describe("addon apiServer test", func() {
+		It("list addons", func() {
+			res := get("/addons")
+			defer res.Body.Close()
+			var addons apisv1.ListAddonResponse
+			Expect(decodeResponseBody(res, &addons)).Should(Succeed())
+			Expect(len(addons.Addons)).ShouldNot(BeEquivalentTo(0))
+		})
+
+		It("get addon detail", func() {
+			res := get("/addons/fluxcd")
+			defer res.Body.Close()
+			var addon apisv1.DetailAddonResponse
+			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
+			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
+		})
+
+		It("enable addon ", func() {
+			req := apisv1.EnableAddonRequest{
+				Args: map[string]interface{}{
+					"testkey": "testvalue",
+				},
+			}
+			res := post("/addons/fluxcd/enable", req)
+			defer res.Body.Close()
+			var addon apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
+			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(len(addon.Args)).Should(BeEquivalentTo(1))
+			Expect(addon.Args["testkey"]).Should(BeEquivalentTo("testvalue"))
+		})
+
+		It("addon status", func() {
+			res := get("/addons/fluxcd/status")
+			defer res.Body.Close()
+			var addonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
+			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("testvalue"))
+		})
+
+		It("not enabled addon status", func() {
+			res := get("/addons/example/status")
+			defer res.Body.Close()
+			var addonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+			Expect(addonStatus.Name).Should(BeEquivalentTo("example"))
+			Expect(addonStatus.Phase).Should(BeEquivalentTo("disabled"))
+		})
+
+		It("update addon ", func() {
+			req := apisv1.EnableAddonRequest{
+				Args: map[string]interface{}{
+					"testkey": "new-testvalue",
+				},
+			}
+			res := put("/addons/fluxcd/update", req)
+			defer res.Body.Close()
+			var addonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
+			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+
+			status := get("/addons/fluxcd/status")
+			var newaddonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
+			Expect(newaddonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(len(newaddonStatus.Args)).Should(BeEquivalentTo(1))
+			Expect(newaddonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+		})
+
+		It("list enabled addon", func() {
+			Eventually(func() error {
+				res := get("/enabled_addon/")
+				defer res.Body.Close()
+				var addonList apisv1.ListEnabledAddonResponse
+				err := decodeResponseBody(res, &addonList)
+				if err != nil {
+					return err
+				}
+				if len(addonList.EnabledAddons) == 0 {
+					return fmt.Errorf("error number")
+				}
+				return nil
+			}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		})
+
+		It("disable addon ", func() {
+			res := post("/addons/fluxcd/disable", nil)
+			defer res.Body.Close()
+			var addonStatus apisv1.AddonStatusResponse
+			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+		})
 	})
 })

@@ -322,6 +322,23 @@ type PolicyStatus struct {
 	Status *runtime.RawExtension `json:"status,omitempty"`
 }
 
+// WorkflowStep defines how to execute a workflow step.
+type WorkflowStep struct {
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
+
+	DependsOn []string `json:"dependsOn,omitempty"`
+
+	Inputs StepInputs `json:"inputs,omitempty"`
+
+	Outputs StepOutputs `json:"outputs,omitempty"`
+}
+
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision string       `json:"appRevision,omitempty"`
@@ -604,4 +621,18 @@ func ParseApplicationConditionType(s string) (ApplicationConditionType, error) {
 		}
 	}
 	return -1, errors.New("unknown condition type")
+}
+
+// ReferredObject the referred Kubernetes object
+type ReferredObject struct {
+	// +kubebuilder:validation:EmbeddedResource
+	// +kubebuilder:pruning:PreserveUnknownFields
+	runtime.RawExtension `json:",inline"`
+}
+
+// ReferredObjectList a list of referred Kubernetes objects
+type ReferredObjectList struct {
+	// Objects a list of Kubernetes objects.
+	// +optional
+	Objects []ReferredObject `json:"objects,omitempty"`
 }

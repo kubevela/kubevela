@@ -57,8 +57,9 @@ var _ = Describe("Test workflow usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "workflow-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		projectUsecase = &projectUsecaseImpl{ds: ds}
-		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase = &projectUsecaseImpl{ds: ds, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{ds: ds, kubeClient: k8sClient, projectUsecase: projectUsecase}
 		workflowUsecase = &workflowUsecaseImpl{
 			ds:         ds,
 			kubeClient: k8sClient,

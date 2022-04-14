@@ -64,6 +64,9 @@ var (
 
 	// ErrAddonSystemVersionMismatch means addon's version required mismatch
 	ErrAddonSystemVersionMismatch = NewBcode(400, 50018, "addon's system version requirement mismatch")
+
+	// ErrAddonInvalidVersion means add version is invalid
+	ErrAddonInvalidVersion = NewBcode(400, 50019, "")
 )
 
 // isGithubRateLimit check if error is github rate limit

@@ -6,3 +6,4 @@ This directory contains guides for contributors to the KubeVela project.
 * [Developer guide](./developer-guide.md)
 * [Triage issues](./triage-issues.md)
 * [Code conventions](./coding-conventions.md)
+* [Develop Code Flow](./develop-code-flow.pdf)

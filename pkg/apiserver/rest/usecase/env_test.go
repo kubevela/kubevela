@@ -43,7 +43,9 @@ var _ = Describe("Test env usecase functions", func() {
 		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "env-test-kubevela"})
 		Expect(ds).ToNot(BeNil())
 		Expect(err).Should(BeNil())
-		envUsecase = &envUsecaseImpl{kubeClient: k8sClient, ds: ds}
+		rbacUsecase := &rbacUsecaseImpl{ds: ds}
+		projectUsecase := &projectUsecaseImpl{ds: ds, k8sClient: k8sClient, rbacUsecase: rbacUsecase}
+		envUsecase = &envUsecaseImpl{kubeClient: k8sClient, ds: ds, projectUsecase: projectUsecase}
 	})
 	It("Test Create/Get/Delete Env function", func() {
 		// create target
@@ -111,7 +113,7 @@ var _ = Describe("Test env usecase functions", func() {
 		Expect(err).Should(BeNil())
 
 		By("Test ListEnvs function")
-		_, err = envUsecase.ListEnvs(context.TODO(), 1, 1, apisv1.ListEnvOptions{})
+		_, err = envUsecase.ListEnvs(context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "admin"), 1, 1, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
 	})
 

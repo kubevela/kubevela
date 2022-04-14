@@ -108,7 +108,6 @@ func TestGitHubReader(t *testing.T) {
 	_, err := r.ReadFile("example/metadata.yaml")
 	assert.NoError(t, err)
 
-	testReaderFunc(t, r)
 }
 
 // Int is a helper routine that allocates a new int value

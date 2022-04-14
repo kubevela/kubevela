@@ -17,11 +17,10 @@
 package v1beta1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -52,19 +51,23 @@ type ApplicationRevisionSpec struct {
 	// ScopeGVK records the apiVersion to GVK mapping
 	ScopeGVK map[string]metav1.GroupVersionKind `json:"scopeGVK,omitempty"`
 
-	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
-	// +deprecated
-	Components []common.RawComponent `json:"components,omitempty"`
+	// Policies records the external policies
+	Policies map[string]v1alpha1.Policy `json:"policies,omitempty"`
 
-	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
-	// it will contains the whole K8s CR of trait and the reference component in it.
-	// +kubebuilder:validation:EmbeddedResource
+	// Workflow records the external workflow
+	Workflow *v1alpha1.Workflow `json:"workflow,omitempty"`
+
+	// ReferredObjects records the referred objects used in the ref-object typed components
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +deprecated
-	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration,omitempty"`
+	ReferredObjects []common.ReferredObject `json:"referredObjects,omitempty"`
+}
 
-	// ResourcesConfigMap references the ConfigMap that's generated to contain all final rendered resources.
-	ResourcesConfigMap corev1.LocalObjectReference `json:"resourcesConfigMap,omitempty"`
+// ApplicationRevisionStatus is the status of ApplicationRevision
+type ApplicationRevisionStatus struct {
+	// Succeeded records if the workflow finished running with success
+	Succeeded bool `json:"succeeded"`
+	// Workflow the running status of the workflow
+	Workflow *common.WorkflowStatus `json:"workflow,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -72,14 +75,18 @@ type ApplicationRevisionSpec struct {
 // ApplicationRevision is the Schema for the ApplicationRevision API
 // +kubebuilder:storageversion
 // +kubebuilder:resource:categories={oam},shortName=apprev
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="PUBLISH_VERSION",type=string,JSONPath=`.metadata.annotations['app\.oam\.dev\/publishVersion']`
+// +kubebuilder:printcolumn:name="SUCCEEDED",type=string,JSONPath=`.status.succeeded`
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec ApplicationRevisionSpec `json:"spec,omitempty"`
+	Spec   ApplicationRevisionSpec   `json:"spec,omitempty"`
+	Status ApplicationRevisionStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

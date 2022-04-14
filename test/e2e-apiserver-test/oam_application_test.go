@@ -17,11 +17,9 @@
 package e2e_apiserver_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -49,14 +47,7 @@ var _ = Describe("Test oam application rest api", func() {
 			Policies:   app.Spec.Policies,
 			Workflow:   app.Spec.Workflow,
 		}
-		bodyByte, err := json.Marshal(req)
-		Expect(err).Should(BeNil())
-		res, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
-			"application/json",
-			bytes.NewBuffer(bodyByte),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName), req)
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 		Expect(res.Body).ShouldNot(BeNil())
@@ -73,15 +64,8 @@ var _ = Describe("Test oam application rest api", func() {
 		updateReq := apiv1.ApplicationRequest{
 			Components: app.Spec.Components[1:],
 		}
-		bodyByte, err = json.Marshal(updateReq)
-		Expect(err).Should(BeNil())
 		Eventually(func(g Gomega) {
-			res, err = http.Post(
-				fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
-				"application/json",
-				bytes.NewBuffer(bodyByte),
-			)
-			g.Expect(err).ShouldNot(HaveOccurred())
+			res = post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName), updateReq)
 			g.Expect(res).ShouldNot(BeNil())
 			g.Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 			g.Expect(res.Body).ShouldNot(BeNil())
@@ -96,15 +80,12 @@ var _ = Describe("Test oam application rest api", func() {
 
 	It("Test get oam app", func() {
 		defer GinkgoRecover()
-		res, err := http.Get(
-			fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName),
-		)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := get(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName))
 		Expect(res).ShouldNot(BeNil())
 
 		defer res.Body.Close()
 		var appResp apiv1.ApplicationResponse
-		err = json.NewDecoder(res.Body).Decode(&appResp)
+		err := json.NewDecoder(res.Body).Decode(&appResp)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Expect(len(appResp.Spec.Components)).Should(Equal(1))
@@ -112,10 +93,7 @@ var _ = Describe("Test oam application rest api", func() {
 
 	It("Test delete oam app", func() {
 		defer GinkgoRecover()
-		req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://127.0.0.1:8000/v1/namespaces/%s/applications/%s", namespace, appName), nil)
-		Expect(err).ShouldNot(HaveOccurred())
-		res, err := http.DefaultClient.Do(req)
-		Expect(err).ShouldNot(HaveOccurred())
+		res := delete(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName))
 		Expect(res).ShouldNot(BeNil())
 		Expect(cmp.Diff(res.StatusCode, 200)).Should(BeEmpty())
 	})

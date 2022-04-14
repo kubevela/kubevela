@@ -26,56 +26,64 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
 	"github.com/oam-dev/kubevela/pkg/oam"
-)
-
-const (
-	// FromCR means the data source of truth is from k8s CR
-	FromCR = "from-CR"
-	// FromUX means the data source of truth is from velaux data store
-	FromUX = "from-UX"
-	// FromInner means the data source of truth is from KubeVela inner usage, such as addon or configuration that don't want to be synced
-	FromInner = "from-inner"
-
-	// SoT means the source of Truth from
-	SoT = "SourceOfTruth"
 )
 
 // CheckSoTFromCR will check the source of truth of the application
 func CheckSoTFromCR(targetApp *v1beta1.Application) string {
-
-	if _, innerUse := targetApp.Annotations[oam.AnnotationSOTFromInner]; innerUse {
-		return FromInner
+	if sot := targetApp.Annotations[model.LabelSourceOfTruth]; sot != "" {
+		return sot
 	}
+	// if no LabelSourceOfTruth label, it means the app is existing ones, check the existing labels and annotations
 	if _, appName := targetApp.Annotations[oam.AnnotationAppName]; appName {
-		return FromUX
+		return model.FromUX
 	}
-	return FromCR
+	// no labels mean it's created by K8s resources.
+	return model.FromCR
 }
 
 // CheckSoTFromAppMeta will check the source of truth marked in datastore
-func CheckSoTFromAppMeta(ctx context.Context, ds datastore.DataStore, appName, namespace string, sotFromCR string) string {
+func (c *CR2UX) CheckSoTFromAppMeta(ctx context.Context, appName, namespace string, sotFromCR string) string {
 
-	app := &model.Application{Name: formatAppComposedName(appName, namespace)}
-	err := ds.Get(ctx, app)
+	app, _, err := c.getApp(ctx, appName, namespace)
 	if err != nil {
-		app = &model.Application{Name: appName}
-		err = ds.Get(ctx, app)
-		if err != nil {
-			return sotFromCR
-		}
-	}
-	if app.Labels == nil || app.Labels[SoT] == "" {
 		return sotFromCR
 	}
-	return app.Labels[SoT]
+	if app.Labels == nil || app.Labels[model.LabelSourceOfTruth] == "" {
+		return sotFromCR
+	}
+	return app.Labels[model.LabelSourceOfTruth]
+}
+
+// getApp will return the app and appname if exists
+func (c *CR2UX) getApp(ctx context.Context, name, namespace string) (*model.Application, string, error) {
+	alreadyCreated := &model.Application{Name: formatAppComposedName(name, namespace)}
+	err1 := c.ds.Get(ctx, alreadyCreated)
+	if err1 == nil {
+		return alreadyCreated, alreadyCreated.Name, nil
+	}
+
+	// check if it's created the first in database
+	existApp := &model.Application{Name: name}
+	err2 := c.ds.Get(ctx, existApp)
+	if err2 == nil {
+		en := existApp.Labels[model.LabelSyncNamespace]
+		// it means the namespace/app is not created yet, the appname is occupied by app from other namespace
+		if en != namespace {
+			return nil, formatAppComposedName(name, namespace), err1
+		}
+		return existApp, name, nil
+	}
+	return nil, name, err2
 }
 
 // CR2UX provides the Add/Update/Delete method
 type CR2UX struct {
-	ds    datastore.DataStore
-	cli   client.Client
-	cache sync.Map
+	ds       datastore.DataStore
+	cli      client.Client
+	cache    sync.Map
+	usecases map[string]interface{}
 }
 
 func formatAppComposedName(name, namespace string) string {
@@ -84,28 +92,13 @@ func formatAppComposedName(name, namespace string) string {
 
 // we need to prevent the case that one app is deleted ant it's name is pure appName, then other app with namespace suffix will be mixed
 func (c *CR2UX) getAppMetaName(ctx context.Context, name, namespace string) string {
-	alreadyCreated := &model.Application{Name: formatAppComposedName(name, namespace)}
-	err := c.ds.Get(ctx, alreadyCreated)
-	if err == nil {
-		return formatAppComposedName(name, namespace)
-	}
-
-	// check if it's created the first in database
-	existApp := &model.Application{Name: name}
-	err = c.ds.Get(ctx, existApp)
-	if err == nil {
-		en := existApp.Labels[model.LabelSyncNamespace]
-		if en != namespace {
-			return formatAppComposedName(name, namespace)
-		}
-	}
-	return name
+	_, appName, _ := c.getApp(ctx, name, namespace)
+	return appName
 }
 
 // AddOrUpdate will sync application CR to storage of VelaUX automatically
 func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application) error {
 	ds := c.ds
-
 	if !c.shouldSync(ctx, targetApp, false) {
 		return nil
 	}
@@ -115,8 +108,11 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		log.Logger.Errorf("Convert App to data store err %v", err)
 		return err
 	}
-
-	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds); err != nil {
+	pu, ok := c.usecases["project"].(usecase.ProjectUsecase)
+	if !ok {
+		log.Logger.Warnf("not provide project usecase instance")
+	}
+	if err = StoreProject(ctx, dsApp.AppMeta.Project, ds, pu); err != nil {
 		log.Logger.Errorf("get or create project for sync process err %v", err)
 		return err
 	}
@@ -155,7 +151,7 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 	}
 
 	// update cache
-	c.updateCache(dsApp.AppMeta.PrimaryKey(), targetApp.Generation, int64(len(dsApp.Targets)))
+	c.syncCache(dsApp.AppMeta.PrimaryKey(), targetApp.Generation, int64(len(dsApp.Targets)))
 	return nil
 }
 

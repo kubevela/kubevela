@@ -27,6 +27,7 @@ import (
 
 type definitionWebservice struct {
 	definitionUsecase usecase.DefinitionUsecase
+	rbacUsecase       usecase.RBACUsecase
 }
 
 func (d *definitionWebservice) GetWebService() *restful.WebService {
@@ -41,26 +42,32 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(d.listDefinitions).
 		Doc("list all definitions").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		// TODO: provide project scope api for query definition list
+		// Filter(d.rbacUsecase.CheckPerm("definition", "list")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
 		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload.").DataType("string")).
 		Returns(200, "OK", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
-	ws.Route(ws.GET("/{name}").To(d.detailDefinition).
+	ws.Route(ws.GET("/{definitionName}").To(d.detailDefinition).
 		Doc("detail definition").
-		Param(ws.PathParameter("name", "identifier of the definition").DataType("string")).
+		// Filter(d.rbacUsecase.CheckPerm("definition", "detail")).
+		Param(ws.PathParameter("definitionName", "identifier of the definition").DataType("string")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Returns(200, "create success", apis.DetailDefinitionResponse{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
+
+	ws.Filter(authCheckFilter)
 	return ws
 }
 
 // NewDefinitionWebservice new definition webservice
-func NewDefinitionWebservice(du usecase.DefinitionUsecase) WebService {
+func NewDefinitionWebservice(du usecase.DefinitionUsecase, rbacUsecase usecase.RBACUsecase) WebService {
 	return &definitionWebservice{
 		definitionUsecase: du,
+		rbacUsecase:       rbacUsecase,
 	}
 }
 
@@ -77,7 +84,7 @@ func (d *definitionWebservice) listDefinitions(req *restful.Request, res *restfu
 }
 
 func (d *definitionWebservice) detailDefinition(req *restful.Request, res *restful.Response) {
-	definition, err := d.definitionUsecase.DetailDefinition(req.Request.Context(), req.PathParameter("name"), req.QueryParameter("type"))
+	definition, err := d.definitionUsecase.DetailDefinition(req.Request.Context(), req.PathParameter("definitionName"), req.QueryParameter("type"))
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

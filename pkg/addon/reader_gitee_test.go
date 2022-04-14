@@ -96,5 +96,4 @@ func TestGiteeReader(t *testing.T) {
 	_, err := r.ReadFile("example/metadata.yaml")
 	assert.NoError(t, err)
 
-	testReaderFunc(t, r)
 }

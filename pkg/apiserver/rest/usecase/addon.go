@@ -44,6 +44,7 @@ import (
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -58,9 +59,9 @@ type AddonHandler interface {
 	ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error)
 	ListAddons(ctx context.Context, registry, query string) ([]*apis.DetailAddonResponse, error)
 	StatusAddon(ctx context.Context, name string) (*apis.AddonStatusResponse, error)
-	GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error)
+	GetAddon(ctx context.Context, name string, registry string, version string) (*apis.DetailAddonResponse, error)
 	EnableAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
-	DisableAddon(ctx context.Context, name string) error
+	DisableAddon(ctx context.Context, name string, force bool) error
 	ListEnabledAddon(ctx context.Context) ([]*apis.AddonBaseStatus, error)
 	UpdateAddon(ctx context.Context, name string, args apis.EnableAddonRequest) error
 }
@@ -81,13 +82,18 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 			Description: obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
+	if impl.Meta.DeployTo != nil && impl.Meta.DeployTo.LegacyRuntimeCluster != impl.Meta.DeployTo.RuntimeCluster {
+		impl.Meta.DeployTo.LegacyRuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
+		impl.Meta.DeployTo.RuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
+	}
 	return &apis.DetailAddonResponse{
-		Meta:         impl.Meta,
-		APISchema:    impl.APISchema,
-		UISchema:     impl.UISchema,
-		Detail:       impl.Detail,
-		Definitions:  defs,
-		RegistryName: impl.RegistryName,
+		Meta:              impl.Meta,
+		APISchema:         impl.APISchema,
+		UISchema:          impl.UISchema,
+		Detail:            impl.Detail,
+		Definitions:       defs,
+		RegistryName:      impl.RegistryName,
+		AvailableVersions: impl.AvailableVersions,
 	}, nil
 }
 
@@ -134,7 +140,7 @@ type defaultAddonHandler struct {
 }
 
 // GetAddon will get addon information
-func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registry string) (*apis.DetailAddonResponse, error) {
+func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registry string, version string) (*apis.DetailAddonResponse, error) {
 	var addon *pkgaddon.UIData
 	var err error
 	if registry == "" {
@@ -143,7 +149,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 			return nil, err
 		}
 		for _, r := range registries {
-			addon, err = u.addonRegistryCache.GetUIData(r, name)
+			addon, err = u.addonRegistryCache.GetUIData(r, name, version)
 			if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 				return nil, err
 			}
@@ -156,7 +162,7 @@ func (u *defaultAddonHandler) GetAddon(ctx context.Context, name string, registr
 		if err != nil {
 			return nil, err
 		}
-		addon, err = u.addonRegistryCache.GetUIData(addonRegistry, name)
+		addon, err = u.addonRegistryCache.GetUIData(addonRegistry, name, version)
 		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
 			return nil, err
 		}
@@ -180,13 +186,23 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 	if err != nil {
 		return nil, bcode.ErrGetAddonApplication
 	}
+	var allClusters []apis.NameAlias
+	clusters, err := multicluster.ListVirtualClusters(ctx, u.kubeClient)
+	if err != nil {
+		log.Logger.Errorf("err while list all clusters: %v", err)
+	}
 
+	for _, c := range clusters {
+		allClusters = append(allClusters, apis.NameAlias{Name: c.Name, Alias: c.Name})
+	}
 	if status.AddonPhase == string(apis.AddonPhaseDisabled) {
 		return &apis.AddonStatusResponse{
 			AddonBaseStatus: apis.AddonBaseStatus{
 				Name:  name,
 				Phase: apis.AddonPhase(status.AddonPhase),
 			},
+			InstalledVersion: status.InstalledVersion,
+			AllClusters:      allClusters,
 		}, nil
 	}
 
@@ -195,13 +211,12 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 			Name:  name,
 			Phase: apis.AddonPhase(status.AddonPhase),
 		},
-		AppStatus: *status.AppStatus,
-		Clusters:  status.Clusters,
+		InstalledVersion: status.InstalledVersion,
+		AppStatus:        *status.AppStatus,
+		Clusters:         status.Clusters,
+		AllClusters:      allClusters,
 	}
 
-	if res.Phase != apis.AddonPhaseEnabled {
-		return &res, nil
-	}
 	var sec v1.Secret
 	err = u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
@@ -293,12 +308,18 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 		return nil, err
 	}
 
+	return convertAddonRegistry(r), nil
+}
+
+func convertAddonRegistry(r pkgaddon.Registry) *apis.AddonRegistry {
 	return &apis.AddonRegistry{
-		Name:  r.Name,
-		Git:   r.Git,
-		OSS:   r.OSS,
-		Gitee: r.Gitee,
-	}, nil
+		Name:   r.Name,
+		Git:    r.Git,
+		Gitee:  r.Gitee,
+		OSS:    r.OSS,
+		Helm:   r.Helm,
+		Gitlab: r.Gitlab,
+	}
 }
 
 func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string) (*apis.AddonRegistry, error) {
@@ -306,11 +327,7 @@ func (u *defaultAddonHandler) GetAddonRegistry(ctx context.Context, name string)
 	if err != nil {
 		return nil, err
 	}
-	return &apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}, nil
+	return convertAddonRegistry(r), nil
 }
 
 func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name string, req apis.UpdateAddonRegistryRequest) (*apis.AddonRegistry, error) {
@@ -318,18 +335,25 @@ func (u defaultAddonHandler) UpdateAddonRegistry(ctx context.Context, name strin
 	if err != nil {
 		return nil, bcode.ErrAddonRegistryNotExist
 	}
-	r.Git = req.Git
-	r.OSS = req.Oss
+	switch {
+	case req.Git != nil:
+		r.Git = req.Git
+	case req.Gitee != nil:
+		r.Gitee = req.Gitee
+	case req.Oss != nil:
+		r.OSS = req.Oss
+	case req.Helm != nil:
+		r.Helm = req.Helm
+	case req.Gitlab != nil:
+		r.Gitlab = req.Gitlab
+	}
+
 	err = u.addonRegistryDS.UpdateRegistry(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
-	return &apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}, nil
+	return convertAddonRegistry(r), nil
 }
 
 func (u *defaultAddonHandler) ListAddonRegistries(ctx context.Context) ([]*apis.AddonRegistry, error) {
@@ -344,8 +368,8 @@ func (u *defaultAddonHandler) ListAddonRegistries(ctx context.Context) ([]*apis.
 		return nil, err
 	}
 	for _, registry := range registries {
-		r := ConvertAddonRegistryModel2AddonRegistryMeta(registry)
-		list = append(list, &r)
+		r := convertAddonRegistry(registry)
+		list = append(list, r)
 	}
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].Name < list[j].Name
@@ -360,7 +384,7 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 		return err
 	}
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}
@@ -370,9 +394,15 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 			// one registry return addon not exist error, should not break other registry func
 			continue
 		}
+		if strings.Contains(err.Error(), "specified version") {
+			berr := bcode.ErrAddonInvalidVersion
+			berr.Message = err.Error()
+			return berr
+		}
 
 		// wrap this error with special bcode
-		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
+			log.Logger.Error(err)
 			return bcode.ErrAddonSystemVersionMismatch
 		}
 		// except `addon not found`, other errors should return directly
@@ -381,8 +411,8 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 	return bcode.ErrAddonNotExist
 }
 
-func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string) error {
-	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name)
+func (u *defaultAddonHandler) DisableAddon(ctx context.Context, name string, force bool) error {
+	err := pkgaddon.DisableAddon(ctx, u.kubeClient, name, u.config, force)
 	if err != nil {
 		log.Logger.Errorf("delete application fail: %s", err.Error())
 		return err
@@ -428,7 +458,7 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 	}
 
 	for _, r := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
+		err = pkgaddon.EnableAddon(ctx, name, args.Version, u.kubeClient, u.discoveryClient, u.apply, u.config, r, args.Args, u.addonRegistryCache)
 		if err == nil {
 			return nil
 		}
@@ -438,7 +468,7 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 		}
 
 		// wrap this error with special bcode
-		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
 			return bcode.ErrAddonSystemVersionMismatch
 		}
 		// except `addon not found`, other errors should return directly
@@ -449,10 +479,12 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 
 func addonRegistryModelFromCreateAddonRegistryRequest(req apis.CreateAddonRegistryRequest) pkgaddon.Registry {
 	return pkgaddon.Registry{
-		Name:  req.Name,
-		Git:   req.Git,
-		OSS:   req.Oss,
-		Gitee: req.Gitee,
+		Name:   req.Name,
+		Git:    req.Git,
+		OSS:    req.Oss,
+		Gitee:  req.Gitee,
+		Helm:   req.Helm,
+		Gitlab: req.Gitlab,
 	}
 }
 
@@ -508,13 +540,4 @@ func renderAddonCustomUISchema(ctx context.Context, cli client.Client, addonName
 		return defaultSchema
 	}
 	return patchSchema(defaultSchema, schema)
-}
-
-// ConvertAddonRegistryModel2AddonRegistryMeta will convert from model to AddonRegistry
-func ConvertAddonRegistryModel2AddonRegistryMeta(r pkgaddon.Registry) apis.AddonRegistry {
-	return apis.AddonRegistry{
-		Name: r.Name,
-		Git:  r.Git,
-		OSS:  r.OSS,
-	}
 }

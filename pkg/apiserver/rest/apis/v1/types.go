@@ -43,6 +43,8 @@ var (
 	CtxKeyApplicationEnvBinding = "envbinding-policy"
 	// CtxKeyApplicationComponent request context key of component
 	CtxKeyApplicationComponent = "component"
+	// CtxKeyUser request context key of user
+	CtxKeyUser = "user"
 )
 
 // AddonPhase defines the phase of an addon
@@ -72,25 +74,31 @@ type NameAlias struct {
 
 // CreateAddonRegistryRequest defines the format for addon registry create request
 type CreateAddonRegistryRequest struct {
-	Name  string                  `json:"name" validate:"checkname"`
-	Git   *addon.GitAddonSource   `json:"git,omitempty" `
-	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
-	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
+	Name   string                   `json:"name" validate:"checkname"`
+	Helm   *addon.HelmSource        `json:"helm,omitempty"`
+	Git    *addon.GitAddonSource    `json:"git,omitempty" `
+	Oss    *addon.OSSAddonSource    `json:"oss,omitempty"`
+	Gitee  *addon.GiteeAddonSource  `json:"gitee,omitempty" `
+	Gitlab *addon.GitlabAddonSource `json:"gitlab,omitempty" `
 }
 
 // UpdateAddonRegistryRequest defines the format for addon registry update request
 type UpdateAddonRegistryRequest struct {
-	Git   *addon.GitAddonSource   `json:"git,omitempty"`
-	Oss   *addon.OSSAddonSource   `json:"oss,omitempty"`
-	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
+	Helm   *addon.HelmSource        `json:"helm,omitempty"`
+	Git    *addon.GitAddonSource    `json:"git,omitempty"`
+	Oss    *addon.OSSAddonSource    `json:"oss,omitempty"`
+	Gitee  *addon.GiteeAddonSource  `json:"gitee,omitempty" `
+	Gitlab *addon.GitlabAddonSource `json:"gitlab,omitempty" `
 }
 
 // AddonRegistry defines the format for a single addon registry
 type AddonRegistry struct {
-	Name  string                  `json:"name" validate:"required"`
-	Git   *addon.GitAddonSource   `json:"git,omitempty"`
-	OSS   *addon.OSSAddonSource   `json:"oss,omitempty"`
-	Gitee *addon.GiteeAddonSource `json:"gitee,omitempty" `
+	Name   string                   `json:"name" validate:"required"`
+	Helm   *addon.HelmSource        `json:"helm,omitempty"`
+	Git    *addon.GitAddonSource    `json:"git,omitempty"`
+	OSS    *addon.OSSAddonSource    `json:"oss,omitempty"`
+	Gitee  *addon.GiteeAddonSource  `json:"gitee,omitempty" `
+	Gitlab *addon.GitlabAddonSource `json:"gitlab,omitempty" `
 }
 
 // ListAddonRegistryResponse list addon registry
@@ -102,6 +110,10 @@ type ListAddonRegistryResponse struct {
 type EnableAddonRequest struct {
 	// Args is the key-value environment variables, e.g. AK/SK credentials.
 	Args map[string]interface{} `json:"args,omitempty"`
+	// Clusters specify the clusters this addon should be installed, if not specified, it will follow the configure in addon metadata.yaml
+	Clusters []string `json:"clusters,omitempty"`
+	// Version specify the version of addon to enable
+	Version string `json:"version,omitempty"`
 }
 
 // ListAddonResponse defines the format for addon list response
@@ -137,9 +149,10 @@ type DetailAddonResponse struct {
 	UISchema  utils.UISchema   `json:"uiSchema"`
 
 	// More details about the addon, e.g. README
-	Detail       string             `json:"detail,omitempty"`
-	Definitions  []*AddonDefinition `json:"definitions"`
-	RegistryName string             `json:"registryName,omitempty"`
+	Detail            string             `json:"detail,omitempty"`
+	Definitions       []*AddonDefinition `json:"definitions"`
+	RegistryName      string             `json:"registryName,omitempty"`
+	AvailableVersions []string           `json:"availableVersions"`
 }
 
 // AddonDefinition is definition an addon can provide
@@ -156,8 +169,11 @@ type AddonStatusResponse struct {
 	Args             map[string]interface{} `json:"args"`
 	EnablingProgress *EnablingProgress      `json:"enabling_progress,omitempty"`
 	AppStatus        common.AppStatus       `json:"appStatus,omitempty"`
+	InstalledVersion string                 `json:"installedVersion,omitempty"`
+
 	// the status of multiple clusters
-	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
+	Clusters    map[string]map[string]interface{} `json:"clusters,omitempty"`
+	AllClusters []NameAlias                       `json:"allClusters,omitempty"`
 }
 
 // EnablingProgress defines the progress of enabling an addon
@@ -169,6 +185,28 @@ type EnablingProgress struct {
 // AddonArgsResponse defines the response of addon args
 type AddonArgsResponse struct {
 	Args map[string]string `json:"args"`
+}
+
+// ConfigType define the format for listing configuration types
+type ConfigType struct {
+	Definitions []string `json:"definitions"`
+	Alias       string   `json:"alias"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+}
+
+// Config define the metadata of a config
+type Config struct {
+	ConfigType        string                  `json:"configType"`
+	ConfigTypeAlias   string                  `json:"configTypeAlias"`
+	Name              string                  `json:"name"`
+	Project           string                  `json:"project"`
+	Identifier        string                  `json:"identifier"`
+	Description       string                  `json:"description"`
+	CreatedTime       *time.Time              `json:"createdTime"`
+	UpdatedTime       *time.Time              `json:"updatedTime"`
+	ApplicationStatus common.ApplicationPhase `json:"applicationStatus"`
+	Status            string                  `json:"status"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider
@@ -285,10 +323,10 @@ type ClusterBase struct {
 
 // ListApplicationOptions list application  query options
 type ListApplicationOptions struct {
-	Project    string `json:"project"`
-	Env        string `json:"env"`
-	TargetName string `json:"targetName"`
-	Query      string `json:"query"`
+	Projects   []string `json:"projects"`
+	Env        string   `json:"env"`
+	TargetName string   `json:"targetName"`
+	Query      string   `json:"query"`
 }
 
 // ListApplicationResponse list applications by query params
@@ -309,6 +347,7 @@ type ApplicationBase struct {
 	UpdateTime  time.Time         `json:"updateTime"`
 	Icon        string            `json:"icon"`
 	Labels      map[string]string `json:"labels,omitempty"`
+	ReadOnly    bool              `json:"readOnly,omitempty"`
 }
 
 // AppCompareResponse application compare result
@@ -366,6 +405,15 @@ type CreateApplicationRequest struct {
 	Labels      map[string]string       `json:"labels,omitempty"`
 	EnvBinding  []*EnvBinding           `json:"envBinding,omitempty"`
 	Component   *CreateComponentRequest `json:"component"`
+}
+
+// CreateConfigRequest is the request body to creates a config
+type CreateConfigRequest struct {
+	Name          string `json:"name" validate:"checkname"`
+	Alias         string `json:"alias"`
+	Project       string `json:"project"`
+	ComponentType string `json:"componentType" validate:"checkname"`
+	Properties    string `json:"properties,omitempty"`
 }
 
 // UpdateApplicationRequest update application base config
@@ -567,7 +615,6 @@ type DetailApplicationResponse struct {
 	ApplicationBase
 	Policies        []string                `json:"policies"`
 	EnvBindings     []string                `json:"envBindings"`
-	Status          string                  `json:"status"`
 	ApplicationType string                  `json:"applicationType"`
 	ResourceInfo    ApplicationResourceInfo `json:"resourceInfo"`
 }
@@ -589,7 +636,6 @@ type ComponentBase struct {
 	Icon          string              `json:"icon,omitempty"`
 	DependsOn     []string            `json:"dependsOn"`
 	Creator       string              `json:"creator,omitempty"`
-	DeployVersion string              `json:"deployVersion"`
 	CreateTime    time.Time           `json:"createTime"`
 	UpdateTime    time.Time           `json:"updateTime"`
 	Inputs        common.StepInputs   `json:"inputs,omitempty"`
@@ -665,6 +711,7 @@ type ApplicationTemplateVersion struct {
 // ListProjectResponse list project response body
 type ListProjectResponse struct {
 	Projects []*ProjectBase `json:"projects"`
+	Total    int64          `json:"total"`
 }
 
 // ProjectBase project base model
@@ -674,6 +721,7 @@ type ProjectBase struct {
 	Description string    `json:"description"`
 	CreateTime  time.Time `json:"createTime"`
 	UpdateTime  time.Time `json:"updateTime"`
+	Owner       NameAlias `json:"owner,omitempty"`
 }
 
 // CreateProjectRequest create project request body
@@ -681,6 +729,14 @@ type CreateProjectRequest struct {
 	Name        string `json:"name" validate:"checkname"`
 	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
+}
+
+// UpdateProjectRequest update a project request body
+type UpdateProjectRequest struct {
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Description string `json:"description" optional:"true"`
+	Owner       string `json:"owner" optional:"true"`
 }
 
 // Env models the data of env in API
@@ -709,7 +765,8 @@ type ListEnvOptions struct {
 
 // ListEnvResponse response the while env list
 type ListEnvResponse struct {
-	Envs []*Env `json:"envs"`
+	Envs  []*Env `json:"envs"`
+	Total int64  `json:"total"`
 }
 
 // CreateEnvRequest contains the env data as request body
@@ -984,6 +1041,7 @@ type ApplicationTrait struct {
 type CreateTargetRequest struct {
 	Name        string                 `json:"name" validate:"checkname"`
 	Alias       string                 `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Project     string                 `json:"project" validate:"checkname"`
 	Description string                 `json:"description,omitempty" optional:"true"`
 	Cluster     *ClusterTarget         `json:"cluster,omitempty"`
 	Variable    map[string]interface{} `json:"variable,omitempty"`
@@ -1024,6 +1082,7 @@ type TargetBase struct {
 	CreateTime   time.Time              `json:"createTime"`
 	UpdateTime   time.Time              `json:"updateTime"`
 	AppNum       int64                  `json:"appNum,omitempty"`
+	Project      NameAlias              `json:"project"`
 }
 
 // ApplicationRevisionBase application revision base spec
@@ -1056,13 +1115,22 @@ type DetailRevisionResponse struct {
 
 // SystemInfoResponse get SystemInfo
 type SystemInfoResponse struct {
-	model.SystemInfo
+	SystemInfo
 	SystemVersion SystemVersion `json:"systemVersion"`
+}
+
+// SystemInfo system info
+type SystemInfo struct {
+	InstallID        string `json:"installID"`
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
 }
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
-	EnableCollection bool
+	EnableCollection bool   `json:"enableCollection"`
+	LoginType        string `json:"loginType"`
+	VelaAddress      string `json:"velaAddress,omitempty"`
 }
 
 // SystemVersion contains KubeVela version
@@ -1081,18 +1149,24 @@ type SimpleResponse struct {
 	Status string `json:"status"`
 }
 
-// LoginResponse is the response of login request
-type LoginResponse struct {
-	UserInfo     DetailUserResponse `json:"userInfo"`
-	AccessToken  string             `json:"accessToken,omitempty"`
-	RefreshToken string             `json:"refreshToken,omitempty"`
+// LoginRequest is the request body for login
+type LoginRequest struct {
+	Code     string `json:"code,omitempty" optional:"true"`
+	Username string `json:"username,omitempty" optional:"true"`
+	Password string `json:"password,omitempty" optional:"true"`
 }
 
-// DetailUserResponse is the detail user info for the response
-type DetailUserResponse struct {
-	Name  string `json:"name"`
-	Alias string `json:"alias,omitempty"`
-	Email string `json:"email"`
+// LoginResponse is the response of login request
+type LoginResponse struct {
+	User         *UserBase `json:"user"`
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+}
+
+// RefreshTokenResponse is the response of refresh token request
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 // DexConfigResponse is the response of dex config
@@ -1101,4 +1175,158 @@ type DexConfigResponse struct {
 	ClientSecret string `json:"clientSecret"`
 	RedirectURL  string `json:"redirectURL"`
 	Issuer       string `json:"issuer"`
+}
+
+// DetailUserResponse is the response of user detail
+type DetailUserResponse struct {
+	UserBase
+	Projects []*ProjectBase `json:"projects"`
+	Roles    []NameAlias    `json:"roles"`
+}
+
+// ProjectUserBase project user base
+type ProjectUserBase struct {
+	UserName   string    `json:"name"`
+	UserRoles  []string  `json:"userRoles"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// ListProjectUsersResponse the response body that list users belong to a project
+type ListProjectUsersResponse struct {
+	Users []*ProjectUserBase `json:"users"`
+	Total int64              `json:"total"`
+}
+
+// CreateUserRequest create user request
+type CreateUserRequest struct {
+	Name     string   `json:"name" validate:"checkname"`
+	Alias    string   `json:"alias,omitempty" validate:"checkalias" optional:"true"`
+	Email    string   `json:"email" validate:"checkemail"`
+	Password string   `json:"password" validate:"checkpassword"`
+	Roles    []string `json:"roles"`
+}
+
+// UpdateUserRequest update user request
+type UpdateUserRequest struct {
+	Alias    string    `json:"alias,omitempty" optional:"true"`
+	Password string    `json:"password,omitempty" validate:"checkpassword" optional:"true"`
+	Email    string    `json:"email,omitempty" validate:"checkemail" optional:"true"`
+	Roles    *[]string `json:"roles"`
+}
+
+// ListUserResponse list user response
+type ListUserResponse struct {
+	Users []*DetailUserResponse `json:"users"`
+	Total int64                 `json:"total"`
+}
+
+// UserBase is the base info of user
+type UserBase struct {
+	CreateTime    time.Time `json:"createTime"`
+	LastLoginTime time.Time `json:"lastLoginTime"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Alias         string    `json:"alias,omitempty"`
+	Disabled      bool      `json:"disabled"`
+}
+
+// ListUserOptions list user options
+type ListUserOptions struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Alias string `json:"alias"`
+}
+
+// GetLoginTypeResponse get login type response
+type GetLoginTypeResponse struct {
+	LoginType string `json:"loginType"`
+}
+
+// AddProjectUserRequest the request body that add user to project
+type AddProjectUserRequest struct {
+	UserName  string   `json:"userName" validate:"checkname"`
+	UserRoles []string `json:"userRoles"`
+}
+
+// UpdateProjectUserRequest the request body that update user role in a project
+type UpdateProjectUserRequest struct {
+	UserRoles []string `json:"userRoles"`
+}
+
+// CreateRoleRequest the request body that create a role
+type CreateRoleRequest struct {
+	Name        string   `json:"name" validate:"checkname"`
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
+}
+
+// UpdateRoleRequest the request body that update a role
+type UpdateRoleRequest struct {
+	Alias       string   `json:"alias" validate:"checkalias"`
+	Permissions []string `json:"permissions"`
+}
+
+// RoleBase the base struct of role
+type RoleBase struct {
+	CreateTime  time.Time   `json:"createTime"`
+	UpdateTime  time.Time   `json:"updateTime"`
+	Name        string      `json:"name"`
+	Alias       string      `json:"alias,omitempty"`
+	Permissions []NameAlias `json:"permissions"`
+}
+
+// ListRolesResponse the response body of list roles
+type ListRolesResponse struct {
+	Total int64       `json:"total"`
+	Roles []*RoleBase `json:"roles"`
+}
+
+// PermissionTemplateBase the perm policy template base struct
+type PermissionTemplateBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// PermissionBase the perm policy base struct
+type PermissionBase struct {
+	Name       string    `json:"name"`
+	Alias      string    `json:"alias"`
+	Resources  []string  `json:"resources"`
+	Actions    []string  `json:"actions"`
+	Effect     string    `json:"effect"`
+	CreateTime time.Time `json:"createTime"`
+	UpdateTime time.Time `json:"updateTime"`
+}
+
+// UpdatePermissionRequest the request body that update permission policy
+type UpdatePermissionRequest struct {
+	Alias     string   `json:"alias" validate:"checkalias"`
+	Resources []string `json:"resources"`
+	Actions   []string `json:"actions"`
+	Effect    string   `json:"effect" validate:"oneof=Allow Deny"`
+}
+
+// LoginUserInfoResponse the response body of login user info
+type LoginUserInfoResponse struct {
+	UserBase
+	Projects            []*ProjectBase              `json:"projects"`
+	PlatformPermissions []PermissionBase            `json:"platformPermissions"`
+	ProjectPermissions  map[string][]PermissionBase `json:"projectPermissions"`
+}
+
+// ChartRepoResponse the response body of  chart repo
+type ChartRepoResponse struct {
+	URL        string `json:"url"`
+	SecretName string `json:"secretName"`
+}
+
+// ChartRepoResponseList the response body of list chart repo
+type ChartRepoResponseList struct {
+	ChartRepoResponse []*ChartRepoResponse `json:"repos"`
 }

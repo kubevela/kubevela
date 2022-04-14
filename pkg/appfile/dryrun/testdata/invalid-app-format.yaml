@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: website
+  namespace: default
+spec:
+  components:
+    - name: custom-component
+      type: test-stateful
+      properties:
+        image: nginx:latest
+        replicas: 1
+  traits:
+    - type: storageclass
+      properties:
+        volumeClaimTemplates:
+          - name: test
+            requests: 10Gi
+            storageClassName: cbs
+            mountPath: /usr/share/nginx/html

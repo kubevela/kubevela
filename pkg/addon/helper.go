@@ -22,7 +22,6 @@ import (
 	"fmt"
 
 	"k8s.io/client-go/discovery"
-
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
@@ -32,8 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -51,9 +52,9 @@ const (
 )
 
 // EnableAddon will enable addon with dependency check, source is where addon from.
-func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
+func EnableAddon(ctx context.Context, name string, version string, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r Registry, args map[string]interface{}, cache *Cache) error {
 	h := NewAddonInstaller(ctx, cli, discoveryClient, apply, config, &r, args, cache)
-	pkg, err := h.loadInstallPackage(name)
+	pkg, err := h.loadInstallPackage(name, version)
 	if err != nil {
 		return err
 	}
@@ -65,12 +66,24 @@ func EnableAddon(ctx context.Context, name string, cli client.Client, discoveryC
 }
 
 // DisableAddon will disable addon from cluster.
-func DisableAddon(ctx context.Context, cli client.Client, name string) error {
+func DisableAddon(ctx context.Context, cli client.Client, name string, config *rest.Config, force bool) error {
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	// if app not exist, report error
 	if err != nil {
 		return err
 	}
+
+	if !force {
+		var usingAddonApp []v1beta1.Application
+		usingAddonApp, err = checkAddonHasBeenUsed(ctx, cli, name, *app, config)
+		if err != nil {
+			return err
+		}
+		if len(usingAddonApp) != 0 {
+			return fmt.Errorf(fmt.Sprintf("%s please delete them first", usingAppsInfo(usingAddonApp)))
+		}
+	}
+
 	if err := cli.Delete(ctx, app); err != nil {
 		return err
 	}
@@ -118,21 +131,30 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 		}
 		return Status{}, err
 	}
+	var clusters = make(map[string]map[string]interface{})
+	for _, r := range app.Status.AppliedResources {
+		if r.Cluster == "" {
+			r.Cluster = multicluster.ClusterLocalName
+		}
+		// TODO(wonderflow): we should collect all the necessary information as observability, currently we only collect cluster name
+		clusters[r.Cluster] = make(map[string]interface{})
+	}
 
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
-		return Status{AddonPhase: suspend, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: suspend, AppStatus: &app.Status, Clusters: clusters, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion]}, nil
 	}
 	switch app.Status.Phase {
 	case commontypes.ApplicationRunning:
+
 		if name == ObservabilityAddon {
+			// TODO(wonderflow): this is a hack Implementation and need be fixed in a unified way
 			var (
-				clusters = make(map[string]map[string]interface{})
-				sec      v1.Secret
-				domain   string
+				sec    v1.Secret
+				domain string
 			)
 			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec); err != nil {
 				klog.ErrorS(err, "failed to get observability secret")
-				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+				return Status{AddonPhase: enabling, AppStatus: &app.Status, Clusters: clusters}, nil
 			}
 
 			if v, ok := sec.Data[ObservabilityAddonDomainArg]; ok {
@@ -141,7 +163,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			observability, err := GetObservabilityAccessibilityInfo(ctx, cli, domain)
 			if err != nil {
 				klog.ErrorS(err, "failed to get observability accessibility info")
-				return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+				return Status{AddonPhase: enabling, AppStatus: &app.Status, Clusters: clusters}, nil
 			}
 
 			for _, o := range observability {
@@ -158,11 +180,11 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			}
 			return Status{AddonPhase: enabled, AppStatus: &app.Status, Clusters: clusters}, nil
 		}
-		return Status{AddonPhase: enabled, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: enabled, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion], Clusters: clusters}, nil
 	case commontypes.ApplicationDeleting:
-		return Status{AddonPhase: disabling, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: disabling, AppStatus: &app.Status, Clusters: clusters}, nil
 	default:
-		return Status{AddonPhase: enabling, AppStatus: &app.Status}, nil
+		return Status{AddonPhase: enabling, AppStatus: &app.Status, InstalledVersion: app.GetLabels()[oam.LabelAddonVersion], Clusters: clusters}, nil
 	}
 }
 
@@ -221,5 +243,6 @@ type Status struct {
 	AddonPhase string
 	AppStatus  *commontypes.AppStatus
 	// the status of multiple clusters
-	Clusters map[string]map[string]interface{} `json:"clusters,omitempty"`
+	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
+	InstalledVersion string
 }
