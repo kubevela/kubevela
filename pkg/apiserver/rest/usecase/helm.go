@@ -26,6 +26,7 @@ import (
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
@@ -62,7 +63,10 @@ type defaultHelmHandler struct {
 	k8sClient client.Client
 }
 
-func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error) {
+func (d defaultHelmHandler) ListChartNames(ctx context.Context, repoURL string, secretName string, skipCache bool) ([]string, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
@@ -71,15 +75,18 @@ func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secr
 			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
-	charts, err := d.helper.ListChartsFromRepo(url, skipCache, opts)
+	charts, err := d.helper.ListChartsFromRepo(repoURL, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.Sanitize(repoURL), err.Error())
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, repoURL string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
@@ -88,19 +95,22 @@ func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, c
 			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
-	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache, opts)
+	chartVersions, err := d.helper.ListVersions(repoURL, chartName, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), err.Error())
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", url, chartName)
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName))
 		return nil, bcode.ErrChartNotExist
 	}
 	return chartVersions, nil
 }
 
-func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
+func (d defaultHelmHandler) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
@@ -109,9 +119,9 @@ func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, char
 			return nil, bcode.ErrRepoBasicAuth
 		}
 	}
-	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache, opts)
+	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
