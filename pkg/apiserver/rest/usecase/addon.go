@@ -398,7 +398,8 @@ func (u *defaultAddonHandler) EnableAddon(ctx context.Context, name string, args
 		}
 
 		// wrap this error with special bcode
-		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
+			log.Logger.Error(err)
 			return bcode.ErrAddonSystemVersionMismatch
 		}
 		// except `addon not found`, other errors should return directly
@@ -464,7 +465,7 @@ func (u *defaultAddonHandler) UpdateAddon(ctx context.Context, name string, args
 		}
 
 		// wrap this error with special bcode
-		if errors.Is(err, pkgaddon.ErrVersionMismatch) {
+		if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
 			return bcode.ErrAddonSystemVersionMismatch
 		}
 		// except `addon not found`, other errors should return directly
