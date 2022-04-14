@@ -25,6 +25,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -95,5 +96,28 @@ var _ = Describe("Test Cache", func() {
 		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(true))
 
 	})
+	It("Test don't cache with from inner system label", func() {
+		dbNamespace := "cache-db-ns2-test"
 
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: dbNamespace})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		var ns = corev1.Namespace{}
+		ns.Name = dbNamespace
+		err = k8sClient.Create(context.TODO(), &ns)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		cr2ux := CR2UX{ds: ds, cli: k8sClient, cache: sync.Map{}}
+		ctx := context.Background()
+
+		app1 := &v1beta1.Application{}
+		app1.Name = "app1"
+		app1.Namespace = dbNamespace
+		app1.Generation = 1
+		app1.Spec.Components = []common.ApplicationComponent{}
+		app1.Labels = make(map[string]string)
+		app1.Labels[model.LabelSourceOfTruth] = model.FromInner
+		Expect(k8sClient.Create(ctx, app1)).Should(BeNil())
+		Expect(cr2ux.shouldSync(ctx, app1, false)).Should(BeEquivalentTo(false))
+	})
 })
