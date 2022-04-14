@@ -103,7 +103,6 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]typ
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) {
-
 					managedResources = append(managedResources, types.AppliedResource{
 						Cluster:         managedResource.Cluster,
 						Kind:            managedResource.Kind,
@@ -123,7 +122,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]typ
 							return ""
 						}(),
 						Revision: rt.GetLabels()[oam.LabelAppRevision],
-						Latest:   rt.Name == currentRT.Name,
+						Latest:   currentRT != nil && rt.Name == currentRT.Name,
 					})
 				}
 			}
