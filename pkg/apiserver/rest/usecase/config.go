@@ -262,14 +262,18 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	if len(secrets.Items) == 0 {
 		return nil
 	}
-	objects := make([]map[string]string, len(secrets.Items))
-	for i, s := range secrets.Items {
+	var objects []map[string]string
+	for _, s := range secrets.Items {
 		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
-			objects[i] = map[string]string{
+			objects = append(objects, map[string]string{
 				"name":     s.Name,
 				"resource": "secret",
-			}
+			})
 		}
+	}
+	if len(objects) == 0 {
+		klog.InfoS("no configs need to sync to working clusters", "project", project)
+		return nil
 	}
 	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
 	if err != nil {
