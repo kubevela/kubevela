@@ -1080,7 +1080,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	h.addon = addon
 	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
-		return ErrVersionMismatch
+		return VersionUnMatchError{addonName: addon.Name, err: err}
 	}
 
 	if err = h.installDependency(addon); err != nil {
@@ -1354,7 +1354,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
+			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1371,7 +1371,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
+			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1392,7 +1392,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
+			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

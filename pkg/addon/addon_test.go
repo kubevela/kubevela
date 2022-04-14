@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ import (
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -303,7 +304,7 @@ func TestGetAddonStatus(t *testing.T) {
 	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		switch key.Name {
 		case "addon-disabled", "disabled":
-			return errors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
+			return kerrors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
 		case "addon-suspend":
 			o := obj.(*v1beta1.Application)
 			app := &v1beta1.Application{}
@@ -896,4 +897,12 @@ func TestRenderCUETemplate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, component.Type == "raw")
 	assert.True(t, config["metadata"].(map[string]interface{})["labels"].(map[string]interface{})["version"] == "1.0.1")
+}
+
+func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
+	version2.VelaVersion = "v1.3.0"
+	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
+	installer := &Installer{}
+	err := installer.enableAddon(&i)
+	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }
