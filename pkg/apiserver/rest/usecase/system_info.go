@@ -144,7 +144,12 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 }
 
 func (u systemInfoUsecaseImpl) Init(ctx context.Context) error {
-	_, err := initDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
+	info, err := u.Get(ctx)
+	if err != nil {
+		return err
+	}
+	signedKey = info.InstallID
+	_, err = initDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
 	return err
 }
 
