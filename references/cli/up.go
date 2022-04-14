@@ -217,6 +217,7 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	if opt.PublishVersion != "" {
 		oam.SetPublishVersion(&app, opt.PublishVersion)
 	}
+	opt.AppName = app.Name
 	if opt.Debug {
 		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 			Name: "debug",
@@ -258,9 +259,8 @@ var (
 )
 
 // NewUpCommand will create command for applying an AppFile
-func NewUpCommand(f velacmd.Factory, order string) *cobra.Command {
+func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream util.IOStreams) *cobra.Command {
 	o := &UpCommandOptions{}
-	debug := false
 	cmd := &cobra.Command{
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
@@ -283,17 +283,12 @@ func NewUpCommand(f velacmd.Factory, order string) *cobra.Command {
 			o.Complete(f, cmd, args)
 			cmdutil.CheckErr(o.Validate())
 			cmdutil.CheckErr(o.Run(f, cmd))
-			if debug {
+			if o.Debug {
 				dOpts := &debugOpts{}
-				config := f.Config()
 				cli := f.Client()
 				app := &v1beta1.Application{}
 				cmdutil.CheckErr(cli.Get(cmd.Context(), apitypes.NamespacedName{Name: o.AppName, Namespace: o.Namespace}, app))
-				cmdutil.CheckErr(dOpts.debugApplication(context.Background(), cli, config, &app, util.IOStreams{
-					In:     cmd.InOrStdin(),
-					Out:    cmd.OutOrStdout(),
-					ErrOut: cmd.ErrOrStderr(),
-				}))
+				cmdutil.CheckErr(dOpts.debugApplication(context.Background(), c, app, ioStream))
 			}
 		},
 	}
