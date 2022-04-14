@@ -96,6 +96,10 @@ type AppliedResource struct {
 	UID             types.UID `json:"uid,omitempty"`
 	APIVersion      string    `json:"apiVersion,omitempty"`
 	ResourceVersion string    `json:"resourceVersion,omitempty"`
+	DeployVersion   string    `json:"deployVersion,omitempty"`
+	PublishVersion  string    `json:"publishVersion,omitempty"`
+	Revision        string    `json:"revision,omitempty"`
+	Latest          bool      `json:"latest"`
 }
 
 // GroupVersionKind returns the stored group, version, and kind of an object

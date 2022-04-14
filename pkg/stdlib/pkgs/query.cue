@@ -41,6 +41,10 @@
 		uid?:             string
 		apiVersion?:      string
 		resourceVersion?: string
+		publishVersion?:  string
+		deployVersion?:   string
+		revision?:        string
+		latest?:          bool
 	}]
 	...
 }
