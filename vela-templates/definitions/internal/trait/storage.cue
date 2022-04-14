@@ -91,6 +91,18 @@ template: {
 		},
 	] | []
 
+	configMountToEnvsList: *[
+				for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+			{
+				name: k.envName
+				valueFrom: configMapKeyRef: {
+					name: v.name
+					key:  k.configMapKey
+				}
+			}
+		},
+	] | []
+
 	secretVolumeMountsList: *[
 				for v in parameter.secret if v.mountPath != _|_ {
 			{
@@ -107,6 +119,18 @@ template: {
 				valueFrom: secretKeyRef: {
 					name: v.name
 					key:  v.mountToEnv.secretKey
+				}
+			}
+		},
+	] | []
+
+	secretMountToEnvsList: *[
+				for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+			{
+				name: k.envName
+				valueFrom: secretKeyRef: {
+					name: v.name
+					key:  k.secretKey
 				}
 			}
 		},
@@ -136,7 +160,7 @@ template: {
 
 		containers: [{
 			// +patchKey=name
-			env: configMapEnvMountsList + secretEnvMountsList
+			env: configMapEnvMountsList + secretEnvMountsList + configMountToEnvsList + secretMountToEnvsList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
 			// +patchKey=name
@@ -260,6 +284,10 @@ template: {
 				envName:      string
 				configMapKey: string
 			}
+			mountToEnvs?: [...{
+				envName:      string
+				configMapKey: string
+			}]
 			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
@@ -279,6 +307,10 @@ template: {
 				envName:   string
 				secretKey: string
 			}
+			mountToEnvs?: [...{
+				envName:   string
+				secretKey: string
+			}]
 			mountPath?:  string
 			defaultMode: *420 | int
 			readOnly:    *false | bool

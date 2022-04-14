@@ -32,6 +32,9 @@ spec:
                 mountToEnv:
                   envName: TEST_ENV
                   configMapKey: key1
+                mountToEnvs:
+                  - envName: TEST_CM_ENV
+                    configMapKey: key2
                 data:
                   key1: value1
                   key2: value2
@@ -49,9 +52,15 @@ spec:
                 mountToEnv:
                   envName: TEST_SECRET
                   secretKey: key1
+                mountToEnvs:
+                  - envName: TEST_SECRET_ENV_2
+                    secretKey: key2
+                  - envName: TEST_SECRET_ENV_3
+                    secretKey: key3
                 data:
                   key1: dmFsdWUx
                   key2: dmFsdWUy
+                  key3: dmFsdWUz
             emptyDir:
               - name: test1
                 mountPath: /test/mount/emptydir
