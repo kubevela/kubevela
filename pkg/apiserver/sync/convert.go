@@ -20,6 +20,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -49,7 +50,8 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 			model.LabelSourceOfTruth:  model.FromCR,
 		},
 	}
-
+	appMeta.CreateTime = targetApp.CreationTimestamp.Time
+	appMeta.UpdateTime = time.Now()
 	// 1. convert app meta and env
 	dsApp := &model.DataStoreApp{
 		AppMeta: appMeta,
