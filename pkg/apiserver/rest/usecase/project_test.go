@@ -164,6 +164,18 @@ var _ = Describe("Test project usecase functions", func() {
 			Name:        "test-project",
 			Description: "this is a project description",
 		}
+		app1 := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "config-sync-test-project",
+				Namespace: "vela-system",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Type: "aaa",
+				}},
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), app1)).Should(BeNil())
 		_, err := projectUsecase.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 
@@ -232,6 +244,19 @@ var _ = Describe("Test project usecase functions", func() {
 			Name:        "test-project",
 			Description: "this is a project description",
 		}
+		app1 := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "config-sync-test-project",
+				Namespace: "vela-system",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Type: "aaa",
+				}},
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), app1)).Should(BeNil())
+
 		_, err := projectUsecase.CreateProject(context.TODO(), req)
 		Expect(err).Should(BeNil())
 

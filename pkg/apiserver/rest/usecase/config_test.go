@@ -18,6 +18,9 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"sort"
+	"strings"
 	"testing"
 
 	. "github.com/agiledragon/gomonkey/v2"
@@ -31,6 +34,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -334,6 +338,242 @@ func TestGetConfigs(t *testing.T) {
 				assert.ErrorContains(t, err, tc.want.errMsg)
 			}
 			assert.DeepEqual(t, got, tc.want.configs)
+		})
+	}
+}
+
+func TestMergeTargets(t *testing.T) {
+	currentTargets := []ApplicationDeployTarget{
+		{
+			Namespace: "n1",
+			Clusters:  []string{"c1", "c2"},
+		}, {
+			Namespace: "n2",
+			Clusters:  []string{"c3"},
+		},
+	}
+	targets := []*model.ClusterTarget{
+		{
+			Namespace:   "n3",
+			ClusterName: "c4",
+		}, {
+			Namespace:   "n1",
+			ClusterName: "c5",
+		},
+		{
+			Namespace:   "n2",
+			ClusterName: "c3",
+		},
+	}
+
+	expected := []ApplicationDeployTarget{
+		{
+			Namespace: "n1",
+			Clusters:  []string{"c1", "c2", "c5"},
+		}, {
+			Namespace: "n2",
+			Clusters:  []string{"c3"},
+		}, {
+			Namespace: "n3",
+			Clusters:  []string{"c4"},
+		},
+	}
+
+	got := mergeTargets(currentTargets, targets)
+
+	for i, g := range got {
+		clusters := g.Clusters
+		sort.SliceStable(clusters, func(i, j int) bool {
+			return clusters[i] < clusters[j]
+		})
+		got[i].Clusters = clusters
+	}
+	assert.DeepEqual(t, expected, got)
+}
+
+func TestConvert(t *testing.T) {
+	targets := []*model.ClusterTarget{
+		{
+			Namespace:   "n3",
+			ClusterName: "c4",
+		}, {
+			Namespace:   "n1",
+			ClusterName: "c5",
+		},
+		{
+			Namespace:   "n2",
+			ClusterName: "c3",
+		},
+		{
+			Namespace:   "n3",
+			ClusterName: "c5",
+		},
+	}
+
+	expected := []ApplicationDeployTarget{
+		{
+			Namespace: "n3",
+			Clusters:  []string{"c4", "c5"},
+		},
+		{
+			Namespace: "n1",
+			Clusters:  []string{"c5"},
+		}, {
+			Namespace: "n2",
+			Clusters:  []string{"c3"},
+		},
+	}
+
+	got := convertClusterTargets(targets)
+
+	for i, g := range got {
+		clusters := g.Clusters
+		sort.SliceStable(clusters, func(i, j int) bool {
+			return clusters[i] < clusters[j]
+		})
+		got[i].Clusters = clusters
+	}
+	assert.DeepEqual(t, expected, got)
+}
+
+func TestDestroySyncConfigsApp(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	app1 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config-sync-p1",
+			Namespace: types.DefaultKubeVelaNS,
+		},
+	}
+	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(app1).Build()
+
+	k8sClient2 := fake.NewClientBuilder().Build()
+
+	type args struct {
+		project   string
+		k8sClient client.Client
+	}
+
+	type want struct {
+		errMsg string
+	}
+
+	ctx := context.Background()
+
+	testcases := map[string]struct {
+		args args
+		want want
+	}{
+		"found": {
+			args: args{
+				project:   "p1",
+				k8sClient: k8sClient1,
+			},
+		},
+		"not found": {
+			args: args{
+				project:   "p1",
+				k8sClient: k8sClient2,
+			},
+			want: want{
+				errMsg: "no kind is registered for the type v1beta1.Application",
+			},
+		},
+	}
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := destroySyncConfigsApp(ctx, tc.args.k8sClient, tc.args.project)
+			if err != nil || tc.want.errMsg != "" {
+				if !strings.Contains(err.Error(), tc.want.errMsg) {
+					assert.ErrorContains(t, err, tc.want.errMsg)
+				}
+			}
+		})
+	}
+}
+
+func TestSyncConfigs(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	secret1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "s1",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				types.LabelConfigCatalog:            velaCoreConfig,
+				types.LabelConfigProject:            "p1",
+				types.LabelConfigSyncToMultiCluster: "true",
+			},
+		},
+	}
+
+	policies := []ApplicationDeployTarget{{
+		Namespace: "n9",
+		Clusters:  []string{"c19"},
+	}}
+	properties, _ := json.Marshal(policies)
+	app1 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config-sync-p2",
+			Namespace: types.DefaultKubeVelaNS,
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Policies: []v1beta1.AppPolicy{{
+				Name:       "c19",
+				Type:       "topology",
+				Properties: &runtime.RawExtension{Raw: properties},
+			}},
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(secret1, app1).Build()
+
+	type args struct {
+		project string
+		targets []*model.ClusterTarget
+	}
+
+	type want struct {
+		errMsg string
+	}
+
+	ctx := context.Background()
+
+	testcases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "create",
+			args: args{
+				project: "p1",
+				targets: []*model.ClusterTarget{{
+					ClusterName: "c1",
+					Namespace:   "n1",
+				}},
+			},
+		},
+		{
+			name: "update",
+			args: args{
+				project: "p2",
+				targets: []*model.ClusterTarget{{
+					ClusterName: "c1",
+					Namespace:   "n1",
+				}},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := SyncConfigs(ctx, k8sClient, tc.args.project, tc.args.targets)
+			if tc.want.errMsg != "" || err != nil {
+				assert.ErrorContains(t, err, tc.want.errMsg)
+			}
 		})
 	}
 }
