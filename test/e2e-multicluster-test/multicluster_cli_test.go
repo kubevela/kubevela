@@ -102,10 +102,13 @@ var _ = Describe("Test multicluster CLI commands", func() {
 		})
 
 		It("Test vela status --tree", func() {
+			_, err := execCommand("cluster", "alias", WorkerClusterName, "alias-worker-tree")
+			Expect(err).Should(Succeed())
 			for _, format := range []string{"inline", "wide", "table", "list"} {
 				outputs, err := execCommand("status", app.Name, "-n", namespace, "--tree", "--detail", "--detail-format", format)
 				Expect(err).Should(Succeed())
 				Expect(string(outputs)).Should(SatisfyAll(
+					ContainSubstring("alias-worker-tree"),
 					ContainSubstring("Deployment/exec-podinfo"),
 					ContainSubstring("updated"),
 					ContainSubstring("1/1"),
