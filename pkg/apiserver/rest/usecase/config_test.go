@@ -566,6 +566,16 @@ func TestSyncConfigs(t *testing.T) {
 				}},
 			},
 		},
+		{
+			name: "skip config sync",
+			args: args{
+				project: "p3",
+				targets: []*model.ClusterTarget{{
+					ClusterName: "c1",
+					Namespace:   "n1",
+				}},
+			},
+		},
 	}
 
 	for _, tc := range testcases {
