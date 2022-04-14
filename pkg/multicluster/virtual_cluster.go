@@ -233,3 +233,37 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 	}
 	return clusters, nil
 }
+
+// ClusterMapper mapper for clusters
+type ClusterMapper interface {
+	GetCluster(string) *VirtualCluster
+	GetClusterFullName(string) string
+}
+
+type clusterMapper map[string]*VirtualCluster
+
+// GetCluster .
+func (cm clusterMapper) GetCluster(cluster string) *VirtualCluster {
+	return cm[cluster]
+}
+
+// GetClusterFullName .
+func (cm clusterMapper) GetClusterFullName(cluster string) string {
+	if vc := cm.GetCluster(cluster); vc != nil {
+		return vc.FullName()
+	}
+	return ""
+}
+
+// NewClusterMapper load all clusters and return the mapper
+func NewClusterMapper(ctx context.Context, c client.Client) (ClusterMapper, error) {
+	cm := clusterMapper(make(map[string]*VirtualCluster))
+	clusters, err := ListVirtualClusters(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	for i := range clusters {
+		cm[clusters[i].Name] = &clusters[i]
+	}
+	return cm, nil
+}
