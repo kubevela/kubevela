@@ -98,25 +98,33 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]typ
 	}
 
 	var managedResources []types.AppliedResource
-	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
-			for i, managedResource := range rt.Spec.ManagedResources {
+			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) {
-					if _, ok := existResources[rt.Spec.ManagedResources[i].ClusterObjectReference]; !ok {
-						managedResources = append(managedResources, types.AppliedResource{
-							Cluster:         managedResource.Cluster,
-							Kind:            managedResource.Kind,
-							Component:       managedResource.Component,
-							Trait:           managedResource.Trait,
-							Name:            managedResource.Name,
-							Namespace:       managedResource.Namespace,
-							APIVersion:      managedResource.APIVersion,
-							ResourceVersion: managedResource.ResourceVersion,
-							UID:             managedResource.UID,
-						})
-					}
+
+					managedResources = append(managedResources, types.AppliedResource{
+						Cluster:         managedResource.Cluster,
+						Kind:            managedResource.Kind,
+						Component:       managedResource.Component,
+						Trait:           managedResource.Trait,
+						Name:            managedResource.Name,
+						Namespace:       managedResource.Namespace,
+						APIVersion:      managedResource.APIVersion,
+						ResourceVersion: managedResource.ResourceVersion,
+						UID:             managedResource.UID,
+						PublishVersion:  oam.GetPublishVersion(rt),
+						DeployVersion: func() string {
+							obj, _ := managedResource.ToUnstructuredWithData()
+							if obj != nil {
+								return oam.GetDeployVersion(obj)
+							}
+							return ""
+						}(),
+						Revision: rt.GetLabels()[oam.LabelAppRevision],
+						Latest:   rt.Name == currentRT.Name,
+					})
 				}
 			}
 		}
@@ -127,35 +135,35 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]typ
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
 func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Application) ([]Resource, error) {
 	ctx := context.Background()
-	managedResources, err := c.ListApplicationResources(app)
+	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
-	resources := make([]Resource, 0, len(managedResources))
-	for _, objRef := range managedResources {
-		obj := new(unstructured.Unstructured)
-		obj.SetGroupVersionKind(objRef.GroupVersionKind())
-		obj.SetNamespace(objRef.Namespace)
-		obj.SetName(objRef.Name)
-		if err = c.k8sClient.Get(multicluster.ContextWithClusterName(ctx, objRef.Cluster),
-			client.ObjectKeyFromObject(obj), obj); err != nil {
-			if kerrors.IsNotFound(err) {
-				continue
+	var resources = []Resource{}
+	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
+	for _, rt := range append([]*v1beta1.ResourceTracker{rootRT, currentRT}, historyRTs...) {
+		if rt != nil {
+			for _, managedResource := range rt.Spec.ManagedResources {
+				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
+					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) {
+					if _, exist := existResources[managedResource.ClusterObjectReference]; exist {
+						continue
+					}
+					existResources[managedResource.ClusterObjectReference] = true
+					obj, err := managedResource.ToUnstructuredWithData()
+					if err != nil {
+						klog.Errorf("get obj from resource tracker failure %s", err.Error())
+						continue
+					}
+					resources = append(resources, Resource{
+						Cluster:   managedResource.Cluster,
+						Revision:  oam.GetPublishVersion(rt),
+						Component: managedResource.Component,
+						Object:    obj,
+					})
+				}
 			}
-			return nil, err
 		}
-		if objRef.Cluster == "" {
-			objRef.Cluster = multicluster.ClusterLocalName
-		}
-		resources = append(resources, Resource{
-			Cluster:   objRef.Cluster,
-			Revision:  obj.GetLabels()[oam.LabelAppRevision],
-			Component: obj.GetLabels()[oam.LabelAppComponent],
-			Object:    obj,
-		})
-	}
-	if len(resources) == 0 {
-		return nil, errors.Errorf("fail to find resources created by application: %v", c.opt.Name)
 	}
 	return resources, nil
 }
@@ -163,11 +171,11 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 // FindResourceFromAppliedResourcesField find resources from AppliedResources field
 func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Application) ([]Resource, error) {
 	resources := make([]Resource, 0, len(app.Spec.Components))
-	for _, rsrcRef := range app.Status.AppliedResources {
-		if !isResourceInTargetCluster(c.opt.Filter, rsrcRef) {
+	for _, res := range app.Status.AppliedResources {
+		if !isResourceInTargetCluster(c.opt.Filter, res) {
 			continue
 		}
-		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, rsrcRef.ObjectReference, rsrcRef.Cluster)
+		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, res.ObjectReference, res.Cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +183,7 @@ func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Applic
 			resources = append(resources, Resource{
 				Component: compName,
 				Revision:  obj.GetLabels()[oam.LabelAppRevision],
-				Cluster:   rsrcRef.Cluster,
+				Cluster:   res.Cluster,
 				Object:    obj,
 			})
 		}

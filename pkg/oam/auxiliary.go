@@ -52,6 +52,14 @@ func GetPublishVersion(o client.Object) string {
 	return ""
 }
 
+// GetDeployVersion get DeployVersion from object
+func GetDeployVersion(o client.Object) string {
+	if annotations := o.GetAnnotations(); annotations != nil {
+		return annotations[AnnotationDeployVersion]
+	}
+	return ""
+}
+
 // GetLastAppliedTime .
 func GetLastAppliedTime(o client.Object) time.Time {
 	if annotations := o.GetAnnotations(); annotations != nil {
