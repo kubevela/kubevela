@@ -43,10 +43,11 @@ const (
 	definitionAlias = definition.UserPrefix + "alias.config.oam.dev"
 	definitionType  = definition.UserPrefix + "type.config.oam.dev"
 
-	velaCoreConfig         = "velacore-config"
-	configIsReady          = "Ready"
-	configIsNotReady       = "Not ready"
-	terraformProviderAlias = "Terraform Cloud Provider"
+	velaCoreConfig          = "velacore-config"
+	configIsReady           = "Ready"
+	configIsNotReady        = "Not ready"
+	terraformProviderAlias  = "Terraform Cloud Provider"
+	configSyncProjectPrefix = "config-sync"
 )
 
 // ConfigHandler handle CRUD of configs
@@ -248,7 +249,7 @@ type ApplicationDeployTarget struct {
 
 // SyncConfigs will sync configs to working clusters
 func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, targets []*model.ClusterTarget) error {
-	name := fmt.Sprintf("config-sync-%s", project)
+	name := fmt.Sprintf("%s-%s", configSyncProjectPrefix, project)
 	// get all configs which can be synced to working clusters in the project
 	var secrets v1.SecretList
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
@@ -462,7 +463,7 @@ func stringToInterfaceSlice(i []string) []interface{} {
 
 // destroySyncConfigsApp will delete the application which is used to sync configs
 func destroySyncConfigsApp(ctx context.Context, k8sClient client.Client, project string) error {
-	name := fmt.Sprintf("config-sync-%s", project)
+	name := fmt.Sprintf("%s-%s", configSyncProjectPrefix, project)
 	var app = &v1beta1.Application{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, app); err != nil {
 		if !kerrors.IsNotFound(err) {
