@@ -392,6 +392,10 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
 	}
 	multicluster.ClusterGatewaySecretNamespace = svc.Namespace
+	clusterMapper, err := multicluster.NewClusterMapper(ctx, cli)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get cluster mapper")
+	}
 
 	var placements []v1alpha1.PlacementDecision
 	af, err := pkgappfile.NewApplicationParser(cli, dm, pd).GenerateAppFile(context.Background(), app)
@@ -403,7 +407,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
 		maxWidth = pointer.Int(w)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format}
+	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterMapper: clusterMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
 		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
