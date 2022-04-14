@@ -66,6 +66,11 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 }
 
 func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, del bool) bool {
+
+	if targetApp != nil && targetApp.Labels != nil && targetApp.Labels[model.LabelSourceOfTruth] == model.FromInner {
+		return false
+	}
+
 	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
 	cachedData, ok := c.cache.Load(key)
 	if ok {
@@ -85,9 +90,11 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 
 	// This is a double check to make sure the app not be converted and un-deployed
 	sot := c.CheckSoTFromAppMeta(ctx, targetApp.Name, targetApp.Namespace, CheckSoTFromCR(targetApp))
-
 	switch sot {
-	case model.FromUX, model.FromInner:
+	case model.FromUX:
+		// we don't sync if the application is not created from CR
+		return false
+	case model.FromInner:
 		// we don't sync if the application is not created from CR
 		return false
 	case model.FromCR:
