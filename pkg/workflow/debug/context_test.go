@@ -83,13 +83,3 @@ func newCliForTest(wfCm *corev1.ConfigMap) *test.MockClient {
 		},
 	}
 }
-
-var (
-	testCaseYaml = `apiVersion: v1
-data:
-  debug: ''
-kind: ConfigMap
-metadata:
-  name: app-v1
-`
-)
