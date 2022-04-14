@@ -298,7 +298,11 @@ func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) err
 			return err
 		}
 	}
-	return p.ds.Delete(ctx, &model.Project{Name: name})
+	if err := p.ds.Delete(ctx, &model.Project{Name: name}); err != nil {
+		return err
+	}
+	// delete config-sync application
+	return destroySyncConfigsApp(ctx, p.k8sClient, name)
 }
 
 // CreateProject create project
