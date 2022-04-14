@@ -71,17 +71,17 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 
 func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 	tr := &suspendTaskRunner{
-		id:    opt.ID,
-		name:  step.Name,
-		delay: false,
+		id:   opt.ID,
+		name: step.Name,
+		wait: false,
 	}
 
-	doDelay, _, err := GetSuspendStepDelayDuration(step)
+	doDelay, _, err := GetSuspendStepWaitDuration(step)
 	if err != nil {
 		return nil, err
 	}
 
-	tr.delay = doDelay
+	tr.wait = doDelay
 
 	return tr, nil
 }
@@ -114,9 +114,9 @@ func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packa
 }
 
 type suspendTaskRunner struct {
-	id    string
-	name  string
-	delay bool
+	id   string
+	name string
+	wait bool
 }
 
 // Name return suspend step name.
@@ -133,11 +133,16 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 		Phase: common.WorkflowStepPhaseSucceeded,
 	}
 
-	if tr.delay {
+	operation := types.Operation{}
+
+	if tr.wait {
 		stepStatus.Phase = common.WorkflowStepPhaseRunning
+		operation.WaitSuspend = true
+	} else {
+		operation.Suspend = true
 	}
 
-	return stepStatus, &types.Operation{Suspend: true}, nil
+	return stepStatus, &operation, nil
 }
 
 // Pending check task should be executed or not.
@@ -163,11 +168,11 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 	}
 }
 
-// GetSuspendStepDelayDuration get suspend step delay duration
-func GetSuspendStepDelayDuration(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+// GetSuspendStepWaitDuration get suspend step wait duration
+func GetSuspendStepWaitDuration(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
 	if step.Properties.Size() > 0 {
 		o := struct {
-			DelayDuration string `json:"delayDuration"`
+			WaitDuration string `json:"waitDuration"`
 		}{}
 		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 		if err != nil {
@@ -178,9 +183,9 @@ func GetSuspendStepDelayDuration(step v1beta1.WorkflowStep) (bool, builtintime.D
 			return false, 0, err
 		}
 
-		if o.DelayDuration != "" {
-			delayDuration, err := builtintime.ParseDuration(o.DelayDuration)
-			return true, delayDuration, err
+		if o.WaitDuration != "" {
+			waitDuration, err := builtintime.ParseDuration(o.WaitDuration)
+			return true, waitDuration, err
 		}
 	}
 

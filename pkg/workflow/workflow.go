@@ -145,6 +145,9 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
 	}
+	if wfStatus.WaitSuspend {
+		return common.WorkflowStateWaitSuspended, nil
+	}
 	allTasksDone := w.allDone(taskRunners)
 	if allTasksDone {
 		return common.WorkflowStateSucceeded, nil
@@ -191,6 +194,10 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateSuspended, nil
 	}
+	if wfStatus.WaitSuspend {
+		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
+		return common.WorkflowStateWaitSuspended, nil
+	}
 	if w.allDone(taskRunners) {
 		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
@@ -228,10 +235,10 @@ func (w *workflow) GetBackoffWaitTime() time.Duration {
 	return time.Second
 }
 
-func (w *workflow) HandleSuspendDelay(ctx monitorContext.Context) (doDelay bool, delayDuration time.Duration, errRet error) {
-	ctx.Info("handle suspend delay")
+func (w *workflow) HandleSuspendWait(ctx monitorContext.Context) (doWaiting bool, waitDuration time.Duration, errRet error) {
+	ctx.Info("handle suspend wait")
 	for i, stepStatus := range w.app.Status.Workflow.Steps {
-		if stepStatus.Type != wfTypes.WorkflowStepTypeSuspend || stepStatus.Phase != common.WorkflowStepPhaseRunning {
+		if !w.isWaitSuspendStep(stepStatus) {
 			continue
 		}
 
@@ -241,20 +248,22 @@ func (w *workflow) HandleSuspendDelay(ctx monitorContext.Context) (doDelay bool,
 			return
 		}
 
-		d, dd, err := wfTasks.GetSuspendStepDelayDuration(step)
+		d, wd, err := wfTasks.GetSuspendStepWaitDuration(step)
 		if err != nil {
-			ctx.Error(err, "failed to get suspend step delay duration")
+			ctx.Error(err, "failed to get suspend step wait duration")
 			errRet = err
 			return
 		}
 
 		if d {
-			doDelay = d
-			durationReserve := time.Since(stepStatus.FirstExecuteTime.Time)
-			if durationReserve < dd && delayDuration < dd {
-				delayDuration = dd
-			} else {
+			doWaiting = d
+			durationReserve := wd - time.Since(stepStatus.FirstExecuteTime.Time)
+			if durationReserve <= 0 {
 				w.app.Status.Workflow.Steps[i].Phase = common.WorkflowStepPhaseSucceeded
+			}
+
+			if durationReserve > 0 && (waitDuration > durationReserve || waitDuration <= 0) {
+				waitDuration = durationReserve
 			}
 		}
 
@@ -263,7 +272,11 @@ func (w *workflow) HandleSuspendDelay(ctx monitorContext.Context) (doDelay bool,
 		}
 	}
 
-	return doDelay, delayDuration, errRet
+	return doWaiting, waitDuration, errRet
+}
+
+func (w *workflow) isWaitSuspendStep(status common.WorkflowStepStatus) bool {
+	return status.Type == wfTypes.WorkflowStepTypeSuspend && status.Phase == common.WorkflowStepPhaseRunning
 }
 
 func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
@@ -465,6 +478,9 @@ func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 	if wfStatus.Suspend {
 		e.status.Message = string(common.WorkflowStateSuspended)
 	}
+	if wfStatus.WaitSuspend {
+		e.status.Message = string(common.WorkflowStateWaitSuspended)
+	}
 }
 
 func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRunner {
@@ -544,6 +560,7 @@ func (e *engine) finishStep(operation *wfTypes.Operation) {
 	if operation != nil {
 		e.status.Suspend = operation.Suspend
 		e.status.Terminated = operation.Terminated
+		e.status.WaitSuspend = operation.WaitSuspend
 	}
 }
 
@@ -577,7 +594,7 @@ func (e *engine) checkFailedAfterRetries() {
 
 func (e *engine) needStop() bool {
 	e.checkFailedAfterRetries()
-	return e.status.Suspend || e.status.Terminated
+	return e.status.Suspend || e.status.Terminated || e.status.WaitSuspend
 }
 
 // ComputeWorkflowRevisionHash compute workflow revision.

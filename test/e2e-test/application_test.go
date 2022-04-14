@@ -138,7 +138,7 @@ var _ = Describe("Application Normal tests", func() {
 	verifyApplicationDelaySuspendExpected := func(ns, appName, suspendStep, nextStep, duration string) {
 		var testApp v1beta1.Application
 		Eventually(func() error {
-			delayDuration, err := time.ParseDuration(duration)
+			waitDuration, err := time.ParseDuration(duration)
 			if err != nil {
 				return err
 			}
@@ -178,8 +178,8 @@ var _ = Describe("Application Normal tests", func() {
 				}
 
 				dd := nextStepStartTime.Sub(suspendStartTime.Time)
-				if delayDuration > dd {
-					return fmt.Errorf("application suspend delay duration wants more than %s, actually %s", duration, dd.String())
+				if waitDuration > dd {
+					return fmt.Errorf("application suspend wait duration wants more than %s, actually %s", duration, dd.String())
 				}
 
 				return nil
@@ -337,8 +337,8 @@ var _ = Describe("Application Normal tests", func() {
 		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
 	})
 
-	It("Test delay suspend", func() {
-		By("Apply delay suspend application")
+	It("Test wait suspend", func() {
+		By("Apply wait suspend application")
 		var newApp v1beta1.Application
 		Expect(common.ReadYamlToObject("testdata/app/app_delay_suspend.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName

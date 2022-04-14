@@ -7,7 +7,7 @@ spec:
     - name: delay-suspend-comp
       type: webservice
       properties:
-        image: nginx:1.9.4
+        image: nginx
         port: 80
   policies:
     - name: local-deploy
@@ -20,7 +20,7 @@ spec:
       - name: suspend-test
         type: suspend
         properties:
-          delayDuration: 30s
+          waitDuration: 30s
       - name: deploy-to-local
         type: deploy
         properties:

@@ -36,5 +36,5 @@ type Workflow interface {
 	// GetBackoffWaitTime returns the wait time for next retry.
 	GetBackoffWaitTime() time.Duration
 
-	HandleSuspendDelay(ctx monitorContext.Context) (bool, time.Duration, error)
+	HandleSuspendWait(ctx monitorContext.Context) (bool, time.Duration, error)
 }

@@ -936,11 +936,14 @@ spec:
                             type: boolean
                           terminated:
                             type: boolean
+                          waitSuspend:
+                            type: boolean
                         required:
                         - finished
                         - mode
                         - suspend
                         - terminated
+                        - waitSuspend
                         type: object
                     type: object
                 type: object
@@ -2745,11 +2748,14 @@ spec:
                             type: boolean
                           terminated:
                             type: boolean
+                          waitSuspend:
+                            type: boolean
                         required:
                         - finished
                         - mode
                         - suspend
                         - terminated
+                        - waitSuspend
                         type: object
                     type: object
                 type: object
@@ -4684,11 +4690,14 @@ spec:
                     type: boolean
                   terminated:
                     type: boolean
+                  waitSuspend:
+                    type: boolean
                 required:
                 - finished
                 - mode
                 - suspend
                 - terminated
+                - waitSuspend
                 type: object
             required:
             - succeeded
