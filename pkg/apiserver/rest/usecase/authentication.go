@@ -181,11 +181,11 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	if userBase.Disabled {
 		return nil, bcode.ErrUserAlreadyDisabled
 	}
-	accessToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeAccess, time.Hour)
+	accessToken, err := a.generateJWTToken(userBase.Name, GrantTypeAccess, time.Hour)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := a.generateJWTToken(ctx, userBase.Name, GrantTypeRefresh, time.Hour*24)
+	refreshToken, err := a.generateJWTToken(userBase.Name, GrantTypeRefresh, time.Hour*24)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (a *authenticationUsecaseImpl) Login(ctx context.Context, loginReq apisv1.L
 	}, nil
 }
 
-func (a *authenticationUsecaseImpl) generateJWTToken(ctx context.Context, username, grantType string, expireDuration time.Duration) (string, error) {
+func (a *authenticationUsecaseImpl) generateJWTToken(username, grantType string, expireDuration time.Duration) (string, error) {
 	expire := time.Now().Add(expireDuration)
 	claims := model.CustomClaims{
 		StandardClaims: jwt.StandardClaims{
@@ -208,24 +208,7 @@ func (a *authenticationUsecaseImpl) generateJWTToken(ctx context.Context, userna
 		GrantType: grantType,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := a.getSignedKey(ctx)
-	if err != nil {
-		return "", err
-	}
-	return token.SignedString([]byte(signed))
-}
-
-func (a *authenticationUsecaseImpl) getSignedKey(ctx context.Context) (string, error) {
-	if signedKey != "" {
-		return signedKey, nil
-	}
-	info, err := a.sysUsecase.Get(ctx)
-	if err != nil {
-		return "", err
-	}
-	signedKey = info.InstallID
-
-	return signedKey, nil
+	return token.SignedString([]byte(signedKey))
 }
 
 func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshToken string) (*apisv1.RefreshTokenResponse, error) {
@@ -237,7 +220,7 @@ func (a *authenticationUsecaseImpl) RefreshToken(ctx context.Context, refreshTok
 		return nil, err
 	}
 	if claim.GrantType == GrantTypeRefresh {
-		accessToken, err := a.generateJWTToken(ctx, claim.Username, GrantTypeAccess, time.Hour)
+		accessToken, err := a.generateJWTToken(claim.Username, GrantTypeAccess, time.Hour)
 		if err != nil {
 			return nil, err
 		}
