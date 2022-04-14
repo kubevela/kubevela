@@ -51,6 +51,7 @@ type ResourceDetailRetriever func(*resourceRow, string) error
 // ResourceTreePrintOptions print options for resource tree
 type ResourceTreePrintOptions struct {
 	DetailRetriever ResourceDetailRetriever
+	multicluster.ClusterMapper
 	// MaxWidth if set, the detail part will auto wrap
 	MaxWidth *int
 	// Format for details
@@ -138,7 +139,7 @@ func (options *ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, c
 		if row.mr.Namespace == "" {
 			row.mr.Namespace = "-"
 		}
-		row.cluster, row.namespace, row.resourceName = row.mr.Cluster, row.mr.Namespace, fmt.Sprintf("%s/%s", row.mr.Kind, row.mr.Name)
+		row.cluster, row.namespace, row.resourceName = options.ClusterMapper.GetClusterFullName(row.mr.Cluster), row.mr.Namespace, fmt.Sprintf("%s/%s", row.mr.Kind, row.mr.Name)
 		if row.status == resourceRowStatusNotDeployed {
 			row.resourceName = "-"
 		}
@@ -201,10 +202,14 @@ func (options *ResourceTreePrintOptions) _wrapDetails(detail string, width int) 
 	for _, row := range strings.Split(detail, "\n") {
 		var sb strings.Builder
 		row = strings.ReplaceAll(row, "\t", " ")
-		for _, token := range strings.Split(row, "  ") {
+		sep := "  "
+		if options.Format == "raw" {
+			sep = "\n"
+		}
+		for _, token := range strings.Split(row, sep) {
 			if sb.Len()+len(token)+2 <= width {
 				if sb.Len() > 0 {
-					sb.WriteString("  ")
+					sb.WriteString(sep)
 				}
 				sb.WriteString(token)
 			} else {
