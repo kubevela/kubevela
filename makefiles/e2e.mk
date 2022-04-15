@@ -49,6 +49,7 @@ e2e-apiserver-test:
 	pkill vela_addon_mock_server || true
 	go run ./e2e/addon/mock/vela_addon_mock_server.go &
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
+	sleep 15
 	@$(OK) tests pass
 
 .PHONY: e2e-test

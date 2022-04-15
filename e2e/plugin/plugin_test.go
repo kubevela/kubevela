@@ -129,7 +129,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring(showTdResult))
 		})
-		PIt("Test show componentDefinition use Helm Charts as Workload", func() {
+		It("Test show componentDefinition use Helm Charts as Workload", func() {
 			Eventually(func() string {
 				cdName := "test-webapp-chart"
 				output, _ := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
