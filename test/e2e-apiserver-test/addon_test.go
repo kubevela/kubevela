@@ -96,11 +96,11 @@ var _ = Describe("Test addon rest api", func() {
 		})
 
 		It("get addon detail", func() {
-			res := get("/addons/fluxcd")
+			res := get("/addons/mock-addon")
 			defer res.Body.Close()
 			var addon apisv1.DetailAddonResponse
 			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
-			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(addon.Name).Should(BeEquivalentTo("mock-addon"))
 		})
 
 		It("enable addon ", func() {
@@ -109,21 +109,21 @@ var _ = Describe("Test addon rest api", func() {
 					"testkey": "testvalue",
 				},
 			}
-			res := post("/addons/fluxcd/enable", req)
+			res := post("/addons/mock-addon/enable", req)
 			defer res.Body.Close()
 			var addon apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
-			Expect(addon.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(addon.Name).Should(BeEquivalentTo("mock-addon"))
 			Expect(len(addon.Args)).Should(BeEquivalentTo(1))
 			Expect(addon.Args["testkey"]).Should(BeEquivalentTo("testvalue"))
 		})
 
 		It("addon status", func() {
-			res := get("/addons/fluxcd/status")
+			res := get("/addons/mock-addon/status")
 			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
-			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
 			Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
 			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("testvalue"))
 		})
@@ -143,18 +143,18 @@ var _ = Describe("Test addon rest api", func() {
 					"testkey": "new-testvalue",
 				},
 			}
-			res := put("/addons/fluxcd/update", req)
+			res := put("/addons/mock-addon/update", req)
 			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
-			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
 			Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
 			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
 
-			status := get("/addons/fluxcd/status")
+			status := get("/addons/mock-addon/status")
 			var newaddonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
-			Expect(newaddonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(newaddonStatus.Name).Should(BeEquivalentTo("mock-addon"))
 			Expect(len(newaddonStatus.Args)).Should(BeEquivalentTo(1))
 			Expect(newaddonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
 		})
@@ -176,11 +176,11 @@ var _ = Describe("Test addon rest api", func() {
 		})
 
 		It("disable addon ", func() {
-			res := post("/addons/fluxcd/disable", nil)
+			res := post("/addons/mock-addon/disable", nil)
 			defer res.Body.Close()
 			var addonStatus apisv1.AddonStatusResponse
 			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
-			Expect(addonStatus.Name).Should(BeEquivalentTo("fluxcd"))
+			Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
 		})
 	})
 })

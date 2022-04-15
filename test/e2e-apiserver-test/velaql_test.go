@@ -203,7 +203,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		}, 2*time.Minute, 3*time.Microsecond).Should(BeNil())
 	})
 
-	PIt("Test collect pod from helmRelease", func() {
+	It("Test collect pod from helmRelease", func() {
 		appWithHelm := new(v1beta1.Application)
 		Expect(yaml.Unmarshal([]byte(podInfoApp), appWithHelm)).Should(BeNil())
 		req := apiv1.ApplicationRequest{
