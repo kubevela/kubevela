@@ -136,6 +136,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 	ctx := context.Background()
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
+		klog.Errorf("query the resourcetrackers failure %s", err.Error())
 		return nil, err
 	}
 	var resources = []Resource{}
@@ -151,11 +152,19 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 					existResources[managedResource.ClusterObjectReference] = true
 					obj, err := managedResource.ToUnstructuredWithData()
 					if err != nil {
-						klog.Errorf("get obj from resource tracker failure %s", err.Error())
-						continue
+						// For the application with apply once policy, there is no data in RT.
+						_, obj, err = getObjectCreatedByComponent(c.k8sClient, managedResource.ObjectReference, managedResource.Cluster)
+						if err != nil {
+							klog.Errorf("get obj from the cluster failure %s", err.Error())
+							continue
+						}
+					}
+					clusterName := managedResource.Cluster
+					if clusterName == "" {
+						clusterName = multicluster.ClusterLocalName
 					}
 					resources = append(resources, Resource{
-						Cluster:   managedResource.Cluster,
+						Cluster:   clusterName,
 						Revision:  oam.GetPublishVersion(rt),
 						Component: managedResource.Component,
 						Object:    obj,
