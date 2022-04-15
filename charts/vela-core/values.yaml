@@ -84,6 +84,28 @@ webhookService:
 healthCheck:
   port: 9440
 
+## @section KubeVela controller optimization parameters
+##@param optimize.optimizeCachedGvks Optimize types of resources to be cached.
+##@param optimize.resourceTrackerListOp Optimize ResourceTracker List Op by adding index.
+##@param optimize.controllerReconcileLoopReduction Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.
+##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
+##@param optimize.disableComponentRevision Optimize componentRevision by disabling the creation and gc
+##@param optimize.disableApplicationRevision Optimize ApplicationRevision by disabling the creation and gc.
+##@param optimize.disableWorkflowRecorder Optimize workflow recorder by disabling the creation and gc.
+##@param optimize.enableInMemoryWorkflowContext Optimize workflow by use in-memory context.
+##@param optimize.disableResourceApplyDoubleCheck Optimize workflow by ignoring resource double check after apply.
+##@param optimize.enableResourceTrackerDeleteOnlyTrigger Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.
+optimize:
+  optimizeCachedGvks:
+  resourceTrackerListOp: true
+  controllerReconcileLoopReduction: false
+  markWithProb: 0.1
+  disableComponentRevision: false
+  disableApplicationRevision: false
+  disableWorkflowRecorder: false
+  enableInMemoryWorkflowContext: false
+  disableResourceApplyDoubleCheck: false
+  enableResourceTrackerDeleteOnlyTrigger: true
 
 ## @section MultiCluster parameters
 
