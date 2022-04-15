@@ -236,6 +236,11 @@ func TestCreateConfig(t *testing.T) {
 
 	ctx := context.Background()
 
+	properties, err := json.Marshal(map[string]interface{}{
+		"name": "default",
+	})
+	assert.NilError(t, err)
+
 	testcases := []struct {
 		name string
 		args args
@@ -249,6 +254,18 @@ func TestCreateConfig(t *testing.T) {
 					Name:          "a",
 					ComponentType: "b",
 					Project:       "c",
+				},
+			},
+		},
+		{
+			name: "create terraform-alibaba config",
+			args: args{
+				h: h,
+				req: apis.CreateConfigRequest{
+					Name:          "n1",
+					ComponentType: "terraform-alibaba",
+					Project:       "p1",
+					Properties:    string(properties),
 				},
 			},
 		},
