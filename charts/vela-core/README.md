@@ -78,6 +78,22 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
 
+### KubeVela controller optimization parameters
+
+| Name                                              | Description                                                                                                                                       | Value   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `optimize.optimizeCachedGvks`                     | Optimize types of resources to be cached.                                                                                                         | `nil`   |
+| `optimize.resourceTrackerListOp`                  | Optimize ResourceTracker List Op by adding index.                                                                                                 | `true`  |
+| `optimize.controllerReconcileLoopReduction`       | Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.                                                | `false` |
+| `optimize.markWithProb`                           | Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. | `0.1`   |
+| `optimize.disableComponentRevision`               | Optimize componentRevision by disabling the creation and gc                                                                                       | `false` |
+| `optimize.disableApplicationRevision`             | Optimize ApplicationRevision by disabling the creation and gc.                                                                                    | `false` |
+| `optimize.disableWorkflowRecorder`                | Optimize workflow recorder by disabling the creation and gc.                                                                                      | `false` |
+| `optimize.enableInMemoryWorkflowContext`          | Optimize workflow by use in-memory context.                                                                                                       | `false` |
+| `optimize.disableResourceApplyDoubleCheck`        | Optimize workflow by ignoring resource double check after apply.                                                                                  | `false` |
+| `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                               | `true`  |
+
+
 ### MultiCluster parameters
 
 | Name                                                  | Description                      | Value                            |
@@ -165,9 +181,3 @@ $ helm uninstall -n vela-system kubevela
 ```
 
 Finally, this command will remove all the Kubernetes resources associated with KubeVela and remove this chart release.
-
-
-
-
-
-
