@@ -22,6 +22,9 @@ import (
 )
 
 const (
+	// ClusterLocalName the name for the hub cluster
+	ClusterLocalName = "local"
+
 	// CredentialTypeInternal identifies the virtual cluster from internal kubevela system
 	CredentialTypeInternal v1alpha1.CredentialType = "Internal"
 	// CredentialTypeOCMManagedCluster identifies the virtual cluster from ocm
