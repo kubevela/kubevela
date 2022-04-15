@@ -340,12 +340,12 @@ var _ = Describe("Application Normal tests", func() {
 	It("Test wait suspend", func() {
 		By("Apply wait suspend application")
 		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app_delay_suspend.yaml", &newApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/app/app_wait_suspend.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("check application suspend duration")
-		verifyApplicationDelaySuspendExpected(newApp.Namespace, newApp.Name, "suspend-test", "deploy-to-local", "30s")
+		verifyApplicationDelaySuspendExpected(newApp.Namespace, newApp.Name, "suspend-test", "apply-wait-suspend-comp", "30s")
 	})
 
 	It("Test app with ServiceAccount", func() {
