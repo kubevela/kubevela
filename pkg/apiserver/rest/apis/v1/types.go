@@ -202,6 +202,7 @@ type Config struct {
 	Name              string                  `json:"name"`
 	Project           string                  `json:"project"`
 	Identifier        string                  `json:"identifier"`
+	Alias             string                  `json:"alias"`
 	Description       string                  `json:"description"`
 	CreatedTime       *time.Time              `json:"createdTime"`
 	UpdatedTime       *time.Time              `json:"updatedTime"`
@@ -411,6 +412,7 @@ type CreateApplicationRequest struct {
 type CreateConfigRequest struct {
 	Name          string `json:"name" validate:"checkname"`
 	Alias         string `json:"alias"`
+	Description   string `json:"description"`
 	Project       string `json:"project"`
 	ComponentType string `json:"componentType" validate:"checkname"`
 	Properties    string `json:"properties,omitempty"`

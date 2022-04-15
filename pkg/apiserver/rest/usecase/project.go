@@ -520,16 +520,10 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 		for _, a := range apps.Items {
 			appProject := a.Labels[types.LabelConfigProject]
 			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
-				!strings.Contains(a.Labels[types.LabelConfigType], "terraform-") {
+				!strings.Contains(a.Labels[types.LabelConfigType], types.TerrfaormComponentPrefix) {
 				continue
 			}
-			configs = append(configs, &apisv1.Config{
-				ConfigType:        a.Labels[types.LabelConfigType],
-				Name:              a.Name,
-				Project:           appProject,
-				CreatedTime:       &(a.CreationTimestamp.Time),
-				ApplicationStatus: a.Status.Phase,
-			})
+			configs = append(configs, retrieveConfigFromApplication(a, appProject))
 		}
 
 		configs = append(configs, legacyTerraformProviders...)
@@ -539,13 +533,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 			if appProject != "" && appProject != projectName {
 				continue
 			}
-			configs = append(configs, &apisv1.Config{
-				ConfigType:        a.Labels[types.LabelConfigType],
-				Name:              a.Name,
-				Project:           appProject,
-				CreatedTime:       &(a.CreationTimestamp.Time),
-				ApplicationStatus: a.Status.Phase,
-			})
+			configs = append(configs, retrieveConfigFromApplication(a, appProject))
 		}
 		configs = append(configs, legacyTerraformProviders...)
 	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
@@ -556,13 +544,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 				continue
 			}
 			if a.Labels[types.LabelConfigType] == t {
-				configs = append(configs, &apisv1.Config{
-					ConfigType:        a.Labels[types.LabelConfigType],
-					Name:              a.Name,
-					Project:           appProject,
-					CreatedTime:       &(a.CreationTimestamp.Time),
-					ApplicationStatus: a.Status.Phase,
-				})
+				configs = append(configs, retrieveConfigFromApplication(a, appProject))
 			}
 		}
 	default:
@@ -615,4 +597,16 @@ func ConvertProjectUserModel2Base(user *model.ProjectUser) *apisv1.ProjectUserBa
 		UpdateTime: user.UpdateTime,
 	}
 	return base
+}
+
+func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv1.Config {
+	return &apisv1.Config{
+		ConfigType:        a.Labels[types.LabelConfigType],
+		Name:              a.Name,
+		Project:           project,
+		CreatedTime:       &(a.CreationTimestamp.Time),
+		ApplicationStatus: a.Status.Phase,
+		Alias:             a.Annotations[types.AnnotationConfigAlias],
+		Description:       a.Annotations[types.AnnotationConfigDescription],
+	}
 }
