@@ -231,7 +231,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
 				return r.result(err).requeue(waitDuration).ret()
 			}
-			app.Status.Workflow.Suspend = false
+			app.Status.Workflow.WaitSuspend = false
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
 		}
 		if !workflow.IsFailedAfterRetry(app) {
