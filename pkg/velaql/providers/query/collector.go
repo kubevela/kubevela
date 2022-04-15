@@ -136,6 +136,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 	ctx := context.Background()
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
+		klog.Errorf("query the resourcetrackers failure %s", err.Error())
 		return nil, err
 	}
 	var resources = []Resource{}

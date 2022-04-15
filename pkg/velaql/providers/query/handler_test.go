@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -83,7 +84,8 @@ var _ = Describe("Test Query Provider", func() {
 					Name:      "test",
 					Namespace: "test",
 					Annotations: map[string]string{
-						"oam.dev/kubevela-version": "v1.2.0-beta.2",
+						oam.AnnotationKubeVelaVersion: "v1.3.1",
+						oam.AnnotationPublishVersion:  "v1",
 					},
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -154,6 +156,53 @@ var _ = Describe("Test Query Provider", func() {
 			})
 			Expect(k8sClient.Create(ctx, appService)).Should(BeNil())
 
+			rt := &v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("%s-v1-%s", oldApp.Name, oldApp.Namespace),
+					Labels: map[string]string{
+						oam.LabelAppName:      oldApp.Name,
+						oam.LabelAppNamespace: oldApp.Namespace,
+					},
+					Annotations: map[string]string{
+						oam.AnnotationPublishVersion: "v1",
+					},
+				},
+				Spec: v1beta1.ResourceTrackerSpec{
+					ManagedResources: []v1beta1.ManagedResource{
+						{
+							ClusterObjectReference: common.ClusterObjectReference{
+								Cluster: "",
+								ObjectReference: corev1.ObjectReference{
+									APIVersion: "v1",
+									Kind:       "Service",
+									Namespace:  namespace,
+									Name:       "web",
+								},
+							},
+							OAMObjectReference: common.OAMObjectReference{
+								Component: "web",
+							},
+						},
+						{
+							ClusterObjectReference: common.ClusterObjectReference{
+								Cluster: "",
+								ObjectReference: corev1.ObjectReference{
+									APIVersion: "apps/v1",
+									Kind:       "Deployment",
+									Namespace:  namespace,
+									Name:       "web",
+								},
+							},
+							OAMObjectReference: common.OAMObjectReference{
+								Component: "web",
+							},
+						},
+					},
+					Type: v1beta1.ResourceTrackerTypeVersioned,
+				},
+			}
+			Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
+
 			prd := provider{cli: k8sClient}
 			opt := `app: {
 				name: "test"
@@ -170,6 +219,9 @@ var _ = Describe("Test Query Provider", func() {
 
 			appResList := new(AppResourcesList)
 			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
+			if appResList.Err != "" {
+				klog.Error(appResList.Err)
+			}
 
 			Expect(len(appResList.List)).Should(Equal(2))
 
@@ -180,7 +232,7 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), updateApp)).Should(BeNil())
 
 			updateApp.ObjectMeta.Annotations = map[string]string{
-				"oam.dev/kubevela-version": "master",
+				oam.AnnotationKubeVelaVersion: "v1.1.0",
 			}
 			Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
 			newValue, err := value.NewValue(opt, nil, "")
