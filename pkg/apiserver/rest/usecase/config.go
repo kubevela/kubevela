@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	set "github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
@@ -134,12 +135,27 @@ func (u *configUseCaseImpl) GetConfigType(ctx context.Context, configType string
 }
 
 func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateConfigRequest) error {
+	p := req.Properties
+	// If the component is Terraform type, set the provider name same as the application name and the component name
+	if strings.HasPrefix(req.ComponentType, types.TerrfaormComponentPrefix) {
+		var properties map[string]interface{}
+		if err := json.Unmarshal([]byte(p), &properties); err != nil {
+			return errors.Wrapf(err, "unable to process the properties of %s", req.ComponentType)
+		}
+		properties["name"] = req.Name
+		tmp, err := json.Marshal(properties)
+		if err != nil {
+			return errors.Wrapf(err, "unable to process the properties of %s", req.ComponentType)
+		}
+		p = string(tmp)
+	}
 	app := v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
 			Namespace: types.DefaultKubeVelaNS,
 			Annotations: map[string]string{
-				types.AnnotationConfigAlias: req.Alias,
+				types.AnnotationConfigAlias:       req.Alias,
+				types.AnnotationConfigDescription: req.Description,
 			},
 			Labels: map[string]string{
 				model.LabelSourceOfTruth: model.FromInner,
@@ -153,7 +169,7 @@ func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateCon
 				{
 					Name:       req.Name,
 					Type:       req.ComponentType,
-					Properties: &runtime.RawExtension{Raw: []byte(req.Properties)},
+					Properties: &runtime.RawExtension{Raw: []byte(p)},
 				},
 			},
 		},
@@ -201,12 +217,7 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 
 	configs := make([]*apis.Config, len(apps.Items))
 	for i, a := range apps.Items {
-		configs[i] = &apis.Config{
-			ConfigType:  a.Labels[types.LabelConfigType],
-			Name:        a.Name,
-			Project:     a.Labels[types.LabelConfigProject],
-			CreatedTime: &(a.CreationTimestamp.Time),
-		}
+		configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
 		switch a.Status.Phase {
 		case common.ApplicationRunning:
 			configs[i].Status = configIsReady
