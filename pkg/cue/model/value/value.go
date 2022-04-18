@@ -458,6 +458,9 @@ func (val *Value) fields() ([]*field, error) {
 		no, err := attr.Int(0)
 		if err != nil {
 			no = 100
+			if v.Name == "#do" || v.Name == "#provider" {
+				no = 0
+			}
 		}
 		fields = append(fields, &field{
 			no:   no,

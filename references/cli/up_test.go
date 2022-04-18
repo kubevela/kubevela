@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
@@ -128,7 +129,7 @@ spec:
 			}))
 
 			var buf bytes.Buffer
-			cmd := NewUpCommand(velacmd.NewDefaultFactory(args.GetClient), "")
+			cmd := NewUpCommand(velacmd.NewDefaultFactory(args.GetClient), "", args, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 			cmd.SetArgs([]string{})
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)

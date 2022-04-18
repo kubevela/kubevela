@@ -78,7 +78,7 @@ func NewCommand() *cobra.Command {
 		// Getting Start
 		NewEnvCommand(commandArgs, "3", ioStream),
 		NewInitCommand(commandArgs, "2", ioStream),
-		NewUpCommand(f, "1"),
+		NewUpCommand(f, "1", commandArgs, ioStream),
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
@@ -95,6 +95,9 @@ func NewCommand() *cobra.Command {
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
 		ClusterCommandGroup(commandArgs, ioStream),
+
+		// Debug
+		NewDebugCommand(commandArgs, ioStream),
 
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),

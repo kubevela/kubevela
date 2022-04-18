@@ -5,6 +5,7 @@ go 1.17
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
+	github.com/FogDong/uitable v0.0.5
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.4.0
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
@@ -66,7 +67,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	golang.org/x/tools v0.1.6 // indirect
+	golang.org/x/tools v0.1.7 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/src-d/go-git.v4 v4.13.1

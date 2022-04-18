@@ -40,7 +40,7 @@ type Meta struct {
 func (m *Meta) Lookup(field string) cue.Value {
 	f := m.Obj.Lookup(field)
 	if !f.Exists() {
-		m.Err = fmt.Errorf("invalid string argument")
+		m.Err = fmt.Errorf("invalid lookup argument")
 		return cue.Value{}
 	}
 	if err := f.Err(); err != nil {
@@ -54,7 +54,7 @@ func (m *Meta) Int64(field string) int64 {
 	f := m.Obj.Lookup(field)
 	value, err := f.Int64()
 	if err != nil {
-		m.Err = fmt.Errorf("invalid string argument, %w", err)
+		m.Err = fmt.Errorf("invalid int64 argument, %w", err)
 
 		return 0
 	}

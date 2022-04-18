@@ -82,7 +82,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 // Dispatch apply manifests into k8s.
 func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
-	if err := h.resourceKeeper.Dispatch(ctx, manifests); err != nil {
+	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
 	}
 	for _, mf := range manifests {

@@ -66,7 +66,7 @@ func TestResourceKeeperDispatchAndDelete(t *testing.T) {
 	cm3.SetName("cm3")
 	cm3.SetLabels(map[string]string{oam.TraitTypeLabel: "eternal"})
 
-	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm1, cm2, cm3}))
+	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm1, cm2, cm3}, nil))
 	r.NotNil(rk._rootRT)
 	r.NotNil(rk._currentRT)
 	r.Equal(1, len(rk._rootRT.Spec.ManagedResources))
@@ -96,7 +96,7 @@ func TestResourceKeeperAdmissionDispatchAndDelete(t *testing.T) {
 			},
 		},
 	}}
-	err = rk.Dispatch(context.Background(), objs)
+	err = rk.Dispatch(context.Background(), objs, nil)
 	r.NotNil(err)
 	r.Contains(err.Error(), "forbidden")
 	err = rk.Delete(context.Background(), objs)
