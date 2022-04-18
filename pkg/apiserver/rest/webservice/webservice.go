@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/collect"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
@@ -117,8 +116,6 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 
 	// RBAC
 	RegisterWebService(NewRBACWebService(rbacUsecase))
-
-	collect.StartCalculatingInfoCronJob(ds)
 
 	// return some usecase instance
 	return map[string]interface{}{"workflow": workflowUsecase, "project": projectUsecase}

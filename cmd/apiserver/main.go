@@ -46,6 +46,7 @@ func main() {
 	flag.StringVar(&s.restCfg.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
 	flag.DurationVar(&s.restCfg.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.DurationVar(&s.restCfg.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
+	flag.BoolVar(&s.restCfg.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
 	flag.Parse()
 
 	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
