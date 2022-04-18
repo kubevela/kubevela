@@ -73,8 +73,8 @@ const (
 	LabelConfigSyncToMultiCluster = "config.oam.dev/multi-cluster"
 	// LabelConfigIdentifier is the label for config identifier
 	LabelConfigIdentifier = "config.oam.dev/identifier"
-	// LabelConfigDescription is the label for config description
-	LabelConfigDescription = "config.oam.dev/description"
+	// AnnotationConfigDescription is the annotation for config description
+	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
 )
@@ -147,4 +147,9 @@ const (
 	ImageRegistry = "config-image-registry"
 	// HelmRepository is the config type for Helm chart repository
 	HelmRepository = "config-helm-repository"
+)
+
+const (
+	// TerrfaormComponentPrefix is the prefix of component type of terraform-xxx
+	TerrfaormComponentPrefix = "terraform-"
 )

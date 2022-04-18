@@ -193,7 +193,7 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				}
 				data, err := json.Marshal(properties)
 				if err != nil {
-					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+					return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 				}
 				providerAppName := fmt.Sprintf("config-terraform-provider-%s", name)
 				a := &v1beta1.Application{}
@@ -217,12 +217,12 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 							},
 						}
 						if err := k8sClient.Create(ctx, a); err != nil {
-							return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+							return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 						}
-						ioStreams.Infof("Successfully authentiate provider %s for %s\n", name, providerType)
+						ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
 						return nil
 					}
-					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+					return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 				}
 				return fmt.Errorf("terraform provider %s for %s already exists", name, providerType)
 			}
