@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -50,7 +49,7 @@ type DefinitionUsecase interface {
 	// DetailDefinition get definition detail
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 	// AddDefinitionUISchema add or update custom definition ui schema
-	AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error)
+	AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error)
 }
 
 type definitionUsecaseImpl struct {
@@ -247,14 +246,8 @@ func (d *definitionUsecaseImpl) renderCustomUISchema(ctx context.Context, name, 
 }
 
 // AddDefinitionUISchema add definition custom ui schema config
-func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error) {
-	var uiParameters []*utils.UIParameter
-	err := yaml.Unmarshal([]byte(configRaw), &uiParameters)
-	if err != nil {
-		log.Logger.Errorf("yaml unmarshal failure %s", err.Error())
-		return nil, bcode.ErrInvalidDefinitionUISchema
-	}
-	dataBate, err := json.Marshal(uiParameters)
+func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error) {
+	dataBate, err := json.Marshal(schema)
 	if err != nil {
 		log.Logger.Errorf("json marshal failure %s", err.Error())
 		return nil, bcode.ErrInvalidDefinitionUISchema
@@ -285,7 +278,11 @@ func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name,
 			return nil, err
 		}
 	}
-	return uiParameters, nil
+	res, err := d.DetailDefinition(ctx, name, defType)
+	if err != nil {
+		return nil, err
+	}
+	return res.UISchema, nil
 }
 
 func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIParameter {

@@ -22,6 +22,7 @@ import (
 
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -51,12 +52,20 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
 	ws.Route(ws.GET("/{definitionName}").To(d.detailDefinition).
-		Doc("detail definition").
+		Doc("Detail a definition").
 		// Filter(d.rbacUsecase.CheckPerm("definition", "detail")).
 		Param(ws.PathParameter("definitionName", "identifier of the definition").DataType("string")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Returns(200, "create success", apis.DetailDefinitionResponse{}).
+		Returns(200, "create successfully", apis.DetailDefinitionResponse{}).
+		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
+
+	ws.Route(ws.PUT("/{definitionName}/uischema").To(d.updateUISchema).
+		Doc("Update the UI schema for a definition").
+		Filter(d.rbacUsecase.CheckPerm("definition", "update")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateUISchemaRequest{}).
+		Returns(200, "update successfully", utils.UISchema{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
 
 	ws.Filter(authCheckFilter)
@@ -90,6 +99,32 @@ func (d *definitionWebservice) detailDefinition(req *restful.Request, res *restf
 		return
 	}
 	if err := res.WriteEntity(definition); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (d *definitionWebservice) updateUISchema(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateUISchemaRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := updateReq.UISchema.Validate(); err != nil {
+		bcode.ReturnError(req, res, bcode.ErrInvalidDefinitionUISchema.SetMessage(err.Error()))
+		return
+	}
+	schema, err := d.definitionUsecase.AddDefinitionUISchema(req.Request.Context(), req.PathParameter("definitionName"), updateReq.DefinitionType, updateReq.UISchema)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(schema); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
