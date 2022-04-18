@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -54,7 +55,8 @@ type GCOption interface {
 }
 
 type gcConfig struct {
-	passive bool
+	passive    bool
+	sequential bool
 
 	disableMark                bool
 	disableSweep               bool
@@ -95,8 +97,13 @@ func newGCConfig(options ...GCOption) *gcConfig {
 // NOTE: Mark Stage will only work when Workflow succeeds. Check/Finalize Stage will always work.
 //       For one single application, the deletion will follow Mark -> Finalize -> Sweep
 func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption) (finished bool, waiting []v1beta1.ManagedResource, err error) {
-	if h.garbageCollectPolicy != nil && h.garbageCollectPolicy.KeepLegacyResource {
-		options = append(options, PassiveGCOption{})
+	if h.garbageCollectPolicy != nil {
+		if h.garbageCollectPolicy.KeepLegacyResource {
+			options = append(options, PassiveGCOption{})
+		}
+		if h.garbageCollectPolicy.Sequential {
+			options = append(options, SequentialGCOption{})
+		}
 	}
 	cfg := newGCConfig(options...)
 	return h.garbageCollect(ctx, cfg)
@@ -247,21 +254,96 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 }
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
+	if h.cfg.sequential {
+		for _, mr := range rt.Spec.ManagedResources {
+			if err := h.deleteIndependentComponent(ctx, mr, rt); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	for _, mr := range rt.Spec.ManagedResources {
-		entry := h.cache.get(ctx, mr)
-		if entry.gcExecutorRT != rt {
-			continue
+		if err := h.deleteManagedResource(ctx, mr, rt); err != nil {
+			return err
 		}
-		if entry.err != nil {
-			return entry.err
+	}
+	return nil
+}
+
+func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
+	dependent := h.checkDependentComponent(mr)
+	if len(dependent) == 0 {
+		if err := h.deleteManagedResource(ctx, mr, rt); err != nil {
+			return err
 		}
-		if entry.exists {
-			if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil && !kerrors.IsNotFound(err) {
-				return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
+	} else {
+		dependentClear := true
+		for _, mr := range rt.Spec.ManagedResources {
+			if utils.StringsContain(dependent, mr.Component) {
+				entry := h.cache.get(ctx, mr)
+				if entry.gcExecutorRT != rt {
+					continue
+				}
+				if entry.err != nil {
+					continue
+				}
+				if entry.exists {
+					dependentClear = false
+					break
+				}
+			}
+		}
+		if dependentClear {
+			if err := h.deleteManagedResource(ctx, mr, rt); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
+	entry := h.cache.get(ctx, mr)
+	if entry.gcExecutorRT != rt {
+		return nil
+	}
+	if entry.err != nil {
+		return entry.err
+	}
+	if entry.exists {
+		if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil && !kerrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
+		}
+	}
+	return nil
+}
+
+func (h *gcHandler) checkDependentComponent(mr v1beta1.ManagedResource) []string {
+	dependent := make([]string, 0)
+	inputs := make([]string, 0)
+	for _, comp := range h.app.Spec.Components {
+		if comp.Name == mr.Component {
+			dependent = comp.DependsOn
+			if len(comp.Inputs) > 0 {
+				for _, input := range comp.Inputs {
+					inputs = append(inputs, input.From)
+				}
+			} else {
+				return dependent
+			}
+			break
+		}
+	}
+	for _, comp := range h.app.Spec.Components {
+		if len(comp.Outputs) > 0 {
+			for _, output := range comp.Outputs {
+				if utils.StringsContain(inputs, output.Name) {
+					dependent = append(dependent, comp.Name)
+				}
+			}
+		}
+	}
+	return dependent
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {

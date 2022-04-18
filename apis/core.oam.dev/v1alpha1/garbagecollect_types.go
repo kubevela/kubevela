@@ -33,6 +33,9 @@ type GarbageCollectPolicySpec struct {
 	// outdated resources will be kept until resourcetracker be deleted manually
 	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
 
+	// Sequential if is set, the garbage-collect will be executed sequentially by the reverse order of resources' deployment
+	Sequential bool `json:"sequential,omitempty"`
+
 	// Rules defines list of rules to control gc strategy at resource level
 	// if one resource is controlled by multiple rules, first rule will be used
 	Rules []GarbageCollectPolicyRule `json:"rules,omitempty"`
