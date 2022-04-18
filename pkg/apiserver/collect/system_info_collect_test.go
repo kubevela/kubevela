@@ -18,8 +18,11 @@ package collect
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/onsi/gomega/format"
 
 	"gotest.tools/assert"
 
@@ -57,11 +60,11 @@ var _ = Describe("Test calculate cronJob", func() {
 		appComp1 := model.ApplicationComponent{AppPrimaryKey: app1.PrimaryKey(), Name: "comp1", Type: "helm", Traits: []model.ApplicationTrait{trait1, trait4}}
 		appComp2 := model.ApplicationComponent{AppPrimaryKey: app2.PrimaryKey(), Name: "comp2", Type: "webservice", Traits: []model.ApplicationTrait{trait3}}
 		appComp3 := model.ApplicationComponent{AppPrimaryKey: app2.PrimaryKey(), Name: "comp3", Type: "webservice", Traits: []model.ApplicationTrait{trait2, trait5, trait6}}
-		Expect(ds.Add(ctx, &app1)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
-		Expect(ds.Add(ctx, &app2)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
-		Expect(ds.Add(ctx, &appComp1)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
-		Expect(ds.Add(ctx, &appComp2)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
-		Expect(ds.Add(ctx, &appComp3)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
+		Expect(ds.Add(ctx, &app1)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
+		Expect(ds.Add(ctx, &app2)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
+		Expect(ds.Add(ctx, &appComp1)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
+		Expect(ds.Add(ctx, &appComp2)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
+		Expect(ds.Add(ctx, &appComp3)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-fluxcd", Labels: map[string]string{oam.LabelAddonName: "fluxcd"}}, Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{},
@@ -83,7 +86,7 @@ var _ = Describe("Test calculate cronJob", func() {
 			ds: ds,
 		}
 		systemInfo := model.SystemInfo{InstallID: "test-id", EnableCollection: true}
-		Expect(ds.Add(ctx, &systemInfo)).Should(SatisfyAny(BeNil(), util.DataExistMatcher{}))
+		Expect(ds.Add(ctx, &systemInfo)).Should(SatisfyAny(BeNil(), DataExistMatcher{}))
 	})
 
 	It("Test calculate app Info", func() {
@@ -219,4 +222,25 @@ func TestTopKFrequent(t *testing.T) {
 	for _, testCase := range testCases {
 		assert.DeepEqual(t, topKFrequent(testCase.def, testCase.k), testCase.res)
 	}
+}
+
+type DataExistMatcher struct{}
+
+// Match matches error.
+func (matcher DataExistMatcher) Match(actual interface{}) (success bool, err error) {
+	if actual == nil {
+		return false, nil
+	}
+	actualError := actual.(error)
+	return errors.Is(actualError, datastore.ErrRecordExist), nil
+}
+
+// FailureMessage builds an error message.
+func (matcher DataExistMatcher) FailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "to be already exist")
+}
+
+// NegatedFailureMessage builds an error message.
+func (matcher DataExistMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "not to be already exist")
 }

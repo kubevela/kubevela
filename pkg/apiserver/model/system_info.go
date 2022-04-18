@@ -49,6 +49,7 @@ type DexConfig struct {
 	EnablePasswordDB bool              `json:"enablePasswordDB"`
 }
 
+// StatisticInfo the system statistic info
 type StatisticInfo struct {
 	ClusterCount string            `json:"clusterCount,omitempty"`
 	AppCount     string            `json:"appCount,omitempty"`

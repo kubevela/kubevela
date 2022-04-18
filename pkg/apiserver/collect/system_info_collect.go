@@ -21,11 +21,12 @@ import (
 	"sort"
 	"time"
 
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -39,7 +40,10 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+// TopKFrequent top frequency component or trait definition
 var TopKFrequent = 5
+
+// CrontabSpec the cron spec of job running
 var CrontabSpec = "0 0 * * *"
 
 // maximum tires is 5, initial duration is 1 minute

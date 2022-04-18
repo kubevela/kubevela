@@ -18,7 +18,6 @@ package util
 
 import (
 	"encoding/json"
-	"errors"
 	"reflect"
 	"sort"
 
@@ -29,7 +28,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 )
 
 // JSONMarshal returns the JSON encoding
@@ -60,27 +58,6 @@ func (matcher AlreadyExistMatcher) FailureMessage(actual interface{}) (message s
 
 // NegatedFailureMessage builds an error message.
 func (matcher AlreadyExistMatcher) NegatedFailureMessage(actual interface{}) (message string) {
-	return format.Message(actual, "not to be already exist")
-}
-
-type DataExistMatcher struct{}
-
-// Match matches error.
-func (matcher DataExistMatcher) Match(actual interface{}) (success bool, err error) {
-	if actual == nil {
-		return false, nil
-	}
-	actualError := actual.(error)
-	return errors.Is(actualError, datastore.ErrRecordExist), nil
-}
-
-// FailureMessage builds an error message.
-func (matcher DataExistMatcher) FailureMessage(actual interface{}) (message string) {
-	return format.Message(actual, "to be already exist")
-}
-
-// NegatedFailureMessage builds an error message.
-func (matcher DataExistMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	return format.Message(actual, "not to be already exist")
 }
 
