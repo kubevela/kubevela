@@ -3,6 +3,12 @@ kind: Application
 metadata:
   name: config-dex-connector-dev
   namespace: vela-system
+  labels:
+    "app.oam.dev/source-of-truth": "from-inner-system"
+    "config.oam.dev/catalog": "velacore-config"
+    "config.oam.dev/type": "config-dex-connector"
+    "config.oam.dev/sub-type": "github"
+    project: abc
 spec:
   components:
     - name: dev
@@ -12,4 +18,4 @@ spec:
         github:
           clientID: "aa"
           clientSecret: "bb"
-          callbackURL: "http://localhost:8080/callback"
+          redirectURI: "http://localhost:8080/callback"

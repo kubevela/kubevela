@@ -33,18 +33,18 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
@@ -686,7 +686,7 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 	}, nil
 }
 
-// Deploy deploy app to cluster
+// Deploy deploys app to cluster
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
@@ -701,6 +701,11 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 
 	workflow, err := c.workflowUsecase.GetWorkflow(ctx, app, oamApp.Annotations[oam.AnnotationWorkflowName])
 	if err != nil {
+		return nil, err
+	}
+
+	// sync configs to clusters
+	if err := c.syncConfigs4Application(ctx, oamApp, app.Project, workflow.EnvName); err != nil {
 		return nil, err
 	}
 
@@ -790,6 +795,44 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: c.convertRevisionModelToBase(appRevision),
 	}, nil
+}
+
+// sync configs to clusters
+func (c *applicationUsecaseImpl) syncConfigs4Application(ctx context.Context, app *v1beta1.Application, projectName, envName string) error {
+	var areTerraformComponents = true
+	for _, m := range app.Spec.Components {
+		d := &v1beta1.ComponentDefinition{}
+		if err := c.kubeClient.Get(ctx, client.ObjectKey{Namespace: velatypes.DefaultKubeVelaNS, Name: m.Type}, d); err != nil {
+			klog.ErrorS(err, "failed to get config type", "ComponentDefinition", m.Type)
+		}
+		// check the type of the componentDefinition is Terraform
+		if d.Spec.Schematic != nil && d.Spec.Schematic.Terraform == nil {
+			areTerraformComponents = false
+		}
+	}
+	// skip configs sync
+	if areTerraformComponents {
+		return nil
+	}
+	env, err := c.envUsecase.GetEnv(ctx, envName)
+	if err != nil {
+		return err
+	}
+	var clusterTargets []*model.ClusterTarget
+	for _, t := range env.Targets {
+		target, err := c.targetUsecase.GetTarget(ctx, t)
+		if err != nil {
+			return err
+		}
+		if target.Cluster != nil {
+			clusterTargets = append(clusterTargets, target.Cluster)
+		}
+	}
+
+	if err := SyncConfigs(ctx, c.kubeClient, projectName, clusterTargets); err != nil {
+		return fmt.Errorf("sync config failure %w", err)
+	}
+	return nil
 }
 
 func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {

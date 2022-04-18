@@ -182,6 +182,8 @@ type Appfile struct {
 
 	parser *Parser
 	app    *v1beta1.Application
+
+	Debug bool
 }
 
 // GeneratePolicyManifests generates policy manifests from an appFile

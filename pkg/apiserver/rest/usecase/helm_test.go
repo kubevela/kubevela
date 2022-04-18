@@ -17,8 +17,22 @@ limitations under the License.
 package usecase
 
 import (
+	"context"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,6 +50,147 @@ func TestFlattenKeyFunc(t *testing.T) {
 	flattenKey("", srcMap, res)
 	assert.Equal(t, dstMap, res)
 }
+
+var _ = Describe("Test helm repo list", func() {
+	ctx := context.Background()
+	var pSec, gSec v1.Secret
+
+	BeforeEach(func() {
+		pSec = v1.Secret{}
+		gSec = v1.Secret{}
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		Expect(yaml.Unmarshal([]byte(projectSecret), &pSec)).Should(BeNil())
+		Expect(yaml.Unmarshal([]byte(globalSecret), &gSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &pSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &gSec)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &gSec)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, &pSec)).Should(BeNil())
+	})
+
+	It("Test list with project ", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "my-project")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(2))
+		found := 0
+		for _, response := range list.ChartRepoResponse {
+			if response.SecretName == "project-helm-repo" {
+				Expect(response.URL).Should(BeEquivalentTo("https://kedacore.github.io/charts"))
+				found++
+			}
+			if response.SecretName == "global-helm-repo" {
+				Expect(response.URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+				found++
+			}
+		}
+		Expect(found).Should(BeEquivalentTo(2))
+	})
+
+	It("Test list func with not exist project", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "not-exist-project")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
+		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
+	})
+
+	It("Test list func without project", func() {
+		u := NewHelmUsecase()
+		list, err := u.ListChartRepo(ctx, "")
+		Expect(err).Should(BeNil())
+		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
+		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
+		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
+	})
+})
+
+var _ = Describe("test helm usecasae", func() {
+	ctx := context.Background()
+	var repoSec v1.Secret
+
+	BeforeEach(func() {
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+
+		repoSec = v1.Secret{}
+		Expect(yaml.Unmarshal([]byte(repoSecret), &repoSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &repoSec)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &repoSec)).Should(BeNil())
+	})
+
+	It("helm associated usecase interface test", func() {
+		var mockServer *httptest.Server
+
+		handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			u, p, ok := request.BasicAuth()
+			if !ok || u != "admin" || p != "admin" {
+				writer.WriteHeader(401)
+				return
+			}
+			switch {
+			case request.URL.Path == "/index.yaml":
+				index, err := ioutil.ReadFile("./testdata/helm/index.yaml")
+				indexFile := string(index)
+				indexFile = strings.ReplaceAll(indexFile, "server-url", mockServer.URL)
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+					return
+				}
+				writer.Write([]byte(indexFile))
+
+				return
+			case strings.Contains(request.URL.Path, "mysql-8.8.23.tgz"):
+				pkg, err := ioutil.ReadFile("./testdata/helm/mysql-8.8.23.tgz")
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+					return
+				}
+				writer.Write(pkg)
+				return
+			default:
+				writer.Write([]byte("404 page not found"))
+			}
+		})
+
+		mockServer = httptest.NewServer(handler)
+
+		defer mockServer.Close()
+
+		u := NewHelmUsecase()
+		charts, err := u.ListChartNames(ctx, mockServer.URL, "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(len(charts)).Should(BeEquivalentTo(1))
+		Expect(charts[0]).Should(BeEquivalentTo("mysql"))
+
+		versions, err := u.ListChartVersions(ctx, mockServer.URL, "mysql", "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(len(versions)).Should(BeEquivalentTo(1))
+		Expect(versions[0].Version).Should(BeEquivalentTo("8.8.23"))
+
+		values, err := u.GetChartValues(ctx, mockServer.URL, "mysql", "8.8.23", "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(values).ShouldNot(BeNil())
+		Expect(len(values)).ShouldNot(BeEquivalentTo(0))
+	})
+
+	It("coverage not secret notExist error", func() {
+		u := NewHelmUsecase()
+		_, err := u.ListChartNames(ctx, "http://127.0.0.1:8080", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.ListChartVersions(ctx, "http://127.0.0.1:8080", "mysql", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.GetChartValues(ctx, "http://127.0.0.1:8080", "mysql", "8.8.23", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+	})
+})
 
 var (
 	src = `{
@@ -175,4 +330,43 @@ var (
     "webhookService.port": 11443,
     "webhookService.type": "ClusterIP"
 }`
+	globalSecret = `
+apiVersion: v1
+stringData:
+  url: https://charts.bitnami.com/bitnami
+kind: Secret
+metadata:
+  labels:
+    config.oam.dev/type: config-helm-repository
+  name: global-helm-repo
+  namespace: vela-system
+type: Opaque
+`
+	projectSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: project-helm-repo
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project
+stringData:
+  url: https://kedacore.github.io/charts
+type: Opaque
+`
+	repoSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-secret
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project-2
+stringData:
+  username: admin
+  password: admin
+type: Opaque
+`
 )

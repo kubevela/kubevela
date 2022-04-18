@@ -102,6 +102,12 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+// HTTPOption define the https options
+type HTTPOption struct {
+	Username string
+	Password string
+}
+
 // InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (Args, error) {
 	args := Args{
@@ -134,12 +140,15 @@ func GetClient() (client.Client, error) {
 	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
-// HTTPGet will send GET http request with context
-func HTTPGet(ctx context.Context, url string) ([]byte, error) {
+// HTTPGetWithOption use HTTP option and default client to send get request
+func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
+	}
+	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
+		req.SetBasicAuth(opts.Username, opts.Password)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -282,13 +291,13 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 
 // ClusterObject2Map convert ClusterObjectReference to a readable map
 func ClusterObject2Map(refs []common.ClusterObjectReference) map[string]string {
-	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Component: %s | Kind: %s"
+	clusterResourceRefTmpl := "Cluster: %s | Namespace: %s | Kind: %s | Name: %s"
 	objs := make(map[string]string, len(refs))
 	for _, r := range refs {
 		if r.Cluster == "" {
 			r.Cluster = "local"
 		}
-		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name+"/"+r.Kind] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Name, r.Kind)
+		objs[r.Cluster+"/"+r.Namespace+"/"+r.Name+"/"+r.Kind] = fmt.Sprintf(clusterResourceRefTmpl, r.Cluster, r.Namespace, r.Kind, r.Name)
 	}
 	return objs
 }
@@ -315,6 +324,19 @@ func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterOb
 var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
 var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment",
 	"StatefulSet", "CloneSet", "Job", "Service", "HelmRelease")
+var resourceNameClusterObjectReferenceFilter = func(resourceName []string) clusterObjectReferenceFilter {
+	return func(reference common.ClusterObjectReference) bool {
+		if len(resourceName) == 0 {
+			return true
+		}
+		for _, r := range resourceName {
+			if r == reference.Name {
+				return true
+			}
+		}
+		return false
+	}
+}
 
 func filterResource(inputs []common.ClusterObjectReference, filters ...clusterObjectReferenceFilter) (outputs []common.ClusterObjectReference) {
 	for _, item := range inputs {
@@ -419,16 +441,32 @@ func filterClusterObjectRefFromAddonObservability(resources []common.ClusterObje
 	return resources
 }
 
+func removeEmptyString(items []string) []string {
+	r := []string{}
+	for _, i := range items {
+		if i != "" {
+			r = append(r, i)
+		}
+	}
+	return r
+}
+
 // AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
 // resource is a map for component to applied resources
 // return the selected ClusterObjectReference
-func AskToChooseOneEnvResource(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
-	return askToChooseOneResource(app, isWorkloadClusterObjectReferenceFilter)
+func AskToChooseOneEnvResource(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
+	filters := []clusterObjectReferenceFilter{isWorkloadClusterObjectReferenceFilter}
+	_resourceName := removeEmptyString(resourceName)
+	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
+	return askToChooseOneResource(app, filters...)
 }
 
 // AskToChooseOnePortForwardEndpoint will ask user to select one applied resource as port forward endpoint
-func AskToChooseOnePortForwardEndpoint(app *v1beta1.Application) (*common.ClusterObjectReference, error) {
-	return askToChooseOneResource(app, isPortForwardEndpointClusterObjectReferenceFilter)
+func AskToChooseOnePortForwardEndpoint(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
+	filters := []clusterObjectReferenceFilter{isPortForwardEndpointClusterObjectReferenceFilter}
+	_resourceName := removeEmptyString(resourceName)
+	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
+	return askToChooseOneResource(app, filters...)
 }
 
 func askToChooseOneInApplication(category string, options []string) (decision string, err error) {

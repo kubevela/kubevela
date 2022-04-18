@@ -88,6 +88,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		NewClusterDetachCommand(&c),
 		NewClusterProbeCommand(&c),
 		NewClusterLabelCommandGroup(&c),
+		NewClusterAliasCommand(&c),
 	)
 	return cmd
 }
@@ -101,7 +102,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 		Long:    "list worker clusters managed by KubeVela.",
 		Args:    cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			table := newUITable().AddRow("CLUSTER", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
+			table := newUITable().AddRow("CLUSTER", "ALIAS", "TYPE", "ENDPOINT", "ACCEPTED", "LABELS")
 			client, err := c.GetClient()
 			if err != nil {
 				return err
@@ -123,9 +124,9 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 				}
 				for i, l := range labels {
 					if i == 0 {
-						table.AddRow(cluster.Name, cluster.Type, cluster.EndPoint, fmt.Sprintf("%v", cluster.Accepted), l)
+						table.AddRow(cluster.Name, cluster.Alias, cluster.Type, cluster.EndPoint, fmt.Sprintf("%v", cluster.Accepted), l)
 					} else {
-						table.AddRow("", "", "", "", l)
+						table.AddRow("", "", "", "", "", l)
 					}
 				}
 			}
@@ -255,6 +256,29 @@ func NewClusterDetachCommand(c *common.Args) *cobra.Command {
 	return cmd
 }
 
+// NewClusterAliasCommand create an alias to the named cluster
+func NewClusterAliasCommand(c *common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "alias CLUSTER_NAME ALIAS",
+		Short: "alias a named cluster.",
+		Long:  "alias a named cluster.",
+		Args:  cobra.ExactValidArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterName, aliasName := args[0], args[1]
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			if err = multicluster.AliasCluster(context.Background(), k8sClient, clusterName, aliasName); err != nil {
+				return err
+			}
+			cmd.Printf("Alias cluster %s as %s.\n", clusterName, aliasName)
+			return nil
+		},
+	}
+	return cmd
+}
+
 // NewClusterProbeCommand create command to help user try health probe for existing cluster
 // TODO(somefive): move prob logic into cluster management
 func NewClusterProbeCommand(c *common.Args) *cobra.Command {
@@ -299,12 +323,12 @@ func NewClusterLabelCommandGroup(c *common.Args) *cobra.Command {
 
 func updateClusterLabelAndPrint(cmd *cobra.Command, cli client.Client, vc *multicluster.VirtualCluster, clusterName string) (err error) {
 	if err = cli.Update(context.Background(), vc.Object); err != nil {
-		return errors.Errorf("failed to update labels for cluster %s (type: %s)", vc.Name, vc.Type)
+		return errors.Errorf("failed to update labels for cluster %s, type: %s", vc.FullName(), vc.Type)
 	}
 	if vc, err = multicluster.GetVirtualCluster(context.Background(), cli, clusterName); err != nil {
 		return errors.Wrapf(err, "failed to get updated cluster %s", clusterName)
 	}
-	cmd.Printf("Successfully update labels for cluster %s (type: %s).\n", vc.Name, vc.Type)
+	cmd.Printf("Successfully update labels for cluster %s, type: %s.\n", vc.FullName(), vc.Type)
 	if len(vc.Labels) == 0 {
 		cmd.Println("No valid label exists.")
 	}

@@ -510,6 +510,9 @@ func (iter *stepsIterator) assemble() {
 		no, err := attr.Int(0)
 		if err != nil {
 			no = 100
+			if v.Name == "#do" || v.Name == "#provider" {
+				no = 0
+			}
 		}
 		if _, ok := filters[name]; !ok {
 			addFields = append(addFields, &field{

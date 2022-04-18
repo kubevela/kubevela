@@ -36,6 +36,7 @@ import (
 	"github.com/google/go-github/v32/github"
 	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -445,6 +446,15 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 		Client: cli,
 		Meta:   content,
 	}
+}
+
+func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
+	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
+
+	return &gitlabHelper{
+		Client: newClient,
+		Meta:   content,
+	}, err
 }
 
 // readRepo will read relative path (relative to Meta.Path)
@@ -1071,7 +1081,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	h.addon = addon
 	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
-		return ErrVersionMismatch
+		return VersionUnMatchError{addonName: addon.Name, err: err}
 	}
 
 	if err = h.installDependency(addon); err != nil {
@@ -1189,6 +1199,8 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
 		return err
 	}
 	getapp.Spec = app.Spec
+	getapp.Labels = app.Labels
+	getapp.Annotations = app.Annotations
 	err = h.cli.Update(h.ctx, &getapp)
 	if err != nil {
 		klog.Errorf("fail to create application: %v", err)
@@ -1343,7 +1355,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
+			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1360,7 +1372,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
+			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1381,7 +1393,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
+			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

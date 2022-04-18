@@ -207,9 +207,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			exec.tracer = tracer
-			if isDebugMode(taskv) {
+			if debugLog(taskv) {
 				exec.printStep("workflowStepStart", "workflow", "", taskv)
 				defer exec.printStep("workflowStepEnd", "workflow", "", taskv)
+			}
+			if options.Debug != nil {
+				defer func() {
+					if err := options.Debug(exec.wfStatus.Name, taskv); err != nil {
+						tracer.Error(err, "failed to debug")
+					}
+				}()
 			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				tracer.Error(err, "do steps")
@@ -316,7 +323,7 @@ func (exec *executor) printStep(phase string, provider string, do string, v *val
 
 // Handle process task-step value by provider and do.
 func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, v *value.Value) error {
-	if isDebugMode(v) {
+	if debugLog(v) {
 		exec.printStep("stepStart", provider, do, v)
 		defer exec.printStep("stepEnd", provider, do, v)
 	}
@@ -328,7 +335,7 @@ func (exec *executor) Handle(ctx wfContext.Context, provider string, do string, 
 }
 
 func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
-	do := opTpy(v)
+	do := OpTpy(v)
 	if do != "" && do != "steps" {
 		provider := opProvider(v)
 		if err := exec.Handle(ctx, provider, do, v); err != nil {
@@ -354,14 +361,14 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 
 		if isStepList(fieldName) {
 			return false, in.StepByList(func(name string, item *value.Value) (bool, error) {
-				do := opTpy(item)
+				do := OpTpy(item)
 				if do == "" {
 					return false, nil
 				}
 				return false, exec.doSteps(ctx, item)
 			})
 		}
-		do := opTpy(in)
+		do := OpTpy(in)
 		if do == "" {
 			return false, nil
 		}
@@ -390,12 +397,13 @@ func isStepList(fieldName string) bool {
 	return strings.HasPrefix(fieldName, "#up_")
 }
 
-func isDebugMode(v *value.Value) bool {
-	debug, _ := v.CueValue().LookupPath(cue.ParsePath("#debug")).Bool()
+func debugLog(v *value.Value) bool {
+	debug, _ := v.CueValue().LookupDef("#debug").Bool()
 	return debug
 }
 
-func opTpy(v *value.Value) string {
+// OpTpy get label do
+func OpTpy(v *value.Value) string {
 	return getLabel(v, "#do")
 }
 

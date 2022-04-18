@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ import (
 	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -146,7 +147,7 @@ func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
 
-	reader, err := NewAsyncReader(server.URL, "", "", "", ossType)
+	reader, err := NewAsyncReader(server.URL, "", "", "", "", ossType)
 	assert.NoError(t, err)
 	testReaderFunc(t, reader)
 }
@@ -303,7 +304,7 @@ func TestGetAddonStatus(t *testing.T) {
 	getFunc := test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		switch key.Name {
 		case "addon-disabled", "disabled":
-			return errors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
+			return kerrors.NewNotFound(schema.GroupResource{Group: "apiVersion: core.oam.dev/v1beta1", Resource: "app"}, key.Name)
 		case "addon-suspend":
 			o := obj.(*v1beta1.Application)
 			app := &v1beta1.Application{}
@@ -616,9 +617,9 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 }
 
 func TestGetPatternFromItem(t *testing.T) {
-	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "some-sub-path", "", ossType)
+	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "", "some-sub-path", "", ossType)
 	assert.NoError(t, err)
-	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "addons", "", gitType)
+	gitR, err := NewAsyncReader("https://github.com/oam-dev/catalog", "", "", "addons", "", gitType)
 	assert.NoError(t, err)
 	gitItemName := "parameter.cue"
 	gitItemType := FileType
@@ -656,7 +657,7 @@ func TestGetPatternFromItem(t *testing.T) {
 }
 
 func TestGitLabReaderNotPanic(t *testing.T) {
-	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "addons", "", gitType)
+	_, err := NewAsyncReader("https://gitlab.com/test/catalog", "", "", "addons", "", gitType)
 	assert.EqualError(t, err, "git type repository only support github for now")
 }
 
@@ -896,4 +897,12 @@ func TestRenderCUETemplate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, component.Type == "raw")
 	assert.True(t, config["metadata"].(map[string]interface{})["labels"].(map[string]interface{})["version"] == "1.0.1")
+}
+
+func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
+	version2.VelaVersion = "v1.3.0"
+	i := InstallPackage{Meta: Meta{SystemRequirements: &SystemRequirements{VelaVersion: ">=1.4.0"}}}
+	installer := &Installer{}
+	err := installer.enableAddon(&i)
+	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
 }

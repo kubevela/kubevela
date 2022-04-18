@@ -108,7 +108,7 @@ func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, pro
 
 func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
 	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
-		return common.HTTPGet(context.Background(), pathOrURL)
+		return common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
 	}
 	return os.ReadFile(path.Clean(pathOrURL))
 }
@@ -296,7 +296,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 	}
 
 	switch provider {
-	case "aws", "azure", "alibaba", "tencent", "gcp", "baidu", "elastic":
+	case "aws", "azure", "alibaba", "tencent", "gcp", "baidu", "elastic", "ucloud":
 		var terraform *commontype.Terraform
 
 		git, err := cmd.Flags().GetString(FlagGit)
@@ -372,7 +372,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 		}
 		return out.String(), nil
 	default:
-		return "", errors.Errorf("Provider `%s` is not supported. Only `alibaba`, `aws`, `azure` are supported.", provider)
+		return "", errors.Errorf("Provider `%s` is not supported. Only `alibaba`, `aws`, `azure`, `gcp`, `baidu`, `tencent`, `elastic`, `ucloud` are supported.", provider)
 	}
 }
 

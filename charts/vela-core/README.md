@@ -78,6 +78,22 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
 
+### KubeVela controller optimization parameters
+
+| Name                                              | Description                                                                                                                                       | Value   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `optimize.optimizeCachedGvks`                     | Optimize types of resources to be cached.                                                                                                         | `nil`   |
+| `optimize.resourceTrackerListOp`                  | Optimize ResourceTracker List Op by adding index.                                                                                                 | `true`  |
+| `optimize.controllerReconcileLoopReduction`       | Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.                                                | `false` |
+| `optimize.markWithProb`                           | Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. | `0.1`   |
+| `optimize.disableComponentRevision`               | Optimize componentRevision by disabling the creation and gc                                                                                       | `false` |
+| `optimize.disableApplicationRevision`             | Optimize ApplicationRevision by disabling the creation and gc.                                                                                    | `false` |
+| `optimize.disableWorkflowRecorder`                | Optimize workflow recorder by disabling the creation and gc.                                                                                      | `false` |
+| `optimize.enableInMemoryWorkflowContext`          | Optimize workflow by use in-memory context.                                                                                                       | `false` |
+| `optimize.disableResourceApplyDoubleCheck`        | Optimize workflow by ignoring resource double check after apply.                                                                                  | `false` |
+| `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                               | `true`  |
+
+
 ### MultiCluster parameters
 
 | Name                                                  | Description                      | Value                            |
@@ -86,7 +102,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.replicaCount`            | ClusterGateway replica count     | `1`                              |
 | `multicluster.clusterGateway.port`                    | ClusterGateway port              | `9443`                           |
 | `multicluster.clusterGateway.image.repository`        | ClusterGateway image repository  | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.3.0`                         |
+| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.3.2`                         |
 | `multicluster.clusterGateway.image.pullPolicy`        | ClusterGateway image pull policy | `IfNotPresent`                   |
 | `multicluster.clusterGateway.resources.limits.cpu`    | ClusterGateway cpu limit         | `100m`                           |
 | `multicluster.clusterGateway.resources.limits.memory` | ClusterGateway memory limit      | `200Mi`                          |
@@ -125,18 +141,20 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `kubeClient.burst`           | The burst for reconcile clients, default is 100                                                                            | `100`   |
 
 
-## Uninstalling the Chart
+## Uninstallation
 
-To uninstall/delete the KubeVela helm release
+### Vela CLI 
+
+To uninstall KubeVela, you can just run the following command by vela CLI:
 
 ```shell
-$ helm uninstall -n vela-system kubevela
+vela uninstall --force
 ```
 
-The command removes all the Kubernetes components associated with kubevela and deletes the release.
+### Helm CLI
 
-**Notice**: If you enable fluxcd addon  when install the chart by set `enableFluxcdAddon=true` .Uninstall wouldn't disable the fluxcd addon ,and it will be kept in the cluster.Please guarantee there is no application in cluster use this addon and disable it firstly before uninstall the helm chart. 
-You can use this script to disable all addons.
+**Notice**: You must disable all the addons before uninstallation, this is a script for convenience. 
+
 ```shell
 #! /bin/sh
 addon=$(vela addon list|grep enabled|awk {'print $1'})
@@ -156,7 +174,10 @@ if [ $fluxcd ]; then
 fi
 ```
 
+To uninstall the KubeVela helm release:
 
+```shell
+$ helm uninstall -n vela-system kubevela
+```
 
-
-
+Finally, this command will remove all the Kubernetes resources associated with KubeVela and remove this chart release.

@@ -54,6 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow"
+	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 )
 
@@ -289,6 +290,35 @@ var _ = Describe("Test Application Controller", func() {
 		{
 			Type:       "storage",
 			Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\":[{\"name\": \"myworker-cm\",\"mountToEnv\":{ \"envName\":\"secondEnv\",\"configMapKey\":\"secondKey\"},\"data\": {\"secondKey\":\"secondValue\"}}]}")},
+		},
+	}
+
+	appWithMountToEnvs := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-with-mount-to-envs",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "myweb",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
+	}
+	appWithMountToEnvs.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "storage",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"secret\": [{\"name\": \"myweb-secret\",\"mountToEnv\": {\"envName\": \"firstEnv\",\"secretKey\": \"firstKey\"},\"mountToEnvs\": [{\"envName\": \"secondEnv\",\"secretKey\": \"secondKey\"}],\"data\": {\"firstKey\": \"dmFsdWUwMQo=\",\"secondKey\": \"dmFsdWUwMgo=\"}}]}")},
+		},
+		{
+			Type:       "storage",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\": [{\"name\": \"myweb-cm\",\"mountToEnvs\": [{\"envName\":\"thirdEnv\",\"configMapKey\":\"thirdKey\"},{\"envName\":\"fourthEnv\",\"configMapKey\":\"fourthKey\"}],\"data\": {\"thirdKey\": \"Value03\",\"fourthKey\": \"Value04\"}}]}")},
 		},
 	}
 
@@ -2568,6 +2598,124 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, secret)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("test application with multi-mountToEnv will create application", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-mount-to-envs",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithMountToEnvs.SetNamespace(ns.Name)
+		app := appWithMountToEnvs.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check secret Created with the expected trait-storage spec")
+		secret := &corev1.Secret{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      app.Spec.Components[0].Name + "-secret",
+		}, secret)).Should(BeNil())
+
+		By("Check configMap Created with the expected trait-storage spec")
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      app.Spec.Components[0].Name + "-cm",
+		}, cm)).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, secret)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
+	It("app with debug policy", func() {
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-debug",
+				Namespace: "default",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myworker",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"firstValue\"}]}")},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Type: "debug",
+						Name: "debug",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		By("Check debug Config Map is created")
+		debugCM := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Namespace: "default",
+		}, debugCM)).Should(BeNil())
+
+		By("Update the application to update the debug Config Map")
+		app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"updateValue\"}]}")}
+		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
+		updatedCM := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Namespace: "default",
+		}, updatedCM)).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 const (
@@ -3604,6 +3752,17 @@ spec:
         		}
         	},
         ] | []
+        configMapMountToEnvsList: *[
+        			for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+        		{
+        			name: k.envName
+        			valueFrom: configMapKeyRef: {
+        				name: v.name
+        				key:  k.configMapKey
+        			}
+        		}
+        	},
+        ] | []
         secretVolumeMountsList: *[
         			for v in parameter.secret if v.mountPath != _|_ {
         		{
@@ -3619,6 +3778,17 @@ spec:
         			valueFrom: secretKeyRef: {
         				name: v.name
         				key:  v.mountToEnv.secretKey
+        			}
+        		}
+        	},
+        ] | []
+        secretMountToEnvsList: *[
+        			for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+        		{
+        			name: k.envName
+        			valueFrom: secretKeyRef: {
+        				name: v.name
+        				key:  k.secretKey
         			}
         		}
         	},
@@ -3645,7 +3815,7 @@ spec:
 
         	containers: [{
         		// +patchKey=name
-        		env: configMapEnvMountsList + secretEnvMountsList
+        		env: configMapEnvMountsList + secretEnvMountsList + configMapMountToEnvsList + secretMountToEnvsList
         		// +patchKey=name
         		volumeDevices: volumeDevicesList
         		// +patchKey=name
@@ -3765,6 +3935,10 @@ spec:
         			envName:      string
         			configMapKey: string
         		}
+        		mountToEnvs?: [...{
+        			envName:      string
+        			configMapKey: string
+        		}]
         		mountPath?:   string
         		defaultMode: *420 | int
         		readOnly:    *false | bool
@@ -3784,6 +3958,10 @@ spec:
         			envName:   string
         			secretKey: string
         		}
+        		mountToEnvs?: [...{
+        			envName:   string
+        			secretKey: string
+        		}]
         		mountPath?:   string
         		defaultMode: *420 | int
         		readOnly:    *false | bool

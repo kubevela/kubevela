@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -46,7 +47,7 @@ const (
 	// ClusterContextKey is the name of cluster using in client http context
 	ClusterContextKey = contextKey("ClusterName")
 	// ClusterLocalName specifies the local cluster
-	ClusterLocalName = "local"
+	ClusterLocalName = velatypes.ClusterLocalName
 )
 
 var (

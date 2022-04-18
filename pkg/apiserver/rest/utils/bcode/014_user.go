@@ -33,4 +33,8 @@ var (
 	ErrUserInconsistentPassword = NewBcode(401, 14007, "the password is inconsistent with the user")
 	// ErrUsernameNotExist is the error of username not exist
 	ErrUsernameNotExist = NewBcode(401, 14008, "the username is not exist")
+	// ErrDexNotFound is the error of dex not found
+	ErrDexNotFound = NewBcode(200, 14009, "the dex is not found")
+	// ErrEmptyAdminEmail is the error of empty admin email
+	ErrEmptyAdminEmail = NewBcode(400, 14010, "the admin email is empty, please set the admin email before using sso login")
 )

@@ -291,6 +291,11 @@ func (in *GarbageCollectPolicyRuleSelector) DeepCopyInto(out *GarbageCollectPoli
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.OAMResourceTypes != nil {
+		in, out := &in.OAMResourceTypes, &out.OAMResourceTypes
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.TraitTypes != nil {
 		in, out := &in.TraitTypes, &out.TraitTypes
 		*out = make([]string, len(*in))

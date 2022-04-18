@@ -17,11 +17,16 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
+
+	v1 "k8s.io/api/core/v1"
+	types2 "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
@@ -267,4 +272,14 @@ func GetChart(client *action.Install, name string) (*chart.Chart, error) {
 // InstallHelmChart will install helm chart from types.Chart
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
 	return Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, c.Values)
+}
+
+// SetBasicAuthInfo will read username and password from secret return a httpOption that contain these info.
+func SetBasicAuthInfo(ctx context.Context, k8sClient client.Client, secretRef types2.NamespacedName) (*common.HTTPOption, error) {
+	sec := v1.Secret{}
+	err := k8sClient.Get(ctx, secretRef, &sec)
+	if err != nil {
+		return nil, err
+	}
+	return &common.HTTPOption{Username: string(sec.Data["username"]), Password: string(sec.Data["password"])}, nil
 }

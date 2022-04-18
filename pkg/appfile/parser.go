@@ -345,6 +345,8 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
+		case v1alpha1.DebugPolicyType:
+			af.Debug = true
 		default:
 			w, err := p.makeWorkloadFromRevision(policy.Name, policy.Type, types.TypePolicy, policy.Properties, af.AppRevision)
 			if err != nil {
@@ -367,6 +369,8 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.ApplyOncePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.DebugPolicyType:
+			af.Debug = true
 		case v1alpha1.OverridePolicyType:
 			compDefs, traitDefs, err := policypkg.ParseOverridePolicyRelatedDefinitions(ctx, p.client, af.app, policy)
 			if err != nil {

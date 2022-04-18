@@ -47,8 +47,6 @@ const (
 	// ProviderNamespace is the namespace of Terraform Cloud Provider
 	ProviderNamespace = "default"
 
-	labelVal = "terraform-provider"
-
 	providerNameParam = "name"
 )
 
@@ -63,24 +61,24 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 			types.TagCommandType:  types.TypeExtension,
 		},
 	}
-	add, err := prepareProviderAddCommand(c)
+	add, err := prepareProviderAddCommand(c, ioStreams)
 	if err == nil {
 		cmd.AddCommand(add)
 	}
 
-	delete, err := prepareProviderDeleteCommand(c)
+	delete, err := prepareProviderDeleteCommand(c, ioStreams)
 	if err == nil {
 		cmd.AddCommand(delete)
 	}
 
 	cmd.AddCommand(
-		NewProviderListCommand(c),
+		NewProviderListCommand(c, ioStreams),
 	)
 	return cmd
 }
 
 // NewProviderListCommand create addon list command
-func NewProviderListCommand(c common.Args) *cobra.Command {
+func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -91,7 +89,7 @@ func NewProviderListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = listProviders(context.Background(), k8sClient)
+			err = listProviders(context.Background(), k8sClient, ioStreams)
 			if err != nil {
 				return err
 			}
@@ -100,7 +98,7 @@ func NewProviderListCommand(c common.Args) *cobra.Command {
 	}
 }
 
-func prepareProviderAddCommand(c common.Args) (*cobra.Command, error) {
+func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
 	ctx := context.Background()
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -114,7 +112,7 @@ func prepareProviderAddCommand(c common.Args) (*cobra.Command, error) {
 		Example: "vela provider add <provider-type>",
 	}
 
-	addSubCommands, err := prepareProviderAddSubCommand(c)
+	addSubCommands, err := prepareProviderAddSubCommand(c, ioStreams)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +151,7 @@ func prepareProviderAddCommand(c common.Args) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
+func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
 	ctx := context.Background()
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -188,14 +186,14 @@ func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
 					if err != nil {
 						return err
 					}
-					if value == "" {
+					if value == "" && p.Required {
 						return fmt.Errorf("must specify a value for %s", p.Name)
 					}
 					properties[p.Name] = value
 				}
 				data, err := json.Marshal(properties)
 				if err != nil {
-					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+					return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 				}
 				providerAppName := fmt.Sprintf("config-terraform-provider-%s", name)
 				a := &v1beta1.Application{}
@@ -219,9 +217,12 @@ func prepareProviderAddSubCommand(c common.Args) ([]*cobra.Command, error) {
 							},
 						}
 						if err := k8sClient.Create(ctx, a); err != nil {
-							return err
+							return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 						}
+						ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
+						return nil
 					}
+					return fmt.Errorf("failed to authenticate Terraform cloud provider %s", providerType)
 				}
 				return fmt.Errorf("terraform provider %s for %s already exists", name, providerType)
 			}
@@ -252,7 +253,7 @@ type ProviderMeta struct {
 	Age  string
 }
 
-func listProviders(ctx context.Context, k8sClient client.Client) error {
+func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdutil.IOStreams) error {
 	var (
 		providers        []ProviderMeta
 		currentProviders []tcv1beta1.Provider
@@ -265,7 +266,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	}
 
 	for _, p := range tcProviders.Items {
-		if p.Labels["config.oam.dev/type"] == labelVal {
+		if p.Labels["config.oam.dev/type"] == types.TerraformProvider {
 			currentProviders = append(currentProviders, p)
 		} else {
 			// if not labeled, the provider is manually created or created by `vela addon enable`.
@@ -276,7 +277,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	defs, err := getTerraformProviderTypes(ctx, k8sClient)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			return errors.New("no Terraform Cloud Provider found, please run `vela addon enable` first")
+			ioStreams.Info("no Terraform Cloud Provider found, please run `vela addon enable` first")
 		}
 		return errors.Wrap(err, "failed to retrieve providers")
 	}
@@ -318,7 +319,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 	for _, p := range providers {
 		table.AddRow(p.Type, p.Name, p.Age)
 	}
-	fmt.Println(table.String())
+	ioStreams.Info(table.String())
 	return nil
 }
 
@@ -327,7 +328,7 @@ func listProviders(ctx context.Context, k8sClient client.Client) error {
 func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]v1beta1.ComponentDefinition, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": labelVal}); err != nil {
+		client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": types.TerraformProvider}); err != nil {
 		return nil, err
 	}
 	return defs.Items, nil
@@ -343,7 +344,7 @@ func getTerraformProviderType(ctx context.Context, k8sClient client.Client, name
 	return def, nil
 }
 
-func prepareProviderDeleteCommand(c common.Args) (*cobra.Command, error) {
+func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
 	ctx := context.Background()
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -358,7 +359,7 @@ func prepareProviderDeleteCommand(c common.Args) (*cobra.Command, error) {
 		Example: "vela provider delete <provider-type> -name <provider-name>",
 	}
 
-	deleteSubCommands, err := prepareProviderDeleteSubCommand(c)
+	deleteSubCommands, err := prepareProviderDeleteSubCommand(c, ioStreams)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +398,7 @@ func prepareProviderDeleteCommand(c common.Args) (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func prepareProviderDeleteSubCommand(c common.Args) ([]*cobra.Command, error) {
+func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
 	ctx := context.Background()
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -438,7 +439,7 @@ func prepareProviderDeleteSubCommand(c common.Args) ([]*cobra.Command, error) {
 				if err := k8sClient.Delete(ctx, a); err != nil {
 					return err
 				}
-				fmt.Printf("Successfully delete provider %s for %s\n", name, providerType)
+				ioStreams.Infof("Successfully delete provider %s for %s\n", name, providerType)
 				return nil
 			}
 			cmds[i] = cmd

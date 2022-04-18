@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,6 +69,7 @@ const (
 const (
 	statusEnabled  = "enabled"
 	statusDisabled = "disabled"
+	statusSuspend  = "suspend"
 )
 
 var forceDisable bool
@@ -204,7 +206,12 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		return
 	}
 	if name == "velaux" {
-		fmt.Println(`Please use command: "vela port-forward -n vela-system addon-velaux 9082:80" and Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" to check the dashboard.`)
+		fmt.Println(`To check the initialized admin user name and password by:`)
+		fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		fmt.Println(`To open the dashboard directly by port-forward:`)
+		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
+		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" from the prompt.`)
+		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 }
 
@@ -252,7 +259,7 @@ Upgrade addon for specific clusters, (local means control plane):
 				}
 				ioStream.Infof("enable addon by local dir: %s \n", addonOrDir)
 				// args[0] is a local path install with local dir
-				name := filepath.Base(addonOrDir)
+				name = filepath.Base(addonOrDir)
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
@@ -265,7 +272,7 @@ Upgrade addon for specific clusters, (local means control plane):
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-
+				name = addonOrDir
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
@@ -399,7 +406,9 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	if err != nil {
 		return err
 	}
-	fmt.Printf("addon %s status is %s \n", name, status.AddonPhase)
+
+	fmt.Print(generateAddonInfo(name, status))
+
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
 		err := printAppStatus(context.Background(), k8sClient, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
@@ -408,6 +417,36 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 		}
 	}
 	return nil
+}
+
+func generateAddonInfo(name string, status pkgaddon.Status) string {
+	var res string
+	var phase string
+
+	switch status.AddonPhase {
+	case statusEnabled:
+		c := color.New(color.FgGreen)
+		phase = c.Sprintf("%s", status.AddonPhase)
+	case statusSuspend:
+		c := color.New(color.FgRed)
+		phase = c.Sprintf("%s", status.AddonPhase)
+	default:
+		phase = status.AddonPhase
+	}
+	res += fmt.Sprintf("addon %s status is %s \n", name, phase)
+	if len(status.InstalledVersion) != 0 {
+		res += fmt.Sprintf("installedVersion: %s \n", status.InstalledVersion)
+	}
+
+	if len(status.Clusters) != 0 {
+		var ic []string
+		for c := range status.Clusters {
+			ic = append(ic, c)
+		}
+		sort.Strings(ic)
+		res += fmt.Sprintf("installedClusters: %s \n", ic)
+	}
+	return res
 }
 
 func listAddons(ctx context.Context, clt client.Client, registry string) error {
@@ -504,9 +543,31 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 
 }
 
+// generate the available version
+// this func put the installed version as the first version and keep the origin order
+// print ... if available version too much
 func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+	var v []string
+
+	// put installed-version as the first version and keep the origin order
+	if len(status.InstalledVersion) != 0 {
+		for i, version := range versions {
+			if version == status.InstalledVersion {
+				v = append(v, version)
+				versions = append(versions[:i], versions[i+1:]...)
+			}
+		}
+	}
+	v = append(v, versions...)
+
 	res := "["
-	for _, version := range versions {
+	var count int
+	for _, version := range v {
+		if count == 3 {
+			// just show  newest 3 versions
+			res += "..."
+			break
+		}
 		if version == status.InstalledVersion {
 			col := color.New(color.Bold, color.FgGreen)
 			res += col.Sprintf("%s", version)
@@ -514,6 +575,7 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 			res += version
 		}
 		res += ", "
+		count++
 	}
 	res = strings.TrimSuffix(res, ", ")
 	res += "]"
