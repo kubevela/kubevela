@@ -49,7 +49,7 @@ installcue:
 ifeq (, $(shell which cue))
 	@{ \
 	set -e ;\
-	go install cuelang.org/go/cmd/cue@latest ;\
+	go install cuelang.org/go/cmd/cue@v0.4.3-beta.2 ;\
 	}
 CUE=$(GOBIN)/cue
 else
