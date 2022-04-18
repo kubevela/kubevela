@@ -29,12 +29,15 @@ const (
 	LegacyObjectTypeIdentifier featuregate.Feature = "LegacyObjectTypeIdentifier"
 	// DeprecatedObjectLabelSelector enable the use of deprecated object label selector for selecting ref-object
 	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
+	// LegacyResourceTrackerGC enable the gc of legacy resource tracker in managed clusters
+	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DeprecatedPolicySpec:          {Default: false, PreRelease: featuregate.Alpha},
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
+	LegacyResourceTrackerGC:       {Default: true, PreRelease: featuregate.Alpha},
 }
 
 func init() {
