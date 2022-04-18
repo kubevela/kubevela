@@ -199,7 +199,9 @@ func TestAddDefinitionUISchema(t *testing.T) {
 				t.Fatal(err)
 			}
 			definitionName := strings.Replace(typeNames[1], path.Ext(sf.Name()), "", -1)
-			_, err = du.AddDefinitionUISchema(context.TODO(), definitionName, typeNames[0], string(cdata))
+			var schema utils.UISchema
+			yaml.Unmarshal(cdata, &schema)
+			_, err = du.AddDefinitionUISchema(context.TODO(), definitionName, typeNames[0], schema)
 			if err != nil {
 				t.Fatal(err)
 			}

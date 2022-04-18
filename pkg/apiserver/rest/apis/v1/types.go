@@ -803,8 +803,14 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
-	APISchema *openapi3.Schema     `json:"schema"`
-	UISchema  []*utils.UIParameter `json:"uiSchema"`
+	APISchema *openapi3.Schema `json:"schema"`
+	UISchema  utils.UISchema   `json:"uiSchema"`
+}
+
+// UpdateUISchemaRequest the request body struct about updated ui schema
+type UpdateUISchemaRequest struct {
+	DefinitionType string         `json:"type"`
+	UISchema       utils.UISchema `json:"uiSchema"`
 }
 
 // DefinitionBase is the definition base model
