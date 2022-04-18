@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -81,6 +82,7 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
 		NewDefinitionGenDocCommand(c),
+		NewDefinitionGoGenerateCommand(c),
 	)
 	return cmd
 }
@@ -928,5 +930,56 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
+	var (
+		skipPackageName bool
+		packageName     string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "go-gen DEFINITION.cue",
+		Short: "Generate Go struct of Parameter from X-Definition.",
+		Long: "Generate Go struct of Parameter from definition file.\n" +
+			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
+		Example: "# Command below will generate the Go struct for the my-def.cue file.\n" +
+			"> vela def go-gen my-def.cue",
+		Args: cobra.ExactValidArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cueBytes, err := os.ReadFile(args[0])
+			if err != nil {
+				return errors.Wrapf(err, "failed to read %s", args[0])
+			}
+			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+			config, err := c.GetConfig()
+			if err != nil {
+				return err
+			}
+			if err := def.FromCUEString(string(cueBytes), config); err != nil {
+				return errors.Wrapf(err, "failed to parse CUE")
+			}
+			templateString, _, err := unstructured.NestedString(def.Object, pkgdef.DefinitionTemplateKeys...)
+			pd, err := packages.NewPackageDiscover(config)
+			if err != nil {
+				fmt.Println(err)
+			}
+			value, err := common.GetCUEParameterValue(templateString, pd)
+
+			structs, err := pkgdef.GeneratorParameterStructs(value)
+			if err != nil {
+				return errors.Wrapf(err, "failed to generate Go code")
+			}
+
+			if !skipPackageName {
+				fmt.Printf("package %s\n\n", packageName)
+			}
+			pkgdef.PrintParamGosStruct(structs)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&skipPackageName, "skip-package-name", false, "Skip package name in generated Go code.")
+	cmd.Flags().StringVar(&packageName, "package-name", "main", "Specify the package name in generated Go code.")
 	return cmd
 }
