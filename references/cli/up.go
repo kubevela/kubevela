@@ -17,6 +17,8 @@ limitations under the License.
 package cli
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -49,6 +51,7 @@ type UpCommandOptions struct {
 	File           string
 	PublishVersion string
 	RevisionName   string
+	Debug          bool
 }
 
 // Complete fill the args for vela up
@@ -171,6 +174,12 @@ func (opt *UpCommandOptions) deployExistingApp(f velacmd.Factory, cmd *cobra.Com
 			return errors.Errorf("current PublishVersion is %s", publishVersion)
 		}
 		oam.SetPublishVersion(app, opt.PublishVersion)
+		if opt.Debug {
+			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+				Name: "debug",
+				Type: "debug",
+			})
+		}
 		return cli.Update(ctx, app)
 	}); err != nil {
 		return err
@@ -208,6 +217,13 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	if opt.PublishVersion != "" {
 		oam.SetPublishVersion(&app, opt.PublishVersion)
 	}
+	opt.AppName = app.Name
+	if opt.Debug {
+		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+			Name: "debug",
+			Type: "debug",
+		})
+	}
 	err = common.ApplyApplication(app, ioStream, cli)
 	if err != nil {
 		return err
@@ -243,7 +259,7 @@ var (
 )
 
 // NewUpCommand will create command for applying an AppFile
-func NewUpCommand(f velacmd.Factory, order string) *cobra.Command {
+func NewUpCommand(f velacmd.Factory, order string, c utilcommon.Args, ioStream util.IOStreams) *cobra.Command {
 	o := &UpCommandOptions{}
 	cmd := &cobra.Command{
 		Use:                   "up",
@@ -267,11 +283,19 @@ func NewUpCommand(f velacmd.Factory, order string) *cobra.Command {
 			o.Complete(f, cmd, args)
 			cmdutil.CheckErr(o.Validate())
 			cmdutil.CheckErr(o.Run(f, cmd))
+			if o.Debug {
+				dOpts := &debugOpts{}
+				cli := f.Client()
+				app := &v1beta1.Application{}
+				cmdutil.CheckErr(cli.Get(cmd.Context(), apitypes.NamespacedName{Name: o.AppName, Namespace: o.Namespace}, app))
+				cmdutil.CheckErr(dOpts.debugApplication(context.Background(), c, app, ioStream))
+			}
 		},
 	}
 	cmd.Flags().StringVarP(&o.File, "file", "f", o.File, "The file path for appfile or application. It could be a remote url.")
 	cmd.Flags().StringVarP(&o.PublishVersion, "publish-version", "v", o.PublishVersion, "The publish version for deploying application.")
 	cmd.Flags().StringVarP(&o.RevisionName, "revision", "r", o.RevisionName, "The revision to use for deploying the application, if empty, the current application configuration will be used.")
+	cmd.Flags().BoolVarP(&o.Debug, "debug", "", o.Debug, "Enable debug mode for application")
 	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"revision",
 		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
