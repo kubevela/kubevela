@@ -473,6 +473,111 @@ var _ = Describe("Test Application with GC options", func() {
 			Expect(len(rtList.Items)).Should(Equal(0))
 		})
 	})
+
+	Context("Test Application enable gc option sequential", func() {
+		baseApp := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sequential-gc",
+				Namespace: "default",
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "worker1",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						DependsOn: []string{
+							"worker2",
+						},
+					},
+					{
+						Name:       "worker2",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Inputs: common.StepInputs{
+							{
+								From:         "worker3-output",
+								ParameterKey: "test",
+							},
+						},
+					},
+					{
+						Name:       "worker3",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Outputs: common.StepOutputs{
+							{
+								Name:      "worker3-output",
+								ValueFrom: "output.metadata.name",
+							},
+						},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{{
+					Name:       "sequential-gc",
+					Type:       "garbage-collect",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"sequential": true}`)},
+				}},
+			},
+		}
+
+		It("Test GC with sequential", func() {
+			resourcekeeper.MarkWithProbability = 1.0
+			app := baseApp.DeepCopy()
+
+			Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+			appV1 := new(v1beta1.Application)
+			Eventually(func() error {
+				_, err := testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+				if err != nil {
+					return err
+				}
+				if err = k8sClient.Get(ctx, client.ObjectKeyFromObject(app), appV1); err != nil {
+					return err
+				}
+				if appV1.Status.Phase != common.ApplicationRunning {
+					return errors.New("app is not in running status")
+				}
+				return nil
+			}, 3*time.Second, 300*time.Second).Should(BeNil())
+
+			By("check the resourceTrackers number")
+			listOpts := []client.ListOption{
+				client.MatchingLabels{
+					oam.LabelAppName:      app.Name,
+					oam.LabelAppNamespace: app.Namespace,
+				}}
+
+			rtList := &v1beta1.ResourceTrackerList{}
+			Expect(k8sClient.List(ctx, rtList, listOpts...)).Should(BeNil())
+			Expect(len(rtList.Items)).Should(Equal(2))
+			workerList := &v1.DeploymentList{}
+			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
+			Expect(len(workerList.Items)).Should(Equal(3))
+
+			By("delete application")
+			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+			By("worker3 will be deleted")
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
+			Expect(len(workerList.Items)).Should(Equal(2))
+			By("worker2 will be deleted")
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
+			Expect(len(workerList.Items)).Should(Equal(1))
+			By("worker1 will be deleted")
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
+			Expect(len(workerList.Items)).Should(Equal(0))
+			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+			Expect(k8sClient.List(ctx, rtList, listOpts...)).Should(BeNil())
+			Expect(len(rtList.Items)).Should(Equal(0))
+		})
+	})
 })
 
 const (
