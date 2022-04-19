@@ -568,6 +568,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 	return cmName, nil
 }
 
+// CapabilityPolicyDefinition is the Capability struct for PolicyDefinition
 type CapabilityPolicyDefinition struct {
 	Name             string                   `json:"name"`
 	PolicyDefinition v1beta1.PolicyDefinition `json:"policyDefinition"`
@@ -592,6 +593,7 @@ func (def *CapabilityPolicyDefinition) GetOpenAPISchema(pd *packages.PackageDisc
 	return getOpenAPISchema(capability, pd)
 }
 
+// StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
 func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
 	pd *packages.PackageDiscover, namespace, name, revName string) (string, error) {
 	var jsonSchema []byte
