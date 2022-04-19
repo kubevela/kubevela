@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -30,6 +29,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/gocode/gocodec"
@@ -933,6 +934,7 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
+// NewDefinitionGoGenerateCommand create the `vela def go-gen` command to help user generate Go code from the definition
 func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
 	var (
 		skipPackageName bool
@@ -961,11 +963,17 @@ func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to parse CUE")
 			}
 			templateString, _, err := unstructured.NestedString(def.Object, pkgdef.DefinitionTemplateKeys...)
+			if err != nil {
+				return err
+			}
 			pd, err := packages.NewPackageDiscover(config)
 			if err != nil {
-				fmt.Println(err)
+				return err
 			}
 			value, err := common.GetCUEParameterValue(templateString, pd)
+			if err != nil {
+				return err
+			}
 
 			structs, err := pkgdef.GeneratorParameterStructs(value)
 			if err != nil {

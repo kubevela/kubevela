@@ -2,18 +2,21 @@ package definition
 
 import (
 	"bytes"
-	"cuelang.org/go/cue"
 	"fmt"
 	"go/format"
 	"strings"
 	"unicode"
 
+	"cuelang.org/go/cue"
+
 	"github.com/fatih/camelcase"
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/pkg/errors"
 )
 
+// StructParameter is a parameter that can be printed as a struct.
 type StructParameter struct {
 	types.Parameter
 	// GoType is the same to parameter.Type but can be print in Go
@@ -21,6 +24,7 @@ type StructParameter struct {
 	Fields []Field
 }
 
+// Field is a field of a struct.
 type Field struct {
 	Name   string
 	Type   string
@@ -60,12 +64,14 @@ type FieldNamer interface {
 
 var structs []StructParameter
 
-func GeneratorParameterStructs(param cue.Value) ([]StructParameter,error) {
+// GeneratorParameterStructs generates structs for parameters in cue.
+func GeneratorParameterStructs(param cue.Value) ([]StructParameter, error) {
 	structs = []StructParameter{}
 	err := parseParameters(param, "Parameter")
-	return structs,err
+	return structs, err
 }
 
+// NewStructParameter creates a StructParameter
 func NewStructParameter() StructParameter {
 	return StructParameter{
 		Parameter: types.Parameter{},
@@ -83,8 +89,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 		param.Default = velacue.GetDefault(def)
 	}
 
-	switch param.Type {
-	case cue.StructKind:
+	if param.Type == cue.StructKind {
 		arguments, err := paraValue.Struct()
 		if err != nil {
 			return fmt.Errorf("augument not as struct %w", err)
@@ -203,7 +208,6 @@ func printField(param StructParameter) {
 	if err != nil {
 		fmt.Println("Failed to format source:", err)
 	}
-	//fmt.Println(buffer.String())
 	fmt.Println(string(source))
 }
 
@@ -219,7 +223,6 @@ func trimIncompleteKind(mask string) (string, error) {
 	return "", fmt.Errorf("invalid incomplete kind: %s", mask)
 
 }
-
 
 // An AbbreviationHandlingFieldNamer generates Go field names from JSON
 // properties while keeping abbreviations uppercased.
