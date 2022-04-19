@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -67,9 +66,6 @@ const (
 
 	// DummyTraitMessage is a message for trait which don't have definition found
 	DummyTraitMessage = "No TraitDefinition found, all framework capabilities will work as default"
-
-	// DefinitionNamespaceEnv is env key for specifying a namespace to fetch definition
-	DefinitionNamespaceEnv = "DEFINITION_NAMESPACE"
 )
 
 const (
@@ -329,13 +325,6 @@ func SetServiceAccountInContext(ctx context.Context, namespace, name string) con
 
 // GetDefinition get definition from two level namespace
 func GetDefinition(ctx context.Context, cli client.Reader, definition client.Object, definitionName string) error {
-	if dns := os.Getenv(DefinitionNamespaceEnv); dns != "" {
-		if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: dns}, definition); err == nil {
-			return nil
-		} else if !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
 	appNs := GetDefinitionNamespaceWithCtx(ctx)
 	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
 		if apierrors.IsNotFound(err) {
