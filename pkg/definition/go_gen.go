@@ -159,6 +159,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 	return nil
 }
 
+// GenGoCodeFromParams generates go code from parameters
 func GenGoCodeFromParams(parameters []StructParameter) (string, error) {
 	var buf bytes.Buffer
 
@@ -203,10 +204,9 @@ func genField(param StructParameter, buffer *bytes.Buffer) {
 	} else {
 		fmt.Fprintf(buffer, "type %s %s\n", fieldName, param.GoType)
 	}
-	return
 }
 
-// trimIncompleteKind allows 2 types of incomplete kind, return the non-null kind, more than two types of incomplete kind will return error
+// trimIncompleteKind allows 2 types of incomplete kind, return the non-null one, more than two types of incomplete kind will return error
 // 1. (null|someKind)
 // 2. someKind
 func trimIncompleteKind(mask string) (string, error) {
