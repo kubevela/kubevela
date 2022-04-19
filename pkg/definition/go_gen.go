@@ -8,7 +8,6 @@ import (
 	"unicode"
 
 	"cuelang.org/go/cue"
-
 	"github.com/fatih/camelcase"
 	"github.com/pkg/errors"
 
@@ -26,8 +25,8 @@ type StructParameter struct {
 
 // Field is a field of a struct.
 type Field struct {
-	Name   string
-	Type   string
+	Name string
+	// GoType is the same to parameter.Type but can be print in Go
 	GoType string
 }
 
@@ -80,6 +79,7 @@ func NewStructParameter() StructParameter {
 	}
 }
 
+// parseParameters will be called recursively to parse parameters
 func parseParameters(paraValue cue.Value, paramKey string) error {
 	param := NewStructParameter()
 	param.Name = paramKey
@@ -89,26 +89,21 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 		param.Default = velacue.GetDefault(def)
 	}
 
+	// only StructKind will be separated go struct, other will be just a field
 	if param.Type == cue.StructKind {
 		arguments, err := paraValue.Struct()
 		if err != nil {
 			return fmt.Errorf("augument not as struct %w", err)
 		}
-		if arguments.Len() == 0 {
-			var SubParam StructParameter
-			SubParam.Name = "-"
-			SubParam.Required = true
+		if arguments.Len() == 0 { // in cue, struct like: foo: map[string]int
 			tl := paraValue.Template()
 			if tl != nil { // is map type
+				// TODO: kind maybe not simple type like string/int, if it is a struct, parseParameters should be called
 				kind, err := trimIncompleteKind(tl("").IncompleteKind().String())
 				if err != nil {
 					return errors.Wrap(err, "invalid parameter kind")
 				}
-				SubParam.GoType = kind
-				// TODO: better way to name to subParam
-				SubParam.Name = "Item"
-				param.GoType = fmt.Sprintf("map[string]%s", SubParam.Name)
-				structs = append(structs, SubParam)
+				param.GoType = fmt.Sprintf("map[string]%s", kind)
 			}
 		}
 		for i := 0; i < arguments.Len(); i++ {
@@ -164,23 +159,37 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 	return nil
 }
 
-// PrintParamGosStruct prints the StructParameter in Golang struct format
-func PrintParamGosStruct(parameters []StructParameter) {
+func GenGoCodeFromParams(parameters []StructParameter) (string, error) {
+	var buf bytes.Buffer
+
 	for _, parameter := range parameters {
 		if parameter.Usage == "" {
 			parameter.Usage = "-"
 		}
-		fmt.Printf("// %s %s\n", dm.FieldName(parameter.Name), parameter.Usage)
-		printField(parameter)
+		fmt.Fprintf(&buf, "// %s %s\n", dm.FieldName(parameter.Name), parameter.Usage)
+		genField(parameter, &buf)
 	}
+	source, err := format.Source(buf.Bytes())
+	if err != nil {
+		fmt.Println("Failed to format source:", err)
+	}
+
+	return string(source), nil
 }
 
-func printField(param StructParameter) {
-	buffer := &bytes.Buffer{}
+// PrintParamGosStruct prints the StructParameter in Golang struct format
+func PrintParamGosStruct(parameters []StructParameter) {
+	code, err := GenGoCodeFromParams(parameters)
+	if err != nil {
+		fmt.Println("Fail to gen code, err:", err)
+	}
+	fmt.Print(code)
+}
+
+func genField(param StructParameter, buffer *bytes.Buffer) {
 	fieldName := dm.FieldName(param.Name)
-	switch param.Type {
-	case cue.StructKind:
-		// struct in cue can be map or struct
+	if param.Type == cue.StructKind { // only struct kind will be separated struct
+		// cue struct  can be Go map or struct
 		if strings.HasPrefix(param.GoType, "map[string]") {
 			fmt.Fprintf(buffer, "type %s %s", fieldName, param.GoType)
 		} else {
@@ -191,26 +200,15 @@ func printField(param StructParameter) {
 
 			fmt.Fprintf(buffer, "}\n")
 		}
-	case cue.StringKind:
-		fmt.Fprintf(buffer, "type %s string\n", fieldName)
-	case cue.IntKind:
-		fmt.Fprintf(buffer, "type %s int\n", fieldName)
-	case cue.BoolKind:
-		fmt.Fprintf(buffer, "type %s bool\n", fieldName)
-	case cue.FloatKind:
-		fmt.Fprintf(buffer, "type %s float64\n", fieldName)
-	case cue.ListKind:
-		fmt.Fprintf(buffer, "type %s []%s\n", fieldName, param.GoType)
-	default:
+	} else {
 		fmt.Fprintf(buffer, "type %s %s\n", fieldName, param.GoType)
 	}
-	source, err := format.Source(buffer.Bytes())
-	if err != nil {
-		fmt.Println("Failed to format source:", err)
-	}
-	fmt.Println(string(source))
+	return
 }
 
+// trimIncompleteKind allows 2 types of incomplete kind, return the non-null kind, more than two types of incomplete kind will return error
+// 1. (null|someKind)
+// 2. someKind
 func trimIncompleteKind(mask string) (string, error) {
 	mask = strings.Trim(mask, "()")
 	ks := strings.Split(mask, "|")
