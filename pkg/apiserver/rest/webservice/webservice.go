@@ -22,11 +22,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/emicklei/go-restful/v3"
-
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+
+	"github.com/emicklei/go-restful/v3"
 )
 
 // versionPrefix API version prefix.
