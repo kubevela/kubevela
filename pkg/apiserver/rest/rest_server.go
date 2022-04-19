@@ -23,6 +23,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/collect"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/go-openapi/spec"
@@ -60,6 +62,9 @@ type Config struct {
 
 	// AddonCacheTime is how long between two cache operations
 	AddonCacheTime time.Duration
+
+	// DisableStatisticCronJob close the calculate system info cronJob
+	DisableStatisticCronJob bool
 }
 
 type leaderConfig struct {
@@ -142,6 +147,9 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 			OnStartedLeading: func(ctx context.Context) {
 				go velasync.Start(ctx, s.dataStore, restCfg, s.usecases)
 				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
+				if !s.cfg.DisableStatisticCronJob {
+					collect.StartCalculatingInfoCronJob(s.dataStore)
+				}
 			},
 			OnStoppedLeading: func() {
 				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
