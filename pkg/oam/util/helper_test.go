@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/adler32"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -1659,13 +1658,6 @@ func TestGetDefinition(t *testing.T) {
 	err := util.GetDefinition(ctx, &cli, appTd, "mockTrait")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, &appTraitDefinition, appTd)
-
-	err = os.Setenv(util.DefinitionNamespaceEnv, env)
-	assert.Equal(t, nil, err)
-	envTd := new(v1alpha2.TraitDefinition)
-	err = util.GetDefinition(ctx, &cli, envTd, "mockTrait")
-	assert.Equal(t, nil, err)
-	assert.Equal(t, &envTraitDefinition, envTd)
 }
 
 func TestGetScopeDefiniton(t *testing.T) {
