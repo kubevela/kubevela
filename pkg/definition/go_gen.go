@@ -109,11 +109,11 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 	if param.Type == cue.StructKind {
 		arguments, err := paraValue.Struct()
 		if err != nil {
-			return fmt.Errorf("augument not as struct %w", err)
+			return fmt.Errorf("augument not as struct: %w", err)
 		}
-		if arguments.Len() == 0 { // in cue, struct like: foo: map[string]int
+		if arguments.Len() == 0 { // in cue, empty struct like: foo: map[string]int
 			tl := paraValue.Template()
-			if tl != nil { // is map type
+			if tl != nil { // map type
 				// TODO: kind maybe not simple type like string/int, if it is a struct, parseParameters should be called
 				kind, err := trimIncompleteKind(tl("").IncompleteKind().String())
 				if err != nil {
@@ -138,7 +138,8 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 						// In the future we could recursively call to support complex map-value(struct or list)
 						subParam.GoType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
 					} else {
-						return fmt.Errorf("failed to got Map kind from %s", subParam.Name)
+						// element in struct not defined, use interface{}
+						subParam.GoType = "map[string]interface{}"
 					}
 				} else {
 					if err := parseParameters(val, name); err != nil {

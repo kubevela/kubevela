@@ -106,6 +106,12 @@ func TestGeneratorParameterStructs(t *testing.T) {
 			err:      false,
 			expected: structsWithMap,
 		},
+		{
+			name:     "map element not defined",
+			cue:      defWithEmptyMap,
+			err:      false,
+			expected: structWithInterface,
+		},
 	}
 	for _, tc := range testCases {
 		value, err := common.GetCUEParameterValue(tc.cue, nil)
@@ -129,6 +135,7 @@ func TestGenGoCodeFromParams(t *testing.T) {
 		{structs: structsWithList, result: resultWithList},
 		{structs: structsWithStructList, result: resultWithStructList},
 		{structs: structsWithMap, result: resultWithMap},
+		{structs: structWithInterface, result: resultWithInterface},
 	}
 	for _, tc := range testCases {
 		actual, err := GenGoCodeFromParams(tc.structs)
@@ -159,8 +166,11 @@ var (
 				medium:    *"" | "Memory"
 			}]
 	}`
-	defWithMap = `parameter: [string]: string | null
-`
+	defWithMap      = `parameter: [string]: string | null`
+	defWithEmptyMap = `
+	parameter: {
+		data: {}
+	}`
 
 	structsWithStruct = []StructParameter{
 		{
@@ -238,9 +248,22 @@ var (
 			Fields: []Field{},
 		},
 	}
+	structWithInterface = []StructParameter{
+		{
+			Parameter: types.Parameter{
+				Type: cue.StructKind,
+				Name: "Parameter",
+			},
+			GoType: "",
+			Fields: []Field{
+				{Name: "data", GoType: "map[string]interface{}"},
+			},
+		},
+	}
 
 	resultWithStruct     = "// HTTP Specify the mapping relationship between the http path and the workload port\ntype HTTP struct {\n\tPath int `json:\"path\"`\n}\n\n// Parameter -\ntype Parameter struct {\n\tHTTP HTTP `json:\"http\"`\n}\n"
 	resultWithList       = "// Parameter -\ntype Parameter struct {\n\tHTTP map[string]int `json:\"http\"`\n}\n"
 	resultWithStructList = "// EmptyDir -\ntype EmptyDir struct {\n\tName      string `json:\"name\"`\n\tMountPath string `json:\"mountPath\"`\n\tMedium    string `json:\"medium\"`\n}\n\n// Parameter -\ntype Parameter struct {\n\tEmptyDir []EmptyDir `json:\"emptyDir\"`\n}\n"
 	resultWithMap        = "// Parameter -\ntype Parameter map[string]string"
+	resultWithInterface  = "// Parameter -\ntype Parameter struct {\n\tData map[string]interface{} `json:\"data\"`\n}\n"
 )
