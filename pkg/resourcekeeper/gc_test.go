@@ -195,10 +195,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	r.True(finished)
 	checkCount(3, 2, 3)
 
-	// r.NoError(cli.Get(ctx, client.ObjectKeyFromObject(crRT), crRT))
-
-	// create rt with sequential
-
+	// delete with sequential
 	comps := []apicommon.ApplicationComponent{
 		{
 			Name: "comp-5",
@@ -240,7 +237,6 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(10, 6, 8)
 	checkCount(3, 3, 1)
 
-	// recreate rt, delete app, gc all
 	rk = createRK(6, false, false)
 	rk.app.SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
