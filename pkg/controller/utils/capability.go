@@ -72,6 +72,7 @@ const (
 	typeTraitDefinition        = "trait"
 	typeComponentDefinition    = "component"
 	typeWorkflowStepDefinition = "workflowstep"
+	typePolicyStepDefinition   = "policy"
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -561,6 +562,74 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
 	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, ownerReference)
+	if err != nil {
+		return cmName, err
+	}
+	return cmName, nil
+}
+
+type CapabilityPolicyDefinition struct {
+	Name             string                   `json:"name"`
+	PolicyDefinition v1beta1.PolicyDefinition `json:"policyDefinition"`
+
+	CapabilityBaseDefinition
+}
+
+// NewCapabilityPolicyDef will create a CapabilityPolicyDefinition
+func NewCapabilityPolicyDef(policydefinition *v1beta1.PolicyDefinition) CapabilityPolicyDefinition {
+	var def CapabilityPolicyDefinition
+	def.Name = policydefinition.Name
+	def.PolicyDefinition = *policydefinition.DeepCopy()
+	return def
+}
+
+// GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
+func (def *CapabilityPolicyDefinition) GetOpenAPISchema(pd *packages.PackageDiscover, name string) ([]byte, error) {
+	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.PolicyDefinition.Spec.Schematic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
+	}
+	return getOpenAPISchema(capability, pd)
+}
+
+func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
+	pd *packages.PackageDiscover, namespace, name, revName string) (string, error) {
+	var jsonSchema []byte
+	var err error
+
+	jsonSchema, err = def.GetOpenAPISchema(pd, name)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
+	}
+
+	policyDefinition := def.PolicyDefinition
+	ownerReference := []metav1.OwnerReference{{
+		APIVersion:         policyDefinition.APIVersion,
+		Kind:               policyDefinition.Kind,
+		Name:               policyDefinition.Name,
+		UID:                policyDefinition.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, policyDefinition.Name, typePolicyStepDefinition, policyDefinition.Labels, nil, jsonSchema, ownerReference)
+	if err != nil {
+		return cmName, err
+	}
+
+	// Create a configmap to store parameter for each definitionRevision
+	defRev := new(v1beta1.DefinitionRevision)
+	if err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revName}, defRev); err != nil {
+		return "", err
+	}
+	ownerReference = []metav1.OwnerReference{{
+		APIVersion:         defRev.APIVersion,
+		Kind:               defRev.Kind,
+		Name:               defRev.Name,
+		UID:                defRev.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typePolicyStepDefinition, defRev.Spec.PolicyDefinition.Labels, nil, jsonSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}

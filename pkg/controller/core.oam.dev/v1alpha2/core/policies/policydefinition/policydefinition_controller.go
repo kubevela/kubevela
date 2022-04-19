@@ -124,6 +124,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.record.Event(&policydefinition, event.Warning("failed to garbage collect DefinitionRevision of type PolicyDefinition", err))
 	}
 
+	def := utils.NewCapabilityPolicyDef(&policydefinition)
+	// Store the parameter of policyDefinition to configMap
+	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
+	if err != nil {
+		klog.InfoS("Could not capability in ConfigMap", "err", err)
+		r.record.Event(&(policydefinition), event.Warning("Could not store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(policydefinition),
+			condition.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+	}
+
+	if policydefinition.Status.ConfigMapRef != cmName {
+		policydefinition.Status.ConfigMapRef = cmName
+		if err := r.UpdateStatus(ctx, &policydefinition); err != nil {
+			klog.InfoS("Could not update policyDefinition Status", "err", err)
+			r.record.Event(&policydefinition, event.Warning("cannot update PolicyDefinition Status", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &policydefinition,
+				condition.ReconcileError(fmt.Errorf(util.ErrUpdatePolicyDefinition, policydefinition.Name, err)))
+		}
+		klog.InfoS("Successfully updated the status.configMapRef of the PolicyDefinition", "policyDefinition",
+			klog.KRef(req.Namespace, req.Name), "status.configMapRef", cmName)
+	}
+
 	return ctrl.Result{}, nil
 }
 
