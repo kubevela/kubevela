@@ -117,8 +117,16 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 		return err
 	}
 
+	var componentNames []string
+	for _, c := range app.Spec.Components {
+		componentNames = append(componentNames, c.Name)
+	}
+
 	for _, c := range app.Spec.Components {
 		if c.Name == o.Component {
+			if dcName, ok := checkDependsOnValidComponent(c.DependsOn, componentNames); !ok {
+				return errors.Errorf("component %s not found, which is depended by %s", dcName, c.Name)
+			}
 			step.Inputs = append(step.Inputs, c.Inputs...)
 			for index := range step.Inputs {
 				parameterKey := strings.TrimSpace(step.Inputs[index].ParameterKey)
@@ -135,9 +143,21 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 			step.Properties = util.Object2RawExtension(c)
 			return nil
 		}
-
 	}
 	return errors.Errorf("component %s not found", o.Component)
+}
+
+func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []string) (string, bool) {
+	// does not depends on other components
+	if dependsOnComponentNames == nil {
+		return "", true
+	}
+	for _, dc := range dependsOnComponentNames {
+		if !utils.StringsContain(allComponentNames, dc) {
+			return dc, false
+		}
+	}
+	return "", true
 }
 
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
