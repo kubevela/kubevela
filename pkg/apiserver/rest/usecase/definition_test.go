@@ -20,9 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"path"
-	"strings"
-	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
@@ -188,32 +185,25 @@ var _ = Describe("Test namespace usecase functions", func() {
 
 	It("Test sortDefaultUISchema", testSortDefaultUISchema)
 
+	It("Test update ui schema", func() {
+		du := NewDefinitionUsecase()
+		cdata, err := ioutil.ReadFile("./testdata/workflowstep-apply-object.yaml")
+		Expect(err).Should(Succeed())
+		var schema utils.UISchema
+		yaml.Unmarshal(cdata, &schema)
+		uiSchema, err := du.AddDefinitionUISchema(context.TODO(), "apply-object", "workflowstep", schema)
+		Expect(err).Should(Succeed())
+		for _, param := range uiSchema {
+			if param.JSONKey == "batchPartition" {
+				Expect(len(param.Conditions)).Should(Equal(1))
+				Expect(param.Validate.Required).Should(Equal(true))
+				Expect(param.Sort).Should(Equal(uint(77)))
+			}
+		}
+	})
+
 })
 
-func TestAddDefinitionUISchema(t *testing.T) {
-	du := NewDefinitionUsecase()
-	schemaFiles, err := ioutil.ReadDir("../../../../vela-templates/definitions/uischema")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, sf := range schemaFiles {
-		if !sf.IsDir() {
-			typeNames := strings.SplitN(sf.Name(), "-", 2)
-			cdata, err := ioutil.ReadFile(path.Join("../../../../vela-templates/definitions/uischema", sf.Name()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			definitionName := strings.Replace(typeNames[1], path.Ext(sf.Name()), "", -1)
-			var schema utils.UISchema
-			yaml.Unmarshal(cdata, &schema)
-			_, err = du.AddDefinitionUISchema(context.TODO(), definitionName, typeNames[0], schema)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Logf("create ui schema %s for %s definition", definitionName, typeNames[0])
-		}
-	}
-}
 func testSortDefaultUISchema() {
 	var params = []*utils.UIParameter{
 		{
