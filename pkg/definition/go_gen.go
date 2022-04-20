@@ -77,6 +77,7 @@ type FieldNamer interface {
 	SetPrefix(string)
 }
 
+// NewFieldNamer returns a new FieldNamer.
 func NewFieldNamer(prefix string) FieldNamer {
 	return &AbbrFieldNamer{Prefix: prefix, Abbreviations: WellKnownAbbreviations}
 }
