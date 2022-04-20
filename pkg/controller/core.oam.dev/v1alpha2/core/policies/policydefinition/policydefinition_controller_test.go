@@ -104,7 +104,7 @@ spec:
 	})
 
 	Context("When the PolicyDefinition is valid, should create a ConfigMap", func() {
-		var PolicyDefinitionName = "apply-object"
+		var PolicyDefinitionName = "policy-obj"
 		var namespace = "ns-plc-def-1"
 		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: PolicyDefinitionName, Namespace: namespace}}
 
@@ -217,7 +217,7 @@ kind: PolicyDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply raw kubernetes objects for your policy
-  name: invalid-wf1
+  name: invalid-plc1
   namespace: ns-plc-def2
 spec:
   schematic:
