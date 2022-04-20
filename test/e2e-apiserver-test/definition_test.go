@@ -17,11 +17,16 @@ limitations under the License.
 package e2e_apiserver_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Test definitions rest api", func() {
@@ -35,6 +40,9 @@ var _ = Describe("Test definitions rest api", func() {
 
 	It("Test detail the definition", func() {
 		defer GinkgoRecover()
+		componentSchema := new(corev1.ConfigMap)
+		Expect(common.ReadYamlToObject("./testdata/component-schema-webservice.yaml", componentSchema)).Should(BeNil())
+		Expect(k8sClient.Create(context.Background(), componentSchema)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		res := get("/definitions/webservice")
 		var detail apisv1.DetailDefinitionResponse
 		Expect(decodeResponseBody(res, &detail)).Should(Succeed())
@@ -73,7 +81,7 @@ var _ = Describe("Test definitions rest api", func() {
 			},
 		}
 		res := put("/definitions/webservice/uischema", req)
-		Expect(res.Status).Should(Equal(400))
+		Expect(res.StatusCode).Should(Equal(400))
 
 		req2 := apisv1.UpdateUISchemaRequest{
 			DefinitionType: "component",
@@ -92,7 +100,7 @@ var _ = Describe("Test definitions rest api", func() {
 			},
 		}
 		res2 := put("/definitions/webservice/uischema", req2)
-		Expect(res2.Status).Should(Equal(400))
+		Expect(res2.StatusCode).Should(Equal(400))
 	})
 
 })
