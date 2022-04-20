@@ -17,15 +17,17 @@ limitations under the License.
 package definition
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"cuelang.org/go/cue"
+	"github.com/stretchr/testify/assert"
 	assert2 "gotest.tools/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDefaultFieldNamer(t *testing.T) {
@@ -267,3 +269,52 @@ var (
 	resultWithMap        = "// Parameter -\ntype Parameter map[string]string"
 	resultWithInterface  = "// Parameter -\ntype Parameter struct {\n\tData map[string]interface{} `json:\"data\"`\n}\n"
 )
+
+func TestGenAllDef(t *testing.T) {
+	skipDefs := []string{
+		// non-concrete structs like
+		// foo: string|{secretRef: string}
+		"container-image.cue",
+		"export2config.cue",
+		"webhook.cue",
+		"notification.cue",
+		"webhook-notification.cue",
+		"env.cue",
+		"command.cue",
+
+		// not supported
+		"json-merge-patch.cue",
+		"json-patch.cue",
+
+		// no args
+		"apply-application.cue",
+		"apply-application-in-parallel.cue",
+	}
+	glob, err := filepath.Glob("../../vela-templates/definitions/*/*.cue")
+	assert.NoError(t, err)
+	for _, f := range glob {
+		if !stringInSlice(filepath.Base(f), skipDefs) {
+			t.Run(filepath.Base(f), func(t *testing.T) {
+				file, err := ioutil.ReadFile(f)
+				assert.NoError(t, err)
+				def := Definition{Unstructured: unstructured.Unstructured{}}
+				err = def.FromCUEString(string(file), nil)
+				assert.NoError(t, err)
+				templateString, _, err := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
+				value, err := common.GetCUEParameterValue(templateString, nil)
+				assert.NoError(t, err)
+				_, err = GeneratorParameterStructs(value)
+				assert.NoError(t, err)
+			})
+		}
+	}
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
