@@ -130,9 +130,9 @@ func TestGeneratorParameterStructs(t *testing.T) {
 			expected: structWithInterface,
 		},
 		{
-			name: "omitempty",
-			cue:  defWithOptional,
-			err:  false,
+			name:     "omitempty",
+			cue:      defWithOptional,
+			err:      false,
 			expected: structWithOptional,
 		},
 	}
