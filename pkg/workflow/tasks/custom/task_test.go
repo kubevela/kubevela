@@ -25,7 +25,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -190,17 +189,17 @@ close({
 	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
 
 	steps := []v1beta1.WorkflowStep{
-		{
-			Name: "input-err",
-			Type: "ok",
-			Properties: &runtime.RawExtension{Raw: []byte(`
-		{"score": {"y": 101}}
-		`)},
-			Inputs: common.StepInputs{{
-				From:         "score",
-				ParameterKey: "score",
-			}},
-		},
+		//{
+		//	Name: "input-err",
+		//	Type: "ok",
+		//	Properties: &runtime.RawExtension{Raw: []byte(`
+		//{"score": {"y": 101}}
+		//`)},
+		//	Inputs: common.StepInputs{{
+		//		From:         "score",
+		//		ParameterKey: "score",
+		//	}},
+		//},
 		{
 			Name: "input",
 			Type: "input",
@@ -267,7 +266,7 @@ close({
 			r.Equal(operation.FailedAfterRetries, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		default:
-			r.Equal(operation.Waiting, true)
+			r.Equal(operation.Waiting, true, step.Name)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		}
 	}
