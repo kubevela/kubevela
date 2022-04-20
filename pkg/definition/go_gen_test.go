@@ -301,6 +301,7 @@ func TestGenAllDef(t *testing.T) {
 				err = def.FromCUEString(string(file), nil)
 				assert.NoError(t, err)
 				templateString, _, err := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
+				assert.NoError(t, err)
 				value, err := common.GetCUEParameterValue(templateString, nil)
 				assert.NoError(t, err)
 				_, err = GeneratorParameterStructs(value)
