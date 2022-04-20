@@ -43,7 +43,7 @@ var _ = Describe("Test definitions rest api", func() {
 		componentSchema := new(corev1.ConfigMap)
 		Expect(common.ReadYamlToObject("./testdata/component-schema-webservice.yaml", componentSchema)).Should(BeNil())
 		Expect(k8sClient.Create(context.Background(), componentSchema)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		res := get("/definitions/webservice")
+		res := get("/definitions/webservice?type=component")
 		var detail apisv1.DetailDefinitionResponse
 		Expect(decodeResponseBody(res, &detail)).Should(Succeed())
 	})
