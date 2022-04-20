@@ -15,3 +15,10 @@
 	str?: string
 	...
 }
+
+#Log: {
+	#do:       "log"
+	#provider: "util"
+
+	data: {...}
+}

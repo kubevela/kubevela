@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -56,7 +57,7 @@ var (
 
 // GenerateApplicationSteps generate application steps.
 // nolint:gocyclo
-func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
+func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
@@ -68,7 +69,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx context.Context,
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
-	taskDiscover := tasks.NewTaskDiscoverFromRevision(handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
+	taskDiscover := tasks.NewTaskDiscoverFromRevision(ctx, handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)

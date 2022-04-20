@@ -166,6 +166,8 @@ import (
 
 #ConvertString: util.#String
 
+#Log: util.#Log
+
 #DateToTimestamp: time.#DateToTimestamp
 
 #TimestampToDate: time.#TimestampToDate

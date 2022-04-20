@@ -17,6 +17,7 @@
 package util
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
@@ -192,9 +194,22 @@ func TestConvertString(t *testing.T) {
 	}
 }
 
+func TestLog(t *testing.T) {
+	r := require.New(t)
+	v, err := value.NewValue(`
+data: "test"
+`, nil, "")
+	r.NoError(err)
+	logCtx := monitorContext.NewTraceContext(context.Background(), "")
+	prd := &provider{logCtx: logCtx}
+	err = prd.Log(nil, v, nil)
+	r.NoError(err)
+}
+
 func TestInstall(t *testing.T) {
+	logCtx := monitorContext.NewTraceContext(context.Background(), "")
 	p := providers.NewProviders()
-	Install(p)
+	Install(logCtx, p)
 	h, ok := p.GetHandler("util", "string")
 	r := require.New(t)
 	r.Equal(ok, true)
