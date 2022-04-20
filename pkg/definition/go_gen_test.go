@@ -41,8 +41,23 @@ func TestDefaultFieldNamer(t *testing.T) {
 		"123":        "_123",
 		"A|B":        "A_B",
 	} {
-		assert.Equal(t, expected, dm.FieldName(name))
+		assert.Equal(t, expected, DefaultNamer.FieldName(name))
 	}
+	// test add prefix to name
+	namer := NewFieldNamer("prefix")
+	for name, expected := range map[string]string{
+		"id":         "PrefixID",
+		"foo":        "PrefixFoo",
+		"foo_bar":    "PrefixFooBar",
+		"fooBar":     "PrefixFooBar",
+		"FOO_BAR":    "PrefixFooBar",
+		"FOO_BAR_ID": "PrefixFooBarID",
+		"123":        "Prefix_123",
+		"A|B":        "PrefixA_B",
+	} {
+		assert.Equal(t, expected, namer.FieldName(name))
+	}
+
 }
 
 func TestTrimIncompleteKind(t *testing.T) {
@@ -114,6 +129,12 @@ func TestGeneratorParameterStructs(t *testing.T) {
 			err:      false,
 			expected: structWithInterface,
 		},
+		{
+			name: "omitempty",
+			cue:  defWithOptional,
+			err:  false,
+			expected: structWithOptional,
+		},
 	}
 	for _, tc := range testCases {
 		value, err := common.GetCUEParameterValue(tc.cue, nil)
@@ -138,6 +159,7 @@ func TestGenGoCodeFromParams(t *testing.T) {
 		{structs: structsWithStructList, result: resultWithStructList},
 		{structs: structsWithMap, result: resultWithMap},
 		{structs: structWithInterface, result: resultWithInterface},
+		{structs: structWithOptional, result: resultWithOptional},
 	}
 	for _, tc := range testCases {
 		actual, err := GenGoCodeFromParams(tc.structs)
@@ -162,7 +184,7 @@ var (
 	}`
 	defWithStructList = `
 	parameter: {
-		emptyDir?: [...{
+		emptyDir: [...{
 				name:      string
 				mountPath: string
 				medium:    *"" | "Memory"
@@ -172,6 +194,10 @@ var (
 	defWithEmptyMap = `
 	parameter: {
 		data: {}
+	}`
+	defWithOptional = `
+	parameter:{
+		data?: int
 	}`
 
 	structsWithStruct = []StructParameter{
@@ -262,12 +288,25 @@ var (
 			},
 		},
 	}
+	structWithOptional = []StructParameter{
+		{
+			Parameter: types.Parameter{
+				Type: cue.StructKind,
+				Name: "Parameter",
+			},
+			GoType: "",
+			Fields: []Field{
+				{Name: "data", GoType: "int", OmitEmpty: true},
+			},
+		},
+	}
 
 	resultWithStruct     = "// HTTP Specify the mapping relationship between the http path and the workload port\ntype HTTP struct {\n\tPath int `json:\"path\"`\n}\n\n// Parameter -\ntype Parameter struct {\n\tHTTP HTTP `json:\"http\"`\n}\n"
 	resultWithList       = "// Parameter -\ntype Parameter struct {\n\tHTTP map[string]int `json:\"http\"`\n}\n"
 	resultWithStructList = "// EmptyDir -\ntype EmptyDir struct {\n\tName      string `json:\"name\"`\n\tMountPath string `json:\"mountPath\"`\n\tMedium    string `json:\"medium\"`\n}\n\n// Parameter -\ntype Parameter struct {\n\tEmptyDir []EmptyDir `json:\"emptyDir\"`\n}\n"
 	resultWithMap        = "// Parameter -\ntype Parameter map[string]string"
 	resultWithInterface  = "// Parameter -\ntype Parameter struct {\n\tData map[string]interface{} `json:\"data\"`\n}\n"
+	resultWithOptional   = "// Parameter -\ntype Parameter struct {\n\tData int `json:\"data,omitempty\"`\n}\n"
 )
 
 func TestGenAllDef(t *testing.T) {

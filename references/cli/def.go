@@ -83,7 +83,7 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
 		NewDefinitionGenDocCommand(c),
-		NewDefinitionGoGenerateCommand(c),
+		NewDefinitionGenAPICommand(c),
 	)
 	return cmd
 }
@@ -934,20 +934,21 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-// NewDefinitionGoGenerateCommand create the `vela def go-gen` command to help user generate Go code from the definition
-func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
+// NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition
+func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 	var (
 		skipPackageName bool
 		packageName     string
+		prefix          string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "go-gen DEFINITION.cue",
+		Use:   "gen-api DEFINITION.cue",
 		Short: "Generate Go struct of Parameter from X-Definition.",
 		Long: "Generate Go struct of Parameter from definition file.\n" +
 			"* Currently, this function is still working in progress and not all formats of parameter in X-definition are supported yet.",
 		Example: "# Command below will generate the Go struct for the my-def.cue file.\n" +
-			"> vela def go-gen my-def.cue",
+			"> vela def gen-api my-def.cue",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cueBytes, err := os.ReadFile(args[0])
@@ -975,6 +976,7 @@ func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
 				return err
 			}
 
+			pkgdef.DefaultNamer.SetPrefix(prefix)
 			structs, err := pkgdef.GeneratorParameterStructs(value)
 			if err != nil {
 				return errors.Wrapf(err, "failed to generate Go code")
@@ -989,5 +991,6 @@ func NewDefinitionGoGenerateCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&skipPackageName, "skip-package-name", false, "Skip package name in generated Go code.")
 	cmd.Flags().StringVar(&packageName, "package-name", "main", "Specify the package name in generated Go code.")
+	cmd.Flags().StringVar(&prefix, "prefix", "", "Specify the prefix of the generated Go struct.")
 	return cmd
 }

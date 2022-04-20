@@ -43,7 +43,8 @@ type StructParameter struct {
 type Field struct {
 	Name string
 	// GoType is the same to parameter.Type but can be print in Go
-	GoType string
+	GoType    string
+	OmitEmpty bool
 }
 
 //nolint:gochecknoglobals
@@ -67,14 +68,17 @@ var (
 		"PVC": true,
 	}
 
-	dm = &AbbreviationHandlingFieldNamer{
-		Abbreviations: WellKnownAbbreviations,
-	}
+	DefaultNamer = NewFieldNamer("")
 )
 
 // A FieldNamer generates a Go field name from a CUE label.
 type FieldNamer interface {
 	FieldName(label string) string
+	SetPrefix(string)
+}
+
+func NewFieldNamer(prefix string) FieldNamer {
+	return &AbbrFieldNamer{Prefix: prefix, Abbreviations: WellKnownAbbreviations}
 }
 
 var structs []StructParameter
@@ -131,6 +135,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 			val := fi.Value
 			name := fi.Name
 			subParam.Name = name
+			subParam.OmitEmpty = fi.IsOptional
 			switch val.IncompleteKind() {
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
@@ -145,7 +150,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 					if err := parseParameters(val, name); err != nil {
 						return err
 					}
-					subParam.GoType = dm.FieldName(name)
+					subParam.GoType = DefaultNamer.FieldName(name)
 				}
 			case cue.ListKind:
 				elem, success := val.Elem()
@@ -156,7 +161,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 				}
 				switch elem.Kind() {
 				case cue.StructKind:
-					subParam.GoType = fmt.Sprintf("[]%s", dm.FieldName(name))
+					subParam.GoType = fmt.Sprintf("[]%s", DefaultNamer.FieldName(name))
 					if err := parseParameters(elem, name); err != nil {
 						return err
 					}
@@ -166,10 +171,7 @@ func parseParameters(paraValue cue.Value, paramKey string) error {
 			default:
 				subParam.GoType = val.IncompleteKind().String()
 			}
-			param.Fields = append(param.Fields, Field{
-				Name:   subParam.Name,
-				GoType: subParam.GoType,
-			})
+			param.Fields = append(param.Fields, subParam)
 		}
 	}
 	structs = append(structs, param)
@@ -184,7 +186,7 @@ func GenGoCodeFromParams(parameters []StructParameter) (string, error) {
 		if parameter.Usage == "" {
 			parameter.Usage = "-"
 		}
-		fmt.Fprintf(&buf, "// %s %s\n", dm.FieldName(parameter.Name), parameter.Usage)
+		fmt.Fprintf(&buf, "// %s %s\n", DefaultNamer.FieldName(parameter.Name), parameter.Usage)
 		genField(parameter, &buf)
 	}
 	source, err := format.Source(buf.Bytes())
@@ -205,7 +207,7 @@ func PrintParamGosStruct(parameters []StructParameter) {
 }
 
 func genField(param StructParameter, buffer *bytes.Buffer) {
-	fieldName := dm.FieldName(param.Name)
+	fieldName := DefaultNamer.FieldName(param.Name)
 	if param.Type == cue.StructKind { // only struct kind will be separated struct
 		// cue struct  can be Go map or struct
 		if strings.HasPrefix(param.GoType, "map[string]") {
@@ -213,7 +215,11 @@ func genField(param StructParameter, buffer *bytes.Buffer) {
 		} else {
 			fmt.Fprintf(buffer, "type %s struct {\n", fieldName)
 			for _, f := range param.Fields {
-				fmt.Fprintf(buffer, "    %s %s `json:\"%s\"`\n", dm.FieldName(f.Name), f.GoType, f.Name)
+				jsonTag := f.Name
+				if f.OmitEmpty {
+					jsonTag = fmt.Sprintf("%s,omitempty", jsonTag)
+				}
+				fmt.Fprintf(buffer, "    %s %s `json:\"%s\"`\n", DefaultNamer.FieldName(f.Name), f.GoType, jsonTag)
 			}
 
 			fmt.Fprintf(buffer, "}\n")
@@ -239,15 +245,26 @@ func trimIncompleteKind(mask string) (string, error) {
 
 }
 
-// An AbbreviationHandlingFieldNamer generates Go field names from JSON
-// properties while keeping abbreviations uppercased.
-type AbbreviationHandlingFieldNamer struct {
-	Abbreviations map[string]bool
+// An AbbrFieldNamer generates Go field names from Go
+// struct field while keeping abbreviations uppercased.
+type AbbrFieldNamer struct {
+	// Prefix is a prefix to add to all field names with first char capitalized automatically.
+	Prefix                         string
+	prefixWithFirstCharCapitalized string
+	Abbreviations                  map[string]bool
+}
+
+// SetPrefix set a prefix to namer.
+func (a *AbbrFieldNamer) SetPrefix(s string) {
+	a.Prefix = s
 }
 
 // FieldName implements FieldNamer.FieldName.
-func (a *AbbreviationHandlingFieldNamer) FieldName(property string) string {
-	components := SplitComponents(property)
+func (a *AbbrFieldNamer) FieldName(field string) string {
+	if a.prefixWithFirstCharCapitalized == "" && a.Prefix != "" {
+		a.prefixWithFirstCharCapitalized = strings.ToUpper(a.Prefix[:1]) + a.Prefix[1:]
+	}
+	components := SplitComponents(field)
 	for i, component := range components {
 		switch {
 		case component == "":
@@ -272,6 +289,9 @@ func (a *AbbreviationHandlingFieldNamer) FieldName(property string) string {
 	fieldName := string(runes)
 	if !unicode.IsLetter(runes[0]) && runes[0] != '_' {
 		fieldName = "_" + fieldName
+	}
+	if a.prefixWithFirstCharCapitalized != "" {
+		fieldName = a.prefixWithFirstCharCapitalized + fieldName
 	}
 	return fieldName
 }
