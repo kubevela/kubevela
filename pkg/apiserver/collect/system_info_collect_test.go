@@ -90,7 +90,7 @@ var _ = Describe("Test calculate cronJob", func() {
 	})
 
 	It("Test calculate app Info", func() {
-		appNum, topKCom, topKTrait, err := i.calculateAppInfo(ctx)
+		appNum, topKCom, topKTrait, _, err := i.calculateAppInfo(ctx)
 		Expect(err).Should(BeNil())
 		Expect(appNum).Should(BeEquivalentTo(2))
 		Expect(topKCom).Should(BeEquivalentTo([]string{"webservice", "helm"}))

@@ -51,12 +51,13 @@ type DexConfig struct {
 
 // StatisticInfo the system statistic info
 type StatisticInfo struct {
-	ClusterCount string            `json:"clusterCount,omitempty"`
-	AppCount     string            `json:"appCount,omitempty"`
-	EnabledAddon map[string]string `json:"enabledAddon,omitempty"`
-	TopKCompDef  []string          `json:"topKCompDef,omitempty"`
-	TopKTraitDef []string          `json:"topKTraitDef,omitempty"`
-	UpdateTime   time.Time         `json:"updateTime,omitempty"`
+	ClusterCount        string            `json:"clusterCount,omitempty"`
+	AppCount            string            `json:"appCount,omitempty"`
+	EnabledAddon        map[string]string `json:"enabledAddon,omitempty"`
+	TopKCompDef         []string          `json:"topKCompDef,omitempty"`
+	TopKTraitDef        []string          `json:"topKTraitDef,omitempty"`
+	TopKWorkflowStepDef []string          `json:"topKWorkflowStepDef,omitempty"`
+	UpdateTime          time.Time         `json:"updateTime,omitempty"`
 }
 
 // DexStorage dex storage
