@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -231,7 +232,8 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 	if wl.CapabilityCategory == types.TerraformCategory {
 		var configuration terraformapi.Configuration
 		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &configuration); err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
+			klog.ErrorS(err, "failed to get configuration", "app name", appName, "comp name", wl.Name)
+			return nil, false, nil
 		}
 
 		isLatest := func() bool {
