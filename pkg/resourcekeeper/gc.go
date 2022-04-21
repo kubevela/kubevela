@@ -55,14 +55,15 @@ type GCOption interface {
 }
 
 type gcConfig struct {
-	passive    bool
-	sequential bool
+	passive bool
 
 	disableMark                bool
 	disableSweep               bool
 	disableFinalize            bool
 	disableComponentRevisionGC bool
 	disableLegacyGC            bool
+
+	order v1alpha1.GarbageCollectOrder
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -101,8 +102,10 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption
 		if h.garbageCollectPolicy.KeepLegacyResource {
 			options = append(options, PassiveGCOption{})
 		}
-		if h.garbageCollectPolicy.Sequential {
-			options = append(options, SequentialGCOption{})
+		switch h.garbageCollectPolicy.Order {
+		case v1alpha1.OrderReverseDependency:
+			options = append(options, ReverseDependencyGCOption{})
+		default:
 		}
 	}
 	cfg := newGCConfig(options...)
@@ -254,13 +257,15 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 }
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
-	if h.cfg.sequential {
+	switch h.cfg.order {
+	case v1alpha1.OrderReverseDependency:
 		for _, mr := range rt.Spec.ManagedResources {
 			if err := h.deleteIndependentComponent(ctx, mr, rt); err != nil {
 				return err
 			}
 		}
 		return nil
+	default:
 	}
 	for _, mr := range rt.Spec.ManagedResources {
 		if err := h.deleteManagedResource(ctx, mr, rt); err != nil {

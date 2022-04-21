@@ -518,9 +518,9 @@ var _ = Describe("Test Application with GC options", func() {
 					},
 				},
 				Policies: []v1beta1.AppPolicy{{
-					Name:       "sequential-gc",
+					Name:       "reverse-dependency",
 					Type:       "garbage-collect",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"sequential": true}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"order": "reverseDependency"}`)},
 				}},
 			},
 		}

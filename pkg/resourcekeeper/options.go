@@ -67,11 +67,13 @@ type PassiveGCOption struct{}
 // ApplyToGCConfig apply change to gc config
 func (option PassiveGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.passive = true }
 
-// SequentialGCOption recycle the resource in sequential order
-type SequentialGCOption struct{}
+// ReverseeDependencyGCOption recycle the resource in the order of reverse dependency
+type ReverseDependencyGCOption struct{}
 
 // ApplyToGCConfig apply change to gc config
-func (option SequentialGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.sequential = true }
+func (option ReverseDependencyGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.order = v1alpha1.OrderReverseDependency
+}
 
 // DisableMarkStageGCOption disable the mark stage in gc process (no rt will be marked to be deleted)
 // this option should be switched on when application workflow is suspending/terminating since workflow is not

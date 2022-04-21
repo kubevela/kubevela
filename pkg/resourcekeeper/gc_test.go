@@ -126,7 +126,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 		r.Equal(crCount, len(_crs.Items))
 	}
 
-	createRK := func(gen int64, keepLegacy, sequential bool, components ...apicommon.ApplicationComponent) *resourceKeeper {
+	createRK := func(gen int64, keepLegacy bool, order v1alpha1.GarbageCollectOrder, components ...apicommon.ApplicationComponent) *resourceKeeper {
 		_rk, err := NewResourceKeeper(ctx, cli, &v1beta1.Application{
 			ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: gen},
 			Spec:       v1beta1.ApplicationSpec{Components: components},
@@ -134,8 +134,8 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 		r.NoError(err)
 		rk := _rk.(*resourceKeeper)
 		rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{
+			Order:              order,
 			KeepLegacyResource: keepLegacy,
-			Sequential:         sequential,
 		}
 		return rk
 	}
@@ -156,7 +156,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 
 	opts := []GCOption{DisableLegacyGCOption{}}
 	// no need to gc
-	rk := createRK(4, true, false)
+	rk := createRK(4, true, "")
 	finished, _, err := rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
@@ -166,11 +166,11 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	dt := v12.Now()
 	rtMaps[2].SetDeletionTimestamp(&dt)
 	r.NoError(cli.Update(ctx, rtMaps[2]))
-	rk = createRK(4, true, false)
+	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(4, true, false)
+	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
@@ -178,18 +178,18 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 
 	// delete cm4, trigger gc for rt3, comp-3 no use
 	r.NoError(cli.Delete(ctx, cmMaps[4]))
-	rk = createRK(5, true, false)
+	rk = createRK(5, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(5, 3, 5)
 
 	// upgrade and gc legacy rt1
-	rk = createRK(4, false, false)
+	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(4, false, false)
+	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
@@ -213,16 +213,16 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 			Name: "comp-7",
 		},
 	}
-	rk = createRK(5, false, true, comps...)
+	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
 	rtMaps[3].SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(5, false, true, comps...)
+	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(5, false, true, comps...)
+	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
@@ -237,18 +237,18 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(10, 6, 8)
 	checkCount(3, 3, 1)
 
-	rk = createRK(6, false, false)
+	rk = createRK(6, false, "")
 	rk.app.SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(6, false, false)
+	rk = createRK(6, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(0, 0, 0)
 
-	rk = createRK(7, false, false)
+	rk = createRK(7, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
