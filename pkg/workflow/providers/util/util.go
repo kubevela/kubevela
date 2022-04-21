@@ -79,7 +79,7 @@ func (p *provider) String(ctx wfContext.Context, v *value.Value, act types.Actio
 func (p *provider) Log(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	data, err := v.LookupValue("data")
 	if err != nil {
-		return nil
+		return err
 	}
 	s, err := data.String()
 	if err != nil {
