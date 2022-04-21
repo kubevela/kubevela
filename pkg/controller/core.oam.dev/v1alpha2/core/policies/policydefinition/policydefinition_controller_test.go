@@ -124,7 +124,7 @@ kind: PolicyDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply raw kubernetes objects for your Policy
-  name: apply-object
+  name: policy-obj
   namespace: ns-plc-def-1
 spec:
   schematic:
