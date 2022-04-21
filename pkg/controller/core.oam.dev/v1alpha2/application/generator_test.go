@@ -277,7 +277,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -317,7 +318,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
-		_, err = handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).NotTo(BeNil())
 	})
 
@@ -354,7 +356,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
-		_, err = handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).NotTo(BeNil())
 	})
 })
