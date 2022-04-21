@@ -146,10 +146,11 @@ func (s *restServer) setupLeaderElection() (*leaderelection.LeaderElectionConfig
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				go velasync.Start(ctx, s.dataStore, restCfg, s.usecases)
-				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 				if !s.cfg.DisableStatisticCronJob {
 					collect.StartCalculatingInfoCronJob(s.dataStore)
 				}
+				// this process would block the whole process, any other handler should start before this func
+				s.runWorkflowRecordSync(ctx, s.cfg.LeaderConfig.Duration)
 			},
 			OnStoppedLeading: func() {
 				klog.Infof("leader lost: %s", s.cfg.LeaderConfig.ID)
