@@ -186,6 +186,16 @@ func (n *projectWebService) GetWebService() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]*apis.Config{}))
 
+	ws.Route(ws.GET("/{projectName}/validate_image").To(n.checkImageExistence).
+		Doc("validate an image in a project").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(n.rbacUsecase.CheckPerm("project/image", "get")).
+		Param(ws.QueryParameter("image", "image name").DataType("string")).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Returns(200, "OK", []*apis.ImageResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]*apis.ImageResponse{}))
+
 	ws.Filter(authCheckFilter)
 	return ws
 }
@@ -528,6 +538,22 @@ func (n *projectWebService) getConfigs(req *restful.Request, res *restful.Respon
 		return
 	}
 	err = res.WriteEntity(configs)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectWebService) checkImageExistence(req *restful.Request, res *restful.Response) {
+	existed, err := n.projectUsecase.CheckImageExistence(req.Request.Context(), req.PathParameter("projectName"), req.QueryParameter("image"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	data := map[string]interface{}{
+		"data": existed,
+	}
+	err = res.WriteEntity(data)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

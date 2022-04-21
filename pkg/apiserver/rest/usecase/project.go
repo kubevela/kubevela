@@ -18,12 +18,14 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -37,6 +39,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	image "github.com/oam-dev/kubevela/pkg/utils/imageregistry"
 )
 
 // ProjectUsecase project manage usecase.
@@ -54,6 +57,7 @@ type ProjectUsecase interface {
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
 	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
+	CheckImageExistence(ctx context.Context, projectName, image string) (bool, error)
 }
 
 type projectUsecaseImpl struct {
@@ -609,4 +613,43 @@ func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv
 		Alias:             a.Annotations[types.AnnotationConfigAlias],
 		Description:       a.Annotations[types.AnnotationConfigDescription],
 	}
+}
+
+func (p *projectUsecaseImpl) CheckImageExistence(ctx context.Context, projectName, image string) (bool, error) {
+	return checkImageExistence(ctx, p.k8sClient, projectName, image)
+}
+
+func checkImageExistence(ctx context.Context, k8sClient client.Client, project, imageName string) (bool, error) {
+	var (
+		secrets  v1.SecretList
+		imageURL = strings.Split(imageName, "/")[0]
+		username string
+		password string
+	)
+
+	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			types.LabelConfigCatalog: velaCoreConfig,
+			types.LabelConfigType:    types.ImageRegistry,
+		}); err != nil {
+		return false, err
+	}
+
+	for _, s := range secrets.Items {
+		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
+			if imageURL == s.Labels[types.LabelConfigIdentifier] {
+				conf := s.Data[".dockerconfigjson"]
+				var auths map[string]map[string]image.RegistryMeta
+				if err := json.Unmarshal(conf, &auths); err != nil {
+					return false, err
+				}
+				reg := auths["auths"][imageURL]
+				username = reg.Username
+				password = reg.Password
+				break
+			}
+		}
+	}
+
+	return image.IsExisted(username, password, imageName)
 }
