@@ -47,7 +47,6 @@ var _ = Describe("Apply PolicyDefinition to store its schema to ConfigMap Test",
 			By("Apply PolicyDefinition")
 			var validPolicyDefinition = `
 apiVersion: core.oam.dev/v1beta1
-apiVersion: core.oam.dev/v1beta1
 kind: PolicyDefinition
 metadata:
   annotations:

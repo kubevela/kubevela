@@ -125,6 +125,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	def := utils.NewCapabilityPolicyDef(&policydefinition)
+	def.Name = req.NamespacedName.Name
 	// Store the parameter of policyDefinition to configMap
 	cmName, err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
