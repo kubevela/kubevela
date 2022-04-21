@@ -803,6 +803,7 @@ type ListDefinitionResponse struct {
 
 // DetailDefinitionResponse get definition detail
 type DetailDefinitionResponse struct {
+	DefinitionBase
 	APISchema *openapi3.Schema `json:"schema"`
 	UISchema  utils.UISchema   `json:"uiSchema"`
 }
@@ -813,12 +814,21 @@ type UpdateUISchemaRequest struct {
 	UISchema       utils.UISchema `json:"uiSchema"`
 }
 
+// UpdateDefinitionStatusRequest the request body struct about updated definition
+// Only support set the status of definition
+type UpdateDefinitionStatusRequest struct {
+	DefinitionType string `json:"type"`
+	HiddenInUI     bool   `json:"hiddenInUI"`
+}
+
 // DefinitionBase is the definition base model
 type DefinitionBase struct {
-	Name        string `json:"name"`
-	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
+	Name        string            `json:"name"`
+	Alias       string            `json:"alias"`
+	Description string            `json:"description"`
+	Icon        string            `json:"icon"`
+	Status      string            `json:"status"`
+	Labels      map[string]string `json:"lables"`
 	// WorkloadType the component workload type
 	// Deprecated: it same as component.workload.type
 	WorkloadType string                              `json:"workloadType,omitempty"`

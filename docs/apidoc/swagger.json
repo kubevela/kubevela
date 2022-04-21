@@ -3644,14 +3644,15 @@
 						"required": true
 					},
 					{
-						"type": "string",
-						"description": "if specified, query the definition supported by the env.",
-						"name": "envName",
+						"type": "boolean",
+						"default": false,
+						"description": "query all definitions include hidden in UI",
+						"name": "queryAll",
 						"in": "query"
 					},
 					{
 						"type": "string",
-						"description": "if specified, query the trait definition applied to the workload.",
+						"description": "if specified, query the trait definition applied to the workload",
 						"name": "appliedWorkload",
 						"in": "query"
 					}
@@ -3682,7 +3683,7 @@
 				"tags": [
 					"definition"
 				],
-				"summary": "detail definition",
+				"summary": "Detail a definition",
 				"operationId": "detailDefinition",
 				"parameters": [
 					{
@@ -3697,6 +3698,82 @@
 						"description": "query the definition type",
 						"name": "type",
 						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/definitions/{definitionName}/status": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "Update the status for a definition",
+				"operationId": "updateDefinitionStatus",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateDefinitionStatusRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/api/v1/definitions/{definitionName}/uischema": {
+			"put": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"definition"
+				],
+				"summary": "Update the UI schema for a definition",
+				"operationId": "updateUISchema",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.UpdateUISchemaRequest"
+						}
 					}
 				],
 				"responses": {
@@ -3946,31 +4023,6 @@
 							"items": {
 								"$ref": "#/definitions/v1.PermissionBase"
 							}
-						}
-					}
-				}
-			}
-		},
-		"/api/v1/policy_definitions": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"definition"
-				],
-				"summary": "list all policydefinition",
-				"operationId": "noop",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/v1.ListPolicyDefinitionResponse"
 						}
 					}
 				}
@@ -7044,42 +7096,6 @@
 				}
 			}
 		},
-		"types.Parameter": {
-			"required": [
-				"name"
-			],
-			"properties": {
-				"alias": {
-					"type": "string"
-				},
-				"default": {
-					"$ref": "#/definitions/types.Parameter.default"
-				},
-				"ignore": {
-					"type": "boolean"
-				},
-				"jsonType": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"required": {
-					"type": "boolean"
-				},
-				"short": {
-					"type": "string"
-				},
-				"type": {
-					"type": "integer",
-					"format": "int32"
-				},
-				"usage": {
-					"type": "string"
-				}
-			}
-		},
-		"types.Parameter.default": {},
 		"types.Reference": {
 			"required": [
 				"name"
@@ -7528,12 +7544,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"createTime",
 				"status",
-				"envName",
-				"version",
 				"note",
-				"triggerType"
+				"envName",
+				"createTime",
+				"triggerType",
+				"version"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8649,7 +8665,9 @@
 			"required": [
 				"name",
 				"description",
-				"icon"
+				"icon",
+				"status",
+				"lables"
 			],
 			"properties": {
 				"alias": {
@@ -8664,11 +8682,20 @@
 				"icon": {
 					"type": "string"
 				},
+				"lables": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
 				"name": {
 					"type": "string"
 				},
 				"policy": {
 					"$ref": "#/definitions/v1beta1.PolicyDefinitionSpec"
+				},
+				"status": {
+					"type": "string"
 				},
 				"trait": {
 					"$ref": "#/definitions/v1beta1.TraitDefinitionSpec"
@@ -8683,10 +8710,10 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"version",
-				"invisible",
 				"name",
 				"description",
+				"invisible",
+				"version",
 				"icon",
 				"schema",
 				"uiSchema",
@@ -8767,7 +8794,11 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
+				"name",
+				"description",
+				"icon",
 				"alias",
+				"project",
 				"createTime",
 				"updateTime",
 				"name",
@@ -8834,19 +8865,19 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"status",
-				"dashboardURL",
-				"labels",
-				"kubeConfig",
-				"kubeConfigSecret",
+				"createTime",
 				"updateTime",
+				"dashboardURL",
 				"alias",
-				"icon",
+				"labels",
 				"reason",
 				"apiServerURL",
-				"createTime",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"name",
 				"description",
+				"icon",
+				"status",
 				"provider",
 				"resourceInfo"
 			],
@@ -8905,14 +8936,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"creator",
-				"main",
 				"type",
-				"createTime",
-				"alias",
-				"name",
+				"main",
 				"updateTime",
+				"name",
+				"createTime",
 				"appPrimaryKey",
+				"creator",
+				"alias",
 				"definition"
 			],
 			"properties": {
@@ -8997,30 +9028,68 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
+				"lables",
+				"icon",
+				"status",
+				"name",
+				"description",
 				"schema",
 				"uiSchema"
 			],
 			"properties": {
+				"component": {
+					"$ref": "#/definitions/v1beta1.ComponentDefinitionSpec"
+				},
+				"description": {
+					"type": "string"
+				},
+				"icon": {
+					"type": "string"
+				},
+				"lables": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"policy": {
+					"$ref": "#/definitions/v1beta1.PolicyDefinitionSpec"
+				},
 				"schema": {
 					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"trait": {
+					"$ref": "#/definitions/v1beta1.TraitDefinitionSpec"
 				},
 				"uiSchema": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/utils.UIParameter"
 					}
+				},
+				"workflowStep": {
+					"$ref": "#/definitions/v1beta1.WorkflowStepDefinitionSpec"
+				},
+				"workloadType": {
+					"type": "string"
 				}
 			}
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"description",
 				"creator",
 				"properties",
 				"createTime",
 				"updateTime",
 				"name",
-				"type"
+				"type",
+				"description"
 			],
 			"properties": {
 				"createTime": {
@@ -9050,17 +9119,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"appPrimaryKey",
-				"deployUser",
-				"note",
-				"envName",
+				"reason",
 				"updateTime",
-				"workflowName",
+				"note",
+				"triggerType",
 				"createTime",
 				"status",
-				"reason",
-				"triggerType",
-				"version"
+				"deployUser",
+				"appPrimaryKey",
+				"version",
+				"workflowName",
+				"envName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9114,10 +9183,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"updateTime",
-				"project",
 				"name",
-				"createTime"
+				"createTime",
+				"updateTime",
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -9157,11 +9226,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
-				"disabled",
 				"projects",
 				"roles"
 			],
@@ -9259,14 +9328,15 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"description",
+				"default",
 				"createTime",
 				"updateTime",
 				"name",
 				"alias",
 				"enable",
-				"description",
-				"default",
-				"envName"
+				"envName",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -9673,19 +9743,6 @@
 				}
 			}
 		},
-		"v1.ListPolicyDefinitionResponse": {
-			"required": [
-				"policyDefinitions"
-			],
-			"properties": {
-				"policyDefinitions": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/v1.PolicyDefinition"
-					}
-				}
-			}
-		},
 		"v1.ListProjectResponse": {
 			"required": [
 				"projects",
@@ -9858,11 +9915,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"name",
 				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
-				"name",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -10033,27 +10090,6 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
-				}
-			}
-		},
-		"v1.PolicyDefinition": {
-			"required": [
-				"name",
-				"description",
-				"parameters"
-			],
-			"properties": {
-				"description": {
-					"type": "string"
-				},
-				"name": {
-					"type": "string"
-				},
-				"parameters": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/types.Parameter"
-					}
 				}
 			}
 		},
@@ -10404,6 +10440,20 @@
 				}
 			}
 		},
+		"v1.UpdateDefinitionStatusRequest": {
+			"required": [
+				"type",
+				"hiddenInUI"
+			],
+			"properties": {
+				"hiddenInUI": {
+					"type": "boolean"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.UpdatePolicyRequest": {
 			"required": [
 				"description",
@@ -10475,6 +10525,23 @@
 				},
 				"variable": {
 					"type": "object"
+				}
+			}
+		},
+		"v1.UpdateUISchemaRequest": {
+			"required": [
+				"type",
+				"uiSchema"
+			],
+			"properties": {
+				"type": {
+					"type": "string"
+				},
+				"uiSchema": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/utils.UIParameter"
+					}
 				}
 			}
 		},

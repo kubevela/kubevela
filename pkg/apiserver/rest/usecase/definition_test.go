@@ -59,7 +59,8 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		err = k8sClient.Create(context.Background(), &cd)
 		Expect(err).Should(Succeed())
-		definitions, err := definitionUsecase.ListDefinitions(context.TODO(), "", "component", "")
+
+		definitions, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "component"})
 		Expect(err).Should(BeNil())
 		var selectDefinition *v1.DefinitionBase
 		for i, definition := range definitions {
@@ -80,7 +81,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		err = k8sClient.Create(context.Background(), &td)
 		Expect(err).Should(Succeed())
-		traits, err := definitionUsecase.ListDefinitions(context.TODO(), "", "trait", "")
+		traits, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "trait"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(traits), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(traits[0].Name, "myingress")).Should(BeEmpty())
@@ -96,7 +97,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		err = k8sClient.Create(context.Background(), &sd)
 		Expect(err).Should(Succeed())
-		wfstep, err := definitionUsecase.ListDefinitions(context.TODO(), "", "workflowstep", "")
+		wfstep, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(wfstep[0].Name, "apply-application")).Should(BeEmpty())
@@ -120,7 +121,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		}
 		err = k8sClient.Create(context.Background(), &policy)
 		Expect(err).Should(Succeed())
-		policies, err := definitionUsecase.ListDefinitions(context.TODO(), "", "policy", "")
+		policies, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "policy"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(policies), 1)).Should(BeEmpty())
 		Expect(cmp.Diff(policies[0].Name, "health")).Should(BeEmpty())
@@ -130,6 +131,14 @@ var _ = Describe("Test namespace usecase functions", func() {
 	})
 
 	It("Test DetailDefinition function", func() {
+
+		webserver, err := ioutil.ReadFile("./testdata/apply-object.yaml")
+		Expect(err).Should(Succeed())
+		var cd v1beta1.WorkflowStepDefinition
+		err = yaml.Unmarshal(webserver, &cd)
+		Expect(err).Should(Succeed())
+		Expect(k8sClient.Create(context.Background(), &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "workflowstep-schema-apply-object",
@@ -139,16 +148,17 @@ var _ = Describe("Test namespace usecase functions", func() {
 				types.OpenapiV3JSONSchema: `{"properties":{"batchPartition":{"title":"batchPartition","type":"integer"},"volumes": {"description":"Specify volume type, options: pvc, configMap, secret, emptyDir","enum":["pvc","configMap","secret","emptyDir"],"title":"volumes","type":"string"}, "rolloutBatches":{"items":{"properties":{"replicas":{"title":"replicas","type":"integer"}},"required":["replicas"],"type":"object"},"title":"rolloutBatches","type":"array"},"targetRevision":{"title":"targetRevision","type":"string"},"targetSize":{"title":"targetSize","type":"integer"}},"required":["targetRevision","targetSize"],"type":"object"}`,
 			},
 		}
-		err := k8sClient.Create(context.Background(), cm)
+		err = k8sClient.Create(context.Background(), cm)
 		Expect(err).Should(Succeed())
-		schema, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
+		definitionDetail, err := definitionUsecase.DetailDefinition(context.TODO(), "apply-object", "workflowstep")
 		Expect(err).Should(Succeed())
 
 		schemaFromCM := &openapi3.Schema{}
 		err = schemaFromCM.UnmarshalJSON([]byte(cm.Data["openapi-v3-json-schema"]))
 		Expect(err).Should(Succeed())
 
-		Expect(schema.APISchema).Should(Equal(schemaFromCM))
+		Expect(definitionDetail.APISchema).Should(Equal(schemaFromCM))
+		Expect(definitionDetail.WorkflowStep).ShouldNot(BeNil())
 	})
 
 	It("Test renderDefaultUISchema", func() {
@@ -200,6 +210,23 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Expect(param.Sort).Should(Equal(uint(77)))
 			}
 		}
+	})
+
+	It("Test update status of the definition", func() {
+		du := NewDefinitionUsecase()
+		detail, err := du.UpdateDefinitionStatus(context.TODO(), "apply-object", v1.UpdateDefinitionStatusRequest{
+			DefinitionType: "workflowstep",
+			HiddenInUI:     true,
+		})
+		Expect(err).Should(Succeed())
+		Expect(detail.Status).Should(Equal("disable"))
+
+		detail, err = du.UpdateDefinitionStatus(context.TODO(), "apply-object", v1.UpdateDefinitionStatusRequest{
+			DefinitionType: "workflowstep",
+			HiddenInUI:     false,
+		})
+		Expect(err).Should(Succeed())
+		Expect(detail.Status).Should(Equal("enable"))
 	})
 
 })
