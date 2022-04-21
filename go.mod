@@ -287,6 +287,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
+require github.com/robfig/cron/v3 v3.0.1 // indirect
+
 replace (
 	github.com/docker/cli => github.com/docker/cli v20.10.9+incompatible
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible

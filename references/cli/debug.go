@@ -270,7 +270,7 @@ func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd 
 
 func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) error {
 	if d.focus != "" {
-		f, err := v.LookupValue(strings.Split(d.focus, ".")...)
+		f, err := v.LookupValue(d.focus)
 		if err != nil {
 			return err
 		}

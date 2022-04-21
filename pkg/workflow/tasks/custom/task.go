@@ -398,7 +398,7 @@ func isStepList(fieldName string) bool {
 }
 
 func debugLog(v *value.Value) bool {
-	debug, _ := v.CueValue().LookupDef("#debug").Bool()
+	debug, _ := v.CueValue().LookupPath(cue.ParsePath("#debug")).Bool()
 	return debug
 }
 

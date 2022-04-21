@@ -101,6 +101,7 @@ func NewStructParameter() StructParameter {
 }
 
 // parseParameters will be called recursively to parse parameters
+// nolint: staticcheck
 func parseParameters(paraValue cue.Value, paramKey string) error {
 	param := NewStructParameter()
 	param.Name = paramKey
