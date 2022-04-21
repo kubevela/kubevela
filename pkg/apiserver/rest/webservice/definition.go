@@ -17,6 +17,8 @@ limitations under the License.
 package webservice
 
 import (
+	"strconv"
+
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	restful "github.com/emicklei/go-restful/v3"
 
@@ -46,8 +48,8 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		// TODO: provide project scope api for query definition list
 		// Filter(d.rbacUsecase.CheckPerm("definition", "list")).
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
-		Param(ws.QueryParameter("envName", "if specified, query the definition supported by the env.").DataType("string")).
-		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload.").DataType("string")).
+		Param(ws.QueryParameter("queryAll", "query all definitions include hidden in UI").DataType("boolean").DefaultValue("false")).
+		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload").DataType("string")).
 		Returns(200, "OK", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
@@ -68,6 +70,14 @@ func (d *definitionWebservice) GetWebService() *restful.WebService {
 		Returns(200, "update successfully", utils.UISchema{}).
 		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
 
+	ws.Route(ws.PUT("/{definitionName}/status").To(d.updateDefinitionStatus).
+		Doc("Update the status for a definition").
+		Filter(d.rbacUsecase.CheckPerm("definition", "update")).
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.UpdateDefinitionStatusRequest{}).
+		Returns(200, "update successfully", utils.UISchema{}).
+		Writes(apis.DetailDefinitionResponse{}).Do(returns200, returns500))
+
 	ws.Filter(authCheckFilter)
 	return ws
 }
@@ -81,7 +91,15 @@ func NewDefinitionWebservice(du usecase.DefinitionUsecase, rbacUsecase usecase.R
 }
 
 func (d *definitionWebservice) listDefinitions(req *restful.Request, res *restful.Response) {
-	definitions, err := d.definitionUsecase.ListDefinitions(req.Request.Context(), req.QueryParameter("envName"), req.QueryParameter("type"), req.QueryParameter("appliedWorkload"))
+	queryAll, err := strconv.ParseBool(req.QueryParameter("queryAll"))
+	if err != nil {
+		queryAll = false
+	}
+	definitions, err := d.definitionUsecase.ListDefinitions(req.Request.Context(), usecase.DefinitionQueryOption{
+		Type:             req.QueryParameter("type"),
+		AppliedWorkloads: req.QueryParameter("appliedWorkload"),
+		QueryAll:         queryAll,
+	})
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -120,6 +138,28 @@ func (d *definitionWebservice) updateUISchema(req *restful.Request, res *restful
 		return
 	}
 	schema, err := d.definitionUsecase.AddDefinitionUISchema(req.Request.Context(), req.PathParameter("definitionName"), updateReq.DefinitionType, updateReq.UISchema)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(schema); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (d *definitionWebservice) updateDefinitionStatus(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var updateReq apis.UpdateDefinitionStatusRequest
+	if err := req.ReadEntity(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&updateReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	schema, err := d.definitionUsecase.UpdateDefinitionStatus(req.Request.Context(), req.PathParameter("definitionName"), updateReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
