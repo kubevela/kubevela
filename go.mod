@@ -162,6 +162,7 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
+	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/emicklei/proto v1.6.15 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
@@ -305,6 +306,16 @@ require (
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
+)
+
+require (
+	github.com/heroku/docker-registry-client v0.0.0-20211012143308-9463674c8930
+	github.com/valyala/fasthttp v1.16.0
+)
+
+require (
+	github.com/andybalholm/brotli v1.0.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
 )
 
 replace (

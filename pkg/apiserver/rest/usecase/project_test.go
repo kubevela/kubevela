@@ -497,3 +497,84 @@ func TestProjectGetConfigs(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateImage(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	terraformapi.AddToScheme(s)
+
+	s1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "s1",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				velatypes.LabelConfigCatalog:    velaCoreConfig,
+				velatypes.LabelConfigType:       velatypes.ImageRegistry,
+				velatypes.LabelConfigProject:    "",
+				velatypes.LabelConfigIdentifier: "abc.com",
+			},
+		},
+		Data: map[string][]byte{
+			".dockerconfigjson": []byte(`{"auths":{"abc.com":{"auth":"eyJ1c2VybmFtZSI6ImFiYyIsICJwYXNzd29yZCI6ICJkZWYifQ=="}}}`),
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(s1).Build()
+
+	h := &projectUsecaseImpl{k8sClient: k8sClient}
+
+	type args struct {
+		project   string
+		imageName string
+		h         ProjectUsecase
+	}
+
+	type want struct {
+		resp   *apisv1.ImageResponse
+		errMsg string
+	}
+
+	ctx := context.Background()
+
+	testcases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "validate image",
+			args: args{
+				project:   "p1",
+				imageName: "nginx",
+				h:         h,
+			},
+			want: want{
+				resp: &apisv1.ImageResponse{
+					Existed: true,
+				},
+			},
+		},
+		{
+			name: "invalid image",
+			args: args{
+				project:   "p1",
+				imageName: "abc.com/d/e:v1",
+				h:         h,
+			},
+			want: want{
+				errMsg: "url",
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.args.h.ValidateImage(ctx, tc.args.project, tc.args.imageName)
+			if tc.want.errMsg != "" || err != nil {
+				assert.ErrorContains(t, err, tc.want.errMsg)
+			}
+			assert.DeepEqual(t, got, tc.want.resp)
+		})
+	}
+}
