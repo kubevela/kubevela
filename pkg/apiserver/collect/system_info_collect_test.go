@@ -90,7 +90,7 @@ var _ = Describe("Test calculate cronJob", func() {
 	})
 
 	It("Test calculate app Info", func() {
-		appNum, topKCom, topKTrait, _, err := i.calculateAppInfo(ctx)
+		appNum, topKCom, topKTrait, _, _, err := i.calculateAppInfo(ctx)
 		Expect(err).Should(BeNil())
 		Expect(appNum).Should(BeEquivalentTo(2))
 		Expect(topKCom).Should(BeEquivalentTo([]string{"webservice", "helm"}))
@@ -131,7 +131,7 @@ var _ = Describe("Test calculate cronJob", func() {
 		Expect(ok).Should(BeTrue())
 		Expect(info.InstallID).Should(BeEquivalentTo("test-id"))
 		Expect(info.StatisticInfo.AppCount).Should(BeEquivalentTo("<10"))
-		Expect(info.StatisticInfo.ClusterCount).Should(BeEquivalentTo("<10"))
+		Expect(info.StatisticInfo.ClusterCount).Should(BeEquivalentTo("<3"))
 		Expect(info.StatisticInfo.TopKCompDef).Should(BeEquivalentTo([]string{"webservice", "helm"}))
 		Expect(info.StatisticInfo.TopKTraitDef).Should(BeEquivalentTo([]string{"rollout", "patch", "expose"}))
 		Expect(info.StatisticInfo.EnabledAddon).Should(BeEquivalentTo(map[string]string{
@@ -190,6 +190,33 @@ func TestGenCountInfo(t *testing.T) {
 	}
 	for _, testcase := range testcases {
 		assert.Equal(t, genCountInfo(testcase.count), testcase.res)
+	}
+}
+
+func TestGenClusterCountInfo(t *testing.T) {
+	testcases := []struct {
+		count int
+		res   string
+	}{
+		{
+			count: 2,
+			res:   "<3",
+		},
+		{
+			count: 7,
+			res:   "<10",
+		},
+		{
+			count: 34,
+			res:   "<50",
+		},
+		{
+			count: 100,
+			res:   ">=50",
+		},
+	}
+	for _, testcase := range testcases {
+		assert.Equal(t, genClusterCountInfo(testcase.count), testcase.res)
 	}
 }
 

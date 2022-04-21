@@ -1137,6 +1137,7 @@ type StatisticInfo struct {
 	ComponentDefinitionTopList []string          `json:"componentDefinitionTopList,omitempty"`
 	TraitDefinitionTopList     []string          `json:"traitDefinitionTopList,omitempty"`
 	WorkflowDefinitionTopList  []string          `json:"workflowDefinitionTopList,omitempty"`
+	PolicyDefinitionTopList    []string          `json:"policyDefinitionTopList,omitempty"`
 	UpdateTime                 time.Time         `json:"updateTime,omitempty"`
 }
 

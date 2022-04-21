@@ -57,6 +57,7 @@ type StatisticInfo struct {
 	TopKCompDef         []string          `json:"topKCompDef,omitempty"`
 	TopKTraitDef        []string          `json:"topKTraitDef,omitempty"`
 	TopKWorkflowStepDef []string          `json:"topKWorkflowStepDef,omitempty"`
+	TopKPolicyDef       []string          `json:"topKPolicyDef,omitempty"`
 	UpdateTime          time.Time         `json:"updateTime,omitempty"`
 }
 

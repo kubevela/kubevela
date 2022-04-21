@@ -107,6 +107,7 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 			ComponentDefinitionTopList: info.StatisticInfo.TopKCompDef,
 			TraitDefinitionTopList:     info.StatisticInfo.TopKTraitDef,
 			WorkflowDefinitionTopList:  info.StatisticInfo.TopKWorkflowStepDef,
+			PolicyDefinitionTopList:    info.StatisticInfo.TopKPolicyDef,
 			UpdateTime:                 info.StatisticInfo.UpdateTime,
 		},
 	}, nil
