@@ -46,13 +46,16 @@ var _ = Describe("Test definitions rest api", func() {
 		})
 		Expect(upRes.StatusCode).Should(Equal(200))
 
-		res = get("/definitions?type=component")
-		Expect(decodeResponseBody(res, &definitions)).Should(Succeed())
-		Expect(len(definitions.Definitions) > 0).Should(BeTrue())
 		res2 := get("/definitions?type=component&queryAll=true")
 		var allDefinitions apisv1.ListDefinitionResponse
 		Expect(decodeResponseBody(res2, &allDefinitions)).Should(Succeed())
-		Expect(len(definitions.Definitions)+1 == len(allDefinitions.Definitions)).Should(BeTrue())
+		expected := false
+		for _, d := range allDefinitions.Definitions {
+			if d.Name == updateDefinitionName && d.Status == "disable" {
+				expected = true
+			}
+		}
+		Expect(expected).Should(BeTrue())
 	})
 
 	It("Test detail the definition", func() {
