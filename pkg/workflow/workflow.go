@@ -250,17 +250,17 @@ func (w *workflow) HandleSuspendWait(ctx monitorContext.Context) (doWaiting bool
 
 		if d {
 			doWaiting = d
-			durationReserve := wd - time.Since(stepStatus.FirstExecuteTime.Time)
-			if durationReserve <= 0 {
+			remainingDuration := wd - time.Since(stepStatus.FirstExecuteTime.Time)
+			if remainingDuration <= 0 {
 				w.app.Status.Workflow.Steps[i].Phase = common.WorkflowStepPhaseSucceeded
 			}
 
-			if durationReserve > 0 && (durationWaiting > durationReserve || durationWaiting <= 0) {
+			if remainingDuration > 0 && (durationWaiting > remainingDuration || durationWaiting <= 0) {
 				suspendState := fmt.Sprintf("durationWaiting(%s)", wd.String())
 				if w.app.Status.Workflow.SuspendState != suspendState {
 					w.app.Status.Workflow.SuspendState = suspendState
 				}
-				durationWaiting = durationReserve
+				durationWaiting = remainingDuration
 			}
 		}
 

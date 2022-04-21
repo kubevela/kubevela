@@ -167,7 +167,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
 	if step.Properties.Size() > 0 {
 		o := struct {
-			DurationWaiting string `json:"durationWaiting"`
+			Duration string `json:"duration"`
 		}{}
 		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 		if err != nil {
@@ -178,8 +178,8 @@ func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime
 			return false, 0, err
 		}
 
-		if o.DurationWaiting != "" {
-			waitDuration, err := builtintime.ParseDuration(o.DurationWaiting)
+		if o.Duration != "" {
+			waitDuration, err := builtintime.ParseDuration(o.Duration)
 			return true, waitDuration, err
 		}
 	}

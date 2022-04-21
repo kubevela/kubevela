@@ -14,7 +14,7 @@ spec:
       - name: suspend-test
         type: suspend
         properties:
-          durationWaiting: 30s
+          duration: 30s
       - name: apply-wait-suspend-comp
         type: apply-component
         properties:
