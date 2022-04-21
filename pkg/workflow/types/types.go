@@ -58,7 +58,6 @@ type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v
 // Operation is workflow operation object.
 type Operation struct {
 	Suspend            bool
-	WaitSuspend        bool
 	Terminated         bool
 	Waiting            bool
 	FailedAfterRetries bool

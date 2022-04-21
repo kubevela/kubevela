@@ -76,7 +76,7 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 		wait: false,
 	}
 
-	doDelay, _, err := GetSuspendStepWaitDuration(step)
+	doDelay, _, err := GetSuspendStepDurationWaiting(step)
 	if err != nil {
 		return nil, err
 	}
@@ -133,16 +133,11 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 		Phase: common.WorkflowStepPhaseSucceeded,
 	}
 
-	operation := types.Operation{}
-
 	if tr.wait {
 		stepStatus.Phase = common.WorkflowStepPhaseRunning
-		operation.WaitSuspend = true
-	} else {
-		operation.Suspend = true
 	}
 
-	return stepStatus, &operation, nil
+	return stepStatus, &types.Operation{Suspend: true}, nil
 }
 
 // Pending check task should be executed or not.
@@ -168,11 +163,11 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 	}
 }
 
-// GetSuspendStepWaitDuration get suspend step wait duration
-func GetSuspendStepWaitDuration(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+// GetSuspendStepDurationWaiting get suspend step wait duration
+func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
 	if step.Properties.Size() > 0 {
 		o := struct {
-			WaitDuration string `json:"waitDuration"`
+			DurationWaiting string `json:"durationWaiting"`
 		}{}
 		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
 		if err != nil {
@@ -183,8 +178,8 @@ func GetSuspendStepWaitDuration(step v1beta1.WorkflowStep) (bool, builtintime.Du
 			return false, 0, err
 		}
 
-		if o.WaitDuration != "" {
-			waitDuration, err := builtintime.ParseDuration(o.WaitDuration)
+		if o.DurationWaiting != "" {
+			waitDuration, err := builtintime.ParseDuration(o.DurationWaiting)
 			return true, waitDuration, err
 		}
 	}

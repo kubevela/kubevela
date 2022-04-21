@@ -216,23 +216,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
-		if !workflow.IsFailedAfterRetry(app) {
-			r.stateKeep(logCtx, handler, app)
-		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
-	case common.WorkflowStateWaitSuspended:
-		logCtx.Info("Workflow return state=WaitSuspend")
-		doWaiting, waitDuration, err := wf.HandleSuspendWait(logCtx)
+		doWaiting, durationWaiting, err := wf.HandleSuspendWait(logCtx)
 		if err != nil {
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
 		}
 		if doWaiting {
-			if waitDuration > 0 {
+			if durationWaiting > 0 {
 				_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false)
-				return r.result(err).requeue(waitDuration).ret()
+				return r.result(err).requeue(durationWaiting).ret()
 			}
-			app.Status.Workflow.WaitSuspend = false
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false)
+			handler.app.Status.Workflow.Suspend = false
+			handler.app.Status.Workflow.SuspendState = ""
+			return r.result(r.updateStatus(ctx, handler.app, common.ApplicationRunningWorkflow)).ret()
 		}
 		if !workflow.IsFailedAfterRetry(app) {
 			r.stateKeep(logCtx, handler, app)
