@@ -67,7 +67,7 @@ type PassiveGCOption struct{}
 // ApplyToGCConfig apply change to gc config
 func (option PassiveGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.passive = true }
 
-// ReverseeDependencyGCOption recycle the resource in the order of reverse dependency
+// ReverseDependencyGCOption recycle the resource in the order of reverse dependency
 type ReverseDependencyGCOption struct{}
 
 // ApplyToGCConfig apply change to gc config
