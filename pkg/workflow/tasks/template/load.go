@@ -19,7 +19,7 @@ package template
 import (
 	"context"
 	"embed"
-	"path/filepath"
+	"fmt"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -60,7 +60,8 @@ func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name str
 	staticFilename := name + ".cue"
 	for _, file := range files {
 		if staticFilename == file.Name() {
-			content, err := templateFS.ReadFile(filepath.Join(templateDir, file.Name()))
+			fileName := fmt.Sprintf("%s/%s", templateDir, file.Name())
+			content, err := templateFS.ReadFile(fileName)
 			return string(content), err
 		}
 	}
