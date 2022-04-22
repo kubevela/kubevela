@@ -190,7 +190,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 
 // DetailDefinition get definition detail
 func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error) {
-	if !utils.StringsContain([]string{"component", "trait", "workflowstep"}, defType) {
+	if !utils.StringsContain([]string{"component", "trait", "workflowstep", "policy"}, defType) {
 		return nil, bcode.ErrDefinitionTypeNotSupport
 	}
 	var cm v1.ConfigMap
