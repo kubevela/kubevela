@@ -84,7 +84,7 @@ func (i InfoCalculateCronJob) start(cronSpec string) {
 			return true
 		}, func() error {
 			if err := i.run(); err != nil {
-				log.Logger.Errorf("Fialed to calculate systemInfo, will try again after several minute error %v", err)
+				log.Logger.Errorf("Failed to calculate systemInfo, will try again after several minute error %v", err)
 				return err
 			}
 			log.Logger.Info("Successfully to calculate systemInfo")
