@@ -126,7 +126,7 @@ func (i InfoCalculateCronJob) run() error {
 
 func (i InfoCalculateCronJob) calculateAndUpdate(ctx context.Context, systemInfo model.SystemInfo) error {
 
-	appCount, topKComp, topKTrait, err := i.calculateAppInfo(ctx)
+	appCount, topKComp, topKTrait, topWorkflowStep, topKPolicy, err := i.calculateAppInfo(ctx)
 	if err != nil {
 		return err
 	}
@@ -142,12 +142,14 @@ func (i InfoCalculateCronJob) calculateAndUpdate(ctx context.Context, systemInfo
 	}
 
 	statisticInfo := model.StatisticInfo{
-		AppCount:     genCountInfo(appCount),
-		TopKCompDef:  topKComp,
-		TopKTraitDef: topKTrait,
-		ClusterCount: genCountInfo(clusterCount),
-		EnabledAddon: enabledAddon,
-		UpdateTime:   time.Now(),
+		AppCount:            genCountInfo(appCount),
+		TopKCompDef:         topKComp,
+		TopKTraitDef:        topKTrait,
+		TopKWorkflowStepDef: topWorkflowStep,
+		TopKPolicyDef:       topKPolicy,
+		ClusterCount:        genClusterCountInfo(clusterCount),
+		EnabledAddon:        enabledAddon,
+		UpdateTime:          time.Now(),
 	}
 
 	systemInfo.StatisticInfo = statisticInfo
@@ -157,16 +159,18 @@ func (i InfoCalculateCronJob) calculateAndUpdate(ctx context.Context, systemInfo
 	return nil
 }
 
-func (i InfoCalculateCronJob) calculateAppInfo(ctx context.Context) (int, []string, []string, error) {
+func (i InfoCalculateCronJob) calculateAppInfo(ctx context.Context) (int, []string, []string, []string, []string, error) {
 	var err error
 	var appCount int
 	compDef := map[string]int{}
 	traitDef := map[string]int{}
+	workflowDef := map[string]int{}
+	policyDef := map[string]int{}
 
 	var app = model.Application{}
 	entities, err := i.ds.List(ctx, &app, &datastore.ListOptions{})
 	if err != nil {
-		return 0, nil, nil, err
+		return 0, nil, nil, nil, nil, err
 	}
 	for _, entity := range entities {
 		appModel, ok := entity.(*model.Application)
@@ -179,7 +183,7 @@ func (i InfoCalculateCronJob) calculateAppInfo(ctx context.Context) (int, []stri
 		}
 		comps, err := i.ds.List(ctx, &comp, &datastore.ListOptions{})
 		if err != nil {
-			return 0, nil, nil, err
+			return 0, nil, nil, nil, nil, err
 		}
 		for _, e := range comps {
 			c, ok := e.(*model.ApplicationComponent)
@@ -191,9 +195,41 @@ func (i InfoCalculateCronJob) calculateAppInfo(ctx context.Context) (int, []stri
 				traitDef[t.Type]++
 			}
 		}
+
+		workflow := model.Workflow{
+			AppPrimaryKey: app.PrimaryKey(),
+		}
+		workflows, err := i.ds.List(ctx, &workflow, &datastore.ListOptions{})
+		if err != nil {
+			return 0, nil, nil, nil, nil, err
+		}
+		for _, e := range workflows {
+			w, ok := e.(*model.Workflow)
+			if !ok {
+				continue
+			}
+			for _, step := range w.Steps {
+				workflowDef[step.Type]++
+			}
+		}
+
+		policy := model.ApplicationPolicy{
+			AppPrimaryKey: app.PrimaryKey(),
+		}
+		policies, err := i.ds.List(ctx, &policy, &datastore.ListOptions{})
+		if err != nil {
+			return 0, nil, nil, nil, nil, err
+		}
+		for _, e := range policies {
+			p, ok := e.(*model.ApplicationPolicy)
+			if !ok {
+				continue
+			}
+			policyDef[p.Type]++
+		}
 	}
 
-	return appCount, topKFrequent(compDef, TopKFrequent), topKFrequent(traitDef, TopKFrequent), nil
+	return appCount, topKFrequent(compDef, TopKFrequent), topKFrequent(traitDef, TopKFrequent), topKFrequent(workflowDef, TopKFrequent), topKFrequent(policyDef, TopKFrequent), nil
 }
 
 func (i InfoCalculateCronJob) calculateAddonInfo(ctx context.Context) (map[string]string, error) {
@@ -278,5 +314,18 @@ func genCountInfo(num int) string {
 		return "<10000"
 	default:
 		return ">=10000"
+	}
+}
+
+func genClusterCountInfo(num int) string {
+	switch {
+	case num < 3:
+		return "<3"
+	case num < 10:
+		return "<10"
+	case num < 50:
+		return "<50"
+	default:
+		return ">=50"
 	}
 }
