@@ -30,6 +30,9 @@ template: {
 			if parameter.args != _|_ {
 				args: parameter.args
 			}
+			if parameter["env"] != _|_ {
+				env: parameter.env
+			}
 
 			// +patchKey=name
 			volumeMounts: [{
@@ -55,6 +58,31 @@ template: {
 
 		// +usage=Specify the args run in the init container
 		args?: [...string]
+
+		// +usage=Specify the env run in the init container
+		env?: [...{
+			// +usage=Environment variable name
+			name: string
+			// +usage=The value of the environment variable
+			value?: string
+			// +usage=Specifies a source the value of this var should come from
+			valueFrom?: {
+				// +usage=Selects a key of a secret in the pod's namespace
+				secretKeyRef?: {
+					// +usage=The name of the secret in the pod's namespace to select from
+					name: string
+					// +usage=The key of the secret to select from. Must be a valid secret key
+					key: string
+				}
+				// +usage=Selects a key of a config map in the pod's namespace
+				configMapKeyRef?: {
+					// +usage=The name of the config map in the pod's namespace to select from
+					name: string
+					// +usage=The key of the config map to select from. Must be a valid secret key
+					key: string
+				}
+			}
+		}]
 
 		// +usage=Specify the mount name of shared volume
 		mountName: *"workdir" | string
