@@ -17,8 +17,9 @@ limitations under the License.
 package config
 
 import (
-	"github.com/oam-dev/kubevela/apis/types"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // ProjectMatched will check whether a config secret can be used in a given project
