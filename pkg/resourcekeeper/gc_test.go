@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -125,14 +126,16 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 		r.Equal(crCount, len(_crs.Items))
 	}
 
-	createRK := func(gen int64, keepLegacy bool) *resourceKeeper {
+	createRK := func(gen int64, keepLegacy bool, order v1alpha1.GarbageCollectOrder, components ...apicommon.ApplicationComponent) *resourceKeeper {
 		_rk, err := NewResourceKeeper(ctx, cli, &v1beta1.Application{
 			ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: gen},
+			Spec:       v1beta1.ApplicationSpec{Components: components},
 		})
 		r.NoError(err)
 		rk := _rk.(*resourceKeeper)
-		if keepLegacy {
-			rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{KeepLegacyResource: true}
+		rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{
+			Order:              order,
+			KeepLegacyResource: keepLegacy,
 		}
 		return rk
 	}
@@ -145,70 +148,107 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	addConfigMapToRT(3, 2, 3)
 	createRT(3)
 	addConfigMapToRT(4, 3, 3)
-	checkCount(4, 4, 3)
+	createRT(4)
+	addConfigMapToRT(5, 4, 4)
+	addConfigMapToRT(6, 4, 5)
+	addConfigMapToRT(7, 4, 6)
+	checkCount(7, 5, 6)
 
 	opts := []GCOption{DisableLegacyGCOption{}}
 	// no need to gc
-	rk := createRK(3, true)
+	rk := createRK(4, true, "")
 	finished, _, err := rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
-	checkCount(4, 4, 3)
+	checkCount(7, 5, 6)
 
 	// delete rt2, trigger gc for cm3
 	dt := v12.Now()
 	rtMaps[2].SetDeletionTimestamp(&dt)
 	r.NoError(cli.Update(ctx, rtMaps[2]))
-	rk = createRK(3, true)
+	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(3, true)
+	rk = createRK(4, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
-	checkCount(3, 3, 3)
+	checkCount(6, 4, 6)
 
 	// delete cm4, trigger gc for rt3, comp-3 no use
 	r.NoError(cli.Delete(ctx, cmMaps[4]))
-	rk = createRK(4, true)
+	rk = createRK(5, true, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
-	checkCount(2, 2, 2)
+	checkCount(5, 3, 5)
 
 	// upgrade and gc legacy rt1
-	rk = createRK(4, false)
+	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(4, false)
+	rk = createRK(4, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
-	checkCount(0, 1, 0)
+	checkCount(3, 2, 3)
+
+	// delete with sequential
+	comps := []apicommon.ApplicationComponent{
+		{
+			Name: "comp-5",
+			DependsOn: []string{
+				"comp-6",
+			},
+		},
+		{
+			Name: "comp-6",
+			DependsOn: []string{
+				"comp-7",
+			},
+		},
+		{
+			Name: "comp-7",
+		},
+	}
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
+	rtMaps[3].SetDeletionTimestamp(&dt)
+	finished, _, err = rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.False(finished)
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
+	finished, _, err = rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.False(finished)
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
+	finished, _, err = rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.True(finished)
 
 	r.NoError(cli.Get(ctx, client.ObjectKeyFromObject(crRT), crRT))
 	// recreate rt, delete app, gc all
 	createRT(5)
-	addConfigMapToRT(5, 5, 4)
-	addConfigMapToRT(6, 5, 4)
+	addConfigMapToRT(8, 5, 8)
+	addConfigMapToRT(9, 5, 8)
 	createRT(6)
-	addConfigMapToRT(6, 6, 4)
-	addConfigMapToRT(7, 6, 4)
+	addConfigMapToRT(9, 6, 8)
+	addConfigMapToRT(10, 6, 8)
 	checkCount(3, 3, 1)
-	rk = createRK(6, false)
+
+	rk = createRK(6, false, "")
 	rk.app.SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(6, false)
+	rk = createRK(6, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)
 	checkCount(0, 0, 0)
 
-	rk = createRK(7, false)
+	rk = createRK(7, false, "")
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)

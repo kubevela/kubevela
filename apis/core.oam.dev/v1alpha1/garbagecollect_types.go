@@ -33,10 +33,21 @@ type GarbageCollectPolicySpec struct {
 	// outdated resources will be kept until resourcetracker be deleted manually
 	KeepLegacyResource bool `json:"keepLegacyResource,omitempty"`
 
+	// Order defines the order of garbage collect
+	Order GarbageCollectOrder `json:"order,omitempty"`
+
 	// Rules defines list of rules to control gc strategy at resource level
 	// if one resource is controlled by multiple rules, first rule will be used
 	Rules []GarbageCollectPolicyRule `json:"rules,omitempty"`
 }
+
+// GarbageCollectOrder is the order of garbage collect
+type GarbageCollectOrder string
+
+const (
+	// OrderDependency is the order of dependency
+	OrderDependency GarbageCollectOrder = "dependency"
+)
 
 // GarbageCollectPolicyRule defines a single garbage-collect policy rule
 type GarbageCollectPolicyRule struct {
