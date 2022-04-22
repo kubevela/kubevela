@@ -3386,6 +3386,10 @@ spec:
                             - type
                             type: object
                           type: array
+                        configMapRef:
+                          description: ConfigMapRef refer to a ConfigMap which contains
+                            OpenAPI V3 JSON schema of Component parameters.
+                          type: string
                         latestRevision:
                           description: LatestRevision of the component definition
                           properties:
