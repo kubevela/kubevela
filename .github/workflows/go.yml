@@ -57,7 +57,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Install StaticCheck
-        run: GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck
+        run: GO111MODULE=on go get honnef.co/go/tools/cmd/staticcheck@v0.3.0
 
       - name: Static Check
         run: staticcheck ./...
