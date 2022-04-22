@@ -97,6 +97,8 @@ require (
 	sigs.k8s.io/yaml v1.2.0
 )
 
+require github.com/robfig/cron/v3 v3.0.1
+
 require (
 	cloud.google.com/go v0.81.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
