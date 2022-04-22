@@ -18,7 +18,7 @@ package config
 
 import (
 	"github.com/oam-dev/kubevela/apis/types"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // ProjectMatched will check whether a config secret can be used in a given project
