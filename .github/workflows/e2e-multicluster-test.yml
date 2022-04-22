@@ -16,6 +16,8 @@ env:
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
   KIND_VERSION: 'v0.7.0'
+  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
+  KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
 
 jobs:
 
@@ -33,10 +35,37 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
           concurrent_skipping: false
 
+  set-k8s-matrix:
+    runs-on: ubuntu-20.04
+    outputs:
+      matrix: ${{ steps.set-k8s-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: mukunku/tag-exists-action@v1.0.0
+        id: checkTag
+        with:
+          tag: 'v1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: set-k8s-matrix
+        run: |
+          echo ${{ steps.checkTag.outputs.exists }}
+          if [ "${{ steps.checkTag.outputs.exists }}" = "true" ]; then
+            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
+          else
+            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
+          fi
+
+
   e2e-multi-cluster-tests:
     runs-on: aliyun
-    needs: detect-noop
+    needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
+    strategy:
+      matrix:
+        k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
+
 
     steps:
       - name: Check out code into the Go module directory
@@ -60,7 +89,7 @@ jobs:
       - name: Setup Kind Cluster (Worker)
         run: |
           kind delete cluster --name worker
-          kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca --name worker
+          kind create cluster --image kindest/node:${{ matrix.k8s-version }} --name worker
           kubectl version
           kubectl cluster-info
           kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
@@ -69,7 +98,7 @@ jobs:
       - name: Setup Kind Cluster (Hub)
         run: |
           kind delete cluster
-          kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca
+          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
           kubectl version
           kubectl cluster-info
 

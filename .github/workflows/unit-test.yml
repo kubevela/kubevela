@@ -58,7 +58,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Install ginkgo
-        run:  |
+        run: |
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind Cluster
@@ -72,7 +72,7 @@ jobs:
           version: 3.1.0
           kubebuilderOnly: false
           kubernetesVersion: v1.21.2
-      
+
       - name: Run Make test
         run: make test
 
