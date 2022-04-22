@@ -36,14 +36,6 @@ func GetCluster(o client.Object) string {
 	return ""
 }
 
-// GetServiceAccountNameFromAnnotations extracts the service account name from the given object's annotations.
-func GetServiceAccountNameFromAnnotations(o client.Object) string {
-	if annotations := o.GetAnnotations(); annotations != nil {
-		return annotations[AnnotationServiceAccountName]
-	}
-	return ""
-}
-
 // GetPublishVersion get PublishVersion from object
 func GetPublishVersion(o client.Object) string {
 	if annotations := o.GetAnnotations(); annotations != nil {

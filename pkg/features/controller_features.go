@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	// Compatibility Features
+
 	// DeprecatedPolicySpec enable the use of deprecated policy spec
 	DeprecatedPolicySpec featuregate.Feature = "DeprecatedPolicySpec"
 	// LegacyObjectTypeIdentifier enable the use of legacy object type identifier for selecting ref-object
@@ -31,6 +33,11 @@ const (
 	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
 	// LegacyResourceTrackerGC enable the gc of legacy resource tracker in managed clusters
 	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
+
+	// Edge Features
+
+	// AuthenticateApplication enable the authentication for application
+	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -38,6 +45,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:       {Default: true, PreRelease: featuregate.Alpha},
+	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

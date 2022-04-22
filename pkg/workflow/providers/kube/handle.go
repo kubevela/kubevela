@@ -25,11 +25,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -89,7 +88,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	deployCtx = h.setServiceAccountInContext(deployCtx)
+	deployCtx = auth.ContextWithUserInfo(deployCtx, h.app)
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -124,7 +123,7 @@ func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act ty
 		return err
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	deployCtx = h.setServiceAccountInContext(deployCtx)
+	deployCtx = auth.ContextWithUserInfo(deployCtx, h.app)
 	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
 		return v.FillObject(err, "err")
 	}
@@ -151,7 +150,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 		return err
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	readCtx = h.setServiceAccountInContext(readCtx)
+	readCtx = auth.ContextWithUserInfo(readCtx, h.app)
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -194,7 +193,7 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 		client.MatchingLabels(filter.MatchingLabels),
 	}
 	readCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	readCtx = h.setServiceAccountInContext(readCtx)
+	readCtx = auth.ContextWithUserInfo(readCtx, h.app)
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -216,18 +215,11 @@ func (h *provider) Delete(ctx wfContext.Context, v *value.Value, act types.Actio
 		return err
 	}
 	deleteCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	deleteCtx = h.setServiceAccountInContext(deleteCtx)
+	deleteCtx = auth.ContextWithUserInfo(deleteCtx, h.app)
 	if err := h.delete(deleteCtx, cluster, common.WorkflowResourceCreator, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	return nil
-}
-
-func (h *provider) setServiceAccountInContext(ctx context.Context) context.Context {
-	if h.app == nil {
-		return ctx
-	}
-	return oamutil.SetServiceAccountInContext(ctx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
 }
 
 // Install register handlers to provider discover.

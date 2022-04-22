@@ -215,3 +215,13 @@ admissionWebhooks:
 kubeClient:
   qps: 50
   burst: 100
+
+## @param authentication.enabled Enable authentication for application
+## @param authentication.withUser Application authentication will impersonate as the request User
+## @param authentication.defaultUser Application authentication will impersonate as the User if no user provided in Application
+## @param authentication.groupPattern Application authentication will impersonate as the request Group that matches the pattern
+authentication:
+  enabled: false
+  withUser: false
+  defaultUser: kubevela:vela-core
+  groupPattern: kubevela:*

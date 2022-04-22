@@ -47,6 +47,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 		traitdefinition.RegisterValidatingHandler(mgr, args)
 	case "v0.3":
 		application.RegisterValidatingHandler(mgr, args)
+		application.RegisterMutatingHandler(mgr)
 		componentdefinition.RegisterMutatingHandler(mgr, args)
 		componentdefinition.RegisterValidatingHandler(mgr, args)
 		traitdefinition.RegisterValidatingHandler(mgr, args)

@@ -19,6 +19,13 @@ package types
 import "github.com/oam-dev/kubevela/pkg/oam"
 
 const (
+	// KubeVelaName name of kubevela
+	KubeVelaName = "kubevela"
+	// VelaCoreName name of vela-core
+	VelaCoreName = "vela-core"
+)
+
+const (
 	// DefaultKubeVelaReleaseName defines the default name of KubeVela Release
 	DefaultKubeVelaReleaseName = "kubevela"
 	// DefaultKubeVelaChartName defines the default chart name of KubeVela, this variable MUST align to the chart name of this repo
@@ -152,4 +159,9 @@ const (
 const (
 	// TerrfaormComponentPrefix is the prefix of component type of terraform-xxx
 	TerrfaormComponentPrefix = "terraform-"
+)
+
+const (
+	// ClusterGatewayAccessorGroup the group to impersonate which allows the access to the cluster-gateway
+	ClusterGatewayAccessorGroup = "cluster-gateway-accessor"
 )

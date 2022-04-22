@@ -22,11 +22,15 @@ import (
 	"net/http"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/transport"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
+)
+
+const (
+	impersonateKey = "impersonate"
 )
 
 var _ utilnet.RoundTripperWrapper = &impersonatingRoundTripper{}
@@ -45,18 +49,22 @@ func NewImpersonatingRoundTripper(rt http.RoundTripper) http.RoundTripper {
 
 func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-
-	// Skip impersonation on non-local cluster requests
-	if !multicluster.IsInLocalCluster(ctx) {
-		return rt.rt.RoundTrip(req)
+	req = req.Clone(ctx)
+	userInfo, exists := request.UserFrom(ctx)
+	if exists && userInfo != nil {
+		if name := userInfo.GetName(); name != "" {
+			req.Header.Set(transport.ImpersonateUserHeader, name)
+			req.Header.Set(transport.ImpersonateGroupHeader, types.ClusterGatewayAccessorGroup)
+			for _, group := range userInfo.GetGroups() {
+				if group != types.ClusterGatewayAccessorGroup {
+					req.Header.Add(transport.ImpersonateGroupHeader, group)
+				}
+			}
+			q := req.URL.Query()
+			q.Add(impersonateKey, "true")
+			req.URL.RawQuery = q.Encode()
+		}
 	}
-
-	sa := oamutil.GetServiceAccountInContext(ctx)
-	if sa == "" {
-		return rt.rt.RoundTrip(req)
-	}
-	req = req.Clone(req.Context())
-	req.Header.Set(transport.ImpersonateUserHeader, sa)
 	return rt.rt.RoundTrip(req)
 }
 
