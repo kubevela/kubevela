@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -81,6 +82,7 @@ func (u systemInfoUsecaseImpl) Get(ctx context.Context) (*model.SystemInfo, erro
 	info.InstallID = installID
 	info.EnableCollection = true
 	info.LoginType = model.LoginTypeLocal
+	info.BaseModel = model.BaseModel{CreateTime: time.Now()}
 	err = u.ds.Add(ctx, info)
 	if err != nil {
 		return nil, err
@@ -124,6 +126,7 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 		LoginType:        sysInfo.LoginType,
 		BaseModel: model.BaseModel{
 			CreateTime: info.CreateTime,
+			UpdateTime: time.Now(),
 		},
 		StatisticInfo: info.StatisticInfo,
 	}
@@ -149,6 +152,8 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 			PlatformID:       modifiedInfo.InstallID,
 			EnableCollection: modifiedInfo.EnableCollection,
 			LoginType:        modifiedInfo.LoginType,
+			// always use the initial createTime as system's installTime
+			InstallTime: info.CreateTime,
 		},
 		SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision},
 	}, nil
@@ -169,6 +174,7 @@ func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 		PlatformID:       info.InstallID,
 		EnableCollection: info.EnableCollection,
 		LoginType:        info.LoginType,
+		InstallTime:      info.CreateTime,
 	}
 }
 
