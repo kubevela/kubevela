@@ -20,6 +20,8 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/oam-dev/kubevela/pkg/utils/config"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -31,7 +33,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -133,41 +134,20 @@ func (d defaultHelmHandler) ListChartRepo(ctx context.Context, projectName strin
 	var res []*v1.ChartRepoResponse
 	var err error
 
-	if len(projectName) != 0 {
-		projectSecrets := corev1.SecretList{}
-		opts := []client.ListOption{
-			client.MatchingLabels{oam.LabelConfigType: "config-helm-repository", types.LabelConfigProject: projectName},
-			client.InNamespace(types.DefaultKubeVelaNS),
-		}
-		err = d.k8sClient.List(ctx, &projectSecrets, opts...)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, item := range projectSecrets.Items {
-			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
-		}
+	projectSecrets := corev1.SecretList{}
+	opts := []client.ListOption{
+		client.MatchingLabels{oam.LabelConfigType: "config-helm-repository"},
+		client.InNamespace(types.DefaultKubeVelaNS),
 	}
-
-	globalSecrets := corev1.SecretList{}
-	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{oam.LabelConfigType: "config-helm-repository"},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{Key: types.LabelConfigProject, Operator: metav1.LabelSelectorOpDoesNotExist},
-		},
-	}
-
-	ls, _ := metav1.LabelSelectorAsSelector(&selector)
-	err = d.k8sClient.List(ctx, &globalSecrets, &client.ListOptions{
-		LabelSelector: ls,
-		Namespace:     types.DefaultKubeVelaNS,
-	})
+	err = d.k8sClient.List(ctx, &projectSecrets, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, item := range globalSecrets.Items {
-		res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
+	for _, item := range projectSecrets.Items {
+		if config.ProjectMatched(item.DeepCopy(), projectName) {
+			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
+		}
 	}
 
 	return &v1.ChartRepoResponseList{ChartRepoResponse: res}, nil
