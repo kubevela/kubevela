@@ -19,6 +19,7 @@ package util
 import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -29,7 +30,9 @@ const (
 	ProviderName = "util"
 )
 
-type provider struct{}
+type provider struct {
+	logCtx monitorContext.Context
+}
 
 func (p *provider) PatchK8sObject(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
@@ -72,11 +75,29 @@ func (p *provider) String(ctx wfContext.Context, v *value.Value, act types.Actio
 	return v.FillObject(string(s), "str")
 }
 
+// Log print cue value in log
+func (p *provider) Log(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	data, err := v.LookupValue("data")
+	if err != nil {
+		return err
+	}
+	s, err := data.String()
+	if err != nil {
+		return err
+	}
+	logCtx := p.logCtx.Fork("cue logs")
+	logCtx.Info(s)
+	return nil
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers) {
-	prd := &provider{}
+func Install(ctx monitorContext.Context, p providers.Providers) {
+	prd := &provider{
+		logCtx: ctx,
+	}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"patch-k8s-object": prd.PatchK8sObject,
 		"string":           prd.String,
+		"log":              prd.Log,
 	})
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -86,11 +87,11 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 	return tr, nil
 }
 
-func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
+func newTaskDiscover(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	email.Install(providerHandlers)
-	util.Install(providerHandlers)
+	util.Install(ctx, providerHandlers)
 
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
@@ -101,16 +102,10 @@ func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 	}
 }
 
-// NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
-	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
-	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
-}
-
 // NewTaskDiscoverFromRevision will create a client for load task generator from ApplicationRevision.
-func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
 	templateLoader := template.NewWorkflowStepTemplateRevisionLoader(rev, dm)
-	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
+	return newTaskDiscover(ctx, providerHandlers, pd, pCtx, templateLoader)
 }
 
 type suspendTaskRunner struct {
