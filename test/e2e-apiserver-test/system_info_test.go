@@ -29,16 +29,16 @@ var _ = Describe("Test system info  rest api", func() {
 		res := get("/system_info/")
 		var info apisv1.SystemInfoResponse
 		Expect(decodeResponseBody(res, &info)).Should(Succeed())
-		Expect(len(info.InstallID)).ShouldNot(BeEquivalentTo(0))
+		Expect(len(info.PlatformID)).ShouldNot(BeEquivalentTo(0))
 		Expect(info.EnableCollection).Should(BeEquivalentTo(true))
-		systemID := info.InstallID
+		systemID := info.PlatformID
 
 		// check several times the systemID should not change
 		for i := 0; i < 5; i++ {
 			res := get("/system_info/")
 			var checkInfo apisv1.SystemInfoResponse
 			Expect(decodeResponseBody(res, &checkInfo)).Should(Succeed())
-			Expect(checkInfo.InstallID).Should(BeEquivalentTo(systemID))
+			Expect(checkInfo.PlatformID).Should(BeEquivalentTo(systemID))
 		}
 	})
 
@@ -46,33 +46,33 @@ var _ = Describe("Test system info  rest api", func() {
 		res := get("/system_info/")
 		var info apisv1.SystemInfoResponse
 		Expect(decodeResponseBody(res, &info)).Should(Succeed())
-		Expect(len(info.InstallID)).ShouldNot(BeEquivalentTo(0))
+		Expect(len(info.PlatformID)).ShouldNot(BeEquivalentTo(0))
 		Expect(info.EnableCollection).Should(BeEquivalentTo(true))
-		installID := info.InstallID
+		installID := info.PlatformID
 
 		res = put("/system_info/", apisv1.SystemInfoRequest{EnableCollection: false})
 		info = apisv1.SystemInfoResponse{}
 		Expect(decodeResponseBody(res, &info)).Should(Succeed())
-		Expect(len(info.InstallID)).ShouldNot(BeEquivalentTo(0))
+		Expect(len(info.PlatformID)).ShouldNot(BeEquivalentTo(0))
 		Expect(info.EnableCollection).Should(BeEquivalentTo(false))
 
 		res = get("/system_info/")
 		var checkInfo apisv1.SystemInfoResponse
 		Expect(decodeResponseBody(res, &checkInfo)).Should(Succeed())
-		Expect(checkInfo.InstallID).Should(BeEquivalentTo(installID))
+		Expect(checkInfo.PlatformID).Should(BeEquivalentTo(installID))
 		Expect(checkInfo.EnableCollection).Should(BeEquivalentTo(false))
 
 		res = put("/system_info/", apisv1.SystemInfoRequest{EnableCollection: true})
 		var enableInfo apisv1.SystemInfoResponse
 		Expect(decodeResponseBody(res, &enableInfo)).Should(Succeed())
-		Expect(len(enableInfo.InstallID)).ShouldNot(BeEquivalentTo(0))
+		Expect(len(enableInfo.PlatformID)).ShouldNot(BeEquivalentTo(0))
 		Expect(enableInfo.EnableCollection).Should(BeEquivalentTo(true))
-		Expect(enableInfo.InstallID).Should(BeEquivalentTo(installID))
+		Expect(enableInfo.PlatformID).Should(BeEquivalentTo(installID))
 
 		res = get("/system_info/")
 		var checkAgainInfo apisv1.SystemInfoResponse
 		Expect(decodeResponseBody(res, &checkAgainInfo)).Should(Succeed())
-		Expect(checkAgainInfo.InstallID).Should(BeEquivalentTo(installID))
+		Expect(checkAgainInfo.PlatformID).Should(BeEquivalentTo(installID))
 		Expect(checkAgainInfo.EnableCollection).Should(BeEquivalentTo(true))
 	})
 })

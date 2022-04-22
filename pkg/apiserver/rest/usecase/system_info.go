@@ -100,6 +100,16 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 			VelaVersion: version.VelaVersion,
 			GitVersion:  version.GitRevision,
 		},
+		StatisticInfo: v1.StatisticInfo{
+			AppCount:                   info.StatisticInfo.AppCount,
+			ClusterCount:               info.StatisticInfo.ClusterCount,
+			EnableAddonList:            info.StatisticInfo.EnabledAddon,
+			ComponentDefinitionTopList: info.StatisticInfo.TopKCompDef,
+			TraitDefinitionTopList:     info.StatisticInfo.TopKTraitDef,
+			WorkflowDefinitionTopList:  info.StatisticInfo.TopKWorkflowStepDef,
+			PolicyDefinitionTopList:    info.StatisticInfo.TopKPolicyDef,
+			UpdateTime:                 info.StatisticInfo.UpdateTime,
+		},
 	}, nil
 }
 
@@ -115,6 +125,7 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 		BaseModel: model.BaseModel{
 			CreateTime: info.CreateTime,
 		},
+		StatisticInfo: info.StatisticInfo,
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
@@ -135,7 +146,7 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	}
 	return &v1.SystemInfoResponse{
 		SystemInfo: v1.SystemInfo{
-			InstallID:        modifiedInfo.InstallID,
+			PlatformID:       modifiedInfo.InstallID,
 			EnableCollection: modifiedInfo.EnableCollection,
 			LoginType:        modifiedInfo.LoginType,
 		},
@@ -155,7 +166,7 @@ func (u systemInfoUsecaseImpl) Init(ctx context.Context) error {
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
-		InstallID:        info.InstallID,
+		PlatformID:       info.InstallID,
 		EnableCollection: info.EnableCollection,
 		LoginType:        info.LoginType,
 	}
