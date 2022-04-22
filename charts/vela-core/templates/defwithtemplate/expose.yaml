@@ -7,7 +7,7 @@ metadata:
     definition.oam.dev/description: Expose port to enable web traffic for your component.
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
-  name: expose
+  name: xp-expose
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   podDisruptive: false
@@ -20,18 +20,25 @@ spec:
         	metadata: name: context.name
         	spec: {
         		selector: "app.oam.dev/component": context.name
-        		ports: [
-        			for p in parameter.port {
-        				port:       p
-        				targetPort: p
+        		port: [
+        			for p in parameter.ports {
+        				port:       p.port
+        				targetPort: p.port
+        				name:       p.name
         			},
         		]
         		type: parameter.type
         	}
         }
+        #port: {
+        	// +usage=Specify the port name
+        	name: string
+        	// +usage=Specify the port value
+        	port: int
+        }
         parameter: {
         	// +usage=Specify the exposion ports
-        	port: [...int]
+        	port: [...#port]
         	// +usage=Specify what kind of Service you want. options: "ClusterIP","NodePort","LoadBalancer","ExternalName"
         	type: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
         }
