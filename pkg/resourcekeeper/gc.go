@@ -103,8 +103,8 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption
 			options = append(options, PassiveGCOption{})
 		}
 		switch h.garbageCollectPolicy.Order {
-		case v1alpha1.OrderReverseDependency:
-			options = append(options, ReverseDependencyGCOption{})
+		case v1alpha1.OrderDependency:
+			options = append(options, DependencyGCOption{})
 		default:
 		}
 	}
@@ -258,7 +258,7 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
 	switch h.cfg.order {
-	case v1alpha1.OrderReverseDependency:
+	case v1alpha1.OrderDependency:
 		for _, mr := range rt.Spec.ManagedResources {
 			if err := h.deleteIndependentComponent(ctx, mr, rt); err != nil {
 				return err

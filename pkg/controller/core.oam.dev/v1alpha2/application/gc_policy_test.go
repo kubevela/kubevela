@@ -520,7 +520,7 @@ var _ = Describe("Test Application with GC options", func() {
 				Policies: []v1beta1.AppPolicy{{
 					Name:       "reverse-dependency",
 					Type:       "garbage-collect",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"order": "reverseDependency"}`)},
+					Properties: &runtime.RawExtension{Raw: []byte(`{"order": "dependency"}`)},
 				}},
 			},
 		}

@@ -45,8 +45,8 @@ type GarbageCollectPolicySpec struct {
 type GarbageCollectOrder string
 
 const (
-	// OrderReverseDependency is the order of reverse dependency
-	OrderReverseDependency GarbageCollectOrder = "reverseDependency"
+	// OrderDependency is the order of dependency
+	OrderDependency GarbageCollectOrder = "dependency"
 )
 
 // GarbageCollectPolicyRule defines a single garbage-collect policy rule

@@ -1,16 +1,20 @@
-# How to garbage collect resources in the order of reverse dependency
+# How to garbage collect resources in the order of dependency
 
-If you want to garbage collect resources in the order of reverse dependency, you can add `order: reverseDependency` in the `garbage-collect` policy.
+If you want to garbage collect resources in the order of dependency, you can add `order: dependency` in the `garbage-collect` policy.
 
 > Notice that this order policy is only valid for the resources that are created in the components.
 
-Example:
+In the following example, component `test1` depends on `test2`, and `test2` need the output from `test3`.
+
+So the order of deployment is: `test3 -> test2 -> test1`.
+
+When we add `order: dependency` in `garbage-collect` policy and delete the application, the order of garbage collect is: `test3 -> test2 -> test1`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: gc-reverse-depends-on
+  name: gc-dependency
   namespace: default
 spec:
   components:
@@ -39,8 +43,8 @@ spec:
         valueFrom: output.metadata.name
   
   policies:
-    - name: reverse-dependency
+    - name: gc-dependency
       type: garbage-collect
       properties:
-        order: reverseDependency
+        order: dependency
 ```

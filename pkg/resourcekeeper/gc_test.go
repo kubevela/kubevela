@@ -213,16 +213,16 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 			Name: "comp-7",
 		},
 	}
-	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	rtMaps[3].SetDeletionTimestamp(&dt)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.False(finished)
-	rk = createRK(5, false, v1alpha1.OrderReverseDependency, comps...)
+	rk = createRK(5, false, v1alpha1.OrderDependency, comps...)
 	finished, _, err = rk.GarbageCollect(ctx, opts...)
 	r.NoError(err)
 	r.True(finished)

@@ -67,12 +67,12 @@ type PassiveGCOption struct{}
 // ApplyToGCConfig apply change to gc config
 func (option PassiveGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.passive = true }
 
-// ReverseDependencyGCOption recycle the resource in the order of reverse dependency
-type ReverseDependencyGCOption struct{}
+// DependencyGCOption recycle the resource in the order of reverse dependency
+type DependencyGCOption struct{}
 
 // ApplyToGCConfig apply change to gc config
-func (option ReverseDependencyGCOption) ApplyToGCConfig(cfg *gcConfig) {
-	cfg.order = v1alpha1.OrderReverseDependency
+func (option DependencyGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.order = v1alpha1.OrderDependency
 }
 
 // DisableMarkStageGCOption disable the mark stage in gc process (no rt will be marked to be deleted)
