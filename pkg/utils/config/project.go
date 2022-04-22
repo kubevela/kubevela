@@ -22,6 +22,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
+// ProjectMatched will check whether a config secret can be used in a given project
 func ProjectMatched(s *v1.Secret, project string) bool {
 	if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
 		return true
