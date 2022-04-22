@@ -10,6 +10,7 @@ metadata:
     custom.definition.oam.dev/catalog.config.oam.dev: velacore-config
     custom.definition.oam.dev/multi-cluster.config.oam.dev: "true"
     custom.definition.oam.dev/type.config.oam.dev: image-registry
+    custom.definition.oam.dev/ui-hidden: "true"
   name: config-image-registry
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
