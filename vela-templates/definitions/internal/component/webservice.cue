@@ -501,7 +501,7 @@ template: {
 		readinessProbe?: #HealthProbe
 
 		// +usage=Specify the hostAliases to add
-		hostAliases: [...{
+		hostAliases?: [...{
 			ip: string
 			hostnames: [...string]
 		}]

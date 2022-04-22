@@ -12,6 +12,7 @@ import (
 		"catalog.config.oam.dev":       "velacore-config"
 		"type.config.oam.dev":          "image-registry"
 		"multi-cluster.config.oam.dev": "true"
+		"ui-hidden":                    "true"
 	}
 	description: "Config information to authenticate image registry"
 	attributes: workload: type: "autodetects.core.oam.dev"
