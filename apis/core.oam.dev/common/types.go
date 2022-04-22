@@ -345,6 +345,8 @@ type WorkflowStatus struct {
 	Mode        WorkflowMode `json:"mode"`
 	Message     string       `json:"message,omitempty"`
 
+	SuspendState string `json:"suspendState,omitempty"`
+
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
 	Finished   bool `json:"finished"`
