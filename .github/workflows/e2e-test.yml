@@ -16,7 +16,7 @@ env:
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
   KIND_VERSION: 'v0.11.1'
-  KIND_IMAGE_VERSION: '[\"v1.22.7\"]'
+  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
   KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
 
 jobs:
