@@ -3,6 +3,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Enable public web traffic for the component.
+    definition.oam.dev/alias: test-alias
   name: myingress
   namespace: vela-system
 spec:

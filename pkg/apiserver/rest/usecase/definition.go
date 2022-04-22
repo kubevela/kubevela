@@ -148,6 +148,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 		}
 		definition := &apisv1.DefinitionBase{
 			Name:        def.GetName(),
+			Alias:       def.GetAnnotations()[types.AnnoDefinitionAlias],
 			Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
 			Icon:        def.GetAnnotations()[types.AnnoDefinitionIcon],
 		}

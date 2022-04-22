@@ -810,6 +810,7 @@ type DetailDefinitionResponse struct {
 // DefinitionBase is the definition base model
 type DefinitionBase struct {
 	Name        string `json:"name"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
 	// WorkloadType the component workload type
