@@ -18,6 +18,8 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
+	builtintime "time"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
@@ -68,10 +70,20 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 }
 
 func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
-	return &suspendTaskRunner{
+	tr := &suspendTaskRunner{
 		id:   opt.ID,
 		name: step.Name,
-	}, nil
+		wait: false,
+	}
+
+	doDelay, _, err := GetSuspendStepDurationWaiting(step)
+	if err != nil {
+		return nil, err
+	}
+
+	tr.wait = doDelay
+
+	return tr, nil
 }
 
 func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
@@ -104,6 +116,7 @@ func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packa
 type suspendTaskRunner struct {
 	id   string
 	name string
+	wait bool
 }
 
 // Name return suspend step name.
@@ -113,12 +126,18 @@ func (tr *suspendTaskRunner) Name() string {
 
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-	return common.WorkflowStepStatus{
+	stepStatus := common.WorkflowStepStatus{
 		ID:    tr.id,
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: common.WorkflowStepPhaseSucceeded,
-	}, &types.Operation{Suspend: true}, nil
+	}
+
+	if tr.wait {
+		stepStatus.Phase = common.WorkflowStepPhaseRunning
+	}
+
+	return stepStatus, &types.Operation{Suspend: true}, nil
 }
 
 // Pending check task should be executed or not.
@@ -142,4 +161,28 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
 		templateLoader:     templateLoader,
 	}
+}
+
+// GetSuspendStepDurationWaiting get suspend step wait duration
+func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+	if step.Properties.Size() > 0 {
+		o := struct {
+			Duration string `json:"duration"`
+		}{}
+		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
+		if err != nil {
+			return false, 0, err
+		}
+
+		if err := json.Unmarshal(js, &o); err != nil {
+			return false, 0, err
+		}
+
+		if o.Duration != "" {
+			waitDuration, err := builtintime.ParseDuration(o.Duration)
+			return true, waitDuration, err
+		}
+	}
+
+	return false, 0, nil
 }

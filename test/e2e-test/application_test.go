@@ -135,6 +135,59 @@ var _ = Describe("Application Normal tests", func() {
 		}, 120*time.Second, time.Second).Should(BeNil())
 	}
 
+	verifyApplicationDelaySuspendExpected := func(ns, appName, suspendStep, nextStep, duration string) {
+		var testApp v1beta1.Application
+		Eventually(func() error {
+			waitDuration, err := time.ParseDuration(duration)
+			if err != nil {
+				return err
+			}
+
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
+			if err != nil {
+				return err
+			}
+
+			if testApp.Status.Workflow == nil {
+				return fmt.Errorf("application wait to start workflow")
+			}
+
+			if testApp.Status.Workflow.Finished {
+				var suspendStartTime, nextStepStartTime metav1.Time
+				var sFlag, nFlag bool
+
+				for _, wfStatus := range testApp.Status.Workflow.Steps {
+					if wfStatus.Name == suspendStep {
+						suspendStartTime = wfStatus.FirstExecuteTime
+						sFlag = true
+						continue
+					}
+
+					if wfStatus.Name == nextStep {
+						nextStepStartTime = wfStatus.FirstExecuteTime
+						nFlag = true
+					}
+				}
+
+				if !sFlag {
+					return fmt.Errorf("application can not find suspend step: %s", suspendStep)
+				}
+
+				if !nFlag {
+					return fmt.Errorf("application can not find next step: %s", nextStep)
+				}
+
+				dd := nextStepStartTime.Sub(suspendStartTime.Time)
+				if waitDuration > dd {
+					return fmt.Errorf("application suspend wait duration wants more than %s, actually %s", duration, dd.String())
+				}
+
+				return nil
+			}
+			return fmt.Errorf("application status workflow finished wants true, actually false")
+		}, 120*time.Second, time.Second).Should(BeNil())
+	}
+
 	verifyWorkloadRunningExpected := func(workloadName string, replicas int32, image string) {
 		var workload v1.Deployment
 		By("Verify Workload running as expected")
@@ -282,6 +335,17 @@ var _ = Describe("Application Normal tests", func() {
 
 		By("check application status")
 		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+	})
+
+	It("Test wait suspend", func() {
+		By("Apply wait suspend application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app_wait_suspend.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("check application suspend duration")
+		verifyApplicationDelaySuspendExpected(newApp.Namespace, newApp.Name, "suspend-test", "apply-wait-suspend-comp", "30s")
 	})
 
 	It("Test app with ServiceAccount", func() {

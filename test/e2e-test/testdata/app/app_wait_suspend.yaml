@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: wait-suspend-test
+spec:
+  components:
+    - name: wait-suspend-comp
+      type: webservice
+      properties:
+        image: nginx
+        port: 80
+  workflow:
+    steps:
+      - name: suspend-test
+        type: suspend
+        properties:
+          duration: 30s
+      - name: apply-wait-suspend-comp
+        type: apply-component
+        properties:
+          component: wait-suspend-comp
