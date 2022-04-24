@@ -73,6 +73,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(selectDefinition).ShouldNot(BeNil())
 		Expect(cmp.Diff(selectDefinition.Name, "webservice-test")).Should(BeEmpty())
 		Expect(selectDefinition.Description).ShouldNot(BeEmpty())
+		Expect(selectDefinition.Alias).Should(Equal("test-alias"))
 
 		By("List trait definitions")
 		myingress, err := ioutil.ReadFile("./testdata/myingress-td.yaml")
@@ -88,6 +89,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(traits[0].Name, "myingress")).Should(BeEmpty())
 		Expect(traits[0].Description).ShouldNot(BeEmpty())
 		Expect(traits[0].Trait).ShouldNot(BeNil())
+		Expect(traits[0].Alias).Should(Equal("test-alias"))
 
 		By("List workflow step definitions")
 		step, err := ioutil.ReadFile("./testdata/applyapplication-sd.yaml")
@@ -103,6 +105,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(wfstep[0].Name, "apply-application")).Should(BeEmpty())
 		Expect(wfstep[0].Description).ShouldNot(BeEmpty())
 		Expect(wfstep[0].WorkflowStep.Schematic).ShouldNot(BeNil())
+		Expect(wfstep[0].Alias).Should(Equal("test-alias"))
 
 		By("List policy definitions")
 		var policy = v1beta1.PolicyDefinition{
@@ -111,6 +114,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 				Namespace: "vela-system",
 				Annotations: map[string]string{
 					"definition.oam.dev/description": "this is a policy definition",
+					"definition.oam.dev/alias":       "test-alias",
 				},
 			},
 			Spec: v1beta1.PolicyDefinitionSpec{
@@ -125,6 +129,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(cmp.Diff(policies[0].Name, "health")).Should(BeEmpty())
 		Expect(policies[0].Description).ShouldNot(BeEmpty())
 		Expect(policies[0].Policy.ManageHealthCheck).Should(BeTrue())
+		Expect(policies[0].Alias).Should(Equal("test-alias"))
 	})
 
 	It("Test DetailDefinition function", func() {
