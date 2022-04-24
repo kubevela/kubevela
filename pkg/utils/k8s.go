@@ -24,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -105,4 +106,10 @@ func UpdateNamespace(ctx context.Context, kubeClient client.Client, name string,
 		}
 	}
 	return kubeClient.Update(ctx, &namespace)
+}
+
+// GetServiceAccountSubjectFromConfig extract ServiceAccount subject from token
+func GetServiceAccountSubjectFromConfig(cfg *rest.Config) string {
+	sub, _ := GetTokenSubject(cfg.BearerToken)
+	return sub
 }

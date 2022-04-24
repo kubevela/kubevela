@@ -27,6 +27,9 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+  - kind: Group
+    name: core.oam.dev
+    apiGroup: rbac.authorization.k8s.io
 
 ---
 # permissions to do leader election.
@@ -142,6 +145,14 @@ spec:
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
+            {{ if .Values.authentication.enabled }}
+            {{ if .Values.authentication.withUser }}
+            - "--authentication-with-user"
+            {{ end }}
+            - "--authentication-default-user={{ .Values.authentication.defaultUser }}"
+            - "--authentication-group-pattern={{ .Values.authentication.groupPattern }}"
+            {{ end }}
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

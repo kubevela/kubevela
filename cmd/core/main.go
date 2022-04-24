@@ -36,6 +36,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
@@ -50,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -57,10 +60,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/version"
-)
-
-const (
-	kubevelaName = "kubevela"
 )
 
 var (
@@ -202,10 +201,22 @@ func main() {
 	klog.InfoS("Vela-Core init", "definition namespace", oam.SystemDefinitonNamespace)
 
 	restConfig := ctrl.GetConfigOrDie()
-	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
+	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	restConfig.Impersonate.UserName = types.VelaCoreName
+	if sub := pkgutils.GetServiceAccountSubjectFromConfig(restConfig); sub != "" {
+		restConfig.Impersonate.UserName = sub
+	}
+	restConfig.Impersonate.Groups = []string{apicommon.Group}
+	klog.InfoS("Kubernetes Config Loaded",
+		"UserAgent", restConfig.UserAgent,
+		"QPS", restConfig.QPS,
+		"Burst", restConfig.Burst,
+		"Impersonate-User", restConfig.Impersonate.UserName,
+		"Impersonate-Group", strings.Join(restConfig.Impersonate.Groups, ","),
+	)
 
 	// wrapper the round tripper by multi cluster rewriter
 	if enableClusterGateway {
@@ -225,7 +236,7 @@ func main() {
 	}
 	ctrl.SetLogger(klogr.New())
 
-	leaderElectionID := util.GenerateLeaderElectionID(kubevelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,

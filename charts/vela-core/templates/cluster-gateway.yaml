@@ -275,3 +275,29 @@ spec:
         runAsNonRoot: true
         runAsUser: 2000
 {{ end }}
+---
+{{ if and .Values.multicluster.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+rules:
+  - apiGroups: [ "cluster.core.oam.dev" ]
+    resources: [ "clustergateways/proxy" ]
+    verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+{{ end }}
+---
+{{ if and .Values.multicluster.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+subjects:
+  - kind: Group
+    name: cluster-gateway-accessor
+    apiGroup: rbac.authorization.k8s.io
+{{ end }}

@@ -395,7 +395,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
 		annotations := newApp.GetAnnotations()
-		annotations[oam.AnnotationServiceAccountName] = saName
+		annotations[oam.AnnotationApplicationServiceAccountName] = saName
 		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
@@ -414,7 +414,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
 		annotations := newApp.GetAnnotations()
-		annotations[oam.AnnotationServiceAccountName] = saName
+		annotations[oam.AnnotationApplicationServiceAccountName] = saName
 		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
@@ -442,7 +442,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespaceName
 		annotations := newApp.GetAnnotations()
-		annotations[oam.AnnotationServiceAccountName] = saName
+		annotations[oam.AnnotationApplicationServiceAccountName] = saName
 		newApp.SetAnnotations(annotations)
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 

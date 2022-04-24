@@ -19,11 +19,13 @@ package v1alpha1
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Package type metadata.
 const (
-	Group   = "core.oam.dev"
+	Group   = common.Group
 	Version = "v1alpha1"
 )
 

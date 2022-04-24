@@ -24,10 +24,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	authv1 "k8s.io/api/authentication/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/transport"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 type testRoundTripper struct {
@@ -42,30 +48,51 @@ func (rt *testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 func TestImpersonatingRoundTripper(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)()
+	AuthenticationWithUser = true
+	defer func() {
+		AuthenticationWithUser = false
+	}()
 	testSets := map[string]struct {
-		ctxFn    func(context.Context) context.Context
-		expected string
+		ctxFn         func(context.Context) context.Context
+		expectedUser  string
+		expectedGroup []string
 	}{
 		"with service account": {
 			ctxFn: func(ctx context.Context) context.Context {
-				ctx = oamutil.SetServiceAccountInContext(ctx, "vela-system", "default")
-				return ctx
+				app := &v1beta1.Application{}
+				app.SetNamespace("vela-system")
+				v1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationApplicationServiceAccountName, "default")
+				return ContextWithUserInfo(ctx, app)
 			},
-			expected: "system:serviceaccount:vela-system:default",
+			expectedUser:  "system:serviceaccount:vela-system:default",
+			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
+		},
+		"without service account and app": {
+			ctxFn: func(ctx context.Context) context.Context {
+				return ContextWithUserInfo(ctx, nil)
+			},
+			expectedUser:  "",
+			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
 		},
 		"without service account": {
 			ctxFn: func(ctx context.Context) context.Context {
-				return ctx
+				return ContextWithUserInfo(ctx, &v1beta1.Application{})
 			},
-			expected: "",
+			expectedUser:  AuthenticationDefaultUser,
+			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
 		},
-		"ignore if non-local cluster request": {
+		"with user and groups": {
 			ctxFn: func(ctx context.Context) context.Context {
-				ctx = multicluster.ContextWithClusterName(ctx, "test-cluster")
-				ctx = oamutil.SetServiceAccountInContext(ctx, "vela-system", "default")
-				return ctx
+				app := &v1beta1.Application{}
+				SetUserInfoInAnnotation(&app.ObjectMeta, authv1.UserInfo{
+					Username: "username",
+					Groups:   []string{"kubevela:group1", "kubevela:group2"},
+				})
+				return ContextWithUserInfo(ctx, app)
 			},
-			expected: "",
+			expectedUser:  "username",
+			expectedGroup: []string{types.ClusterGatewayAccessorGroup, "kubevela:group1", "kubevela:group2"},
 		},
 	}
 	for name, ts := range testSets {
@@ -76,12 +103,13 @@ func TestImpersonatingRoundTripper(t *testing.T) {
 			rt := &testRoundTripper{}
 			_, err := NewImpersonatingRoundTripper(rt).RoundTrip(req)
 			require.NoError(t, err)
-			if ts.expected == "" {
+			if ts.expectedUser == "" {
 				_, ok := rt.Request.Header[transport.ImpersonateUserHeader]
 				require.False(t, ok)
 				return
 			}
-			require.Equal(t, ts.expected, rt.Request.Header.Get(transport.ImpersonateUserHeader))
+			require.Equal(t, ts.expectedUser, rt.Request.Header.Get(transport.ImpersonateUserHeader))
+			require.Equal(t, ts.expectedGroup, rt.Request.Header.Values(transport.ImpersonateGroupHeader))
 		})
 	}
 }
