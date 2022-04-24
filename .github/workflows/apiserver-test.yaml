@@ -44,18 +44,10 @@ jobs:
     outputs:
       matrix: ${{ steps.set-k8s-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: mukunku/tag-exists-action@v1.0.0
-        id: checkTag
-        with:
-          tag: 'v1'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - id: set-k8s-matrix
         run: |
-          echo ${{ steps.checkTag.outputs.exists }}
-          if [ "${{ steps.checkTag.outputs.exists }}" = "true" ]; then
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "pushing tag: ${{ github.ref_name }}"
             echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
           else
             echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
