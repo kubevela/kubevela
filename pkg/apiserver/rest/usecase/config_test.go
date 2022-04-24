@@ -53,7 +53,7 @@ func TestListConfigTypes(t *testing.T) {
 			Name:      "def1",
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
+				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
 				definitionType: types.TerraformProvider,
 			},
 		},
@@ -70,7 +70,7 @@ func TestListConfigTypes(t *testing.T) {
 				definitionAlias: "Def2",
 			},
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
+				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
 			},
 		},
 	}
@@ -150,7 +150,7 @@ func TestGetConfigType(t *testing.T) {
 				definitionAlias: "Def2",
 			},
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
+				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
 			},
 		},
 	}
@@ -294,7 +294,7 @@ func TestGetConfigs(t *testing.T) {
 			Name:      "def1",
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
+				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
 				definitionType: types.TerraformProvider,
 			},
 		},
@@ -311,7 +311,7 @@ func TestGetConfigs(t *testing.T) {
 				definitionAlias: "Def2",
 			},
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
+				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
 			},
 		},
 	}
@@ -519,7 +519,7 @@ func TestSyncConfigs(t *testing.T) {
 			Name:      "s1",
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				types.LabelConfigCatalog:            velaCoreConfig,
+				types.LabelConfigCatalog:            types.VelaCoreConfig,
 				types.LabelConfigProject:            "p1",
 				types.LabelConfigSyncToMultiCluster: "true",
 			},

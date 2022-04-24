@@ -293,7 +293,7 @@ func TestProjectGetConfigs(t *testing.T) {
 			Namespace: velatypes.DefaultKubeVelaNS,
 			Labels: map[string]string{
 				model.LabelSourceOfTruth:     model.FromInner,
-				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigCatalog: velatypes.VelaCoreConfig,
 				velatypes.LabelConfigType:    "terraform-provider",
 				"config.oam.dev/project":     "p1",
 			},
@@ -308,7 +308,7 @@ func TestProjectGetConfigs(t *testing.T) {
 			Namespace: velatypes.DefaultKubeVelaNS,
 			Labels: map[string]string{
 				model.LabelSourceOfTruth:     model.FromInner,
-				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigCatalog: velatypes.VelaCoreConfig,
 				velatypes.LabelConfigType:    "terraform-provider",
 			},
 			CreationTimestamp: metav1.NewTime(createdTime),
@@ -322,7 +322,7 @@ func TestProjectGetConfigs(t *testing.T) {
 			Namespace: velatypes.DefaultKubeVelaNS,
 			Labels: map[string]string{
 				model.LabelSourceOfTruth:     model.FromInner,
-				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigCatalog: velatypes.VelaCoreConfig,
 				velatypes.LabelConfigType:    "dex-connector",
 				"config.oam.dev/project":     "p3",
 			},
@@ -347,7 +347,7 @@ func TestProjectGetConfigs(t *testing.T) {
 			Name:      "provider2",
 			Namespace: "default",
 			Labels: map[string]string{
-				velatypes.LabelConfigCatalog: velaCoreConfig,
+				velatypes.LabelConfigCatalog: velatypes.VelaCoreConfig,
 			},
 		},
 		Status: terraformapi.ProviderStatus{
