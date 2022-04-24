@@ -172,6 +172,9 @@ func printAppEndpoints(ctx context.Context, client client.Client, appName string
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint"})
 	for _, endpoint := range endpoints {
+		if endpoint.Cluster == "" {
+			endpoint.Cluster = multicluster.ClusterLocalName
+		}
 		table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
 	}
 	table.Render()
