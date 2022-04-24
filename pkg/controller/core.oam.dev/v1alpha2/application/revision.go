@@ -755,6 +755,7 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
 	// pass application's annotations & labels to app revision
 	appRev.SetAnnotations(h.app.GetAnnotations())
+	delete(appRev.Annotations, oam.AnnotationLastAppliedConfiguration)
 	appRev.SetLabels(h.app.GetLabels())
 	util.AddLabels(appRev, map[string]string{
 		oam.LabelAppName:         h.app.GetName(),
