@@ -6480,6 +6480,9 @@
 				"suspend": {
 					"type": "boolean"
 				},
+				"suspendState": {
+					"type": "string"
+				},
 				"terminated": {
 					"type": "boolean"
 				}
@@ -7387,8 +7390,8 @@
 		},
 		"v1.AddonStatusResponse": {
 			"required": [
-				"phase",
 				"name",
+				"phase",
 				"args"
 			],
 			"properties": {
@@ -7545,11 +7548,11 @@
 		"v1.ApplicationDeployResponse": {
 			"required": [
 				"status",
-				"note",
-				"envName",
-				"createTime",
 				"triggerType",
-				"version"
+				"createTime",
+				"version",
+				"note",
+				"envName"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8664,6 +8667,7 @@
 		"v1.DefinitionBase": {
 			"required": [
 				"name",
+				"alias",
 				"description",
 				"icon",
 				"status",
@@ -8710,11 +8714,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
+				"invisible",
 				"name",
 				"description",
-				"invisible",
-				"version",
 				"icon",
+				"version",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -8794,16 +8798,12 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"description",
-				"icon",
 				"alias",
 				"project",
+				"description",
+				"name",
 				"createTime",
 				"updateTime",
-				"name",
-				"project",
-				"description",
 				"icon",
 				"policies",
 				"envBindings",
@@ -8866,19 +8866,19 @@
 		"v1.DetailClusterResponse": {
 			"required": [
 				"createTime",
-				"updateTime",
-				"dashboardURL",
-				"alias",
 				"labels",
 				"reason",
-				"apiServerURL",
+				"provider",
+				"dashboardURL",
 				"kubeConfig",
-				"kubeConfigSecret",
-				"name",
+				"updateTime",
+				"alias",
 				"description",
+				"name",
 				"icon",
 				"status",
-				"provider",
+				"apiServerURL",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8936,14 +8936,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"type",
-				"main",
 				"updateTime",
-				"name",
-				"createTime",
 				"appPrimaryKey",
+				"main",
+				"createTime",
 				"creator",
+				"type",
 				"alias",
+				"name",
 				"definition"
 			],
 			"properties": {
@@ -9028,15 +9028,19 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"lables",
-				"icon",
+				"alias",
 				"status",
+				"lables",
 				"name",
 				"description",
+				"icon",
 				"schema",
 				"uiSchema"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"component": {
 					"$ref": "#/definitions/v1beta1.ComponentDefinitionSpec"
 				},
@@ -9083,13 +9087,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"properties",
-				"createTime",
 				"updateTime",
 				"name",
 				"type",
-				"description"
+				"description",
+				"creator",
+				"properties",
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -9120,14 +9124,14 @@
 		"v1.DetailRevisionResponse": {
 			"required": [
 				"reason",
-				"updateTime",
-				"note",
 				"triggerType",
 				"createTime",
-				"status",
-				"deployUser",
+				"updateTime",
 				"appPrimaryKey",
+				"deployUser",
 				"version",
+				"status",
+				"note",
 				"workflowName",
 				"envName"
 			],
@@ -9183,9 +9187,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"updateTime",
 				"name",
 				"createTime",
-				"updateTime",
 				"project"
 			],
 			"properties": {
@@ -9226,11 +9230,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects",
 				"roles"
 			],
@@ -9271,12 +9275,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"status",
+				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
-				"status",
-				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -9328,15 +9332,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"description",
 				"default",
+				"envName",
+				"enable",
+				"alias",
+				"description",
 				"createTime",
 				"updateTime",
-				"name",
-				"alias",
-				"enable",
-				"envName",
-				"alias"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -9531,8 +9534,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"name",
-				"alias"
+				"alias",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -9915,11 +9918,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
-				"name",
 				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
+				"name",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -10214,19 +10217,25 @@
 				"clusterCount": {
 					"type": "string"
 				},
-				"enabledAddon": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
-				},
-				"topKCompDef": {
+				"componentDefinitionTopList": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					}
 				},
-				"topKTraitDef": {
+				"enableAddonList": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"policyDefinitionTopList": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"traitDefinitionTopList": {
 					"type": "array",
 					"items": {
 						"type": "string"
@@ -10235,12 +10244,18 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"workflowDefinitionTopList": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
 		"v1.SystemInfo": {
 			"required": [
-				"installID",
+				"platformID",
 				"enableCollection",
 				"loginType"
 			],
@@ -10248,10 +10263,14 @@
 				"enableCollection": {
 					"type": "boolean"
 				},
-				"installID": {
-					"type": "string"
+				"installTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"loginType": {
+					"type": "string"
+				},
+				"platformID": {
 					"type": "string"
 				}
 			}
@@ -10275,7 +10294,7 @@
 		},
 		"v1.SystemInfoResponse": {
 			"required": [
-				"installID",
+				"platformID",
 				"enableCollection",
 				"loginType",
 				"systemVersion"
@@ -10284,10 +10303,14 @@
 				"enableCollection": {
 					"type": "boolean"
 				},
-				"installID": {
-					"type": "string"
+				"installTime": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"loginType": {
+					"type": "string"
+				},
+				"platformID": {
 					"type": "string"
 				},
 				"statisticInfo": {

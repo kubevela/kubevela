@@ -66,6 +66,11 @@ type DefinitionQueryOption struct {
 	QueryAll         bool   `json:"queryAll"`
 }
 
+// String return cache key string
+func (d DefinitionQueryOption) String() string {
+	return fmt.Sprintf("type:%s/appliedWorkloads:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.QueryAll)
+}
+
 const (
 	definitionAPIVersion       = "core.oam.dev/v1beta1"
 	kindComponentDefinition    = "ComponentDefinition"
@@ -95,7 +100,7 @@ func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, ops Definit
 }
 
 func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, kind string, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches.Get(kind); mc != nil && ops.AppliedWorkloads == "" {
+	if mc := d.caches.Get(ops.String()); mc != nil {
 		return mc.([]*apisv1.DefinitionBase), nil
 	}
 	matchLabels := metav1.LabelSelector{
@@ -112,6 +117,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 			Operator: metav1.LabelSelectorOpDoesNotExist,
 		})
 	}
+	fmt.Println(kind, matchLabels)
 	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
 	if err != nil {
 		return nil, err
@@ -147,7 +153,7 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 		defs = append(defs, definition)
 	}
 	if ops.AppliedWorkloads == "" {
-		d.caches.Put(kind, defs, time.Minute*3)
+		d.caches.Put(ops.String(), defs, time.Minute*3)
 	}
 	return defs, nil
 }
@@ -174,6 +180,7 @@ func getKindAndVersion(defType string) (apiVersion, kind string, err error) {
 func convertDefinitionBase(def unstructured.Unstructured, kind string) (*apisv1.DefinitionBase, error) {
 	definition := &apisv1.DefinitionBase{
 		Name:        def.GetName(),
+		Alias:       def.GetAnnotations()[types.AnnoDefinitionAlias],
 		Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
 		Icon:        def.GetAnnotations()[types.AnnoDefinitionIcon],
 		Labels:      def.GetLabels(),

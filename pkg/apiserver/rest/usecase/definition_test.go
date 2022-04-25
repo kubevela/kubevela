@@ -20,11 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -97,6 +99,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		err = k8sClient.Create(context.Background(), &sd)
 		Expect(err).Should(Succeed())
+
 		wfstep, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep"})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
@@ -104,6 +107,18 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(wfstep[0].Description).ShouldNot(BeEmpty())
 		Expect(wfstep[0].WorkflowStep.Schematic).ShouldNot(BeNil())
 		Expect(wfstep[0].Alias).Should(Equal("test-alias"))
+
+		step, err = ioutil.ReadFile("./testdata/apply-application-hide.yaml")
+		Expect(err).Should(Succeed())
+		var sd2 v1beta1.WorkflowStepDefinition
+		err = yaml.Unmarshal(step, &sd2)
+		Expect(err).Should(Succeed())
+		err = k8sClient.Create(context.Background(), &sd2)
+		Expect(err).Should(Succeed())
+
+		allstep, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep", QueryAll: true})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(len(allstep), 2)).Should(BeEmpty())
 
 		By("List policy definitions")
 		var policy = v1beta1.PolicyDefinition{
@@ -351,4 +366,13 @@ func testSortDefaultUISchema() {
 		Expect(param.Label).Should(Equal(expectedParams[i].Label))
 		Expect(param.Sort).Should(Equal(expectedParams[i].Sort))
 	}
+}
+
+func TestDefinitionQueryOption(t *testing.T) {
+	assert.Equal(t, DefinitionQueryOption{
+		Type: "workflowstep",
+	}.String() == DefinitionQueryOption{
+		Type:     "workflowstep",
+		QueryAll: true,
+	}.String(), false)
 }
