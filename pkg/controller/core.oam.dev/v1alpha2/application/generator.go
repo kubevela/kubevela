@@ -70,7 +70,10 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
 	taskDiscover := tasks.NewTaskDiscoverFromRevision(ctx, handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
-	multiclusterProvider.Install(handlerProviders, h.r.Client, app)
+	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
+		h.applyComponentFunc(appParser, appRev, af),
+		h.checkComponentHealth(appParser, appRev, af),
+	)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
@@ -170,6 +173,36 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 			return nil, nil, err
 		}
 		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+	}
+}
+
+func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
+		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
+		ctx = contextWithComponentRevisionNamespace(ctx, overrideNamespace)
+
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
+		if err != nil {
+			return false, err
+		}
+		wl.Ctx.SetCtx(ctx)
+
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
+		if err != nil {
+			return false, err
+		}
+		checkSkipApplyWorkload(wl)
+
+		dispatchResources := readyTraits
+		if !wl.SkipApplyWorkload {
+			dispatchResources = append([]*unstructured.Unstructured{readyWorkload}, readyTraits...)
+		}
+		if !h.resourceKeeper.ContainsResources(dispatchResources) {
+			return false, err
+		}
+
+		_, isHealth, err := h.collectHealthStatus(ctx, wl, appRev, overrideNamespace)
+		return isHealth, err
 	}
 }
 

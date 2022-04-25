@@ -88,6 +88,8 @@ const (
 	ContextPrefixFailedTimes = "failed_times"
 	// ContextPrefixBackoffTimes is the prefix that refer to the backoff times in workflow context config map.
 	ContextPrefixBackoffTimes = "backoff_times"
+	// ContextPrefixBackoffReason is the prefix that refer to the current backoff reason in workflow context config map
+	ContextPrefixBackoffReason = "backoff_reason"
 	// ContextKeyLastExecuteTime is the key that refer to the last execute time in workflow context config map.
 	ContextKeyLastExecuteTime = "last_execute_time"
 	// ContextKeyNextExecuteTime is the key that refer to the next execute time in workflow context config map.

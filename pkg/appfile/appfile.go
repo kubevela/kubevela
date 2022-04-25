@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	velaclient "github.com/oam-dev/kubevela/pkg/client"
+	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -916,4 +917,34 @@ func (af *Appfile) PolicyClient(cli client.Client) client.Client {
 			return cli.Get(ctx, key, obj)
 		},
 	}
+}
+
+// LoadDynamicComponent for ref-objects typed components, this function will load referred objects from stored revisions
+func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, comp *common.ApplicationComponent) (*common.ApplicationComponent, error) {
+	if comp.Type != v1alpha1.RefObjectsComponentType {
+		return comp, nil
+	}
+	_comp := comp.DeepCopy()
+	spec := &v1alpha1.RefObjectsComponentSpec{}
+	if err := json.Unmarshal(comp.Properties.Raw, spec); err != nil {
+		return nil, errors.Wrapf(err, "invalid ref-objects component properties")
+	}
+	var uns []*unstructured.Unstructured
+	for _, selector := range spec.Objects {
+		objs, err := component.SelectRefObjectsForDispatch(ctx, component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects), af.Namespace, comp.Name, selector)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to select objects from referred objects in revision storage")
+		}
+		uns = component.AppendUnstructuredObjects(uns, objs...)
+	}
+	refObjs, err := component.ConvertUnstructuredsToReferredObjects(uns)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal referred object")
+	}
+	bs, err := json.Marshal(&common.ReferredObjectList{Objects: refObjs})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal loaded ref-objects")
+	}
+	_comp.Properties = &runtime.RawExtension{Raw: bs}
+	return _comp, nil
 }

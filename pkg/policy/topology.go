@@ -42,7 +42,7 @@ func GetClusterLabelSelectorInTopology(topology *v1alpha1.TopologyPolicySpec) ma
 }
 
 // GetPlacementsFromTopologyPolicies get placements from topology policies with provided client
-func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, app *v1beta1.Application, policies []v1beta1.AppPolicy, allowCrossNamespace bool) ([]v1alpha1.PlacementDecision, error) {
+func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, appNs string, policies []v1beta1.AppPolicy, allowCrossNamespace bool) ([]v1alpha1.PlacementDecision, error) {
 	var placements []v1alpha1.PlacementDecision
 	placementMap := map[string]struct{}{}
 	addCluster := func(cluster string, ns string, validateCluster bool) error {
@@ -51,7 +51,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 				return errors.Wrapf(e, "failed to get cluster %s", cluster)
 			}
 		}
-		if !allowCrossNamespace && (ns != app.GetNamespace() && ns != "") {
+		if !allowCrossNamespace && (ns != appNs && ns != "") {
 			return errors.Errorf("cannot cross namespace")
 		}
 		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: ns}
@@ -62,8 +62,10 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 		}
 		return nil
 	}
+	hasTopologyPolicy := false
 	for _, policy := range policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
+			hasTopologyPolicy = true
 			topologySpec := &v1alpha1.TopologyPolicySpec{}
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
@@ -91,6 +93,9 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 				}
 			}
 		}
+	}
+	if !hasTopologyPolicy {
+		placements = []v1alpha1.PlacementDecision{{Cluster: multicluster.ClusterLocalName}}
 	}
 	return placements, nil
 }

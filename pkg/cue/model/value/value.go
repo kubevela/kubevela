@@ -516,6 +516,17 @@ func (val *Value) GetString(paths ...string) (string, error) {
 	return v.CueValue().String()
 }
 
+// GetStringSlice get string slice from val
+func (val *Value) GetStringSlice(paths ...string) ([]string, error) {
+	v, err := val.LookupValue(paths...)
+	if err != nil {
+		return nil, err
+	}
+	var s []string
+	err = v.UnmarshalTo(&s)
+	return s, err
+}
+
 // GetInt64 get the int value at a path starting from v.
 func (val *Value) GetInt64(paths ...string) (int64, error) {
 	v, err := val.LookupValue(paths...)
