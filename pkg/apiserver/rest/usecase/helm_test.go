@@ -338,6 +338,7 @@ kind: Secret
 metadata:
   labels:
     config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: ""
   name: global-helm-repo
   namespace: vela-system
 type: Opaque
