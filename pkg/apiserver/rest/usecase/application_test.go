@@ -87,6 +87,7 @@ var _ = Describe("Test application usecase function", func() {
 			definitionUsecase: definitionUsecase,
 			targetUsecase:     targetUsecase,
 			projectUsecase:    projectUsecase,
+			userUsecase:       userUsecase,
 		}
 	})
 
@@ -97,6 +98,7 @@ var _ = Describe("Test application usecase function", func() {
 		ns.Name = types.DefaultKubeVelaNS
 		err := k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		err = userUsecase.Init(context.TODO())
 		Expect(err).Should(BeNil())
 
@@ -339,6 +341,7 @@ var _ = Describe("Test application usecase function", func() {
 				Version:       fmt.Sprintf("%d", i),
 				EnvName:       fmt.Sprintf("env-%d", i),
 				Status:        model.RevisionStatusRunning,
+				DeployUser:    model.DefaultAdminUserName,
 			}
 			if i == 0 {
 				appModel.Status = model.RevisionStatusTerminated
@@ -353,6 +356,8 @@ var _ = Describe("Test application usecase function", func() {
 		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app-sadasd", "env-0", "", 0, 10)
 		Expect(err).Should(BeNil())
 		Expect(revisions.Total).Should(Equal(int64(1)))
+		Expect(revisions.Revisions[0].DeployUser.Name).Should(Equal(model.DefaultAdminUserName))
+		Expect(revisions.Revisions[0].DeployUser.Alias).Should(Equal(model.DefaultAdminUserAlias))
 
 		revisions, err = appUsecase.ListRevisions(context.TODO(), "test-app-sadasd", "", "terminated", 0, 10)
 		Expect(err).Should(BeNil())
@@ -367,20 +372,25 @@ var _ = Describe("Test application usecase function", func() {
 		err := workflowUsecase.createTestApplicationRevision(context.TODO(), &model.ApplicationRevision{
 			AppPrimaryKey: "test-app",
 			Version:       "123",
-			DeployUser:    "test-user",
+			DeployUser:    model.DefaultAdminUserName,
 		})
 		Expect(err).Should(BeNil())
 		revision, err := appUsecase.DetailRevision(context.TODO(), "test-app", "123")
 		Expect(err).Should(BeNil())
 		Expect(revision.Version).Should(Equal("123"))
-		Expect(revision.DeployUser).Should(Equal("test-user"))
+		Expect(revision.DeployUser.Name).Should(Equal(model.DefaultAdminUserName))
+		Expect(revision.DeployUser.Alias).Should(Equal(model.DefaultAdminUserAlias))
 	})
 
 	It("Test ApplicationEnvRecycle function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		_, err = appUsecase.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
+		revision, err := appUsecase.Deploy(
+			context.WithValue(context.TODO(), &v1.CtxKeyUser, model.DefaultAdminUserName),
+			appModel, v1.ApplicationDeployRequest{WorkflowName: convertWorkflowName("app-dev")})
 		Expect(err).Should(BeNil())
+		Expect(revision.DeployUser.Name).Should(Equal(model.DefaultAdminUserName))
+		Expect(revision.DeployUser.Alias).Should(Equal(model.DefaultAdminUserAlias))
 		err = envBindingUsecase.ApplicationEnvRecycle(context.TODO(), &model.Application{
 			Name: testApp,
 		}, &model.EnvBinding{Name: "app-dev"})

@@ -117,6 +117,7 @@ type applicationUsecaseImpl struct {
 	targetUsecase     TargetUsecase
 	definitionUsecase DefinitionUsecase
 	projectUsecase    ProjectUsecase
+	userUsecase       UserUsecase
 }
 
 // NewApplicationUsecase new application usecase
@@ -127,6 +128,7 @@ func NewApplicationUsecase(ds datastore.DataStore,
 	targetUsecase TargetUsecase,
 	definitionUsecase DefinitionUsecase,
 	projectUsecase ProjectUsecase,
+	userUsecase UserUsecase,
 ) ApplicationUsecase {
 	kubecli, err := clients.GetKubeClient()
 	if err != nil {
@@ -142,6 +144,7 @@ func NewApplicationUsecase(ds datastore.DataStore,
 		definitionUsecase: definitionUsecase,
 		projectUsecase:    projectUsecase,
 		envUsecase:        envUsecase,
+		userUsecase:       userUsecase,
 	}
 }
 
@@ -690,6 +693,13 @@ func (c *applicationUsecaseImpl) DetailPolicy(ctx context.Context, app *model.Ap
 // means to render oam application config and apply to cluster.
 // An event record is generated for each deploy.
 func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Application, req apisv1.ApplicationDeployRequest) (*apisv1.ApplicationDeployResponse, error) {
+	var userName string
+	if user := ctx.Value(&apisv1.CtxKeyUser); user != nil {
+		if u, ok := user.(string); ok {
+			userName = u
+		}
+	}
+
 	// TODO: rollback to handle all the error case
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
@@ -747,14 +757,13 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 		Version:        version,
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
-		// TODO: Get user information from ctx and assign a value.
-		DeployUser:   "",
-		Note:         req.Note,
-		TriggerType:  req.TriggerType,
-		WorkflowName: oamApp.Annotations[oam.AnnotationWorkflowName],
-		EnvName:      workflow.EnvName,
-		CodeInfo:     req.CodeInfo,
-		ImageInfo:    req.ImageInfo,
+		DeployUser:     userName,
+		Note:           req.Note,
+		TriggerType:    req.TriggerType,
+		WorkflowName:   oamApp.Annotations[oam.AnnotationWorkflowName],
+		EnvName:        workflow.EnvName,
+		CodeInfo:       req.CodeInfo,
+		ImageInfo:      req.ImageInfo,
 	}
 	if err := c.ds.Add(ctx, appRevision); err != nil {
 		return nil, err
@@ -793,7 +802,7 @@ func (c *applicationUsecaseImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	return &apisv1.ApplicationDeployResponse{
-		ApplicationRevisionBase: c.convertRevisionModelToBase(appRevision),
+		ApplicationRevisionBase: c.convertRevisionModelToBase(ctx, appRevision),
 	}, nil
 }
 
@@ -1000,12 +1009,11 @@ func (c *applicationUsecaseImpl) convertAppModelToBase(app *model.Application, p
 	return appBase
 }
 
-func (c *applicationUsecaseImpl) convertRevisionModelToBase(revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
-	return apisv1.ApplicationRevisionBase{
+func (c *applicationUsecaseImpl) convertRevisionModelToBase(ctx context.Context, revision *model.ApplicationRevision) apisv1.ApplicationRevisionBase {
+	base := apisv1.ApplicationRevisionBase{
 		Version:     revision.Version,
 		Status:      revision.Status,
 		Reason:      revision.Reason,
-		DeployUser:  revision.DeployUser,
 		Note:        revision.Note,
 		TriggerType: revision.TriggerType,
 		CreateTime:  revision.CreateTime,
@@ -1013,6 +1021,14 @@ func (c *applicationUsecaseImpl) convertRevisionModelToBase(revision *model.Appl
 		CodeInfo:    revision.CodeInfo,
 		ImageInfo:   revision.ImageInfo,
 	}
+	if revision.DeployUser != "" {
+		base.DeployUser = &apisv1.NameAlias{Name: revision.DeployUser}
+		deployUser, _ := c.userUsecase.GetUser(ctx, revision.DeployUser)
+		if deployUser != nil {
+			base.DeployUser.Alias = deployUser.Alias
+		}
+	}
+	return base
 }
 
 // DeleteApplication delete application
@@ -1433,7 +1449,7 @@ func (c *applicationUsecaseImpl) ListRevisions(ctx context.Context, appName, env
 	for _, raw := range revisions {
 		r, ok := raw.(*model.ApplicationRevision)
 		if ok {
-			resp.Revisions = append(resp.Revisions, c.convertRevisionModelToBase(r))
+			resp.Revisions = append(resp.Revisions, c.convertRevisionModelToBase(ctx, r))
 		}
 	}
 	count, err := c.ds.Count(ctx, &revision, nil)
@@ -1453,9 +1469,22 @@ func (c *applicationUsecaseImpl) DetailRevision(ctx context.Context, appName, re
 	if err := c.ds.Get(ctx, &revision); err != nil {
 		return nil, err
 	}
-	return &apisv1.DetailRevisionResponse{
+
+	resp := &apisv1.DetailRevisionResponse{
 		ApplicationRevision: revision,
-	}, nil
+		DeployUser: apisv1.NameAlias{
+			Name: revision.DeployUser,
+		},
+	}
+
+	if revision.DeployUser != "" {
+		deployUser, _ := c.userUsecase.GetUser(ctx, revision.DeployUser)
+		if deployUser != nil {
+			resp.DeployUser.Alias = deployUser.Alias
+		}
+	}
+
+	return resp, nil
 }
 
 func (c *applicationUsecaseImpl) Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error) {
