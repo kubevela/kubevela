@@ -185,7 +185,7 @@ func (u *configUseCaseImpl) GetConfigs(ctx context.Context, configType string) (
 				return nil, err
 			}
 			// If the application doesn't have any components, skip it as something wrong happened.
-			if !strings.HasPrefix(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) || len(a.Spec.Components) == 0 {
+			if !strings.HasPrefix(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
 				continue
 			}
 			configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
@@ -234,7 +234,7 @@ func (u *configUseCaseImpl) GetConfig(ctx context.Context, configType, name stri
 
 func (u *configUseCaseImpl) DeleteConfig(ctx context.Context, configType, name string) error {
 	var isTerraformProvider bool
-	if strings.HasPrefix(types.TerraformComponentPrefix, configType) {
+	if strings.HasPrefix(configType, types.TerraformComponentPrefix) {
 		isTerraformProvider = true
 	}
 	return config.DeleteApplication(ctx, u.kubeClient, name, isTerraformProvider)

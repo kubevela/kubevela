@@ -152,6 +152,7 @@ const (
 const (
 	// TerraformComponentPrefix is the prefix of component type of terraform-xxx
 	TerraformComponentPrefix = "terraform-"
+
 	// ProviderAppPrefix is the prefix of the application to create a Terraform Provider
 	ProviderAppPrefix = "config-terraform-provider"
 	// ProviderNamespace is the namespace of Terraform Cloud Provider

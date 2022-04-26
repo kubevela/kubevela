@@ -22,8 +22,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/agiledragon/gomonkey/v2"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
@@ -285,37 +289,53 @@ func TestGetConfigs(t *testing.T) {
 	s := runtime.NewScheme()
 	v1beta1.AddToScheme(s)
 	corev1.AddToScheme(s)
-	def1 := &v1beta1.ComponentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
+	terraformapi.AddToScheme(s)
+	createdTime, _ := time.Parse(time.UnixDate, "Wed Apr 7 11:06:39 PST 2022")
+
+	provider1 := &terraformapi.Provider{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "def1",
-			Namespace: types.DefaultKubeVelaNS,
-			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
-				definitionType: types.TerraformProvider,
-			},
+			Name:              "provider1",
+			Namespace:         "default",
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: terraformapi.ProviderStatus{
+			State: terraformtypes.ProviderIsReady,
 		},
 	}
-	def2 := &v1beta1.ComponentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ComponentDefinition",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
+
+	provider2 := &terraformapi.Provider{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "def2",
-			Namespace: types.DefaultKubeVelaNS,
-			Annotations: map[string]string{
-				definitionAlias: "Def2",
-			},
-			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
-			},
+			Name:              "provider2",
+			Namespace:         "default",
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: terraformapi.ProviderStatus{
+			State: terraformtypes.ProviderIsNotReady,
 		},
 	}
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(def1, def2).Build()
+
+	provider3 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "provider3",
+			Namespace: "default",
+		},
+	}
+
+	app1 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "provider3",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				types.LabelConfigType: "terraform-alibaba",
+			},
+			CreationTimestamp: metav1.NewTime(createdTime),
+		},
+		Status: common.AppStatus{
+			Phase: common.ApplicationRendering,
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(provider1, provider2, provider3, app1).Build()
 
 	h := &configUseCaseImpl{kubeClient: k8sClient}
 
@@ -343,7 +363,25 @@ func TestGetConfigs(t *testing.T) {
 				h:          h,
 			},
 			want: want{
-				configs: nil,
+				configs: []*apis.Config{
+					{
+						Name:        "provider1",
+						CreatedTime: &createdTime,
+						Status:      "Ready",
+					},
+					{
+						Name:        "provider2",
+						CreatedTime: &createdTime,
+						Status:      "Not ready",
+					},
+					{
+						Name:              "provider3",
+						CreatedTime:       &createdTime,
+						Status:            "Not ready",
+						ConfigType:        "terraform-alibaba",
+						ApplicationStatus: common.ApplicationRendering,
+					},
+				},
 			},
 		},
 	}
@@ -598,6 +636,132 @@ func TestSyncConfigs(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := SyncConfigs(ctx, k8sClient, tc.args.project, tc.args.targets)
+			if tc.want.errMsg != "" || err != nil {
+				assert.ErrorContains(t, err, tc.want.errMsg)
+			}
+		})
+	}
+}
+
+func TestDeleteConfig(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	terraformapi.AddToScheme(s)
+	provider1 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p1",
+			Namespace: "default",
+		},
+	}
+
+	provider2 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p2",
+			Namespace: "default",
+		},
+	}
+
+	provider3 := &terraformapi.Provider{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p3",
+			Namespace: "default",
+		},
+	}
+
+	app1 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "config-terraform-provider-p1",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				types.LabelConfigType: "terraform-alibaba",
+			},
+		},
+	}
+
+	app2 := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p2",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				types.LabelConfigType: "terraform-alibaba",
+			},
+		},
+	}
+
+	normalApp := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "a9",
+			Namespace: types.DefaultKubeVelaNS,
+		},
+	}
+
+	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(provider1, provider2, provider3, app1, app2, normalApp).Build()
+
+	h := &configUseCaseImpl{kubeClient: k8sClient}
+
+	type args struct {
+		configType string
+		name       string
+		h          ConfigHandler
+	}
+
+	type want struct {
+		errMsg string
+	}
+
+	ctx := context.Background()
+
+	testcases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "delete a legacy terraform provider",
+			args: args{
+				configType: "terraform-alibaba",
+				name:       "p1",
+				h:          h,
+			},
+			want: want{},
+		},
+		{
+			name: "delete a terraform provider",
+			args: args{
+				configType: "terraform-alibaba",
+				name:       "p2",
+				h:          h,
+			},
+			want: want{},
+		},
+		{
+			name: "delete a terraform provider, but its application not found",
+			args: args{
+				configType: "terraform-alibaba",
+				name:       "p3",
+				h:          h,
+			},
+			want: want{
+				errMsg: "could not be disabled because it was created by enabling a Terraform provider or was manually created",
+			},
+		},
+		{
+			name: "delete a normal config, but failed",
+			args: args{
+				configType: "config-image-registry",
+				name:       "a10",
+				h:          h,
+			},
+			want: want{
+				errMsg: "not found",
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.args.h.DeleteConfig(ctx, tc.args.configType, tc.args.name)
 			if tc.want.errMsg != "" || err != nil {
 				assert.ErrorContains(t, err, tc.want.errMsg)
 			}
