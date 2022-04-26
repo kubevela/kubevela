@@ -18,9 +18,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
