@@ -195,6 +195,10 @@ func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
 			return p.Value
 		}
+		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
+			// for enable addon by load dir, compatible with linux or windows os
+			return p.Value
+		}
 	}
 	return ""
 }
@@ -357,7 +361,7 @@ func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	if filename == "parameter.cue" {
 		return nil
 	}
-	file := ElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUETemplates = append(a.CUETemplates, file)
@@ -375,7 +379,7 @@ func readDefSchemaFile(a *InstallPackage, reader AsyncReader, readPath string) e
 	if err != nil {
 		return err
 	}
-	a.DefSchemas = append(a.DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
+	a.DefSchemas = append(a.DefSchemas, ElementFile{Data: b, Name: filepath.Base(readPath)})
 	return nil
 }
 
@@ -386,7 +390,7 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 		return err
 	}
 	filename := path.Base(readPath)
-	file := ElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUEDefinitions = append(a.CUEDefinitions, file)
