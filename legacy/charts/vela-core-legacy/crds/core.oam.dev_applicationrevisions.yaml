@@ -3585,6 +3585,10 @@ spec:
                           items:
                             type: string
                           type: array
+                        controlPlaneOnly:
+                          description: ControlPlaneOnly defines which cluster is dispatched
+                            to
+                          type: boolean
                         definitionRef:
                           description: Reference to the CustomResourceDefinition that
                             defines this trait kind.
