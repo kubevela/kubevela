@@ -179,7 +179,7 @@ Enable addon for specific clusters, (local means control plane):
 				}
 			}
 			fmt.Printf("Addon: %s enabled Successfully.\n", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, false)
 			return nil
 		},
 	}
@@ -190,7 +190,7 @@ Enable addon for specific clusters, (local means control plane):
 }
 
 // AdditionalEndpointPrinter will print endpoints
-func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string) {
+func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
 	fmt.Printf("Please access the %s from the following endpoints:\n", name)
 	err := printAppEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
 	if err != nil {
@@ -198,11 +198,13 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		return
 	}
 	if name == "velaux" {
-		fmt.Println(`To check the initialized admin user name and password by:`)
-		fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		if !isUpgrade {
+			fmt.Println(`To check the initialized admin user name and password by:`)
+			fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		}
 		fmt.Println(`To open the dashboard directly by port-forward:`)
 		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
-		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" from the prompt.`)
+		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Kind: Service | Name: velaux" from the prompt.`)
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 }
@@ -276,7 +278,7 @@ Upgrade addon for specific clusters, (local means control plane):
 			}
 
 			fmt.Printf("Addon: %s\n enabled Successfully.", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, true)
 			return nil
 		},
 	}
