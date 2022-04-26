@@ -93,6 +93,8 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 			}); err != nil {
 				return err
 			}
+			// print default password of admin user in log
+			log.Logger.Infof("initialized admin username and password: admin / %s\n", initAdminPassword)
 		} else {
 			return err
 		}
