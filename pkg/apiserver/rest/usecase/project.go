@@ -487,7 +487,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 	if err := p.k8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			model.LabelSourceOfTruth: model.FromInner,
-			types.LabelConfigCatalog: velaCoreConfig,
+			types.LabelConfigCatalog: types.VelaCoreConfig,
 		}); err != nil {
 		return nil, err
 	}
@@ -499,7 +499,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 			return nil, err
 		}
 		for _, p := range providers.Items {
-			if p.Labels[types.LabelConfigCatalog] == velaCoreConfig {
+			if p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
 				continue
 			}
 			t := p.CreationTimestamp.Time
@@ -520,7 +520,7 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 		for _, a := range apps.Items {
 			appProject := a.Labels[types.LabelConfigProject]
 			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
-				!strings.Contains(a.Labels[types.LabelConfigType], types.TerrfaormComponentPrefix) {
+				!strings.Contains(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
 				continue
 			}
 			configs = append(configs, retrieveConfigFromApplication(a, appProject))
@@ -561,13 +561,6 @@ func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, config
 				configs[i].ConfigTypeAlias = d.Annotations[definitionAlias]
 			}
 		}
-		if c.ApplicationStatus != "" {
-			if c.ApplicationStatus == common.ApplicationRunning {
-				configs[i].Status = configIsReady
-			} else {
-				configs[i].Status = configIsNotReady
-			}
-		}
 	}
 	return configs, nil
 }
@@ -600,12 +593,22 @@ func ConvertProjectUserModel2Base(user *model.ProjectUser) *apisv1.ProjectUserBa
 }
 
 func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv1.Config {
+	var (
+		applicationStatus = a.Status.Phase
+		status            string
+	)
+	if applicationStatus == common.ApplicationRunning {
+		status = configIsReady
+	} else {
+		status = configIsNotReady
+	}
 	return &apisv1.Config{
 		ConfigType:        a.Labels[types.LabelConfigType],
 		Name:              a.Name,
 		Project:           project,
 		CreatedTime:       &(a.CreationTimestamp.Time),
-		ApplicationStatus: a.Status.Phase,
+		ApplicationStatus: applicationStatus,
+		Status:            status,
 		Alias:             a.Annotations[types.AnnotationConfigAlias],
 		Description:       a.Annotations[types.AnnotationConfigDescription],
 	}

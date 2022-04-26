@@ -150,6 +150,13 @@ const (
 )
 
 const (
-	// TerrfaormComponentPrefix is the prefix of component type of terraform-xxx
-	TerrfaormComponentPrefix = "terraform-"
+	// TerraformComponentPrefix is the prefix of component type of terraform-xxx
+	TerraformComponentPrefix = "terraform-"
+
+	// ProviderAppPrefix is the prefix of the application to create a Terraform Provider
+	ProviderAppPrefix = "config-terraform-provider"
+	// ProviderNamespace is the namespace of Terraform Cloud Provider
+	ProviderNamespace = "default"
+	// VelaCoreConfig is to mark application, config and its secret or Terraform provider lelong to a KubeVela config
+	VelaCoreConfig = "velacore-config"
 )

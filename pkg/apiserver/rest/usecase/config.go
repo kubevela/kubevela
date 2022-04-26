@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	set "github.com/deckarep/golang-set"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,13 +39,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/utils/config"
 )
 
 const (
 	definitionAlias = definition.UserPrefix + "alias.config.oam.dev"
 	definitionType  = definition.UserPrefix + "type.config.oam.dev"
 
-	velaCoreConfig          = "velacore-config"
 	configIsReady           = "Ready"
 	configIsNotReady        = "Not ready"
 	terraformProviderAlias  = "Terraform Cloud Provider"
@@ -82,7 +83,7 @@ type configUseCaseImpl struct {
 func (u *configUseCaseImpl) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig}); err != nil {
+		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig}); err != nil {
 		return nil, err
 	}
 
@@ -137,7 +138,7 @@ func (u *configUseCaseImpl) GetConfigType(ctx context.Context, configType string
 func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateConfigRequest) error {
 	p := req.Properties
 	// If the component is Terraform type, set the provider name same as the application name and the component name
-	if strings.HasPrefix(req.ComponentType, types.TerrfaormComponentPrefix) {
+	if strings.HasPrefix(req.ComponentType, types.TerraformComponentPrefix) {
 		var properties map[string]interface{}
 		if err := json.Unmarshal([]byte(p), &properties); err != nil {
 			return errors.Wrapf(err, "unable to process the properties of %s", req.ComponentType)
@@ -149,52 +150,45 @@ func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateCon
 		}
 		p = string(tmp)
 	}
-	app := v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      req.Name,
-			Namespace: types.DefaultKubeVelaNS,
-			Annotations: map[string]string{
-				types.AnnotationConfigAlias:       req.Alias,
-				types.AnnotationConfigDescription: req.Description,
-			},
-			Labels: map[string]string{
-				model.LabelSourceOfTruth: model.FromInner,
-				types.LabelConfigCatalog: velaCoreConfig,
-				types.LabelConfigType:    req.ComponentType,
-				types.LabelConfigProject: req.Project,
-			},
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Name:       req.Name,
-					Type:       req.ComponentType,
-					Properties: &runtime.RawExtension{Raw: []byte(p)},
-				},
-			},
-		},
+	ui := config.UIParam{
+		Alias:       req.Alias,
+		Description: req.Description,
+		Project:     req.Project,
 	}
-	return u.kubeClient.Create(ctx, &app)
+	return config.CreateApplication(ctx, u.kubeClient, req.Name, req.ComponentType, p, ui)
 }
 
 func (u *configUseCaseImpl) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
 	switch configType {
 	case types.TerraformProvider:
-		defs := &v1beta1.ComponentDefinitionList{}
-		if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-			client.MatchingLabels{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
-				definition.UserPrefix + "type.config.oam.dev":    types.TerraformProvider,
-			}); err != nil {
+		providers, err := config.ListTerraformProviders(ctx, u.kubeClient)
+		if err != nil {
 			return nil, err
 		}
-		var configs []*apis.Config
-		for _, d := range defs.Items {
-			subConfigs, err := u.getConfigsByConfigType(ctx, d.Name)
-			if err != nil {
+		configs := make([]*apis.Config, len(providers))
+		for i, p := range providers {
+			var a v1beta1.Application
+			if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: p.Name}, &a); err != nil {
+				if kerrors.IsNotFound(err) {
+					t := p.CreationTimestamp.Time
+					configs[i] = &apis.Config{
+						Name:        p.Name,
+						CreatedTime: &t,
+					}
+					if p.Status.State == terraformtypes.ProviderIsReady {
+						configs[i].Status = configIsReady
+					} else {
+						configs[i].Status = configIsNotReady
+					}
+					continue
+				}
 				return nil, err
 			}
-			configs = append(configs, subConfigs...)
+			// If the application doesn't have any components, skip it as something wrong happened.
+			if !strings.HasPrefix(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
+				continue
+			}
+			configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
 		}
 		return configs, nil
 
@@ -209,7 +203,7 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			model.LabelSourceOfTruth: model.FromInner,
-			types.LabelConfigCatalog: velaCoreConfig,
+			types.LabelConfigCatalog: types.VelaCoreConfig,
 			types.LabelConfigType:    configType,
 		}); err != nil {
 		return nil, err
@@ -218,12 +212,6 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 	configs := make([]*apis.Config, len(apps.Items))
 	for i, a := range apps.Items {
 		configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
-		switch a.Status.Phase {
-		case common.ApplicationRunning:
-			configs[i].Status = configIsReady
-		default:
-			configs[i].Status = configIsNotReady
-		}
 	}
 	return configs, nil
 }
@@ -245,11 +233,11 @@ func (u *configUseCaseImpl) GetConfig(ctx context.Context, configType, name stri
 }
 
 func (u *configUseCaseImpl) DeleteConfig(ctx context.Context, configType, name string) error {
-	var a = &v1beta1.Application{}
-	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
-		return err
+	var isTerraformProvider bool
+	if strings.HasPrefix(configType, types.TerraformComponentPrefix) {
+		isTerraformProvider = true
 	}
-	return u.kubeClient.Delete(ctx, a)
+	return config.DeleteApplication(ctx, u.kubeClient, name, isTerraformProvider)
 }
 
 // ApplicationDeployTarget is the struct of application deploy target
@@ -265,7 +253,7 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	var secrets v1.SecretList
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
-			types.LabelConfigCatalog:            velaCoreConfig,
+			types.LabelConfigCatalog:            types.VelaCoreConfig,
 			types.LabelConfigSyncToMultiCluster: "true",
 		}); err != nil {
 		return err
@@ -324,7 +312,7 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 				Namespace: types.DefaultKubeVelaNS,
 				Labels: map[string]string{
 					model.LabelSourceOfTruth: model.FromInner,
-					types.LabelConfigCatalog: velaCoreConfig,
+					types.LabelConfigCatalog: types.VelaCoreConfig,
 					types.LabelConfigProject: project,
 				},
 			},
