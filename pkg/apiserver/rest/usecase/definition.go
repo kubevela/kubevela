@@ -117,7 +117,6 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 			Operator: metav1.LabelSelectorOpDoesNotExist,
 		})
 	}
-	fmt.Println(kind, matchLabels)
 	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
 	if err != nil {
 		return nil, err
@@ -352,17 +351,17 @@ func (d *definitionUsecaseImpl) UpdateDefinitionStatus(ctx context.Context, name
 	}
 	_, exist := def.GetLabels()[types.LabelDefinitionHidden]
 	if exist && !update.HiddenInUI {
-		lables := def.GetLabels()
-		delete(lables, types.LabelDefinitionHidden)
-		def.SetLabels(lables)
+		labels := def.GetLabels()
+		delete(labels, types.LabelDefinitionHidden)
+		def.SetLabels(labels)
 		if err := d.kubeClient.Update(ctx, def); err != nil {
 			return nil, err
 		}
 	}
 	if !exist && update.HiddenInUI {
-		lables := def.GetLabels()
-		lables[types.LabelDefinitionHidden] = "true"
-		def.SetLabels(lables)
+		labels := def.GetLabels()
+		labels[types.LabelDefinitionHidden] = "true"
+		def.SetLabels(labels)
 		if err := d.kubeClient.Update(ctx, def); err != nil {
 			return nil, err
 		}

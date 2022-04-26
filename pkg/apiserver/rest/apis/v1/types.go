@@ -828,7 +828,7 @@ type DefinitionBase struct {
 	Description string            `json:"description"`
 	Icon        string            `json:"icon"`
 	Status      string            `json:"status"`
-	Labels      map[string]string `json:"lables"`
+	Labels      map[string]string `json:"labels"`
 	// WorkloadType the component workload type
 	// Deprecated: it same as component.workload.type
 	WorkloadType string                              `json:"workloadType,omitempty"`
