@@ -19,18 +19,11 @@ package usecase
 import (
 	"context"
 	"errors"
-	"math/rand"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/time"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -38,6 +31,10 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+)
+
+const (
+	initAdminPassword = "VelaUX12345"
 )
 
 // UserUsecase User manage api
@@ -84,16 +81,7 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 		Name: admin,
 	}); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			pwd := func() string {
-				p := utils2.RandomString(8)
-				p += strconv.Itoa(rand.Intn(9))                 // #nosec
-				r := append([]rune(p), 'a'+rune(rand.Intn(26))) // #nosec
-				rand.Shuffle(len(r), func(i, j int) { r[i], r[j] = r[j], r[i] })
-				p = string(r)
-				return p
-			}()
-
-			encrypted, err := GeneratePasswordHash(pwd)
+			encrypted, err := GeneratePasswordHash(initAdminPassword)
 			if err != nil {
 				return err
 			}
@@ -104,29 +92,6 @@ func (u *userUsecaseImpl) Init(ctx context.Context) error {
 				UserRoles: []string{"admin"},
 			}); err != nil {
 				return err
-			}
-			// print default password of admin user in log
-			log.Logger.Infof("initialized admin username and password: admin / %s\n", pwd)
-			secret := &corev1.Secret{}
-			if err := u.k8sClient.Get(ctx, k8stypes.NamespacedName{
-				Name:      admin,
-				Namespace: types.DefaultKubeVelaNS,
-			}, secret); err != nil {
-				if apierrors.IsNotFound(err) {
-					if err := u.k8sClient.Create(ctx, &corev1.Secret{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      admin,
-							Namespace: types.DefaultKubeVelaNS,
-						},
-						StringData: map[string]string{
-							admin: pwd,
-						},
-					}); err != nil {
-						return err
-					}
-				} else {
-					return err
-				}
 			}
 		} else {
 			return err
@@ -259,6 +224,19 @@ func (u *userUsecaseImpl) UpdateUser(ctx context.Context, user *model.User, req 
 	}
 	if err := u.ds.Put(ctx, user); err != nil {
 		return nil, err
+	}
+	if user.Name == model.DefaultAdminUserName {
+		if err := generateDexConfig(ctx, u.k8sClient, &model.UpdateDexConfig{
+			StaticPasswords: []model.StaticPassword{
+				{
+					Email:    user.Email,
+					Hash:     user.Password,
+					Username: user.Name,
+				},
+			},
+		}); err != nil {
+			return nil, err
+		}
 	}
 	return convertUserBase(user), nil
 }
