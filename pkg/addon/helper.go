@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/klog/v2"
@@ -92,7 +93,11 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 
 // EnableAddonByLocalDir enable an addon from local dir
 func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}) error {
-	r := localReader{dir: dir, name: name}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	r := localReader{dir: absDir, name: name}
 	metas, err := r.ListAddonMeta()
 	if err != nil {
 		return err
