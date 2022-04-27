@@ -22,6 +22,7 @@ func IsBuiltinWorkflowStepType(wfType string) bool {
 		WorkflowStepTypeSuspend,
 		WorkflowStepTypeApplyComponent,
 		WorkflowStepTypeBuiltinApplyComponent,
+		WorkflowStepTypeStepGroup,
 	} {
 		if _type == wfType {
 			return true

@@ -55,12 +55,15 @@ func TestDiscover(t *testing.T) {
 	})
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
-			"suspend": suspend,
+			"suspend":   suspend,
+			"stepGroup": stepGroup,
 		},
 		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil, 0, pCtx),
 	}
 
 	_, err := discover.GetTaskGenerator(context.Background(), "suspend")
+	assert.NilError(t, err)
+	_, err = discover.GetTaskGenerator(context.Background(), "stepGroup")
 	assert.NilError(t, err)
 	_, err = discover.GetTaskGenerator(context.Background(), "foo")
 	assert.NilError(t, err)
@@ -86,6 +89,26 @@ func TestSuspendStep(t *testing.T) {
 	status, act, err := runner.Run(nil, nil)
 	assert.NilError(t, err)
 	assert.Equal(t, act.Suspend, true)
+	assert.Equal(t, status.ID, "124")
+	assert.Equal(t, status.Name, "test")
+	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)
+}
+
+func TestStepGroupStep(t *testing.T) {
+	discover := &taskDiscover{
+		builtins: map[string]types.TaskGenerator{
+			"stepGroup": stepGroup,
+		},
+	}
+	gen, err := discover.GetTaskGenerator(context.Background(), "stepGroup")
+	assert.NilError(t, err)
+	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124"})
+	assert.NilError(t, err)
+	assert.Equal(t, runner.Name(), "test")
+	assert.Equal(t, runner.Pending(nil), false)
+	status, act, err := runner.Run(nil, nil)
+	assert.NilError(t, err)
+	assert.Equal(t, act.Suspend, false)
 	assert.Equal(t, status.ID, "124")
 	assert.Equal(t, status.Name, "test")
 	assert.Equal(t, status.Phase, common.WorkflowStepPhaseSucceeded)

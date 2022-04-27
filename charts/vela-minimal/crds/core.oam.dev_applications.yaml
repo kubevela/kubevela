@@ -791,7 +791,7 @@ spec:
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow
-                        step
+                        step, include step status and subStep status
                       properties:
                         firstExecuteTime:
                           description: FirstExecuteTime is the first time this step
@@ -820,44 +820,42 @@ spec:
                             about why the workflowStep is in this state.
                           type: string
                         subSteps:
-                          description: SubStepsStatus record the status of workflow
-                            steps.
-                          properties:
-                            mode:
-                              description: WorkflowMode describes the mode of workflow
-                              type: string
-                            stepIndex:
-                              type: integer
-                            steps:
-                              items:
-                                description: WorkflowSubStepStatus record the status
-                                  of a workflow step
-                                properties:
-                                  id:
-                                    type: string
-                                  message:
-                                    description: A human readable message indicating
-                                      details about why the workflowStep is in this
-                                      state.
-                                    type: string
-                                  name:
-                                    type: string
-                                  phase:
-                                    description: WorkflowStepPhase describes the phase
-                                      of a workflow step.
-                                    type: string
-                                  reason:
-                                    description: A brief CamelCase message indicating
-                                      details about why the workflowStep is in this
-                                      state.
-                                    type: string
-                                  type:
-                                    type: string
-                                required:
-                                - id
-                                type: object
-                              type: array
-                          type: object
+                          items:
+                            description: WorkflowSubStepStatus record the status of
+                              a workflow subStep
+                            properties:
+                              firstExecuteTime:
+                                description: FirstExecuteTime is the first time this
+                                  step execution.
+                                format: date-time
+                                type: string
+                              id:
+                                type: string
+                              lastExecuteTime:
+                                description: LastExecuteTime is the last time this
+                                  step execution.
+                                format: date-time
+                                type: string
+                              message:
+                                description: A human readable message indicating details
+                                  about why the workflowStep is in this state.
+                                type: string
+                              name:
+                                type: string
+                              phase:
+                                description: WorkflowStepPhase describes the phase
+                                  of a workflow step.
+                                type: string
+                              reason:
+                                description: A brief CamelCase message indicating
+                                  details about why the workflowStep is in this state.
+                                type: string
+                              type:
+                                type: string
+                            required:
+                            - id
+                            type: object
+                          type: array
                         type:
                           type: string
                       required:
@@ -1066,6 +1064,57 @@ spec:
                         properties:
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
+                        subSteps:
+                          items:
+                            description: WorkflowSubStep defines how to execute a
+                              workflow subStep.
+                            properties:
+                              dependsOn:
+                                items:
+                                  type: string
+                                type: array
+                              inputs:
+                                description: StepInputs defines variable input of
+                                  WorkflowStep
+                                items:
+                                  properties:
+                                    from:
+                                      type: string
+                                    parameterKey:
+                                      type: string
+                                  required:
+                                  - from
+                                  - parameterKey
+                                  type: object
+                                type: array
+                              name:
+                                description: Name is the unique name of the workflow
+                                  step.
+                                type: string
+                              outputs:
+                                description: StepOutputs defines output variable of
+                                  WorkflowStep
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                    valueFrom:
+                                      type: string
+                                  required:
+                                  - name
+                                  - valueFrom
+                                  type: object
+                                type: array
+                              properties:
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              type:
+                                type: string
+                            required:
+                            - name
+                            - type
+                            type: object
+                          type: array
                         type:
                           type: string
                       required:
@@ -1458,7 +1507,7 @@ spec:
                   steps:
                     items:
                       description: WorkflowStepStatus record the status of a workflow
-                        step
+                        step, include step status and subStep status
                       properties:
                         firstExecuteTime:
                           description: FirstExecuteTime is the first time this step
@@ -1487,44 +1536,42 @@ spec:
                             about why the workflowStep is in this state.
                           type: string
                         subSteps:
-                          description: SubStepsStatus record the status of workflow
-                            steps.
-                          properties:
-                            mode:
-                              description: WorkflowMode describes the mode of workflow
-                              type: string
-                            stepIndex:
-                              type: integer
-                            steps:
-                              items:
-                                description: WorkflowSubStepStatus record the status
-                                  of a workflow step
-                                properties:
-                                  id:
-                                    type: string
-                                  message:
-                                    description: A human readable message indicating
-                                      details about why the workflowStep is in this
-                                      state.
-                                    type: string
-                                  name:
-                                    type: string
-                                  phase:
-                                    description: WorkflowStepPhase describes the phase
-                                      of a workflow step.
-                                    type: string
-                                  reason:
-                                    description: A brief CamelCase message indicating
-                                      details about why the workflowStep is in this
-                                      state.
-                                    type: string
-                                  type:
-                                    type: string
-                                required:
-                                - id
-                                type: object
-                              type: array
-                          type: object
+                          items:
+                            description: WorkflowSubStepStatus record the status of
+                              a workflow subStep
+                            properties:
+                              firstExecuteTime:
+                                description: FirstExecuteTime is the first time this
+                                  step execution.
+                                format: date-time
+                                type: string
+                              id:
+                                type: string
+                              lastExecuteTime:
+                                description: LastExecuteTime is the last time this
+                                  step execution.
+                                format: date-time
+                                type: string
+                              message:
+                                description: A human readable message indicating details
+                                  about why the workflowStep is in this state.
+                                type: string
+                              name:
+                                type: string
+                              phase:
+                                description: WorkflowStepPhase describes the phase
+                                  of a workflow step.
+                                type: string
+                              reason:
+                                description: A brief CamelCase message indicating
+                                  details about why the workflowStep is in this state.
+                                type: string
+                              type:
+                                type: string
+                            required:
+                            - id
+                            type: object
+                          type: array
                         type:
                           type: string
                       required:

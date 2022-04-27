@@ -30,8 +30,9 @@ import (
 // TaskRunner is a task runner.
 type TaskRunner interface {
 	Name() string
+	SubTaskRunners() []TaskRunner
 	Pending(ctx wfContext.Context) bool
-	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
+	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
@@ -69,9 +70,10 @@ type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) 
 
 // GeneratorOptions is the options for generate task.
 type GeneratorOptions struct {
-	ID            string
-	PrePhase      common.WorkflowStepPhase
-	StepConvertor func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+	ID             string
+	PrePhase       common.WorkflowStepPhase
+	StepConvertor  func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+	SubTaskRunners []TaskRunner
 }
 
 // Action is that workflow provider can do.
@@ -103,4 +105,6 @@ const (
 	WorkflowStepTypeApplyComponent = "apply-component"
 	// WorkflowStepTypeBuiltinApplyComponent type builtin-apply-component
 	WorkflowStepTypeBuiltinApplyComponent = "builtin-apply-component"
+	// WorkflowStepTypeStepGroup type step-group
+	WorkflowStepTypeStepGroup = "step-group"
 )
