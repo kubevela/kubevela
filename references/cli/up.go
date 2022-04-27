@@ -175,10 +175,7 @@ func (opt *UpCommandOptions) deployExistingApp(f velacmd.Factory, cmd *cobra.Com
 		}
 		oam.SetPublishVersion(app, opt.PublishVersion)
 		if opt.Debug {
-			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-				Name: "debug",
-				Type: "debug",
-			})
+			addDebugPolicy(app)
 		}
 		return cli.Update(ctx, app)
 	}); err != nil {
@@ -186,6 +183,18 @@ func (opt *UpCommandOptions) deployExistingApp(f velacmd.Factory, cmd *cobra.Com
 	}
 	cmd.Printf("Application updated with new PublishVersion %s\n", opt.PublishVersion)
 	return nil
+}
+
+func addDebugPolicy(app *v1beta1.Application) {
+	for _, policy := range app.Spec.Policies {
+		if policy.Type == "debug" {
+			return
+		}
+	}
+	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+		Name: "debug",
+		Type: "debug",
+	})
 }
 
 func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *cobra.Command) error {
