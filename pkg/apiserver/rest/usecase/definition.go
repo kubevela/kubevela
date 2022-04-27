@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -46,16 +45,30 @@ import (
 // DefinitionUsecase definition usecase, Implement the management of ComponentDefinition、TraitDefinition and WorkflowStepDefinition.
 type DefinitionUsecase interface {
 	// ListDefinitions list definition base info
-	ListDefinitions(ctx context.Context, envName, defType, appliedWorkloads string) ([]*apisv1.DefinitionBase, error)
+	ListDefinitions(ctx context.Context, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error)
 	// DetailDefinition get definition detail
 	DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error)
 	// AddDefinitionUISchema add or update custom definition ui schema
-	AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error)
+	AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error)
+	// UpdateDefinitionStatus update the status of definition
+	UpdateDefinitionStatus(ctx context.Context, name string, status apisv1.UpdateDefinitionStatusRequest) (*apisv1.DetailDefinitionResponse, error)
 }
 
 type definitionUsecaseImpl struct {
 	kubeClient client.Client
 	caches     *utils.MemoryCacheStore
+}
+
+// DefinitionQueryOption define a set of query options
+type DefinitionQueryOption struct {
+	Type             string `json:"type"`
+	AppliedWorkloads string `json:"appliedWorkloads"`
+	QueryAll         bool   `json:"queryAll"`
+}
+
+// String return cache key string
+func (d DefinitionQueryOption) String() string {
+	return fmt.Sprintf("type:%s/appliedWorkloads:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.QueryAll)
 }
 
 const (
@@ -75,36 +88,19 @@ func NewDefinitionUsecase() DefinitionUsecase {
 	return &definitionUsecaseImpl{kubeClient: kubecli, caches: utils.NewMemoryCacheStore(context.Background())}
 }
 
-func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, envName, defType, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
+func (d *definitionUsecaseImpl) ListDefinitions(ctx context.Context, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
 	defs := &unstructured.UnstructuredList{}
-	switch defType {
-	case "component":
-		defs.SetAPIVersion(definitionAPIVersion)
-		defs.SetKind(kindComponentDefinition)
-		return d.listDefinitions(ctx, defs, kindComponentDefinition, "")
-
-	case "trait":
-		defs.SetAPIVersion(definitionAPIVersion)
-		defs.SetKind(kindTraitDefinition)
-		return d.listDefinitions(ctx, defs, kindTraitDefinition, appliedWorkload)
-
-	case "workflowstep":
-		defs.SetAPIVersion(definitionAPIVersion)
-		defs.SetKind(kindWorkflowStepDefinition)
-		return d.listDefinitions(ctx, defs, kindWorkflowStepDefinition, "")
-
-	case "policy":
-		defs.SetAPIVersion(definitionAPIVersion)
-		defs.SetKind(kindPolicyDefinition)
-		return d.listDefinitions(ctx, defs, kindPolicyDefinition, "")
-
-	default:
-		return nil, bcode.ErrDefinitionTypeNotSupport
+	version, kind, err := getKindAndVersion(ops.Type)
+	if err != nil {
+		return nil, err
 	}
+	defs.SetAPIVersion(version)
+	defs.SetKind(kind)
+	return d.listDefinitions(ctx, defs, kind, ops)
 }
 
-func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, cache, appliedWorkload string) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches.Get(cache); mc != nil && appliedWorkload == "" {
+func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, kind string, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
+	if mc := d.caches.Get(ops.String()); mc != nil {
 		return mc.([]*apisv1.DefinitionBase), nil
 	}
 	matchLabels := metav1.LabelSelector{
@@ -113,11 +109,13 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 				Key:      types.LabelDefinitionDeprecated,
 				Operator: metav1.LabelSelectorOpDoesNotExist,
 			},
-			{
-				Key:      types.LabelDefinitionHidden,
-				Operator: metav1.LabelSelectorOpDoesNotExist,
-			},
 		},
+	}
+	if !ops.QueryAll {
+		matchLabels.MatchExpressions = append(matchLabels.MatchExpressions, metav1.LabelSelectorRequirement{
+			Key:      types.LabelDefinitionHidden,
+			Operator: metav1.LabelSelectorOpDoesNotExist,
+		})
 	}
 	selector, err := metav1.LabelSelectorAsSelector(&matchLabels)
 	if err != nil {
@@ -130,14 +128,14 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 	}
 	var defs []*apisv1.DefinitionBase
 	for _, def := range list.Items {
-		if appliedWorkload != "" {
+		if ops.AppliedWorkloads != "" {
 			traitDef := &v1beta1.TraitDefinition{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
 				return nil, errors.Wrap(err, "invalid trait definition")
 			}
 			filter := false
 			for _, workload := range traitDef.Spec.AppliesToWorkloads {
-				if workload == appliedWorkload || workload == "*" {
+				if workload == ops.AppliedWorkloads || workload == "*" {
 					filter = true
 					break
 				}
@@ -146,53 +144,102 @@ func (d *definitionUsecaseImpl) listDefinitions(ctx context.Context, list *unstr
 				continue
 			}
 		}
-		definition := &apisv1.DefinitionBase{
-			Name:        def.GetName(),
-			Alias:       def.GetAnnotations()[types.AnnoDefinitionAlias],
-			Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
-			Icon:        def.GetAnnotations()[types.AnnoDefinitionIcon],
-		}
-		if cache == kindComponentDefinition {
-			compDef := &v1beta1.ComponentDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
-				return nil, errors.Wrap(err, "invalid component definition")
-			}
-			definition.WorkloadType = compDef.Spec.Workload.Type
-			definition.Component = &compDef.Spec
-		}
-		if cache == kindTraitDefinition {
-			traitDef := &v1beta1.TraitDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
-				return nil, errors.Wrap(err, "invalid trait definition")
-			}
-			definition.Trait = &traitDef.Spec
-		}
-		if cache == kindWorkflowStepDefinition {
-			workflowStepDef := &v1beta1.WorkflowStepDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, workflowStepDef); err != nil {
-				return nil, errors.Wrap(err, "invalid trait definition")
-			}
-			definition.WorkflowStep = &workflowStepDef.Spec
-		}
-		if cache == kindPolicyDefinition {
-			policyDef := &v1beta1.PolicyDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, policyDef); err != nil {
-				return nil, errors.Wrap(err, "invalid trait definition")
-			}
-			definition.Policy = &policyDef.Spec
+		definition, err := convertDefinitionBase(def, kind)
+		if err != nil {
+			log.Logger.Errorf("convert definition to base failure %s", err.Error())
+			continue
 		}
 		defs = append(defs, definition)
 	}
-	if appliedWorkload == "" {
-		d.caches.Put(cache, defs, time.Minute*3)
+	if ops.AppliedWorkloads == "" {
+		d.caches.Put(ops.String(), defs, time.Minute*3)
 	}
 	return defs, nil
 }
 
+func getKindAndVersion(defType string) (apiVersion, kind string, err error) {
+	switch defType {
+	case "component":
+		return definitionAPIVersion, kindComponentDefinition, nil
+
+	case "trait":
+		return definitionAPIVersion, kindTraitDefinition, nil
+
+	case "workflowstep":
+		return definitionAPIVersion, kindWorkflowStepDefinition, nil
+
+	case "policy":
+		return definitionAPIVersion, kindPolicyDefinition, nil
+
+	default:
+		return "", "", bcode.ErrDefinitionTypeNotSupport
+	}
+}
+
+func convertDefinitionBase(def unstructured.Unstructured, kind string) (*apisv1.DefinitionBase, error) {
+	definition := &apisv1.DefinitionBase{
+		Name:        def.GetName(),
+		Alias:       def.GetAnnotations()[types.AnnoDefinitionAlias],
+		Description: def.GetAnnotations()[types.AnnoDefinitionDescription],
+		Icon:        def.GetAnnotations()[types.AnnoDefinitionIcon],
+		Labels:      def.GetLabels(),
+		Status: func() string {
+			if _, exist := def.GetLabels()[types.LabelDefinitionHidden]; exist {
+				return "disable"
+			}
+			return "enable"
+		}(),
+	}
+	if kind == kindComponentDefinition {
+		compDef := &v1beta1.ComponentDefinition{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
+			return nil, errors.Wrap(err, "invalid component definition")
+		}
+		definition.WorkloadType = compDef.Spec.Workload.Type
+		definition.Component = &compDef.Spec
+	}
+	if kind == kindTraitDefinition {
+		traitDef := &v1beta1.TraitDefinition{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
+			return nil, errors.Wrap(err, "invalid trait definition")
+		}
+		definition.Trait = &traitDef.Spec
+	}
+	if kind == kindWorkflowStepDefinition {
+		workflowStepDef := &v1beta1.WorkflowStepDefinition{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, workflowStepDef); err != nil {
+			return nil, errors.Wrap(err, "invalid trait definition")
+		}
+		definition.WorkflowStep = &workflowStepDef.Spec
+	}
+	if kind == kindPolicyDefinition {
+		policyDef := &v1beta1.PolicyDefinition{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, policyDef); err != nil {
+			return nil, errors.Wrap(err, "invalid trait definition")
+		}
+		definition.Policy = &policyDef.Spec
+	}
+	return definition, nil
+}
+
 // DetailDefinition get definition detail
 func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defType string) (*apisv1.DetailDefinitionResponse, error) {
-	if !utils.StringsContain([]string{"component", "trait", "workflowstep", "policy"}, defType) {
-		return nil, bcode.ErrDefinitionTypeNotSupport
+	def := &unstructured.Unstructured{}
+	version, kind, err := getKindAndVersion(defType)
+	if err != nil {
+		return nil, err
+	}
+	def.SetAPIVersion(version)
+	def.SetKind(kind)
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: name}, def); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, bcode.ErrDefinitionNotFound
+		}
+		return nil, err
+	}
+	base, err := convertDefinitionBase(*def, kind)
+	if err != nil {
+		return nil, err
 	}
 	var cm v1.ConfigMap
 	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{
@@ -218,8 +265,9 @@ func (d *definitionUsecaseImpl) DetailDefinition(ctx context.Context, name, defT
 	// patch from custom ui schema
 	customUISchema := d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
 	return &apisv1.DetailDefinitionResponse{
-		APISchema: schema,
-		UISchema:  customUISchema,
+		DefinitionBase: *base,
+		APISchema:      schema,
+		UISchema:       customUISchema,
 	}, nil
 }
 
@@ -247,14 +295,8 @@ func (d *definitionUsecaseImpl) renderCustomUISchema(ctx context.Context, name, 
 }
 
 // AddDefinitionUISchema add definition custom ui schema config
-func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name, defType, configRaw string) ([]*utils.UIParameter, error) {
-	var uiParameters []*utils.UIParameter
-	err := yaml.Unmarshal([]byte(configRaw), &uiParameters)
-	if err != nil {
-		log.Logger.Errorf("yaml unmarshal failure %s", err.Error())
-		return nil, bcode.ErrInvalidDefinitionUISchema
-	}
-	dataBate, err := json.Marshal(uiParameters)
+func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name, defType string, schema []*utils.UIParameter) ([]*utils.UIParameter, error) {
+	dataBate, err := json.Marshal(schema)
 	if err != nil {
 		log.Logger.Errorf("json marshal failure %s", err.Error())
 		return nil, bcode.ErrInvalidDefinitionUISchema
@@ -285,7 +327,46 @@ func (d *definitionUsecaseImpl) AddDefinitionUISchema(ctx context.Context, name,
 			return nil, err
 		}
 	}
-	return uiParameters, nil
+	res, err := d.DetailDefinition(ctx, name, defType)
+	if err != nil {
+		return nil, err
+	}
+	return res.UISchema, nil
+}
+
+// UpdateDefinitionStatus update the status of the definition
+func (d *definitionUsecaseImpl) UpdateDefinitionStatus(ctx context.Context, name string, update apisv1.UpdateDefinitionStatusRequest) (*apisv1.DetailDefinitionResponse, error) {
+	def := &unstructured.Unstructured{}
+	version, kind, err := getKindAndVersion(update.DefinitionType)
+	if err != nil {
+		return nil, err
+	}
+	def.SetAPIVersion(version)
+	def.SetKind(kind)
+	if err := d.kubeClient.Get(ctx, k8stypes.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: name}, def); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, bcode.ErrDefinitionNotFound
+		}
+		return nil, err
+	}
+	_, exist := def.GetLabels()[types.LabelDefinitionHidden]
+	if exist && !update.HiddenInUI {
+		labels := def.GetLabels()
+		delete(labels, types.LabelDefinitionHidden)
+		def.SetLabels(labels)
+		if err := d.kubeClient.Update(ctx, def); err != nil {
+			return nil, err
+		}
+	}
+	if !exist && update.HiddenInUI {
+		labels := def.GetLabels()
+		labels[types.LabelDefinitionHidden] = "true"
+		def.SetLabels(labels)
+		if err := d.kubeClient.Update(ctx, def); err != nil {
+			return nil, err
+		}
+	}
+	return d.DetailDefinition(ctx, name, update.DefinitionType)
 }
 
 func patchSchema(defaultSchema, customSchema []*utils.UIParameter) []*utils.UIParameter {
