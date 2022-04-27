@@ -24,6 +24,20 @@ import (
 // UISchema ui schema
 type UISchema []*UIParameter
 
+// Validate check the ui schema
+func (u UISchema) Validate() error {
+	for _, p := range u {
+		// check the conditions
+		for _, c := range p.Conditions {
+			if err := c.Validate(); err != nil {
+				return err
+			}
+		}
+		//TODO: other fields check
+	}
+	return nil
+}
+
 // UIParameter Structured import table simple UI model
 type UIParameter struct {
 	Sort        uint      `json:"sort"`
@@ -61,6 +75,20 @@ type Condition struct {
 	// Action options includes `enable` or `disable`, default is `enable`
 	// +optional
 	Action string `json:"action,omitempty"`
+}
+
+// Validate check the validity of condition
+func (c Condition) Validate() error {
+	if c.JSONKey == "" {
+		return fmt.Errorf("the json key of the condition can not be empty")
+	}
+	if c.Action != "enable" && c.Action != "disable" {
+		return fmt.Errorf("the action of the condition must be enable or disable")
+	}
+	if c.Op != "" && !StringsContain([]string{"==", "!=", "in"}, c.Op) {
+		return fmt.Errorf("the op of the condition must be `==` 、`!=` and `in`")
+	}
+	return nil
 }
 
 // Style ui style

@@ -39,7 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -167,7 +167,11 @@ var _ = Describe("Test authentication usecase functions", func() {
 		})
 		Expect(err).Should(BeNil())
 		By("try to update dex config without config secret")
-		err = authUsecase.UpdateDexConfig(context.Background())
+		connectors, err := utils.GetDexConnectors(context.Background(), authUsecase.kubeClient)
+		Expect(err).Should(BeNil())
+		err = generateDexConfig(context.Background(), authUsecase.kubeClient, &model.UpdateDexConfig{
+			Connectors: connectors,
+		})
 		Expect(err).Should(BeNil())
 		dexConfigSecret := &corev1.Secret{}
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigSecret)
@@ -177,14 +181,12 @@ var _ = Describe("Test authentication usecase functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(len(config.Connectors)).Should(Equal(1))
 		By("try to update dex config with config secret")
-		err = authUsecase.UpdateDexConfig(context.Background())
+		err = generateDexConfig(context.Background(), authUsecase.kubeClient, &model.UpdateDexConfig{})
 		Expect(err).Should(BeNil())
 	})
 
 	It("Test get dex config", func() {
-		_, err := authUsecase.GetDexConfig(context.Background())
-		Expect(err).Should(Equal(bcode.ErrInvalidDexConfig))
-		err = ds.Add(context.Background(), &model.User{Name: "admin", Email: "test@test.com"})
+		err := ds.Add(context.Background(), &model.User{Name: "admin", Email: "test@test.com"})
 		Expect(err).Should(BeNil())
 		_, err = sysUsecase.UpdateSystemInfo(context.Background(), apisv1.SystemInfoRequest{
 			LoginType:   model.LoginTypeDex,

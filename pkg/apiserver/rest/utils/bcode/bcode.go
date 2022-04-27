@@ -52,6 +52,15 @@ func (b *Bcode) Error() string {
 	return fmt.Sprintf("HTTPCode:%d BusinessCode:%d Message:%s", b.HTTPCode, b.BusinessCode, b.Message)
 }
 
+// SetMessage set new message and return a new bcode instance
+func (b *Bcode) SetMessage(message string) *Bcode {
+	return &Bcode{
+		HTTPCode:     b.HTTPCode,
+		BusinessCode: b.BusinessCode,
+		Message:      message,
+	}
+}
+
 var bcodeMap map[int32]*Bcode
 
 // NewBcode new business code

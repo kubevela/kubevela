@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -40,7 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 )
 
@@ -65,7 +66,6 @@ type AuthenticationUsecase interface {
 	RefreshToken(ctx context.Context, refreshToken string) (*apisv1.RefreshTokenResponse, error)
 	GetDexConfig(ctx context.Context) (*apisv1.DexConfigResponse, error)
 	GetLoginType(ctx context.Context) (*apisv1.GetLoginTypeResponse, error)
-	UpdateDexConfig(ctx context.Context) error
 }
 
 type authenticationUsecaseImpl struct {
@@ -273,56 +273,95 @@ func (a *authenticationUsecaseImpl) GetDexConfig(ctx context.Context) (*apisv1.D
 	}, nil
 }
 
-func (a *authenticationUsecaseImpl) UpdateDexConfig(ctx context.Context) error {
-	connectors, err := utils.GetDexConnectors(ctx, a.kubeClient)
+func generateDexConfig(ctx context.Context, kubeClient client.Client, update *model.UpdateDexConfig) error {
+	secret, err := initDexConfig(ctx, kubeClient, update.VelaAddress)
 	if err != nil {
 		return err
 	}
-	dexConfig := &corev1.Secret{}
-	if err := a.kubeClient.Get(ctx, types.NamespacedName{
-		Name:      dexConfigName,
-		Namespace: velatypes.DefaultKubeVelaNS,
-	}, dexConfig); err != nil {
-		if !kerrors.IsNotFound(err) {
+	dexConfig := &model.DexConfig{}
+	if err := yaml.Unmarshal(secret.Data[secretDexConfigKey], dexConfig); err != nil {
+		return err
+	}
+	if update.VelaAddress != "" {
+		dexConfig.Issuer = fmt.Sprintf("%s/dex", update.VelaAddress)
+		dexConfig.StaticClients[0].RedirectURIs = []string{fmt.Sprintf("%s/callback", update.VelaAddress)}
+	}
+	if update.Connectors != nil {
+		dexConfig.Connectors = update.Connectors
+	}
+	if len(update.StaticPasswords) > 0 {
+		dexConfig.StaticPasswords = update.StaticPasswords
+	}
+	config, err := model.NewJSONStructByStruct(dexConfig)
+	if err != nil {
+		return err
+	}
+	c, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(secret.Data[secretDexConfigKey], c) {
+		secret.Data[secretDexConfigKey] = c
+		if err := kubeClient.Update(ctx, secret); err != nil {
+			return err
+		}
+		if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
 			return err
 		}
 	}
-	config := &model.JSONStruct{}
-	if dexConfig == nil || dexConfig.Data == nil {
-		(*config)["connectors"] = connectors
-		c, err := yaml.Marshal(config)
-		if err != nil {
-			return err
+	return nil
+}
+
+func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string) (*corev1.Secret, error) {
+	dexConfig := model.DexConfig{
+		Issuer: fmt.Sprintf("%s/dex", velaAddress),
+		Web: model.DexWeb{
+			HTTP: "0.0.0.0:5556",
+		},
+		Storage: model.DexStorage{
+			Type: "kubernetes",
+			Config: model.DexStorageConfig{
+				InCluster: true,
+			},
+		},
+		StaticClients: []model.DexStaticClient{
+			{
+				ID:           "velaux",
+				Name:         "Vela UX",
+				Secret:       "velaux-secret",
+				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
+			},
+		},
+		EnablePasswordDB: true,
+	}
+
+	secret := &corev1.Secret{}
+	if err := kubeClient.Get(ctx, types.NamespacedName{
+		Name:      dexConfigName,
+		Namespace: velatypes.DefaultKubeVelaNS,
+	}, secret); err != nil || secret.Data == nil {
+		if !kerrors.IsNotFound(err) {
+			return nil, err
 		}
-		if err := a.kubeClient.Create(ctx, &corev1.Secret{
+		config, err := yaml.Marshal(dexConfig)
+		if err != nil {
+			return nil, err
+		}
+		secret = &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      dexConfigName,
 				Namespace: velatypes.DefaultKubeVelaNS,
 			},
 			Type: corev1.SecretTypeOpaque,
 			Data: map[string][]byte{
-				secretDexConfigKey: c,
+				secretDexConfigKey: config,
 			},
-		}); err != nil {
-			return err
 		}
-	} else {
-		err = yaml.Unmarshal(dexConfig.Data[secretDexConfigKey], config)
-		if err != nil {
-			return err
-		}
-		(*config)["connectors"] = connectors
-		c, err := yaml.Marshal(config)
-		if err != nil {
-			return err
-		}
-		dexConfig.Data[secretDexConfigKey] = c
-		if err := a.kubeClient.Update(ctx, dexConfig); err != nil {
-			return err
+		if err := kubeClient.Create(ctx, secret); err != nil {
+			return nil, err
 		}
 	}
-
-	return restartDex(ctx, a.kubeClient)
+	return secret, nil
 }
 
 func restartDex(ctx context.Context, kubeClient client.Client) error {
@@ -332,7 +371,8 @@ func restartDex(ctx context.Context, kubeClient client.Client) error {
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexApp); err != nil {
 		if kerrors.IsNotFound(err) {
-			return bcode.ErrDexNotFound
+			// skip restart dex if dex addon is not exist
+			return nil
 		}
 		return err
 	}
