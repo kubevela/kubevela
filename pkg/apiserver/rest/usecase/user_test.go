@@ -26,11 +26,14 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test authentication usecase functions", func() {
@@ -49,7 +52,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 		rbacUsecase := &rbacUsecaseImpl{ds: ds}
 		projectUsecase := &projectUsecaseImpl{k8sClient: k8sClient, ds: ds, rbacUsecase: rbacUsecase}
 		sysUsecase := &systemInfoUsecaseImpl{ds: ds}
-		userUsecase = &userUsecaseImpl{ds: ds, projectUsecase: projectUsecase, sysUsecase: sysUsecase, rbacUsecase: rbacUsecase}
+		userUsecase = &userUsecaseImpl{ds: ds, k8sClient: k8sClient, projectUsecase: projectUsecase, sysUsecase: sysUsecase, rbacUsecase: rbacUsecase}
 	})
 	AfterEach(func() {
 		err := k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: db}})
@@ -155,7 +158,7 @@ var _ = Describe("Test authentication usecase functions", func() {
 	It("Test update user", func() {
 		ctx := context.Background()
 		userModel := &model.User{
-			Name:     "name",
+			Name:     "admin",
 			Alias:    "alias",
 			Email:    "email@example.com",
 			Password: "password",
@@ -163,18 +166,34 @@ var _ = Describe("Test authentication usecase functions", func() {
 		err := ds.Add(ctx, userModel)
 		Expect(err).Should(BeNil())
 
+		err = k8sClient.Create(context.Background(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-system",
+			},
+		})
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		_, err = userUsecase.UpdateUser(ctx, userModel, apisv1.UpdateUserRequest{
 			Alias:    "new-alias",
 			Password: "new-password",
 		})
 		Expect(err).Should(BeNil())
 		newUser := &model.User{
-			Name: "name",
+			Name: "admin",
 		}
 		err = ds.Get(ctx, newUser)
 		Expect(err).Should(BeNil())
 		Expect(newUser.Alias).Should(Equal("new-alias"))
 		Expect(compareHashWithPassword(newUser.Password, "new-password")).Should(BeNil())
+
+		dexConfigSecret := &corev1.Secret{}
+		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "dex-config", Namespace: "vela-system"}, dexConfigSecret)
+		Expect(err).Should(BeNil())
+		config := &model.DexConfig{}
+		err = yaml.Unmarshal(dexConfigSecret.Data[secretDexConfigKey], config)
+		Expect(err).Should(BeNil())
+		Expect(len(config.StaticPasswords)).Should(Equal(1))
+		Expect(config.StaticPasswords[0].Username).Should(Equal("admin"))
+		Expect(config.StaticPasswords[0].Hash).Should(Equal(newUser.Password))
 	})
 
 	It("Test disable user", func() {
