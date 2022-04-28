@@ -17,8 +17,9 @@ limitations under the License.
 package cmd
 
 import (
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 )
 
 // Factory client factory for running command
