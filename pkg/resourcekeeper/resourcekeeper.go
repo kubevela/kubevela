@@ -41,6 +41,7 @@ type ResourceKeeper interface {
 	Delete(context.Context, []*unstructured.Unstructured, ...DeleteOption) error
 	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
+	ContainsResources([]*unstructured.Unstructured) bool
 
 	DispatchComponentRevision(context.Context, *v1.ControllerRevision) error
 	DeleteComponentRevision(context.Context, *v1.ControllerRevision) error

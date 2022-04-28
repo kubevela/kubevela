@@ -403,7 +403,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	var placements []v1alpha1.PlacementDecision
 	af, err := pkgappfile.NewApplicationParser(cli, dm, pd).GenerateAppFile(context.Background(), app)
 	if err == nil {
-		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app, af.Policies, true)
+		placements, _ = policy.GetPlacementsFromTopologyPolicies(context.Background(), cli, app.GetNamespace(), af.Policies, true)
 	}
 	format, _ := cmd.Flags().GetString("detail-format")
 	var maxWidth *int

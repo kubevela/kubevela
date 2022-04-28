@@ -531,6 +531,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		e.waiting = e.waiting || operation.Waiting
 		if status.Phase == common.WorkflowStepPhaseSucceeded || (status.Phase == common.WorkflowStepPhaseRunning && status.Type == wfTypes.WorkflowStepTypeSuspend) {
 			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID)
 			if err := wfCtx.Commit(); err != nil {
 				return errors.WithMessage(err, "commit workflow context")
 			}
@@ -542,6 +543,10 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 			continue
 		}
 
+		if val, exists := wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID); !exists || val != status.Message {
+			wfCtx.SetValueInMemory(status.Message, wfTypes.ContextPrefixBackoffReason, status.ID)
+			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		}
 		wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
 		if err := wfCtx.Commit(); err != nil {
 			return errors.WithMessage(err, "commit workflow context")

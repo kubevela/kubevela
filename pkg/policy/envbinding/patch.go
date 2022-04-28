@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
@@ -180,7 +181,7 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 			// 3. if the matched component uses a different type, the matched component will be overridden by the patch
 			// 4. if no component matches, and the component name is a valid kubernetes name, a new component will be added
 			addComponent := regexp.MustCompile("[a-z]([a-z-]{0,61}[a-z])?").MatchString(comp.Name)
-			if re, err := regexp.Compile(comp.Name); err == nil {
+			if re, err := regexp.Compile(strings.ReplaceAll(comp.Name, "*", ".*")); err == nil {
 				for compName, baseComp := range compMaps {
 					if re.MatchString(compName) {
 						addComponent = false

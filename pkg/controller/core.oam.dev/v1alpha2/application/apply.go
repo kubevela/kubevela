@@ -212,6 +212,7 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
+// nolint
 func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
 	namespace := h.app.Namespace
 	if overrideNamespace != "" {
