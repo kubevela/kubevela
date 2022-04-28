@@ -70,6 +70,13 @@ func TestParseMap(t *testing.T) {
 			},
 			nilError: true,
 		},
+		{
+			args: []string{"local=true"},
+			res: map[string]interface{}{
+				"local": true,
+			},
+			nilError: true,
+		},
 	}
 	for _, s := range testcase {
 		r, err := parseAddonArgsToMap(s.args)
