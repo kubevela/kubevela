@@ -89,6 +89,9 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 		if mf == nil {
 			continue
 		}
+		if oam.GetCluster(mf) != "" {
+			cluster = oam.GetCluster(mf)
+		}
 		ref := common.ClusterObjectReference{
 			Cluster: cluster,
 			Creator: owner,

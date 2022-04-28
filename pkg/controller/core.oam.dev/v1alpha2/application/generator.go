@@ -169,7 +169,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace, env)
+		return renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 	}
 }
 
@@ -193,7 +193,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		}
 		wl.Ctx.SetCtx(ctx)
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, overrideNamespace, env)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -224,6 +224,21 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 	}
 }
 
+// overrideTraits will override cluster field to be local for traits which are control plane only
+func overrideTraits(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
+	traits := readyTraits
+	for index, readyTrait := range readyTraits {
+		for _, trait := range appRev.Spec.TraitDefinitions {
+			if trait.Spec.ControlPlaneOnly && trait.Name == readyTrait.GetLabels()[oam.TraitTypeLabel] {
+				oam.SetCluster(traits[index], "local")
+				traits[index].SetNamespace(appRev.GetNamespace())
+				break
+			}
+		}
+	}
+	return traits
+}
+
 func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	appParser *appfile.Parser,
 	comp common.ApplicationComponent,
@@ -249,10 +264,16 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func renderComponentsAndTraits(client client.Client, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, []assemble.WorkloadOption{assemble.DiscoveryHelmBasedWorkload(context.TODO(), client)})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
+	}
+	if clusterName != "" {
+		oam.SetCluster(readyWorkload, clusterName)
+		for _, readyTrait := range readyTraits {
+			oam.SetCluster(readyTrait, clusterName)
+		}
 	}
 	if overrideNamespace != "" {
 		readyWorkload.SetNamespace(overrideNamespace)
@@ -260,6 +281,7 @@ func renderComponentsAndTraits(client client.Client, manifest *types.ComponentMa
 			readyTrait.SetNamespace(overrideNamespace)
 		}
 	}
+	readyTraits = overrideTraits(appRev, readyTraits)
 	if env != "" {
 		meta.AddLabels(readyWorkload, map[string]string{oam.LabelAppEnv: env})
 		for _, readyTrait := range readyTraits {

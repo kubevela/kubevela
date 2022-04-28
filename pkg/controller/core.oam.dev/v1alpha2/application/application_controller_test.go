@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1beta12 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -293,6 +294,31 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithControlPlaneOnly := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-controlplaneonly",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "app-controlplaneonly-component",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
+	}
+	appWithControlPlaneOnly.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "hubcpuscaler",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"min\": 1,\"max\": 10,\"cpuPercent\": 60}")},
+		},
+	}
+
 	appWithMountToEnvs := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -339,6 +365,8 @@ var _ = Describe("Test Application Controller", func() {
 
 	importEnv := &v1alpha2.TraitDefinition{}
 
+	importHubCpuScaler := &v1beta1.TraitDefinition{}
+
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
 
@@ -379,6 +407,11 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(envErr).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(envJson, importEnv)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importEnv.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		hubCpuScalerJson, hubCpuScalerErr := yaml.YAMLToJSON([]byte(hubCpuScalerYaml))
+		Expect(hubCpuScalerErr).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(hubCpuScalerJson, importHubCpuScaler)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importHubCpuScaler.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -2716,6 +2749,60 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("test application with controlPlaneOnly trait ", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-controlplaneonly",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithControlPlaneOnly.SetNamespace(ns.Name)
+		app := appWithControlPlaneOnly.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check secret Created with the expected trait-storage spec")
+		hpa := &autoscalingv1.HorizontalPodAutoscaler{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.GetNamespace(),
+			Name:      app.Spec.Components[0].Name,
+		}, hpa)).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, hpa)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 const (
@@ -4081,6 +4168,51 @@ spec:
         })
         errs: [ for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]
 
+`
+
+	hubCpuScalerYaml = `apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Automatically scale the component based on CPU usage.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
+  name: hubcpuscaler
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - deployments.apps
+  controlPlaneOnly: true
+  schematic:
+    cue:
+      template: |
+        outputs: hubcpuscaler: {
+        	apiVersion: "autoscaling/v1"
+        	kind:       "HorizontalPodAutoscaler"
+        	metadata: name: context.name
+        	spec: {
+        		scaleTargetRef: {
+        			apiVersion: parameter.targetAPIVersion
+        			kind:       parameter.targetKind
+        			name:       context.name
+        		}
+        		minReplicas:                    parameter.min
+        		maxReplicas:                    parameter.max
+        		targetCPUUtilizationPercentage: parameter.cpuUtil
+        	}
+        }
+        parameter: {
+        	// +usage=Specify the minimal number of replicas to which the autoscaler can scale down
+        	min: *1 | int
+        	// +usage=Specify the maximum number of of replicas to which the autoscaler can scale up
+        	max: *10 | int
+        	// +usage=Specify the average CPU utilization, for example, 50 means the CPU usage is 50%
+        	cpuUtil: *50 | int
+        	// +usage=Specify the apiVersion of scale target
+        	targetAPIVersion: *"apps/v1" | string
+        	// +usage=Specify the kind of scale target
+        	targetKind: *"Deployment" | string
+        }
 `
 )
 

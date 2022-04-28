@@ -157,6 +157,9 @@ type TraitDefinitionSpec struct {
 	// SkipRevisionAffect defines the update this trait will not generate a new application Revision
 	// +optional
 	SkipRevisionAffect bool `json:"skipRevisionAffect,omitempty"`
+	// ControlPlaneOnly defines which cluster is dispatched to
+	// +optional
+	ControlPlaneOnly bool `json:"controlPlaneOnly,omitempty"`
 }
 
 // TraitDefinitionStatus is the status of TraitDefinition
