@@ -39,7 +39,7 @@ template: {
 				}]
 			}
 			if _baseEnv != _|_ {
-				_baseEnvMap: {for envVar in _baseEnv {"\(envVar.name)": envVar.value}}
+				_baseEnvMap: {for envVar in _baseEnv {"\(envVar.name)": envVar}}
 				// +patchStrategy=replace
 				env: [ for envVar in _baseEnv if _delKeys[envVar.name] == _|_ && !_params.replace {
 					name: envVar.name
@@ -47,11 +47,15 @@ template: {
 						value: _params.env[envVar.name]
 					}
 					if _params.env[envVar.name] == _|_ {
-						value: envVar.value
+						if envVar.value != _|_ {
+							value: envVar.value
+						}
+						if envVar.valueFrom != _|_ {
+							valueFrom: envVar.valueFrom
+						}
 					}
 				}] + [ for k, v in _params.env if _delKeys[k] == _|_ && (_params.replace || _baseEnvMap[k] == _|_) {
-					name:  k
-					value: v
+					v
 				}]
 			}
 		}
