@@ -165,7 +165,12 @@ template: {
 			selector: matchLabels: "app.oam.dev/component": context.name
 
 			template: {
-				metadata: labels: "app.oam.dev/component": context.name
+				metadata: {
+					labels: {
+						"app.oam.dev/name": context.appName
+						"app.oam.dev/component": context.name
+					}
+				}
 
 				spec: {
 					containers: [{
