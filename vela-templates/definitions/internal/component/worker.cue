@@ -167,7 +167,7 @@ template: {
 			template: {
 				metadata: {
 					labels: {
-						"app.oam.dev/name": context.appName
+						"app.oam.dev/name":      context.appName
 						"app.oam.dev/component": context.name
 					}
 				}

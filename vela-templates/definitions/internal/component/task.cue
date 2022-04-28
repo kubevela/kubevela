@@ -53,7 +53,7 @@ template: {
 						if parameter.labels != _|_ {
 							parameter.labels
 						}
-						"app.oam.dev/name": context.appName
+						"app.oam.dev/name":      context.appName
 						"app.oam.dev/component": context.name
 					}
 					if parameter.annotations != _|_ {
