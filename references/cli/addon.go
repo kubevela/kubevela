@@ -289,7 +289,7 @@ Upgrade addon for specific clusters, (local means control plane):
 func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	for _, arg := range args {
-		if err := strvals.ParseIntoString(arg, res); err != nil {
+		if err := strvals.ParseInto(arg, res); err != nil {
 			return nil, err
 		}
 	}
