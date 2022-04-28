@@ -282,7 +282,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 			for _, addon := range uiDatas {
 				uiData, err := versionedRegistry.GetAddonUIData(context.Background(), addon.Name, addon.Version)
 				if err != nil {
-					log.Logger.Errorf("fail to get addon from registry %s, addon %s version %s for cache updating, %v", addon.Name, r.Name, err)
+					log.Logger.Errorf("fail to get addon from registry %s, addon %s version %s for cache updating, %v", r.Name, addon.Name, addon.Version, err)
 					continue
 				}
 				u.putVersionedUIData2Cache(r.Name, addon.Name, addon.Version, uiData)
