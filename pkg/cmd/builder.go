@@ -18,8 +18,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/util/term"
+
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 )
 
 // Builder build command with factory
