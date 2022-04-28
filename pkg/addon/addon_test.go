@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -905,4 +906,24 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 	installer := &Installer{}
 	err := installer.enableAddon(&i)
 	assert.Equal(t, errors.As(err, &VersionUnMatchError{}), true)
+}
+
+func TestPackageAddon(t *testing.T) {
+	pwd, _ := os.Getwd()
+
+	validAddonDict := "./testdata/example"
+	archiver, err := PackageAddon(validAddonDict)
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(pwd, "example-1.0.1.tgz"), archiver)
+
+	invalidAddonDict := "./testdata"
+	archiver, err = PackageAddon(invalidAddonDict)
+	assert.NotNil(t, err)
+	assert.Equal(t, "", archiver)
+
+	invalidAddonMetadata := "./testdata/invalid-metadata"
+	archiver, err = PackageAddon(invalidAddonMetadata)
+	assert.NotNil(t, err)
+	assert.Equal(t, "", archiver)
+
 }

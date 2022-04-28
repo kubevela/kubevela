@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -211,13 +210,10 @@ func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPO
 	}
 	var body []byte
 	if utils.IsValidURL(repoURL) {
-		parsedURL, err := url.Parse(repoURL)
+		indexURL, err := utils.JoinURL(repoURL, "index.yaml")
 		if err != nil {
 			return nil, err
 		}
-		parsedURL.RawPath = path.Join(parsedURL.RawPath, "index.yaml")
-		parsedURL.Path = path.Join(parsedURL.Path, "index.yaml")
-		indexURL := parsedURL.String()
 		body, err = common.HTTPGetWithOption(context.Background(), indexURL, opts)
 		if err != nil {
 			return nil, fmt.Errorf("download index file from %s failure %w", repoURL, err)

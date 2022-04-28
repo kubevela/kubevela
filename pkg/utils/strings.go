@@ -17,6 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	"net/url"
+	"path"
 	"reflect"
 	"sort"
 	"strings"
@@ -139,4 +141,16 @@ func GetBoxDrawingString(up bool, down bool, left bool, right bool, padLeft int,
 	sb.WriteRune(c)
 	writePadding(right, padRight)
 	return sb.String()
+}
+
+// JoinURL join baseURL and subPath to be new URL
+func JoinURL(baseURL, subPath string) (string, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	parsedURL.RawPath = path.Join(parsedURL.RawPath, subPath)
+	parsedURL.Path = path.Join(parsedURL.Path, subPath)
+	URL := parsedURL.String()
+	return URL, nil
 }

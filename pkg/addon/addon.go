@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1125,7 +1129,10 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 		}
 	} else {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL)
+		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
+			Username: h.r.Helm.Username,
+			Password: h.r.Helm.Password,
+		})
 		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
 		if err != nil {
 			return nil, err
@@ -1437,4 +1444,52 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 		}
 	}
 	return tag, nil
+}
+
+// PackageAddon package vela addon directory into a helm chart compatible archive and return its absolute path
+func PackageAddon(addonDictPath string) (string, error) {
+	meta := &Meta{}
+	metaData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(addonDictPath, MetadataFileName)))
+	if err != nil {
+		return "", err
+	}
+
+	err = yaml.Unmarshal(metaData, meta)
+	if err != nil {
+		return "", err
+	}
+
+	chartFile := &chart.Metadata{
+		Name:        meta.Name,
+		Description: meta.Description,
+		// define Vela addon's type to be library in order to prevent installation of a common chart. Please refer to https://helm.sh/docs/topics/library_charts/
+		Type:       "library",
+		Version:    meta.Version,
+		AppVersion: meta.Version,
+		APIVersion: chart.APIVersionV2,
+		Icon:       meta.Icon,
+		Home:       meta.URL,
+		Keywords:   meta.Tags,
+	}
+
+	// save the Chart.yaml file in order to be compatible with helm chart
+	err = chartutil.SaveChartfile(filepath.Join(addonDictPath, chartutil.ChartfileName), chartFile)
+	if err != nil {
+		return "", err
+	}
+
+	ch, err := loader.LoadDir(addonDictPath)
+	if err != nil {
+		return "", err
+	}
+
+	dest, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	archive, err := chartutil.Save(ch, dest)
+	if err != nil {
+		return "", err
+	}
+	return archive, nil
 }

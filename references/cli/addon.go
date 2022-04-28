@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-
 	"k8s.io/client-go/discovery"
 
 	"helm.sh/helm/v3/pkg/strvals"
@@ -93,6 +92,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonStatusCommand(c, ioStreams),
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
+		NewAddonPackageCommand(c),
 	)
 	return cmd
 }
@@ -468,7 +468,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 				continue
 			}
 		} else {
-			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL)
+			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
 				continue
@@ -608,6 +608,34 @@ func transClusters(cstr string) []string {
 		clusterL = append(clusterL, strings.TrimSpace(v))
 	}
 	return clusterL
+}
+
+// NewAddonPackageCommand create addon package command
+func NewAddonPackageCommand(c common.Args) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "package",
+		Short:   "package an addon directory",
+		Long:    "package an addon directory into a helm chart archive.",
+		Example: "vela addon package <addon directory>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("must specify addon directory path")
+			}
+			addonDict, err := filepath.Abs(args[0])
+			if err != nil {
+				return err
+			}
+
+			archive, err := pkgaddon.PackageAddon(addonDict)
+			if err != nil {
+				return errors.Wrapf(err, "fail to package %s into helm chart archive", addonDict)
+			}
+
+			fmt.Printf("Successfully package addon to: %s\n", archive)
+			return nil
+		},
+	}
+	return cmd
 }
 
 // TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times
