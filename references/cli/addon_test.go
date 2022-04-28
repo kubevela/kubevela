@@ -77,6 +77,13 @@ func TestParseMap(t *testing.T) {
 			},
 			nilError: true,
 		},
+		{
+			args: []string{"replicas=3"},
+			res: map[string]interface{}{
+				"replicas": int64(3),
+			},
+			nilError: true,
+		},
 	}
 	for _, s := range testcase {
 		r, err := parseAddonArgsToMap(s.args)
