@@ -99,6 +99,8 @@ healthCheck:
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 multicluster:
   enabled: true
+  metrics:
+    enabled: false
   clusterGateway:
     replicaCount: 1
     port: 9443

@@ -132,6 +132,9 @@ spec:
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
             {{ end }}
+            {{ if .Values.multicluster.metrics.enabled }}
+            - "--enable-cluster-metrics"
+            {{ end }}
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
