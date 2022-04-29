@@ -110,6 +110,7 @@ optimize:
 ## @section MultiCluster parameters
 
 ## @param multicluster.enabled Whether to enable multi-cluster
+## @param multicluster.metrics.enabled Whether to enable multi-cluster metrics collect
 ## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
 ## @param multicluster.clusterGateway.port ClusterGateway port
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
@@ -121,6 +122,8 @@ optimize:
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 multicluster:
   enabled: true
+  metrics:
+    enabled: false
   clusterGateway:
     replicaCount: 1
     port: 9443
