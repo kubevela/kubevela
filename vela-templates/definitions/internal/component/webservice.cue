@@ -177,6 +177,7 @@ template: {
 						if parameter.addRevisionLabel {
 							"app.oam.dev/revision": context.revision
 						}
+						"app.oam.dev/name":      context.appName
 						"app.oam.dev/component": context.name
 					}
 					if parameter.annotations != _|_ {

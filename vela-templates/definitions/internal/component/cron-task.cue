@@ -25,11 +25,17 @@ template: {
 				startingDeadlineSeconds: parameter.startingDeadlineSeconds
 			}
 			jobTemplate: {
-				if parameter.labels != _|_ {
-					metadata: labels: parameter.labels
-				}
-				if parameter.annotations != _|_ {
-					metadata: annotations: parameter.annotations
+				metadata: {
+					labels: {
+						if parameter.labels != _|_ {
+							parameter.labels
+						}
+						"app.oam.dev/name":      context.appName
+						"app.oam.dev/component": context.name
+					}
+					if parameter.annotations != _|_ {
+						annotations: parameter.annotations
+					}
 				}
 				spec: {
 					parallelism: parameter.count
@@ -42,11 +48,17 @@ template: {
 					}
 					backoffLimit: parameter.backoffLimit
 					template: {
-						if parameter.labels != _|_ {
-							metadata: labels: parameter.labels
-						}
-						if parameter.annotations != _|_ {
-							metadata: annotations: parameter.annotations
+						metadata: {
+							labels: {
+								if parameter.labels != _|_ {
+									parameter.labels
+								}
+								"app.oam.dev/name":      context.appName
+								"app.oam.dev/component": context.name
+							}
+							if parameter.annotations != _|_ {
+								annotations: parameter.annotations
+							}
 						}
 						spec: {
 							restartPolicy: parameter.restart
