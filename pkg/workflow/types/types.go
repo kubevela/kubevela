@@ -47,6 +47,7 @@ type TaskRunOptions struct {
 	PostStopHooks []TaskPostStopHook
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
+	Debug         func(step string, v *value.Value) error
 }
 
 // TaskPreStartHook run before task execution.
@@ -87,6 +88,8 @@ const (
 	ContextPrefixFailedTimes = "failed_times"
 	// ContextPrefixBackoffTimes is the prefix that refer to the backoff times in workflow context config map.
 	ContextPrefixBackoffTimes = "backoff_times"
+	// ContextPrefixBackoffReason is the prefix that refer to the current backoff reason in workflow context config map
+	ContextPrefixBackoffReason = "backoff_reason"
 	// ContextKeyLastExecuteTime is the key that refer to the last execute time in workflow context config map.
 	ContextKeyLastExecuteTime = "last_execute_time"
 	// ContextKeyNextExecuteTime is the key that refer to the next execute time in workflow context config map.

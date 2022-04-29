@@ -45,7 +45,7 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 
 ## Community
 
-- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel (*English*)
+- Slack:  [CNCF Slack kubevela channel](https://cloud-native.slack.com/archives/C01BLQ3HTJA) (*English*)
 - Gitter: [oam-dev](https://gitter.im/oam-dev/community) (*English*)
 - [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.

@@ -20,15 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+	"strings"
 
+	set "github.com/deckarep/golang-set"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/yaml"
-
-	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,13 +39,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/model"
 	apis "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/utils/config"
 )
 
 const (
 	definitionAlias = definition.UserPrefix + "alias.config.oam.dev"
 	definitionType  = definition.UserPrefix + "type.config.oam.dev"
 
-	velaCoreConfig = "velacore-config"
+	configIsReady           = "Ready"
+	configIsNotReady        = "Not ready"
+	terraformProviderAlias  = "Terraform Cloud Provider"
+	configSyncProjectPrefix = "config-sync"
 )
 
 // ConfigHandler handle CRUD of configs
@@ -78,7 +83,7 @@ type configUseCaseImpl struct {
 func (u *configUseCaseImpl) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig}); err != nil {
+		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig}); err != nil {
 		return nil, err
 	}
 
@@ -98,18 +103,21 @@ func (u *configUseCaseImpl) ListConfigTypes(ctx context.Context, query string) (
 		})
 	}
 
-	tfType := &apis.ConfigType{
-		Alias: "Terraform Cloud Provider",
-		Name:  types.TerraformProvider,
-	}
-	definitions := make([]string, len(tfDefs))
+	if len(tfDefs) > 0 {
+		tfType := &apis.ConfigType{
+			Alias: terraformProviderAlias,
+			Name:  types.TerraformProvider,
+		}
+		definitions := make([]string, len(tfDefs))
 
-	for i, tf := range tfDefs {
-		definitions[i] = tf.Name
-	}
-	tfType.Definitions = definitions
+		for i, tf := range tfDefs {
+			definitions[i] = tf.Name
+		}
+		tfType.Definitions = definitions
 
-	return append(configTypes, tfType), nil
+		return append(configTypes, tfType), nil
+	}
+	return configTypes, nil
 }
 
 // GetConfigType returns a config type
@@ -128,79 +136,59 @@ func (u *configUseCaseImpl) GetConfigType(ctx context.Context, configType string
 }
 
 func (u *configUseCaseImpl) CreateConfig(ctx context.Context, req apis.CreateConfigRequest) error {
-	app := v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      req.Name,
-			Namespace: types.DefaultKubeVelaNS,
-			Annotations: map[string]string{
-				types.AnnotationConfigAlias: req.Alias,
-			},
-			Labels: map[string]string{
-				model.LabelSourceOfTruth: model.FromInner,
-				types.LabelConfigCatalog: velaCoreConfig,
-				types.LabelConfigType:    req.ComponentType,
-				types.LabelConfigProject: req.Project,
-			},
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Name:       req.Name,
-					Type:       req.ComponentType,
-					Properties: &runtime.RawExtension{Raw: []byte(req.Properties)},
-				},
-			},
-		},
-	}
-	if err := u.kubeClient.Create(ctx, &app); err != nil {
-		return err
-	}
-
-	// try to check whether the underlying config secrets is successfully created
-	var succeeded bool
-	var configApp v1beta1.Application
-	for i := 0; i < 100; i++ {
-		if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: req.Name}, &configApp); err == nil {
-			if configApp.Status.Phase == common.ApplicationRunning {
-				succeeded = true
-				break
-			}
+	p := req.Properties
+	// If the component is Terraform type, set the provider name same as the application name and the component name
+	if strings.HasPrefix(req.ComponentType, types.TerraformComponentPrefix) {
+		var properties map[string]interface{}
+		if err := json.Unmarshal([]byte(p), &properties); err != nil {
+			return errors.Wrapf(err, "unable to process the properties of %s", req.ComponentType)
 		}
-		time.Sleep(time.Second)
-	}
-	// clean up failed application
-	if !succeeded {
-		if err := u.kubeClient.Delete(ctx, &app); err != nil {
-			return err
+		properties["name"] = req.Name
+		tmp, err := json.Marshal(properties)
+		if err != nil {
+			return errors.Wrapf(err, "unable to process the properties of %s", req.ComponentType)
 		}
-		return errors.New("failed to create config")
+		p = string(tmp)
 	}
-
-	if succeeded && req.ComponentType == types.DexConnector {
-		return u.authenticationUseCase.UpdateDexConfig(ctx)
+	ui := config.UIParam{
+		Alias:       req.Alias,
+		Description: req.Description,
+		Project:     req.Project,
 	}
-
-	return nil
+	return config.CreateApplication(ctx, u.kubeClient, req.Name, req.ComponentType, p, ui)
 }
 
 func (u *configUseCaseImpl) GetConfigs(ctx context.Context, configType string) ([]*apis.Config, error) {
 	switch configType {
 	case types.TerraformProvider:
-		defs := &v1beta1.ComponentDefinitionList{}
-		if err := u.kubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-			client.MatchingLabels{
-				definition.UserPrefix + "catalog.config.oam.dev": velaCoreConfig,
-				definition.UserPrefix + "type.config.oam.dev":    types.TerraformProvider,
-			}); err != nil {
+		providers, err := config.ListTerraformProviders(ctx, u.kubeClient)
+		if err != nil {
 			return nil, err
 		}
-		var configs []*apis.Config
-		for _, d := range defs.Items {
-			subConfigs, err := u.getConfigsByConfigType(ctx, d.Name)
-			if err != nil {
+		configs := make([]*apis.Config, len(providers))
+		for i, p := range providers {
+			var a v1beta1.Application
+			if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: p.Name}, &a); err != nil {
+				if kerrors.IsNotFound(err) {
+					t := p.CreationTimestamp.Time
+					configs[i] = &apis.Config{
+						Name:        p.Name,
+						CreatedTime: &t,
+					}
+					if p.Status.State == terraformtypes.ProviderIsReady {
+						configs[i].Status = configIsReady
+					} else {
+						configs[i].Status = configIsNotReady
+					}
+					continue
+				}
 				return nil, err
 			}
-			configs = append(configs, subConfigs...)
+			// If the application doesn't have any components, skip it as something wrong happened.
+			if !strings.HasPrefix(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
+				continue
+			}
+			configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
 		}
 		return configs, nil
 
@@ -215,7 +203,7 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 	if err := u.kubeClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			model.LabelSourceOfTruth: model.FromInner,
-			types.LabelConfigCatalog: velaCoreConfig,
+			types.LabelConfigCatalog: types.VelaCoreConfig,
 			types.LabelConfigType:    configType,
 		}); err != nil {
 		return nil, err
@@ -223,12 +211,7 @@ func (u *configUseCaseImpl) getConfigsByConfigType(ctx context.Context, configTy
 
 	configs := make([]*apis.Config, len(apps.Items))
 	for i, a := range apps.Items {
-		configs[i] = &apis.Config{
-			ConfigType:  a.Labels[types.LabelConfigType],
-			Name:        a.Name,
-			Project:     a.Labels[types.LabelConfigProject],
-			CreatedTime: &(a.CreationTimestamp.Time),
-		}
+		configs[i] = retrieveConfigFromApplication(a, a.Labels[types.LabelConfigProject])
 	}
 	return configs, nil
 }
@@ -250,11 +233,11 @@ func (u *configUseCaseImpl) GetConfig(ctx context.Context, configType, name stri
 }
 
 func (u *configUseCaseImpl) DeleteConfig(ctx context.Context, configType, name string) error {
-	var a = &v1beta1.Application{}
-	if err := u.kubeClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, a); err != nil {
-		return err
+	var isTerraformProvider bool
+	if strings.HasPrefix(configType, types.TerraformComponentPrefix) {
+		isTerraformProvider = true
 	}
-	return u.kubeClient.Delete(ctx, a)
+	return config.DeleteApplication(ctx, u.kubeClient, name, isTerraformProvider)
 }
 
 // ApplicationDeployTarget is the struct of application deploy target
@@ -265,13 +248,12 @@ type ApplicationDeployTarget struct {
 
 // SyncConfigs will sync configs to working clusters
 func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, targets []*model.ClusterTarget) error {
-	name := fmt.Sprintf("config-sync-%s", project)
+	name := fmt.Sprintf("%s-%s", configSyncProjectPrefix, project)
 	// get all configs which can be synced to working clusters in the project
 	var secrets v1.SecretList
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
-			types.LabelConfigCatalog:            velaCoreConfig,
-			types.LabelConfigProject:            project,
+			types.LabelConfigCatalog:            types.VelaCoreConfig,
 			types.LabelConfigSyncToMultiCluster: "true",
 		}); err != nil {
 		return err
@@ -279,12 +261,18 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	if len(secrets.Items) == 0 {
 		return nil
 	}
-	objects := make([]map[string]string, len(secrets.Items))
-	for i, s := range secrets.Items {
-		objects[i] = map[string]string{
-			"name":     s.Name,
-			"resource": "secret",
+	var objects []map[string]string
+	for _, s := range secrets.Items {
+		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
+			objects = append(objects, map[string]string{
+				"name":     s.Name,
+				"resource": "secret",
+			})
 		}
+	}
+	if len(objects) == 0 {
+		klog.InfoS("no configs need to sync to working clusters", "project", project)
+		return nil
 	}
 	objectsBytes, err := json.Marshal(map[string][]map[string]string{"objects": objects})
 	if err != nil {
@@ -297,6 +285,26 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 			return err
 		}
 		// config sync application doesn't exist, create one
+		clusterTargets := convertClusterTargets(targets)
+		if len(clusterTargets) == 0 {
+			errMsg := "no policy (no targets found) to sync configs"
+			klog.InfoS(errMsg, "project", project)
+			return errors.New(errMsg)
+		}
+		policies := make([]v1beta1.AppPolicy, len(clusterTargets))
+		for i, t := range clusterTargets {
+			properties, err := json.Marshal(t)
+			if err != nil {
+				return err
+			}
+			policies[i] = v1beta1.AppPolicy{
+				Type: "topology",
+				Name: t.Namespace,
+				Properties: &runtime.RawExtension{
+					Raw: properties,
+				},
+			}
+		}
 
 		scratch := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -304,7 +312,7 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 				Namespace: types.DefaultKubeVelaNS,
 				Labels: map[string]string{
 					model.LabelSourceOfTruth: model.FromInner,
-					types.LabelConfigCatalog: velaCoreConfig,
+					types.LabelConfigCatalog: types.VelaCoreConfig,
 					types.LabelConfigProject: project,
 				},
 			},
@@ -316,11 +324,10 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 						Properties: &runtime.RawExtension{Raw: objectsBytes},
 					},
 				},
+				Policies: policies,
 			},
 		}
-		if err := k8sClient.Create(ctx, scratch); err != nil {
-			return err
-		}
+		return k8sClient.Create(ctx, scratch)
 	}
 	// config sync application exists, update it
 	app.Spec.Components = []common.ApplicationComponent{
@@ -340,6 +347,11 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 	}
 
 	mergedTarget := mergeTargets(currentTargets, targets)
+	if len(mergedTarget) == 0 {
+		errMsg := "no policy (no targets found) to sync configs"
+		klog.InfoS(errMsg, "project", project)
+		return errors.New(errMsg)
+	}
 	mergedPolicies := make([]v1beta1.AppPolicy, len(mergedTarget))
 	for i, t := range mergedTarget {
 		properties, err := json.Marshal(t)
@@ -355,21 +367,27 @@ func SyncConfigs(ctx context.Context, k8sClient client.Client, project string, t
 		}
 	}
 	app.Spec.Policies = mergedPolicies
-	out, _ := yaml.Marshal(app)
-	fmt.Println(string(out))
-
 	return k8sClient.Update(ctx, app)
 }
 
 func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.ClusterTarget) []ApplicationDeployTarget {
-	var mergedTargets []ApplicationDeployTarget
+	var (
+		mergedTargets []ApplicationDeployTarget
+		// make sure the clusters of target with same namespace are merged
+		clusterTargets = convertClusterTargets(targets)
+	)
+
 	for _, c := range currentTargets {
 		var hasSameNamespace bool
-		for _, t := range targets {
+		for _, t := range clusterTargets {
 			if c.Namespace == t.Namespace {
 				hasSameNamespace = true
-				clusters := append(c.Clusters, t.ClusterName)
-				mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: c.Namespace, Clusters: clusters})
+				clusters := set.NewSetFromSlice(stringToInterfaceSlice(t.Clusters))
+				for _, cluster := range c.Clusters {
+					clusters.Add(cluster)
+				}
+				mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: c.Namespace,
+					Clusters: interfaceToStringSlice(clusters.ToSlice())})
 			}
 		}
 		if !hasSameNamespace {
@@ -377,7 +395,7 @@ func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.Clu
 		}
 	}
 
-	for _, t := range targets {
+	for _, t := range clusterTargets {
 		var hasSameNamespace bool
 		for _, c := range currentTargets {
 			if c.Namespace == t.Namespace {
@@ -385,9 +403,75 @@ func mergeTargets(currentTargets []ApplicationDeployTarget, targets []*model.Clu
 			}
 		}
 		if !hasSameNamespace {
-			mergedTargets = append(mergedTargets, ApplicationDeployTarget{Namespace: t.Namespace, Clusters: []string{t.ClusterName}})
+			mergedTargets = append(mergedTargets, t)
 		}
 	}
 
 	return mergedTargets
+}
+
+func convertClusterTargets(targets []*model.ClusterTarget) []ApplicationDeployTarget {
+	type Target struct {
+		Namespace string        `json:"namespace"`
+		Clusters  []interface{} `json:"clusters"`
+	}
+
+	var (
+		clusterTargets []Target
+		namespaceSet   = set.NewSet()
+	)
+
+	for i := 0; i < len(targets); i++ {
+		clusters := set.NewSet(targets[i].ClusterName)
+		for j := i + 1; j < len(targets); j++ {
+			if targets[i].Namespace == targets[j].Namespace {
+				clusters.Add(targets[j].ClusterName)
+			}
+		}
+		if namespaceSet.Contains(targets[i].Namespace) {
+			continue
+		}
+		clusterTargets = append(clusterTargets, Target{
+			Namespace: targets[i].Namespace,
+			Clusters:  clusters.ToSlice(),
+		})
+		namespaceSet.Add(targets[i].Namespace)
+	}
+
+	t := make([]ApplicationDeployTarget, len(clusterTargets))
+	for i, ct := range clusterTargets {
+		t[i] = ApplicationDeployTarget{
+			Namespace: ct.Namespace,
+			Clusters:  interfaceToStringSlice(ct.Clusters),
+		}
+	}
+	return t
+}
+
+func interfaceToStringSlice(i []interface{}) []string {
+	var s []string
+	for _, v := range i {
+		s = append(s, v.(string))
+	}
+	return s
+}
+
+func stringToInterfaceSlice(i []string) []interface{} {
+	var s []interface{}
+	for _, v := range i {
+		s = append(s, v)
+	}
+	return s
+}
+
+// destroySyncConfigsApp will delete the application which is used to sync configs
+func destroySyncConfigsApp(ctx context.Context, k8sClient client.Client, project string) error {
+	name := fmt.Sprintf("%s-%s", configSyncProjectPrefix, project)
+	var app = &v1beta1.Application{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, app); err != nil {
+		if !kerrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return k8sClient.Delete(ctx, app)
 }

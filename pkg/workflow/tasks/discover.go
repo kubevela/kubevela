@@ -18,6 +18,8 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
+	builtintime "time"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
@@ -27,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
@@ -68,17 +71,27 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 }
 
 func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
-	return &suspendTaskRunner{
+	tr := &suspendTaskRunner{
 		id:   opt.ID,
 		name: step.Name,
-	}, nil
+		wait: false,
+	}
+
+	doDelay, _, err := GetSuspendStepDurationWaiting(step)
+	if err != nil {
+		return nil, err
+	}
+
+	tr.wait = doDelay
+
+	return tr, nil
 }
 
-func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
+func newTaskDiscover(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
 	email.Install(providerHandlers)
-	util.Install(providerHandlers)
+	util.Install(ctx, providerHandlers)
 
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
@@ -89,21 +102,16 @@ func newTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageD
 	}
 }
 
-// NewTaskDiscover will create a client for load task generator.
-func NewTaskDiscover(providerHandlers providers.Providers, pd *packages.PackageDiscover, cli client.Client, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
-	templateLoader := template.NewWorkflowStepTemplateLoader(cli, dm)
-	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
-}
-
 // NewTaskDiscoverFromRevision will create a client for load task generator from ApplicationRevision.
-func NewTaskDiscoverFromRevision(providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
 	templateLoader := template.NewWorkflowStepTemplateRevisionLoader(rev, dm)
-	return newTaskDiscover(providerHandlers, pd, pCtx, templateLoader)
+	return newTaskDiscover(ctx, providerHandlers, pd, pCtx, templateLoader)
 }
 
 type suspendTaskRunner struct {
 	id   string
 	name string
+	wait bool
 }
 
 // Name return suspend step name.
@@ -113,12 +121,18 @@ func (tr *suspendTaskRunner) Name() string {
 
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.WorkflowStepStatus, *types.Operation, error) {
-	return common.WorkflowStepStatus{
+	stepStatus := common.WorkflowStepStatus{
 		ID:    tr.id,
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: common.WorkflowStepPhaseSucceeded,
-	}, &types.Operation{Suspend: true}, nil
+	}
+
+	if tr.wait {
+		stepStatus.Phase = common.WorkflowStepPhaseRunning
+	}
+
+	return stepStatus, &types.Operation{Suspend: true}, nil
 }
 
 // Pending check task should be executed or not.
@@ -142,4 +156,28 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
 		templateLoader:     templateLoader,
 	}
+}
+
+// GetSuspendStepDurationWaiting get suspend step wait duration
+func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+	if step.Properties.Size() > 0 {
+		o := struct {
+			Duration string `json:"duration"`
+		}{}
+		js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
+		if err != nil {
+			return false, 0, err
+		}
+
+		if err := json.Unmarshal(js, &o); err != nil {
+			return false, 0, err
+		}
+
+		if o.Duration != "" {
+			waitDuration, err := builtintime.ParseDuration(o.Duration)
+			return true, waitDuration, err
+		}
+	}
+
+	return false, 0, nil
 }

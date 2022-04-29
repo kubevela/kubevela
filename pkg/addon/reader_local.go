@@ -37,8 +37,10 @@ func (l localReader) ListAddonMeta() (map[string]SourceMeta, error) {
 }
 
 func (l localReader) ReadFile(path string) (string, error) {
-	file := strings.TrimPrefix(path, l.name+"/")
-	b, err := ioutil.ReadFile(filepath.Clean(filepath.Join(l.dir, file)))
+	path = strings.TrimPrefix(path, l.name+"/")
+	// for windows
+	path = strings.TrimPrefix(path, l.name+"\\")
+	b, err := ioutil.ReadFile(filepath.Clean(filepath.Join(l.dir, path)))
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +48,8 @@ func (l localReader) ReadFile(path string) (string, error) {
 }
 
 func (l localReader) RelativePath(item Item) string {
-	return filepath.Join(l.name, strings.TrimPrefix(item.GetPath()+"/", l.dir))
+	file := strings.TrimPrefix(item.GetPath(), filepath.Clean(l.dir))
+	return filepath.Join(l.name, file)
 }
 
 func recursiveFetchFiles(path string, metas *SourceMeta) error {
@@ -60,7 +63,7 @@ func recursiveFetchFiles(path string, metas *SourceMeta) error {
 				return err
 			}
 		} else {
-			metas.Items = append(metas.Items, OSSItem{tp: "file", path: fmt.Sprintf("%s/%s", path, file.Name()), name: file.Name()})
+			metas.Items = append(metas.Items, OSSItem{tp: "file", path: filepath.Join(path, file.Name()), name: file.Name()})
 		}
 	}
 	return nil

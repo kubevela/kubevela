@@ -19,6 +19,10 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -101,6 +105,90 @@ var _ = Describe("Test helm repo list", func() {
 		Expect(len(list.ChartRepoResponse)).Should(BeEquivalentTo(1))
 		Expect(list.ChartRepoResponse[0].URL).Should(BeEquivalentTo("https://charts.bitnami.com/bitnami"))
 		Expect(list.ChartRepoResponse[0].SecretName).Should(BeEquivalentTo("global-helm-repo"))
+	})
+})
+
+var _ = Describe("test helm usecasae", func() {
+	ctx := context.Background()
+	var repoSec v1.Secret
+
+	BeforeEach(func() {
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+
+		repoSec = v1.Secret{}
+		Expect(yaml.Unmarshal([]byte(repoSecret), &repoSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &repoSec)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &repoSec)).Should(BeNil())
+	})
+
+	It("helm associated usecase interface test", func() {
+		var mockServer *httptest.Server
+
+		handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			u, p, ok := request.BasicAuth()
+			if !ok || u != "admin" || p != "admin" {
+				writer.WriteHeader(401)
+				return
+			}
+			switch {
+			case request.URL.Path == "/index.yaml":
+				index, err := ioutil.ReadFile("./testdata/helm/index.yaml")
+				indexFile := string(index)
+				indexFile = strings.ReplaceAll(indexFile, "server-url", mockServer.URL)
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+					return
+				}
+				writer.Write([]byte(indexFile))
+
+				return
+			case strings.Contains(request.URL.Path, "mysql-8.8.23.tgz"):
+				pkg, err := ioutil.ReadFile("./testdata/helm/mysql-8.8.23.tgz")
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+					return
+				}
+				writer.Write(pkg)
+				return
+			default:
+				writer.Write([]byte("404 page not found"))
+			}
+		})
+
+		mockServer = httptest.NewServer(handler)
+
+		defer mockServer.Close()
+
+		u := NewHelmUsecase()
+		charts, err := u.ListChartNames(ctx, mockServer.URL, "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(len(charts)).Should(BeEquivalentTo(1))
+		Expect(charts[0]).Should(BeEquivalentTo("mysql"))
+
+		versions, err := u.ListChartVersions(ctx, mockServer.URL, "mysql", "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(len(versions)).Should(BeEquivalentTo(1))
+		Expect(versions[0].Version).Should(BeEquivalentTo("8.8.23"))
+
+		values, err := u.GetChartValues(ctx, mockServer.URL, "mysql", "8.8.23", "repo-secret", false)
+		Expect(err).Should(BeNil())
+		Expect(values).ShouldNot(BeNil())
+		Expect(len(values)).ShouldNot(BeEquivalentTo(0))
+	})
+
+	It("coverage not secret notExist error", func() {
+		u := NewHelmUsecase()
+		_, err := u.ListChartNames(ctx, "http://127.0.0.1:8080", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.ListChartVersions(ctx, "http://127.0.0.1:8080", "mysql", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
+
+		_, err = u.GetChartValues(ctx, "http://127.0.0.1:8080", "mysql", "8.8.23", "repo-secret-notExist", false)
+		Expect(err).ShouldNot(BeNil())
 	})
 })
 
@@ -250,6 +338,7 @@ kind: Secret
 metadata:
   labels:
     config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: ""
   name: global-helm-repo
   namespace: vela-system
 type: Opaque
@@ -265,6 +354,20 @@ metadata:
     config.oam.dev/project: my-project
 stringData:
   url: https://kedacore.github.io/charts
+type: Opaque
+`
+	repoSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-secret
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project-2
+stringData:
+  username: admin
+  password: admin
 type: Opaque
 `
 )

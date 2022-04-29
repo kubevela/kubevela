@@ -30,3 +30,9 @@ var ErrChartNotExist = NewBcode(200, 13004, "this chart not exist in the reposit
 
 // ErrSkipCacheParameter means the skip cache parameter miss config
 var ErrSkipCacheParameter = NewBcode(400, 13005, "skip cache parameter miss config, the value only can be true or false")
+
+// ErrRepoBasicAuth means extract repo auth info from secret error
+var ErrRepoBasicAuth = NewBcode(400, 13006, "extract repo auth info from secret error")
+
+// ErrRepoInvalidURL means user input url is invalid
+var ErrRepoInvalidURL = NewBcode(400, 13007, "user input repository url is invalid")

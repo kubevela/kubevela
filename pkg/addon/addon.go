@@ -196,6 +196,10 @@ func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
 			return p.Value
 		}
+		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
+			// for enable addon by load dir, compatible with linux or windows os
+			return p.Value
+		}
 	}
 	return ""
 }
@@ -358,7 +362,7 @@ func readResFile(a *InstallPackage, reader AsyncReader, readPath string) error {
 	if filename == "parameter.cue" {
 		return nil
 	}
-	file := ElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUETemplates = append(a.CUETemplates, file)
@@ -376,7 +380,7 @@ func readDefSchemaFile(a *InstallPackage, reader AsyncReader, readPath string) e
 	if err != nil {
 		return err
 	}
-	a.DefSchemas = append(a.DefSchemas, ElementFile{Data: b, Name: path.Base(readPath)})
+	a.DefSchemas = append(a.DefSchemas, ElementFile{Data: b, Name: filepath.Base(readPath)})
 	return nil
 }
 
@@ -387,7 +391,7 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 		return err
 	}
 	filename := path.Base(readPath)
-	file := ElementFile{Data: b, Name: path.Base(readPath)}
+	file := ElementFile{Data: b, Name: filepath.Base(readPath)}
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUEDefinitions = append(a.CUEDefinitions, file)
@@ -1080,7 +1084,7 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	h.addon = addon
 	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 	if err != nil {
-		return ErrVersionMismatch
+		return VersionUnMatchError{addonName: addon.Name, err: err}
 	}
 
 	if err = h.installDependency(addon); err != nil {
@@ -1354,7 +1358,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s cannot meet requirement", version2.VelaVersion)
+			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1371,7 +1375,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s cannot meet requirement ", imageVersion)
+			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1392,7 +1396,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s cannot meet requirement", k8sVersion.GitVersion)
+			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

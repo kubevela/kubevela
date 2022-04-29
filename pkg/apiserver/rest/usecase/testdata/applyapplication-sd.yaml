@@ -5,6 +5,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Apply application for your workflow steps
+    definition.oam.dev/alias: test-alias
   name: apply-application
   namespace: vela-system
 spec:
@@ -17,4 +18,3 @@ spec:
 
         // apply application
         output: op.#ApplyApplication & {}
-

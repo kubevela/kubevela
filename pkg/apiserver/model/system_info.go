@@ -16,6 +16,8 @@ limitations under the License.
 
 package model
 
+import "time"
+
 func init() {
 	RegisterModel(&SystemInfo{})
 }
@@ -30,25 +32,58 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID        string    `json:"installID"`
-	EnableCollection bool      `json:"enableCollection"`
-	LoginType        string    `json:"loginType"`
-	DexConfig        DexConfig `json:"dexConfig,omitempty"`
+	InstallID        string        `json:"installID"`
+	EnableCollection bool          `json:"enableCollection"`
+	LoginType        string        `json:"loginType"`
+	StatisticInfo    StatisticInfo `json:"statisticInfo,omitempty"`
+}
+
+// UpdateDexConfig update dex config
+type UpdateDexConfig struct {
+	Connectors      []map[string]interface{}
+	StaticPasswords []StaticPassword
+	VelaAddress     string
 }
 
 // DexConfig dex config
 type DexConfig struct {
-	Issuer           string            `json:"issuer"`
-	Web              DexWeb            `json:"web"`
-	Storage          DexStorage        `json:"storage"`
-	StaticClients    []DexStaticClient `json:"staticClients"`
-	Connectors       []interface{}     `json:"connectors,omitempty"`
-	EnablePasswordDB bool              `json:"enablePasswordDB"`
+	Issuer           string                   `json:"issuer"`
+	Web              DexWeb                   `json:"web"`
+	Storage          DexStorage               `json:"storage"`
+	StaticClients    []DexStaticClient        `json:"staticClients"`
+	Connectors       []map[string]interface{} `json:"connectors,omitempty"`
+	EnablePasswordDB bool                     `json:"enablePasswordDB"`
+	StaticPasswords  []StaticPassword         `json:"staticPasswords,omitempty"`
+}
+
+// StaticPassword is the static password for dex
+type StaticPassword struct {
+	Email    string `json:"email"`
+	Hash     string `json:"hash"`
+	Username string `json:"username"`
+}
+
+// StatisticInfo the system statistic info
+type StatisticInfo struct {
+	ClusterCount        string            `json:"clusterCount,omitempty"`
+	AppCount            string            `json:"appCount,omitempty"`
+	EnabledAddon        map[string]string `json:"enabledAddon,omitempty"`
+	TopKCompDef         []string          `json:"topKCompDef,omitempty"`
+	TopKTraitDef        []string          `json:"topKTraitDef,omitempty"`
+	TopKWorkflowStepDef []string          `json:"topKWorkflowStepDef,omitempty"`
+	TopKPolicyDef       []string          `json:"topKPolicyDef,omitempty"`
+	UpdateTime          time.Time         `json:"updateTime,omitempty"`
 }
 
 // DexStorage dex storage
 type DexStorage struct {
-	Type string `json:"type"`
+	Type   string           `json:"type"`
+	Config DexStorageConfig `json:"config,omitempty"`
+}
+
+// DexStorageConfig is the storage config of dex
+type DexStorageConfig struct {
+	InCluster bool `json:"inCluster"`
 }
 
 // DexWeb dex web

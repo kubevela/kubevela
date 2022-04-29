@@ -30,7 +30,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -87,14 +86,9 @@ var _ = BeforeSuite(func() {
 	By("wait for api server to start")
 	Eventually(
 		func() error {
-			secret := &v1.Secret{}
-			err = k8sClient.Get(ctx, types.NamespacedName{Name: "admin", Namespace: "vela-system"}, secret)
-			if err != nil {
-				return err
-			}
 			var req = apisv1.LoginRequest{
 				Username: "admin",
-				Password: string(secret.Data["admin"]),
+				Password: "VelaUX12345",
 			}
 			bodyByte, err := json.Marshal(req)
 			Expect(err).Should(BeNil())
@@ -200,7 +194,6 @@ func delete(path string) *http.Response {
 	req.Header.Add("Authorization", token)
 	response, err := client.Do(req)
 	Expect(err).Should(BeNil())
-	defer response.Body.Close()
 	return response
 }
 

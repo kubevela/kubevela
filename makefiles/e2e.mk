@@ -15,7 +15,7 @@ setup-runtime-e2e-cluster:
 
 .PHONY: e2e-setup
 e2e-setup:
-	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.9.0/kruise-chart.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
+	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	helm upgrade --install --create-namespace --namespace oam-runtime-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait oam-runtime ./charts/oam-runtime
@@ -48,6 +48,7 @@ ADDONSERVER = $(shell pgrep vela_addon_mock_server)
 e2e-apiserver-test:
 	pkill vela_addon_mock_server || true
 	go run ./e2e/addon/mock/vela_addon_mock_server.go &
+	sleep 15
 	go test -v -coverpkg=./... -coverprofile=/tmp/e2e_apiserver_test.out ./test/e2e-apiserver-test
 	@$(OK) tests pass
 

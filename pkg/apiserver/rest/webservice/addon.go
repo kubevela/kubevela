@@ -296,7 +296,7 @@ func (s *enabledAddonWebService) GetWebService() *restful.WebService {
 		Filter(s.rbacUsecase.CheckPerm("addon", "list")).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
-		Returns(200, "OK", apis.ListAddonResponse{}).
+		Returns(200, "OK", apis.ListEnabledAddonResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListAddonResponse{}))
 

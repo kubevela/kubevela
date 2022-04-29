@@ -21,8 +21,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/references/a/preimport"
 	"github.com/oam-dev/kubevela/references/cli"
 )
@@ -30,10 +31,8 @@ import (
 func main() {
 	preimport.ResumeLogging()
 	rand.Seed(time.Now().UnixNano())
-
-	if ns := os.Getenv("DEFAULT_VELA_NS"); len(ns) != 0 {
-		types.DefaultKubeVelaNS = ns
-	}
+	_ = utilfeature.DefaultMutableFeatureGate.Set("AllAlpha=true")
+	system.BindEnvironmentVariables()
 
 	command := cli.NewCommand()
 

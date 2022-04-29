@@ -34,7 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
-func TestLlistProviders(t *testing.T) {
+func TestListProviders(t *testing.T) {
 	ctx := context.Background()
 	type args struct {
 		k8sClient client.Client

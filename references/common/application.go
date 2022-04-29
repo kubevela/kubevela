@@ -257,7 +257,7 @@ func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
 	var body []byte
 	var err error
 	if utils.IsValidURL(pathOrURL) {
-		body, err = common.HTTPGet(context.Background(), pathOrURL)
+		body, err = common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -27,27 +27,22 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	coreapi "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/config"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const (
-
-	// ProviderNamespace is the namespace of Terraform Cloud Provider
-	ProviderNamespace = "default"
-
-	providerNameParam = "name"
+	providerNameParam       = "name"
+	errAuthenticateProvider = "failed to authenticate Terraform cloud provider %s"
 )
 
 // NewProviderCommand create `addon` command
@@ -193,38 +188,14 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				}
 				data, err := json.Marshal(properties)
 				if err != nil {
-					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+					return fmt.Errorf(errAuthenticateProvider, providerType)
 				}
-				providerAppName := fmt.Sprintf("config-terraform-provider-%s", name)
-				a := &v1beta1.Application{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: providerAppName}, a); err != nil {
-					if kerrors.IsNotFound(err) {
-						a = &v1beta1.Application{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      providerAppName,
-								Namespace: types.DefaultKubeVelaNS,
-							},
-							Spec: v1beta1.ApplicationSpec{
-								Components: []coreapi.ApplicationComponent{
-									{
-										Name: providerAppName,
-										Type: providerType,
-										Properties: &runtime.RawExtension{
-											Raw: data,
-										},
-									},
-								},
-							},
-						}
-						if err := k8sClient.Create(ctx, a); err != nil {
-							return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
-						}
-						ioStreams.Infof("Successfully authentiate provider %s for %s\n", name, providerType)
-						return nil
-					}
-					return fmt.Errorf("failed to authentiate Terraform cloud provier %s", providerType)
+
+				if err := config.CreateApplication(ctx, k8sClient, name, providerType, string(data), config.UIParam{}); err != nil {
+					return fmt.Errorf(errAuthenticateProvider, providerType)
 				}
-				return fmt.Errorf("terraform provider %s for %s already exists", name, providerType)
+				ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
+				return nil
 			}
 			cmds[i] = cmd
 		}
@@ -259,14 +230,14 @@ func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdut
 		currentProviders []tcv1beta1.Provider
 		legacyProviders  []tcv1beta1.Provider
 	)
-	tcProviders := &tcv1beta1.ProviderList{}
-	// client.MatchingLabels{: }
-	if err := k8sClient.List(ctx, tcProviders, client.InNamespace(ProviderNamespace)); err != nil {
+	l, err := config.ListTerraformProviders(ctx, k8sClient)
+	if err != nil {
 		return errors.Wrap(err, "failed to retrieve providers")
 	}
 
-	for _, p := range tcProviders.Items {
-		if p.Labels["config.oam.dev/type"] == types.TerraformProvider {
+	for _, p := range l {
+		// The first condition matches the providers created by `vela provider` in 1.3.2 and earlier.
+		if p.Labels[types.LabelConfigType] == types.TerraformProvider || p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
 			currentProviders = append(currentProviders, p)
 		} else {
 			// if not labeled, the provider is manually created or created by `vela addon enable`.
@@ -429,15 +400,8 @@ func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams)
 				if err != nil || name == "" {
 					return fmt.Errorf("must specify a name for the Terraform Cloud Provider %s", providerType)
 				}
-				providerAppName := fmt.Sprintf("config-terraform-provider-%s", name)
-				a := &v1beta1.Application{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: providerAppName}, a); err != nil {
-					if kerrors.IsNotFound(err) {
-						return fmt.Errorf("provider %s for %s does not exist", name, providerType)
-					}
-				}
-				if err := k8sClient.Delete(ctx, a); err != nil {
-					return err
+				if err := config.DeleteApplication(ctx, k8sClient, name, true); err != nil {
+					return errors.Wrapf(err, "failed to delete Terraform Cloud Provider %s", name)
 				}
 				ioStreams.Infof("Successfully delete provider %s for %s\n", name, providerType)
 				return nil

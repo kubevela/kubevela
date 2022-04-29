@@ -636,6 +636,10 @@ spec:
                           - type
                           type: object
                         type: array
+                      configMapRef:
+                        description: ConfigMapRef refer to a ConfigMap which contains
+                          OpenAPI V3 JSON schema of Component parameters.
+                        type: string
                       latestRevision:
                         description: LatestRevision of the component definition
                         properties:
@@ -720,6 +724,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      controlPlaneOnly:
+                        description: ControlPlaneOnly defines which cluster is dispatched
+                          to
+                        type: boolean
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
                           defines this trait kind.

@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -359,6 +361,21 @@ var _ = Describe("func addon update ", func() {
 			}
 			return nil
 		}, time.Second*3, 300*time.Second).Should(BeNil())
+	})
+})
+
+var _ = Describe("test enable addon in local dir", func() {
+	BeforeEach(func() {
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-example"}}
+		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+	})
+
+	It("test enable addon by local dir", func() {
+		ctx := context.Background()
+		err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		Expect(err).Should(BeNil())
+		app := v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-example"}, &app)).Should(BeNil())
 	})
 })
 

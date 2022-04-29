@@ -20,16 +20,20 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/oam-dev/kubevela/pkg/utils/config"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"helm.sh/helm/v3/pkg/repo"
@@ -60,33 +64,65 @@ type defaultHelmHandler struct {
 	k8sClient client.Client
 }
 
-func (d defaultHelmHandler) ListChartNames(ctx context.Context, url string, secretName string, skipCache bool) ([]string, error) {
-	// TODO(wangyikewxgm): support authority helm repo
-	charts, err := d.helper.ListChartsFromRepo(url, skipCache)
+func (d defaultHelmHandler) ListChartNames(ctx context.Context, repoURL string, secretName string, skipCache bool) ([]string, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
+	var opts *common.HTTPOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		if err != nil {
+			return nil, bcode.ErrRepoBasicAuth
+		}
+	}
+	charts, err := d.helper.ListChartsFromRepo(repoURL, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", url, err.Error())
+		log.Logger.Errorf("cannot fetch charts repo: %s, error: %s", utils.Sanitize(repoURL), err.Error())
 		return nil, bcode.ErrListHelmChart
 	}
 	return charts, nil
 }
 
-func (d defaultHelmHandler) ListChartVersions(ctx context.Context, url string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
-	chartVersions, err := d.helper.ListVersions(url, chartName, skipCache)
+func (d defaultHelmHandler) ListChartVersions(ctx context.Context, repoURL string, chartName string, secretName string, skipCache bool) (repo.ChartVersions, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
+	var opts *common.HTTPOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		if err != nil {
+			return nil, bcode.ErrRepoBasicAuth
+		}
+	}
+	chartVersions, err := d.helper.ListVersions(repoURL, chartName, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", url, chartName, err.Error())
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), err.Error())
 		return nil, bcode.ErrListHelmVersions
 	}
 	if len(chartVersions) == 0 {
-		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", url, chartName)
+		log.Logger.Errorf("cannot fetch chart versions repo: %s, chart: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName))
 		return nil, bcode.ErrChartNotExist
 	}
 	return chartVersions, nil
 }
 
-func (d defaultHelmHandler) GetChartValues(ctx context.Context, url string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
-	v, err := d.helper.GetValuesFromChart(url, chartName, version, skipCache)
+func (d defaultHelmHandler) GetChartValues(ctx context.Context, repoURL string, chartName string, version string, secretName string, skipCache bool) (map[string]interface{}, error) {
+	if !utils.IsValidURL(repoURL) {
+		return nil, bcode.ErrRepoInvalidURL
+	}
+	var opts *common.HTTPOption
+	var err error
+	if len(secretName) != 0 {
+		opts, err = helm.SetBasicAuthInfo(ctx, d.k8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		if err != nil {
+			return nil, bcode.ErrRepoBasicAuth
+		}
+	}
+	v, err := d.helper.GetValuesFromChart(repoURL, chartName, version, skipCache, opts)
 	if err != nil {
-		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", url, chartName, version, err.Error())
+		log.Logger.Errorf("cannot fetch chart values repo: %s, chart: %s, version: %s, error: %s", utils.Sanitize(repoURL), utils.Sanitize(chartName), utils.Sanitize(version), err.Error())
 		return nil, bcode.ErrGetChartValues
 	}
 	res := make(map[string]interface{}, len(v))
@@ -98,41 +134,20 @@ func (d defaultHelmHandler) ListChartRepo(ctx context.Context, projectName strin
 	var res []*v1.ChartRepoResponse
 	var err error
 
-	if len(projectName) != 0 {
-		projectSecrets := corev1.SecretList{}
-		opts := []client.ListOption{
-			client.MatchingLabels{oam.LabelConfigType: "config-helm-repository", types.LabelConfigProject: projectName},
-			client.InNamespace(types.DefaultKubeVelaNS),
-		}
-		err = d.k8sClient.List(ctx, &projectSecrets, opts...)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, item := range projectSecrets.Items {
-			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
-		}
+	projectSecrets := corev1.SecretList{}
+	opts := []client.ListOption{
+		client.MatchingLabels{oam.LabelConfigType: "config-helm-repository"},
+		client.InNamespace(types.DefaultKubeVelaNS),
 	}
-
-	globalSecrets := corev1.SecretList{}
-	selector := metav1.LabelSelector{
-		MatchLabels: map[string]string{oam.LabelConfigType: "config-helm-repository"},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{Key: types.LabelConfigProject, Operator: metav1.LabelSelectorOpDoesNotExist},
-		},
-	}
-
-	ls, _ := metav1.LabelSelectorAsSelector(&selector)
-	err = d.k8sClient.List(ctx, &globalSecrets, &client.ListOptions{
-		LabelSelector: ls,
-		Namespace:     types.DefaultKubeVelaNS,
-	})
+	err = d.k8sClient.List(ctx, &projectSecrets, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, item := range globalSecrets.Items {
-		res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
+	for _, item := range projectSecrets.Items {
+		if config.ProjectMatched(item.DeepCopy(), projectName) {
+			res = append(res, &v1.ChartRepoResponse{URL: string(item.Data["url"]), SecretName: item.Name})
+		}
 	}
 
 	return &v1.ChartRepoResponseList{ChartRepoResponse: res}, nil

@@ -5,6 +5,8 @@ on:
     branches:
       - master
       - release-*
+    tags:
+      - v*
   workflow_dispatch: {}
   pull_request:
     branches:
@@ -16,6 +18,8 @@ env:
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
   KIND_VERSION: 'v0.7.0'
+  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
+  KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
 
 jobs:
 
@@ -33,10 +37,27 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
           concurrent_skipping: false
 
+  set-k8s-matrix:
+    runs-on: ubuntu-20.04
+    outputs:
+      matrix: ${{ steps.set-k8s-matrix.outputs.matrix }}
+    steps:
+      - id: set-k8s-matrix
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "pushing tag: ${{ github.ref_name }}"
+            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
+          else
+            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
+          fi
+
   e2e-rollout-tests:
     runs-on: aliyun
-    needs: detect-noop
+    needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
+    strategy:
+      matrix:
+        k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
 
     steps:
       - name: Check out code into the Go module directory
@@ -60,7 +81,7 @@ jobs:
       - name: Setup Kind Cluster
         run: |
           kind delete cluster
-          kind create cluster --image kindest/node:v1.20.7@sha256:688fba5ce6b825be62a7c7fe1415b35da2bdfbb5a69227c499ea4cc0008661ca
+          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
           kubectl version
           kubectl cluster-info
 

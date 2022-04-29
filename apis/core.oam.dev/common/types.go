@@ -345,6 +345,8 @@ type WorkflowStatus struct {
 	Mode        WorkflowMode `json:"mode"`
 	Message     string       `json:"message,omitempty"`
 
+	SuspendState string `json:"suspendState,omitempty"`
+
 	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
 	Finished   bool `json:"finished"`
@@ -496,6 +498,8 @@ const (
 	PolicyResourceCreator ResourceCreatorRole = "policy"
 	// WorkflowResourceCreator create the resource in workflow.
 	WorkflowResourceCreator ResourceCreatorRole = "workflow"
+	// DebugResourceCreator create the debug resource.
+	DebugResourceCreator ResourceCreatorRole = "debug"
 )
 
 // OAMObjectReference defines the object reference for an oam resource

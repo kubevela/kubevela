@@ -78,6 +78,22 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `healthCheck.port`          | KubeVela health check port           | `9440`             |
 
 
+### KubeVela controller optimization parameters
+
+| Name                                              | Description                                                                                                                                       | Value   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `optimize.optimizeCachedGvks`                     | Optimize types of resources to be cached.                                                                                                         | `nil`   |
+| `optimize.resourceTrackerListOp`                  | Optimize ResourceTracker List Op by adding index.                                                                                                 | `true`  |
+| `optimize.controllerReconcileLoopReduction`       | Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.                                                | `false` |
+| `optimize.markWithProb`                           | Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately. | `0.1`   |
+| `optimize.disableComponentRevision`               | Optimize componentRevision by disabling the creation and gc                                                                                       | `false` |
+| `optimize.disableApplicationRevision`             | Optimize ApplicationRevision by disabling the creation and gc.                                                                                    | `false` |
+| `optimize.disableWorkflowRecorder`                | Optimize workflow recorder by disabling the creation and gc.                                                                                      | `false` |
+| `optimize.enableInMemoryWorkflowContext`          | Optimize workflow by use in-memory context.                                                                                                       | `false` |
+| `optimize.disableResourceApplyDoubleCheck`        | Optimize workflow by ignoring resource double check after apply.                                                                                  | `false` |
+| `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                               | `true`  |
+
+
 ### MultiCluster parameters
 
 | Name                                                  | Description                                     | Value                            |
@@ -107,23 +123,27 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### Common parameters
 
-| Name                         | Description                                                                                                                | Value   |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `imagePullSecrets`           | Image pull secrets                                                                                                         | `[]`    |
-| `nameOverride`               | Override name                                                                                                              | `""`    |
-| `fullnameOverride`           | Fullname override                                                                                                          | `""`    |
-| `serviceAccount.create`      | Specifies whether a service account should be created                                                                      | `true`  |
-| `serviceAccount.annotations` | Annotations to add to the service account                                                                                  | `{}`    |
-| `serviceAccount.name`        | The name of the service account to use. If not set and create is true, a name is generated using the fullname template     | `nil`   |
-| `nodeSelector`               | Node selector                                                                                                              | `{}`    |
-| `tolerations`                | Tolerations                                                                                                                | `[]`    |
-| `affinity`                   | Affinity                                                                                                                   | `{}`    |
-| `rbac.create`                | Specifies whether a RBAC role should be created                                                                            | `true`  |
-| `logDebug`                   | Enable debug logs for development purpose                                                                                  | `false` |
-| `logFilePath`                | If non-empty, write log files in this path                                                                                 | `""`    |
-| `logFileMaxSize`             | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. | `1024`  |
-| `kubeClient.qps`             | The qps for reconcile clients, default is 50                                                                               | `50`    |
-| `kubeClient.burst`           | The burst for reconcile clients, default is 100                                                                            | `100`   |
+| Name                          | Description                                                                                                                | Value                |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `imagePullSecrets`            | Image pull secrets                                                                                                         | `[]`                 |
+| `nameOverride`                | Override name                                                                                                              | `""`                 |
+| `fullnameOverride`            | Fullname override                                                                                                          | `""`                 |
+| `serviceAccount.create`       | Specifies whether a service account should be created                                                                      | `true`               |
+| `serviceAccount.annotations`  | Annotations to add to the service account                                                                                  | `{}`                 |
+| `serviceAccount.name`         | The name of the service account to use. If not set and create is true, a name is generated using the fullname template     | `nil`                |
+| `nodeSelector`                | Node selector                                                                                                              | `{}`                 |
+| `tolerations`                 | Tolerations                                                                                                                | `[]`                 |
+| `affinity`                    | Affinity                                                                                                                   | `{}`                 |
+| `rbac.create`                 | Specifies whether a RBAC role should be created                                                                            | `true`               |
+| `logDebug`                    | Enable debug logs for development purpose                                                                                  | `false`              |
+| `logFilePath`                 | If non-empty, write log files in this path                                                                                 | `""`                 |
+| `logFileMaxSize`              | Defines the maximum size a log file can grow to. Unit is megabytes. If the value is 0, the maximum file size is unlimited. | `1024`               |
+| `kubeClient.qps`              | The qps for reconcile clients, default is 50                                                                               | `50`                 |
+| `kubeClient.burst`            | The burst for reconcile clients, default is 100                                                                            | `100`                |
+| `authentication.enabled`      | Enable authentication for application                                                                                      | `false`              |
+| `authentication.withUser`     | Application authentication will impersonate as the request User                                                            | `false`              |
+| `authentication.defaultUser`  | Application authentication will impersonate as the User if no user provided in Application                                 | `kubevela:vela-core` |
+| `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                  | `kubevela:*`         |
 
 
 ## Uninstallation
@@ -166,9 +186,3 @@ $ helm uninstall -n vela-system kubevela
 ```
 
 Finally, this command will remove all the Kubernetes resources associated with KubeVela and remove this chart release.
-
-
-
-
-
-

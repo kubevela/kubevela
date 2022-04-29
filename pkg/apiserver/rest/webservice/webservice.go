@@ -22,11 +22,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/emicklei/go-restful/v3"
-
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/usecase"
+
+	"github.com/emicklei/go-restful/v3"
 )
 
 // versionPrefix API version prefix.
@@ -48,8 +48,6 @@ func RegisterWebService(ws WebService) {
 func GetRegisteredWebService() []WebService {
 	return registeredWebService
 }
-
-func noop(req *restful.Request, resp *restful.Response) {}
 
 func returns200(b *restful.RouteBuilder) {
 	b.Returns(http.StatusOK, "OK", apisv1.SimpleResponse{Status: "ok"})
@@ -102,7 +100,6 @@ func Init(ctx context.Context, ds datastore.DataStore, addonCacheTime time.Durat
 	// Resources
 	RegisterWebService(NewClusterWebService(clusterUsecase, rbacUsecase))
 	RegisterWebService(NewOAMApplication(oamApplicationUsecase, rbacUsecase))
-	RegisterWebService(&policyDefinitionWebservice{})
 	RegisterWebService(&payloadTypesWebservice{})
 	RegisterWebService(NewTargetWebService(targetUsecase, applicationUsecase, rbacUsecase))
 	RegisterWebService(NewVelaQLWebService(velaQLUsecase, rbacUsecase))

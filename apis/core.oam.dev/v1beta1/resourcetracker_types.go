@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/interfaces"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -121,7 +122,11 @@ func (in ManagedResource) NamespacedName() types.NamespacedName {
 // ResourceKey computes the key for managed resource, resources with the same key points to the same resource
 func (in ManagedResource) ResourceKey() string {
 	gv, kind := in.GroupVersionKind().ToAPIVersionAndKind()
-	return strings.Join([]string{gv, kind, in.Cluster, in.Namespace, in.Name}, "/")
+	cluster := in.Cluster
+	if cluster == "" {
+		cluster = velatypes.ClusterLocalName
+	}
+	return strings.Join([]string{gv, kind, cluster, in.Namespace, in.Name}, "/")
 }
 
 // ComponentKey computes the key for the component which managed resource belongs to
@@ -186,10 +191,9 @@ func (in *ResourceTracker) findMangedResourceIndex(mr ManagedResource) int {
 	return -1
 }
 
-// AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) (updated bool) {
+func newManagedResourceFromResource(rsc client.Object) ManagedResource {
 	gvk := rsc.GetObjectKind().GroupVersionKind()
-	mr := ManagedResource{
+	return ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
 			ObjectReference: v1.ObjectReference{
 				APIVersion: gvk.GroupVersion().String(),
@@ -202,8 +206,22 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool) 
 		OAMObjectReference: common.NewOAMObjectReferenceFromObject(rsc),
 		Deleted:            false,
 	}
+}
+
+// ContainsManagedResource check if resource exists in ResourceTracker
+func (in *ResourceTracker) ContainsManagedResource(rsc client.Object) bool {
+	mr := newManagedResourceFromResource(rsc)
+	return in.findMangedResourceIndex(mr) >= 0
+}
+
+// AddManagedResource add object to managed resources, if exists, update
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, creator common.ResourceCreatorRole) (updated bool) {
+	mr := newManagedResourceFromResource(rsc)
 	if !metaOnly {
 		mr.Data = &runtime.RawExtension{Object: rsc}
+	}
+	if creator != "" {
+		mr.ClusterObjectReference.Creator = creator
 	}
 	if idx := in.findMangedResourceIndex(mr); idx >= 0 {
 		if reflect.DeepEqual(in.Spec.ManagedResources[idx], mr) {

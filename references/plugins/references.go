@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -1114,6 +1115,9 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		refParameterList = append(refParameterList, refParam)
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+	sort.SliceStable(refParameterList, func(i, j int) bool {
+		return refParameterList[i].Name < refParameterList[j].Name
+	})
 
 	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 3), propertiesTitle)
 	tables = append(tables, ReferenceParameterTable{
@@ -1140,6 +1144,9 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
 	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 4), terraform.TerraformWriteConnectionSecretToRefName)
 
+	sort.SliceStable(writeSecretRefParameterList, func(i, j int) bool {
+		return writeSecretRefParameterList[i].Name < writeSecretRefParameterList[j].Name
+	})
 	tables = append(tables, ReferenceParameterTable{
 		Name:       writeSecretTableName,
 		Parameters: writeSecretRefParameterList,
@@ -1153,11 +1160,13 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 		outputsList = append(outputsList, refParam)
 	}
 
+	sort.SliceStable(outputsList, func(i, j int) bool {
+		return outputsList[i].Name < outputsList[j].Name
+	})
 	outputsTables = append(outputsTables, ReferenceParameterTable{
 		Name:       outputsTableName,
 		Parameters: outputsList,
 	})
-
 	return tables, outputsTables, nil
 }
 

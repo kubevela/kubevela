@@ -17,6 +17,7 @@ limitations under the License.
 package resourcekeeper
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
@@ -30,6 +31,14 @@ type MetaOnlyOption struct{}
 
 // ApplyToDispatchConfig apply change to dispatch config
 func (option MetaOnlyOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.metaOnly = true }
+
+// CreatorOption set the creator of the resource
+type CreatorOption struct {
+	Creator common.ResourceCreatorRole
+}
+
+// ApplyToDispatchConfig apply change to dispatch config
+func (option CreatorOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.creator = option.Creator }
 
 // SkipRTOption skip the rt recording during dispatch/delete resources, which means the resource will not be controlled
 // by application resourcetracker
@@ -57,6 +66,14 @@ type PassiveGCOption struct{}
 
 // ApplyToGCConfig apply change to gc config
 func (option PassiveGCOption) ApplyToGCConfig(cfg *gcConfig) { cfg.passive = true }
+
+// DependencyGCOption recycle the resource in the order of reverse dependency
+type DependencyGCOption struct{}
+
+// ApplyToGCConfig apply change to gc config
+func (option DependencyGCOption) ApplyToGCConfig(cfg *gcConfig) {
+	cfg.order = v1alpha1.OrderDependency
+}
 
 // DisableMarkStageGCOption disable the mark stage in gc process (no rt will be marked to be deleted)
 // this option should be switched on when application workflow is suspending/terminating since workflow is not

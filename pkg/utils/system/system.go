@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const defaultVelaHome = ".vela"
@@ -141,4 +144,28 @@ func CreateIfNotExist(dir string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+const (
+	// LegacyKubeVelaSystemNamespaceEnv the legacy environment variable for kubevela system namespace
+	LegacyKubeVelaSystemNamespaceEnv = "DEFAULT_VELA_NS"
+	// KubeVelaSystemNamespaceEnv the environment variable for kubevela system namespace
+	KubeVelaSystemNamespaceEnv = "KUBEVELA_SYSTEM_NAMESPACE"
+	// KubeVelaDefinitionNamespaceEnv the environment variable for kubevela definition namespace
+	KubeVelaDefinitionNamespaceEnv = "KUBEVELA_DEFINITION_NAMESPACE"
+)
+
+func bindEnv(variable *string, keys ...string) {
+	for _, key := range keys {
+		if val := os.Getenv(key); val != "" {
+			*variable = val
+			return
+		}
+	}
+}
+
+// BindEnvironmentVariables bind
+func BindEnvironmentVariables() {
+	bindEnv(&types.DefaultKubeVelaNS, KubeVelaSystemNamespaceEnv, LegacyKubeVelaSystemNamespaceEnv)
+	bindEnv(&oam.SystemDefinitonNamespace, KubeVelaDefinitionNamespaceEnv, KubeVelaSystemNamespaceEnv)
 }

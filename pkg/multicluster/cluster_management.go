@@ -449,6 +449,19 @@ func RenameCluster(ctx context.Context, k8sClient client.Client, oldClusterName 
 	return nil
 }
 
+// AliasCluster alias cluster
+func AliasCluster(ctx context.Context, cli client.Client, clusterName string, aliasName string) error {
+	if clusterName == ClusterLocalName {
+		return ErrReservedLocalClusterName
+	}
+	vc, err := GetVirtualCluster(ctx, cli, clusterName)
+	if err != nil {
+		return err
+	}
+	setClusterAlias(vc.Object, aliasName)
+	return cli.Update(ctx, vc.Object)
+}
+
 // ensureClusterNotExists will check the cluster is not existed in control plane
 func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName string) error {
 	_, err := GetVirtualCluster(ctx, c, clusterName)

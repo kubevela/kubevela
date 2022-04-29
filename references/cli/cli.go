@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -66,6 +67,7 @@ func NewCommand() *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
+	f := velacmd.NewDefaultFactory(commandArgs.GetClient)
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
@@ -76,7 +78,7 @@ func NewCommand() *cobra.Command {
 		// Getting Start
 		NewEnvCommand(commandArgs, "3", ioStream),
 		NewInitCommand(commandArgs, "2", ioStream),
-		NewUpCommand(commandArgs, "1", ioStream),
+		NewUpCommand(f, "1", commandArgs, ioStream),
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
@@ -93,6 +95,9 @@ func NewCommand() *cobra.Command {
 		// Workflows
 		NewWorkflowCommand(commandArgs, ioStream),
 		ClusterCommandGroup(commandArgs, ioStream),
+
+		// Debug
+		NewDebugCommand(commandArgs, ioStream),
 
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),
@@ -165,7 +170,7 @@ func NewVersionListCommand(ioStream util.IOStreams) *cobra.Command {
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			helmHelper := helm.NewHelper()
-			versions, err := helmHelper.ListVersions(kubevelaInstallerHelmRepoURL, kubeVelaChartName, true)
+			versions, err := helmHelper.ListVersions(kubevelaInstallerHelmRepoURL, kubeVelaChartName, true, nil)
 			if err != nil {
 				return err
 			}

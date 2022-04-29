@@ -25,6 +25,8 @@ import (
 
 #Delete: kube.#Delete
 
+#Deploy: multicluster.#Deploy
+
 #ApplyApplication: #Steps & {
 	load:       oam.#LoadComponetsInOrder @step(1)
 	components: #Steps & {
@@ -52,8 +54,6 @@ import (
 }
 
 #ApplyComponent: oam.#ApplyComponent
-
-#ApplyComponents: oam.#ApplyComponents
 
 #RenderComponent: oam.#RenderComponent
 
@@ -140,15 +140,11 @@ import (
 
 #ApplyEnvBindApp: multicluster.#ApplyEnvBindApp
 
-#HandleDeployPolicies: multicluster.#HandleDeployPolicies
-
 #DeployCloudResource: terraform.#DeployCloudResource
 
 #ShareCloudResource: terraform.#ShareCloudResource
 
 #LoadPolicies: oam.#LoadPolicies
-
-#LoadPoliciesInOrder: oam.#LoadPoliciesInOrder
 
 #ListClusters: multicluster.#ListClusters
 
@@ -165,6 +161,8 @@ import (
 #HTTPDelete: http.#Do & {method: "DELETE"}
 
 #ConvertString: util.#String
+
+#Log: util.#Log
 
 #DateToTimestamp: time.#DateToTimestamp
 

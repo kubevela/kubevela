@@ -125,6 +125,32 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1beta1-applications
+    {{- if .Values.admissionWebhooks.patch.enabled }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: mutating.core.oam.dev.v1beta1.applications
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - applications
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
         path: /mutating-core-oam-dev-v1beta1-componentdefinitions
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore

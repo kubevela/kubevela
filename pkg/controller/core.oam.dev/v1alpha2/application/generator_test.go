@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -114,7 +115,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -155,7 +157,8 @@ var _ = Describe("Test Application workflow generator", func() {
 		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
 		Expect(err).Should(Succeed())
 
-		taskRunner, err := handler.GenerateApplicationSteps(ctx, app, appParser, af, appRev)
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -239,5 +242,122 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		_, _, err = renderFunc(comp, nil, "", "", "")
 		Expect(err).Should(BeNil())
+	})
+
+	It("Test generate application workflow with dependsOn", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-input-output",
+				Namespace: namespaceName,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						DependsOn:  []string{"myweb1"},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+			},
+		}
+		af, err := appParser.GenerateAppFile(ctx, app)
+		Expect(err).Should(BeNil())
+		appRev := &oamcore.ApplicationRevision{}
+
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
+
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		Expect(err).To(BeNil())
+		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
+		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
+		Expect(taskRunner[1].Name()).Should(BeEquivalentTo("myweb2"))
+	})
+
+	It("Test generate application workflow with invalid dependsOn", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-input-output",
+				Namespace: namespaceName,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						DependsOn:  []string{"myweb0"},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+			},
+		}
+		af, err := appParser.GenerateAppFile(ctx, app)
+		Expect(err).Should(BeNil())
+		appRev := &oamcore.ApplicationRevision{}
+
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
+
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		Expect(err).NotTo(BeNil())
+	})
+
+	It("Test generate application workflow with multiple invalid dependsOn", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-with-input-output",
+				Namespace: namespaceName,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "myweb1",
+						Type:       "worker-with-health",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+					{
+						Name:       "myweb2",
+						Type:       "worker-with-health",
+						DependsOn:  []string{"myweb1", "myweb0", "myweb3"},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
+					},
+				},
+			},
+		}
+		af, err := appParser.GenerateAppFile(ctx, app)
+		Expect(err).Should(BeNil())
+		appRev := &oamcore.ApplicationRevision{}
+
+		handler, err := NewAppHandler(ctx, reconciler, app, appParser)
+		Expect(err).Should(Succeed())
+
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		Expect(err).NotTo(BeNil())
 	})
 })

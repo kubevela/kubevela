@@ -18,19 +18,11 @@ package usecase
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"reflect"
+	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -81,6 +73,7 @@ func (u systemInfoUsecaseImpl) Get(ctx context.Context) (*model.SystemInfo, erro
 	info.InstallID = installID
 	info.EnableCollection = true
 	info.LoginType = model.LoginTypeLocal
+	info.BaseModel = model.BaseModel{CreateTime: time.Now()}
 	err = u.ds.Add(ctx, info)
 	if err != nil {
 		return nil, err
@@ -100,6 +93,16 @@ func (u systemInfoUsecaseImpl) GetSystemInfo(ctx context.Context) (*v1.SystemInf
 			VelaVersion: version.VelaVersion,
 			GitVersion:  version.GitRevision,
 		},
+		StatisticInfo: v1.StatisticInfo{
+			AppCount:                   info.StatisticInfo.AppCount,
+			ClusterCount:               info.StatisticInfo.ClusterCount,
+			EnableAddonList:            info.StatisticInfo.EnabledAddon,
+			ComponentDefinitionTopList: info.StatisticInfo.TopKCompDef,
+			TraitDefinitionTopList:     info.StatisticInfo.TopKTraitDef,
+			WorkflowDefinitionTopList:  info.StatisticInfo.TopKWorkflowStepDef,
+			PolicyDefinitionTopList:    info.StatisticInfo.TopKPolicyDef,
+			UpdateTime:                 info.StatisticInfo.UpdateTime,
+		},
 	}, nil
 }
 
@@ -114,11 +117,30 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 		LoginType:        sysInfo.LoginType,
 		BaseModel: model.BaseModel{
 			CreateTime: info.CreateTime,
+			UpdateTime: time.Now(),
 		},
+		StatisticInfo: info.StatisticInfo,
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
-		if err := generateDexConfig(ctx, u.kubeClient, sysInfo.VelaAddress, &modifiedInfo); err != nil {
+		admin := &model.User{Name: model.DefaultAdminUserName}
+		if err := u.ds.Get(ctx, admin); err != nil {
+			return nil, err
+		}
+		if admin.Email == "" {
+			return nil, bcode.ErrEmptyAdminEmail
+		}
+		connectors, err := utils.GetDexConnectors(ctx, u.kubeClient)
+		if err != nil {
+			return nil, err
+		}
+		if len(connectors) < 1 {
+			return nil, bcode.ErrNoDexConnector
+		}
+		if err := generateDexConfig(ctx, u.kubeClient, &model.UpdateDexConfig{
+			VelaAddress: sysInfo.VelaAddress,
+			Connectors:  connectors,
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -128,102 +150,31 @@ func (u systemInfoUsecaseImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 	}
 	return &v1.SystemInfoResponse{
 		SystemInfo: v1.SystemInfo{
-			InstallID:        modifiedInfo.InstallID,
+			PlatformID:       modifiedInfo.InstallID,
 			EnableCollection: modifiedInfo.EnableCollection,
 			LoginType:        modifiedInfo.LoginType,
+			// always use the initial createTime as system's installTime
+			InstallTime: info.CreateTime,
 		},
 		SystemVersion: v1.SystemVersion{VelaVersion: version.VelaVersion, GitVersion: version.GitRevision},
 	}, nil
 }
 
 func (u systemInfoUsecaseImpl) Init(ctx context.Context) error {
-	_, err := initDexConfig(ctx, u.kubeClient, "http://velaux.com", &model.SystemInfo{})
+	info, err := u.Get(ctx)
+	if err != nil {
+		return err
+	}
+	signedKey = info.InstallID
+	_, err = initDexConfig(ctx, u.kubeClient, "http://velaux.com")
 	return err
 }
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
-		InstallID:        info.InstallID,
+		PlatformID:       info.InstallID,
 		EnableCollection: info.EnableCollection,
 		LoginType:        info.LoginType,
+		InstallTime:      info.CreateTime,
 	}
-}
-
-func generateDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string, info *model.SystemInfo) error {
-	secret, err := initDexConfig(ctx, kubeClient, velaAddress, info)
-	if err != nil {
-		return err
-	}
-	connectors, err := utils.GetDexConnectors(ctx, kubeClient)
-	if err != nil {
-		return err
-	}
-	config, err := model.NewJSONStructByStruct(info.DexConfig)
-	if err != nil {
-		return err
-	}
-	(*config)["connectors"] = connectors
-	c, err := yaml.Marshal(config)
-	if err != nil {
-		return err
-	}
-	if !reflect.DeepEqual(secret.Data[secretDexConfigKey], c) {
-		secret.Data[secretDexConfigKey] = c
-		if err := kubeClient.Update(ctx, secret); err != nil {
-			return err
-		}
-		if err := restartDex(ctx, kubeClient); err != nil && !errors.Is(err, bcode.ErrDexNotFound) {
-			return err
-		}
-	}
-	return nil
-}
-
-func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress string, info *model.SystemInfo) (*corev1.Secret, error) {
-	dexConfig := model.DexConfig{
-		Issuer: fmt.Sprintf("%s/dex", velaAddress),
-		Web: model.DexWeb{
-			HTTP: "0.0.0.0:5556",
-		},
-		Storage: model.DexStorage{
-			Type: "memory",
-		},
-		StaticClients: []model.DexStaticClient{
-			{
-				ID:           "velaux",
-				Name:         "Vela UX",
-				Secret:       "velaux-secret",
-				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
-			},
-		},
-		EnablePasswordDB: true,
-	}
-	info.DexConfig = dexConfig
-
-	secret := &corev1.Secret{}
-	if err := kubeClient.Get(ctx, types.NamespacedName{
-		Name:      dexConfigName,
-		Namespace: velatypes.DefaultKubeVelaNS,
-	}, secret); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		config, err := yaml.Marshal(info.DexConfig)
-		if err != nil {
-			return nil, err
-		}
-		if err := kubeClient.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      dexConfigName,
-				Namespace: velatypes.DefaultKubeVelaNS,
-			},
-			Type: corev1.SecretTypeOpaque,
-			Data: map[string][]byte{
-				secretDexConfigKey: config,
-			},
-		}); err != nil {
-			return nil, err
-		}
-	}
-	return secret, nil
 }

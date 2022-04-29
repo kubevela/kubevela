@@ -120,6 +120,9 @@ const (
 	// resource for use in a three way diff during a patching apply
 	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 
+	// AnnotationLastAppliedTime indicates the last applied time
+	AnnotationLastAppliedTime = "app.oam.dev/last-applied-time"
+
 	// AnnotationAppRollout indicates that the application is still rolling out
 	// the application controller should treat it differently
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
@@ -196,7 +199,13 @@ const (
 	// AnnotationControllerRequirement indicates the controller version that can process the application.
 	AnnotationControllerRequirement = "app.oam.dev/controller-version-require"
 
-	// AnnotationServiceAccountName indicates the name of the ServiceAccount to use to apply Components and run Workflow.
+	// AnnotationApplicationServiceAccountName indicates the name of the ServiceAccount to use to apply Components and run Workflow.
 	// ServiceAccount will be used in the local cluster only.
-	AnnotationServiceAccountName = "app.oam.dev/service-account-name"
+	AnnotationApplicationServiceAccountName = "app.oam.dev/service-account-name"
+
+	// AnnotationApplicationUsername indicates the username of the Application to use to apply resources
+	AnnotationApplicationUsername = "app.oam.dev/username"
+
+	// AnnotationApplicationGroup indicates the group of the Application to use to apply resources
+	AnnotationApplicationGroup = "app.oam.dev/group"
 )

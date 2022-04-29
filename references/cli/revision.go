@@ -84,8 +84,10 @@ func NewRevisionListCommand(c common.Args) *cobra.Command {
 						status = "Succeeded"
 					case rev.Status.Workflow.Terminated || rev.Status.Workflow.Suspend || rev.Status.Workflow.Finished:
 						status = "Failed"
-					default:
+					case app.Status.LatestRevision != nil && app.Status.LatestRevision.Name == rev.Name:
 						status = "Executing"
+					default:
+						status = "Failed"
 					}
 				}
 				if labels := rev.GetLabels(); labels != nil {

@@ -22,9 +22,10 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -42,6 +43,7 @@ type DispatchOption interface {
 type dispatchConfig struct {
 	rtConfig
 	metaOnly bool
+	creator  common.ResourceCreatorRole
 }
 
 func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
@@ -53,7 +55,7 @@ func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
 }
 
 // Dispatch dispatch resources
-func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) (err error) {
+func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption, options ...DispatchOption) (err error) {
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
 		options = append(options, MetaOnlyOption{})
 	}
@@ -66,7 +68,11 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		return err
 	}
 	// 2. apply manifests
-	if err = h.dispatch(ctx, manifests); err != nil {
+	opts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
+	if len(applyOpts) > 0 {
+		opts = append(opts, applyOpts...)
+	}
+	if err = h.dispatch(ctx, manifests, opts); err != nil {
 		return err
 	}
 	return nil
@@ -103,7 +109,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 		if err != nil {
 			return errors.Wrapf(err, "failed to get resourcetracker")
 		}
-		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly); err != nil {
+		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly, cfg.creator); err != nil {
 			return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 		}
 	}
@@ -112,17 +118,16 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
 	}
-	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly); err != nil {
+	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly, cfg.creator); err != nil {
 		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
 	return nil
 }
 
-func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured) error {
-	applyOpts := []apply.ApplyOption{apply.MustBeControlledByApp(h.app), apply.NotUpdateRenderHashEqual()}
+func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
 	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-		applyCtx = oamutil.SetServiceAccountInContext(applyCtx, h.app.Namespace, oam.GetServiceAccountNameFromAnnotations(h.app))
+		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
 		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
 	}, manifests, MaxDispatchConcurrent)
 	return velaerrors.AggregateErrors(errs.([]error))

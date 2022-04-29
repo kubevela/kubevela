@@ -86,7 +86,7 @@
 - jsonKey: annotations
   sort: 19
 
-- jsonKey: lables
+- jsonKey: labels
   sort: 21
 
 - jsonKey: addRevisionLabel

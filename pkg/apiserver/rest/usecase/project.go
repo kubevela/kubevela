@@ -20,9 +20,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
@@ -46,6 +53,7 @@ type ProjectUsecase interface {
 	DeleteProjectUser(ctx context.Context, projectName string, userName string) error
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
+	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
 }
 
 type projectUsecaseImpl struct {
@@ -290,7 +298,11 @@ func (p *projectUsecaseImpl) DeleteProject(ctx context.Context, name string) err
 			return err
 		}
 	}
-	return p.ds.Delete(ctx, &model.Project{Name: name})
+	if err := p.ds.Delete(ctx, &model.Project{Name: name}); err != nil {
+		return err
+	}
+	// delete config-sync application
+	return destroySyncConfigsApp(ctx, p.k8sClient, name)
 }
 
 // CreateProject create project
@@ -466,6 +478,93 @@ func (p *projectUsecaseImpl) UpdateProjectUser(ctx context.Context, projectName 
 	return ConvertProjectUserModel2Base(&projectUser), nil
 }
 
+func (p *projectUsecaseImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
+	var (
+		configs                  []*apisv1.Config
+		legacyTerraformProviders []*apisv1.Config
+		apps                     = &v1beta1.ApplicationList{}
+	)
+	if err := p.k8sClient.List(ctx, apps, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			model.LabelSourceOfTruth: model.FromInner,
+			types.LabelConfigCatalog: types.VelaCoreConfig,
+		}); err != nil {
+		return nil, err
+	}
+
+	if configType == types.TerraformProvider || configType == "" {
+		// legacy providers
+		var providers = &terraformapi.ProviderList{}
+		if err := p.k8sClient.List(ctx, providers, client.InNamespace(types.DefaultAppNamespace)); err != nil {
+			return nil, err
+		}
+		for _, p := range providers.Items {
+			if p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
+				continue
+			}
+			t := p.CreationTimestamp.Time
+			var status = configIsNotReady
+			if p.Status.State == terraformtypes.ProviderIsReady {
+				status = configIsReady
+			}
+			legacyTerraformProviders = append(legacyTerraformProviders, &apisv1.Config{
+				Name:        p.Name,
+				CreatedTime: &t,
+				Status:      status,
+			})
+		}
+	}
+
+	switch configType {
+	case types.TerraformProvider:
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) ||
+				!strings.Contains(a.Labels[types.LabelConfigType], types.TerraformComponentPrefix) {
+				continue
+			}
+			configs = append(configs, retrieveConfigFromApplication(a, appProject))
+		}
+
+		configs = append(configs, legacyTerraformProviders...)
+	case "":
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if appProject != "" && appProject != projectName {
+				continue
+			}
+			configs = append(configs, retrieveConfigFromApplication(a, appProject))
+		}
+		configs = append(configs, legacyTerraformProviders...)
+	case types.DexConnector, types.HelmRepository, types.ImageRegistry:
+		t := strings.ReplaceAll(configType, "config-", "")
+		for _, a := range apps.Items {
+			appProject := a.Labels[types.LabelConfigProject]
+			if a.Status.Phase != common.ApplicationRunning || (appProject != "" && appProject != projectName) {
+				continue
+			}
+			if a.Labels[types.LabelConfigType] == t {
+				configs = append(configs, retrieveConfigFromApplication(a, appProject))
+			}
+		}
+	default:
+		return nil, errors.New("unsupported config type")
+	}
+
+	for i, c := range configs {
+		if c.ConfigType != "" {
+			d := &v1beta1.ComponentDefinition{}
+			err := p.k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: c.ConfigType}, d)
+			if err != nil {
+				klog.InfoS("failed to get component definition", "ComponentDefinition", configType, "err", err)
+			} else {
+				configs[i].ConfigTypeAlias = d.Annotations[definitionAlias]
+			}
+		}
+	}
+	return configs, nil
+}
+
 // ConvertProjectModel2Base convert project model to base struct
 func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1.ProjectBase {
 	base := &apisv1.ProjectBase{
@@ -491,4 +590,26 @@ func ConvertProjectUserModel2Base(user *model.ProjectUser) *apisv1.ProjectUserBa
 		UpdateTime: user.UpdateTime,
 	}
 	return base
+}
+
+func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv1.Config {
+	var (
+		applicationStatus = a.Status.Phase
+		status            string
+	)
+	if applicationStatus == common.ApplicationRunning {
+		status = configIsReady
+	} else {
+		status = configIsNotReady
+	}
+	return &apisv1.Config{
+		ConfigType:        a.Labels[types.LabelConfigType],
+		Name:              a.Name,
+		Project:           project,
+		CreatedTime:       &(a.CreationTimestamp.Time),
+		ApplicationStatus: applicationStatus,
+		Status:            status,
+		Alias:             a.Annotations[types.AnnotationConfigAlias],
+		Description:       a.Annotations[types.AnnotationConfigDescription],
+	}
 }

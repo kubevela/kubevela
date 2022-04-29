@@ -17,8 +17,10 @@ limitations under the License.
 package controller
 
 import (
-	"flag"
+	flag "github.com/spf13/pflag"
 
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
@@ -52,4 +54,9 @@ func AddAdmissionFlags() {
 	flag.BoolVar(&resourcekeeper.AllowCrossNamespaceResource, "allow-cross-namespace-resource", true, "If set to false, application can only apply resources within its namespace. Default to be true.")
 	flag.StringVar(&resourcekeeper.AllowResourceTypes, "allow-resource-types", "", "If not empty, application can only apply resources with specified types. For example, --allow-resource-types=whitelist:Deployment.v1.apps,Job.v1.batch")
 	flag.StringVar(&component.RefObjectsAvailableScope, "ref-objects-available-scope", component.RefObjectsAvailableScopeGlobal, "The available scope for ref-objects component to refer objects. Should be one of `namespace`, `cluster`, `global`")
+
+	// auth flags
+	flag.BoolVar(&auth.AuthenticationWithUser, "authentication-with-user", false, "If set to true, User will be carried on application. Resource requests will be impersonated as the User.")
+	flag.StringVar(&auth.AuthenticationDefaultUser, "authentication-default-user", types.KubeVelaName+":"+types.VelaCoreName, "The User to impersonate when the User of application is not set.")
+	flag.StringVar(&auth.AuthenticationGroupPattern, "authentication-group-pattern", auth.DefaultAuthenticateGroupPattern, "During authentication, only groups with specified pattern will be carried on application. Resource requests will be impersonated as these selected groups.")
 }

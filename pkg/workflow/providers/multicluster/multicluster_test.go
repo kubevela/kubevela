@@ -26,8 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -35,9 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
@@ -512,176 +508,4 @@ func TestListClusters(t *testing.T) {
 	}{}
 	r.NoError(outputs.UnmarshalTo(&obj))
 	r.Equal(clusterNames, obj.Clusters)
-}
-
-func TestExpandTopology(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DeprecatedPolicySpec, true)()
-	multicluster.ClusterGatewaySecretNamespace = types.DefaultKubeVelaNS
-	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-a",
-			Namespace: multicluster.ClusterGatewaySecretNamespace,
-			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
-				"key": "value",
-			},
-		},
-	}, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-b",
-			Namespace: multicluster.ClusterGatewaySecretNamespace,
-			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
-				"key": "value",
-			},
-		},
-	}, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-c",
-			Namespace: multicluster.ClusterGatewaySecretNamespace,
-			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
-				"key": "none",
-			},
-		},
-	}).Build()
-	app := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test"},
-	}
-	p := &provider{
-		Client: cli,
-		app:    app,
-	}
-	testCases := map[string]struct {
-		Input                 string
-		Outputs               []v1alpha1.PlacementDecision
-		Error                 string
-		DisableCrossNamespace bool
-	}{
-		"policies-404": {
-			Input: "{inputs:{}}",
-			Error: "var(path=inputs.policies) not exist",
-		},
-		"invalid-policies": {
-			Input: `{inputs:{policies:"bad value"}}`,
-			Error: "failed to parse policies",
-		},
-		"invalid-topology-policy": {
-			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{cluster:"x"}}]}}`,
-			Error: "failed to parse topology policy",
-		},
-		"cluster-not-found": {
-			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-x"]}}]}}`,
-			Error: "failed to get cluster",
-		},
-		"topology-by-clusters": {
-			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusters:["cluster-a"]}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}},
-		},
-		"topology-by-cluster-selector-404": {
-			Input: `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"bad-value"}}}]}}`,
-			Error: "failed to find any cluster matches given labels",
-		},
-		"topology-by-cluster-selector": {
-			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"}}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}, {Cluster: "cluster-b", Namespace: ""}},
-		},
-		"topology-by-cluster-label-selector": {
-			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterLabelSelector:{"key":"value"}}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: ""}, {Cluster: "cluster-b", Namespace: ""}},
-		},
-		"topology-by-cluster-selector-and-namespace-invalid": {
-			Input:                 `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
-			Error:                 "cannot cross namespace",
-			DisableCrossNamespace: true,
-		},
-		"topology-by-cluster-selector-and-namespace": {
-			Input:   `{inputs:{policies:[{name:"topology-policy",type:"topology",properties:{clusterSelector:{"key":"value"},namespace:"override"}}]}}`,
-			Outputs: []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "override"}, {Cluster: "cluster-b", Namespace: "override"}},
-		},
-	}
-	for name, tt := range testCases {
-		t.Run(name, func(t *testing.T) {
-			r := require.New(t)
-			resourcekeeper.AllowCrossNamespaceResource = !tt.DisableCrossNamespace
-			v, err := value.NewValue("", nil, "")
-			r.NoError(err)
-			r.NoError(v.FillRaw(tt.Input))
-			err = p.ExpandTopology(nil, v, &mock.Action{})
-			if tt.Error != "" {
-				r.NotNil(err)
-				r.Contains(err.Error(), tt.Error)
-			} else {
-				r.NoError(err)
-				outputs, err := v.LookupValue("outputs", "decisions")
-				r.NoError(err)
-				pds := &[]v1alpha1.PlacementDecision{}
-				r.NoError(outputs.UnmarshalTo(pds))
-				r.Equal(tt.Outputs, *pds)
-			}
-		})
-	}
-}
-
-func TestOverrideConfiguration(t *testing.T) {
-	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	app := &v1beta1.Application{}
-	p := &provider{
-		Client: cli,
-		app:    app,
-	}
-	testCases := map[string]struct {
-		Input   string
-		Outputs []apicommon.ApplicationComponent
-		Error   string
-	}{
-		"policies-404": {
-			Input: "{inputs:{}}",
-			Error: "var(path=inputs.policies) not exist",
-		},
-		"invalid-policies": {
-			Input: `{inputs:{policies:"bad value"}}`,
-			Error: "failed to parse policies",
-		},
-		"components-404": {
-			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{}}]}}`,
-			Error: "var(path=inputs.components) not exist",
-		},
-		"invalid-components": {
-			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{}}],components:[{name:{}}]}}`,
-			Error: "failed to parse components",
-		},
-		"invalid-override-policy": {
-			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{bad:"value"}}],components:[{}]}}`,
-			Error: "failed to parse override policy",
-		},
-		"normal": {
-			Input: `{inputs:{policies:[{name:"override-policy",type:"override",properties:{components:[{name:"comp",properties:{x:5}}]}}],components:[{name:"comp",properties:{x:1}}]}}`,
-			Outputs: []apicommon.ApplicationComponent{{
-				Name:       "comp",
-				Traits:     []apicommon.ApplicationTrait{},
-				Properties: &runtime.RawExtension{Raw: []byte(`{"x":5}`)},
-			}},
-		},
-	}
-	for name, tt := range testCases {
-		t.Run(name, func(t *testing.T) {
-			r := require.New(t)
-			v, err := value.NewValue("", nil, "")
-			r.NoError(err)
-			r.NoError(v.FillRaw(tt.Input))
-			err = p.OverrideConfiguration(nil, v, &mock.Action{})
-			if tt.Error != "" {
-				r.NotNil(err)
-				r.Contains(err.Error(), tt.Error)
-			} else {
-				r.NoError(err)
-				outputs, err := v.LookupValue("outputs", "components")
-				r.NoError(err)
-				comps := &[]apicommon.ApplicationComponent{}
-				r.NoError(outputs.UnmarshalTo(comps))
-				r.Equal(tt.Outputs, *comps)
-			}
-		})
-	}
 }

@@ -18,6 +18,7 @@ package multicluster
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -38,12 +39,37 @@ import (
 // like cluster secret or ocm managed cluster
 type VirtualCluster struct {
 	Name     string
+	Alias    string
 	Type     v1alpha1.CredentialType
 	EndPoint string
 	Accepted bool
 	Labels   map[string]string
 	Metrics  *ClusterMetrics
 	Object   client.Object
+}
+
+// FullName the name with alias if available
+func (vc *VirtualCluster) FullName() string {
+	if vc.Alias != "" {
+		return fmt.Sprintf("%s (%s)", vc.Name, vc.Alias)
+	}
+	return vc.Name
+}
+
+func getClusterAlias(o client.Object) string {
+	if annots := o.GetAnnotations(); annots != nil {
+		return annots[types.AnnotationClusterAlias]
+	}
+	return ""
+}
+
+func setClusterAlias(o client.Object, alias string) {
+	annots := o.GetAnnotations()
+	if annots == nil {
+		annots = map[string]string{}
+	}
+	annots[types.AnnotationClusterAlias] = alias
+	o.SetAnnotations(annots)
 }
 
 // NewVirtualClusterFromLocal return virtual cluster corresponding to local cluster
@@ -74,6 +100,7 @@ func NewVirtualClusterFromSecret(secret *corev1.Secret) (*VirtualCluster, error)
 	}
 	return &VirtualCluster{
 		Name:     secret.Name,
+		Alias:    getClusterAlias(secret),
 		Type:     v1alpha1.CredentialType(credType),
 		EndPoint: endpoint,
 		Accepted: true,
@@ -90,6 +117,7 @@ func NewVirtualClusterFromManagedCluster(managedCluster *clusterv1.ManagedCluste
 	}
 	return &VirtualCluster{
 		Name:     managedCluster.Name,
+		Alias:    getClusterAlias(managedCluster),
 		Type:     types.CredentialTypeOCMManagedCluster,
 		EndPoint: types.ClusterBlankEndpoint,
 		Accepted: managedCluster.Spec.HubAcceptsClient,
@@ -204,4 +232,38 @@ func FindVirtualClustersByLabels(ctx context.Context, c client.Client, labels ma
 		}
 	}
 	return clusters, nil
+}
+
+// ClusterMapper mapper for clusters
+type ClusterMapper interface {
+	GetCluster(string) *VirtualCluster
+	GetClusterFullName(string) string
+}
+
+type clusterMapper map[string]*VirtualCluster
+
+// GetCluster .
+func (cm clusterMapper) GetCluster(cluster string) *VirtualCluster {
+	return cm[cluster]
+}
+
+// GetClusterFullName .
+func (cm clusterMapper) GetClusterFullName(cluster string) string {
+	if vc := cm.GetCluster(cluster); vc != nil {
+		return vc.FullName()
+	}
+	return ""
+}
+
+// NewClusterMapper load all clusters and return the mapper
+func NewClusterMapper(ctx context.Context, c client.Client) (ClusterMapper, error) {
+	cm := clusterMapper(make(map[string]*VirtualCluster))
+	clusters, err := ListVirtualClusters(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	for i := range clusters {
+		cm[clusters[i].Name] = &clusters[i]
+	}
+	return cm, nil
 }

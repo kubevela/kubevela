@@ -82,12 +82,15 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 // Dispatch apply manifests into k8s.
 func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
-	if err := h.resourceKeeper.Dispatch(ctx, manifests); err != nil {
+	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
 	}
 	for _, mf := range manifests {
 		if mf == nil {
 			continue
+		}
+		if oam.GetCluster(mf) != "" {
+			cluster = oam.GetCluster(mf)
 		}
 		ref := common.ClusterObjectReference{
 			Cluster: cluster,
@@ -209,6 +212,7 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 	return h.createResourcesConfigMap(ctx, h.currentAppRev, comps, policies)
 }
 
+// nolint
 func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
 	namespace := h.app.Namespace
 	if overrideNamespace != "" {

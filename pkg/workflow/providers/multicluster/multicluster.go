@@ -22,17 +22,15 @@ import (
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -43,7 +41,10 @@ const (
 
 type provider struct {
 	client.Client
-	app *v1beta1.Application
+	app         *v1beta1.Application
+	af          *appfile.Appfile
+	apply       oamProvider.ComponentApply
+	healthCheck oamProvider.ComponentHealthCheck
 }
 
 func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
@@ -163,108 +164,37 @@ func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTyp
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 
-func (p *provider) ExpandTopology(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	policiesRaw, err := v.LookupValue("inputs", "policies")
+func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policyNames, err := v.GetStringSlice("policies")
 	if err != nil {
 		return err
 	}
-	policies := &[]*v1beta1.AppPolicy{}
-	if err = policiesRaw.UnmarshalTo(policies); err != nil {
-		return errors.Wrapf(err, "failed to parse policies")
-	}
-	var placements []v1alpha1.PlacementDecision
-	placementMap := map[string]struct{}{}
-	addCluster := func(cluster string, ns string, validateCluster bool) error {
-		if validateCluster {
-			if _, e := multicluster.GetVirtualCluster(context.Background(), p, cluster); e != nil {
-				return errors.Wrapf(e, "failed to get cluster %s", cluster)
-			}
-		}
-		if !resourcekeeper.AllowCrossNamespaceResource && (ns != p.app.GetNamespace() && ns != "") {
-			return errors.Errorf("cannot cross namespace")
-		}
-		placement := v1alpha1.PlacementDecision{Cluster: cluster, Namespace: ns}
-		name := placement.String()
-		if _, found := placementMap[name]; !found {
-			placementMap[name] = struct{}{}
-			placements = append(placements, placement)
-		}
-		return nil
-	}
-	for _, policy := range *policies {
-		if policy.Type == v1alpha1.TopologyPolicyType {
-			topologySpec := &v1alpha1.TopologyPolicySpec{}
-			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
-				return errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
-			}
-			clusterLabelSelector := pkgpolicy.GetClusterLabelSelectorInTopology(topologySpec)
-			switch {
-			case topologySpec.Clusters != nil:
-				for _, cluster := range topologySpec.Clusters {
-					if err := addCluster(cluster, topologySpec.Namespace, true); err != nil {
-						return err
-					}
-				}
-			case clusterLabelSelector != nil:
-				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), p, clusterLabelSelector)
-				if err != nil {
-					return errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
-				}
-				if len(clusters) == 0 {
-					return errors.Errorf("failed to find any cluster matches given labels")
-				}
-				for _, cluster := range clusters {
-					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return v.FillObject(placements, "outputs", "decisions")
-}
-
-func (p *provider) OverrideConfiguration(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	policiesRaw, err := v.LookupValue("inputs", "policies")
+	parallelism, err := v.GetInt64("parallelism")
 	if err != nil {
 		return err
 	}
-	policies := &[]*v1beta1.AppPolicy{}
-	if err = policiesRaw.UnmarshalTo(policies); err != nil {
-		return errors.Wrapf(err, "failed to parse policies")
+	if parallelism <= 0 {
+		return errors.Errorf("parallelism cannot be smaller than 1")
 	}
-	componentsRaw, err := v.LookupValue("inputs", "components")
+	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck)
+	healthy, reason, err := executor.Deploy(context.Background(), policyNames, int(parallelism))
 	if err != nil {
 		return err
 	}
-	components := make([]common.ApplicationComponent, 0)
-	if err = componentsRaw.UnmarshalTo(&components); err != nil {
-		return errors.Wrapf(err, "failed to parse components")
+	if !healthy {
+		act.Wait(reason)
 	}
-	for _, policy := range *policies {
-		if policy.Type == v1alpha1.OverridePolicyType {
-			overrideSpec := &v1alpha1.OverridePolicySpec{}
-			if err = utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
-				return errors.Wrapf(err, "failed to parse override policy %s", policy.Name)
-			}
-			components, err = envbinding.PatchComponents(components, overrideSpec.Components, overrideSpec.Selector)
-			if err != nil {
-				return errors.Wrapf(err, "failed to apply override policy %s", policy.Name)
-			}
-		}
-	}
-	return v.FillObject(components, "outputs", "components")
+	return nil
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, c client.Client, app *v1beta1.Application) {
-	prd := &provider{Client: c, app: app}
+func Install(p providers.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck) {
+	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"read-placement-decisions": prd.ReadPlacementDecisions,
 		"make-placement-decisions": prd.MakePlacementDecisions,
 		"patch-application":        prd.PatchApplication,
 		"list-clusters":            prd.ListClusters,
-		"expand-topology":          prd.ExpandTopology,
-		"override-configuration":   prd.OverrideConfiguration,
+		"deploy":                   prd.Deploy,
 	})
 }

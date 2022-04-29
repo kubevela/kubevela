@@ -109,6 +109,18 @@ func TestGarbageCollectPolicySpec_FindStrategy(t *testing.T) {
 			}},
 			expectStrategy: GarbageCollectStrategyNever,
 		},
+		"resource type rule match": {
+			rules: []GarbageCollectPolicyRule{{
+				Selector: GarbageCollectPolicyRuleSelector{OAMResourceTypes: []string{"TRAIT"}},
+				Strategy: GarbageCollectStrategyNever,
+			}},
+			input: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{oam.LabelOAMResourceType: "TRAIT"},
+				},
+			}},
+			expectStrategy: GarbageCollectStrategyNever,
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

@@ -854,6 +854,8 @@ spec:
                     type: array
                   suspend:
                     type: boolean
+                  suspendState:
+                    type: string
                   terminated:
                     type: boolean
                 required:
@@ -1519,6 +1521,8 @@ spec:
                     type: array
                   suspend:
                     type: boolean
+                  suspendState:
+                    type: string
                   terminated:
                     type: boolean
                 required:

@@ -182,6 +182,7 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "userName",
 			},
 			"applicationTemplate": {},
+			"configs":             {},
 		},
 		pathName: "projectName",
 	},
@@ -206,7 +207,9 @@ var ResourceMaps = map[string]resourceMetadata{
 	"role":          {},
 	"permission":    {},
 	"systemSetting": {},
-	"definition":    {},
+	"definition": {
+		pathName: "definitionName",
+	},
 	"configType": {
 		pathName: "configType",
 		subResources: map[string]resourceMetadata{

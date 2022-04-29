@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,8 +37,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gosuri/uitable"
-	"github.com/olekukonko/tablewriter"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -180,7 +179,7 @@ Enable addon for specific clusters, (local means control plane):
 				}
 			}
 			fmt.Printf("Addon: %s enabled Successfully.\n", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, false)
 			return nil
 		},
 	}
@@ -191,25 +190,21 @@ Enable addon for specific clusters, (local means control plane):
 }
 
 // AdditionalEndpointPrinter will print endpoints
-func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string) {
-	endpoints, _ := GetServiceEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, c, Filter{})
-	if len(endpoints) > 0 {
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetColWidth(100)
-		table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint"})
-		for _, endpoint := range endpoints {
-			table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
-		}
-		fmt.Printf("Please access the %s from the following endpoints:\n", name)
-		table.Render()
+func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
+	fmt.Printf("Please access the %s from the following endpoints:\n", name)
+	err := printAppEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
+	if err != nil {
+		fmt.Println("Get application endpoints error:", err)
 		return
 	}
 	if name == "velaux" {
-		fmt.Println(`To check the initialized admin user name and password by:`)
-		fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		if !isUpgrade {
+			fmt.Println(`To check the initialized admin user name and password by:`)
+			fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+		}
 		fmt.Println(`To open the dashboard directly by port-forward:`)
 		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
-		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Component: velaux | Kind: Service" from the prompt.`)
+		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Kind: Service | Name: velaux" from the prompt.`)
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 }
@@ -283,7 +278,7 @@ Upgrade addon for specific clusters, (local means control plane):
 			}
 
 			fmt.Printf("Addon: %s\n enabled Successfully.", name)
-			AdditionalEndpointPrinter(ctx, c, k8sClient, name)
+			AdditionalEndpointPrinter(ctx, c, k8sClient, name, true)
 			return nil
 		},
 	}
@@ -294,7 +289,7 @@ Upgrade addon for specific clusters, (local means control plane):
 func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	for _, arg := range args {
-		if err := strvals.ParseIntoString(arg, res); err != nil {
+		if err := strvals.ParseInto(arg, res); err != nil {
 			return nil, err
 		}
 	}
@@ -442,6 +437,7 @@ func generateAddonInfo(name string, status pkgaddon.Status) string {
 		for c := range status.Clusters {
 			ic = append(ic, c)
 		}
+		sort.Strings(ic)
 		res += fmt.Sprintf("installedClusters: %s \n", ic)
 	}
 	return res

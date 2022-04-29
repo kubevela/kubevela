@@ -458,6 +458,9 @@ func (val *Value) fields() ([]*field, error) {
 		no, err := attr.Int(0)
 		if err != nil {
 			no = 100
+			if v.Name == "#do" || v.Name == "#provider" {
+				no = 0
+			}
 		}
 		fields = append(fields, &field{
 			no:   no,
@@ -511,6 +514,17 @@ func (val *Value) GetString(paths ...string) (string, error) {
 		return "", err
 	}
 	return v.CueValue().String()
+}
+
+// GetStringSlice get string slice from val
+func (val *Value) GetStringSlice(paths ...string) ([]string, error) {
+	v, err := val.LookupValue(paths...)
+	if err != nil {
+		return nil, err
+	}
+	var s []string
+	err = v.UnmarshalTo(&s)
+	return s, err
 }
 
 // GetInt64 get the int value at a path starting from v.
