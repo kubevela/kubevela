@@ -142,7 +142,7 @@ klog.InfoS("Reconcile application", "application", klog.KRef(req.Namespace, req.
 
 ### Logging Level
 
-[This file](https://github.com/oam-dev/kubevela/blob/master/pkg/controller/common/logs.go) contains KubeVela's log level,
+[This file](https://github.com/kubevela/kubevela/blob/master/pkg/controller/common/logs.go) contains KubeVela's log level,
 you can set the log level by `klog.V(level)`.
 
 ```golang

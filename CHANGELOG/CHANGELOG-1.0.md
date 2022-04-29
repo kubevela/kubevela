@@ -30,7 +30,7 @@ This is a minor fix for release-1.0, please refer to release-1.1.x for the lates
 **Please update Application CRD to upgrade from v1.0.3 to this release**
 
 ```
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applications.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubevela/kubevela/master/charts/vela-core/crds/core.oam.dev_applications.yaml
 ```
 
 **Check the upgrade docs to upgrade from other release: https://kubevela.io/docs/advanced-install#upgrade**

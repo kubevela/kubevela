@@ -1,9 +1,9 @@
 ### GitHub & kubevela automation
 
-The bot is configured via [issue-commands.json](https://github.com/oam-dev/kubevela/blob/master/.github/workflows/issue-commands.json) 
-and some other GitHub [workflows](https://github.com/oam-dev/kubevela/blob/master/.github/workflows).
+The bot is configured via [issue-commands.json](https://github.com/kubevela/kubevela/blob/master/.github/workflows/issue-commands.json) 
+and some other GitHub [workflows](https://github.com/kubevela/kubevela/blob/master/.github/workflows).
 By default, users with write access to the repo is allowed to use the comments, 
-the [userlist](https://github.com/oam-dev/kubevela/blob/master/.github/comment.userlist) 
+the [userlist](https://github.com/kubevela/kubevela/blob/master/.github/comment.userlist) 
 file is for adding additional members who do not have access and want to contribute to the issue triage.
 
 Comment commands:
@@ -14,7 +14,7 @@ Comment commands:
 * Write the word `/area/*` in a comment, and the bot will add the corresponding label `/area/*`.
 * Write the word `/priority/*` in a comment, and the bot will add the corresponding label `/priority/*`.
 
-The `*` mention above represent a specific word. Please read the details about label category in [ISSUE_TRIAGE.md](https://github.com/oam-dev/kubevela/blob/master/ISSUE_TRIAGE.md)  
+The `*` mention above represent a specific word. Please read the details about label category in [ISSUE_TRIAGE.md](https://github.com/kubevela/kubevela/blob/master/ISSUE_TRIAGE.md)  
 
 Label commands:
 

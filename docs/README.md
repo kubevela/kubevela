@@ -2,5 +2,5 @@
 
 Documentation website： https://kubevela.io/
 
-All docs of KubeVela are managed in [oam-dev/kubevela.io](https://github.com/oam-dev/kubevela.io) repo. Please refer
+All docs of KubeVela are managed in [kubevela/kubevela.io](https://github.com/kubevela/kubevela.io) repo. Please refer
 to that repo for contributions.
