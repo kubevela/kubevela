@@ -71,7 +71,7 @@ To get started with issue triage and finding issues that haven't been triaged yo
 ### Browse unlabeled issues
 
 The easiest and straight forward way of getting started and finding issues that haven't been triaged is to browse
-[unlabeled issues](https://github.com/oam-dev/kubevela/issues?q=is%3Aopen+is%3Aissue+no%3Alabel) and starting from
+[unlabeled issues](https://github.com/kubevela/kubevela/issues?q=is%3Aopen+is%3Aissue+no%3Alabel) and starting from
 the bottom and working yourself to the top.
 
 ### Subscribe to all notifications
@@ -95,7 +95,7 @@ to guide contributors to provide standard information that must be included for 
 
 ### Standard issue information that must be included
 
-Given a certain [issue template]([template](https://github.com/oam-dev/kubevela/issues/new/choose)) have been used
+Given a certain [issue template]([template](https://github.com/kubevela/kubevela/issues/new/choose)) have been used
 by the issue author or depending how the issue is perceived by the issue triage responsible, the following should
 help you understand what standard issue information that must be included.
 
@@ -219,7 +219,7 @@ There's a minor typo/error/lack of information that adds a lot of confusion for 
 
 ### Support requests and questions
 
-1. Kindly and politely direct the issue author to the [github discussion](https://github.com/oam-dev/kubevela/discussions)
+1. Kindly and politely direct the issue author to the [github discussion](https://github.com/kubevela/kubevela/discussions)
    and explain that issue is mainly used for tracking bugs and feature requests.
    If possible, it's usually a good idea to add some pointers to the issue author's question.
 2. Close the issue and label it with `type/question`.

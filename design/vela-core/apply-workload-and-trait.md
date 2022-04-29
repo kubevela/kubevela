@@ -2,7 +2,7 @@
 
 - Owner: Yue Wang(@captainroy-hy), Jianbo Sun(@wonderflow)
 - Date: 01/21/2021
-- Status: [Implemented](https://github.com/oam-dev/kubevela/pull/857)
+- Status: [Implemented](https://github.com/kubevela/kubevela/pull/857)
 
 
 ## Intro
