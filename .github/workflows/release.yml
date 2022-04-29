@@ -8,6 +8,10 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  BUCKET: ${{ secrets.CLI_OSS_BUCKET }}
+  ENDPOINT: ${{ secrets.CLI_OSS_ENDPOINT }}
+  ACCESS_KEY: ${{ secrets.CLI_OSS_ACCESS_KEY }}
+  ACCESS_KEY_SECRET: ${{ secrets.CLI_OSS_ACCESS_KEY_SECRET }}
 
 jobs:
   build:
@@ -104,6 +108,18 @@ jobs:
           name: sha256sums
           path: ./_bin/sha256-${{ steps.get_matrix.outputs.OS }}-${{ steps.get_matrix.outputs.ARCH }}.txt
           retention-days: 1
+      - name: Install ossutil
+        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
+      - name: Configure Alibaba Cloud OSSUTIL
+        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
+      - name: sync local to cloud
+        run: ./ossutil --config-file .ossutilconfig sync ./_bin/vela oss://$BUCKET/binary/vela/${{ env.VELA_VERSION }}
+      - name: sync the latest version file
+        run: |
+          touch ${{ env.VELA_VERSION }} > ./latest_version
+          ./ossutil --config-file .ossutilconfig ./latest_version oss://$BUCKET/binary/vela/latest_version
+
+
 
   upload-plugin-homebrew:
     needs: build

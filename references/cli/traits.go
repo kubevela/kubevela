@@ -237,7 +237,7 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 		}
 		capa, err := ParseCapability(dm, data)
 		if err != nil {
-			io.Errorf("error parsing capability: %s\n", td.Name)
+			io.Errorf("error parsing capability: %s (message: %s)\n", td.Name, err.Error())
 			continue
 		}
 		if filter != nil && !filter(capa) {
