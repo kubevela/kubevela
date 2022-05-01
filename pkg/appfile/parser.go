@@ -288,6 +288,29 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	for k, v := range appRev.Spec.WorkflowStepDefinitions {
 		appfile.RelatedWorkflowStepDefinitions[k] = v.DeepCopy()
 	}
+
+	if len(appfile.RelatedWorkflowStepDefinitions) == 0 && len(appfile.WorkflowSteps) > 0 {
+		ctx := context.Background()
+		for _, workflowStep := range appfile.WorkflowSteps {
+			if wftypes.IsBuiltinWorkflowStepType(workflowStep.Type) {
+				continue
+			}
+			if _, found := appfile.RelatedWorkflowStepDefinitions[workflowStep.Type]; found {
+				continue
+			}
+			def := &v1beta1.WorkflowStepDefinition{}
+			if err := util.GetCapabilityDefinition(ctx, p.client, def, workflowStep.Type); err != nil {
+				return nil, errors.Wrapf(err, "failed to get workflow step definition %s", workflowStep.Type)
+			}
+			appfile.RelatedWorkflowStepDefinitions[workflowStep.Type] = def
+		}
+
+		appRev.Spec.WorkflowStepDefinitions = make(map[string]v1beta1.WorkflowStepDefinition)
+		for name, def := range appfile.RelatedWorkflowStepDefinitions {
+			appRev.Spec.WorkflowStepDefinitions[name] = *def
+		}
+	}
+
 	for k, v := range appRev.Spec.ScopeDefinitions {
 		appfile.RelatedScopeDefinitions[k] = v.DeepCopy()
 	}

@@ -410,10 +410,12 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if isLatestRev {
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
+		workflowStepDef := h.currentAppRev.Spec.WorkflowStepDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
 		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
+		h.currentAppRev.Spec.WorkflowStepDefinitions = workflowStepDef
 		return false, false, nil
 	}
 
