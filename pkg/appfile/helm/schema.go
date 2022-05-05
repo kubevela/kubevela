@@ -122,7 +122,7 @@ func generateSchemaFromValues(values []byte) ([]byte, error) {
 	var out = &bytes.Buffer{}
 	_ = json.Indent(out, rawSchema, "", "   ")
 	// load schema into Swagger to validate it compatible with Swagger OpenAPIv3
-	fullSchemaBySwagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(out.Bytes())
+	fullSchemaBySwagger, err := openapi3.NewLoader().LoadFromData(out.Bytes())
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot load schema by SwaggerLoader")
 	}

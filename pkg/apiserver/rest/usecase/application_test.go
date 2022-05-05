@@ -734,7 +734,7 @@ func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion
 		},
 	}
 
-	if err := kubeClient.Create(ctx, testapp); err != nil {
+	if err := kubeClient.Create(ctx, testapp.DeepCopy()); err != nil {
 		return nil, err
 	}
 	if err := kubeClient.Status().Patch(ctx, testapp, client.Merge); err != nil {

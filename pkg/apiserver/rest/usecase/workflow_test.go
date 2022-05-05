@@ -237,7 +237,7 @@ var _ = Describe("Test workflow usecase functions", func() {
 		By("create the application to sync")
 		ctx := context.Background()
 		app.Status.Workflow.Finished = true
-		err = workflowUsecase.kubeClient.Create(ctx, app)
+		err = workflowUsecase.kubeClient.Create(ctx, app.DeepCopy())
 		Expect(err).Should(BeNil())
 		err = workflowUsecase.kubeClient.Status().Patch(ctx, app, client.Merge)
 		Expect(err).Should(BeNil())
