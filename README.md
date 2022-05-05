@@ -43,6 +43,10 @@ KubeVela practices the "render, orchestrate, deploy" workflow with below highlig
 
 Full documentation is available on the [KubeVela website](https://kubevela.io/).
 
+## Blog
+
+Official blog is available on [KubeVela blog](https://kubevela.io/blog).
+
 ## Community
 
 - Slack:  [CNCF Slack kubevela channel](https://cloud-native.slack.com/archives/C01BLQ3HTJA) (*English*)
@@ -51,8 +55,11 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.
  
   <img src="https://static.kubevela.net/images/barnett-wechat.jpg" width="200" />
-- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs).
-- Bi-weekly Chinese Community Call: [Video Records](https://space.bilibili.com/180074935/channel/seriesdetail?sid=1842207).
+- Bi-weekly Community Call: 
+  - [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs).
+  - [Video Records](https://kubevela.io/videos/meetings/en/meetings).
+- Bi-weekly Chinese Community Call:
+  - [Video Records](https://kubevela.io/videos/meetings/cn/v1.3).
 
 ## Talks and Conferences
 
@@ -61,6 +68,8 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 | 🎤  Talks | - [KubeVela - The Modern App Delivery System in Alibaba](https://docs.google.com/presentation/d/1CWCLcsKpDQB3bBDTfdv2BZ8ilGGJv2E8L-iOA5HMrV0/edit?usp=sharing) |
 | 🌎 KubeCon | - [ [NA 2020] Standardizing Cloud Native Application Delivery Across Different Clouds](https://www.youtube.com/watch?v=0yhVuBIbHcI) <br> - [ [EU 2021] Zero Pain Microservice Development and Deployment with Dapr and KubeVela](https://sched.co/iE4S) |
 | 📺 Conferences | - [Dapr, Rudr, OAM: Mark Russinovich presents next gen app development & deployment](https://www.youtube.com/watch?v=eJCu6a-x9uo) <br> - [Mark Russinovich presents "The Future of Cloud Native Applications with OAM and Dapr"](https://myignite.techcommunity.microsoft.com/sessions/82059)|
+
+For more talks, please checkout [KubeVela Talks](https://kubevela.io/videos/talks/en/standardizing-app).
 
 ## Contributing
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
