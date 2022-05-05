@@ -6838,8 +6838,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"name",
 				"alias",
 				"description",
@@ -7547,12 +7547,12 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
+				"version",
+				"status",
+				"triggerType",
 				"createTime",
 				"note",
-				"envName",
-				"triggerType",
-				"version",
-				"status"
+				"envName"
 			],
 			"properties": {
 				"codeInfo": {
@@ -7563,7 +7563,7 @@
 					"format": "date-time"
 				},
 				"deployUser": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"envName": {
 					"type": "string"
@@ -7661,7 +7661,7 @@
 					"format": "date-time"
 				},
 				"deployUser": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"envName": {
 					"type": "string"
@@ -8714,11 +8714,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
-				"version",
-				"description",
 				"icon",
+				"description",
+				"invisible",
 				"name",
+				"version",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -8798,13 +8798,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"updateTime",
+				"name",
+				"description",
+				"alias",
 				"project",
 				"createTime",
-				"description",
+				"updateTime",
 				"icon",
-				"name",
-				"alias",
 				"policies",
 				"envBindings",
 				"applicationType",
@@ -8865,20 +8865,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"description",
-				"status",
-				"dashboardURL",
 				"name",
-				"alias",
-				"provider",
 				"apiServerURL",
-				"createTime",
-				"updateTime",
-				"reason",
-				"kubeConfig",
-				"icon",
 				"labels",
+				"status",
+				"provider",
 				"kubeConfigSecret",
+				"kubeConfig",
+				"updateTime",
+				"createTime",
+				"alias",
+				"description",
+				"icon",
+				"reason",
+				"dashboardURL",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8936,14 +8936,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"name",
-				"type",
-				"createTime",
-				"updateTime",
 				"creator",
+				"name",
 				"main",
+				"updateTime",
 				"appPrimaryKey",
+				"createTime",
 				"alias",
+				"type",
 				"definition"
 			],
 			"properties": {
@@ -9029,11 +9029,11 @@
 		"v1.DetailDefinitionResponse": {
 			"required": [
 				"alias",
-				"description",
 				"icon",
 				"status",
-				"name",
 				"labels",
+				"name",
+				"description",
 				"schema",
 				"uiSchema"
 			],
@@ -9087,13 +9087,13 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"creator",
+				"properties",
+				"createTime",
 				"updateTime",
 				"name",
 				"type",
-				"description",
-				"creator",
-				"properties",
-				"createTime"
+				"description"
 			],
 			"properties": {
 				"createTime": {
@@ -9123,17 +9123,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"createTime",
-				"status",
-				"updateTime",
-				"version",
-				"triggerType",
-				"appPrimaryKey",
-				"note",
 				"reason",
 				"deployUser",
+				"triggerType",
+				"createTime",
+				"note",
+				"appPrimaryKey",
+				"version",
+				"status",
 				"workflowName",
-				"envName"
+				"envName",
+				"updateTime"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9150,7 +9150,7 @@
 					"format": "date-time"
 				},
 				"deployUser": {
-					"type": "string"
+					"$ref": "#/definitions/v1.NameAlias"
 				},
 				"envName": {
 					"type": "string"
@@ -9187,10 +9187,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"name",
-				"updateTime",
 				"createTime",
-				"project"
+				"project",
+				"name",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -9230,11 +9230,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
+				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
 				"projects",
 				"roles"
 			],
@@ -9275,12 +9275,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
+				"namespace",
+				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
 				"name",
-				"namespace",
-				"workflowName",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -9333,13 +9333,13 @@
 		"v1.DetailWorkflowResponse": {
 			"required": [
 				"name",
-				"enable",
-				"envName",
-				"updateTime",
 				"alias",
 				"description",
+				"enable",
+				"envName",
 				"default",
-				"createTime"
+				"createTime",
+				"updateTime"
 			],
 			"properties": {
 				"alias": {
@@ -9918,11 +9918,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -10847,6 +10847,9 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"controlPlaneOnly": {
+					"type": "boolean"
 				},
 				"definitionRef": {
 					"$ref": "#/definitions/common.DefinitionReference"

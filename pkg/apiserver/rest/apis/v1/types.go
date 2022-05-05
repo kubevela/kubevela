@@ -1106,13 +1106,13 @@ type TargetBase struct {
 
 // ApplicationRevisionBase application revision base spec
 type ApplicationRevisionBase struct {
-	CreateTime time.Time `json:"createTime"`
-	Version    string    `json:"version"`
-	Status     string    `json:"status"`
-	Reason     string    `json:"reason,omitempty"`
-	DeployUser string    `json:"deployUser,omitempty"`
-	Note       string    `json:"note"`
-	EnvName    string    `json:"envName"`
+	CreateTime time.Time  `json:"createTime"`
+	Version    string     `json:"version"`
+	Status     string     `json:"status"`
+	Reason     string     `json:"reason,omitempty"`
+	DeployUser *NameAlias `json:"deployUser,omitempty"`
+	Note       string     `json:"note"`
+	EnvName    string     `json:"envName"`
 	// SourceType the event trigger source, Web or API or Webhook
 	TriggerType string `json:"triggerType"`
 	// CodeInfo is the code info of this application revision
@@ -1130,6 +1130,7 @@ type ListRevisionsResponse struct {
 // DetailRevisionResponse get application revision detail
 type DetailRevisionResponse struct {
 	model.ApplicationRevision
+	DeployUser NameAlias `json:"deployUser,omitempty"`
 }
 
 // SystemInfoResponse get SystemInfo

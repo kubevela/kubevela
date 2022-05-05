@@ -35,6 +35,9 @@ func init() {
 // DefaultAdminUserName default admin user name
 const DefaultAdminUserName = "admin"
 
+// DefaultAdminUserAlias default admin user alias
+const DefaultAdminUserAlias = "Administrator"
+
 // User is the model of user
 type User struct {
 	BaseModel
