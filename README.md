@@ -50,7 +50,6 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 ## Community
 
 - Slack:  [CNCF Slack kubevela channel](https://cloud-native.slack.com/archives/C01BLQ3HTJA) (*English*)
-- Gitter: [oam-dev](https://gitter.im/oam-dev/community) (*English*)
 - [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.
  
