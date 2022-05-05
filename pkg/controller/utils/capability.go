@@ -813,7 +813,7 @@ func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 
 // ConvertOpenAPISchema2SwaggerObject converts OpenAPI v2 JSON schema to Swagger Object
 func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(data)
+	swagger, err := openapi3.NewLoader().LoadFromData(data)
 	if err != nil {
 		return nil, err
 	}

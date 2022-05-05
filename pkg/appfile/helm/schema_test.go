@@ -80,7 +80,7 @@ func TestChangeEnumToDefault(t *testing.T) {
 	testData := `{"properties":{"array":{"enum":[["a","b","c"]],"items":{"type":"string"},"type":"array"},"bool":{"enum":[false],"type":"boolean"},"integer":{"enum":[1],"type":"integer"},"obj":{"properties":{"f0":{"enum":["v0"],"type":"string"},"f1":{"enum":["v1"],"type":"string"},"f2":{"enum":["v2"],"type":"string"}},"required":["f0","f1","f2"],"type":"object"},"string":{"enum":["a"],"type":"string"}},"required":["bool","string","obj","array","integer"],"type":"object"}`
 
 	s := fmt.Sprintf(`{"components":{"schemas":{"values":%s}}}`, testData)
-	testSwagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData([]byte(s))
+	testSwagger, err := openapi3.NewLoader().LoadFromData([]byte(s))
 	if err != nil {
 		t.Error(err)
 	}
