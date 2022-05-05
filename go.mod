@@ -14,7 +14,7 @@ require (
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
-	github.com/containerd/containerd v1.4.13
+	github.com/containerd/containerd v1.5.4
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.14.1-0.20210722005935-0b469fcc77cd
@@ -34,7 +34,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.3.0
@@ -73,7 +73,7 @@ require (
 	gopkg.in/src-d/go-git.v4 v4.13.1
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.6.1
+	helm.sh/helm/v3 v3.7.0
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
 	k8s.io/api v0.23.6
 	k8s.io/apiextensions-apiserver v0.23.5
@@ -86,11 +86,10 @@ require (
 	k8s.io/klog/v2 v2.30.0
 	k8s.io/kube-aggregator v0.22.1
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
-	k8s.io/kubectl v0.21.0
-	k8s.io/metrics v0.21.0
+	k8s.io/kubectl v0.22.1
+	k8s.io/metrics v0.22.1
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	open-cluster-management.io/api v0.0.0-20210804091127-340467ff6239
-	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.11.2
 	sigs.k8s.io/controller-tools v0.6.2
 	sigs.k8s.io/kind v0.9.0
@@ -114,8 +113,8 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/Masterminds/squirrel v1.5.0 // indirect
-	github.com/Microsoft/go-winio v0.4.16 // indirect
-	github.com/Microsoft/hcsshim v0.8.14 // indirect
+	github.com/Microsoft/go-winio v0.4.17 // indirect
+	github.com/Microsoft/hcsshim v0.8.18 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/agext/levenshtein v1.2.2 // indirect
@@ -133,18 +132,16 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/cockroachdb/apd/v2 v2.0.1 // indirect
-	github.com/containerd/cgroups v0.0.0-20200531161412-0dbf7f05ba59 // indirect
-	github.com/containerd/continuity v0.0.0-20201208142359-180525291bb7 // indirect
+	github.com/containerd/continuity v0.1.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/creack/pty v1.1.11 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
-	github.com/deislabs/oras v0.11.1 // indirect
-	github.com/docker/cli v20.10.5+incompatible // indirect
+	github.com/docker/cli v20.10.7+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/docker v20.10.14+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.6.3 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/docker/go-metrics v0.0.0-20180209012529-399ea8c73916 // indirect
+	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
@@ -153,6 +150,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.1.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/camelcase v1.0.0
+	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-logr/zapr v1.2.0 // indirect
@@ -187,7 +185,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
-	github.com/klauspost/compress v1.11.0 // indirect
+	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -206,6 +204,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210610120745-9d4ed1856297 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -226,7 +225,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
-	github.com/rubenv/sql-migrate v0.0.0-20200616145509-8d140a17f351 // indirect
+	github.com/rubenv/sql-migrate v0.0.0-20210614095031-55d5740dbbcc // indirect
 	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
@@ -249,7 +248,6 @@ require (
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/zclconf/go-cty v1.8.0 // indirect
-	go.opencensus.io v0.23.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
@@ -268,13 +266,14 @@ require (
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
-	gopkg.in/square/go-jose.v2 v2.2.2 // indirect
+	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/src-d/go-billy.v4 v4.3.2 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
+	oras.land/oras-go v0.4.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.24 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2 // indirect
