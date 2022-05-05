@@ -49,12 +49,25 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 
 ## Community
 
+We want your contributions and suggestions! 
+One of the easiest ways to contribute is to participate in discussions on the Github Issues/Discussion, chat on IM or the bi-weekly community calls.
+For more information on the community engagement, developer and contributing guidelines and more, head over to the [KubeVela community repo](https://github.com/kubevela/community).
+
+### Contact Us
+
+Reach out with any questions you may have and we'll make sure to answer them as soon as possible!
+
 - Slack:  [CNCF Slack kubevela channel](https://cloud-native.slack.com/archives/C01BLQ3HTJA) (*English*)
 - [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
 - Wechat Group (*Chinese*): Broker wechat to add you into the user group.
  
   <img src="https://static.kubevela.net/images/barnett-wechat.jpg" width="200" />
-- Bi-weekly Community Call: 
+
+### Community Call
+
+Every two weeks we host a community call to showcase new features, review upcoming milestones, and engage in a Q&A. All are welcome!
+
+- Bi-weekly Community Call:
   - [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs).
   - [Video Records](https://kubevela.io/videos/meetings/en/meetings).
 - Bi-weekly Chinese Community Call:
@@ -71,6 +84,7 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 For more talks, please checkout [KubeVela Talks](https://kubevela.io/videos/talks/en/standardizing-app).
 
 ## Contributing
+
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
 ## Report Vulnerability
@@ -78,4 +92,5 @@ Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 Security is a first priority thing for us at KubeVela. If you come across a related issue, please send email to security@mail.kubevela.io .
 
 ## Code of Conduct
+
 KubeVela adopts [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
