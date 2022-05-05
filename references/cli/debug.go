@@ -82,8 +82,8 @@ func NewDebugCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		},
 	}
 	addNamespaceAndEnvArg(cmd)
-	cmd.Flags().StringVarP(&dOpts.step, "step", "s", "", "specify the step to debug")
-	cmd.Flags().StringVarP(&dOpts.focus, "focus", "f", "", "specify the focus value to debug")
+	cmd.Flags().StringVarP(&dOpts.step, "step", "s", "", "specify the step or component to debug")
+	cmd.Flags().StringVarP(&dOpts.focus, "focus", "f", "", "specify the focus value to debug, only valid for application with workflow")
 	return cmd
 }
 
@@ -255,7 +255,7 @@ func unwrapStepName(step string) string {
 func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, error) {
 	debugCM := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(app.Name, d.step), Namespace: app.Namespace}, debugCM); err != nil {
-		return nil, fmt.Errorf("failed to get debug configmap: %w", err)
+		return nil, fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
 	}
 
 	if debugCM.Data == nil || debugCM.Data["debug"] == "" {
