@@ -277,9 +277,6 @@ require (
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
-)
-
-require (
 	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/moby/locker v1.0.1 // indirect
