@@ -150,6 +150,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.1.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/camelcase v1.0.0
+	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
 	github.com/go-logr/zapr v1.2.0 // indirect
@@ -184,6 +185,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
+	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -202,6 +204,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210610120745-9d4ed1856297 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -270,6 +273,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
+	oras.land/oras-go v0.4.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.24 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/apiserver-runtime v1.0.3-0.20210913073608-0663f60bfee2 // indirect
@@ -277,10 +281,6 @@ require (
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
-	github.com/fvbommel/sortorder v1.0.1 // indirect
-	github.com/klauspost/compress v1.11.13 // indirect
-	github.com/moby/locker v1.0.1 // indirect
-	oras.land/oras-go v0.4.0 // indirect
 )
 
 replace (
