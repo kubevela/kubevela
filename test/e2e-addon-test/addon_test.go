@@ -96,11 +96,6 @@ var _ = Describe("Addon tests", func() {
 		Expect(err).Should(BeNil())
 		Expect(string(output)).Should(ContainSubstring("enabled Successfully"))
 
-		By("Authenticate a provider")
-		output, err = exec.Command("bash", "-c", "/tmp/vela provider add terraform-alibaba --ALICLOUD_ACCESS_KEY=xxx --ALICLOUD_SECRET_KEY=yyy --ALICLOUD_REGION=cn-hangzhou").Output()
-		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("Successfully authenticate provider"))
-
 		By("Checking Provider")
 		Eventually(func() error {
 			var provider terraformv1beta1.Provider
