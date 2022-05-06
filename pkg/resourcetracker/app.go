@@ -20,15 +20,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
-
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/apiextensions.core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiextensions/applicationresourcetracker"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 const (
@@ -100,17 +104,42 @@ func CreateComponentRevisionResourceTracker(ctx context.Context, cli client.Clie
 	return createResourceTracker(ctx, cli, app, getComponentRevisionResourceTrackerName(app), v1beta1.ResourceTrackerTypeComponentRevision)
 }
 
+func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) ([]v1beta1.ResourceTracker, error) {
+	rts := v1beta1.ResourceTrackerList{}
+	err := cli.List(ctx, &rts, client.MatchingLabels{
+		oam.LabelAppName:      app.Name,
+		oam.LabelAppNamespace: app.Namespace,
+	})
+	if err == nil {
+		return rts.Items, nil
+	}
+	if !kerrors.IsForbidden(err) && !kerrors.IsUnauthorized(err) {
+		return nil, err
+	}
+	appRts := v1alpha1.ApplicationResourceTrackerList{}
+	if err = cli.List(ctx, &appRts, client.MatchingLabels{
+		oam.LabelAppName: app.Name,
+	}, client.InNamespace(app.Namespace)); err != nil {
+		if velaerrors.IsCRDNotExists(err) {
+			return nil, errors.New("no permission for ResourceTracker and apiextensionserver is not available")
+		}
+		return nil, err
+	}
+	var rtArr []v1beta1.ResourceTracker
+	for _, appRt := range appRts.Items {
+		rtArr = append(rtArr, applicationresourcetracker.ConvertAppRT2RT(appRt))
+	}
+	return rtArr, nil
+}
+
 // ListApplicationResourceTrackers list resource trackers for application with all historyRTs sorted by version number
 func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
 	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
-	rts := v1beta1.ResourceTrackerList{}
-	if err = cli.List(ctx, &rts, client.MatchingLabels{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-	}); err != nil {
+	rts, err := listApplicationResourceTrackers(ctx, cli, app)
+	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	for _, _rt := range rts.Items {
+	for _, _rt := range rts {
 		rt := _rt.DeepCopy()
 		if rt.GetLabels() != nil && rt.GetLabels()[oam.LabelAppUID] != "" && rt.GetLabels()[oam.LabelAppUID] != string(app.UID) {
 			return nil, nil, nil, nil, fmt.Errorf("resourcetracker %s exists but controlled by another application (uid: %s), this could probably be cased by some mistakes while garbage collecting outdated resource. Please check this resourcetrakcer and delete it manually", rt.Name, rt.GetLabels()[oam.LabelAppUID])

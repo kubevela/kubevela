@@ -245,3 +245,31 @@ authentication:
   withUser: false
   defaultUser: kubevela:vela-core
   groupPattern: kubevela:*
+
+## @section APIExtensionServer parameters
+
+## @param apiextensionserver.enabled Whether to enable APIExtensionServer
+## @param apiextensionserver.replicaCount APIExtensionServer replica count
+## @param apiextensionserver.port APIExtensionServer port
+## @param apiextensionserver.image.repository APIExtensionServer image repository
+## @param apiextensionserver.image.tag APIExtensionServer image tag
+## @param apiextensionserver.image.pullPolicy APIExtensionServer image pull policy
+## @param apiextensionserver.resources.limits.cpu APIExtensionServer cpu limit
+## @param apiextensionserver.resources.limits.memory APIExtensionServer memory limit
+## @param apiextensionserver.secureTLS.enabled Whether to enable secure TLS
+## @param apiextensionserver.secureTLS.certPath Path to the certificate file
+apiextensionserver:
+  enabled: false
+  replicaCount: 1
+  port: 9443
+  image:
+    repository: oamdev/vela-apiextensionserver
+    tag: v1.3.2
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+  secureTLS:
+    enabled: true
+    certPath: /etc/k8s-apiextensionserver-certs

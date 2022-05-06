@@ -146,6 +146,22 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `authentication.groupPattern` | Application authentication will impersonate as the request Group that matches the pattern                                  | `kubevela:*`         |
 
 
+### APIExtensionServer parameters
+
+| Name                                         | Description                          | Value                               |
+| -------------------------------------------- | ------------------------------------ | ----------------------------------- |
+| `apiextensionserver.enabled`                 | Whether to enable APIExtensionServer | `false`                             |
+| `apiextensionserver.replicaCount`            | APIExtensionServer replica count     | `1`                                 |
+| `apiextensionserver.port`                    | APIExtensionServer port              | `9443`                              |
+| `apiextensionserver.image.repository`        | APIExtensionServer image repository  | `oamdev/vela-apiextensionserver`    |
+| `apiextensionserver.image.tag`               | APIExtensionServer image tag         | `v1.3.2`                            |
+| `apiextensionserver.image.pullPolicy`        | APIExtensionServer image pull policy | `IfNotPresent`                      |
+| `apiextensionserver.resources.limits.cpu`    | APIExtensionServer cpu limit         | `100m`                              |
+| `apiextensionserver.resources.limits.memory` | APIExtensionServer memory limit      | `200Mi`                             |
+| `apiextensionserver.secureTLS.enabled`       | Whether to enable secure TLS         | `true`                              |
+| `apiextensionserver.secureTLS.certPath`      | Path to the certificate file         | `/etc/k8s-apiextensionserver-certs` |
+
+
 ## Uninstallation
 
 ### Vela CLI 

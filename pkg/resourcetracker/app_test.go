@@ -25,12 +25,16 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/apiextensions.core.oam.dev/v1alpha1"
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -48,7 +52,7 @@ func TestCreateAndListResourceTrackers(t *testing.T) {
 	r.NoError(err)
 	var versionedRTs []*v1beta1.ResourceTracker
 	for i := 0; i < 10; i++ {
-		app.Status.LatestRevision = &common2.Revision{Name: fmt.Sprintf("app-v%d", i)}
+		app.Status.LatestRevision = &apicommon.Revision{Name: fmt.Sprintf("app-v%d", i)}
 		app.Generation = int64(i + 1)
 		currentRT, err := CreateCurrentResourceTracker(context.Background(), cli, app)
 		r.NoError(err)
@@ -148,4 +152,40 @@ func TestPublishedVersion(t *testing.T) {
 	r.NoError(err)
 	r.Nil(currentRT)
 	r.Equal(2, len(historyRTs))
+}
+
+func TestListApplicationResourceTrackers(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	rt := &v1alpha1.ApplicationResourceTracker{}
+	rt.SetName("rt")
+	rt.SetNamespace("example")
+	rt.SetLabels(map[string]string{oam.LabelAppName: "app"})
+	cli := &clientWithoutRTPermission{Client: fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(rt).Build()}
+	app := &v1beta1.Application{}
+	app.SetName("app")
+	app.SetNamespace("example")
+	_, err := listApplicationResourceTrackers(ctx, cli, app)
+	r.NotNil(err)
+	r.Contains(err.Error(), "no permission for ResourceTracker and apiextensionserver is not available")
+	cli.recognizeApplicationResourceTracker = true
+	rts, err := listApplicationResourceTrackers(ctx, cli, app)
+	r.NoError(err)
+	r.Equal(len(rts), 1)
+	r.Equal(rts[0].Name, "rt-example")
+}
+
+type clientWithoutRTPermission struct {
+	client.Client
+	recognizeApplicationResourceTracker bool
+}
+
+func (c *clientWithoutRTPermission) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, isRTList := list.(*v1beta1.ResourceTrackerList); isRTList {
+		return errors.NewForbidden(schema.GroupResource{}, "", nil)
+	}
+	if _, isAppRTList := list.(*v1alpha1.ApplicationResourceTrackerList); isAppRTList && !c.recognizeApplicationResourceTracker {
+		return &apimeta.NoKindMatchError{}
+	}
+	return c.Client.List(ctx, list, opts...)
 }

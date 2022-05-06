@@ -50,3 +50,6 @@ git-page/
 
 # e2e rollout runtime image build
 runtime/rollout/e2e/tmp
+
+# apiextensionserver local dir
+apiserver.local.config

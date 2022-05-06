@@ -1,0 +1,262 @@
+{{ if .Values.apiextensionserver.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-apiextensionserver
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.apiextensionserver.replicaCount }}
+  selector:
+    matchLabels:
+    {{- include "kubevela-apiextensionserver.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+      {{- include "kubevela-apiextensionserver.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "kubevela.fullname" . }}-apiextensionserver
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - "apiextensionserver"
+            - "--secure-port={{ .Values.apiextensionserver.port }}"
+            - "--feature-gates=APIPriorityAndFairness=false"
+            {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            - "--cert-dir={{ .Values.apiextensionserver.secureTLS.certPath }}"
+            {{ end }}
+          image: {{ .Values.imageRegistry }}{{ .Values.apiextensionserver.image.repository }}:{{ .Values.apiextensionserver.image.tag }}
+          imagePullPolicy: {{ .Values.apiextensionserver.image.pullPolicy }}
+          resources:
+          {{- toYaml .Values.apiextensionserver.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.apiextensionserver.port }}
+          {{ if .Values.apiextensionserver.secureTLS.enabled }}
+          volumeMounts:
+            - mountPath: {{ .Values.apiextensionserver.secureTLS.certPath }}
+              name: tls-cert-vol
+              readOnly: true
+          {{- end }}
+      {{ if .Values.apiextensionserver.secureTLS.enabled }}
+      volumes:
+        - name: tls-cert-vol
+          secret:
+            defaultMode: 420
+            secretName: {{ template "kubevela.fullname" . }}-apiextensionserver-tls
+      {{ end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+{{ end }}
+---
+{{ if .Values.apiextensionserver.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-apiextensionserver-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+  {{- include "kubevela-apiextensionserver.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.apiextensionserver.port }}
+      targetPort: {{ .Values.apiextensionserver.port }}
+{{ end }}
+---
+{{ if .Values.apiextensionserver.enabled }}
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1alpha1.apiextensions.core.oam.dev
+  labels:
+    api: kuebvela-apiextensionserver
+    apiserver: "true"
+spec:
+  version: v1alpha1
+  group: apiextensions.core.oam.dev
+  groupPriorityMinimum: 2000
+  service:
+    name: {{ .Release.Name }}-apiextensionserver-service
+    namespace: {{ .Release.Namespace }}
+    port: {{ .Values.apiextensionserver.port }}
+  versionPriority: 10
+  insecureSkipTLSVerify: {{ not .Values.apiextensionserver.secureTLS.enabled }}
+  {{ if .Values.apiextensionserver.secureTLS.enabled }}
+  caBundle: Cg==
+  {{ end }}
+{{ end }}
+---
+{{ if and .Values.apiextensionserver.enabled .Values.apiextensionserver.secureTLS.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-apiextensionserver-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+{{- end }}
+---
+{{ if and .Values.apiextensionserver.enabled .Values.apiextensionserver.secureTLS.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-apiextensionserver-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+{{ if and .Values.apiextensionserver.enabled .Values.apiextensionserver.secureTLS.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-apiextensionserver-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+{{- end }}
+---
+{{ if and .Values.apiextensionserver.enabled .Values.apiextensionserver.secureTLS.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-create
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-create
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{- if .Capabilities.APIVersions.Has "batch/v1alpha1" }}
+  # Alpha feature since k8s 1.12
+  ttlSecondsAfterFinished: 0
+  {{- end }}
+  template:
+    metadata:
+      name: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-create
+      labels:
+        app: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-create
+        {{- include "kubevela.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: create
+          image: {{ .Values.imageRegistry }}{{ .Values.admissionWebhooks.patch.image.repository }}:{{ .Values.admissionWebhooks.patch.image.tag }}
+          imagePullPolicy: {{ .Values.admissionWebhooks.patch.image.pullPolicy }}
+          args:
+            - create
+            - --host={{ .Release.Name }}-apiextensionserver-service,{{ .Release.Name }}-apiextensionserver-service.{{ .Release.Namespace }}.svc
+            - --namespace={{ .Release.Namespace }}
+            - --secret-name={{ template "kubevela.fullname" . }}-apiextensionserver-tls
+            - --key-name=apiserver.key
+            - --cert-name=apiserver.crt
+      restartPolicy: OnFailure
+      serviceAccountName: {{ template "kubevela.fullname" . }}-apiextensionserver-admission
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+{{ end }}
+---
+{{ if and .Values.apiextensionserver.enabled .Values.apiextensionserver.secureTLS.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-patch
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-patch
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{- if .Capabilities.APIVersions.Has "batch/v1alpha1" }}
+  # Alpha feature since k8s 1.12
+  ttlSecondsAfterFinished: 0
+  {{- end }}
+  template:
+    metadata:
+      name: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-patch
+      labels:
+        app: {{ template "kubevela.fullname" . }}-apiextensionserver-tls-secret-patch
+        {{- include "kubevela.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: patch
+          image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+          imagePullPolicy: {{ .Values.apiextensionserver.image.pullPolicy }}
+          command:
+            - /patch
+          args:
+            - --secret-namespace={{ .Release.Namespace }}
+            - --secret-name={{ template "kubevela.fullname" . }}-apiextensionserver-tls
+            - --target-APIService=v1alpha1.apiextensions.core.oam.dev
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+{{ end }}

@@ -58,6 +58,7 @@ import (
 
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
+	apiextensionsv1alpha1 "github.com/oam-dev/kubevela/apis/apiextensions.core.oam.dev/v1alpha1"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -99,6 +100,7 @@ func init() {
 	_ = ocmworkv1.Install(Scheme)
 	_ = clustergatewayapi.AddToScheme(Scheme)
 	_ = metricsV1beta1api.AddToScheme(Scheme)
+	_ = apiextensionsv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

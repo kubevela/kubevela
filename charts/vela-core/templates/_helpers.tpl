@@ -56,6 +56,11 @@ app.kubernetes.io/name: {{ include "kubevela.name" . }}-cluster-gateway
 app.kubernetes.io/instance: {{ .Release.Name }}-cluster-gateway
 {{- end -}}
 
+{{- define "kubevela-apiextensionserver.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubevela.name" . }}-apiextensionserver
+app.kubernetes.io/instance: {{ .Release.Name }}-apiextensionserver
+{{- end -}}
+
 {{/*
 Create the name of the service account to use
 */}}
