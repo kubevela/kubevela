@@ -898,7 +898,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 
 	type args struct {
 		writeConnectionSecretToRef *terraformtypes.SecretReference
-		json                       string
 		hcl                        string
 		remote                     string
 		params                     map[string]interface{}
@@ -985,18 +984,6 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			}
 			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
-		if tc.args.json != "" {
-			template = &Template{
-				Terraform: &common.Terraform{
-					Configuration: tc.args.json,
-					Type:          "json",
-				},
-			}
-			configSpec = terraformapi.ConfigurationSpec{
-				Variable: raw,
-			}
-			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
-		}
 		if tc.args.remote != "" {
 			template = &Template{
 				Terraform: &common.Terraform{
@@ -1010,7 +997,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			}
 			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 		}
-		if tc.args.hcl == "" && tc.args.json == "" && tc.args.remote == "" {
+		if tc.args.hcl == "" && tc.args.remote == "" {
 			template = &Template{
 				Terraform: &common.Terraform{},
 			}
@@ -1046,6 +1033,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 
 		if err == nil {
 			tfConfiguration := terraformapi.Configuration{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
 				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 				Spec:       configSpec,
 			}
