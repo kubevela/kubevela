@@ -1,0 +1,44 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-control-plane-only
+  namespace: default
+spec:
+  components:
+    - name: app-with-control-plane-only-component-01
+      type: webservice
+      properties:
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        cmd: [ "sleep", "10000" ]
+        cpu: "0.1"
+        mem: "100Mi"
+      traits:
+        - type: hubcpuscaler
+          properties:
+            min: 1
+            max: 10
+            cpuPercent: 60
+        - type: annotations
+          properties:
+            abc: "def"
+        - type: expose
+          properties:
+            port: [ 80 ]
+  policies:
+    - name: app-with-control-plane-only-topology-01
+      type: topology
+      properties:
+        clusters: [ "cluster01" ]
+        namespace: default
+    - name: app-with-control-plane-only-topology-02
+      type: topology
+      properties:
+        clusters: [ "cluster02" ]
+        namespace: default
+  workflow:
+    steps:
+      - type: deploy
+        name: app-with-control-plane-only-deploy-01
+        properties:
+          policies: [ "app-with-control-plane-only-topology-01","app-with-control-plane-only-topology-02" ]
