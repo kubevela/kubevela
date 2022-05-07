@@ -451,7 +451,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	if err != nil {
 		return err
 	}
-	onlineAddon := map[string]bool{}
+
 	for _, r := range registries {
 		if registry != "" && r.Name != registry {
 			continue
@@ -481,6 +481,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "AVAILABLE-VERSIONS", "STATUS")
 
 	// get locally installed addons first
+	locallyInstalledAddons := map[string]bool{}
 	appList := v1alpha2.ApplicationList{}
 	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
 		return err
@@ -490,12 +491,12 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 		addonName := labels[oam.LabelAddonName]
 		addonVersion := labels[oam.LabelAddonVersion]
 		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion), statusEnabled)
-		onlineAddon[addonName] = true
+		locallyInstalledAddons[addonName] = true
 	}
 
 	for _, addon := range addons {
 		// if the addon with same name has already installed locally, display the registry one as not installed
-		if onlineAddon[addon.Name] {
+		if locallyInstalledAddons[addon.Name] {
 			table.AddRow(addon.Name, addon.RegistryName, addon.Description, addon.AvailableVersions, "disabled")
 			continue
 		}
