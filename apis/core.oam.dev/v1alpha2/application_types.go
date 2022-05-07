@@ -87,7 +87,7 @@ type ApplicationSpec struct {
 
 // Application is the Schema for the applications API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories={oam},shortName=app
+// +kubebuilder:resource:categories={oam},shortName={app,velaapp}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="COMPONENT",type=string,JSONPath=`.spec.components[*].name`
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.components[*].type`
