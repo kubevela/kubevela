@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  annotations:
+    app.oam.dev/publishVersion: workflow-default-123456
+  name: backport-1-2-test-demo
+  namespace: default
+spec:
+  components:
+    - name: backport-1-2-test-demo
+      properties:
+        image: nginx
+      traits:
+        - properties:
+            replicas: 1
+          type: scaler
+      type: webservice
+  workflow:
+    steps:
+      - name: apply
+        type: apply-application
+status:
+  latestRevision:
+    name: backport-1-2-test-demo-v1
+    revision: 1
+    revisionHash: 38ddf4e721073703
