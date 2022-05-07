@@ -225,7 +225,7 @@ func TestGenerateAvailableVersions(t *testing.T) {
 		},
 	}
 	for _, s := range testcases {
-		re := genAvailableVersionInfo(s.c.versions, pkgaddon.Status{InstalledVersion: s.c.inVersion})
+		re := genAvailableVersionInfo(s.c.versions, s.c.inVersion)
 		assert.Equal(t, re, s.res)
 	}
 }
