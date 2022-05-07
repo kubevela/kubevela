@@ -127,11 +127,11 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Long:  "enable an addon in cluster.",
 		Example: `\
 Enable addon by:
-	vela addon enable <addon-name>
+    vela addon enable <addon-name>
 Enable addon with specify version:
     vela addon enable <addon-name> --version <addon-version>
 Enable addon for specific clusters, (local means control plane):
-	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
+    vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -218,11 +218,11 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Long:  "upgrade an addon in cluster.",
 		Example: `\
 Upgrade addon by:
-	vela addon upgrade <addon-name>
+    vela addon upgrade <addon-name>
 Upgrade addon with specify version:
     vela addon upgrade <addon-name> --version <addon-version>
 Upgrade addon for specific clusters, (local means control plane):
-	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
+    vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -480,7 +480,25 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	table := uitable.New()
 	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "AVAILABLE-VERSIONS", "STATUS")
 
+	// get locally installed addons first
+	appList := v1alpha2.ApplicationList{}
+	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
+		return err
+	}
+	for _, app := range appList.Items {
+		labels := app.GetLabels()
+		addonName := labels[oam.LabelAddonName]
+		addonVersion := labels[oam.LabelAddonVersion]
+		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion), statusEnabled)
+		onlineAddon[addonName] = true
+	}
+
 	for _, addon := range addons {
+		// if the addon with same name has already installed locally, display the registry one as not installed
+		if onlineAddon[addon.Name] {
+			table.AddRow(addon.Name, addon.RegistryName, addon.Description, addon.AvailableVersions, "disabled")
+			continue
+		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
 			return err
@@ -489,20 +507,9 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 		if len(status.InstalledVersion) != 0 {
 			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
 		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status), statusRow)
-		onlineAddon[addon.Name] = true
+		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion), statusRow)
 	}
-	appList := v1alpha2.ApplicationList{}
-	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
-		return err
-	}
-	for _, app := range appList.Items {
-		addonName := app.GetLabels()[oam.LabelAddonName]
-		if onlineAddon[addonName] {
-			continue
-		}
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", statusEnabled)
-	}
+
 	fmt.Println(table.String())
 	return nil
 }
@@ -540,13 +547,13 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 // generate the available version
 // this func put the installed version as the first version and keep the origin order
 // print ... if available version too much
-func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+func genAvailableVersionInfo(versions []string, installedVersion string) string {
 	var v []string
 
 	// put installed-version as the first version and keep the origin order
-	if len(status.InstalledVersion) != 0 {
+	if len(installedVersion) != 0 {
 		for i, version := range versions {
-			if version == status.InstalledVersion {
+			if version == installedVersion {
 				v = append(v, version)
 				versions = append(versions[:i], versions[i+1:]...)
 			}
@@ -562,7 +569,7 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 			res += "..."
 			break
 		}
-		if version == status.InstalledVersion {
+		if version == installedVersion {
 			col := color.New(color.Bold, color.FgGreen)
 			res += col.Sprintf("%s", version)
 		} else {
@@ -612,49 +619,49 @@ func transClusters(cstr string) []string {
 
 // TODO(wangyike) addon can support multi-tenancy, an addon can be enabled multi times and will create many times
 // func checkWhetherTerraformProviderExist(ctx context.Context, k8sClient client.Client, addonName string, args map[string]string) (string, bool, error) {
-//	_, providerName := getTerraformProviderArgumentValue(addonName, args)
+//  _, providerName := getTerraformProviderArgumentValue(addonName, args)
 //
-//	providerNames, err := getTerraformProviderNames(ctx, k8sClient)
-//	if err != nil {
-//		return "", false, err
-//	}
-//	for _, name := range providerNames {
-//		if providerName == name {
-//			return providerName, true, nil
-//		}
-//	}
-//	return providerName, false, nil
+//  providerNames, err := getTerraformProviderNames(ctx, k8sClient)
+//  if err != nil {
+//      return "", false, err
+//  }
+//  for _, name := range providerNames {
+//      if providerName == name {
+//          return providerName, true, nil
+//      }
+//  }
+//  return providerName, false, nil
 // }
 
 //  func getTerraformProviderNames(ctx context.Context, k8sClient client.Client) ([]string, error) {
-//	var names []string
-//	providerList := &terraformv1beta1.ProviderList{}
-//	err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
-//	if err != nil {
-//		if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
-//			return nil, nil
-//		}
-//		return nil, err
-//	}
-//	for _, provider := range providerList.Items {
-//		names = append(names, provider.Name)
-//	}
-//	return names, nil
+//  var names []string
+//  providerList := &terraformv1beta1.ProviderList{}
+//  err := k8sClient.List(ctx, providerList, client.InNamespace(AddonTerraformProviderNamespace))
+//  if err != nil {
+//      if apimeta.IsNoMatchError(err) || kerrors.IsNotFound(err) {
+//          return nil, nil
+//      }
+//      return nil, err
+//  }
+//  for _, provider := range providerList.Items {
+//      names = append(names, provider.Name)
+//  }
+//  return names, nil
 // }
 //
 // Get the value of argument AddonTerraformProviderNameArgument
 // func getTerraformProviderArgumentValue(addonName string, args map[string]string) (map[string]string, string) {
-//	providerName, ok := args[AddonTerraformProviderNameArgument]
-//	if !ok {
-//		switch addonName {
-//		case "terraform-alibaba":
-//			providerName = "default"
-//		case "terraform-aws":
-//			providerName = "aws"
-//		case "terraform-azure":
-//			providerName = "azure"
-//		}
-//		args[AddonTerraformProviderNameArgument] = providerName
-//	}
-//	return args, providerName
+//  providerName, ok := args[AddonTerraformProviderNameArgument]
+//  if !ok {
+//      switch addonName {
+//      case "terraform-alibaba":
+//          providerName = "default"
+//      case "terraform-aws":
+//          providerName = "aws"
+//      case "terraform-azure":
+//          providerName = "azure"
+//      }
+//      args[AddonTerraformProviderNameArgument] = providerName
+//  }
+//  return args, providerName
 // }
