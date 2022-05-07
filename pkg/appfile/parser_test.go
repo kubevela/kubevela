@@ -22,6 +22,8 @@ import (
 	"reflect"
 	"strings"
 
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -505,4 +507,203 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(cmp.Diff(comp.StandardWorkload, expectWorkloadOptional)).Should(BeEmpty())
 	})
 
+})
+
+var _ = Describe("Test application parser", func() {
+	var app v1beta1.Application
+	var apprev v1beta1.ApplicationRevision
+	var wsd v1beta1.WorkflowStepDefinition
+	var expectedExceptAppfile *Appfile
+	var mockClient test.MockClient
+
+	BeforeEach(func() {
+		// prepare WorkflowStepDefinition
+		Expect(common2.ReadYamlToObject("testdata/backport-1-2/wsd.yaml", &wsd)).Should(BeNil())
+
+		// prepare verify data
+		expectedExceptAppfile = &Appfile{
+			Name: "backport-1-2-test-demo",
+			Workloads: []*Workload{
+				{
+					Name: "backport-1-2-test-demo",
+					Type: "webservice",
+					Params: map[string]interface{}{
+						"image": "nginx",
+					},
+					FullTemplate: &Template{
+						TemplateStr: `
+      output: {
+        apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+      
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+      
+      			spec: {
+      				containers: [{
+      					name:  context.name
+      					image: parameter.image
+      
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+      				}]
+      			}
+      		}
+      
+      		selector:
+      			matchLabels:
+      				"app.oam.dev/component": context.name
+      	}
+      }
+      
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      
+      	cmd?: [...string]
+      }`,
+					},
+					Traits: []*Trait{
+						{
+							Name: "scaler",
+							Params: map[string]interface{}{
+								"replicas": float64(1),
+							},
+							Template: `
+parameter: {
+	// +usage=Specify the number of workload
+	replicas: *1 | int
+}
+// +patchStrategy=retainKeys
+patch: spec: replicas: parameter.replicas
+
+`,
+						},
+					},
+				},
+			},
+			WorkflowSteps: []v1beta1.WorkflowStep{
+				{
+					Name: "apply",
+					Type: "apply-application",
+				},
+			},
+		}
+
+		// Create mock client
+		mockClient = test.MockClient{
+			MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+				if strings.Contains(key.Name, "unknown") {
+					return &errors2.StatusError{ErrStatus: metav1.Status{Reason: "NotFound", Message: "not found"}}
+				}
+				switch o := obj.(type) {
+				case *v1beta1.ComponentDefinition:
+					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
+					if err != nil {
+						return err
+					}
+					*o = *wd
+				case *v1beta1.TraitDefinition:
+					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
+					if err != nil {
+						return err
+					}
+					*o = *td
+				case *v1beta1.WorkflowStepDefinition:
+					*o = wsd
+				case *v1beta1.ApplicationRevision:
+					*o = apprev
+				default:
+					// skip
+				}
+				return nil
+			},
+		}
+	})
+
+	When("with apply-application workflowStep", func() {
+		BeforeEach(func() {
+			// prepare application
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
+			// prepare application revision
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev1.yaml", &apprev)).Should(BeNil())
+		})
+
+		It("Test we can parse an application revision to an appFile 1", func() {
+
+			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
+			Expect(len(appfile.WorkflowSteps) > 0 &&
+				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions)).Should(BeTrue())
+
+			Expect(len(appfile.WorkflowSteps) > 0 && func() bool {
+				this := appfile.RelatedWorkflowStepDefinitions
+				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
+				for i, w := range this {
+					thatW := that[i]
+					if !reflect.DeepEqual(*w, thatW) {
+						fmt.Printf("appfile wsd:%s apprev wsd%s", (*w).Name, thatW.Name)
+						return false
+					}
+				}
+				return true
+			}()).Should(BeTrue())
+		})
+	})
+
+	When("with apply-application and apply-component build-in workflowStep", func() {
+		BeforeEach(func() {
+			// prepare application
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
+			// prepare application revision
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev2.yaml", &apprev)).Should(BeNil())
+		})
+
+		It("Test we can parse an application revision to an appFile 2", func() {
+
+			appfile, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(equal(expectedExceptAppfile, appfile)).Should(BeTrue())
+			Expect(len(appfile.WorkflowSteps) > 0 &&
+				len(appfile.RelatedWorkflowStepDefinitions) == len(appfile.AppRevision.Spec.WorkflowStepDefinitions)).Should(BeTrue())
+
+			Expect(len(appfile.WorkflowSteps) > 0 && func() bool {
+				this := appfile.RelatedWorkflowStepDefinitions
+				that := appfile.AppRevision.Spec.WorkflowStepDefinitions
+				for i, w := range this {
+					thatW := that[i]
+					if !reflect.DeepEqual(*w, thatW) {
+						fmt.Printf("appfile wsd:%s apprev wsd%s", (*w).Name, thatW.Name)
+						return false
+					}
+				}
+				return true
+			}()).Should(BeTrue())
+		})
+	})
+
+	When("with unknown workflowStep", func() {
+		BeforeEach(func() {
+			// prepare application
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/app.yaml", &app)).Should(BeNil())
+			// prepare application revision
+			Expect(common2.ReadYamlToObject("testdata/backport-1-2/apprev3.yaml", &apprev)).Should(BeNil())
+		})
+
+		It("Test we can parse an application revision to an appFile 3", func() {
+
+			_, err := NewApplicationParser(&mockClient, dm, pd).GenerateAppFile(context.TODO(), &app)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error() == "failed to get workflow step definition apply-application-unknown: not found").Should(BeTrue())
+		})
+	})
 })
