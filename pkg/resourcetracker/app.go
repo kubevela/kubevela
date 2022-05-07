@@ -20,20 +20,33 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
-
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 const (
 	// Finalizer for resourcetracker to clean up recorded resources
 	Finalizer = "resourcetracker.core.oam.dev/finalizer"
+)
+
+var (
+	applicationResourceTrackerGroupVersionKind = schema.GroupVersionKind{
+		Group:   "prism.oam.dev",
+		Version: "v1alpha1",
+		Kind:    "ApplicationResourceTracker",
+	}
 )
 
 func getPublishVersion(obj client.Object) string {
@@ -100,17 +113,63 @@ func CreateComponentRevisionResourceTracker(ctx context.Context, cli client.Clie
 	return createResourceTracker(ctx, cli, app, getComponentRevisionResourceTrackerName(app), v1beta1.ResourceTrackerTypeComponentRevision)
 }
 
+func newResourceTrackerFromApplicationResourceTracker(appRt *unstructured.Unstructured) (*v1beta1.ResourceTracker, error) {
+	rt := &v1beta1.ResourceTracker{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(appRt.Object, rt); err != nil {
+		return nil, err
+	}
+	namespace := metav1.NamespaceDefault
+	if ns := appRt.GetNamespace(); ns != "" {
+		namespace = ns
+	}
+	rt.SetName(appRt.GetName() + "-" + namespace)
+	rt.SetNamespace("")
+	rt.SetGroupVersionKind(v1beta1.ResourceTrackerKindVersionKind)
+	return rt, nil
+}
+
+func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) ([]v1beta1.ResourceTracker, error) {
+	rts := v1beta1.ResourceTrackerList{}
+	err := cli.List(ctx, &rts, client.MatchingLabels{
+		oam.LabelAppName:      app.Name,
+		oam.LabelAppNamespace: app.Namespace,
+	})
+	if err == nil {
+		return rts.Items, nil
+	}
+	rtError := err
+	if !kerrors.IsForbidden(err) && !kerrors.IsUnauthorized(err) {
+		return nil, err
+	}
+	appRts := &unstructured.UnstructuredList{}
+	appRts.SetGroupVersionKind(applicationResourceTrackerGroupVersionKind)
+	if err = cli.List(ctx, appRts, client.MatchingLabels{
+		oam.LabelAppName: app.Name,
+	}, client.InNamespace(app.Namespace)); err != nil {
+		if velaerrors.IsCRDNotExists(err) {
+			return nil, errors.Wrapf(rtError, "no permission for ResourceTracker and vela-prism is not serving ApplicationResourceTracker")
+		}
+		return nil, err
+	}
+	var rtArr []v1beta1.ResourceTracker
+	for _, appRt := range appRts.Items {
+		rt, err := newResourceTrackerFromApplicationResourceTracker(appRt.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		rtArr = append(rtArr, *rt)
+	}
+	return rtArr, nil
+}
+
 // ListApplicationResourceTrackers list resource trackers for application with all historyRTs sorted by version number
 func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
 	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
-	rts := v1beta1.ResourceTrackerList{}
-	if err = cli.List(ctx, &rts, client.MatchingLabels{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-	}); err != nil {
+	rts, err := listApplicationResourceTrackers(ctx, cli, app)
+	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	for _, _rt := range rts.Items {
+	for _, _rt := range rts {
 		rt := _rt.DeepCopy()
 		if rt.GetLabels() != nil && rt.GetLabels()[oam.LabelAppUID] != "" && rt.GetLabels()[oam.LabelAppUID] != string(app.UID) {
 			return nil, nil, nil, nil, fmt.Errorf("resourcetracker %s exists but controlled by another application (uid: %s), this could probably be cased by some mistakes while garbage collecting outdated resource. Please check this resourcetrakcer and delete it manually", rt.Name, rt.GetLabels()[oam.LabelAppUID])
