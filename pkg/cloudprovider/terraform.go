@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-	v1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	v12 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -62,13 +62,13 @@ func bootstrapTerraformProvider(ctx context.Context, k8sClient client.Client, ns
 		}
 	}
 
-	terraformProvider := v1beta1.Provider{
+	terraformProvider := v1beta12.Provider{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      terraformProviderName,
 			Namespace: ns,
 		},
-		Spec: v1beta1.ProviderSpec{
-			Credentials: v1beta1.ProviderCredentials{
+		Spec: v1beta12.ProviderSpec{
+			Credentials: v1beta12.ProviderCredentials{
 				SecretRef: &types.SecretKeySelector{
 					Key: "credentials",
 					SecretReference: types.SecretReference{
@@ -82,7 +82,7 @@ func bootstrapTerraformProvider(ctx context.Context, k8sClient client.Client, ns
 			Region:   region,
 		},
 	}
-	if err = k8sClient.Get(ctx, client.ObjectKeyFromObject(&terraformProvider), &v1beta1.Provider{}); err != nil {
+	if err = k8sClient.Get(ctx, client.ObjectKeyFromObject(&terraformProvider), &v1beta12.Provider{}); err != nil {
 		if kerrors.IsNotFound(err) {
 			err = k8sClient.Create(ctx, &terraformProvider)
 		}
