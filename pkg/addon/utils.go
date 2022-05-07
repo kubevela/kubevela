@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -167,7 +168,10 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
 				}
 			} else {
-				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL)
+				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
+					Username: registry.Helm.Username,
+					Password: registry.Helm.Password,
+				})
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")

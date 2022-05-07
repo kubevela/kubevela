@@ -22,9 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/utils"
-
 	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // We have three addon layer here
@@ -105,7 +105,10 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 			return nil, err
 		}
 	} else {
-		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+			Username: r.Helm.Username,
+			Password: r.Helm.Password,
+		})
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
 			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", utils.Sanitize(r.Name), err)
@@ -133,7 +136,10 @@ func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 			return nil, fmt.Errorf("fail to get addons from registry %s, %w", r.Name, err)
 		}
 	} else {
-		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+			Username: r.Helm.Username,
+			Password: r.Helm.Password,
+		})
 		listAddons, err = versionedRegistry.ListAddon()
 		if err != nil {
 			log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
@@ -273,7 +279,10 @@ func (u *Cache) discoverAndRefreshRegistry() {
 			}
 			u.putAddonUIData2Cache(r.Name, uiData)
 		} else {
-			versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL)
+			versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+				Username: r.Helm.Username,
+				Password: r.Helm.Password,
+			})
 			uiDatas, err := versionedRegistry.ListAddon()
 			if err != nil {
 				log.Logger.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)

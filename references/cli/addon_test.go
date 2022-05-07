@@ -28,6 +28,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"gotest.tools/assert"
 )
 
@@ -119,6 +121,40 @@ func TestAddonEnableCmdWithErrLocalPath(t *testing.T) {
 		cmd.SetArgs(s.args)
 		err := cmd.Execute()
 		assert.Error(t, err, s.errMsg)
+	}
+}
+
+var _ = Describe("Test AddonRegistry Cmd", func() {
+	It("Test AddonRegistryAddCmd", func() {
+		testAddonRegistryAddCmd()
+	})
+})
+
+func testAddonRegistryAddCmd() {
+	testcase := []struct {
+		args   []string
+		errMsg string
+	}{
+		{
+			args:   []string{"noAuthRegistry", "--type=helm", "--endpoint=http://127.0.0.1/chartrepo/oam"},
+			errMsg: "fail to add no auth addon registry",
+		},
+		{
+			args:   []string{"basicAuthRegistry", "--type=helm", "--endpoint=http://127.0.0.1/chartrepo/oam", "--username=hello", "--password=word"},
+			errMsg: "fail to add basis auth addon registry",
+		},
+	}
+
+	ioStream := util.IOStreams{}
+	commandArgs := common.Args{}
+	commandArgs.SetClient(k8sClient)
+
+	cmd := NewAddAddonRegistryCommand(commandArgs, ioStream)
+
+	for _, s := range testcase {
+		cmd.SetArgs(s.args)
+		err := cmd.Execute()
+		Expect(err).Should(BeNil(), s.errMsg)
 	}
 }
 
@@ -228,4 +264,41 @@ func TestGenerateAvailableVersions(t *testing.T) {
 		re := genAvailableVersionInfo(s.c.versions, pkgaddon.Status{InstalledVersion: s.c.inVersion})
 		assert.Equal(t, re, s.res)
 	}
+}
+
+func TestAddonPackageCmdWithInvalidArgs(t *testing.T) {
+	testcase := []struct {
+		args []string
+		msg  string
+	}{
+		{
+			args: []string{},
+			msg:  "must specify addon directory path",
+		},
+		{
+			args: []string{"./a_local_path"},
+			msg:  "fail to package",
+		},
+		{
+			args: []string{"a_local_path/"},
+			msg:  "fail to package",
+		},
+	}
+
+	commandArgs := common.Args{}
+	cmd := NewAddonPackageCommand(commandArgs)
+
+	for _, s := range testcase {
+		cmd.SetArgs(s.args)
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, s.msg)
+	}
+}
+
+func TestPackageValidAddon(t *testing.T) {
+	commandArgs := common.Args{}
+	cmd := NewAddonPackageCommand(commandArgs)
+	cmd.SetArgs([]string{"./test-data/addon/sample"})
+	err := cmd.Execute()
+	assert.NilError(t, err)
 }

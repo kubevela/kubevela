@@ -39,6 +39,8 @@ const (
 	addonOssType      = "OSS"
 	addonGitType      = "git"
 	addonHelmType     = "helm"
+	addonUsername     = "username"
+	addonPassword     = "password"
 )
 
 // NewAddonRegistryCommand return an addon registry command
@@ -277,6 +279,8 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
 	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry OSS path")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
+	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
+	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm addon registry password")
 }
 
 func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry, error) {
@@ -330,6 +334,15 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 	case addonHelmType:
 		r.Helm = &pkgaddon.HelmSource{}
 		r.Helm.URL = endpoint
+		r.Helm.Username, err = cmd.Flags().GetString(addonUsername)
+		if err != nil {
+			return nil, err
+		}
+		r.Helm.Password, err = cmd.Flags().GetString(addonPassword)
+		if err != nil {
+			return nil, err
+		}
+
 	default:
 		return nil, errors.New("not support addon registry type")
 	}

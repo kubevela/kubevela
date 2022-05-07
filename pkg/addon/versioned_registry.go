@@ -20,13 +20,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+
 	"sort"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/repo"
-
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
 // VersionedRegistry is the interface of support version registry
@@ -37,11 +39,12 @@ type VersionedRegistry interface {
 }
 
 // BuildVersionedRegistry is build versioned addon registry
-func BuildVersionedRegistry(name, repoURL string) VersionedRegistry {
+func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) VersionedRegistry {
 	return &versionedRegistry{
 		name: name,
 		url:  repoURL,
 		h:    helm.NewHelperWithCache(),
+		Opts: opts,
 	}
 }
 
@@ -49,10 +52,12 @@ type versionedRegistry struct {
 	url  string
 	name string
 	h    *helm.Helper
+	// username and password for registry needs basic auth
+	Opts *common.HTTPOption
 }
 
 func (i *versionedRegistry) ListAddon() ([]*UIData, error) {
-	chartIndex, err := i.h.GetIndexInfo(i.url, false, nil)
+	chartIndex, err := i.h.GetIndexInfo(i.url, false, i.Opts)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +112,7 @@ func (i *versionedRegistry) resolveAddonListFromIndex(repoName string, index *re
 }
 
 func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) (*WholeAddonPackage, error) {
-	versions, err := i.h.ListVersions(i.url, name, false, nil)
+	versions, err := i.h.ListVersions(i.url, name, false, i.Opts)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +136,13 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		return nil, fmt.Errorf("specified version %s not exist", version)
 	}
 	for _, chartURL := range addonVersion.URLs {
-		archive, err := common.HTTPGetWithOption(ctx, chartURL, nil)
+		if !utils.IsValidURL(chartURL) {
+			chartURL, err = utils.JoinURL(i.url, chartURL)
+			if err != nil {
+				return nil, fmt.Errorf("cannot join versionedRegistryURL %s and chartURL %s, %w", i.url, chartURL, err)
+			}
+		}
+		archive, err := common.HTTPGetWithOption(ctx, chartURL, i.Opts)
 		if err != nil {
 			continue
 		}
