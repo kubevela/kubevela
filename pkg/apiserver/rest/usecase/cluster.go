@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/oam-dev/terraform-controller/api/types"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
+	"github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	v12 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -532,7 +532,7 @@ func (c *clusterUsecaseImpl) CreateCloudCluster(ctx context.Context, provider st
 	return c.GetCloudClusterCreationStatus(ctx, provider, req.Name)
 }
 
-func (c *clusterUsecaseImpl) convertTerraformConfigurationStateIntoCloudClusterCreationStatus(cfg terraformapi.Configuration) (status string, clusterID string, err error) {
+func (c *clusterUsecaseImpl) convertTerraformConfigurationStateIntoCloudClusterCreationStatus(cfg v1beta1.Configuration) (status string, clusterID string, err error) {
 	status = string(cfg.Status.Apply.State)
 	if status == "" {
 		return "Initializing", "", nil
@@ -551,9 +551,9 @@ func (c *clusterUsecaseImpl) convertTerraformConfigurationStateIntoCloudClusterC
 	return status, "", nil
 }
 
-func (c *clusterUsecaseImpl) getCloudClusterCreationStatus(ctx context.Context, provider string, cloudClusterName string) (*apis.CreateCloudClusterResponse, *terraformapi.Configuration, error) {
+func (c *clusterUsecaseImpl) getCloudClusterCreationStatus(ctx context.Context, provider string, cloudClusterName string) (*apis.CreateCloudClusterResponse, *v1beta1.Configuration, error) {
 	terraformConfigurationName := cloudprovider.GetCloudClusterFullName(provider, cloudClusterName)
-	cfg := &terraformapi.Configuration{
+	cfg := &v1beta1.Configuration{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      terraformConfigurationName,
 			Namespace: util.GetRuntimeNamespace(),
@@ -578,7 +578,7 @@ func (c *clusterUsecaseImpl) GetCloudClusterCreationStatus(ctx context.Context, 
 }
 
 func (c *clusterUsecaseImpl) ListCloudClusterCreation(ctx context.Context, provider string) (*apis.ListCloudClusterCreationResponse, error) {
-	cfgs := terraformapi.ConfigurationList{}
+	cfgs := v1beta1.ConfigurationList{}
 	if err := c.k8sClient.List(ctx, &cfgs, client.HasLabels{cloudprovider.CloudClusterCreatorLabelKey}, client.InNamespace(util.GetRuntimeNamespace())); err != nil {
 		return nil, err
 	}
