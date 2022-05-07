@@ -289,6 +289,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 		appfile.RelatedWorkflowStepDefinitions[k] = v.DeepCopy()
 	}
 
+	// add compatible code for upgrading to v1.3 as the workflow steps were not recorded before v1.2
 	if len(appfile.RelatedWorkflowStepDefinitions) == 0 && len(appfile.WorkflowSteps) > 0 {
 		ctx := context.Background()
 		for _, workflowStep := range appfile.WorkflowSteps {

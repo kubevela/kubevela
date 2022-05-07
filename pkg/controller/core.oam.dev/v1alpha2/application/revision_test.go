@@ -19,6 +19,8 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -823,5 +825,349 @@ var _ = Describe("Test remove SkipAppRev func", func() {
 		Expect(len(res.Components[0].Traits)).Should(BeEquivalentTo(2))
 		Expect(res.Components[0].Traits[0].Type).Should(BeEquivalentTo("ingress"))
 		Expect(res.Components[0].Traits[1].Type).Should(BeEquivalentTo("service"))
+	})
+})
+
+var _ = Describe("Test PrepareCurrentAppRevision", func() {
+	var app v1beta1.Application
+	var apprev v1beta1.ApplicationRevision
+	ctx := context.Background()
+	var handler *AppHandler
+
+	BeforeEach(func() {
+		// prepare ComponentDefinition
+		var compd v1beta1.ComponentDefinition
+		Expect(yaml.Unmarshal([]byte(componentDefYaml), &compd)).To(Succeed())
+		Expect(k8sClient.Create(ctx, &compd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// prepare WorkflowStepDefinition
+		wsdYaml := `
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Apply application for your workflow steps
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
+  name: apply-application
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/op"
+        )
+
+        // apply application
+        output: op.#ApplyApplication & {}
+`
+		var wsd v1beta1.WorkflowStepDefinition
+		Expect(yaml.Unmarshal([]byte(wsdYaml), &wsd)).To(Succeed())
+		Expect(k8sClient.Create(ctx, &wsd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// prepare application and application revision
+		appYaml := `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: backport-1-2-test-demo
+  namespace: default
+spec:
+  components:
+  - name: backport-1-2-test-demo
+    properties:
+      image: nginx
+    type: worker
+  workflow:
+    steps:
+    - name: apply
+      type: apply-application
+status:
+  latestRevision:
+    name: backport-1-2-test-demo-v1
+    revision: 1
+    revisionHash: 38ddf4e721073703
+`
+		Expect(yaml.Unmarshal([]byte(appYaml), &app)).To(Succeed())
+		Expect(k8sClient.Create(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// prepare application revision
+		apprevYaml := `
+apiVersion: core.oam.dev/v1beta1
+kind: ApplicationRevision
+metadata:
+  name: backport-1-2-test-demo-v1
+  namespace: default
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    controller: true
+    kind: Application
+    name: backport-1-2-test-demo
+    uid: b69fab34-7058-412b-994d-1465a9421f06
+spec:
+  application:
+    apiVersion: core.oam.dev/v1beta1
+    kind: Application
+    metadata:
+      name: backport-1-2-test-demo
+      namespace: default
+    spec:
+      components:
+      - name: backport-1-2-test-demo
+        properties:
+          image: nginx
+        type: worker
+    status: {}
+  componentDefinitions:
+    webservice:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata:
+        annotations:
+          definition.oam.dev/description: Describes long-running, scalable, containerized
+            services that have a stable network endpoint to receive external network
+            traffic from customers.
+          meta.helm.sh/release-name: kubevela
+          meta.helm.sh/release-namespace: vela-system
+        labels:
+          app.kubernetes.io/managed-by: Helm
+        name: webservice
+        namespace: vela-system
+      spec:
+        schematic:
+          cue:
+            template: "import (\n\t\"strconv\"\n)\n\nmountsArray: {\n\tpvc: *[\n\t\tfor
+              v in parameter.volumeMounts.pvc {\n\t\t\t{\n\t\t\t\tmountPath: v.mountPath\n\t\t\t\tname:
+              \     v.name\n\t\t\t}\n\t\t},\n\t] | []\n\n\tconfigMap: *[\n\t\t\tfor
+              v in parameter.volumeMounts.configMap {\n\t\t\t{\n\t\t\t\tmountPath:
+              v.mountPath\n\t\t\t\tname:      v.name\n\t\t\t}\n\t\t},\n\t] | []\n\n\tsecret:
+              *[\n\t\tfor v in parameter.volumeMounts.secret {\n\t\t\t{\n\t\t\t\tmountPath:
+              v.mountPath\n\t\t\t\tname:      v.name\n\t\t\t}\n\t\t},\n\t] | []\n\n\temptyDir:
+              *[\n\t\t\tfor v in parameter.volumeMounts.emptyDir {\n\t\t\t{\n\t\t\t\tmountPath:
+              v.mountPath\n\t\t\t\tname:      v.name\n\t\t\t}\n\t\t},\n\t] | []\n\n\thostPath:
+              *[\n\t\t\tfor v in parameter.volumeMounts.hostPath {\n\t\t\t{\n\t\t\t\tmountPath:
+              v.mountPath\n\t\t\t\tname:      v.name\n\t\t\t}\n\t\t},\n\t] | []\n}\nvolumesArray:
+              {\n\tpvc: *[\n\t\tfor v in parameter.volumeMounts.pvc {\n\t\t\t{\n\t\t\t\tname:
+              v.name\n\t\t\t\tpersistentVolumeClaim: claimName: v.claimName\n\t\t\t}\n\t\t},\n\t]
+              | []\n\n\tconfigMap: *[\n\t\t\tfor v in parameter.volumeMounts.configMap
+              {\n\t\t\t{\n\t\t\t\tname: v.name\n\t\t\t\tconfigMap: {\n\t\t\t\t\tdefaultMode:
+              v.defaultMode\n\t\t\t\t\tname:        v.cmName\n\t\t\t\t\tif v.items
+              != _|_ {\n\t\t\t\t\t\titems: v.items\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t},\n\t]
+              | []\n\n\tsecret: *[\n\t\tfor v in parameter.volumeMounts.secret {\n\t\t\t{\n\t\t\t\tname:
+              v.name\n\t\t\t\tsecret: {\n\t\t\t\t\tdefaultMode: v.defaultMode\n\t\t\t\t\tsecretName:
+              \ v.secretName\n\t\t\t\t\tif v.items != _|_ {\n\t\t\t\t\t\titems: v.items\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t},\n\t]
+              | []\n\n\temptyDir: *[\n\t\t\tfor v in parameter.volumeMounts.emptyDir
+              {\n\t\t\t{\n\t\t\t\tname: v.name\n\t\t\t\temptyDir: medium: v.medium\n\t\t\t}\n\t\t},\n\t]
+              | []\n\n\thostPath: *[\n\t\t\tfor v in parameter.volumeMounts.hostPath
+              {\n\t\t\t{\n\t\t\t\tname: v.name\n\t\t\t\thostPath: path: v.path\n\t\t\t}\n\t\t},\n\t]
+              | []\n}\noutput: {\n\tapiVersion: \"apps/v1\"\n\tkind:       \"Deployment\"\n\tspec:
+              {\n\t\tselector: matchLabels: \"app.oam.dev/component\": context.name\n\n\t\ttemplate:
+              {\n\t\t\tmetadata: {\n\t\t\t\tlabels: {\n\t\t\t\t\tif parameter.labels
+              != _|_ {\n\t\t\t\t\t\tparameter.labels\n\t\t\t\t\t}\n\t\t\t\t\tif parameter.addRevisionLabel
+              {\n\t\t\t\t\t\t\"app.oam.dev/revision\": context.revision\n\t\t\t\t\t}\n\t\t\t\t\t\"app.oam.dev/component\":
+              context.name\n\t\t\t\t}\n\t\t\t\tif parameter.annotations != _|_ {\n\t\t\t\t\tannotations:
+              parameter.annotations\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tspec: {\n\t\t\t\tcontainers:
+              [{\n\t\t\t\t\tname:  context.name\n\t\t\t\t\timage: parameter.image\n\t\t\t\t\tif
+              parameter[\"port\"] != _|_ && parameter[\"ports\"] == _|_ {\n\t\t\t\t\t\tports:
+              [{\n\t\t\t\t\t\t\tcontainerPort: parameter.port\n\t\t\t\t\t\t}]\n\t\t\t\t\t}\n\t\t\t\t\tif
+              parameter[\"ports\"] != _|_ {\n\t\t\t\t\t\tports: [ for v in parameter.ports
+              {\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\tcontainerPort: v.port\n\t\t\t\t\t\t\t\tprotocol:
+              \     v.protocol\n\t\t\t\t\t\t\t\tif v.name != _|_ {\n\t\t\t\t\t\t\t\t\tname:
+              v.name\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\tif v.name == _|_ {\n\t\t\t\t\t\t\t\t\tname:
+              \"port-\" + strconv.FormatInt(v.port, 10)\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}}]\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"imagePullPolicy\"] != _|_ {\n\t\t\t\t\t\timagePullPolicy:
+              parameter.imagePullPolicy\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"cmd\"]
+              != _|_ {\n\t\t\t\t\t\tcommand: parameter.cmd\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"env\"] != _|_ {\n\t\t\t\t\t\tenv: parameter.env\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              context[\"config\"] != _|_ {\n\t\t\t\t\t\tenv: context.config\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"cpu\"] != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits:
+              cpu:   parameter.cpu\n\t\t\t\t\t\t\trequests: cpu: parameter.cpu\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"memory\"] != _|_ {\n\t\t\t\t\t\tresources: {\n\t\t\t\t\t\t\tlimits:
+              memory:   parameter.memory\n\t\t\t\t\t\t\trequests: memory: parameter.memory\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"volumes\"] != _|_ && parameter[\"volumeMounts\"] == _|_
+              {\n\t\t\t\t\t\tvolumeMounts: [ for v in parameter.volumes {\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\tmountPath:
+              v.mountPath\n\t\t\t\t\t\t\t\tname:      v.name\n\t\t\t\t\t\t\t}}]\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"volumeMounts\"] != _|_ {\n\t\t\t\t\t\tvolumeMounts: mountsArray.pvc
+              + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir
+              + mountsArray.hostPath\n\t\t\t\t\t}\n\n\t\t\t\t\tif parameter[\"livenessProbe\"]
+              != _|_ {\n\t\t\t\t\t\tlivenessProbe: parameter.livenessProbe\n\t\t\t\t\t}\n\n\t\t\t\t\tif
+              parameter[\"readinessProbe\"] != _|_ {\n\t\t\t\t\t\treadinessProbe:
+              parameter.readinessProbe\n\t\t\t\t\t}\n\n\t\t\t\t}]\n\n\t\t\t\tif parameter[\"hostAliases\"]
+              != _|_ {\n\t\t\t\t\t// +patchKey=ip\n\t\t\t\t\thostAliases: parameter.hostAliases\n\t\t\t\t}\n\n\t\t\t\tif
+              parameter[\"imagePullSecrets\"] != _|_ {\n\t\t\t\t\timagePullSecrets:
+              [ for v in parameter.imagePullSecrets {\n\t\t\t\t\t\tname: v\n\t\t\t\t\t},\n\t\t\t\t\t]\n\t\t\t\t}\n\n\t\t\t\tif
+              parameter[\"volumes\"] != _|_ && parameter[\"volumeMounts\"] == _|_
+              {\n\t\t\t\t\tvolumes: [ for v in parameter.volumes {\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\tname:
+              v.name\n\t\t\t\t\t\t\tif v.type == \"pvc\" {\n\t\t\t\t\t\t\t\tpersistentVolumeClaim:
+              claimName: v.claimName\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif v.type ==
+              \"configMap\" {\n\t\t\t\t\t\t\t\tconfigMap: {\n\t\t\t\t\t\t\t\t\tdefaultMode:
+              v.defaultMode\n\t\t\t\t\t\t\t\t\tname:        v.cmName\n\t\t\t\t\t\t\t\t\tif
+              v.items != _|_ {\n\t\t\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif
+              v.type == \"secret\" {\n\t\t\t\t\t\t\t\tsecret: {\n\t\t\t\t\t\t\t\t\tdefaultMode:
+              v.defaultMode\n\t\t\t\t\t\t\t\t\tsecretName:  v.secretName\n\t\t\t\t\t\t\t\t\tif
+              v.items != _|_ {\n\t\t\t\t\t\t\t\t\t\titems: v.items\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif
+              v.type == \"emptyDir\" {\n\t\t\t\t\t\t\t\temptyDir: medium: v.medium\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t}]\n\t\t\t\t}\n\n\t\t\t\tif
+              parameter[\"volumeMounts\"] != _|_ {\n\t\t\t\t\tvolumes: volumesArray.pvc
+              + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir
+              + volumesArray.hostPath\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\nexposePorts:
+              [\n\tfor v in parameter.ports if v.expose == true {\n\t\tport:       v.port\n\t\ttargetPort:
+              v.port\n\t\tif v.name != _|_ {\n\t\t\tname: v.name\n\t\t}\n\t\tif v.name
+              == _|_ {\n\t\t\tname: \"port-\" + strconv.FormatInt(v.port, 10)\n\t\t}\n\t},\n]\noutputs:
+              {\n\tif len(exposePorts) != 0 {\n\t\twebserviceExpose: {\n\t\t\tapiVersion:
+              \"v1\"\n\t\t\tkind:       \"Service\"\n\t\t\tmetadata: name: context.name\n\t\t\tspec:
+              {\n\t\t\t\tselector: \"app.oam.dev/component\": context.name\n\t\t\t\tports:
+              exposePorts\n\t\t\t\ttype:  parameter.exposeType\n\t\t\t}\n\t\t}\n\t}\n}\nparameter:
+              {\n\t// +usage=Specify the labels in the workload\n\tlabels?: [string]:
+              string\n\n\t// +usage=Specify the annotations in the workload\n\tannotations?:
+              [string]: string\n\n\t// +usage=Which image would you like to use for
+              your service\n\t// +short=i\n\timage: string\n\n\t// +usage=Specify
+              image pull policy for your service\n\timagePullPolicy?: \"Always\" |
+              \"Never\" | \"IfNotPresent\"\n\n\t// +usage=Specify image pull secrets
+              for your service\n\timagePullSecrets?: [...string]\n\n\t// +ignore\n\t//
+              +usage=Deprecated field, please use ports instead\n\t// +short=p\n\tport?:
+              int\n\n\t// +usage=Which ports do you want customer traffic sent to,
+              defaults to 80\n\tports?: [...{\n\t\t// +usage=Number of port to expose
+              on the pod's IP address\n\t\tport: int\n\t\t// +usage=Name of the port\n\t\tname?:
+              string\n\t\t// +usage=Protocol for port. Must be UDP, TCP, or SCTP\n\t\tprotocol:
+              *\"TCP\" | \"UDP\" | \"SCTP\"\n\t\t// +usage=Specify if the port should
+              be exposed\n\t\texpose: *false | bool\n\t}]\n\n\t// +ignore\n\t// +usage=Specify
+              what kind of Service you want. options: \"ClusterIP\", \"NodePort\",
+              \"LoadBalancer\", \"ExternalName\"\n\texposeType: *\"ClusterIP\" | \"NodePort\"
+              | \"LoadBalancer\" | \"ExternalName\"\n\n\t// +ignore\n\t// +usage=If
+              addRevisionLabel is true, the revision label will be added to the underlying
+              pods\n\taddRevisionLabel: *false | bool\n\n\t// +usage=Commands to run
+              in the container\n\tcmd?: [...string]\n\n\t// +usage=Define arguments
+              by using environment variables\n\tenv?: [...{\n\t\t// +usage=Environment
+              variable name\n\t\tname: string\n\t\t// +usage=The value of the environment
+              variable\n\t\tvalue?: string\n\t\t// +usage=Specifies a source the value
+              of this var should come from\n\t\tvalueFrom?: {\n\t\t\t// +usage=Selects
+              a key of a secret in the pod's namespace\n\t\t\tsecretKeyRef?: {\n\t\t\t\t//
+              +usage=The name of the secret in the pod's namespace to select from\n\t\t\t\tname:
+              string\n\t\t\t\t// +usage=The key of the secret to select from. Must
+              be a valid secret key\n\t\t\t\tkey: string\n\t\t\t}\n\t\t\t// +usage=Selects
+              a key of a config map in the pod's namespace\n\t\t\tconfigMapKeyRef?:
+              {\n\t\t\t\t// +usage=The name of the config map in the pod's namespace
+              to select from\n\t\t\t\tname: string\n\t\t\t\t// +usage=The key of the
+              config map to select from. Must be a valid secret key\n\t\t\t\tkey:
+              string\n\t\t\t}\n\t\t}\n\t}]\n\n\t// +usage=Number of CPU units for
+              the service, like \n\tcpu?: string\n\n\t//
+              +usage=Specifies the attributes of the memory resource required for
+              the container.\n\tmemory?: string\n\n\tvolumeMounts?: {\n\t\t// +usage=Mount
+              PVC type volume\n\t\tpvc?: [...{\n\t\t\tname:      string\n\t\t\tmountPath:
+              string\n\t\t\t// +usage=The name of the PVC\n\t\t\tclaimName: string\n\t\t}]\n\t\t//
+              +usage=Mount ConfigMap type volume\n\t\tconfigMap?: [...{\n\t\t\tname:
+              \       string\n\t\t\tmountPath:   string\n\t\t\tdefaultMode: *420 |
+              int\n\t\t\tcmName:      string\n\t\t\titems?: [...{\n\t\t\t\tkey:  string\n\t\t\t\tpath:
+              string\n\t\t\t\tmode: *511 | int\n\t\t\t}]\n\t\t}]\n\t\t// +usage=Mount
+              Secret type volume\n\t\tsecret?: [...{\n\t\t\tname:        string\n\t\t\tmountPath:
+              \  string\n\t\t\tdefaultMode: *420 | int\n\t\t\tsecretName:  string\n\t\t\titems?:
+              [...{\n\t\t\t\tkey:  string\n\t\t\t\tpath: string\n\t\t\t\tmode: *511
+              | int\n\t\t\t}]\n\t\t}]\n\t\t// +usage=Mount EmptyDir type volume\n\t\temptyDir?:
+              [...{\n\t\t\tname:      string\n\t\t\tmountPath: string\n\t\t\tmedium:
+              \   *\"\" | \"Memory\"\n\t\t}]\n\t\t// +usage=Mount HostPath type volume\n\t\thostPath?:
+              [...{\n\t\t\tname:      string\n\t\t\tmountPath: string\n\t\t\tpath:
+              \     string\n\t\t}]\n\t}\n\n\t// +usage=Deprecated field, use volumeMounts
+              instead.\n\tvolumes?: [...{\n\t\tname:      string\n\t\tmountPath: string\n\t\t//
+              +usage=Specify volume type, options: \"pvc\",\"configMap\",\"secret\",\"emptyDir\"\n\t\ttype:
+              \"pvc\" | \"configMap\" | \"secret\" | \"emptyDir\"\n\t\tif type ==
+              \"pvc\" {\n\t\t\tclaimName: string\n\t\t}\n\t\tif type == \"configMap\"
+              {\n\t\t\tdefaultMode: *420 | int\n\t\t\tcmName:      string\n\t\t\titems?:
+              [...{\n\t\t\t\tkey:  string\n\t\t\t\tpath: string\n\t\t\t\tmode: *511
+              | int\n\t\t\t}]\n\t\t}\n\t\tif type == \"secret\" {\n\t\t\tdefaultMode:
+              *420 | int\n\t\t\tsecretName:  string\n\t\t\titems?: [...{\n\t\t\t\tkey:
+              \ string\n\t\t\t\tpath: string\n\t\t\t\tmode: *511 | int\n\t\t\t}]\n\t\t}\n\t\tif
+              type == \"emptyDir\" {\n\t\t\tmedium: *\"\" | \"Memory\"\n\t\t}\n\t}]\n\n\t//
+              +usage=Instructions for assessing whether the container is alive.\n\tlivenessProbe?:
+              #HealthProbe\n\n\t// +usage=Instructions for assessing whether the container
+              is in a suitable state to serve traffic.\n\treadinessProbe?: #HealthProbe\n\n\t//
+              +usage=Specify the hostAliases to add\n\thostAliases?: [...{\n\t\tip:
+              string\n\t\thostnames: [...string]\n\t}]\n}\n#HealthProbe: {\n\n\t//
+              +usage=Instructions for assessing container health by executing a command.
+              Either this attribute or the httpGet attribute or the tcpSocket attribute
+              MUST be specified. This attribute is mutually exclusive with both the
+              httpGet attribute and the tcpSocket attribute.\n\texec?: {\n\t\t// +usage=A
+              command to be executed inside the container to assess its health. Each
+              space delimited token of the command is a separate array element. Commands
+              exiting 0 are considered to be successful probes, whilst all other exit
+              codes are considered failures.\n\t\tcommand: [...string]\n\t}\n\n\t//
+              +usage=Instructions for assessing container health by executing an HTTP
+              GET request. Either this attribute or the exec attribute or the tcpSocket
+              attribute MUST be specified. This attribute is mutually exclusive with
+              both the exec attribute and the tcpSocket attribute.\n\thttpGet?: {\n\t\t//
+              +usage=The endpoint, relative to the port, to which the HTTP GET request
+              should be directed.\n\t\tpath: string\n\t\t// +usage=The TCP socket
+              within the container to which the HTTP GET request should be directed.\n\t\tport:
+              int\n\t\thttpHeaders?: [...{\n\t\t\tname:  string\n\t\t\tvalue: string\n\t\t}]\n\t}\n\n\t//
+              +usage=Instructions for assessing container health by probing a TCP
+              socket. Either this attribute or the exec attribute or the httpGet attribute
+              MUST be specified. This attribute is mutually exclusive with both the
+              exec attribute and the httpGet attribute.\n\ttcpSocket?: {\n\t\t// +usage=The
+              TCP socket within the container that should be probed to assess container
+              health.\n\t\tport: int\n\t}\n\n\t// +usage=Number of seconds after the
+              container is started before the first probe is initiated.\n\tinitialDelaySeconds:
+              *0 | int\n\n\t// +usage=How often, in seconds, to execute the probe.\n\tperiodSeconds:
+              *10 | int\n\n\t// +usage=Number of seconds after which the probe times
+              out.\n\ttimeoutSeconds: *1 | int\n\n\t// +usage=Minimum consecutive
+              successes for the probe to be considered successful after having failed.\n\tsuccessThreshold:
+              *1 | int\n\n\t// +usage=Number of consecutive failures required to determine
+              the container is not alive (liveness probe) or not ready (readiness
+              probe).\n\tfailureThreshold: *3 | int\n}\n"
+        status:
+          customStatus: "ready: {\n\treadyReplicas: *0 | int\n} & {\n\tif context.output.status.readyReplicas
+            != _|_ {\n\t\treadyReplicas: context.output.status.readyReplicas\n\t}\n}\nmessage:
+            \"Ready:\\(ready.readyReplicas)/\\(context.output.spec.replicas)\""
+          healthPolicy: "ready: {\n\tupdatedReplicas:    *0 | int\n\treadyReplicas:
+            \     *0 | int\n\treplicas:           *0 | int\n\tobservedGeneration:
+            *0 | int\n} & {\n\tif context.output.status.updatedReplicas != _|_ {\n\t\tupdatedReplicas:
+            context.output.status.updatedReplicas\n\t}\n\tif context.output.status.readyReplicas
+            != _|_ {\n\t\treadyReplicas: context.output.status.readyReplicas\n\t}\n\tif
+            context.output.status.replicas != _|_ {\n\t\treplicas: context.output.status.replicas\n\t}\n\tif
+            context.output.status.observedGeneration != _|_ {\n\t\tobservedGeneration:
+            context.output.status.observedGeneration\n\t}\n}\nisHealth: (context.output.spec.replicas
+            == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas)
+            && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration
+            == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)"
+        workload:
+          definition:
+            apiVersion: apps/v1
+            kind: Deployment
+          type: deployments.apps
+      status: {}
+status: {}
+`
+		Expect(yaml.Unmarshal([]byte(apprevYaml), &apprev)).To(Succeed())
+		// simulate 1.2 version that WorkflowStepDefinitions are not patched in appliacation revision
+		apprev.ObjectMeta.OwnerReferences[0].UID = app.ObjectMeta.UID
+		Expect(k8sClient.Create(ctx, &apprev)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// prepare handler
+		_handler, err := NewAppHandler(ctx, reconciler, &app, nil)
+		Expect(err).Should(Succeed())
+		handler = _handler
+
+	})
+
+	It("Test currentAppRevIsNew func", func() {
+		By("Backport 1.2 version that WorkflowStepDefinitions are not patched to application revision")
+		// generate appfile
+		appfile, err := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd).GenerateAppFile(ctx, &app)
+		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		Expect(err).To(Succeed())
+		Expect(handler.PrepareCurrentAppRevision(ctx, appfile)).Should(Succeed())
+
+		// prepare apprev
+		thisWSD := handler.currentAppRev.Spec.WorkflowStepDefinitions
+		Expect(len(thisWSD) > 0 && func() bool {
+			expected := appfile.RelatedWorkflowStepDefinitions
+			for i, w := range thisWSD {
+				expW := *(expected[i])
+				if !reflect.DeepEqual(w, expW) {
+					fmt.Printf("appfile wsd:%s apprev wsd%s", w.Name, expW.Name)
+					return false
+				}
+			}
+			return true
+		}()).Should(BeTrue())
 	})
 })
