@@ -43,7 +43,7 @@ var ResponseString = "Hello HTTP Get."
 func TestInitBaseRestConfig(t *testing.T) {
 	args, err := InitBaseRestConfig()
 	assert.NotNil(t, t, args)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "you need to have a kubeconfig in your Environment")
 }
 
 func TestHTTPGet(t *testing.T) {
