@@ -27,6 +27,7 @@ spec:
     plural: applications
     shortNames:
     - app
+    - velaapp
     singular: application
   scope: Namespaced
   versions:
