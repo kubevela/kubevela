@@ -300,7 +300,7 @@ spec:
         namespace: default
   workload:
     definition:
-      apiVersion: terraform.core.oam.dev/v1beta1
+      apiVersion: terraform.core.oam.dev/v1beta2
       kind: Configuration
 status: {}
 `,
@@ -327,7 +327,7 @@ spec:
       type: remote
   workload:
     definition:
-      apiVersion: terraform.core.oam.dev/v1beta1
+      apiVersion: terraform.core.oam.dev/v1beta2
       kind: Configuration
 status: {}`,
 		},
