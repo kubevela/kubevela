@@ -185,12 +185,18 @@ func (ctx *templateContext) BaseContextFile() string {
 	buff += fmt.Sprintf(model.ContextPublishVersion+": \"%s\"\n", ctx.publishVersion)
 
 	if ctx.appLabels != nil {
-		bt, _ := json.Marshal(ctx.appLabels)
+		bt, err := json.Marshal(ctx.appLabels)
+		if err != nil {
+			return ""
+		}
 		buff += model.ContextAppLabels + ": " + string(bt) + "\n"
 	}
 
 	if ctx.appAnnotations != nil {
-		bt, _ := json.Marshal(ctx.appAnnotations)
+		bt, err := json.Marshal(ctx.appAnnotations)
+		if err != nil {
+			return ""
+		}
 		buff += model.ContextAppAnnotations + ": " + string(bt) + "\n"
 	}
 
@@ -199,7 +205,10 @@ func (ctx *templateContext) BaseContextFile() string {
 	}
 
 	if ctx.components != nil {
-		bt, _ := json.Marshal(ctx.components)
+		bt, err := json.Marshal(ctx.components)
+		if err != nil {
+			return ""
+		}
 		buff += fmt.Sprintf(model.ContextComponents+":%s\n", string(bt))
 	}
 
@@ -214,19 +223,28 @@ func (ctx *templateContext) BaseContextFile() string {
 	}
 
 	if len(ctx.configs) > 0 {
-		bt, _ := json.Marshal(ctx.configs)
+		bt, err := json.Marshal(ctx.configs)
+		if err != nil {
+			return ""
+		}
 		buff += model.ConfigFieldName + ": " + string(bt) + "\n"
 	}
 
 	if len(ctx.requiredSecrets) > 0 {
 		for _, s := range ctx.requiredSecrets {
-			data, _ := json.Marshal(s.Data)
+			data, err := json.Marshal(s.Data)
+			if err != nil {
+				return ""
+			}
 			buff += s.ContextName + ":" + string(data) + "\n"
 		}
 	}
 
 	if ctx.parameters != nil {
-		bt, _ := json.Marshal(ctx.parameters)
+		bt, err := json.Marshal(ctx.parameters)
+		if err != nil {
+			return ""
+		}
 		buff += model.ParameterFieldName + ": " + string(bt) + "\n"
 	}
 
@@ -235,7 +253,10 @@ func (ctx *templateContext) BaseContextFile() string {
 	}
 
 	if ctx.data != nil {
-		d, _ := json.Marshal(ctx.data)
+		d, err := json.Marshal(ctx.data)
+		if err != nil {
+			return ""
+		}
 		buff += fmt.Sprintf("\n %s", structMarshal(string(d)))
 	}
 
@@ -249,7 +270,10 @@ func (ctx *templateContext) ExtendedContextFile() string {
 	var bareSecret string
 	if len(ctx.requiredSecrets) > 0 {
 		for _, s := range ctx.requiredSecrets {
-			data, _ := json.Marshal(s.Data)
+			data, err := json.Marshal(s.Data)
+			if err != nil {
+				return ""
+			}
 			bareSecret += s.ContextName + ":" + string(data) + "\n"
 		}
 	}
