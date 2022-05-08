@@ -18,6 +18,6 @@ while [ $n -le 60 ];do
         break
     fi
     echo file not generated yet
-    n=$(expr $n + 1)
+    n="$(expr $n + 1)"
     sleep 1
 done
