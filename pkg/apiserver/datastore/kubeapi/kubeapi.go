@@ -79,7 +79,10 @@ func generateName(entity datastore.Entity) string {
 }
 
 func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
-	data, _ := json.Marshal(entity)
+	data, err := json.Marshal(entity)
+	if err != nil {
+		return nil
+	}
 	labels := entity.Index()
 	if labels == nil {
 		labels = make(map[string]string)
