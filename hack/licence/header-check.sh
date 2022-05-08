@@ -23,8 +23,8 @@ for file in $(git ls-files | grep "\.go$" | grep -v vendor/); do
   fi
   if [ $ERR == true ]; then
     if [[ $# -gt 0 && $1 =~ [[:upper:]fix] ]]; then
-      cat ../boilerplate.go.txt ${file} > ${file}.new
-      mv ${file}.new ${file}
+      cat ../boilerplate.go.txt "${file}" > "${file}".new
+      mv "${file}".new "${file}"
       echo "$(tput -T xterm setaf 3)FIXING$(tput -T xterm sgr0)"
       ERR=false
     else
