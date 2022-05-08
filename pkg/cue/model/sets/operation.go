@@ -17,6 +17,7 @@ limitations under the License.
 package sets
 
 import (
+	"fmt"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -95,50 +96,57 @@ type interceptor func(baseNode ast.Node, patchNode ast.Node) error
 func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.ListLit) {
 	kmaps := map[string]ast.Expr{}
 	nElts := []ast.Expr{}
-
-	for i, elt := range patchList.Elts {
-		if _, ok := elt.(*ast.Ellipsis); ok {
-			continue
-		}
-		nodev, err := lookUp(elt, strings.Split(key, ".")...)
-		if err != nil {
-			return
-		}
-		blit, ok := nodev.(*ast.BasicLit)
-		if !ok {
-			return
-		}
-		kmaps[blit.Value] = patchList.Elts[i]
-	}
-
-	hasStrategyRetainKeys := isStrategyRetainKeys(field)
-
-	for i, elt := range baseList.Elts {
-		if _, ok := elt.(*ast.Ellipsis); ok {
-			continue
-		}
-
-		nodev, err := lookUp(elt, strings.Split(key, ".")...)
-		if err != nil {
-			return
-		}
-		blit, ok := nodev.(*ast.BasicLit)
-		if !ok {
-			return
-		}
-
-		if v, ok := kmaps[blit.Value]; ok {
-			if hasStrategyRetainKeys {
-				baseList.Elts[i] = ast.NewStruct()
+	keys := strings.Split(key, ",")
+	for _, key := range keys {
+		foundPatch := false
+		for i, elt := range patchList.Elts {
+			if _, ok := elt.(*ast.Ellipsis); ok {
+				continue
 			}
-			nElts = append(nElts, v)
-			delete(kmaps, blit.Value)
-		} else {
-			nElts = append(nElts, ast.NewStruct())
+			nodev, err := lookUp(elt, strings.Split(key, ".")...)
+			if err != nil {
+				continue
+			}
+			foundPatch = true
+			blit, ok := nodev.(*ast.BasicLit)
+			if !ok {
+				return
+			}
+			kmaps[fmt.Sprintf(key, blit.Value)] = patchList.Elts[i]
+		}
+		if !foundPatch {
+			return
 		}
 
-	}
+		hasStrategyRetainKeys := isStrategyRetainKeys(field)
 
+		for i, elt := range baseList.Elts {
+			if _, ok := elt.(*ast.Ellipsis); ok {
+				continue
+			}
+
+			nodev, err := lookUp(elt, strings.Split(key, ".")...)
+			if err != nil {
+				continue
+			}
+			blit, ok := nodev.(*ast.BasicLit)
+			if !ok {
+				return
+			}
+
+			k := fmt.Sprintf(key, blit.Value)
+			if v, ok := kmaps[k]; ok {
+				if hasStrategyRetainKeys {
+					baseList.Elts[i] = ast.NewStruct()
+				}
+				nElts = append(nElts, v)
+				delete(kmaps, k)
+			} else {
+				nElts = append(nElts, ast.NewStruct())
+			}
+
+		}
+	}
 	for _, elt := range patchList.Elts {
 		for _, v := range kmaps {
 			if elt == v {

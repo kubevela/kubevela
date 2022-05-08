@@ -74,7 +74,11 @@ containers: [{
 			patch: `
 // +patchKey=name
 containers: [{name: "x2"},{name: "x1"}]`,
-			result: "_|_\n",
+			result: `			// +patchKey=name
+containers: [_|_, // field "name" not allowed in closed struct{
+	name: "x1"
+}, ...]
+`,
 		},
 
 		{
@@ -99,8 +103,21 @@ containers: [{
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `
 // +patchKey=name
-containers: [{noname: "x3"},{name: "x1"}]`,
+containers: [{noname: "x3"}]`,
 			result: "_|_\n",
+		},
+		{
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `
+// +patchKey=name
+containers: [{noname: "x3"},{name: "x1"}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+}, ...]
+`,
 		},
 		{
 			base: `containers: [{name: "x1"},{name: "x2", envs:[ {name: "OPS",value: string},...]},...]`,
@@ -280,6 +297,63 @@ volumes: [{
 }, {
 	name:  "x3"
 	value: "x2"
+}, ...]
+`},
+
+		{
+			base: `
+containers: [{
+	name: "c1"
+},{
+	name: "c2"
+	envFrom: [{
+		secretRef: {
+			name:  "nginx-rds"
+		},
+	}, {
+		configMapRef: {
+			name:  "nginx-rds"
+		},
+	},...]
+},...]`,
+			patch: `
+// +patchKey=name
+containers: [{
+	name: "c2"
+	// +patchKey=secretRef.name,configMapRef.name
+	envFrom: [{
+		secretRef: {
+			name:  "nginx-redis"
+		},
+	}, {
+		configMapRef: {
+			name:  "nginx-redis"
+		},
+	},...]
+}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "c1"
+}, {
+	name: "c2"
+	// +patchKey=secretRef.name,configMapRef.name
+	envFrom: [{
+		secretRef: {
+			name: "nginx-rds"
+		}
+	}, {
+		configMapRef: {
+			name: "nginx-rds"
+		}
+	}, {
+		secretRef: {
+			name: "nginx-redis"
+		}
+	}, {
+		configMapRef: {
+			name: "nginx-redis"
+		}
+	}, ...]
 }, ...]
 `},
 	}
