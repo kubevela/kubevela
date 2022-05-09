@@ -352,7 +352,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 			Spec: v1beta1.ComponentDefinitionSpec{
 				Workload: commontype.WorkloadTypeDescriptor{
 					Definition: commontype.WorkloadGVK{
-						APIVersion: "terraform.core.oam.dev/v1beta1",
+						APIVersion: "terraform.core.oam.dev/v1beta2",
 						Kind:       "Configuration",
 					},
 				},
