@@ -70,7 +70,9 @@ metadata:
   name: addon-fluxcd
   namespace: vela-system
   labels:
-     addons.oam.dev/name: fluxcd
+    addons.oam.dev/name: fluxcd
+    addons.oam.dev/registry: local
+    addons.oam.dev/version: 1.1.0
 spec:
   components:
   - name: ns-flux-system
