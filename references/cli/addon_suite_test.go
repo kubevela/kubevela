@@ -99,6 +99,8 @@ var _ = Describe("Output of listing addons tests", func() {
 
 		It("should print fluxcd in the registry as disabled", func() {
 			matchedRows := getRowsByName("fluxcd")
+			// There should be a local one and a registry one
+			Expect(len(matchedRows)).To(Equal(2))
 			for idx, row := range matchedRows {
 				// Skip local addon
 				if idx == 0 {
