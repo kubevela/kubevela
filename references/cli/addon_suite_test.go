@@ -101,14 +101,9 @@ var _ = Describe("Output of listing addons tests", func() {
 			matchedRows := getRowsByName("fluxcd")
 			// There should be a local one and a registry one
 			Expect(len(matchedRows)).To(Equal(2))
-			for idx, row := range matchedRows {
-				// Skip local addon
-				if idx == 0 {
-					continue
-				}
-				Expect(row.Cells[1].Data).To(Equal("KubeVela"))
-				Expect(row.Cells[4].Data).To(Equal("disabled"))
-			}
+			// The registry one should be disabled
+			Expect(matchedRows[1].Cells[1].Data).To(Equal("KubeVela"))
+			Expect(matchedRows[1].Cells[4].Data).To(Equal("disabled"))
 		})
 	})
 })
