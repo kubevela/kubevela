@@ -314,11 +314,11 @@ func (u *defaultAddonHandler) CreateAddonRegistry(ctx context.Context, req apis.
 func convertAddonRegistry(r pkgaddon.Registry) *apis.AddonRegistry {
 	return &apis.AddonRegistry{
 		Name:   r.Name,
-		Git:    r.Git,
-		Gitee:  r.Gitee,
+		Git:    r.Git.SafeCopy(),
+		Gitee:  r.Gitee.SafeCopy(),
 		OSS:    r.OSS,
-		Helm:   r.Helm,
-		Gitlab: r.Gitlab,
+		Helm:   r.Helm.SafeCopy(),
+		Gitlab: r.Gitlab.SafeCopy(),
 	}
 }
 
