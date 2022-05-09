@@ -52,6 +52,37 @@ func TestListCachedUIData(t *testing.T) {
 	assert.Equal(t, u.listCachedUIData(name), addons)
 }
 
+func testListUIData(t *testing.T) {
+	vr := Registry{Name: "helm-repo", Helm: &HelmSource{URL: "http://127.0.0.1:18083/authReg", Username: "hello", Password: "hello"}}
+	uiData := UIData{Meta: Meta{
+		Name:        "fluxcd",
+		Description: "Extended workload to do continuous and progressive delivery",
+		Icon:        "https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png",
+		Version:     "1.0.0",
+		Tags:        []string{"extended_workload", "gitops"},
+	},
+		AvailableVersions: []string{"1.0.0"},
+		RegistryName:      "helm-repo"}
+	addons := []*UIData{&uiData}
+	u := NewCache(nil)
+	uiDatas, err := u.ListUIData(vr)
+	assert.NoError(t, err)
+	assert.Equal(t, uiDatas, addons)
+}
+
+func TestListVersionRegistryCachedUIData(t *testing.T) {
+	name := "fluxcd"
+	version := "v1.0.1"
+	uiData := &UIData{Meta: Meta{Name: name, Icon: "test.com/fluxcd.png", Version: version}}
+	addons := []*UIData{uiData}
+	vrName := "helm-repo"
+	u := NewCache(nil)
+	u.putVersionedUIData2Cache(vrName, name, version, uiData)
+	u.putVersionedUIData2Cache(vrName, name, "latest", uiData)
+
+	assert.Equal(t, u.listVersionRegistryCachedUIData(vrName), addons)
+}
+
 func TestPutAddonMeta2Cache(t *testing.T) {
 	addonMeta := map[string]SourceMeta{
 		"fluxcd": {
