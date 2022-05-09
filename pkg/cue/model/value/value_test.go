@@ -597,6 +597,23 @@ func TestLookupByScript(t *testing.T) {
 	}{
 		{
 			src: `
+traits: {
+	ingress: {
+		// +patchKey=name
+		test: [{name: "main", image: "busybox"}]
+	}
+}
+`,
+			script: `traits["ingress"]`,
+			expect: `// +patchKey=name
+test: [{
+	name:  "main"
+	image: "busybox"
+}]
+`,
+		},
+		{
+			src: `
 apply: containers: [{name: "main", image: "busybox"}]
 `,
 			script: `apply.containers[0].image`,
