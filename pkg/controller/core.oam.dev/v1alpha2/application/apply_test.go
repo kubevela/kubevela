@@ -26,7 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -343,7 +343,7 @@ var _ = Describe("Test Application health check", func() {
 				Spec: v1beta1.ComponentDefinitionSpec{
 					Workload: common.WorkloadTypeDescriptor{
 						Definition: common.WorkloadGVK{
-							APIVersion: "terraform.core.oam.dev/v1beta1",
+							APIVersion: "terraform.core.oam.dev/v1beta2",
 							Kind:       "Configuration",
 						},
 					},

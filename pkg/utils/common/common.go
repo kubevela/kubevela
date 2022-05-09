@@ -37,7 +37,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
-	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -93,7 +93,7 @@ func init() {
 	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
-	_ = terraformv1beta1.AddToScheme(Scheme)
+	_ = terraformapi.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
 	_ = ocmclusterv1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)

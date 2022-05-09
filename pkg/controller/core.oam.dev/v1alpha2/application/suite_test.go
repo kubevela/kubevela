@@ -28,7 +28,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
-	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -121,7 +121,7 @@ var _ = BeforeSuite(func(done Done) {
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	terraformv1beta1.AddToScheme(testScheme)
+	terraformv1beta2.AddToScheme(testScheme)
 
 	crdv1.AddToScheme(testScheme)
 

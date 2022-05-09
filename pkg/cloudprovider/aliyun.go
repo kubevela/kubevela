@@ -26,7 +26,7 @@ import (
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	"github.com/alibabacloud-go/tea/tea"
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
