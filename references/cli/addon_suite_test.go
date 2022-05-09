@@ -57,7 +57,7 @@ var _ = Describe("Output of listing addons tests", func() {
 
 	When("there is no addons installed", func() {
 		It("should not have any enabled addon", func() {
-			Expect(len(actualTable.Rows) > 1).To(BeTrue())
+			Expect(actualTable.Rows).ToNot(HaveLen(0))
 			for idx, row := range actualTable.Rows {
 				// Skip header
 				if idx == 0 {
@@ -80,7 +80,7 @@ var _ = Describe("Output of listing addons tests", func() {
 
 		It("should print fluxcd addon as local", func() {
 			matchedRows := getRowsByName("fluxcd")
-			Expect(len(matchedRows) > 0).To(BeTrue())
+			Expect(matchedRows).ToNot(HaveLen(0))
 			// Only use first row (local first), check column REGISTRY(1) = local
 			Expect(matchedRows[0].Cells[1].Data).To(Equal("local"))
 			Eventually(func() error {
