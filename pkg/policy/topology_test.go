@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +27,9 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -45,7 +47,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-a",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "value",
 			},
 		},
@@ -54,7 +56,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-b",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "value",
 			},
 		},
@@ -63,7 +65,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-c",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
-				clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
+				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "none",
 			},
 		},
