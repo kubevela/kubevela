@@ -354,7 +354,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 		for _, auxiliary := range auxiliaries {
-			target := patcher.Lookup("context", model.OutputsFieldName, auxiliary.Name)
+			target := patcher.Lookup(model.OutputsFieldName, auxiliary.Name)
 			if target.Exists() {
 				t, err := model.NewOther(target)
 				if err != nil {

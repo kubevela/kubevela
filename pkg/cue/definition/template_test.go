@@ -903,7 +903,7 @@ parameter: {
 		"trait patch trait": {
 			traitTemplate: `
 patch: {
-	context: outputs: gameconfig: {
+	outputs: gameconfig: {
 		metadata: annotations: parameter
 	}
 }
@@ -916,11 +916,9 @@ parameter: [string]: string`,
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"context": map[string]interface{}{
-						"outputs": map[string]interface{}{
-							"gameconfig": map[string]interface{}{
-								"metadata": map[string]interface{}{"annotations": map[string]interface{}{"patch-by": "trait"}},
-							},
+					"outputs": map[string]interface{}{
+						"gameconfig": map[string]interface{}{
+							"metadata": map[string]interface{}{"annotations": map[string]interface{}{"patch-by": "trait"}},
 						},
 					},
 					"spec": map[string]interface{}{
@@ -982,7 +980,7 @@ parameter: [string]: string`,
 			traitTemplate: `
 patch: {
 	x : "out of scope"
-	context: outputs: gameconfig: {
+	outputs: gameconfig: {
 		metadata: name: x
 	}
 }
