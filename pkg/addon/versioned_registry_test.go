@@ -80,6 +80,8 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonsInstallPackage.YAMLTemplates)
 	assert.NotEmpty(t, addonsInstallPackage.DefSchemas)
 
+	testListUIData(t)
+
 }
 
 var versionedHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
