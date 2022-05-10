@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -272,7 +273,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 		case "443":
 			val = "8443:443"
 		default:
-			val = fmt.Sprintf("%s:%s", port, port)
+			val = net.JoinHostPort(port, port)
 		}
 		o.Args[0] = fmt.Sprintf("svc/%s", svcName)
 		o.Args = append(o.Args, val)
