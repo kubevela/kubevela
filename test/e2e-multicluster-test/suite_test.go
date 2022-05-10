@@ -79,6 +79,8 @@ var _ = AfterSuite(func() {
 		for _, app := range apps.Items {
 			g.Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
 		}
+		err := k8sClient.List(context.Background(), apps)
+		g.Expect(err, nil)
 		g.Expect(len(apps.Items)).Should(Equal(0))
 	}, 3*time.Minute).Should(Succeed())
 	Eventually(func(g Gomega) {

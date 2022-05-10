@@ -31,3 +31,63 @@ func TestPutVersionedUIData2cache(t *testing.T) {
 	assert.NotEmpty(t, u.versionedUIData["helm-repo"]["fluxcd-1.0.0"])
 	assert.Equal(t, u.versionedUIData["helm-repo"]["fluxcd-1.0.0"].Name, "fluxcd")
 }
+
+func TestPutAddonUIData2Cache(t *testing.T) {
+	uiData := UIData{Meta: Meta{Name: "fluxcd", Icon: "test.com/fluxcd.png", Version: "1.0.0"}}
+	addons := []*UIData{&uiData}
+	name := "helm-repo"
+	u := NewCache(nil)
+	u.putAddonUIData2Cache(name, addons)
+	assert.NotEmpty(t, u.uiData)
+	assert.Equal(t, u.uiData[name], addons)
+}
+
+func TestListCachedUIData(t *testing.T) {
+	uiData := UIData{Meta: Meta{Name: "fluxcd", Icon: "test.com/fluxcd.png", Version: "1.0.0"}}
+	addons := []*UIData{&uiData}
+	name := "helm-repo"
+	u := NewCache(nil)
+	u.putAddonUIData2Cache(name, addons)
+
+	assert.Equal(t, u.listCachedUIData(name), addons)
+}
+
+func TestPutAddonMeta2Cache(t *testing.T) {
+	addonMeta := map[string]SourceMeta{
+		"fluxcd": {
+			Name: "fluxcd",
+			Items: []Item{
+				&OSSItem{
+					tp:   FileType,
+					path: "fluxcd/definitions/helm-release.yaml",
+					name: "helm-release.yaml",
+				},
+			},
+		},
+	}
+	name := "helm-repo"
+	u := NewCache(nil)
+	u.putAddonMeta2Cache(name, addonMeta)
+	assert.NotEmpty(t, u.registryMeta)
+	assert.Equal(t, u.registryMeta[name], addonMeta)
+}
+
+func TestGetCachedAddonMeta(t *testing.T) {
+	addonMeta := map[string]SourceMeta{
+		"fluxcd": {
+			Name: "fluxcd",
+			Items: []Item{
+				&OSSItem{
+					tp:   FileType,
+					path: "fluxcd/definitions/helm-release.yaml",
+					name: "helm-release.yaml",
+				},
+			},
+		},
+	}
+	name := "helm-repo"
+	u := NewCache(nil)
+	u.putAddonMeta2Cache(name, addonMeta)
+
+	assert.Equal(t, u.getCachedAddonMeta(name), addonMeta)
+}
