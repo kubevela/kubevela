@@ -23,7 +23,7 @@ spec:
     name: {{ template "kubevela.fullname" . }}-self-signed-issuer
   commonName: "ca.webhook.kubevela"
   isCA: true
-  
+
 ---
 # Create an Issuer that uses the above generated CA certificate to issue certs
 apiVersion: cert-manager.io/v1
