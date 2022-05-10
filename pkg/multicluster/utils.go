@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -151,6 +152,7 @@ func Initialize(restConfig *rest.Config, autoUpgrade bool) (client.Client, error
 		return nil, ErrDetectClusterGateway
 	}
 	ClusterGatewaySecretNamespace = svc.Namespace
+	prismclusterv1alpha1.StorageNamespace = ClusterGatewaySecretNamespace
 	klog.Infof("find cluster gateway service %s/%s:%d", svc.Namespace, svc.Name, *svc.Port)
 	restConfig.Wrap(NewSecretModeMultiClusterRoundTripper)
 	if autoUpgrade {
