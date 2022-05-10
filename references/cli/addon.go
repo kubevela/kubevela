@@ -30,7 +30,6 @@ import (
 
 	"helm.sh/helm/v3/pkg/strvals"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"k8s.io/client-go/rest"
@@ -109,10 +108,11 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = listAddons(context.Background(), k8sClient, "")
+			table, err := listAddons(context.Background(), k8sClient, "")
 			if err != nil {
 				return err
 			}
+			fmt.Println(table.String())
 			return nil
 		},
 	}
@@ -129,7 +129,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 Enable addon by:
 	vela addon enable <addon-name>
 Enable addon with specify version:
-    vela addon enable <addon-name> --version <addon-version>
+	vela addon enable <addon-name> --version <addon-version>
 Enable addon for specific clusters, (local means control plane):
 	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -220,7 +220,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 Upgrade addon by:
 	vela addon upgrade <addon-name>
 Upgrade addon with specify version:
-    vela addon upgrade <addon-name> --version <addon-version>
+	vela addon upgrade <addon-name> --version <addon-version>
 Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -443,15 +443,15 @@ func generateAddonInfo(name string, status pkgaddon.Status) string {
 	return res
 }
 
-func listAddons(ctx context.Context, clt client.Client, registry string) error {
+func listAddons(ctx context.Context, clt client.Client, registry string) (*uitable.Table, error) {
 	var addons []*pkgaddon.UIData
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(clt)
 	registries, err := registryDS.ListRegistries(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	onlineAddon := map[string]bool{}
+
 	for _, r := range registries {
 		if registry != "" && r.Name != registry {
 			continue
@@ -480,31 +480,38 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	table := uitable.New()
 	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "AVAILABLE-VERSIONS", "STATUS")
 
+	// get locally installed addons first
+	locallyInstalledAddons := map[string]bool{}
+	appList := v1beta1.ApplicationList{}
+	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
+		return table, err
+	}
+	for _, app := range appList.Items {
+		labels := app.GetLabels()
+		addonName := labels[oam.LabelAddonName]
+		addonVersion := labels[oam.LabelAddonVersion]
+		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion), statusEnabled)
+		locallyInstalledAddons[addonName] = true
+	}
+
 	for _, addon := range addons {
+		// if the addon with same name has already installed locally, display the registry one as not installed
+		if locallyInstalledAddons[addon.Name] {
+			table.AddRow(addon.Name, addon.RegistryName, addon.Description, addon.AvailableVersions, "disabled")
+			continue
+		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
-			return err
+			return table, err
 		}
 		statusRow := status.AddonPhase
 		if len(status.InstalledVersion) != 0 {
 			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
 		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status), statusRow)
-		onlineAddon[addon.Name] = true
+		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion), statusRow)
 	}
-	appList := v1alpha2.ApplicationList{}
-	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
-		return err
-	}
-	for _, app := range appList.Items {
-		addonName := app.GetLabels()[oam.LabelAddonName]
-		if onlineAddon[addonName] {
-			continue
-		}
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", statusEnabled)
-	}
-	fmt.Println(table.String())
-	return nil
+
+	return table, nil
 }
 
 func waitApplicationRunning(k8sClient client.Client, addonName string) error {
@@ -540,13 +547,13 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 // generate the available version
 // this func put the installed version as the first version and keep the origin order
 // print ... if available version too much
-func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+func genAvailableVersionInfo(versions []string, installedVersion string) string {
 	var v []string
 
 	// put installed-version as the first version and keep the origin order
-	if len(status.InstalledVersion) != 0 {
+	if len(installedVersion) != 0 {
 		for i, version := range versions {
-			if version == status.InstalledVersion {
+			if version == installedVersion {
 				v = append(v, version)
 				versions = append(versions[:i], versions[i+1:]...)
 			}
@@ -562,7 +569,7 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 			res += "..."
 			break
 		}
-		if version == status.InstalledVersion {
+		if version == installedVersion {
 			col := color.New(color.Bold, color.FgGreen)
 			res += col.Sprintf("%s", version)
 		} else {
