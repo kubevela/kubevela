@@ -518,11 +518,11 @@ func generateParameterString(status pkgaddon.Status) string {
 		ret += fmt.Sprintf("%s\n", desc)
 		// Current value
 		if currentValue != "" {
-			ret += "\tcurrent:  " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
+			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
 		}
 		// Default value
 		if defaultValue != "" {
-			ret += "\tdefault:  " + fmt.Sprintf("%#v\n", defaultValue)
+			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
 		}
 		// Required or not
 		if required {
