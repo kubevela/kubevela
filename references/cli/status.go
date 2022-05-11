@@ -124,7 +124,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				f := Filter{
 					Component: component,
 				}
-				return printAppEndpoints(ctx, newClient, appName, namespace, f, c)
+				return printAppEndpoints(ctx, appName, namespace, f, c)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -163,7 +163,15 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
-func printAppEndpoints(ctx context.Context, client client.Client, appName string, namespace string, f Filter, velaC common.Args) error {
+func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args) error {
+	config, err := velaC.GetConfig()
+	if err != nil {
+		return err
+	}
+	client, err := multicluster.Initialize(config, false)
+	if err != nil {
+		return err
+	}
 	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
 	if err != nil {
 		return err
