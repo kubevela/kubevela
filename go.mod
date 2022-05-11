@@ -64,7 +64,7 @@ require (
 	github.com/wonderflow/cert-manager-api v1.0.3
 	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a // indirect
