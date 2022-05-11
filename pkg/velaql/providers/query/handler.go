@@ -32,6 +32,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -275,14 +276,17 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			for _, service := range services {
 				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
 			}
-
-			// only support network/v1beta1
 			ingress, err := hc.CollectIngress(ctx, resource.Cluster)
 			if err != nil {
 				klog.Error(err, "collect ingres by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
-			for _, ing := range ingress {
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster, resource.Component)...)
+			for _, uns := range ingress {
+				var ingress networkv1beta1.Ingress
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uns.UnstructuredContent(), &ingress); err != nil {
+					klog.Errorf("fail to convert unstructured to ingress %s", err.Error())
+					continue
+				}
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, resource.Component)...)
 			}
 		case "SeldonDeployment":
 			obj := new(unstructured.Unstructured)
