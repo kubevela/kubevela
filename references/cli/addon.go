@@ -396,12 +396,13 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	if err != nil {
 		return err
 	}
-	status, err := pkgaddon.GetAddonStatus(context.Background(), k8sClient, name)
+
+	status, str, err := generateAddonInfo(k8sClient, name)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(generateAddonInfo(name, status))
+	fmt.Print(str)
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
@@ -413,34 +414,97 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	return nil
 }
 
-func generateAddonInfo(name string, status pkgaddon.Status) string {
+func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, error) {
 	var res string
 	var phase string
+	var installed bool
+
+	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+	if err != nil {
+		return status, "", err
+	}
 
 	switch status.AddonPhase {
 	case statusEnabled:
+		installed = true
 		c := color.New(color.FgGreen)
 		phase = c.Sprintf("%s", status.AddonPhase)
 	case statusSuspend:
+		installed = true
 		c := color.New(color.FgRed)
 		phase = c.Sprintf("%s", status.AddonPhase)
 	default:
 		phase = status.AddonPhase
 	}
-	res += fmt.Sprintf("addon %s status is %s \n", name, phase)
-	if len(status.InstalledVersion) != 0 {
-		res += fmt.Sprintf("installedVersion: %s \n", status.InstalledVersion)
-	}
 
+	// Addon name
+	res += color.New(color.Bold).Sprintf("%s", name)
+	res += fmt.Sprintf(": %s ", phase)
+	if installed {
+		res += fmt.Sprintf("(%s)", status.InstalledVersion)
+	}
+	res += "\n"
+
+	// Description
+	res += fmt.Sprintln(status.AddonPackage.Description)
+
+	// Installed Clusters
 	if len(status.Clusters) != 0 {
+		res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Installed Clusters")
 		var ic []string
 		for c := range status.Clusters {
 			ic = append(ic, c)
 		}
 		sort.Strings(ic)
-		res += fmt.Sprintf("installedClusters: %s \n", ic)
+		res += fmt.Sprintln(ic)
 	}
-	return res
+
+	// Available Versions
+	res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Available Versions")
+	res += fmt.Sprintln(genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion))
+
+	// Dependencies
+	res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Dependencies")
+	res += fmt.Sprintln(generateDependencyString(c, status.AddonPackage.Dependencies))
+
+	return status, res, nil
+}
+
+func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependency) string {
+	if len(dependencies) == 0 {
+		return "none"
+	}
+
+	ret := "["
+
+	for idx, d := range dependencies {
+		name := d.Name
+
+		// check if the dependency is enabled
+		status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+		if err != nil {
+			continue
+		}
+
+		var enabledString string
+		switch status.AddonPhase {
+		case statusEnabled:
+			enabledString = color.GreenString("✔")
+		case statusSuspend:
+			enabledString = color.RedString("✔")
+		default:
+			enabledString = color.RedString("✘")
+		}
+		ret += fmt.Sprintf("%s %s", name, enabledString)
+
+		if idx != len(dependencies)-1 {
+			ret += ", "
+		}
+	}
+
+	ret += "]"
+
+	return ret
 }
 
 func listAddons(ctx context.Context, clt client.Client, registry string) (*uitable.Table, error) {
