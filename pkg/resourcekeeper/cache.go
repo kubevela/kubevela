@@ -20,7 +20,9 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -89,7 +91,7 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 	}
 	if !entry.loaded {
 		if err := cache.cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), mr.NamespacedName(), entry.obj); err != nil {
-			if multicluster.IsNotFoundOrClusterNotExists(err) {
+			if multicluster.IsNotFoundOrClusterNotExists(err) || meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
 				entry.exists = false
 			} else {
 				entry.err = errors.Wrapf(err, "failed to get resource %s", key)
