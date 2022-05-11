@@ -84,7 +84,7 @@ func GetServiceEndpoints(ctx context.Context, client client.Client, appName stri
 		Endpoints []querytypes.ServiceEndpoint `json:"endpoints"`
 		Error     string                       `json:"error"`
 	}{}
-	if err := queryValue.CueValue().Decode(&response); err != nil {
+	if err := queryValue.UnmarshalTo(&response); err != nil {
 		return nil, err
 	}
 	if response.Error != "" {
