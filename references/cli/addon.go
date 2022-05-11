@@ -450,7 +450,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 
 	// Installed Clusters
 	if len(status.Clusters) != 0 {
-		res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Installed Clusters")
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Installed Clusters")
 		var ic []string
 		for c := range status.Clusters {
 			ic = append(ic, c)
@@ -460,22 +460,89 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	}
 
 	// Available Versions
-	res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Available Versions")
-	res += fmt.Sprintln(genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion))
+	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Available Versions")
+	res += genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion)
+	res += "\n"
 
 	// Dependencies
-	res += color.BlueString("==> ") + color.New(color.Bold).Sprintln("Dependencies")
-	res += fmt.Sprintln(generateDependencyString(c, status.AddonPackage.Dependencies))
+	dependenciesString, allInstalled := generateDependencyString(c, status.AddonPackage.Dependencies)
+	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprint("Dependencies ")
+	if allInstalled {
+		res += color.GreenString("✔")
+	} else {
+		res += color.RedString("✘")
+	}
+	res += "\n"
+	res += dependenciesString
+	res += "\n"
+
+	// Parameters
+	parameterString := generateParameterString(status)
+	if len(parameterString) != 0 {
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Parameters")
+		res += generateParameterString(status)
+		res += "\n"
+	}
 
 	return status, res, nil
 }
 
-func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependency) string {
+func generateParameterString(status pkgaddon.Status) string {
+	ret := ""
+
+	if status.AddonPackage.APISchema == nil {
+		return ret
+	}
+
+	// Required parameters
+	required := make(map[string]bool)
+	for _, k := range status.AddonPackage.APISchema.Required {
+		required[k] = true
+	}
+
+	for propKey, propValue := range status.AddonPackage.APISchema.Properties {
+		desc := propValue.Value.Description
+		defaultValue := propValue.Value.Default
+		if defaultValue == nil {
+			defaultValue = ""
+		}
+		required := required[propKey]
+		currentValue := status.Args[propKey]
+		if currentValue == nil {
+			currentValue = ""
+		}
+
+		// Header: addon: description
+		ret += color.New(color.FgCyan).Sprintf("-> ")
+		ret += color.New(color.Bold).Sprint(propKey) + ": "
+		ret += desc
+		// Current value
+		if currentValue != "" {
+			ret += "\n\tcurrent:  " + color.New(color.FgGreen).Sprintf("%#v", currentValue)
+		}
+		// Default value
+		if defaultValue != "" {
+			ret += "\n\tdefault:  " + fmt.Sprintf("%#v", defaultValue)
+		}
+		// Required or not
+		ret += "\n\trequired: "
+		if required {
+			ret += color.GreenString("✔")
+		} else {
+			ret += "✘"
+		}
+	}
+
+	return ret
+}
+
+func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependency) (string, bool) {
 	if len(dependencies) == 0 {
-		return "none"
+		return "[]", true
 	}
 
 	ret := "["
+	allDependenciesInstalled := true
 
 	for idx, d := range dependencies {
 		name := d.Name
@@ -494,6 +561,7 @@ func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependen
 			enabledString = color.RedString("✔")
 		default:
 			enabledString = color.RedString("✘")
+			allDependenciesInstalled = false
 		}
 		ret += fmt.Sprintf("%s %s", name, enabledString)
 
@@ -504,7 +572,7 @@ func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependen
 
 	ret += "]"
 
-	return ret
+	return ret, allDependenciesInstalled
 }
 
 func listAddons(ctx context.Context, clt client.Client, registry string) (*uitable.Table, error) {

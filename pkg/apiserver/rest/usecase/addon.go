@@ -215,22 +215,7 @@ func (u *defaultAddonHandler) StatusAddon(ctx context.Context, name string) (*ap
 		AppStatus:        *status.AppStatus,
 		Clusters:         status.Clusters,
 		AllClusters:      allClusters,
-	}
-
-	var sec v1.Secret
-	err = u.kubeClient.Get(ctx, client.ObjectKey{
-		Namespace: types.DefaultKubeVelaNS,
-		Name:      pkgaddon.Convert2SecName(name),
-	}, &sec)
-	if err != nil && !errors2.IsNotFound(err) {
-		return nil, bcode.ErrAddonSecretGet
-	} else if errors2.IsNotFound(err) {
-		return &res, nil
-	}
-
-	res.Args, err = pkgaddon.FetchArgsFromSecret(&sec)
-	if err != nil {
-		return nil, err
+		Args:             status.Args,
 	}
 
 	return &res, nil

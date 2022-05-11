@@ -19,6 +19,7 @@ package addon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -162,6 +163,21 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
 		addonStatus.AddonPhase = suspend
 		return addonStatus, nil
+	}
+
+	// Get addon parameters
+	var sec v1.Secret
+	err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return addonStatus, err
+		}
+	} else {
+		args, err := FetchArgsFromSecret(&sec)
+		if err != nil {
+			return addonStatus, err
+		}
+		addonStatus.Args = args
 	}
 
 	switch app.Status.Phase {
@@ -313,23 +329,16 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 	for _, r := range registries {
 		if IsVersionRegistry(r) {
 			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
-
-			// Get UIData and turn list into map to reduce complexity
-			addonList, err := vr.ListAddon()
-			if err != nil {
-				continue
-			}
-			addonMap := make(map[string]*UIData)
-			for _, addon := range addonList {
-				addonMap[addon.Name] = addon
-			}
-
 			for _, addonName := range addonNames {
 				installPackage, err := vr.GetAddonInstallPackage(ctx, addonName, "")
 				if err != nil {
 					continue
 				}
-				uiData := addonMap[addonName]
+				// Get UIData
+				uiData, err := vr.GetAddonUIData(ctx, addonName, "")
+				if err != nil && !errors.Is(err, ErrNotExist) {
+					return nil, err
+				}
 				// Combine UIData and InstallPackage into WholeAddonPackage
 				wholePackage := &WholeAddonPackage{
 					InstallPackage:    *installPackage,
@@ -339,31 +348,20 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 				}
 				merge(wholePackage)
 			}
-
 		} else {
 			meta, err := r.ListAddonMeta()
 			if err != nil {
 				continue
 			}
 
-			// get UIData and turn list into map to reduce complexity
-			addonList, err := r.ListUIData(meta, CLIMetaOptions)
-			if err != nil {
-				continue
-			}
-			var addonMap map[string]*UIData
-			for _, addon := range addonList {
-				addonMap[addon.Name] = addon
-			}
-
 			for _, addonName := range addonNames {
 				sourceMeta := meta[addonName]
-				installPackage, err := r.GetInstallPackage(&sourceMeta, addonMap[addonName])
+				uiData, err := r.GetUIData(&sourceMeta, CLIMetaOptions)
+				installPackage, err := r.GetInstallPackage(&sourceMeta, uiData)
 				if err != nil {
 					continue
 				}
 				// combine UIData and InstallPackage into WholeAddonPackage
-				uiData := addonMap[addonName]
 				wholePackage := &WholeAddonPackage{
 					InstallPackage:    *installPackage,
 					APISchema:         uiData.APISchema,
@@ -390,4 +388,5 @@ type Status struct {
 	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
 	InstalledVersion string
 	AddonPackage     *WholeAddonPackage
+	Args             map[string]interface{}
 }
