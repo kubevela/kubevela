@@ -187,7 +187,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.appLabels != nil {
 		bt, err := json.Marshal(ctx.appLabels)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += model.ContextAppLabels + ": " + string(bt) + "\n"
 	}
@@ -195,7 +195,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.appAnnotations != nil {
 		bt, err := json.Marshal(ctx.appAnnotations)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += model.ContextAppAnnotations + ": " + string(bt) + "\n"
 	}
@@ -207,7 +207,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.components != nil {
 		bt, err := json.Marshal(ctx.components)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += fmt.Sprintf(model.ContextComponents+":%s\n", string(bt))
 	}
@@ -225,7 +225,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if len(ctx.configs) > 0 {
 		bt, err := json.Marshal(ctx.configs)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += model.ConfigFieldName + ": " + string(bt) + "\n"
 	}
@@ -234,7 +234,7 @@ func (ctx *templateContext) BaseContextFile() string {
 		for _, s := range ctx.requiredSecrets {
 			data, err := json.Marshal(s.Data)
 			if err != nil {
-				return ""
+				return err.Error()
 			}
 			buff += s.ContextName + ":" + string(data) + "\n"
 		}
@@ -243,7 +243,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.parameters != nil {
 		bt, err := json.Marshal(ctx.parameters)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += model.ParameterFieldName + ": " + string(bt) + "\n"
 	}
@@ -255,7 +255,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.data != nil {
 		d, err := json.Marshal(ctx.data)
 		if err != nil {
-			return ""
+			return err.Error()
 		}
 		buff += fmt.Sprintf("\n %s", structMarshal(string(d)))
 	}
@@ -272,7 +272,7 @@ func (ctx *templateContext) ExtendedContextFile() string {
 		for _, s := range ctx.requiredSecrets {
 			data, err := json.Marshal(s.Data)
 			if err != nil {
-				return ""
+				return err.Error()
 			}
 			bareSecret += s.ContextName + ":" + string(data) + "\n"
 		}

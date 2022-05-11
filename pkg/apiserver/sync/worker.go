@@ -60,9 +60,12 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		app := &v1beta1.Application{}
 		bs, err := json.Marshal(obj)
 		if err != nil {
-			logrus.Fatal(err)
+			klog.Errorf("failed to convert obj %v to application with marshal err %v", obj, err)
 		}
-		_ = json.Unmarshal(bs, app)
+		err = json.Unmarshal(bs, app)
+		if err != nil {
+			klog.Errorf("failed to convert obj %v to application with marshal err %v", obj, err)
+		}
 		return app
 	}
 	if usecases == nil {
