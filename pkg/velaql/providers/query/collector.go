@@ -28,8 +28,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -402,16 +402,32 @@ func (c *HelmReleaseCollector) CollectServices(ctx context.Context, cluster stri
 }
 
 // CollectIngress collect ingress of HelmRelease
-func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster string) ([]networkv1beta1.Ingress, error) {
-	cctx := multicluster.ContextWithClusterName(ctx, cluster)
+func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster string) ([]unstructured.Unstructured, error) {
+	clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
 	listOptions := []client.ListOption{
 		client.MatchingLabels(c.matchLabels),
 	}
-	var ingreses networkv1beta1.IngressList
-	if err := c.cli.List(cctx, &ingreses, listOptions...); err != nil {
-		return nil, err
+	var ingresses = new(unstructured.UnstructuredList)
+	ingresses.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "networking.k8s.io",
+		Version: "v1beta1",
+		Kind:    "IngressList",
+	})
+	if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
+		if meta.IsNoMatchError(err) {
+			ingresses.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "networking.k8s.io",
+				Version: "v1",
+				Kind:    "IngressList",
+			})
+			if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
-	return ingreses.Items, nil
+	return ingresses.Items, nil
 }
 
 // helmReleasePodCollector collect pods created by helmRelease
