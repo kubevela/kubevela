@@ -434,7 +434,8 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		c := color.New(color.FgRed)
 		phase = c.Sprintf("%s", status.AddonPhase)
 	default:
-		phase = status.AddonPhase
+		c := color.New(color.Faint)
+		phase = c.Sprintf("%s", status.AddonPhase)
 	}
 
 	// Addon name
@@ -481,7 +482,6 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	if len(parameterString) != 0 {
 		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Parameters")
 		res += generateParameterString(status)
-		res += "\n"
 	}
 
 	return status, res, nil
@@ -515,21 +515,19 @@ func generateParameterString(status pkgaddon.Status) string {
 		// Header: addon: description
 		ret += color.New(color.FgCyan).Sprintf("-> ")
 		ret += color.New(color.Bold).Sprint(propKey) + ": "
-		ret += desc
+		ret += fmt.Sprintf("%s\n", desc)
 		// Current value
 		if currentValue != "" {
-			ret += "\n\tcurrent:  " + color.New(color.FgGreen).Sprintf("%#v", currentValue)
+			ret += "\tcurrent:  " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
 		}
 		// Default value
 		if defaultValue != "" {
-			ret += "\n\tdefault:  " + fmt.Sprintf("%#v", defaultValue)
+			ret += "\tdefault:  " + fmt.Sprintf("%#v\n", defaultValue)
 		}
 		// Required or not
-		ret += "\n\trequired: "
 		if required {
-			ret += color.GreenString("✔")
-		} else {
-			ret += "✘"
+			ret += "\trequired: "
+			ret += color.GreenString("✔\n")
 		}
 	}
 
