@@ -348,7 +348,8 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 
 	for _, trait := range manifest.Traits {
 		v := trait.DeepCopy()
-		if err := cli.Get(ctx, client.ObjectKeyFromObject(trait), v); err != nil {
+		remoteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(v))
+		if err := cli.Get(remoteCtx, client.ObjectKeyFromObject(trait), v); err != nil {
 			return workload, nil, err
 		}
 		traits = append(traits, v)
