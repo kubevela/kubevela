@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-controller/api/types"
 	"github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
@@ -155,39 +156,42 @@ func (c *clusterUsecaseImpl) preAddLocalCluster(ctx context.Context) error {
 }
 
 func (c *clusterUsecaseImpl) ListKubeClusters(ctx context.Context, query string, page int, pageSize int) (*apis.ListClusterResponse, error) {
-	var queries []datastore.FuzzyQueryOption
-	if query != "" {
-		queries = append(queries, datastore.FuzzyQueryOption{Key: "name", Query: query})
-	}
-	fo := datastore.FilterOptions{Queries: queries}
-	clusters, err := c.ds.List(ctx, &model.Cluster{}, &datastore.ListOptions{
-		Page:          page,
-		PageSize:      pageSize,
-		SortBy:        []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
-		FilterOptions: fo,
-	})
+	clusters, err := prismclusterv1alpha1.NewClusterClient(c.k8sClient).List(ctx)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to list cluster with query %s in data store", query)
+		return nil, errors.Wrapf(err, "failed to get clusters with ClusterClient")
 	}
-	resp := &apis.ListClusterResponse{
-		Clusters: []apis.ClusterBase{},
+	clustersInfo, err := c.ds.List(ctx, &model.Cluster{}, nil)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to list cluster in data store")
 	}
-	for _, raw := range clusters {
-		cluster, ok := raw.(*model.Cluster)
-		if ok {
-			// local cluster must be first
-			if cluster.Name == multicluster.ClusterLocalName {
-				resp.Clusters = append([]apis.ClusterBase{*newClusterBaseFromCluster(cluster)}, resp.Clusters...)
-			} else {
-				resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(cluster))
-			}
+	clustersInfoMap := make(map[string]*model.Cluster)
+	for _, raw := range clustersInfo {
+		if clusterInfo, ok := raw.(*model.Cluster); ok {
+			clustersInfoMap[clusterInfo.Name] = clusterInfo
 		}
 	}
-	total, err := c.ds.Count(ctx, &model.Cluster{}, &fo)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to count cluster with query %s in data store", query)
+	resp := &apis.ListClusterResponse{Clusters: []apis.ClusterBase{}, Total: int64(len(clusters.Items))}
+	for _, cluster := range clusters.Items {
+		if !strings.Contains(cluster.Name, query) {
+			continue
+		}
+		var clusterModel *model.Cluster
+		if clusterInfo, exists := clustersInfoMap[cluster.Name]; exists {
+			clusterModel = clusterInfo
+		} else {
+			clusterModel = newClusterModelFromPrismCluster(cluster.DeepCopy())
+		}
+		resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(clusterModel))
 	}
-	resp.Total = total
+	begin, end := (page-1)*pageSize, page*pageSize
+	if begin >= len(resp.Clusters) {
+		resp.Clusters = []apis.ClusterBase{}
+	} else {
+		if end > len(resp.Clusters) {
+			end = len(resp.Clusters)
+		}
+		resp.Clusters = resp.Clusters[begin:end]
+	}
 	return resp, nil
 }
 
@@ -281,10 +285,20 @@ func (c *clusterUsecaseImpl) CreateKubeCluster(ctx context.Context, req apis.Cre
 func (c *clusterUsecaseImpl) GetKubeCluster(ctx context.Context, clusterName string) (*apis.DetailClusterResponse, error) {
 	cluster, err := c.getClusterFromDataStore(ctx, clusterName)
 	if err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrClusterNotFoundInDataStore
+		if !errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, errors.Wrapf(err, "failed to find cluster %s in data store", clusterName)
 		}
-		return nil, errors.Wrapf(err, "failed to found cluster %s in data store", clusterName)
+		prismCluster, err := prismclusterv1alpha1.NewClusterClient(c.k8sClient).Get(ctx, clusterName)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return nil, bcode.ErrClusterNotFoundInDataStore
+			}
+			return nil, errors.Wrapf(err, "failed to find cluster %s in control plane", clusterName)
+		}
+		cluster = newClusterModelFromPrismCluster(prismCluster)
+		if err = c.ds.Add(ctx, cluster); err != nil {
+			return nil, errors.Wrapf(err, "failed to add cluster %s from existing prism cluster", clusterName)
+		}
 	}
 	resourceInfo := c.setClusterStatusAndResourceInfo(ctx, cluster)
 	if err = c.ds.Put(ctx, cluster); err != nil {
@@ -622,5 +636,15 @@ func newClusterBaseFromCluster(cluster *model.Cluster) *apis.ClusterBase {
 
 		Status: cluster.Status,
 		Reason: cluster.Reason,
+	}
+}
+
+func newClusterModelFromPrismCluster(cluster *prismclusterv1alpha1.Cluster) *model.Cluster {
+	return &model.Cluster{
+		BaseModel:    model.BaseModel{CreateTime: cluster.GetCreationTimestamp().Time},
+		Name:         cluster.Name,
+		Alias:        cluster.Spec.Alias,
+		Labels:       cluster.Labels,
+		APIServerURL: cluster.Spec.Endpoint,
 	}
 }
