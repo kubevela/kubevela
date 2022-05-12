@@ -40,7 +40,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
-	github.com/kubevela/prism v0.0.0-20220510071112-8a71d6d2d142
+	github.com/kubevela/prism v0.0.0-20220512081342-9b641aa819f3
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/cluster-gateway v1.3.3-0.20220509095841-4272c540e1e9
