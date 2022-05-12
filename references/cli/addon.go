@@ -460,6 +460,8 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		res += fmt.Sprintln(ic)
 	}
 
+	// TODO: do not print the following info if the addon is installed locally
+
 	// Available Versions
 	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Available Versions")
 	res += genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion)
@@ -627,7 +629,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 	for _, addon := range addons {
 		// if the addon with same name has already installed locally, display the registry one as not installed
 		if locallyInstalledAddons[addon.Name] {
-			table.AddRow(addon.Name, addon.RegistryName, addon.Description, addon.AvailableVersions, "disabled")
+			table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, ""), "disabled")
 			continue
 		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
