@@ -902,8 +902,8 @@ parameter: {
 
 		"trait patch trait": {
 			traitTemplate: `
-patch: {
-	outputs: gameconfig: {
+patchOutputs: {
+	gameconfig: {
 		metadata: annotations: parameter
 	}
 }
@@ -916,11 +916,6 @@ parameter: [string]: string`,
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"outputs": map[string]interface{}{
-						"gameconfig": map[string]interface{}{
-							"metadata": map[string]interface{}{"annotations": map[string]interface{}{"patch-by": "trait"}},
-						},
-					},
 					"spec": map[string]interface{}{
 						"replicas": int64(2),
 						"selector": map[string]interface{}{
@@ -978,9 +973,9 @@ parameter: [string]: string`,
 		},
 		"out-of-scope variables in patch will raise error": {
 			traitTemplate: `
-patch: {
+patchOutputs: {
 	x : "out of scope"
-	outputs: gameconfig: {
+	gameconfig: {
 		metadata: name: x
 	}
 }

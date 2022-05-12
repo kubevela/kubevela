@@ -43,6 +43,8 @@ const (
 	OutputsFieldName = model.OutputsFieldName
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
+	// PatchOutputsFieldName is the name of the struct containts the patch of outputs CR data
+	PatchOutputsFieldName = "patchOutputs"
 	// CustomMessage defines the custom message in definition template
 	CustomMessage = "message"
 	// HealthCheckPolicy defines the health check policy in definition template
@@ -344,8 +346,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 
 	patcher := inst.Lookup(PatchFieldName)
+	base, auxiliaries := ctx.Output()
 	if patcher.Exists() {
-		base, auxiliaries := ctx.Output()
 		p, err := model.NewOther(patcher)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
@@ -353,8 +355,11 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err := base.Unify(p, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
+	}
+	outputsPatcher := inst.Lookup(PatchOutputsFieldName)
+	if outputsPatcher.Exists() {
 		for _, auxiliary := range auxiliaries {
-			target := patcher.Lookup(model.OutputsFieldName, auxiliary.Name)
+			target := outputsPatcher.Lookup(auxiliary.Name)
 			if target.Exists() {
 				t, err := model.NewOther(target)
 				if err != nil {
