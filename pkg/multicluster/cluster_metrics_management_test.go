@@ -24,14 +24,14 @@ import (
 	"time"
 
 	"gotest.tools/assert"
-
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -139,7 +139,7 @@ func FakeSecret(name string) *corev1.Secret {
 	secret := &corev1.Secret{}
 	secret.Name = name
 	secret.Labels = map[string]string{
-		v1alpha1.LabelKeyClusterCredentialType: "ServiceAccountToken",
+		clustercommon.LabelKeyClusterCredentialType: "ServiceAccountToken",
 	}
 	return secret
 }
