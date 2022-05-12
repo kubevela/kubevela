@@ -380,6 +380,7 @@ var _ = Describe("test enable addon in local dir", func() {
 })
 
 var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
+	ds := NewRegistryDataStore(k8sClient)
 	BeforeEach(func() {
 		// Prepare KubeVela registry
 		reg := &Registry{
@@ -388,8 +389,12 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 				URL: "https://addons.kubevela.net",
 			},
 		}
-		ds := NewRegistryDataStore(k8sClient)
 		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		// Clean up KubeVela registry
+		Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 	})
 
 	When("no addon names provided", func() {

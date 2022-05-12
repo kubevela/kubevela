@@ -65,6 +65,12 @@ var _ = Describe("Output of listing addons tests", func() {
 		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
 	})
 
+	AfterEach(func() {
+		// Delete KubeVela registry
+		ds := pkgaddon.NewRegistryDataStore(k8sClient)
+		Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
+	})
+
 	JustBeforeEach(func() {
 		// Print addon list to table for later comparison
 		ret, err := listAddons(context.Background(), k8sClient, "")
@@ -151,6 +157,12 @@ var _ = Describe("Addon status or info", func() {
 			}
 			ds := pkgaddon.NewRegistryDataStore(k8sClient)
 			Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			// Delete KubeVela registry
+			ds := pkgaddon.NewRegistryDataStore(k8sClient)
+			Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
 		})
 
 		It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
