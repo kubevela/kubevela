@@ -19,12 +19,19 @@ package multicluster
 import (
 	"context"
 
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )
@@ -42,10 +49,11 @@ var _ = Describe("Test Virtual Cluster", func() {
 				Name:      "test-cluster",
 				Namespace: ClusterGatewaySecretNamespace,
 				Labels: map[string]string{
-					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
-					v1alpha1.LabelKeyClusterEndpointType:   v1alpha1.ClusterEndpointTypeConst,
-					"key":                                  "value",
+					clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					clustercommon.LabelKeyClusterEndpointType:   string(v1alpha1.ClusterEndpointTypeConst),
+					"key": "value",
 				},
+				Annotations: map[string]string{types.AnnotationClusterAlias: "test-alias"},
 			},
 		})).Should(Succeed())
 		Expect(k8sClient.Create(ctx, &v1.Secret{
@@ -53,7 +61,7 @@ var _ = Describe("Test Virtual Cluster", func() {
 				Name:      "cluster-no-label",
 				Namespace: ClusterGatewaySecretNamespace,
 				Labels: map[string]string{
-					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
 				},
 			},
 		})).Should(Succeed())
@@ -87,9 +95,10 @@ var _ = Describe("Test Virtual Cluster", func() {
 		})).Should(Succeed())
 		Expect(k8sClient.Create(ctx, &clusterv1.ManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ocm-cluster",
-				Namespace: ClusterGatewaySecretNamespace,
-				Labels:    map[string]string{"key": "value"},
+				Name:        "ocm-cluster",
+				Namespace:   ClusterGatewaySecretNamespace,
+				Labels:      map[string]string{"key": "value"},
+				Annotations: map[string]string{types.AnnotationClusterAlias: "ocm-alias"},
 			},
 			Spec: clusterv1.ManagedClusterSpec{
 				ManagedClusterClientConfigs: []clusterv1.ClientConfig{{URL: "test-url"}},
@@ -115,6 +124,56 @@ var _ = Describe("Test Virtual Cluster", func() {
 		vcs, err = FindVirtualClustersByLabels(ctx, k8sClient, map[string]string{"key": "value"})
 		Expect(err).Should(Succeed())
 		Expect(len(vcs)).Should(Equal(2))
+
+		By("Test prism cluster list for clusterNameMapper")
+		cli := fakeClient{Client: k8sClient}
+		cnm, err := NewClusterNameMapper(ctx, cli)
+		Expect(err).Should(Succeed())
+		Expect(cnm.GetClusterName("example")).Should(Equal("example (example-alias)"))
+		Expect(cnm.GetClusterName("no-alias")).Should(Equal("no-alias"))
+		cli.returnBadRequest = true
+		_, err = NewClusterNameMapper(ctx, cli)
+		Expect(err).Should(Satisfy(errors.IsBadRequest))
+		cli.returnBadRequest = false
+		cli.prismNotRegistered = true
+		cnm, err = NewClusterNameMapper(ctx, cli)
+		Expect(err).Should(Succeed())
+		Expect(cnm.GetClusterName("example")).Should(Equal("example"))
+		Expect(cnm.GetClusterName("test-cluster")).Should(Equal("test-cluster (test-alias)"))
+		Expect(cnm.GetClusterName("ocm-cluster")).Should(Equal("ocm-cluster (ocm-alias)"))
+		cli.returnBadRequest = true
+		cli.prismNotRegistered = true
+		_, err = NewClusterNameMapper(ctx, cli)
+		Expect(err).ShouldNot(Succeed())
 	})
 
 })
+
+type fakeClient struct {
+	client.Client
+	returnBadRequest   bool
+	prismNotRegistered bool
+}
+
+func (c fakeClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if !c.prismNotRegistered && c.returnBadRequest {
+		return errors.NewBadRequest("")
+	}
+	if src, ok := list.(*prismclusterv1alpha1.ClusterList); ok {
+		if c.prismNotRegistered {
+			return runtime.NewNotRegisteredErrForKind("", schema.GroupVersionKind{})
+		}
+		objs := &prismclusterv1alpha1.ClusterList{Items: []prismclusterv1alpha1.Cluster{{
+			ObjectMeta: metav1.ObjectMeta{Name: "example"},
+			Spec:       prismclusterv1alpha1.ClusterSpec{Alias: "example-alias"},
+		}, {
+			ObjectMeta: metav1.ObjectMeta{Name: "no-alias"},
+		}}}
+		objs.DeepCopyInto(src)
+		return nil
+	}
+	if c.returnBadRequest {
+		return errors.NewBadRequest("")
+	}
+	return c.Client.List(ctx, list, opts...)
+}

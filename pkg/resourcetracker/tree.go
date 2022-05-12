@@ -51,7 +51,7 @@ type ResourceDetailRetriever func(*resourceRow, string) error
 // ResourceTreePrintOptions print options for resource tree
 type ResourceTreePrintOptions struct {
 	DetailRetriever ResourceDetailRetriever
-	multicluster.ClusterMapper
+	multicluster.ClusterNameMapper
 	// MaxWidth if set, the detail part will auto wrap
 	MaxWidth *int
 	// Format for details
@@ -139,7 +139,7 @@ func (options *ResourceTreePrintOptions) fillResourceRows(rows []*resourceRow, c
 		if row.mr.Namespace == "" {
 			row.mr.Namespace = "-"
 		}
-		row.cluster, row.namespace, row.resourceName = options.ClusterMapper.GetClusterFullName(row.mr.Cluster), row.mr.Namespace, fmt.Sprintf("%s/%s", row.mr.Kind, row.mr.Name)
+		row.cluster, row.namespace, row.resourceName = options.ClusterNameMapper.GetClusterName(row.mr.Cluster), row.mr.Namespace, fmt.Sprintf("%s/%s", row.mr.Kind, row.mr.Name)
 		if row.status == resourceRowStatusNotDeployed {
 			row.resourceName = "-"
 		}
