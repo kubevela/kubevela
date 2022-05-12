@@ -449,7 +449,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Description
 	// Skip this if addon is installed from local sources.
 	// Description is fetched from the Internet, which is not useful for local sources.
-	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName {
+	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName && status.AddonPackage != nil {
 		res += fmt.Sprintln(status.AddonPackage.Description)
 	}
 
@@ -467,7 +467,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Registry name
 	registryName := status.InstalledRegistry
 	// Disabled addons will have empty InstalledRegistry, so we need to check it
-	if registryName == "" {
+	if registryName == "" && status.AddonPackage != nil {
 		registryName = status.AddonPackage.RegistryName
 	}
 	if registryName != "" {
@@ -475,9 +475,9 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		res += fmt.Sprintln(registryName)
 	}
 
-	// If the addon is installed from local sources, stop here!
+	// If the addon is installed from local sources, or does not exist al all, stop here!
 	// The following information is fetched from the Internet, which is not useful for local sources.
-	if status.InstalledRegistry == pkgaddon.LocalAddonRegistryName {
+	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" {
 		return status, res, nil
 	}
 
