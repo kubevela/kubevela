@@ -393,19 +393,19 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 	})
 
 	When("no addon names provided", func() {
-		FIt("should return error", func() {
+		It("should return error", func() {
 			_, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{}, []string{})
 			Expect(err).To(HaveOccurred())
 		})
 
-		FIt("should return error", func() {
+		It("should return error", func() {
 			_, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, nil, nil)
 			Expect(err).To(HaveOccurred())
 		})
 	})
 
 	When("one addon names provided", func() {
-		FIt("should return one valid result", func() {
+		It("should return one valid result", func() {
 			res, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"velaux"}, nil)
 			Expect(err).To(Succeed())
 			Expect(res).To(HaveLen(1))
@@ -416,7 +416,7 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 	})
 
 	When("two addon names provided", func() {
-		FIt("should return two valid result", func() {
+		It("should return two valid result", func() {
 			res, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"velaux", "traefik"}, nil)
 			Expect(err).To(Succeed())
 			Expect(res).To(HaveLen(2))
