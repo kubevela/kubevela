@@ -56,18 +56,18 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`                                                        |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`                                                         |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`                                                         |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`                                                          |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                                                         |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`                                                    |
-| `disableCaps`                 | Disable capability                                                                            | `manualscalertrait,containerizedwokrload,envbinding,rollout` |
-| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                                                        |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`                                                      |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                                                        |
+| Name                          | Description                                                                                   | Value                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`                                  |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`                                   |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`                                   |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`                                    |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                                   |
+| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`                              |
+| `disableCaps`                 | Disable capability                                                                            | `manualscalertrait,envbinding,rollout` |
+| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                                  |
+| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`                                |
+| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                                  |
 
 
 ### KubeVela workflow parameters

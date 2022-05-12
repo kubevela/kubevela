@@ -85,7 +85,7 @@ healthCheck:
   port: 9440
 
 ## @section KubeVela controller optimization parameters
-##@param optimize.optimizeCachedGvks Optimize types of resources to be cached.
+##@param optimize.cachedGvks Optimize types of resources to be cached.
 ##@param optimize.resourceTrackerListOp Optimize ResourceTracker List Op by adding index.
 ##@param optimize.controllerReconcileLoopReduction Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.
 ##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
@@ -96,7 +96,7 @@ healthCheck:
 ##@param optimize.disableResourceApplyDoubleCheck Optimize workflow by ignoring resource double check after apply.
 ##@param optimize.enableResourceTrackerDeleteOnlyTrigger Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.
 optimize:
-  optimizeCachedGvks:
+  cachedGvks: ""
   resourceTrackerListOp: true
   controllerReconcileLoopReduction: false
   markWithProb: 0.1
@@ -120,6 +120,7 @@ optimize:
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
+## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 multicluster:
   enabled: true
   metrics:
@@ -137,6 +138,8 @@ multicluster:
         memory: 200Mi
     secureTLS:
       enabled: true
+      certManager:
+        enabled: false
       certPath: /etc/k8s-cluster-gateway-certs
 
 

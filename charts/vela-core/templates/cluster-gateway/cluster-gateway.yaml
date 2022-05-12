@@ -1,0 +1,150 @@
+{{ if .Values.multicluster.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cluster-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.multicluster.clusterGateway.replicaCount }}
+  selector:
+    matchLabels:
+    {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+      {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "kubevela.fullname" . }}-cluster-gateway
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - "apiserver"
+            - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
+            - "--secret-namespace={{ .Release.Namespace }}"
+            - "--feature-gates=APIPriorityAndFairness=false"
+            {{- if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
+            - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"
+            {{- end }}
+          image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+          imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
+          resources:
+          {{- toYaml .Values.multicluster.clusterGateway.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.multicluster.clusterGateway.port }}
+          {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+          volumeMounts:
+            - mountPath: {{ .Values.multicluster.clusterGateway.secureTLS.certPath }}
+              name: tls-cert-vol
+              readOnly: true
+          {{- end }}
+      {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+      volumes:
+        - name: tls-cert-vol
+          secret:
+            defaultMode: 420
+            secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
+      {{ end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-cluster-gateway-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+  {{- include "kubevela-cluster-gateway.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.multicluster.clusterGateway.port }}
+      targetPort: {{ .Values.multicluster.clusterGateway.port }}
+---
+# 1.  Check whether APIService ""v1alpha1.cluster.core.oam.dev" is already present in the cluster
+# 2.a If the APIService doesn't exist, create it.
+# 2.b If the APIService exists without helm-chart related annotation, skip creating it to the
+#     cluster because the APIService can be managed by an external controller.
+# 2.c If the APIService exists with valid helm-chart annotations, which means that the APIService
+#     is previously managed by helm commands, hence update the APIService consistently.
+{{ $apiSvc := (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev") }}
+{{ $shouldAdopt := (not $apiSvc) }}
+{{ if not $shouldAdopt }}
+  {{ if $apiSvc.metadata.annotations }}
+    {{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}
+  {{ end }}
+{{ end }}
+{{ if $shouldAdopt }}
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1alpha1.cluster.core.oam.dev
+  annotations:
+    {{- if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls"
+    {{- end }}
+  labels:
+    api: cluster-extension-apiserver
+    apiserver: "true"
+spec:
+  version: v1alpha1
+  group: cluster.core.oam.dev
+  groupPriorityMinimum: 2000
+  service:
+    name: {{ .Release.Name }}-cluster-gateway-service
+    namespace: {{ .Release.Namespace }}
+    port: {{ .Values.multicluster.clusterGateway.port }}
+  versionPriority: 10
+  insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  caBundle: Cg==
+  {{ end }}
+{{ end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+rules:
+  - apiGroups: [ "cluster.core.oam.dev" ]
+    resources: [ "clustergateways/proxy" ]
+    verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+subjects:
+  - kind: Group
+    name: cluster-gateway-accessor
+    apiGroup: rbac.authorization.k8s.io
+{{ end }}
