@@ -477,7 +477,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 
 	// If the addon is installed from local sources, or does not exist at all, stop here!
 	// The following information is fetched from the Internet, which is not useful for local sources.
-	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" {
+	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" || status.AddonPackage == nil {
 		return status, res, nil
 	}
 

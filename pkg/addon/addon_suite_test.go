@@ -379,6 +379,57 @@ var _ = Describe("test enable addon in local dir", func() {
 	})
 })
 
+var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
+	BeforeEach(func() {
+		// Prepare KubeVela registry
+		reg := &Registry{
+			Name: "KubeVela",
+			Helm: &HelmSource{
+				URL: "https://addons.kubevela.net",
+			},
+		}
+		ds := NewRegistryDataStore(k8sClient)
+		Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+	})
+
+	When("no addon names provided", func() {
+		FIt("should return error", func() {
+			_, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{}, []string{})
+			Expect(err).To(HaveOccurred())
+		})
+
+		FIt("should return error", func() {
+			_, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, nil, nil)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	When("one addon names provided", func() {
+		FIt("should return one valid result", func() {
+			res, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"velaux"}, nil)
+			Expect(err).To(Succeed())
+			Expect(res).To(HaveLen(1))
+			Expect(res[0].Name).To(Equal("velaux"))
+			Expect(res[0].InstallPackage).ToNot(BeNil())
+			Expect(res[0].APISchema).ToNot(BeNil())
+		})
+	})
+
+	When("two addon names provided", func() {
+		FIt("should return two valid result", func() {
+			res, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"velaux", "traefik"}, nil)
+			Expect(err).To(Succeed())
+			Expect(res).To(HaveLen(2))
+			Expect(res[0].Name).To(Equal("velaux"))
+			Expect(res[0].InstallPackage).ToNot(BeNil())
+			Expect(res[0].APISchema).ToNot(BeNil())
+			Expect(res[1].Name).To(Equal("traefik"))
+			Expect(res[1].InstallPackage).ToNot(BeNil())
+			Expect(res[1].APISchema).ToNot(BeNil())
+		})
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
