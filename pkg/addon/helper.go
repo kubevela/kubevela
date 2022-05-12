@@ -19,7 +19,6 @@ package addon
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -142,6 +141,33 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 func GetAddonStatusDetailed(ctx context.Context, cli client.Client, name string, detailed bool) (Status, error) {
 	var addonStatus Status
 
+	// These are the addon details, which need to be fetched from the internet,
+	// and should be skipped if you don't need them.
+	// Skipping this will generally improve performance.
+	// Calling GetAddonStatus will skip this.
+	if detailed {
+		// Get addon metadata from registry.
+		// We do not need to handle error here. Because local addons are just not in registry, we can accept empty values.
+		if addons, err := FindWholeAddonPackagesFromRegistry(ctx, cli, []string{name}, nil); err == nil {
+			addonStatus.AddonPackage = addons[0]
+		}
+		// Get addon parameters
+		var sec v1.Secret
+		err := cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
+		if err != nil {
+			// Not found can be ignored. Other can't.
+			if !apierrors.IsNotFound(err) {
+				return addonStatus, err
+			}
+		} else {
+			args, err := FetchArgsFromSecret(&sec)
+			if err != nil {
+				return addonStatus, err
+			}
+			addonStatus.Parameters = args
+		}
+	}
+
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -150,8 +176,10 @@ func GetAddonStatusDetailed(ctx context.Context, cli client.Client, name string,
 		}
 		return addonStatus, err
 	}
+	labels := app.GetLabels()
 	addonStatus.AppStatus = &app.Status
-	addonStatus.InstalledVersion = app.GetLabels()[oam.LabelAddonVersion]
+	addonStatus.InstalledVersion = labels[oam.LabelAddonVersion]
+	addonStatus.InstalledRegistry = labels[oam.LabelAddonRegistry]
 
 	var clusters = make(map[string]map[string]interface{})
 	for _, r := range app.Status.AppliedResources {
@@ -166,31 +194,6 @@ func GetAddonStatusDetailed(ctx context.Context, cli client.Client, name string,
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
 		addonStatus.AddonPhase = suspend
 		return addonStatus, nil
-	}
-
-	// These are the addon details, which need to be fetched from the internet,
-	// and should be skipped if you don't need them.
-	// Will generally improve performance.
-	if detailed {
-		// Get addon metadata from registry.
-		// We do not need to handle error here. Because local addons are just not in registry, we can accept empty values.
-		if addons, err := FindWholeAddonPackagesFromRegistry(ctx, cli, []string{name}, nil); err == nil {
-			addonStatus.AddonPackage = addons[0]
-		}
-		// Get addon parameters
-		var sec v1.Secret
-		err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				return addonStatus, err
-			}
-		} else {
-			args, err := FetchArgsFromSecret(&sec)
-			if err != nil {
-				return addonStatus, err
-			}
-			addonStatus.Parameters = args
-		}
 	}
 
 	switch app.Status.Phase {
@@ -343,21 +346,9 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 		if IsVersionRegistry(r) {
 			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
 			for _, addonName := range addonNames {
-				installPackage, err := vr.GetAddonInstallPackage(ctx, addonName, "")
+				wholePackage, err := vr.GetAddonWholePackage(ctx, addonName, "")
 				if err != nil {
 					continue
-				}
-				// Get UIData
-				uiData, err := vr.GetAddonUIData(ctx, addonName, "")
-				if err != nil && !errors.Is(err, ErrNotExist) {
-					return nil, err
-				}
-				// Combine UIData and InstallPackage into WholeAddonPackage
-				wholePackage := &WholeAddonPackage{
-					InstallPackage:    *installPackage,
-					APISchema:         uiData.APISchema,
-					Detail:            uiData.Detail,
-					AvailableVersions: uiData.AvailableVersions,
 				}
 				merge(wholePackage)
 			}
@@ -380,6 +371,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 					APISchema:         uiData.APISchema,
 					Detail:            uiData.Detail,
 					AvailableVersions: uiData.AvailableVersions,
+					RegistryName:      uiData.RegistryName,
 				}
 				merge(wholePackage)
 			}
@@ -402,4 +394,6 @@ type Status struct {
 	InstalledVersion string
 	AddonPackage     *WholeAddonPackage
 	Parameters       map[string]interface{}
+	// Where the addon is from. Can be empty if not installed.
+	InstalledRegistry string
 }

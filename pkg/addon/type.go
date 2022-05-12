@@ -68,6 +68,7 @@ type WholeAddonPackage struct {
 	// Detail is README.md in an addon
 	Detail            string   `json:"detail,omitempty"`
 	AvailableVersions []string `json:"availableVersions"`
+	RegistryName      string   `json:"registryName"`
 }
 
 // Meta defines the format for a single addon

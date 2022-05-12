@@ -447,7 +447,11 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	res += "\n"
 
 	// Description
-	res += fmt.Sprintln(status.AddonPackage.Description)
+	// Skip this if addon is installed from local sources.
+	// Description is fetched from the Internet, which is not useful for local sources.
+	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName {
+		res += fmt.Sprintln(status.AddonPackage.Description)
+	}
 
 	// Installed Clusters
 	if len(status.Clusters) != 0 {
@@ -460,11 +464,26 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		res += fmt.Sprintln(ic)
 	}
 
-	// TODO: do not print the following info if the addon is installed locally
+	// Registry name
+	registryName := status.InstalledRegistry
+	// Disabled addons will have empty InstalledRegistry, so we need to check it
+	if registryName == "" {
+		registryName = status.AddonPackage.RegistryName
+	}
+	if registryName != "" {
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Registry Name")
+		res += fmt.Sprintln(registryName)
+	}
+
+	// If the addon is installed from local sources, stop here!
+	// The following information is fetched from the Internet, which is not useful for local sources.
+	if status.InstalledRegistry == pkgaddon.LocalAddonRegistryName {
+		return status, res, nil
+	}
 
 	// Available Versions
 	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Available Versions")
-	res += genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion)
+	res += genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion, 8)
 	res += "\n"
 
 	// Dependencies
@@ -622,14 +641,14 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 		labels := app.GetLabels()
 		addonName := labels[oam.LabelAddonName]
 		addonVersion := labels[oam.LabelAddonVersion]
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion), statusEnabled)
+		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion, 3), statusEnabled)
 		locallyInstalledAddons[addonName] = true
 	}
 
 	for _, addon := range addons {
 		// if the addon with same name has already installed locally, display the registry one as not installed
 		if locallyInstalledAddons[addon.Name] {
-			table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, ""), "disabled")
+			table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, "", 3), "disabled")
 			continue
 		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
@@ -640,7 +659,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 		if len(status.InstalledVersion) != 0 {
 			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
 		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion), statusRow)
+		table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion, 3), statusRow)
 	}
 
 	return table, nil
@@ -679,7 +698,7 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 // generate the available version
 // this func put the installed version as the first version and keep the origin order
 // print ... if available version too much
-func genAvailableVersionInfo(versions []string, installedVersion string) string {
+func genAvailableVersionInfo(versions []string, installedVersion string, limit int) string {
 	var v []string
 
 	// put installed-version as the first version and keep the origin order
@@ -696,7 +715,7 @@ func genAvailableVersionInfo(versions []string, installedVersion string) string 
 	res := "["
 	var count int
 	for _, version := range v {
-		if count == 3 {
+		if count == limit {
 			// just show  newest 3 versions
 			res += "..."
 			break
@@ -713,6 +732,14 @@ func genAvailableVersionInfo(versions []string, installedVersion string) string 
 	res = strings.TrimSuffix(res, ", ")
 	res += "]"
 	return res
+}
+
+// limitStringLength limits the length of the string, and add ... if it is too long
+func limitStringLength(str string, length int) string {
+	if len(str) > length {
+		return str[:length] + "..."
+	}
+	return str
 }
 
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy

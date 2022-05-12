@@ -36,6 +36,7 @@ type VersionedRegistry interface {
 	ListAddon() ([]*UIData, error)
 	GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error)
 	GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error)
+	GetAddonWholePackage(ctx context.Context, addonName, version string) (*WholeAddonPackage, error)
 }
 
 // BuildVersionedRegistry is build versioned addon registry
@@ -85,6 +86,14 @@ func (i *versionedRegistry) GetAddonInstallPackage(ctx context.Context, addonNam
 		return nil, err
 	}
 	return &wholePackage.InstallPackage, nil
+}
+
+func (i *versionedRegistry) GetAddonWholePackage(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
+	wholePackage, err := i.loadAddon(ctx, addonName, version)
+	if err != nil {
+		return nil, err
+	}
+	return wholePackage, nil
 }
 
 func (i *versionedRegistry) resolveAddonListFromIndex(repoName string, index *repo.IndexFile) []*UIData {
@@ -155,6 +164,8 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 			return nil, err
 		}
 		addonPkg.AvailableVersions = availableVersions
+		// add RegistryName here
+		addonPkg.RegistryName = i.name
 		return addonPkg, nil
 	}
 	return nil, fmt.Errorf("cannot fetch addon package")
