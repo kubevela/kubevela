@@ -410,10 +410,6 @@ func TestGenerateParameterString(t *testing.T) {
 	for _, s := range testcase {
 		res := generateParameterString(s.status)
 		for _, o := range s.outputs {
-			if !strings.Contains(res, o) {
-				fmt.Println(res)
-				fmt.Println(o)
-			}
 			assert.Check(t, strings.Contains(res, o))
 		}
 
