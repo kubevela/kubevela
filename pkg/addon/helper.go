@@ -129,15 +129,18 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	return nil
 }
 
-// GetAddonStatus is general func for cli and apiServer get addon status
+// GetAddonStatus is a wrapper for GetAddonStatusDetailed, to provide backwards compatibility.
+// It is faster than GetAddonStatusDetailed, and should be used in most cases.
+// It skips addon package and addon parameters to speed things up.
 func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
-	var addonStatus Status
+	return GetAddonStatusDetailed(ctx, cli, name, false)
+}
 
-	// Get addon metadata from registry.
-	// We do not need to handle error here. Because local addons are just not in registry, we can accept empty values.
-	if addons, err := FindWholeAddonPackagesFromRegistry(ctx, cli, []string{name}, nil); err == nil {
-		addonStatus.AddonPackage = addons[0]
-	}
+// GetAddonStatusDetailed is general func for cli and apiServer get addon status
+// Setting `detailed` to true will add AddonPackage and Parameters to the result. However, this involves network requests,
+// which will slow things down, and should be avoided if you don't need the full addon info.
+func GetAddonStatusDetailed(ctx context.Context, cli client.Client, name string, detailed bool) (Status, error) {
+	var addonStatus Status
 
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	if err != nil {
@@ -165,19 +168,29 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 		return addonStatus, nil
 	}
 
-	// Get addon parameters
-	var sec v1.Secret
-	err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return addonStatus, err
+	// These are the addon details, which need to be fetched from the internet,
+	// and should be skipped if you don't need them.
+	// Will generally improve performance.
+	if detailed {
+		// Get addon metadata from registry.
+		// We do not need to handle error here. Because local addons are just not in registry, we can accept empty values.
+		if addons, err := FindWholeAddonPackagesFromRegistry(ctx, cli, []string{name}, nil); err == nil {
+			addonStatus.AddonPackage = addons[0]
 		}
-	} else {
-		args, err := FetchArgsFromSecret(&sec)
+		// Get addon parameters
+		var sec v1.Secret
+		err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
 		if err != nil {
-			return addonStatus, err
+			if !apierrors.IsNotFound(err) {
+				return addonStatus, err
+			}
+		} else {
+			args, err := FetchArgsFromSecret(&sec)
+			if err != nil {
+				return addonStatus, err
+			}
+			addonStatus.Parameters = args
 		}
-		addonStatus.Args = args
 	}
 
 	switch app.Status.Phase {
@@ -388,5 +401,5 @@ type Status struct {
 	Clusters         map[string]map[string]interface{} `json:"clusters,omitempty"`
 	InstalledVersion string
 	AddonPackage     *WholeAddonPackage
-	Args             map[string]interface{}
+	Parameters       map[string]interface{}
 }

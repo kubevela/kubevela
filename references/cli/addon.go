@@ -419,7 +419,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	var phase string
 	var installed bool
 
-	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+	status, err := pkgaddon.GetAddonStatusDetailed(context.Background(), c, name, true)
 	if err != nil {
 		return status, "", err
 	}
@@ -509,7 +509,7 @@ func generateParameterString(status pkgaddon.Status) string {
 			defaultValue = ""
 		}
 		required := required[propKey]
-		currentValue := status.Args[propKey]
+		currentValue := status.Parameters[propKey]
 		if currentValue == nil {
 			currentValue = ""
 		}
