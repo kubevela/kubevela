@@ -248,7 +248,7 @@ var _ = Describe("Addon status or info", func() {
 				if !strings.Contains(res,
 					color.New(color.Bold).Sprintf("%s", addonName),
 				) {
-					return fmt.Errorf("addon name incorrect")
+					return fmt.Errorf("addon name incorrect, %s", res)
 				}
 
 				// We cannot really get installed clusters in test environment.
@@ -261,7 +261,7 @@ var _ = Describe("Addon status or info", func() {
 					color.New(color.Bold).Sprintf("%s", "Registry Name")+"\n"+
 						"KubeVela",
 				) {
-					return fmt.Errorf("registry name incorrect")
+					return fmt.Errorf("registry name incorrect, %s", res)
 				}
 
 				// Should include available versions, like:
@@ -271,7 +271,7 @@ var _ = Describe("Addon status or info", func() {
 					color.New(color.Bold).Sprintf("%s", "Available Versions")+"\n"+
 						"[",
 				) {
-					return fmt.Errorf("available versions incorrect")
+					return fmt.Errorf("available versions incorrect, %s", res)
 				}
 
 				// Should include dependencies, like:
@@ -281,7 +281,7 @@ var _ = Describe("Addon status or info", func() {
 					color.New(color.Bold).Sprintf("%s", "Dependencies ")+color.GreenString("✔")+"\n"+
 						"[]",
 				) {
-					return fmt.Errorf("dependencies incorrect")
+					return fmt.Errorf("dependencies incorrect, %s", res)
 				}
 
 				// fluxcd does not have any parameters, so we skip it.
