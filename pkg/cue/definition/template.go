@@ -43,7 +43,7 @@ const (
 	OutputsFieldName = model.OutputsFieldName
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
-	// PatchOutputsFieldName is the name of the struct containts the patch of outputs CR data
+	// PatchOutputsFieldName is the name of the struct contains the patch of outputs CR data
 	PatchOutputsFieldName = "patchOutputs"
 	// CustomMessage defines the custom message in definition template
 	CustomMessage = "message"
