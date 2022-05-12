@@ -361,6 +361,9 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 			for _, addonName := range addonNames {
 				sourceMeta := meta[addonName]
 				uiData, err := r.GetUIData(&sourceMeta, CLIMetaOptions)
+				if err != nil {
+					continue
+				}
 				installPackage, err := r.GetInstallPackage(&sourceMeta, uiData)
 				if err != nil {
 					continue

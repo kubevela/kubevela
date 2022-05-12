@@ -26,6 +26,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 
 	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 
