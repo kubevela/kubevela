@@ -123,3 +123,160 @@ var _ = Describe("Output of listing addons tests", func() {
 		})
 	})
 })
+
+var _ = Describe("Addon status or info", func() {
+
+	When("addon is not installed locally, also not in registry", func() {
+		It("should only display addon name and disabled status, nothing more", func() {
+			addonName := "some-nonexistent-addon"
+			_, res, err := generateAddonInfo(k8sClient, addonName)
+			// This is expected. Even with nonexistent addon, upstream services will return nil.
+			// We will check nonexistent addon ourselves.
+			Expect(err).Should(BeNil())
+			expectedResponse := color.New(color.Bold).Sprintf("%s", addonName) + ": " +
+				color.New(color.Faint).Sprintf("%s", statusDisabled) + " \n"
+			Expect(res).To(Equal(expectedResponse))
+		})
+	})
+
+	When("addon is not installed locally, but in registry", func() {
+		// Prepare KubeVela registry
+		BeforeEach(func() {
+			reg := &pkgaddon.Registry{
+				Name: "KubeVela",
+				Helm: &pkgaddon.HelmSource{
+					URL: "https://addons.kubevela.net",
+				},
+			}
+			ds := pkgaddon.NewRegistryDataStore(k8sClient)
+			Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+		})
+
+		It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
+			addonName := "velaux"
+			_, res, err := generateAddonInfo(k8sClient, addonName)
+			Expect(err).Should(BeNil())
+			// Should include Disabled status, like:
+			// velaux: disabled
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", addonName) + ": " + color.New(color.Faint).Sprintf("%s", statusDisabled),
+			))
+			// Should include registry name, like:
+			// ==> Registry Name
+			// KubeVela
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Registry Name") + "\n" +
+					"KubeVela",
+			))
+			// Should include available versions, like:
+			// ==> Available Versions
+			// [v2.6.3]
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "vailable Versions") + "\n" +
+					"[",
+			))
+			// Should include dependencies, like:
+			// ==> Dependencies ✔
+			// []
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Dependencies ") + color.GreenString("✔") + "\n" +
+					"[]",
+			))
+			// Should include parameters, like:
+			// ==> Parameters
+			// -> serviceAccountName: Specify the serviceAccountName for apiserver
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Parameters") + "\n" +
+					color.New(color.FgCyan).Sprintf("-> "),
+			))
+		})
+	})
+
+	When("addon is installed locally, and also in registry", func() {
+		BeforeEach(func() {
+			// Prepare KubeVela registry
+			reg := &pkgaddon.Registry{
+				Name: "KubeVela",
+				Helm: &pkgaddon.HelmSource{
+					URL: "https://addons.kubevela.net",
+				},
+			}
+			ds := pkgaddon.NewRegistryDataStore(k8sClient)
+			Expect(ds.AddRegistry(context.Background(), *reg)).To(Succeed())
+
+			// Install fluxcd locally
+			fluxcd := v1beta1.Application{}
+			err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
+			Expect(err).Should(BeNil())
+			Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		})
+
+		It("should display addon name and enabled status, installed clusters, registry name, available versions, dependencies, and parameters(optional)", func() {
+			addonName := "fluxcd"
+			_, res, err := generateAddonInfo(k8sClient, addonName)
+			Expect(err).Should(BeNil())
+			// Should include Disabled status, like:
+			// fluxcd: enabled (1.1.0)
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", addonName) + ": " + color.New(color.Faint).Sprintf("%s", statusEnabled) + " (",
+			))
+			// Should include installed clusters, like:
+			// ==> Installed Clusters
+			// [local]
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Installed Clusters") + "\n" +
+					"[",
+			))
+			// Should include registry name, like:
+			// ==> Registry Name
+			// KubeVela
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Registry Name") + "\n" +
+					"KubeVela",
+			))
+			// Should include available versions, like:
+			// ==> Available Versions
+			// [v2.6.3]
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "vailable Versions") + "\n" +
+					"[",
+			))
+			// Should include dependencies, like:
+			// ==> Dependencies ✔
+			// []
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Dependencies ") + color.GreenString("✔") + "\n" +
+					"[]",
+			))
+			// fluxcd does not have any parameters, so we skip it.
+		})
+	})
+
+	When("addon is installed locally, but not in registry", func() {
+		BeforeEach(func() {
+			// Install fluxcd locally
+			fluxcd := v1beta1.Application{}
+			err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
+			Expect(err).Should(BeNil())
+			Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		})
+
+		It("should display addon name and enabled status, installed clusters, and registry name as local, nothing more", func() {
+			addonName := "fluxcd"
+			_, res, err := generateAddonInfo(k8sClient, addonName)
+			Expect(err).Should(BeNil())
+			// Should include Disabled status, like:
+			// fluxcd: enabled (1.1.0)
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", addonName) + ": " + color.New(color.Faint).Sprintf("%s", statusEnabled) + " (",
+			))
+			// Should include installed clusters, like:
+			// ==> Installed Clusters
+			// [local]
+			Expect(res).To(ContainSubstring(
+				color.New(color.Bold).Sprintf("%s", "Installed Clusters") + "\n" +
+					"[",
+			))
+		})
+	})
+})
