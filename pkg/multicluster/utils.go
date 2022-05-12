@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +33,9 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -171,9 +173,9 @@ func UpgradeExistingClusterSecret(ctx context.Context, c client.Client) error {
 	}
 	errs := errors3.ErrorList{}
 	for _, item := range secrets.Items {
-		credType := item.Labels[v1alpha1.LabelKeyClusterCredentialType]
+		credType := item.Labels[clustercommon.LabelKeyClusterCredentialType]
 		if credType == "" && item.Type == v1.SecretTypeTLS {
-			item.Labels[v1alpha1.LabelKeyClusterCredentialType] = string(v1alpha1.CredentialTypeX509Certificate)
+			item.Labels[clustercommon.LabelKeyClusterCredentialType] = string(v1alpha1.CredentialTypeX509Certificate)
 			if err := c.Update(ctx, item.DeepCopy()); err != nil {
 				errs = append(errs, errors2.Wrapf(err, "failed to update outdated secret %s", item.Name))
 			}
@@ -198,7 +200,7 @@ func GetMulticlusterKubernetesClient() (client.Client, *rest.Config, error) {
 // ListExistingClusterSecrets list existing cluster secrets
 func ListExistingClusterSecrets(ctx context.Context, c client.Client) ([]v1.Secret, error) {
 	secrets := &v1.SecretList{}
-	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{v1alpha1.LabelKeyClusterCredentialType}); err != nil {
+	if err := c.List(ctx, secrets, client.InNamespace(ClusterGatewaySecretNamespace), client.HasLabels{clustercommon.LabelKeyClusterCredentialType}); err != nil {
 		return nil, errors2.Wrapf(err, "failed to list cluster secrets")
 	}
 	return secrets.Items, nil
