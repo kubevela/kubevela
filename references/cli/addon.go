@@ -736,6 +736,9 @@ func genAvailableVersionInfo(versions []string, installedVersion string, limit i
 
 // limitStringLength limits the length of the string, and add ... if it is too long
 func limitStringLength(str string, length int) string {
+	if length <= 0 {
+		return str
+	}
 	if len(str) > length {
 		return str[:length] + "..."
 	}
