@@ -164,7 +164,6 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 			return nil, err
 		}
 		addonPkg.AvailableVersions = availableVersions
-		// add RegistryName here
 		addonPkg.RegistryName = i.name
 		return addonPkg, nil
 	}

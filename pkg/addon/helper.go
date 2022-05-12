@@ -368,7 +368,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 				if err != nil {
 					continue
 				}
-				// combine UIData and InstallPackage into WholeAddonPackage
+				// Combine UIData and InstallPackage into WholeAddonPackage
 				wholePackage := &WholeAddonPackage{
 					InstallPackage:    *installPackage,
 					APISchema:         uiData.APISchema,

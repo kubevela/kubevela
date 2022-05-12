@@ -209,29 +209,6 @@ func TestTransCluster(t *testing.T) {
 	}
 }
 
-func TestGenerateStatusIn(t *testing.T) {
-	testcases := []struct {
-		c   pkgaddon.Status
-		res []string
-	}{
-		{
-			c:   pkgaddon.Status{InstalledVersion: "1.2.1", Clusters: map[string]map[string]interface{}{"cluster1": nil, "cluster2": nil}, AddonPhase: statusEnabled},
-			res: []string{"installedVersion: 1.2.1", "installedClusters: [cluster1 cluster2]", fmt.Sprintf("status is %s", color.New(color.FgGreen).Sprintf(statusEnabled))},
-		},
-		{
-			c:   pkgaddon.Status{InstalledVersion: "1.2.3", AddonPhase: statusSuspend},
-			res: []string{"installedVersion: 1.2.3", fmt.Sprintf("status is %s", color.New(color.FgRed).Sprintf(statusSuspend))},
-		},
-	}
-	for _, res := range testcases {
-		var _ = res
-		//res, _, _ := generateAddonInfo("test", testcase.c)
-		//for _, re := range testcase.res {
-		//	assert.Equal(t, strings.Contains(res, re), true)
-		//}
-	}
-}
-
 func TestGenerateAvailableVersions(t *testing.T) {
 	type testcase struct {
 		inVersion string

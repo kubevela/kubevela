@@ -566,7 +566,7 @@ func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependen
 	for idx, d := range dependencies {
 		name := d.Name
 
-		// check if the dependency is enabled
+		// Checks if the dependency is enabled, and mark it
 		status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
 		if err != nil {
 			continue
