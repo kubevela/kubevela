@@ -24,7 +24,7 @@ controllerArgs:
 OAMSpecVer: "minimal"
 
 ## @param disableCaps Disable capability
-disableCaps: "manualscalertrait,containerizedwokrload,envbinding,rollout"
+disableCaps: "manualscalertrait,envbinding,rollout"
 
 ## @param applyOnceOnly Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
