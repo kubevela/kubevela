@@ -615,10 +615,9 @@ type ComponentSelector struct {
 // DetailApplicationResponse application  detail
 type DetailApplicationResponse struct {
 	ApplicationBase
-	Policies        []string                `json:"policies"`
-	EnvBindings     []string                `json:"envBindings"`
-	ApplicationType string                  `json:"applicationType"`
-	ResourceInfo    ApplicationResourceInfo `json:"resourceInfo"`
+	Policies     []string                `json:"policies"`
+	EnvBindings  []string                `json:"envBindings"`
+	ResourceInfo ApplicationResourceInfo `json:"resourceInfo"`
 }
 
 // ApplicationResourceInfo application-level resource consumption statistics
@@ -629,20 +628,21 @@ type ApplicationResourceInfo struct {
 
 // ComponentBase component  base model
 type ComponentBase struct {
-	Name          string              `json:"name"`
-	Alias         string              `json:"alias"`
-	Description   string              `json:"description"`
-	Labels        map[string]string   `json:"labels,omitempty"`
-	ComponentType string              `json:"componentType"`
-	Main          bool                `json:"main"`
-	Icon          string              `json:"icon,omitempty"`
-	DependsOn     []string            `json:"dependsOn"`
-	Creator       string              `json:"creator,omitempty"`
-	CreateTime    time.Time           `json:"createTime"`
-	UpdateTime    time.Time           `json:"updateTime"`
-	Inputs        common.StepInputs   `json:"inputs,omitempty"`
-	Outputs       common.StepOutputs  `json:"outputs,omitempty"`
-	Traits        []*ApplicationTrait `json:"traits"`
+	Name          string                        `json:"name"`
+	Alias         string                        `json:"alias"`
+	Description   string                        `json:"description"`
+	Labels        map[string]string             `json:"labels,omitempty"`
+	ComponentType string                        `json:"componentType"`
+	Main          bool                          `json:"main"`
+	Icon          string                        `json:"icon,omitempty"`
+	DependsOn     []string                      `json:"dependsOn"`
+	Creator       string                        `json:"creator,omitempty"`
+	CreateTime    time.Time                     `json:"createTime"`
+	UpdateTime    time.Time                     `json:"updateTime"`
+	Inputs        common.StepInputs             `json:"inputs,omitempty"`
+	Outputs       common.StepOutputs            `json:"outputs,omitempty"`
+	Traits        []*ApplicationTrait           `json:"traits"`
+	WorkloadType  common.WorkloadTypeDescriptor `json:"workloadType,omitempty"`
 }
 
 // ComponentListResponse list component
@@ -870,6 +870,7 @@ type PolicyBase struct {
 	Properties *model.JSONStruct `json:"properties"`
 	CreateTime time.Time         `json:"createTime"`
 	UpdateTime time.Time         `json:"updateTime"`
+	EnvName    string            `json:"envName"`
 }
 
 // DetailPolicyResponse app policy detail model

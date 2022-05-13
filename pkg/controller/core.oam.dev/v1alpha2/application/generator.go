@@ -73,6 +73,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
 		h.checkComponentHealth(appParser, appRev, af),
+		func(comp common.ApplicationComponent) (*appfile.Workload, error) {
+			return appParser.ParseWorkloadFromRevision(comp, appRev)
+		},
 	)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)

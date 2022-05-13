@@ -222,5 +222,6 @@
 	#provider: "multicluster"
 	#do:       "deploy"
 	policies: [...string]
-	parallelism: int
+	parallelism:              int
+	ignoreTerraformComponent: bool
 }

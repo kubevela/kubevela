@@ -51,6 +51,9 @@ type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value
 // ComponentHealthCheck health check oam component.
 type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error)
 
+// WorkloadRenderer renderer to render application component into workload
+type WorkloadRenderer func(comp common.ApplicationComponent) (*appfile.Workload, error)
+
 type provider struct {
 	render ComponentRender
 	apply  ComponentApply

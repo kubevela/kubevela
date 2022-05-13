@@ -85,7 +85,8 @@ var _ = Describe("Test namespace usecase functions", func() {
 		Expect(err).Should(Succeed())
 		traits, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "trait"})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(traits), 1)).Should(BeEmpty())
+		// there is already a scaler trait definition in the test env
+		Expect(cmp.Diff(len(traits), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(traits[0].Name, "myingress")).Should(BeEmpty())
 		Expect(traits[0].Description).ShouldNot(BeEmpty())
 		Expect(traits[0].Trait).ShouldNot(BeNil())
@@ -102,7 +103,8 @@ var _ = Describe("Test namespace usecase functions", func() {
 
 		wfstep, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep"})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(wfstep), 1)).Should(BeEmpty())
+		// there is already a deploy workflow step definition in the test env
+		Expect(cmp.Diff(len(wfstep), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(wfstep[0].Name, "apply-application")).Should(BeEmpty())
 		Expect(wfstep[0].Description).ShouldNot(BeEmpty())
 		Expect(wfstep[0].WorkflowStep.Schematic).ShouldNot(BeNil())
@@ -118,7 +120,7 @@ var _ = Describe("Test namespace usecase functions", func() {
 
 		allstep, err := definitionUsecase.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "workflowstep", QueryAll: true})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(allstep), 2)).Should(BeEmpty())
+		Expect(cmp.Diff(len(allstep), 3)).Should(BeEmpty())
 
 		By("List policy definitions")
 		var policy = v1beta1.PolicyDefinition{
