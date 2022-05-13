@@ -297,12 +297,7 @@ func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
 			}
 		}
 		// not found in provided cap definitions
-		// then try to retrieve from cluster if not in offline mode where reader will be nil
-		if r == nil {
-			return nil, fmt.Errorf("cannot load template %q from provided ones", capName)
-		}
-
-		// Now attempt to load template from cluster
+		// then try to retrieve from cluster
 		tmpl, err := LoadTemplate(ctx, dm, r, capName, capType)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "cannot load template %q from cluster and provided ones", capName)

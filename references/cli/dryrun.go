@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -90,13 +91,8 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 // DryRunApplication will dry-run an application and return the render result
 func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+	var err error
 	var buff = bytes.Buffer{}
-
-	// We only need to get a client if not in offline mode
-	newClient, err := c.GetClient()
-	if err != nil && !cmdOption.OfflineMode {
-		return buff, err
-	}
 
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
@@ -104,6 +100,19 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		if err != nil {
 			return buff, err
 		}
+	}
+
+	// Load a kubernetes client
+	var newClient client.Client
+	if cmdOption.OfflineMode {
+		// We will load a fake client with all the objects present in the definitions file preloaded
+		newClient, err = c.GetFakeClient(objs)
+	} else {
+		// Load an actual client here
+		newClient, err = c.GetClient()
+	}
+	if err != nil {
+		return buff, err
 	}
 
 	pd, err := c.GetPackageDiscover()
