@@ -286,7 +286,7 @@ var _ = Describe("Addon status or info", func() {
 
 				// fluxcd does not have any parameters, so we skip it.
 				return nil
-			}, 120*time.Second, 1000*time.Millisecond).Should(BeNil())
+			}, 30*time.Second, 1000*time.Millisecond).Should(BeNil())
 		})
 	})
 
@@ -326,7 +326,7 @@ var _ = Describe("Addon status or info", func() {
 				}
 
 				return nil
-			}, 120*time.Second, 1000*time.Millisecond).Should(BeNil())
+			}, 30*time.Second, 1000*time.Millisecond).Should(BeNil())
 		})
 	})
 })

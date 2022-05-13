@@ -132,22 +132,6 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status, error) {
 	var addonStatus Status
 
-	// Get addon parameters
-	var sec v1.Secret
-	err := cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
-	if err != nil {
-		// Not found error can be ignored. Others can't.
-		if !apierrors.IsNotFound(err) {
-			return addonStatus, err
-		}
-	} else {
-		args, err := FetchArgsFromSecret(&sec)
-		if err != nil {
-			return addonStatus, err
-		}
-		addonStatus.Parameters = args
-	}
-
 	app, err := FetchAddonRelatedApp(ctx, cli, name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -174,6 +158,22 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 	if app.Status.Workflow != nil && app.Status.Workflow.Suspend {
 		addonStatus.AddonPhase = suspend
 		return addonStatus, nil
+	}
+
+	// Get addon parameters
+	var sec v1.Secret
+	err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: Convert2SecName(name)}, &sec)
+	if err != nil {
+		// Not found error can be ignored. Others can't.
+		if !apierrors.IsNotFound(err) {
+			return addonStatus, err
+		}
+	} else {
+		args, err := FetchArgsFromSecret(&sec)
+		if err != nil {
+			return addonStatus, err
+		}
+		addonStatus.Parameters = args
 	}
 
 	switch app.Status.Phase {
@@ -308,7 +308,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 		}
 	}
 
-	if len(registries) == 0 {
+	if len(registries) == 0 && len(registryNames) > 0 {
 		return nil, ErrRegistryNotExist
 	}
 
