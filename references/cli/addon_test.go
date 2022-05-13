@@ -343,47 +343,47 @@ func TestPackageValidAddon(t *testing.T) {
 
 func TestGenerateParameterString(t *testing.T) {
 	testcase := []struct {
-		status  pkgaddon.Status
-		outputs []string
+		status       pkgaddon.Status
+		addonPackage *pkgaddon.WholeAddonPackage
+		outputs      []string
 	}{
 		{
-			status: pkgaddon.Status{
-				AddonPackage: &pkgaddon.WholeAddonPackage{
-					APISchema: nil,
-				},
+			status: pkgaddon.Status{},
+			addonPackage: &pkgaddon.WholeAddonPackage{
+				APISchema: nil,
 			},
 			outputs: []string{""},
 		},
 		{
 			status: pkgaddon.Status{
-				AddonPackage: &pkgaddon.WholeAddonPackage{
-					APISchema: &openapi3.Schema{
-						Required: []string{"dbType", "serviceAccountName", "serviceType", "dex"},
-						Properties: openapi3.Schemas{
-							"database": &openapi3.SchemaRef{
-								Value: &openapi3.Schema{
-									Description: "Specify the database name, for the kubeapi db type, it represents namespace.",
-									Default:     nil,
-								},
-							},
-							"dbURL": &openapi3.SchemaRef{
-								Value: &openapi3.Schema{
-									Description: "Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
-									Default:     nil,
-								},
-							},
-							"dbType": &openapi3.SchemaRef{
-								Value: &openapi3.Schema{
-									Description: "Specify the database type, current support KubeAPI(default) and MongoDB.",
-									Default:     "kubeapi",
-								},
-							},
-						},
-					},
-				},
 				Parameters: map[string]interface{}{
 					"database": "kubevela",
 					"dbType":   "kubeapi",
+				},
+			},
+			addonPackage: &pkgaddon.WholeAddonPackage{
+				APISchema: &openapi3.Schema{
+					Required: []string{"dbType", "serviceAccountName", "serviceType", "dex"},
+					Properties: openapi3.Schemas{
+						"database": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the database name, for the kubeapi db type, it represents namespace.",
+								Default:     nil,
+							},
+						},
+						"dbURL": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
+								Default:     nil,
+							},
+						},
+						"dbType": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the database type, current support KubeAPI(default) and MongoDB.",
+								Default:     "kubeapi",
+							},
+						},
+					},
 				},
 			},
 			outputs: []string{
@@ -408,7 +408,7 @@ func TestGenerateParameterString(t *testing.T) {
 	}
 
 	for _, s := range testcase {
-		res := generateParameterString(s.status)
+		res := generateParameterString(s.status, s.addonPackage)
 		for _, o := range s.outputs {
 			assert.Check(t, strings.Contains(res, o))
 		}

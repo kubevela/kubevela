@@ -418,8 +418,21 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	var res string
 	var phase string
 	var installed bool
+	var addonPackage *pkgaddon.WholeAddonPackage
 
-	status, err := pkgaddon.GetAddonStatusDetailed(context.Background(), c, name, true)
+	// Get addon install package
+	// We need the metadata to get descriptions about parameters
+	addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
+	// Not found error can be ignored. Others can't.
+	if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
+		return pkgaddon.Status{}, "", err
+	}
+	if len(addonPackages) != 0 {
+		addonPackage = addonPackages[0]
+	}
+
+	// Check current addon status
+	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
 	if err != nil {
 		return status, "", err
 	}
@@ -449,8 +462,8 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Description
 	// Skip this if addon is installed from local sources.
 	// Description is fetched from the Internet, which is not useful for local sources.
-	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName && status.AddonPackage != nil {
-		res += fmt.Sprintln(status.AddonPackage.Description)
+	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName && addonPackage != nil {
+		res += fmt.Sprintln(addonPackage.Description)
 	}
 
 	// Installed Clusters
@@ -467,8 +480,8 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Registry name
 	registryName := status.InstalledRegistry
 	// Disabled addons will have empty InstalledRegistry, so we need to check it
-	if registryName == "" && status.AddonPackage != nil {
-		registryName = status.AddonPackage.RegistryName
+	if registryName == "" && addonPackage != nil {
+		registryName = addonPackage.RegistryName
 	}
 	if registryName != "" {
 		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Registry Name")
@@ -477,17 +490,17 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 
 	// If the addon is installed from local sources, or does not exist at all, stop here!
 	// The following information is fetched from the Internet, which is not useful for local sources.
-	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" || status.AddonPackage == nil {
+	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" || addonPackage == nil {
 		return status, res, nil
 	}
 
 	// Available Versions
 	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Available Versions")
-	res += genAvailableVersionInfo(status.AddonPackage.AvailableVersions, status.InstalledVersion, 8)
+	res += genAvailableVersionInfo(addonPackage.AvailableVersions, status.InstalledVersion, 8)
 	res += "\n"
 
 	// Dependencies
-	dependenciesString, allInstalled := generateDependencyString(c, status.AddonPackage.Dependencies)
+	dependenciesString, allInstalled := generateDependencyString(c, addonPackage.Dependencies)
 	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprint("Dependencies ")
 	if allInstalled {
 		res += color.GreenString("✔")
@@ -499,29 +512,29 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	res += "\n"
 
 	// Parameters
-	parameterString := generateParameterString(status)
+	parameterString := generateParameterString(status, addonPackage)
 	if len(parameterString) != 0 {
 		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Parameters")
-		res += generateParameterString(status)
+		res += parameterString
 	}
 
 	return status, res, nil
 }
 
-func generateParameterString(status pkgaddon.Status) string {
+func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.WholeAddonPackage) string {
 	ret := ""
 
-	if status.AddonPackage.APISchema == nil {
+	if addonPackage.APISchema == nil {
 		return ret
 	}
 
 	// Required parameters
 	required := make(map[string]bool)
-	for _, k := range status.AddonPackage.APISchema.Required {
+	for _, k := range addonPackage.APISchema.Required {
 		required[k] = true
 	}
 
-	for propKey, propValue := range status.AddonPackage.APISchema.Properties {
+	for propKey, propValue := range addonPackage.APISchema.Properties {
 		desc := propValue.Value.Description
 		defaultValue := propValue.Value.Default
 		if defaultValue == nil {
