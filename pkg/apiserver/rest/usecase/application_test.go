@@ -27,10 +27,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -48,21 +46,24 @@ import (
 
 var _ = Describe("Test application usecase function", func() {
 	var (
-		rbacUsecase       *rbacUsecaseImpl
-		appUsecase        *applicationUsecaseImpl
-		workflowUsecase   *workflowUsecaseImpl
-		envUsecase        *envUsecaseImpl
-		envBindingUsecase *envBindingUsecaseImpl
-		targetUsecase     *targetUsecaseImpl
-		definitionUsecase *definitionUsecaseImpl
-		projectUsecase    *projectUsecaseImpl
-		userUsecase       *userUsecaseImpl
-		testProject       = "app-project"
-		testApp           = "test-app"
-		defaultTarget     = "default"
-		namespace1        = "app-test2"
-		envnsdev          = "envnsdev"
-		envnstest         = "envnstest"
+		rbacUsecase        *rbacUsecaseImpl
+		appUsecase         *applicationUsecaseImpl
+		workflowUsecase    *workflowUsecaseImpl
+		envUsecase         *envUsecaseImpl
+		envBindingUsecase  *envBindingUsecaseImpl
+		targetUsecase      *targetUsecaseImpl
+		definitionUsecase  *definitionUsecaseImpl
+		projectUsecase     *projectUsecaseImpl
+		userUsecase        *userUsecaseImpl
+		testProject        = "app-project"
+		testApp            = "test-app"
+		defaultTarget      = "default"
+		defaultTarget2     = "default2"
+		namespace1         = "app-test1"
+		namespace2         = "app-test2"
+		envnsdev           = "envnsdev"
+		envnstest          = "envnstest"
+		overridePolicyName = "test-override"
 	)
 
 	BeforeEach(func() {
@@ -82,6 +83,7 @@ var _ = Describe("Test application usecase function", func() {
 			workflowUsecase:   workflowUsecase,
 			apply:             apply.NewAPIApplicator(k8sClient),
 			kubeClient:        k8sClient,
+			kubeConfig:        cfg,
 			envBindingUsecase: envBindingUsecase,
 			envUsecase:        envUsecase,
 			definitionUsecase: definitionUsecase,
@@ -106,13 +108,18 @@ var _ = Describe("Test application usecase function", func() {
 		_, err = projectUsecase.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject, Owner: model.DefaultAdminUserName})
 		Expect(err).Should(BeNil())
 
-		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{
+			Name: defaultTarget, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace1}})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: "app-dev"})
+		_, err = targetUsecase.CreateTarget(context.TODO(), v1.CreateTargetRequest{
+			Name: defaultTarget2, Project: testProject, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: namespace2}})
 		Expect(err).Should(BeNil())
 
-		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Namespace: envnstest, Targets: []string{defaultTarget}, Project: "app-test"})
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-dev", Namespace: envnsdev, Targets: []string{defaultTarget}, Project: testProject})
+		Expect(err).Should(BeNil())
+
+		_, err = envUsecase.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-test", Namespace: envnstest, Targets: []string{defaultTarget2}, Project: testProject})
 		Expect(err).Should(BeNil())
 		req := v1.CreateApplicationRequest{
 			Name:        testApp,
@@ -160,7 +167,7 @@ var _ = Describe("Test application usecase function", func() {
 		detail, err := appUsecase.DetailApplication(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(1))).Should(BeEmpty())
-		Expect(cmp.Diff(len(detail.Policies), 0)).Should(BeEmpty())
+		Expect(cmp.Diff(len(detail.Policies), 2)).Should(BeEmpty())
 	})
 
 	It("Test CreateTrigger function", func() {
@@ -268,17 +275,17 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
 		_, err = appUsecase.CreatePolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
-			Name:        EnvBindingPolicyDefaultName,
+			Name:        overridePolicyName,
 			Description: "this is a test2 policy",
-			Type:        "env-binding",
-			Properties:  `{"envs":{ "name": "test", "placement":{"namespaceSelector":{ "name": "TEST_NAMESPACE"}}, "selector":{ "components": ["data-worker"]}}}`,
+			Type:        "override",
+			Properties:  `{"components":[{"name":"component-name"}]}`,
 		})
 		Expect(err).Should(BeNil())
 
 		_, err = appUsecase.CreatePolicy(context.TODO(), appModel, v1.CreatePolicyRequest{
-			Name:        EnvBindingPolicyDefaultName,
+			Name:        overridePolicyName,
 			Description: "this is a test2 policy",
-			Type:        "env-binding",
+			Type:        "override",
 			Properties:  ``,
 		})
 		Expect(cmp.Equal(err, bcode.ErrApplicationPolicyExist, cmpopts.EquateErrors())).Should(BeTrue())
@@ -291,36 +298,42 @@ var _ = Describe("Test application usecase function", func() {
 
 		policies, err := appUsecase.ListPolicies(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(len(policies), 1)).Should(BeEmpty())
+		var count int
+		for _, p := range policies {
+			if p.Type == "override" {
+				count++
+			}
+		}
+		Expect(cmp.Diff(count, 1)).Should(BeEmpty())
 	})
 
 	It("Test DetailPolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		detail, err := appUsecase.DetailPolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
+		detail, err := appUsecase.DetailPolicy(context.TODO(), appModel, overridePolicyName)
 		Expect(err).Should(BeNil())
 		Expect(detail.Properties).ShouldNot(BeNil())
-		Expect((*detail.Properties)["envs"]).ShouldNot(BeEmpty())
+		Expect((*detail.Properties)["components"]).ShouldNot(BeEmpty())
 	})
 
 	It("Test UpdatePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		base, err := appUsecase.UpdatePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName, v1.UpdatePolicyRequest{
-			Type:       "env-binding",
-			Properties: `{"envs":{}}`,
+		base, err := appUsecase.UpdatePolicy(context.TODO(), appModel, overridePolicyName, v1.UpdatePolicyRequest{
+			Type:       "override",
+			Properties: `{"components":{}}`,
 		})
 		Expect(err).Should(BeNil())
 		Expect(base.Properties).ShouldNot(BeNil())
-		Expect((*base.Properties)["envs"]).Should(BeEmpty())
+		Expect((*base.Properties)["components"]).Should(BeEmpty())
 	})
 	It("Test DeletePolicy function", func() {
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		err = appUsecase.DeletePolicy(context.TODO(), appModel, EnvBindingPolicyDefaultName)
+		err = appUsecase.DeletePolicy(context.TODO(), appModel, overridePolicyName)
 		Expect(err).Should(BeNil())
 	})
 
@@ -426,54 +439,6 @@ var _ = Describe("Test application usecase function", func() {
 		resp, err = appUsecase.ListRecords(context.TODO(), "app-records")
 		Expect(err).Should(BeNil())
 		Expect(resp.Total).Should(Equal(int64(3)))
-	})
-
-	It("Test createTargetClusterEnv function", func() {
-		var namespace corev1.Namespace
-		err := k8sClient.Get(context.TODO(), k8stypes.NamespacedName{Name: types.DefaultKubeVelaNS}, &namespace)
-		if apierrors.IsNotFound(err) {
-			err := k8sClient.Create(context.TODO(), &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: types.DefaultKubeVelaNS,
-				},
-			})
-			Expect(err).Should(BeNil())
-		} else {
-			Expect(err).Should(BeNil())
-		}
-		definition := &v1beta1.ComponentDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "aliyun-rds",
-				Namespace: types.DefaultKubeVelaNS,
-			},
-			Spec: v1beta1.ComponentDefinitionSpec{
-				Workload: common.WorkloadTypeDescriptor{
-					Type: TerraformWorkloadType,
-				},
-			},
-		}
-		err = k8sClient.Create(context.TODO(), definition)
-		Expect(err).Should(BeNil())
-		envConfig := appUsecase.createTargetClusterEnv(context.TODO(), &model.EnvBinding{
-			Name: "prod",
-		}, &model.Env{
-			Name: "prod",
-		}, &model.Target{
-			Name: "prod",
-			Variable: map[string]interface{}{
-				"region":       "hangzhou",
-				"providerName": "aliyun",
-			},
-		}, []*model.ApplicationComponent{
-			{
-				Name: "component1",
-				Type: "aliyun-rds",
-			},
-		})
-		Expect(cmp.Diff(len(envConfig.Patch.Components), 1)).Should(BeEmpty())
-		Expect(cmp.Diff(strings.Contains(string(envConfig.Patch.Components[0].Properties.Raw), "aliyun"), true)).Should(BeEmpty())
-		err = k8sClient.Delete(context.TODO(), definition)
-		Expect(err).Should(BeNil())
 	})
 
 	It("Test CompareAppWithLatestRevision function", func() {

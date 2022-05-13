@@ -33,12 +33,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
@@ -61,8 +61,6 @@ import (
 type PolicyType string
 
 const (
-	// EnvBindingPolicy Multiple environment distribution policy
-	EnvBindingPolicy PolicyType = "env-binding"
 
 	// EnvBindingPolicyDefaultName default policy name
 	EnvBindingPolicyDefaultName string = "env-bindings"
@@ -110,6 +108,7 @@ type ApplicationUsecase interface {
 type applicationUsecaseImpl struct {
 	ds                datastore.DataStore
 	kubeClient        client.Client
+	kubeConfig        *rest.Config
 	apply             apply.Applicator
 	workflowUsecase   WorkflowUsecase
 	envUsecase        EnvUsecase
@@ -134,12 +133,17 @@ func NewApplicationUsecase(ds datastore.DataStore,
 	if err != nil {
 		log.Logger.Fatalf("get kube client failure %s", err.Error())
 	}
+	config, err := clients.GetKubeConfig()
+	if err != nil {
+		log.Logger.Fatalf("get kube rest config failure %s", err.Error())
+	}
 	return &applicationUsecaseImpl{
 		ds:                ds,
 		workflowUsecase:   workflowUsecase,
 		envBindingUsecase: envBindingUsecase,
 		targetUsecase:     targetUsecase,
 		kubeClient:        kubecli,
+		kubeConfig:        config,
 		apply:             apply.NewAPIApplicator(kubecli),
 		definitionUsecase: definitionUsecase,
 		projectUsecase:    projectUsecase,
@@ -299,12 +303,6 @@ func (c *applicationUsecaseImpl) DetailApplication(ctx context.Context, app *mod
 		ResourceInfo: apisv1.ApplicationResourceInfo{
 			ComponentNum: componentNum,
 		},
-		ApplicationType: func() string {
-			if GetSuitableDeployWay(ctx, c.kubeClient, c.ds, app) == DeployCloudResource {
-				return "cloud"
-			}
-			return "common"
-		}(),
 	}
 	return detail, nil
 }
@@ -504,34 +502,6 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 		}
 	}
 	return resp, nil
-}
-
-func (c *applicationUsecaseImpl) genPolicyByEnv(ctx context.Context, app *model.Application, envName string, components []*model.ApplicationComponent) (v1beta1.AppPolicy, error) {
-	appPolicy := v1beta1.AppPolicy{}
-	envBinding, err := c.envBindingUsecase.GetEnvBinding(ctx, app, envName)
-	if err != nil {
-		return appPolicy, err
-	}
-	appPolicy.Name = genPolicyName(envBinding.Name)
-	appPolicy.Type = string(EnvBindingPolicy)
-	env, err := c.envUsecase.GetEnv(ctx, envName)
-	if err != nil {
-		return appPolicy, err
-	}
-	var envBindingSpec v1alpha1.EnvBindingSpec
-	for _, targetName := range env.Targets {
-		target, err := c.targetUsecase.GetTarget(ctx, targetName)
-		if err != nil || target == nil {
-			return appPolicy, bcode.ErrFoundEnvbindingDeliveryTarget
-		}
-		envBindingSpec.Envs = append(envBindingSpec.Envs, c.createTargetClusterEnv(ctx, envBinding, env, target, components))
-	}
-	properties, err := model.NewJSONStructByStruct(envBindingSpec)
-	if err != nil {
-		return appPolicy, bcode.ErrInvalidProperties
-	}
-	appPolicy.Properties = properties.RawExtension()
-	return appPolicy, nil
 }
 
 func (c *applicationUsecaseImpl) saveApplicationEnvBinding(ctx context.Context, app model.Application, envBindings []*apisv1.EnvBinding) error {
@@ -910,17 +880,30 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 		return nil, bcode.ErrNoComponent
 	}
 
+	// query the policies for this environment
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: appModel.PrimaryKey(),
 	}
-	policies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
+	policies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{
+		FilterOptions: datastore.FilterOptions{
+			IsNotExist: []datastore.IsNotExistQueryOption{{
+				Key: "envName",
+			},
+			},
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	var componentModels []*model.ApplicationComponent
+	policy.EnvName = env.Name
+	envPolicies, err := c.ds.List(ctx, &policy, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	policies = append(policies, envPolicies...)
+
 	for _, entity := range components {
 		component := entity.(*model.ApplicationComponent)
-		componentModels = append(componentModels, component)
 		var traits []common.ApplicationTrait
 		for _, trait := range component.Traits {
 			aTrait := common.ApplicationTrait{
@@ -950,35 +933,29 @@ func (c *applicationUsecaseImpl) renderOAMApplication(ctx context.Context, appMo
 
 	for _, entity := range policies {
 		policy := entity.(*model.ApplicationPolicy)
-		apolicy := v1beta1.AppPolicy{
+		appPolicy := v1beta1.AppPolicy{
 			Name: policy.Name,
 			Type: policy.Type,
 		}
 		if policy.Properties != nil {
-			apolicy.Properties = policy.Properties.RawExtension()
+			appPolicy.Properties = policy.Properties.RawExtension()
 		}
-		app.Spec.Policies = append(app.Spec.Policies, apolicy)
+		app.Spec.Policies = append(app.Spec.Policies, appPolicy)
 	}
-	if workflow.EnvName != "" {
-		envPolicy, err := c.genPolicyByEnv(ctx, appModel, workflow.EnvName, componentModels)
-		if err != nil {
-			return nil, err
-		}
-		app.Spec.Policies = append(app.Spec.Policies, envPolicy)
-	}
+
 	app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
 	var steps []v1beta1.WorkflowStep
 	for _, step := range workflow.Steps {
-		var wstep = v1beta1.WorkflowStep{
+		var workflowStep = v1beta1.WorkflowStep{
 			Name:    step.Name,
 			Type:    step.Type,
 			Inputs:  step.Inputs,
 			Outputs: step.Outputs,
 		}
 		if step.Properties != nil {
-			wstep.Properties = step.Properties.RawExtension()
+			workflowStep.Properties = step.Properties.RawExtension()
 		}
-		steps = append(steps, wstep)
+		steps = append(steps, workflowStep)
 	}
 	app.Spec.Workflow = &v1beta1.Workflow{
 		Steps: steps,
@@ -1148,12 +1125,18 @@ func (c *applicationUsecaseImpl) UpdateComponent(ctx context.Context, app *model
 }
 
 func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
+	var cd v1beta1.ComponentDefinition
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: com.ComponentType, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
+		log.Logger.Warnf("component definition %s get failure. %s", com.ComponentType, err.Error())
+		return nil, bcode.ErrComponentTypeNotSupport
+	}
+	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
 	componentModel := model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
 		Description:   com.Description,
 		Labels:        com.Labels,
 		Icon:          com.Icon,
-		Creator:       "", // TODO: Get user information from ctx and assign a value.
+		Creator:       userName,
 		Name:          com.Name,
 		Type:          com.ComponentType,
 		DependsOn:     com.DependsOn,
@@ -1161,6 +1144,7 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 		Outputs:       com.Outputs,
 		Alias:         com.Alias,
 		Main:          main,
+		WorkloadType:  cd.Spec.Workload,
 	}
 	var traits []model.ApplicationTrait
 	var traitTypes = make(map[string]bool)
@@ -1200,6 +1184,12 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 		}
 		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
+	}
+	// update the workflow if added a first cloud resource component
+	if cd.Spec.Workload.Type == TerraformWorkloadType {
+		if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
+			return nil, bcode.ErrEnvBindingUpdateWorkflow
+		}
 	}
 	return convertComponentModelToBase(&componentModel), nil
 }
@@ -1257,6 +1247,7 @@ func convertComponentModelToBase(componentModel *model.ApplicationComponent) *ap
 			}
 			return
 		}(),
+		WorkloadType: componentModel.WorkloadType,
 	}
 }
 
@@ -1271,17 +1262,23 @@ func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model
 		log.Logger.Warnf("delete app component %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
+	// update the workflow if added a first cloud resource component
+	if component.WorkloadType.Type == TerraformWorkloadType {
+		if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
+			return bcode.ErrEnvBindingUpdateWorkflow
+		}
+	}
 	return nil
 }
 
 func (c *applicationUsecaseImpl) CreatePolicy(ctx context.Context, app *model.Application, createpolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
+	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
 	policyModel := model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Description:   createpolicy.Description,
-		// TODO: Get user information from ctx and assign a value.
-		Creator: "",
-		Name:    createpolicy.Name,
-		Type:    createpolicy.Type,
+		Creator:       userName,
+		Name:          createpolicy.Name,
+		Type:          createpolicy.Type,
 	}
 	properties, err := model.NewJSONStructByString(createpolicy.Properties)
 	if err != nil {
@@ -1295,15 +1292,7 @@ func (c *applicationUsecaseImpl) CreatePolicy(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add policy for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
-	return &apisv1.PolicyBase{
-		Name:        policyModel.Name,
-		Description: policyModel.Description,
-		Type:        policyModel.Type,
-		Creator:     policyModel.Creator,
-		CreateTime:  policyModel.CreateTime,
-		UpdateTime:  policyModel.UpdateTime,
-		Properties:  policyModel.Properties,
-	}, nil
+	return convertPolicyModelToBase(&policyModel), nil
 }
 
 func (c *applicationUsecaseImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string) error {
@@ -1538,9 +1527,14 @@ func (c *applicationUsecaseImpl) CompareAppWithLatestRevision(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-
-	diffResult, buff, err := compare(ctx, newApp, oldApp)
+	args := common2.Args{
+		Schema: common2.Scheme,
+	}
+	_ = args.SetConfig(c.kubeConfig)
+	args.SetClient(c.kubeClient)
+	diffResult, buff, err := compare(ctx, args, newApp, oldApp)
 	if err != nil {
+		log.Logger.Errorf("fail to compare the app %s", err.Error())
 		return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, err
 	}
 	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
@@ -1574,65 +1568,16 @@ func (c *applicationUsecaseImpl) DryRunAppOrRevision(ctx context.Context, appMod
 			return nil, err
 		}
 	}
-
-	dryRunResult, err := dryRunApplication(ctx, app)
+	args := common2.Args{
+		Schema: common2.Scheme,
+	}
+	_ = args.SetConfig(c.kubeConfig)
+	args.SetClient(c.kubeClient)
+	dryRunResult, err := dryRunApplication(ctx, args, app)
 	if err != nil {
 		return nil, err
 	}
 	return &apisv1.AppDryRunResponse{YAML: dryRunResult.String()}, nil
-}
-
-func (c *applicationUsecaseImpl) createTargetClusterEnv(ctx context.Context, envBind *model.EnvBinding, env *model.Env, target *model.Target, components []*model.ApplicationComponent) v1alpha1.EnvConfig {
-	placement := v1alpha1.EnvPlacement{}
-	if target.Cluster != nil {
-		placement.ClusterSelector = &common.ClusterSelector{Name: target.Cluster.ClusterName}
-		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{Name: target.Cluster.Namespace}
-	}
-	var componentPatchs []v1alpha1.EnvComponentPatch
-	// init cloud application region and provider info
-	for _, component := range components {
-		definition, err := GetComponentDefinition(ctx, c.kubeClient, component.Type)
-		if err != nil {
-			log.Logger.Errorf("get component definition %s failure %s", component.Type, err.Error())
-			continue
-		}
-		if definition != nil {
-			if definition.Spec.Workload.Type == TerraformWorkloadType ||
-				definition.Spec.Workload.Definition.Kind == TerraformWorkloadKind {
-				properties := model.JSONStruct{
-					"providerRef": map[string]interface{}{
-						"name": "default",
-					},
-					"writeConnectionSecretToRef": map[string]interface{}{
-						"name":      fmt.Sprintf("%s-%s", component.Name, envBind.Name),
-						"namespace": env.Namespace,
-					},
-				}
-				if region, ok := target.Variable["region"]; ok {
-					properties["region"] = region
-				}
-				if providerName, ok := target.Variable["providerName"]; ok {
-					properties["providerRef"].(map[string]interface{})["name"] = providerName
-				}
-				if providerNamespace, ok := target.Variable["providerNamespace"]; ok {
-					properties["providerRef"].(map[string]interface{})["namespace"] = providerNamespace
-				}
-				componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
-					Name:       component.Name,
-					Properties: properties.RawExtension(),
-					Type:       component.Type,
-				})
-			}
-		}
-	}
-
-	return v1alpha1.EnvConfig{
-		Name:      genPolicyEnvName(target.Name),
-		Placement: placement,
-		Patch: v1alpha1.EnvPatch{
-			Components: componentPatchs,
-		},
-	}
 }
 
 func genPolicyName(envName string) string {
@@ -1747,16 +1692,13 @@ func (c *applicationUsecaseImpl) resetApp(ctx context.Context, targetApp *v1beta
 	return &apisv1.AppResetResponse{IsReset: true}, nil
 }
 
-func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buffer, error) {
-	c := common2.Args{
-		Schema: common2.Scheme,
-	}
+func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Application) (bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
 	newClient, err := c.GetClient()
 	if err != nil {
 		return buff, err
 	}
-	var objs []oam.Object
+	var objects []oam.Object
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return buff, err
@@ -1769,10 +1711,10 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	if err != nil {
 		return buff, err
 	}
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects)
 	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
-		return buff, errors.New("generate OAM objects")
+		return buff, fmt.Errorf("generate OAM objects %w", err)
 	}
 	var components = make(map[string]*unstructured.Unstructured)
 	for _, comp := range comps {
@@ -1806,6 +1748,8 @@ func dryRunApplication(ctx context.Context, app *v1beta1.Application) (bytes.Buf
 	return buff, nil
 }
 
+// ignoreSomeParams ignore some parameters before comparing the app changes.
+// ignore the workflow spec
 func ignoreSomeParams(o *v1beta1.Application) {
 	// set default
 	o.ResourceVersion = ""
@@ -1821,11 +1765,8 @@ func ignoreSomeParams(o *v1beta1.Application) {
 	o.SetAnnotations(newAnnotations)
 }
 
-func compare(ctx context.Context, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
+func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
-	c := common2.Args{
-		Schema: common2.Scheme,
-	}
 	_, err := c.GetClient()
 	if err != nil {
 		return nil, buff, err

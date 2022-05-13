@@ -206,13 +206,13 @@ var _ = Describe("Test application rest api", func() {
 		var req2 = apisv1.CreatePolicyRequest{
 			Name:        "test2",
 			Description: "this is a test2 policy",
-			Type:        "wqsdasd",
-			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+			Type:        "overide",
+			Properties:  `{"components": [{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}]}`,
 		}
 		res = post("/applications/"+appName+"/policies", req2)
 		var response apisv1.PolicyBase
 		Expect(decodeResponseBody(res, &response)).Should(Succeed())
-		Expect(cmp.Diff(response.Type, "wqsdasd")).Should(BeEmpty())
+		Expect(cmp.Diff(response.Type, "overide")).Should(BeEmpty())
 	})
 
 	It("Test detail application policy", func() {
@@ -226,7 +226,7 @@ var _ = Describe("Test application rest api", func() {
 	It("Test update application policy", func() {
 		var req = apisv1.UpdatePolicyRequest{
 			Description: "this is a test2 policy update",
-			Type:        "wqsdasd",
+			Type:        "overide",
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
 		res := put("/applications/"+appName+"/policies/test2", req)

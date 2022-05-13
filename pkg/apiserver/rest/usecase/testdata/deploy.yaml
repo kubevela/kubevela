@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Deploy components with policies.
   name: deploy
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: vela-system
 spec:
   schematic:
     cue:

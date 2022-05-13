@@ -135,7 +135,8 @@ type ApplicationComponent struct {
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-	Scopes map[string]string `json:"scopes,omitempty"`
+	Scopes       map[string]string             `json:"scopes,omitempty"`
+	WorkloadType common.WorkloadTypeDescriptor `json:"workloadType,omitempty"`
 }
 
 // TableName return custom table name
@@ -165,6 +166,9 @@ func (a *ApplicationComponent) Index() map[string]string {
 	if a.Type != "" {
 		index["type"] = a.Type
 	}
+	if a.WorkloadType.Type != "" {
+		index["workflowType"] = a.WorkloadType.Type
+	}
 	return index
 }
 
@@ -177,6 +181,9 @@ type ApplicationPolicy struct {
 	Type          string      `json:"type"`
 	Creator       string      `json:"creator"`
 	Properties    *JSONStruct `json:"properties,omitempty"`
+	// EnvName if it is not empty, the policy is only belong to this environment
+	// For auto created policies, this field will be assigned a value
+	EnvName string `json:"envName"`
 }
 
 // TableName return custom table name
@@ -205,6 +212,9 @@ func (a *ApplicationPolicy) Index() map[string]string {
 	}
 	if a.Type != "" {
 		index["type"] = a.Type
+	}
+	if a.EnvName != "" {
+		index["envName"] = a.EnvName
 	}
 	return index
 }
