@@ -32,6 +32,7 @@ func convertPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBas
 		Creator:     policy.Creator,
 		CreateTime:  policy.CreateTime,
 		UpdateTime:  policy.UpdateTime,
+		EnvName:     policy.EnvName,
 	}
 	return pb
 }

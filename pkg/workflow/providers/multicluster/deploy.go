@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
@@ -43,20 +44,24 @@ type DeployWorkflowStepExecutor interface {
 }
 
 // NewDeployWorkflowStepExecutor .
-func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck) DeployWorkflowStepExecutor {
+func NewDeployWorkflowStepExecutor(cli client.Client, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer, ignoreTerraformComponent bool) DeployWorkflowStepExecutor {
 	return &deployWorkflowStepExecutor{
-		cli:         cli,
-		af:          af,
-		apply:       apply,
-		healthCheck: healthCheck,
+		cli:                      cli,
+		af:                       af,
+		apply:                    apply,
+		healthCheck:              healthCheck,
+		renderer:                 renderer,
+		ignoreTerraformComponent: ignoreTerraformComponent,
 	}
 }
 
 type deployWorkflowStepExecutor struct {
-	cli         client.Client
-	af          *appfile.Appfile
-	apply       oamProvider.ComponentApply
-	healthCheck oamProvider.ComponentHealthCheck
+	cli                      client.Client
+	af                       *appfile.Appfile
+	apply                    oamProvider.ComponentApply
+	healthCheck              oamProvider.ComponentHealthCheck
+	renderer                 oamProvider.WorkloadRenderer
+	ignoreTerraformComponent bool
 }
 
 // Deploy execute deploy workflow step
@@ -65,7 +70,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	components, err := loadComponents(ctx, executor.cli, executor.af, executor.af.Components)
+	components, err := loadComponents(ctx, executor.renderer, executor.cli, executor.af, executor.af.Components, executor.ignoreTerraformComponent)
 	if err != nil {
 		return false, "", err
 	}
@@ -96,12 +101,21 @@ func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1bet
 	return selectedPolicies, nil
 }
 
-func loadComponents(ctx context.Context, cli client.Client, af *appfile.Appfile, components []common.ApplicationComponent) ([]common.ApplicationComponent, error) {
+func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, cli client.Client, af *appfile.Appfile, components []common.ApplicationComponent, ignoreTerraformComponent bool) ([]common.ApplicationComponent, error) {
 	var loadedComponents []common.ApplicationComponent
 	for _, comp := range components {
 		loadedComp, err := af.LoadDynamicComponent(ctx, cli, comp.DeepCopy())
 		if err != nil {
 			return nil, err
+		}
+		if ignoreTerraformComponent {
+			wl, err := renderer(comp)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to render component into workload")
+			}
+			if wl.CapabilityCategory == types.TerraformCategory {
+				continue
+			}
 		}
 		loadedComponents = append(loadedComponents, *loadedComp)
 	}

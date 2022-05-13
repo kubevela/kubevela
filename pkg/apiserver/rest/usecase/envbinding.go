@@ -97,7 +97,7 @@ func listFullEnvBinding(ctx context.Context, ds datastore.DataStore, option envL
 	if err != nil {
 		return nil, bcode.ErrEnvBindingsNotExist
 	}
-	targets, err := listTarget(ctx, ds, "", nil)
+	targets, err := listTarget(ctx, ds, option.projectName, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,12 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 	}
 	// delete env workflow
 	if err := e.deleteEnvWorkflow(ctx, appModel, convertWorkflowName(envBinding.Name)); err != nil {
-		return err
+		return fmt.Errorf("fail to clear the workflow belong to the env %w", err)
+	}
+
+	// delete the topology and env-bindings policies
+	if err := e.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: appModel.PrimaryKey(), EnvName: envName}); err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
+		return fmt.Errorf("fail to clear the policies belong to the env %w", err)
 	}
 	return nil
 }
@@ -292,17 +297,26 @@ func (e *envBindingUsecaseImpl) BatchDeleteEnvBinding(ctx context.Context, app *
 }
 
 func (e *envBindingUsecaseImpl) createEnvWorkflow(ctx context.Context, app *model.Application, env *model.Env, isDefault bool) error {
-	steps := GenEnvWorkflowSteps(ctx, e.kubeClient, e.ds, env, app)
-	_, err := e.workflowUsecase.CreateOrUpdateWorkflow(ctx, app, apisv1.CreateWorkflowRequest{
-		Name:        convertWorkflowName(env.Name),
-		Alias:       fmt.Sprintf("%s Workflow", env.Alias),
-		Description: "Created automatically by envbinding.",
-		EnvName:     env.Name,
-		Steps:       steps,
-		Default:     &isDefault,
-	})
-	if err != nil {
+	steps, policies := GenEnvWorkflowStepsAndPolicies(ctx, e.kubeClient, e.ds, env, app)
+	workflow := &model.Workflow{
+		Steps:         steps,
+		Name:          convertWorkflowName(env.Name),
+		Alias:         fmt.Sprintf("%s Workflow", env.Alias),
+		Description:   "Created automatically by envbinding.",
+		Default:       &isDefault,
+		EnvName:       env.Name,
+		AppPrimaryKey: app.PrimaryKey(),
+	}
+	log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(workflow.Name), utils2.Sanitize(app.PrimaryKey()))
+	if err := e.ds.Add(ctx, workflow); err != nil {
 		return err
+	}
+	err := e.ds.BatchAdd(ctx, policies)
+	if err != nil {
+		if err := e.workflowUsecase.DeleteWorkflow(ctx, app, convertWorkflowName(env.Name)); err != nil {
+			log.Logger.Errorf("fail to rollback the workflow after fail to create policies, %s", err.Error())
+		}
+		return fmt.Errorf("fail to create policies %w", err)
 	}
 	return nil
 }
@@ -408,8 +422,4 @@ func convertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 
 func convertWorkflowName(envName string) string {
 	return fmt.Sprintf("workflow-%s", envName)
-}
-
-func isEnvStepType(stepType string) bool {
-	return stepType == Deploy2Env || stepType == DeployCloudResource
 }
