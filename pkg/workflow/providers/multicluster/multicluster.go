@@ -45,6 +45,7 @@ type provider struct {
 	af          *appfile.Appfile
 	apply       oamProvider.ComponentApply
 	healthCheck oamProvider.ComponentHealthCheck
+	renderer    oamProvider.WorkloadRenderer
 }
 
 func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
@@ -176,7 +177,11 @@ func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Act
 	if parallelism <= 0 {
 		return errors.Errorf("parallelism cannot be smaller than 1")
 	}
-	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck)
+	ignoreTerraformComponent, err := v.GetBool("ignoreTerraformComponent")
+	if err != nil {
+		return err
+	}
+	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck, p.renderer, ignoreTerraformComponent)
 	healthy, reason, err := executor.Deploy(context.Background(), policyNames, int(parallelism))
 	if err != nil {
 		return err
@@ -188,8 +193,8 @@ func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Act
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck) {
-	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck}
+func Install(p providers.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer) {
+	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck, renderer: renderer}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"read-placement-decisions": prd.ReadPlacementDecisions,
 		"make-placement-decisions": prd.MakePlacementDecisions,

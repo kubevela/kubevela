@@ -36,7 +36,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
-
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -58,6 +57,7 @@ import (
 
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
@@ -96,6 +96,7 @@ func init() {
 	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformapi.AddToScheme(Scheme)
+	_ = terraformapiv1.AddToScheme(Scheme)
 	_ = ocmclusterv1alpha1.Install(Scheme)
 	_ = ocmclusterv1.Install(Scheme)
 	_ = ocmworkv1.Install(Scheme)
