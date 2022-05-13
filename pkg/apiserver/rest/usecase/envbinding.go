@@ -271,7 +271,7 @@ func (e *envBindingUsecaseImpl) DeleteEnvBinding(ctx context.Context, appModel *
 	}
 
 	// delete the topology and env-bindings policies
-	if err := e.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: appModel.PrimaryKey(), EnvName: envName}); err != nil {
+	if err := e.ds.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: appModel.PrimaryKey(), EnvName: envName}); err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
 		return fmt.Errorf("fail to clear the policies belong to the env %w", err)
 	}
 	return nil

@@ -234,7 +234,7 @@ var _ = Describe("Test application usecase function", func() {
 			Name:          "test2",
 			Description:   "this is a test2 component",
 			Labels:        map[string]string{},
-			ComponentType: "worker",
+			ComponentType: "webservice",
 			Properties:    `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 			DependsOn:     []string{"component-name"},
 			Traits: []*v1.CreateApplicationTraitRequest{
@@ -252,7 +252,7 @@ var _ = Describe("Test application usecase function", func() {
 			},
 		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(base.ComponentType, "worker")).Should(BeEmpty())
+		Expect(cmp.Diff(base.ComponentType, "webservice")).Should(BeEmpty())
 
 		detailResponse, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
@@ -610,7 +610,7 @@ var _ = Describe("Test application component usecase function", func() {
 		Expect(err).Should(BeNil())
 		appModel, err := appUsecase.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		_, err = appUsecase.CreateComponent(context.TODO(), appModel, v1.CreateComponentRequest{Name: "test2"})
+		_, err = appUsecase.CreateComponent(context.TODO(), appModel, v1.CreateComponentRequest{Name: "test2", ComponentType: "webservice"})
 		Expect(err).Should(BeNil())
 		alias := "alias"
 		description := "description"
@@ -625,10 +625,11 @@ var _ = Describe("Test application component usecase function", func() {
 		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 		Expect(comp).ShouldNot(BeNil())
-		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
-		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test.com"}`))
-		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
-		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
+		// A scaler trait is automatically generated for the webservice component.
+		Expect(len(comp.Traits)).Should(BeEquivalentTo(2))
+		Expect(comp.Traits[1].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test.com"}`))
+		Expect(comp.Traits[1].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[1].Description).Should(BeEquivalentTo(description))
 
 		Expect(err).Should(BeNil())
 		_, err = appUsecase.CreateApplicationTrait(context.TODO(), appModel, &model.ApplicationComponent{Name: "test2"}, v1.CreateApplicationTraitRequest{
@@ -653,10 +654,10 @@ var _ = Describe("Test application component usecase function", func() {
 		comp, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 		Expect(comp).ShouldNot(BeNil())
-		Expect(len(comp.Traits)).Should(BeEquivalentTo(1))
-		Expect(comp.Traits[0].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test1.com"}`))
-		Expect(comp.Traits[0].Alias).Should(BeEquivalentTo(alias))
-		Expect(comp.Traits[0].Description).Should(BeEquivalentTo(description))
+		Expect(len(comp.Traits)).Should(BeEquivalentTo(2))
+		Expect(comp.Traits[1].Properties.JSON()).Should(BeEquivalentTo(`{"domain":"www.test1.com"}`))
+		Expect(comp.Traits[1].Alias).Should(BeEquivalentTo(alias))
+		Expect(comp.Traits[1].Description).Should(BeEquivalentTo(description))
 	})
 
 	It("Test update a not exist", func() {
@@ -676,7 +677,7 @@ var _ = Describe("Test application component usecase function", func() {
 		app, err := appUsecase.DetailComponent(context.TODO(), appModel, "test2")
 		Expect(err).Should(BeNil())
 		Expect(app).ShouldNot(BeNil())
-		Expect(len(app.Traits)).Should(BeEquivalentTo(0))
+		Expect(len(app.Traits)).Should(BeEquivalentTo(1))
 	})
 })
 
