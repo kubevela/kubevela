@@ -403,6 +403,7 @@ func (c *applicationUsecaseImpl) CreateApplication(ctx context.Context, req apis
 		if err != nil {
 			return nil, err
 		}
+		// For the custom payload, no need assign the component name
 		if _, err := c.CreateApplicationTrigger(ctx, &application, apisv1.CreateApplicationTriggerRequest{
 			Name:         fmt.Sprintf("%s-%s", application.Name, "default"),
 			PayloadType:  model.PayloadTypeCustom,
@@ -434,6 +435,7 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 		Description:   req.Description,
 		Type:          req.Type,
 		PayloadType:   req.PayloadType,
+		ComponentName: req.ComponentName,
 		Token:         genWebhookToken(),
 	}
 	if err := c.ds.Add(ctx, trigger); err != nil {
@@ -449,7 +451,7 @@ func (c *applicationUsecaseImpl) CreateApplicationTrigger(ctx context.Context, a
 		Type:          req.Type,
 		PayloadType:   req.PayloadType,
 		Token:         trigger.Token,
-		ComponentName: req.ComponentName,
+		ComponentName: trigger.ComponentName,
 		CreateTime:    trigger.CreateTime,
 		UpdateTime:    trigger.UpdateTime,
 	}, nil
@@ -489,15 +491,16 @@ func (c *applicationUsecaseImpl) ListApplicationTriggers(ctx context.Context, ap
 		trigger, ok := raw.(*model.ApplicationTrigger)
 		if ok {
 			resp = append(resp, &apisv1.ApplicationTriggerBase{
-				WorkflowName: trigger.WorkflowName,
-				Name:         trigger.Name,
-				Alias:        trigger.Alias,
-				Description:  trigger.Description,
-				Type:         trigger.Type,
-				PayloadType:  trigger.PayloadType,
-				Token:        trigger.Token,
-				UpdateTime:   trigger.UpdateTime,
-				CreateTime:   trigger.CreateTime,
+				WorkflowName:  trigger.WorkflowName,
+				Name:          trigger.Name,
+				Alias:         trigger.Alias,
+				Description:   trigger.Description,
+				Type:          trigger.Type,
+				PayloadType:   trigger.PayloadType,
+				Token:         trigger.Token,
+				UpdateTime:    trigger.UpdateTime,
+				CreateTime:    trigger.CreateTime,
+				ComponentName: trigger.ComponentName,
 			})
 		}
 	}
