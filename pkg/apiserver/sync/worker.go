@@ -64,7 +64,7 @@ func startAppSyncing(ctx context.Context, factory dynamicinformer.DynamicSharedI
 		}
 		err = json.Unmarshal(bs, app)
 		if err != nil {
-			klog.Errorf("failed to convert obj %v to application with marshal err %v", obj, err)
+			klog.Errorf("failed to convert bs %v to application with marshal err %v", bs, err)
 		}
 		return app
 	}

@@ -35,7 +35,7 @@ type Context interface {
 	SetBase(base model.Instance) error
 	AppendAuxiliaries(auxiliaries ...Auxiliary) error
 	Output() (model.Instance, []Auxiliary)
-	BaseContextFile() string
+	BaseContextFile() (string, error)
 	ExtendedContextFile() string
 	BaseContextLabels() map[string]string
 	SetParameters(params map[string]interface{})
@@ -171,7 +171,7 @@ func (ctx *templateContext) AppendAuxiliaries(auxiliaries ...Auxiliary) error {
 }
 
 // BaseContextFile return cue format string of templateContext
-func (ctx *templateContext) BaseContextFile() string {
+func (ctx *templateContext) BaseContextFile() (string, error) {
 	var buff string
 	buff += fmt.Sprintf(model.ContextName+": \"%s\"\n", ctx.name)
 	buff += fmt.Sprintf(model.ContextAppName+": \"%s\"\n", ctx.appName)
@@ -187,7 +187,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.appLabels != nil {
 		bt, err := json.Marshal(ctx.appLabels)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += model.ContextAppLabels + ": " + string(bt) + "\n"
 	}
@@ -195,7 +195,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.appAnnotations != nil {
 		bt, err := json.Marshal(ctx.appAnnotations)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += model.ContextAppAnnotations + ": " + string(bt) + "\n"
 	}
@@ -207,7 +207,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.components != nil {
 		bt, err := json.Marshal(ctx.components)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += fmt.Sprintf(model.ContextComponents+":%s\n", string(bt))
 	}
@@ -225,7 +225,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if len(ctx.configs) > 0 {
 		bt, err := json.Marshal(ctx.configs)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += model.ConfigFieldName + ": " + string(bt) + "\n"
 	}
@@ -234,7 +234,7 @@ func (ctx *templateContext) BaseContextFile() string {
 		for _, s := range ctx.requiredSecrets {
 			data, err := json.Marshal(s.Data)
 			if err != nil {
-				return err.Error()
+				return "", err
 			}
 			buff += s.ContextName + ":" + string(data) + "\n"
 		}
@@ -243,7 +243,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.parameters != nil {
 		bt, err := json.Marshal(ctx.parameters)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += model.ParameterFieldName + ": " + string(bt) + "\n"
 	}
@@ -255,24 +255,26 @@ func (ctx *templateContext) BaseContextFile() string {
 	if ctx.data != nil {
 		d, err := json.Marshal(ctx.data)
 		if err != nil {
-			return err.Error()
+			return "", err
 		}
 		buff += fmt.Sprintf("\n %s", structMarshal(string(d)))
 	}
 
-	return fmt.Sprintf("context: %s", structMarshal(buff))
+	return fmt.Sprintf("context: %s", structMarshal(buff)), nil
 }
 
 // ExtendedContextFile return cue format string of templateContext and extended secret context
 func (ctx *templateContext) ExtendedContextFile() string {
-	context := ctx.BaseContextFile()
-
+	context, err := ctx.BaseContextFile()
+	if err != nil {
+		return fmt.Sprintf("failed to convert data to application with marshal err %v", err)
+	}
 	var bareSecret string
 	if len(ctx.requiredSecrets) > 0 {
 		for _, s := range ctx.requiredSecrets {
 			data, err := json.Marshal(s.Data)
 			if err != nil {
-				return err.Error()
+				return fmt.Sprintf("failed to convert data %v to application with marshal err %v", data, err)
 			}
 			bareSecret += s.ContextName + ":" + string(data) + "\n"
 		}
