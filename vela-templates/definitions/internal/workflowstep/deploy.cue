@@ -19,7 +19,8 @@ template: {
 		auto: *true | bool
 		//+usage=Declare the policies used for this step.
 		policies?: [...string]
-		parallelism:              *5 | int
+		//+usage=Maximum number of concurrent delivered components.
+		parallelism: *5 | int
 		//+usage=If set false, this step will apply the components with the terraform workload.
 		ignoreTerraformComponent: *true | bool
 	}
