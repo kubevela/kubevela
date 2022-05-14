@@ -169,6 +169,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 			return addonStatus, err
 		}
 	} else {
+		// Although normally `else` is not preferred, we must use `else` here.
 		args, err := FetchArgsFromSecret(&sec)
 		if err != nil {
 			return addonStatus, err
@@ -308,7 +309,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 		}
 	}
 
-	if len(registries) == 0 && len(registryNames) > 0 {
+	if len(registries) == 0 {
 		return nil, ErrRegistryNotExist
 	}
 
@@ -326,7 +327,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 		if IsVersionRegistry(r) {
 			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
 			for _, addonName := range addonNames {
-				wholePackage, err := vr.GetAddonWholePackage(ctx, addonName, "")
+				wholePackage, err := vr.GetDetailedAddon(ctx, addonName, "")
 				if err != nil {
 					continue
 				}

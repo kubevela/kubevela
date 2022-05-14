@@ -36,7 +36,7 @@ type VersionedRegistry interface {
 	ListAddon() ([]*UIData, error)
 	GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error)
 	GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error)
-	GetAddonWholePackage(ctx context.Context, addonName, version string) (*WholeAddonPackage, error)
+	GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error)
 }
 
 // BuildVersionedRegistry is build versioned addon registry
@@ -88,7 +88,7 @@ func (i *versionedRegistry) GetAddonInstallPackage(ctx context.Context, addonNam
 	return &wholePackage.InstallPackage, nil
 }
 
-func (i *versionedRegistry) GetAddonWholePackage(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
+func (i *versionedRegistry) GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
 	wholePackage, err := i.loadAddon(ctx, addonName, version)
 	if err != nil {
 		return nil, err
