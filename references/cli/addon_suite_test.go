@@ -134,15 +134,10 @@ var _ = Describe("Output of listing addons tests", func() {
 var _ = Describe("Addon status or info", func() {
 
 	When("addon is not installed locally, also not in registry", func() {
-		It("should only display addon name and disabled status, nothing more", func() {
+		It("should return an error, saying not found", func() {
 			addonName := "some-nonexistent-addon"
-			_, res, err := generateAddonInfo(k8sClient, addonName)
-			// This is expected. Even with nonexistent addon, upstream services will return nil.
-			// We will check nonexistent addon ourselves.
-			Expect(err).Should(BeNil())
-			expectedResponse := color.New(color.Bold).Sprintf("%s", addonName) + ": " +
-				color.New(color.Faint).Sprintf("%s", statusDisabled) + " \n"
-			Expect(res).To(Equal(expectedResponse))
+			_, _, err := generateAddonInfo(k8sClient, addonName)
+			Expect(err).ShouldNot(BeNil())
 		})
 	})
 
@@ -223,11 +218,11 @@ var _ = Describe("Addon status or info", func() {
 		})
 
 		AfterEach(func() {
+			// Delete fluxcd
+			Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
 			// Delete KubeVela registry
 			ds := pkgaddon.NewRegistryDataStore(k8sClient)
 			Expect(ds.DeleteRegistry(context.Background(), "KubeVela")).To(Succeed())
-			// Delete fluxcd
-			Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
 		})
 
 		JustBeforeEach(func() {
@@ -238,11 +233,10 @@ var _ = Describe("Addon status or info", func() {
 		It("should display addon name and enabled status, installed clusters, registry name, available versions, dependencies, and parameters(optional)", func() {
 			addonName := "fluxcd"
 			Eventually(func() error {
-				_, res, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(k8sClient, addonName)
 				if err != nil {
 					return err
 				}
-
 				// Should include enabled status, like:
 				// fluxcd: enabled (1.1.0)
 				if !strings.Contains(res,
@@ -251,7 +245,7 @@ var _ = Describe("Addon status or info", func() {
 					return fmt.Errorf("addon name incorrect, %s", res)
 				}
 
-				// We cannot really get installed clusters in test environment.
+				// We cannot really get installed clusters in this test environment.
 				// Might change how this test is conducted in the future.
 
 				// Should include registry name, like:
@@ -263,7 +257,6 @@ var _ = Describe("Addon status or info", func() {
 				) {
 					return fmt.Errorf("registry name incorrect, %s", res)
 				}
-
 				// Should include available versions, like:
 				// ==> Available Versions
 				// [v2.6.3]
@@ -273,7 +266,6 @@ var _ = Describe("Addon status or info", func() {
 				) {
 					return fmt.Errorf("available versions incorrect, %s", res)
 				}
-
 				// Should include dependencies, like:
 				// ==> Dependencies ✔
 				// []
@@ -283,7 +275,6 @@ var _ = Describe("Addon status or info", func() {
 				) {
 					return fmt.Errorf("dependencies incorrect, %s", res)
 				}
-
 				// fluxcd does not have any parameters, so we skip it.
 				return nil
 			}, 30*time.Second, 1000*time.Millisecond).Should(BeNil())
@@ -292,7 +283,7 @@ var _ = Describe("Addon status or info", func() {
 
 	When("addon is installed locally, but not in registry", func() {
 		fluxcd := v1beta1.Application{}
-		err := yaml.Unmarshal([]byte(fluxcdRemoteYaml), &fluxcd)
+		err := yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)
 		Expect(err).Should(BeNil())
 
 		BeforeEach(func() {
@@ -312,19 +303,29 @@ var _ = Describe("Addon status or info", func() {
 			addonName := "fluxcd"
 
 			Eventually(func() error {
-				_, res, err := generateAddonInfo(k8sClient, addonName)
+				res, _, err := generateAddonInfo(k8sClient, addonName)
 				if err != nil {
 					return err
 				}
-
 				// Should include enabled status, like:
 				// fluxcd: enabled (1.1.0)
 				if !strings.Contains(res,
 					color.New(color.Bold).Sprintf("%s", addonName)+": ",
 				) {
-					return fmt.Errorf("addon name and enabled status incorrect")
+					return fmt.Errorf("addon name and enabled status incorrect:, %s", res)
 				}
+				// We cannot really get installed clusters in this test environment.
+				// Might change how this test is conducted in the future.
 
+				// Should include registry name, like:
+				// ==> Registry Name
+				// local
+				if !strings.Contains(res,
+					color.New(color.Bold).Sprintf("%s", "Registry Name")+"\n"+
+						"local",
+				) {
+					return fmt.Errorf("registry name incorrect, %s", res)
+				}
 				return nil
 			}, 30*time.Second, 1000*time.Millisecond).Should(BeNil())
 		})

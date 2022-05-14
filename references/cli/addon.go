@@ -397,12 +397,12 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 		return err
 	}
 
-	status, str, err := generateAddonInfo(k8sClient, name)
+	statusString, status, err := generateAddonInfo(k8sClient, name)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(str)
+	fmt.Print(statusString)
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
@@ -414,7 +414,11 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	return nil
 }
 
-func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, error) {
+// generateAddonInfo will get addon status, description, version, dependencies (and whether they are installed),
+// and parameters (and their current values).
+// The first return value is the formatted string for printing.
+// The second return value is just for diagnostic purposes, as it is needed in statusAddon to print diagnostic info.
+func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, error) {
 	var res string
 	var phase string
 	var installed bool
@@ -423,9 +427,9 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Get addon install package
 	// We need the metadata to get descriptions about parameters
 	addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
-	// Not found error can be ignored. Others can't.
+	// Not found error can be ignored, because the user can define their own addon. Others can't.
 	if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-		return pkgaddon.Status{}, "", err
+		return "", pkgaddon.Status{}, err
 	}
 	if len(addonPackages) != 0 {
 		addonPackage = addonPackages[0]
@@ -434,7 +438,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// Check current addon status
 	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
 	if err != nil {
-		return status, "", err
+		return res, status, err
 	}
 
 	switch status.AddonPhase {
@@ -446,6 +450,15 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		installed = true
 		c := color.New(color.FgRed)
 		phase = c.Sprintf("%s", status.AddonPhase)
+	case statusDisabled:
+		c := color.New(color.Faint)
+		phase = c.Sprintf("%s", status.AddonPhase)
+		// If the addon is 1. disabled, and 2. does not exist in the registry
+		// means it does not exist at all.
+		// So, no need to go further, we return error message saying that we can't find it.
+		if addonPackage == nil {
+			return res, pkgaddon.Status{}, fmt.Errorf("addon %s is not found in registries nor locally installed", name)
+		}
 	default:
 		c := color.New(color.Faint)
 		phase = c.Sprintf("%s", status.AddonPhase)
@@ -479,7 +492,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 
 	// Registry name
 	registryName := status.InstalledRegistry
-	// Disabled addons will have empty InstalledRegistry, so we need to check it
+	// Disabled addons will have empty InstalledRegistry, so if the addon exists in the registry, we use the registry name.
 	if registryName == "" && addonPackage != nil {
 		registryName = addonPackage.RegistryName
 	}
@@ -491,7 +504,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 	// If the addon is installed from local sources, or does not exist at all, stop here!
 	// The following information is fetched from the Internet, which is not useful for local sources.
 	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" || addonPackage == nil {
-		return status, res, nil
+		return res, status, nil
 	}
 
 	// Available Versions
@@ -518,7 +531,7 @@ func generateAddonInfo(c client.Client, name string) (pkgaddon.Status, string, e
 		res += parameterString
 	}
 
-	return status, res, nil
+	return res, status, nil
 }
 
 func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.WholeAddonPackage) string {
