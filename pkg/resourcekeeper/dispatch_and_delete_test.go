@@ -42,13 +42,13 @@ func TestResourceKeeperDispatchAndDelete(t *testing.T) {
 	rk := _rk.(*resourceKeeper)
 	rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{
 		Rules: []v1alpha1.GarbageCollectPolicyRule{{
-			Selector: v1alpha1.GarbageCollectPolicyRuleSelector{TraitTypes: []string{"versioned"}},
+			Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"versioned"}},
 			Strategy: v1alpha1.GarbageCollectStrategyOnAppUpdate,
 		}, {
-			Selector: v1alpha1.GarbageCollectPolicyRuleSelector{TraitTypes: []string{"life-long"}},
+			Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"life-long"}},
 			Strategy: v1alpha1.GarbageCollectStrategyOnAppDelete,
 		}, {
-			Selector: v1alpha1.GarbageCollectPolicyRuleSelector{TraitTypes: []string{"eternal"}},
+			Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"eternal"}},
 			Strategy: v1alpha1.GarbageCollectStrategyNever,
 		},
 		}}

@@ -56,7 +56,7 @@ func newDispatchConfig(options ...DispatchOption) *dispatchConfig {
 
 // Dispatch dispatch resources
 func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption, options ...DispatchOption) (err error) {
-	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
+	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
 		options = append(options, MetaOnlyOption{})
 	}
 	// 0. check admission
