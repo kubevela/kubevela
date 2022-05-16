@@ -19,6 +19,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -144,6 +146,35 @@ var _ = Describe("Test application usecase function", func() {
 		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), &model.Application{Name: testApp})
 		Expect(err).Should(BeNil())
 		Expect(len(triggers)).Should(Equal(1))
+
+		By("test creating a cloud service application")
+
+		rds, err := os.ReadFile("./testdata/terraform-alibaba-rds.yaml")
+		Expect(err).Should(BeNil())
+		var cd v1beta1.ComponentDefinition
+		err = yaml.Unmarshal(rds, &cd)
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Create(context.TODO(), &cd))
+
+		req2 := v1.CreateApplicationRequest{
+			Name:        "test-cloud-application",
+			Project:     testProject,
+			Description: "this is a cloud service app",
+			EnvBinding: []*v1.EnvBinding{{
+				Name: "app-dev",
+			}},
+			Component: &v1.CreateComponentRequest{
+				Name:          "rds",
+				ComponentType: "alibaba-rds",
+				Properties:    "{\"password\":\"test\"}",
+			},
+		}
+		_, err = appUsecase.CreateApplication(context.TODO(), req2)
+		Expect(err).Should(BeNil())
+		err = appUsecase.DeleteApplication(context.TODO(), &model.Application{Project: testProject, Name: "test-cloud-application"})
+		Expect(err).Should(BeNil())
+		err = k8sClient.Delete(context.TODO(), &cd)
+		Expect(err).Should(BeNil())
 	})
 
 	It("Test ListApplications function", func() {
