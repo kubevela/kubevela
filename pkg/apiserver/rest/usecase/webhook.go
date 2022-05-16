@@ -219,19 +219,11 @@ func (c *customHandlerImpl) install() {
 }
 
 func (c *acrHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
-	comp := &model.ApplicationComponent{
-		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
-	}
-	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+
+	component, err := getComponent(ctx, c.w.ds, webhookTrigger)
 	if err != nil {
 		return nil, err
 	}
-	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponentNotExist
-	}
-
-	// use the first component as the target component
-	component := comps[0].(*model.ApplicationComponent)
 	acrReq := c.req
 	image := fmt.Sprintf("registry.%s.aliyuncs.com/%s:%s", acrReq.Repository.Region, acrReq.Repository.RepoFullName, acrReq.PushData.Tag)
 	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
@@ -278,20 +270,10 @@ func (c dockerHubHandlerImpl) handle(ctx context.Context, trigger *model.Applica
 			Description: "not create event",
 		}, nil
 	}
-
-	comp := &model.ApplicationComponent{
-		AppPrimaryKey: trigger.AppPrimaryKey,
-	}
-	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	component, err := getComponent(ctx, c.w.ds, trigger)
 	if err != nil {
 		return nil, err
 	}
-	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponentNotExist
-	}
-
-	// use the first component as the target component
-	component := comps[0].(*model.ApplicationComponent)
 	image := fmt.Sprintf("docker.io/%s:%s", dockerHubReq.Repository.RepoName, dockerHubReq.PushData.Tag)
 	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
 		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, image)),
@@ -387,19 +369,10 @@ func (c *harborHandlerImpl) handle(ctx context.Context, webhookTrigger *model.Ap
 	imageURL := resources[0].ResourceURL
 	digest := resources[0].Digest
 	tag := resources[0].Tag
-	comp := &model.ApplicationComponent{
-		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
-	}
-	comps, err := c.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	component, err := getComponent(ctx, c.w.ds, webhookTrigger)
 	if err != nil {
 		return nil, err
 	}
-	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponentNotExist
-	}
-
-	// use the first component as the target component
-	component := comps[0].(*model.ApplicationComponent)
 	harborReq := c.req
 	if err := c.w.patchComponentProperties(ctx, component, &runtime.RawExtension{
 		Raw: []byte(fmt.Sprintf(`{"image": "%s"}`, imageURL)),
@@ -453,19 +426,10 @@ func (c *webhookUsecaseImpl) newJFrogHandler(req *restful.Request) (webhookHandl
 
 func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.ApplicationTrigger, app *model.Application) (interface{}, error) {
 	jfrogReq := j.req
-	comp := &model.ApplicationComponent{
-		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
-	}
-	comps, err := j.w.ds.List(ctx, comp, &datastore.ListOptions{})
+	component, err := getComponent(ctx, j.w.ds, webhookTrigger)
 	if err != nil {
 		return nil, err
 	}
-	if len(comps) == 0 {
-		return nil, bcode.ErrApplicationComponentNotExist
-	}
-
-	// use the first component as the target component
-	component := comps[0].(*model.ApplicationComponent)
 	image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName, jfrogReq.Data.Tag)
 	if jfrogReq.Data.URL != "" {
 		image = fmt.Sprintf("%s/%s", jfrogReq.Data.URL, image)
@@ -499,4 +463,29 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 
 func (j *jfrogHandlerImpl) install() {
 	WebhookHandlers = append(WebhookHandlers, model.PayloadTypeJFrog)
+}
+
+func getComponent(ctx context.Context, ds datastore.DataStore, webhookTrigger *model.ApplicationTrigger) (*model.ApplicationComponent, error) {
+	if webhookTrigger.ComponentName != "" {
+		comp := &model.ApplicationComponent{
+			AppPrimaryKey: webhookTrigger.AppPrimaryKey,
+			Name:          webhookTrigger.ComponentName,
+		}
+		err := ds.Get(ctx, comp)
+		if err != nil {
+			return nil, err
+		}
+		return comp, nil
+	}
+	comp := &model.ApplicationComponent{
+		AppPrimaryKey: webhookTrigger.AppPrimaryKey,
+	}
+	comps, err := ds.List(ctx, comp, &datastore.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if len(comps) == 0 {
+		return nil, bcode.ErrApplicationComponentNotExist
+	}
+	return comps[0].(*model.ApplicationComponent), nil
 }

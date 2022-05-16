@@ -208,6 +208,12 @@ var _ = Describe("Test application usecase function", func() {
 			Name: "trigger-name",
 		})
 		Expect(err).Should(BeNil())
+		base, err := appUsecase.CreateApplicationTrigger(context.TODO(), appModel, v1.CreateApplicationTriggerRequest{
+			Name:          "trigger-name-2",
+			ComponentName: "trigger-component",
+		})
+		Expect(err).Should(BeNil())
+		Expect(base.ComponentName).Should(Equal("trigger-component"))
 	})
 
 	It("Test ListTriggers function", func() {
@@ -215,7 +221,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(len(triggers)).Should(Equal(2))
+		Expect(len(triggers)).Should(Equal(3))
 	})
 
 	It("Test DeleteTrigger function", func() {
@@ -223,7 +229,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(err).Should(BeNil())
 		triggers, err := appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(len(triggers)).Should(Equal(2))
+		Expect(len(triggers)).Should(Equal(3))
 		var trigger *v1.ApplicationTriggerBase
 		for _, t := range triggers {
 			if t.Name == "trigger-name" {
@@ -235,7 +241,7 @@ var _ = Describe("Test application usecase function", func() {
 		Expect(appUsecase.DeleteApplicationTrigger(context.TODO(), appModel, trigger.Token)).Should(BeNil())
 		triggers, err = appUsecase.ListApplicationTriggers(context.TODO(), appModel)
 		Expect(err).Should(BeNil())
-		Expect(len(triggers)).Should(Equal(1))
+		Expect(len(triggers)).Should(Equal(2))
 		trigger = nil
 		for _, t := range triggers {
 			if t.Name == "trigger-name" {
