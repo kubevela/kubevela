@@ -1185,12 +1185,11 @@ func (c *applicationUsecaseImpl) createComponent(ctx context.Context, app *model
 		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
-	// update the workflow if added a first cloud resource component
-	if cd.Spec.Workload.Type == TerraformWorkloadType {
-		if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
-			return nil, bcode.ErrEnvBindingUpdateWorkflow
-		}
+	// update the env workflow, the automatically generated workflow is determined by the component type.
+	if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
+		return nil, bcode.ErrEnvBindingUpdateWorkflow
 	}
+
 	return convertComponentModelToBase(&componentModel), nil
 }
 
