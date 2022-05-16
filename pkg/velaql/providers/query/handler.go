@@ -81,6 +81,9 @@ type Option struct {
 	Name      string       `json:"name"`
 	Namespace string       `json:"namespace"`
 	Filter    FilterOption `json:"filter,omitempty"`
+	// WithStatus means query the object from the cluster and get the latest status
+	// This field only suitable for ListResourcesInApp
+	WithStatus bool `json:"withStatus,omitempty"`
 }
 
 // FilterOption filter resource created by component
@@ -88,9 +91,11 @@ type FilterOption struct {
 	Cluster          string   `json:"cluster,omitempty"`
 	ClusterNamespace string   `json:"clusterNamespace,omitempty"`
 	Components       []string `json:"components,omitempty"`
+	APIVersion       string   `json:"apiVersion,omitempty"`
+	Kind             string   `json:"kind,omitempty"`
 }
 
-// ListResourcesInApp lists CRs created by Application
+// ListResourcesInApp lists CRs created by Application, this provider queries the object data.
 func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -108,7 +113,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	return v.FillObject(appResList, "list")
 }
 
-// ListAppliedResources list applied resource from tracker
+// ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
 func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
