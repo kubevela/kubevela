@@ -46,7 +46,7 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	_ "github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/features"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -205,15 +205,16 @@ func main() {
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
-	restConfig.Impersonate.UserName = types.VelaCoreName
-	if sub := pkgutils.GetServiceAccountSubjectFromConfig(restConfig); sub != "" {
-		restConfig.Impersonate.UserName = sub
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ControllerAutoImpersonation) {
+		restConfig.Impersonate.UserName = types.VelaCoreName
+		restConfig.Impersonate.Groups = []string{apicommon.Group}
+		pkgutils.AutoSetSelfImpersonationInConfig(restConfig)
 	}
-	restConfig.Impersonate.Groups = []string{apicommon.Group}
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", restConfig.UserAgent,
 		"QPS", restConfig.QPS,
 		"Burst", restConfig.Burst,
+		"Auto-Impersonation", utilfeature.DefaultMutableFeatureGate.Enabled(features.ControllerAutoImpersonation),
 		"Impersonate-User", restConfig.Impersonate.UserName,
 		"Impersonate-Group", strings.Join(restConfig.Impersonate.Groups, ","),
 	)

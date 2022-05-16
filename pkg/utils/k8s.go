@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -112,4 +113,27 @@ func UpdateNamespace(ctx context.Context, kubeClient client.Client, name string,
 func GetServiceAccountSubjectFromConfig(cfg *rest.Config) string {
 	sub, _ := GetTokenSubject(cfg.BearerToken)
 	return sub
+}
+
+// GetCertificateCommonNameAndOrganizationsFromConfig extract CommonName and Organizations from Certificate
+func GetCertificateCommonNameAndOrganizationsFromConfig(cfg *rest.Config) (string, []string) {
+	cert := cfg.CertData
+	if len(cert) == 0 && cfg.CertFile != "" {
+		cert, _ = ioutil.ReadFile(cfg.CertFile)
+	}
+	name, _ := GetCertificateSubject(cert)
+	if name == nil {
+		return "", nil
+	}
+	return name.CommonName, name.Organization
+}
+
+// AutoSetSelfImpersonationInConfig set impersonate username and group to the identity in the original rest config
+func AutoSetSelfImpersonationInConfig(cfg *rest.Config) {
+	if sub := GetServiceAccountSubjectFromConfig(cfg); sub != "" {
+		cfg.Impersonate.UserName = sub
+	} else if cn, orgs := GetCertificateCommonNameAndOrganizationsFromConfig(cfg); cn != "" {
+		cfg.Impersonate.UserName = cn
+		cfg.Impersonate.Groups = append(cfg.Impersonate.Groups, orgs...)
+	}
 }
