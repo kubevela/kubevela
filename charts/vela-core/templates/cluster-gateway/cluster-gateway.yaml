@@ -33,8 +33,7 @@ spec:
             - "--secret-namespace={{ .Release.Namespace }}"
             - "--feature-gates=APIPriorityAndFairness=false"
             {{- if .Values.multicluster.clusterGateway.secureTLS.enabled }}
-            - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
-            - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"
+            - "--cert-dir={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}"
             {{- end }}
           image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
           imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
