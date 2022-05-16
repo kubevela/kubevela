@@ -207,10 +207,8 @@ func main() {
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ControllerAutoImpersonation) {
 		restConfig.Impersonate.UserName = types.VelaCoreName
-		if sub := pkgutils.GetServiceAccountSubjectFromConfig(restConfig); sub != "" {
-			restConfig.Impersonate.UserName = sub
-		}
 		restConfig.Impersonate.Groups = []string{apicommon.Group}
+		pkgutils.AutoSetSelfImpersonationInConfig(restConfig)
 	}
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", restConfig.UserAgent,
