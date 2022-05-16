@@ -697,11 +697,10 @@ parameter: {
 
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	cueValue, _ := common.GetCUEParameterValue(cueTemplate)
+	cueValue, _ := common.GetCUEParameterValue(cueTemplate, nil)
 	defaultDepth := 0
 	defaultDisplay := "console"
 	displayFormat = &defaultDisplay
-	recurseDepth = &defaultDepth
 	ref.parseParameters(cueValue, "Properties", defaultDepth)
 	assert.Equal(t, 1, len(propertyConsole))
 	propertyConsole[0].TableObject.Render()
