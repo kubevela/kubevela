@@ -19,7 +19,9 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -27,14 +29,17 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Test ResourceKeeper StateKeep", func() {
+
 	It("Test StateKeep for various scene", func() {
 		cli := testClient
 		createConfigMap := func(name string, value string) *unstructured.Unstructured {
@@ -79,8 +84,8 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		cm5.Object["data"].(map[string]interface{})["key"] = "changed"
 		Expect(cli.Create(context.Background(), cm5)).Should(Succeed())
 
-		createConfigMapClusterObjectReference := func(name string) common2.ClusterObjectReference {
-			return common2.ClusterObjectReference{
+		createConfigMapClusterObjectReference := func(name string) common.ClusterObjectReference {
+			return common.ClusterObjectReference{
 				ObjectReference: v1.ObjectReference{
 					Kind:       "ConfigMap",
 					APIVersion: v1.SchemeGroupVersion.String(),
@@ -138,4 +143,379 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("failed to re-apply"))
 	})
+	It("Test StateKeep for apply-once policy", func() {
+
+		clusterManifest := &unstructured.Unstructured{}
+		clusterJson, err := yaml.YAMLToJSON([]byte(clusterYaml))
+		Expect(err).Should(Succeed())
+		err = json.Unmarshal(clusterJson, clusterManifest)
+		Expect(err).Should(Succeed())
+
+		memoryManifest := &unstructured.Unstructured{}
+		memoryJson, err := yaml.YAMLToJSON([]byte(memoryYaml))
+		Expect(err).Should(Succeed())
+		err = json.Unmarshal(memoryJson, memoryManifest)
+		Expect(err).Should(Succeed())
+
+		// state-keep skip spec.replicas
+		pathWithReplicas := []string{"spec.replicas"}
+		replicasValue, err := fieldpath.Pave(clusterManifest.UnstructuredContent()).GetValue(pathWithReplicas[0])
+		Expect(err).Should(Succeed())
+		err = fieldpath.Pave(memoryManifest.UnstructuredContent()).SetValue(pathWithReplicas[0], replicasValue)
+		Expect(err).Should(Succeed())
+		newReplicasValue, err := fieldpath.Pave(memoryManifest.UnstructuredContent()).GetValue(pathWithReplicas[0])
+		Expect(err).Should(Succeed())
+		Expect(reflect.DeepEqual(replicasValue, newReplicasValue)).Should(Equal(true))
+
+		// state-keep skip spec.template.spec.containers[0].image
+		pathWithImage := []string{"spec.template.spec.containers[0].image"}
+		imageValue, err := fieldpath.Pave(clusterManifest.UnstructuredContent()).GetValue(pathWithImage[0])
+		Expect(err).Should(Succeed())
+		err = fieldpath.Pave(memoryManifest.UnstructuredContent()).SetValue(pathWithImage[0], imageValue)
+		Expect(err).Should(Succeed())
+		newImageValue, err := fieldpath.Pave(memoryManifest.UnstructuredContent()).GetValue(pathWithImage[0])
+		Expect(err).Should(Succeed())
+		Expect(reflect.DeepEqual(imageValue, newImageValue)).Should(Equal(true))
+
+		// state-keep skip spec.template.spec.containers[0].resources
+		pathWithResources := []string{"spec.template.spec.containers[0].resources"}
+		resourcesValue, err := fieldpath.Pave(clusterManifest.UnstructuredContent()).GetValue(pathWithResources[0])
+		Expect(err).Should(Succeed())
+		err = fieldpath.Pave(memoryManifest.UnstructuredContent()).SetValue(pathWithResources[0], resourcesValue)
+		Expect(err).Should(Succeed())
+		newResourcesValue, err := fieldpath.Pave(memoryManifest.UnstructuredContent()).GetValue(pathWithResources[0])
+		Expect(err).Should(Succeed())
+		Expect(reflect.DeepEqual(resourcesValue, newResourcesValue)).Should(Equal(true))
+
+		// state-keep with index error skip spec.template.spec.containers[1].resources
+		pathWithIndexError := []string{"spec.template.spec.containers[1].resources"}
+		_, err = fieldpath.Pave(clusterManifest.UnstructuredContent()).GetValue(pathWithIndexError[0])
+		Expect(err).Should(Not(BeNil()))
+
+		// state-keep with path error skip spec.template[0].spec.containers[0].resources
+		pathWithPathError := []string{"spec.template[0].spec.containers[0].resources"}
+		_, err = fieldpath.Pave(clusterManifest.UnstructuredContent()).GetValue(pathWithPathError[0])
+		Expect(err).Should(Not(BeNil()))
+	})
+
+	It("Test StateKeep for FindStrategy", func() {
+
+		cli := testClient
+		createDeployment := func(name string, value *int32) *unstructured.Unstructured {
+			o := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"name":      name,
+						"namespace": "default",
+					},
+					"spec": map[string]interface{}{
+						"replicas": value,
+					},
+				},
+			}
+			o.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("Deployment"))
+			return o
+		}
+
+		// state-keep add this resource
+		replicas := int32(2)
+		deploy := createDeployment("fourierapp03-comp-01", &replicas)
+		deployRaw, err := json.Marshal(deploy)
+		Expect(err).Should(Succeed())
+
+		createDeploymentClusterObjectReference := func(name string) common.ClusterObjectReference {
+			return common.ClusterObjectReference{
+				ObjectReference: v1.ObjectReference{
+					Kind:       "Deployment",
+					APIVersion: v1.SchemeGroupVersion.String(),
+					Name:       name,
+					Namespace:  "default",
+				},
+			}
+		}
+
+		h := &resourceKeeper{
+			Client: cli,
+			app: &v1beta1.Application{ObjectMeta: v13.ObjectMeta{Name: "app", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "fourierapp03-comp-01",
+							Type:       "worker",
+							Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+						},
+					},
+					Policies: []v1beta1.AppPolicy{
+						{
+							Name:       "apply-once-01",
+							Type:       "apply-once",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"enable": true,"rules": [{"selector": { "componentNames": ["fourierapp03-comp-01"], "resourceTypes": ["Deployment" ], "strategy": {"path": ["spec.replicas"] } }}]}`)},
+						},
+					},
+				}},
+			applicator: apply.NewAPIApplicator(cli),
+			cache:      newResourceCache(cli),
+			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
+				Enable: true,
+				Rules: []v1alpha1.ApplyOncePolicyRule{{
+					Selector: v1alpha1.ResourcePolicyRuleSelector{
+						CompNames:     []string{"fourierapp03-comp-01"},
+						ResourceTypes: []string{"Deployment"},
+					},
+					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"spec.replicas"}},
+				},
+				},
+			},
+		}
+		h._currentRT = &v1beta1.ResourceTracker{
+			Spec: v1beta1.ResourceTrackerSpec{
+				ManagedResources: []v1beta1.ManagedResource{{
+					ClusterObjectReference: createDeploymentClusterObjectReference("fourierapp03-comp-01"),
+					Data:                   &runtime.RawExtension{Raw: deployRaw},
+				}},
+			},
+		}
+		applyOnceStrategy := h.applyOncePolicy.FindStrategy(deploy)
+		Expect(applyOnceStrategy.Path).Should(Equal([]string{"spec.replicas"}))
+	})
 })
+
+const (
+	clusterYaml = `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    app.alauda.io/display-name: fourier-container-040
+    app.alauda.io/replicas: '1'
+    deployment.kubernetes.io/revision: '31'
+    io.cmb/liveness_probe_alert_level: warning
+    io.cmb/readiness_probe_alert_level: warning
+    owners.alauda.io/info: '[{"name":"马祥博","phone":"17854227913","employee_id":"80310624"}]'
+  creationTimestamp: '2022-01-12T05:59:50Z'
+  generation: 77
+  labels:
+    app.alauda.io/name: fourier-container-040.lt31-04-fourier
+    app.cmboam.io/name: fourier-appfile-040.lt31-04
+    component.cmboam.io/name: fourier-component-040.lt31-04-fourier
+    workload-type: Deployment
+  name: fourier-container-040
+  namespace: lt31-04-fourier
+  resourceVersion: '547401259'
+  uid: c74afeba-18a2-412a-84b4-bd48144356e0
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 10
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.alauda.io/name: fourier-container-040.lt31-04-fourier
+      workload-type: Deployment
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.alauda.io/name: fourier-container-040.lt31-04-fourier
+        cmb: lt31.04
+        cmb-app-name: fourier-container-040
+        cmb-log-tag: lt31-04-fourier-Deployment-fourier-container-040
+        cmb-org: lt31.04
+        cmb-service-unit-id: LT31.04...yxr-link-gray-test-three
+        workload-type: Deployment
+    spec:
+      affinity: {}
+      containers:
+        - env:
+            - name: CMB_LOGGING_PLATFORM_URL
+              value: 'http://alpmng.redev.cmbchina.net:60000'
+          image: 'csbase.registry.cmbchina.cn/console/proj_gin_test:v2_clusterYaml'
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - '-c'
+                  - sleep 30
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            tcpSocket:
+              port: 8001
+            timeoutSeconds: 5
+          name: fourier-container-040
+          ports:
+            - containerPort: 8001
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            tcpSocket:
+              port: 8001
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: '10'
+              memory: 10Gi
+            requests:
+              cpu: 10m
+              memory: 10Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  conditions:
+    - lastTransitionTime: '2022-04-15T02:03:07Z'
+      lastUpdateTime: '2022-04-15T02:03:07Z'
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: Available
+    - lastTransitionTime: '2022-01-12T07:00:52Z'
+      lastUpdateTime: '2022-04-26T07:29:24Z'
+      message: >-
+        ReplicaSet "fourier-container-040-79b8f79fd9" has successfully
+        progressed.
+      reason: NewReplicaSetAvailable
+      status: 'True'
+      type: Progressing
+  observedGeneration: 77
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1
+
+`
+
+	memoryYaml = `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    app.alauda.io/display-name: fourier-container-040
+    app.alauda.io/replicas: '1'
+    deployment.kubernetes.io/revision: '31'
+    io.cmb/liveness_probe_alert_level: warning
+    io.cmb/readiness_probe_alert_level: warning
+    owners.alauda.io/info: '[{"name":"马祥博","phone":"17854227913","employee_id":"80310624"}]'
+  creationTimestamp: '2022-01-12T05:59:50Z'
+  generation: 77
+  labels:
+    app.alauda.io/name: fourier-container-040.lt31-04-fourier
+    app.cmboam.io/name: fourier-appfile-040.lt31-04
+    component.cmboam.io/name: fourier-component-040.lt31-04-fourier
+    workload-type: Deployment
+  name: fourier-container-040
+  namespace: lt31-04-fourier
+  resourceVersion: '547401259'
+  uid: c74afeba-18a2-412a-84b4-bd48144356e0
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 5
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.alauda.io/name: fourier-container-040.lt31-04-fourier
+      workload-type: Deployment
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.alauda.io/name: fourier-container-040.lt31-04-fourier
+        cmb: lt31.04
+        cmb-app-name: fourier-container-040
+        cmb-log-tag: lt31-04-fourier-Deployment-fourier-container-040
+        cmb-org: lt31.04
+        cmb-service-unit-id: LT31.04...yxr-link-gray-test-three
+        workload-type: Deployment
+    spec:
+      affinity: {}
+      containers:
+        - env:
+            - name: CMB_LOGGING_PLATFORM_URL
+              value: 'http://alpmng.redev.cmbchina.net:60000'
+          image: 'csbase.registry.cmbchina.cn/console/proj_gin_test:v2_memoryYaml'
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - '-c'
+                  - sleep 30
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            tcpSocket:
+              port: 8001
+            timeoutSeconds: 5
+          name: fourier-container-040
+          ports:
+            - containerPort: 8001
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            tcpSocket:
+              port: 8001
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: '5'
+              memory: 5Gi
+            requests:
+              cpu: 5m
+              memory: 5Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  conditions:
+    - lastTransitionTime: '2022-04-15T02:03:07Z'
+      lastUpdateTime: '2022-04-15T02:03:07Z'
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: Available
+    - lastTransitionTime: '2022-01-12T07:00:52Z'
+      lastUpdateTime: '2022-04-26T07:29:24Z'
+      message: >-
+        ReplicaSet "fourier-container-040-79b8f79fd9" has successfully
+        progressed.
+      reason: NewReplicaSetAvailable
+      status: 'True'
+      type: Progressing
+  observedGeneration: 77
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1
+
+`
+)

@@ -16,6 +16,10 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
 const (
 	// ApplyOncePolicyType refers to the type of configuration drift policy
 	ApplyOncePolicyType = "apply-once"
@@ -24,4 +28,42 @@ const (
 // ApplyOncePolicySpec defines the spec of preventing configuration drift
 type ApplyOncePolicySpec struct {
 	Enable bool `json:"enable"`
+	// +optional
+	Rules []ApplyOncePolicyRule `json:"rules,omitempty"`
+}
+
+// ApplyOncePolicyRule defines a single apply-once policy rule
+type ApplyOncePolicyRule struct {
+	// +optional
+	Selector ResourcePolicyRuleSelector `json:"selector,omitempty"`
+	// +optional
+	Strategy *ApplyOnceStrategy `json:"strategy,omitempty"`
+}
+
+// ApplyOnceStrategy the strategy for resource path to allow configuration drift
+type ApplyOnceStrategy struct {
+	// Path the specified path that allow configuration drift
+	// like 'spec.template.spec.containers[0].resources' and '*' means the whole target allow configuration drift
+	Path []string `json:"path"`
+}
+
+// FindStrategy find apply-once strategy for target resource
+func (in ApplyOncePolicySpec) FindStrategy(manifest *unstructured.Unstructured) *ApplyOnceStrategy {
+	if !in.Enable {
+		return nil
+	}
+	for _, rule := range in.Rules {
+		match := func(src []string, val string) (found bool) {
+			for _, _val := range src {
+				found = found || _val == val
+			}
+			return val != "" && found
+		}
+		if (match(rule.Selector.CompNames, manifest.GetName()) && match(rule.Selector.ResourceTypes, manifest.GetKind())) ||
+			(rule.Selector.CompNames == nil && match(rule.Selector.ResourceTypes, manifest.GetKind()) ||
+				(rule.Selector.ResourceTypes == nil && match(rule.Selector.CompNames, manifest.GetName()))) {
+			return rule.Strategy
+		}
+	}
+	return nil
 }
