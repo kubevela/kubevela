@@ -19,7 +19,10 @@ package resourcekeeper
 import (
 	"context"
 
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -29,7 +32,7 @@ import (
 
 // StateKeep run this function to keep resources up-to-date
 func (h *resourceKeeper) StateKeep(ctx context.Context) error {
-	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable {
+	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
 		return nil
 	}
 	for _, rt := range []*v1beta1.ResourceTracker{h._currentRT, h._rootRT} {
@@ -57,6 +60,10 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 						return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 					}
 					applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+					manifest, err = ApplyStrategies(applyCtx, h, manifest)
+					if err != nil {
+						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
+					}
 					applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
 					if err = h.applicator.Apply(applyCtx, manifest, apply.MustBeControlledByApp(h.app)); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
@@ -66,4 +73,37 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// ApplyStrategies will generate manifest with applyOnceStrategy
+func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	if h.applyOncePolicy == nil {
+		return manifest, nil
+	}
+	applyOncePath := h.applyOncePolicy.FindStrategy(manifest)
+	if applyOncePath != nil {
+		un := new(unstructured.Unstructured)
+		un.SetAPIVersion(manifest.GetAPIVersion())
+		un.SetKind(manifest.GetKind())
+		err := h.Get(ctx, types.NamespacedName{Name: manifest.GetName(), Namespace: manifest.GetNamespace()}, un)
+		if err != nil {
+			return nil, err
+		}
+		for _, path := range applyOncePath.Path {
+			if path == "*" {
+				manifest = un.DeepCopy()
+				break
+			}
+			value, err := fieldpath.Pave(un.UnstructuredContent()).GetValue(path)
+			if err != nil {
+				return nil, err
+			}
+			err = fieldpath.Pave(manifest.UnstructuredContent()).SetValue(path, value)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return manifest, nil
+	}
+	return manifest, nil
 }
