@@ -52,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
@@ -315,6 +316,9 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		r.Recorder.Event(handler.app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
 	}
+	if err := r.handleHooks(logCtx, handler, policy.HandleOptions{GCFinished: finished}); err != nil {
+		return r.endWithNegativeCondition(logCtx, handler.app, condition.ReconcileError(err), phase)
+	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
 		cond := condition.Deleting()
@@ -329,6 +333,34 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)).ret()
 	}
 	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
+}
+
+func (r *Reconciler) handleHooks(logCtx monitorContext.Context, handler *AppHandler, options policy.HandleOptions) error {
+	subCtx := logCtx.Fork("handle_hooks", monitorContext.DurationMetric(func(v float64) {
+		metrics.HandleHooksDurationHistogram.WithLabelValues("-").Observe(v)
+	}))
+	defer subCtx.Commit("finish handle hooks")
+
+	handle, err := policy.Handle(handler.app, options)
+	if err != nil {
+		return err
+	}
+	if !handle {
+		return nil
+	}
+
+	steps, err := handler.GeneratePolicySteps(logCtx)
+	if err != nil {
+		return err
+	}
+	policyApp := *handler.app
+	wf := workflow.NewWorkflow(&policyApp, r.Client, common.WorkflowModeDAG, false, handler.resourceKeeper)
+	if err := wf.ExecutePolicySteps(logCtx.Fork("policy workflow"), steps); err != nil {
+		return err
+	}
+	err = policy.ParsePolicyStepStatus(policyApp.Status.Workflow.Steps, handler.app)
+	logCtx.Info("Successfully handled hooks")
+	return nil
 }
 
 type reconcileResult struct {

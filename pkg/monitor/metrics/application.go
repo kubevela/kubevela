@@ -100,6 +100,14 @@ var (
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})
+
+	// HandleHooksDurationHistogram report the handle hooks execution duration.
+	HandleHooksDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "handle_hooks_time_seconds",
+		Help:        "handle hooks duration distributions.",
+		Buckets:     histogramBuckets,
+		ConstLabels: prometheus.Labels{},
+	}, []string{"stage"})
 )
 
 var (

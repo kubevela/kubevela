@@ -34,10 +34,13 @@ import (
 var (
 	//go:embed static
 	templateFS embed.FS
+	//go:embed policy
+	policyFS embed.FS
 )
 
 const (
 	templateDir = "static"
+	policyDir   = "policy"
 )
 
 // Loader load task definition template.
@@ -94,6 +97,34 @@ func NewWorkflowStepTemplateRevisionLoader(rev *v1beta1.ApplicationRevision, dm 
 			return appfile.LoadTemplateFromRevision(capName, types.TypeWorkflowStep, rev, dm)
 		},
 	}
+}
+
+// PolicyStepLoader load policyStep task definition template.
+type PolicyStepLoader struct {
+}
+
+// LoadTaskTemplate gets the policyStep definition.
+func (loader *PolicyStepLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+	files, err := policyFS.ReadDir(policyDir)
+	if err != nil {
+		return "", err
+	}
+
+	staticFilename := name + ".cue"
+	for _, file := range files {
+		if staticFilename == file.Name() {
+			fileName := fmt.Sprintf("%s/%s", policyDir, file.Name())
+			content, err := policyFS.ReadFile(fileName)
+			return string(content), err
+		}
+	}
+
+	return "", errors.New("policy can only use the official workflowStep template")
+}
+
+// NewWorkflowStepTemplatePolicyLoader create a policy step loader.
+func NewWorkflowStepTemplatePolicyLoader(policies []v1beta1.AppPolicy, dm discoverymapper.DiscoveryMapper) Loader {
+	return &PolicyStepLoader{}
 }
 
 // ViewLoader load view task definition template.

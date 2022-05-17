@@ -18,6 +18,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -38,9 +40,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers/email"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
@@ -68,6 +72,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
 	http.Install(handlerProviders, h.r.Client, app.Namespace)
+	email.Install(handlerProviders)
 	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
 	taskDiscover := tasks.NewTaskDiscoverFromRevision(ctx, handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
@@ -384,4 +389,64 @@ func generateContextDataFromApp(app *v1beta1.Application, appRev string) process
 		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
 	}
 	return data
+}
+
+// GeneratePolicySteps generate policy steps
+func (h *AppHandler) GeneratePolicySteps(ctx monitorContext.Context) ([]wfTypes.TaskRunner, error) {
+	if h.currentAppRev == nil {
+		return nil, nil
+	}
+	app := h.app
+	handlerProviders := providers.NewProviders()
+	http.Install(handlerProviders, h.r.Client, app.Namespace)
+	email.Install(handlerProviders)
+	pCtx := process.NewContext(generateContextDataFromApp(app, h.currentAppRev.Name))
+	taskDiscover := tasks.NewTaskDiscoverFromPolicy(ctx, handlerProviders, h.r.pd, app.Spec.Policies, h.r.dm, pCtx)
+
+	steps, err := policy.ParsePolicyToSteps(app.Spec.Policies)
+	if err != nil {
+		return nil, err
+	}
+	var tasks []wfTypes.TaskRunner
+	for _, step := range steps {
+		options := &wfTypes.GeneratorOptions{
+			ID: generatePolicyID(step.Name, app.Status.PolicyStatus),
+		}
+		generatorName := step.Type
+		genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
+		if err != nil {
+			return nil, err
+		}
+
+		task, err := genTask(step, options)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
+}
+
+func generatePolicyID(name string, pStatus []common.PolicyStatus) string {
+	var id string
+	for _, status := range pStatus {
+		switch status.Type {
+		case v1alpha1.PostStopHookPolicyType:
+			hookStatus := &v1alpha1.PostStopHookPolicyStatus{}
+			if err := utils.StrictUnmarshal(status.Status.Raw, hookStatus); err != nil {
+				return ""
+			}
+			if hookStatus.Webhook != nil && hookStatus.Webhook.Name == name {
+				return hookStatus.Webhook.ID
+			}
+			if hookStatus.Notification != nil && hookStatus.Notification.Name == name {
+				return hookStatus.Notification.ID
+			}
+		default:
+		}
+	}
+	if id == "" {
+		id = fmt.Sprintf("%s-%s", name, utils.RandomString(5))
+	}
+	return id
 }

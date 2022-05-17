@@ -556,6 +556,8 @@ spec:
                   - type
                   type: object
                 type: array
+              error:
+                type: boolean
               latestRevision:
                 description: LatestRevision of the application configuration it generates
                 properties:
@@ -1223,6 +1225,8 @@ spec:
                   - type
                   type: object
                 type: array
+              error:
+                type: boolean
               latestRevision:
                 description: LatestRevision of the application configuration it generates
                 properties:

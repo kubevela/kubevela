@@ -363,11 +363,10 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		return err
 	}
 	for _, policy := range af.Policies {
+		if p.skipParsingPolicy(policy.Type) {
+			continue
+		}
 		switch policy.Type {
-		case v1alpha1.GarbageCollectPolicyType:
-		case v1alpha1.ApplyOncePolicyType:
-		case v1alpha1.EnvBindingPolicyType:
-		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
@@ -388,11 +387,10 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		return err
 	}
 	for _, policy := range af.Policies {
+		if p.skipParsingPolicy(policy.Type) {
+			continue
+		}
 		switch policy.Type {
-		case v1alpha1.GarbageCollectPolicyType:
-		case v1alpha1.ApplyOncePolicyType:
-		case v1alpha1.EnvBindingPolicyType:
-		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		case v1alpha1.OverridePolicyType:
@@ -415,6 +413,19 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		}
 	}
 	return nil
+}
+
+func (p *Parser) skipParsingPolicy(policyType string) bool {
+	switch policyType {
+	case v1alpha1.GarbageCollectPolicyType:
+	case v1alpha1.ApplyOncePolicyType:
+	case v1alpha1.EnvBindingPolicyType:
+	case v1alpha1.TopologyPolicyType:
+	case v1alpha1.PostStopHookPolicyType:
+	default:
+		return false
+	}
+	return true
 }
 
 func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {

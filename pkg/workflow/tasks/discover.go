@@ -90,7 +90,6 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 func newTaskDiscover(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, pCtx process.Context, templateLoader template.Loader) types.TaskDiscover {
 	// install builtin provider
 	workspace.Install(providerHandlers)
-	email.Install(providerHandlers)
 	util.Install(ctx, providerHandlers)
 
 	return &taskDiscover{
@@ -105,6 +104,12 @@ func newTaskDiscover(ctx monitorContext.Context, providerHandlers providers.Prov
 // NewTaskDiscoverFromRevision will create a client for load task generator from ApplicationRevision.
 func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
 	templateLoader := template.NewWorkflowStepTemplateRevisionLoader(rev, dm)
+	return newTaskDiscover(ctx, providerHandlers, pd, pCtx, templateLoader)
+}
+
+// NewTaskDiscoverFromPolicy will create a client for load task generator from ApplicationPolicy.
+func NewTaskDiscoverFromPolicy(ctx monitorContext.Context, providerHandlers providers.Providers, pd *packages.PackageDiscover, policies []v1beta1.AppPolicy, dm discoverymapper.DiscoveryMapper, pCtx process.Context) types.TaskDiscover {
+	templateLoader := template.NewWorkflowStepTemplatePolicyLoader(policies, dm)
 	return newTaskDiscover(ctx, providerHandlers, pd, pCtx, templateLoader)
 }
 

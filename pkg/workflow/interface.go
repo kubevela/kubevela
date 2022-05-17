@@ -30,6 +30,8 @@ type Workflow interface {
 	// It returns done=true only if all steps are executed and succeeded.
 	ExecuteSteps(ctx monitorContext.Context, appRev *v1beta1.ApplicationRevision, taskRunners []types.TaskRunner) (state common.WorkflowState, err error)
 
+	ExecutePolicySteps(ctx monitorContext.Context, taskRunners []types.TaskRunner) error
+
 	// Trace record workflow state in controllerRevision.
 	Trace() error
 

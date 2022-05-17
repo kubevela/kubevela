@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
@@ -118,6 +120,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		if w.dagMode {
 			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
 		}
+		// clean policy status
+		w.app.Status.PolicyStatus = make([]common.PolicyStatus, 0)
 		// clean recorded resources info.
 		w.app.Status.Services = nil
 		w.app.Status.AppliedResources = nil
@@ -206,6 +210,58 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 	wfStatus.Message = string(common.WorkflowStateExecuting)
 	return common.WorkflowStateExecuting, nil
+}
+
+// ExecuteSteps process workflow step in order.
+func (w *workflow) ExecutePolicySteps(ctx monitorContext.Context, taskRunners []wfTypes.TaskRunner) error {
+	wfStatus, err := w.convertPolicyStatus()
+	if err != nil {
+		return err
+	}
+	allTasksDone := w.allDone(taskRunners)
+	if allTasksDone {
+		return nil
+	}
+
+	w.app.Status.Workflow = wfStatus
+	w.wfCtx, err = wfContext.NewPolicyContext(w.cli, w.app.Namespace, w.app.Name)
+	if err != nil {
+		return err
+	}
+	e := &engine{
+		status:     wfStatus,
+		dagMode:    w.dagMode,
+		monitorCtx: ctx,
+		app:        w.app,
+		wfCtx:      w.wfCtx,
+		cli:        w.cli,
+		debug:      w.debug,
+		rk:         w.rk,
+	}
+	return e.runAsDAG(taskRunners)
+}
+
+func (w *workflow) convertPolicyStatus() (*common.WorkflowStatus, error) {
+	wfStatus := &common.WorkflowStatus{
+		Steps: make([]common.WorkflowStepStatus, 0),
+	}
+	for _, policy := range w.app.Status.PolicyStatus {
+		switch policy.Type {
+		case v1alpha1.PostStopHookPolicyType:
+			hookStatus := &v1alpha1.PostStopHookPolicyStatus{}
+			if err := pkgutils.StrictUnmarshal(policy.Status.Raw, hookStatus); err != nil {
+				return nil, errors.Wrapf(err, "failed to parse post stop hook policy %s", policy.Name)
+			}
+			if hookStatus.Webhook != nil {
+				wfStatus.Steps = append(wfStatus.Steps, *hookStatus.Webhook)
+			}
+			if hookStatus.Notification != nil {
+				wfStatus.Steps = append(wfStatus.Steps, *hookStatus.Notification)
+			}
+		default:
+		}
+	}
+	return wfStatus, nil
 }
 
 // Trace record the workflow execute history.
@@ -523,6 +579,9 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner) error {
 		status, operation, err := runner.Run(wfCtx, options)
 		if err != nil {
 			return err
+		}
+		if status.Phase == common.WorkflowStepPhaseFailed {
+			e.app.Status.Error = true
 		}
 
 		e.updateStepStatus(status)

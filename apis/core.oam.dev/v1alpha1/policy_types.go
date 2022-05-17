@@ -16,6 +16,12 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+)
+
 const (
 	// TopologyPolicyType refers to the type of topology policy
 	TopologyPolicyType = "topology"
@@ -23,6 +29,8 @@ const (
 	OverridePolicyType = "override"
 	// DebugPolicyType refers to the type of debug policy
 	DebugPolicyType = "debug"
+	// PostStopHookPolicyType refers to the type of post stop hook policy
+	PostStopHookPolicyType = "postStopHook"
 )
 
 // TopologyPolicySpec defines the spec of topology policy
@@ -33,6 +41,31 @@ type TopologyPolicySpec struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
+
+// PostStopHookPolicySpec defines the spec of post stop hook policy
+type PostStopHookPolicySpec struct {
+	Phases []HookPolicyPhase `json:"phases"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Notification *runtime.RawExtension `json:"notification,omitempty"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Webhook *runtime.RawExtension `json:"webhook,omitempty"`
+}
+
+// PostStopHookPolicyStatus defines the status of post stop hook policy
+type PostStopHookPolicyStatus struct {
+	Webhook      *common.WorkflowStepStatus `json:"webhook,omitempty"`
+	Notification *common.WorkflowStepStatus `json:"notification,omitempty"`
+}
+
+// HookPolicyPhase is the phase of post stop hook policy
+type HookPolicyPhase string
+
+const (
+	// OnErrorPhase is the phase of application on error
+	OnErrorPhase HookPolicyPhase = "onError"
+	// OnGarbageCollectFinishPhase is the phase of application on garbage collect finish
+	OnGarbageCollectFinishPhase HookPolicyPhase = "onGarbageCollectFinish"
+)
 
 // Placement describes which clusters to be selected in this topology
 type Placement struct {

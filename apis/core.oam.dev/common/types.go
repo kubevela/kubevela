@@ -294,6 +294,8 @@ type AppStatus struct {
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 
+	Error bool `json:"error,omitempty"`
+
 	// Components record the related Components created by Application Controller
 	Components []corev1.ObjectReference `json:"components,omitempty"`
 

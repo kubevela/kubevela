@@ -155,17 +155,24 @@ func (wf *WorkflowContext) IncreaseCountValueInMemory(paths ...string) int {
 
 // SetValueInMemory set data in workflow context memory store.
 func (wf *WorkflowContext) SetValueInMemory(data interface{}, paths ...string) {
-	wf.memoryStore.Store(strings.Join(paths, "."), data)
+	if wf.memoryStore != nil {
+		wf.memoryStore.Store(strings.Join(paths, "."), data)
+	}
 }
 
 // GetValueInMemory get data in workflow context memory store.
 func (wf *WorkflowContext) GetValueInMemory(paths ...string) (interface{}, bool) {
-	return wf.memoryStore.Load(strings.Join(paths, "."))
+	if wf.memoryStore != nil {
+		return wf.memoryStore.Load(strings.Join(paths, "."))
+	}
+	return nil, false
 }
 
 // DeleteValueInMemory delete data in workflow context memory store.
 func (wf *WorkflowContext) DeleteValueInMemory(paths ...string) {
-	wf.memoryStore.Delete(strings.Join(paths, "."))
+	if wf.memoryStore != nil {
+		wf.memoryStore.Delete(strings.Join(paths, "."))
+	}
 }
 
 // MakeParameter make 'value' with interface{}
@@ -336,6 +343,31 @@ func NewContext(cli client.Client, ns, app string, appUID types.UID) (Context, e
 	}
 
 	return wfCtx, wfCtx.Commit()
+}
+
+// NewPolicyContext new policy context with workflow context.
+func NewPolicyContext(cli client.Client, ns, app string) (Context, error) {
+	var (
+		ctx   = context.Background()
+		store corev1.ConfigMap
+	)
+	store.Name = generateStoreName(app)
+	store.Namespace = ns
+	if err := cli.Get(ctx, client.ObjectKey{Name: store.Name, Namespace: store.Namespace}, &store); err != nil {
+		return nil, err
+	}
+	wfCtx := &WorkflowContext{
+		cli:         cli,
+		store:       &store,
+		memoryStore: nil,
+		components:  map[string]*ComponentManifest{},
+	}
+	var err error
+	wfCtx.vars, err = value.NewValue("", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	return wfCtx, nil
 }
 
 // CleanupMemoryStore cleans up memory store.
