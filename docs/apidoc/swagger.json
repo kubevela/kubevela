@@ -3802,7 +3802,7 @@
 				"tags": [
 					"addon"
 				],
-				"summary": "list all addons",
+				"summary": "list all enabled addons",
 				"operationId": "list",
 				"parameters": [
 					{
