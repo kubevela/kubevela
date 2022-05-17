@@ -110,7 +110,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
 		NewProviderCommand(commandArgs, "10", ioStream),
-		CreateCommandGroup(f, ioStream),
+		AuthCommandGroup(f, ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),

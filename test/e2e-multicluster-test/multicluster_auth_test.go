@@ -26,13 +26,13 @@ var _ = Describe("Test multicluster Auth commands", func() {
 	Context("Test vela auth commands", func() {
 
 		It("Test vela create kubeconfig for given user", func() {
-			outputs, err := execCommand("create", "kubeconfig", "--user", "kubevela", "--group", "kubevela:dev", "--group", "kubevela:test")
+			outputs, err := execCommand("auth", "gen-kubeconfig", "--user", "kubevela", "--group", "kubevela:dev", "--group", "kubevela:test")
 			Expect(err).Should(Succeed())
 			Expect(outputs).Should(ContainSubstring("Certificate signing request kubevela approved"))
 		})
 
 		It("Test vela create kubeconfig for serviceaccount", func() {
-			outputs, err := execCommand("create", "kubeconfig", "--serviceaccount", "default", "-n", "vela-system")
+			outputs, err := execCommand("auth", "gen-kubeconfig", "--serviceaccount", "default", "-n", "vela-system")
 			Expect(err).Should(Succeed())
 			Expect(outputs).Should(ContainSubstring("ServiceAccount vela-system/default found."))
 		})

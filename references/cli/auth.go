@@ -35,21 +35,21 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
-// CreateCommandGroup commands for create resources or configuration
-func CreateCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+// AuthCommandGroup commands for create resources or configuration
+func AuthCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: i18n.T("Create resource or configuration"),
+		Use:   "auth",
+		Short: i18n.T("Manage identity and authorizations."),
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
 	}
-	cmd.AddCommand(NewCreateKubeConfigCommand(f, streams))
+	cmd.AddCommand(NewGenKubeConfigCommand(f, streams))
 	return cmd
 }
 
-// CreateKubeConfigOptions options for create kubeconfig
-type CreateKubeConfigOptions struct {
+// GenKubeConfigOptions options for create kubeconfig
+type GenKubeConfigOptions struct {
 	User                    string
 	Groups                  []string
 	ServiceAccountName      string
@@ -58,16 +58,16 @@ type CreateKubeConfigOptions struct {
 	util.IOStreams
 }
 
-func (opt *CreateKubeConfigOptions) options() []auth.KubeConfigCreateOption {
-	var opts []auth.KubeConfigCreateOption
+func (opt *GenKubeConfigOptions) options() []auth.KubeConfigGenerateOption {
+	var opts []auth.KubeConfigGenerateOption
 	if opt.User != "" {
-		opts = append(opts, auth.KubeConfigWithUserCreateOption(opt.User))
+		opts = append(opts, auth.KubeConfigWithUserGenerateOption(opt.User))
 	}
 	for _, group := range opt.Groups {
-		opts = append(opts, auth.KubeConfigWithGroupCreateOption(group))
+		opts = append(opts, auth.KubeConfigWithGroupGenerateOption(group))
 	}
 	if opt.ServiceAccountName != "" {
-		opts = append(opts, auth.KubeConfigWithServiceAccount{
+		opts = append(opts, auth.KubeConfigWithServiceAccountGenerateOption{
 			Name:      opt.ServiceAccountName,
 			Namespace: opt.ServiceAccountNamespace,
 		})
@@ -76,7 +76,7 @@ func (opt *CreateKubeConfigOptions) options() []auth.KubeConfigCreateOption {
 }
 
 // Complete .
-func (opt *CreateKubeConfigOptions) Complete(f velacmd.Factory, cmd *cobra.Command) {
+func (opt *GenKubeConfigOptions) Complete(f velacmd.Factory, cmd *cobra.Command) {
 	opt.User = strings.TrimSpace(opt.User)
 	groupMap := map[string]struct{}{}
 	var groups []string
@@ -99,7 +99,7 @@ func (opt *CreateKubeConfigOptions) Complete(f velacmd.Factory, cmd *cobra.Comma
 }
 
 // Validate .
-func (opt *CreateKubeConfigOptions) Validate() error {
+func (opt *GenKubeConfigOptions) Validate() error {
 	if opt.User == "" && opt.ServiceAccountName == "" {
 		return errors.Errorf("either `user` or `serviceaccount` should be set")
 	}
@@ -116,7 +116,7 @@ func (opt *CreateKubeConfigOptions) Validate() error {
 }
 
 // Run .
-func (opt *CreateKubeConfigOptions) Run(f velacmd.Factory) error {
+func (opt *GenKubeConfigOptions) Run(f velacmd.Factory) error {
 	ctx := context.Background()
 	cli, err := kubernetes.NewForConfig(f.Config())
 	if err != nil {
@@ -126,7 +126,7 @@ func (opt *CreateKubeConfigOptions) Run(f velacmd.Factory) error {
 	if err != nil {
 		return err
 	}
-	cfg, err = auth.CreateKubeConfig(ctx, cli, cfg, opt.IOStreams, opt.options()...)
+	cfg, err = auth.GenerateKubeConfig(ctx, cli, cfg, opt.IOStreams.ErrOut, opt.options()...)
 	if err != nil {
 		return err
 	}
@@ -139,10 +139,10 @@ func (opt *CreateKubeConfigOptions) Run(f velacmd.Factory) error {
 }
 
 var (
-	createKubeConfigLong = templates.LongDesc(i18n.T(`
-		Create kubeconfig for user
+	genKubeConfigLong = templates.LongDesc(i18n.T(`
+		Generate kubeconfig for user
 
-		Create a new kubeconfig with specified identity. By default, the generated kubeconfig 
+		Generate a new kubeconfig with specified identity. By default, the generated kubeconfig 
 		will reuse the certificate-authority-data in the cluster config from the current used 
 		kubeconfig. All contexts, clusters and users that are not in use will not be included
 		in the generated kubeconfig.
@@ -158,29 +158,29 @@ var (
 		--serviceaccount flag. The corresponding secret token and ca data will be embedded in 
 		the generated kubeconfig, which allows you to act as the serviceaccount.`))
 
-	createKubeConfigExample = templates.Examples(i18n.T(`
-		# Create a kubeconfig with provided user
-		vela create kubeconfig --user new-user
+	generateKubeConfigExample = templates.Examples(i18n.T(`
+		# Generate a kubeconfig with provided user
+		vela auth gen-kubeconfig --user new-user
 		
-		# Create a kubeconfig with provided user and group
-		vela create kubeconfig --user new-user --group kubevela:developer
+		# Generate a kubeconfig with provided user and group
+		vela auth gen-kubeconfig --user new-user --group kubevela:developer
 		
-		# Create a kubeconfig with provided user and groups
-		vela create kubeconfig --user new-user --group kubevela:developer --group my-org:my-team
+		# Generate a kubeconfig with provided user and groups
+		vela auth gen-kubeconfig --user new-user --group kubevela:developer --group my-org:my-team
 
-		# Create a kubeconfig with provided serviceaccount
-		vela create kubeconfig --serviceaccount default -n demo`))
+		# Generate a kubeconfig with provided serviceaccount
+		vela auth gen-kubeconfig --serviceaccount default -n demo`))
 )
 
-// NewCreateKubeConfigCommand create kubeconfig for given user and groups
-func NewCreateKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
-	o := &CreateKubeConfigOptions{IOStreams: streams}
+// NewGenKubeConfigCommand generate kubeconfig for given user and groups
+func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+	o := &GenKubeConfigOptions{IOStreams: streams}
 	cmd := &cobra.Command{
-		Use:                   "kubeconfig",
+		Use:                   "gen-kubeconfig",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create kubeconfig for user"),
-		Long:                  createKubeConfigLong,
-		Example:               createKubeConfigExample,
+		Short:                 i18n.T("Generate kubeconfig for user"),
+		Long:                  genKubeConfigLong,
+		Example:               generateKubeConfigExample,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCD,
 		},
