@@ -18,7 +18,7 @@ gateway: {
 					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
 				  	}
 				  	if igs[0].host == _|_ {
-					    message: "Visiting URL: " + "localhost" + ", IP: " + igs[0].ip
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
 				  	}
 				  }
 				  if igs[0].ip == _|_ {
@@ -26,7 +26,7 @@ gateway: {
 						  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
 						}
 				  	if igs[0].host != _|_ {
-				  		message: "Visiting URL: " + "localhost"
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
 						}
 				  }
 				}
