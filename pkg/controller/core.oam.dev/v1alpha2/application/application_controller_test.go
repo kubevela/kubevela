@@ -319,6 +319,38 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithApplyOnce := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-apply-once",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "app-applyonce-component",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name:       "apply-once-01",
+					Type:       "apply-once",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"enable": true,"rules": [{"selector": { "componentNames": ["fourierapp03-comp-01"], "resourceTypes": ["Deployment" ], "strategy": {"path": ["spec.replicas"] } }}]}`)},
+				},
+			},
+		},
+	}
+	appWithApplyOnce.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "scaler",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
+		},
+	}
+
 	appWithMountToEnvs := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -2803,6 +2835,67 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, hpa)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("test application with apply-once policy ", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-apply-once",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		appWithApplyOnce.SetNamespace(ns.Name)
+		app := appWithApplyOnce.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check secret Created with the expected trait-storage spec")
+		deployment := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.GetNamespace(),
+			Name:      app.Spec.Components[0].Name,
+		}, deployment)).Should(BeNil())
+		targetReplicas := int32(5)
+		deployment.Spec.Replicas = &targetReplicas
+		Expect(k8sClient.Update(ctx, deployment)).Should(BeNil())
+
+		newDeployment := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.GetNamespace(),
+			Name:      app.Spec.Components[0].Name,
+		}, newDeployment)).Should(BeNil())
+		Expect(*newDeployment.Spec.Replicas).Should(Equal(targetReplicas))
+		Expect(k8sClient.Delete(ctx, newDeployment)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
 })
 
 const (
