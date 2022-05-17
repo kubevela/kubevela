@@ -291,7 +291,7 @@ func (s *enabledAddonWebService) GetWebService() *restful.WebService {
 
 	// List enabled addon from cluster
 	ws.Route(ws.GET("/").To(s.list).
-		Doc("list all addons").
+		Doc("list all enabled addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(s.rbacUsecase.CheckPerm("addon", "list")).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
