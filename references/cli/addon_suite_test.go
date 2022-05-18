@@ -133,6 +133,10 @@ var _ = Describe("Output of listing addons tests", func() {
 
 var _ = Describe("Addon status or info", func() {
 
+	BeforeEach(func() {
+		verboseSatatus = true
+	})
+
 	When("addon is not installed locally, also not in registry", func() {
 		It("should return an error, saying not found", func() {
 			addonName := "some-nonexistent-addon"
