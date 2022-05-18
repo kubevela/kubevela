@@ -129,7 +129,7 @@ spec:
 			}))
 
 			var buf bytes.Buffer
-			cmd := NewUpCommand(velacmd.NewDefaultFactory(args.GetClient), "", args, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+			cmd := NewUpCommand(velacmd.NewDefaultFactory(args.GetClient, args.GetConfig), "", args, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 			cmd.SetArgs([]string{})
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)

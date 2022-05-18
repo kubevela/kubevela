@@ -21,6 +21,7 @@ import (
 	"k8s.io/kubectl/pkg/util/term"
 
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // Builder build command with factory
@@ -97,6 +98,14 @@ func (builder *Builder) WithNamespaceFlag(options ...NamespaceFlagOption) *Build
 // WithEnvFlag add env flag to the command
 func (builder *Builder) WithEnvFlag() *Builder {
 	builder.cmd.PersistentFlags().StringP(flagEnv, "e", "", usageEnv)
+	return builder
+}
+
+// WithStreams set the in/out/err streams for the command
+func (builder *Builder) WithStreams(streams util.IOStreams) *Builder {
+	builder.cmd.SetIn(streams.In)
+	builder.cmd.SetOut(streams.Out)
+	builder.cmd.SetErr(streams.ErrOut)
 	return builder
 }
 

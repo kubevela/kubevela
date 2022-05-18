@@ -40,8 +40,11 @@ var assumeYes bool
 
 // NewCommand will contain all commands
 func NewCommand() *cobra.Command {
-	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	return NewCommandWithIOStreams(util.NewDefaultIOStreams())
+}
 
+// NewCommandWithIOStreams will contain all commands and initialize them with given ioStream
+func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	cmds := &cobra.Command{
 		Use:                "vela",
 		DisableFlagParsing: true,
@@ -67,7 +70,7 @@ func NewCommand() *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
-	f := velacmd.NewDefaultFactory(commandArgs.GetClient)
+	f := velacmd.NewDefaultFactory(commandArgs.GetClient, commandArgs.GetConfig)
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
@@ -107,6 +110,7 @@ func NewCommand() *cobra.Command {
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
 		NewProviderCommand(commandArgs, "10", ioStream),
+		AuthCommandGroup(f, ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),
