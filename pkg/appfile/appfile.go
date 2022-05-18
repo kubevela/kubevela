@@ -69,6 +69,8 @@ const (
 	RegionKey = "customRegion"
 	// ProviderRefKey is the reference of a Provider
 	ProviderRefKey = "providerRef"
+	// ForceDeleteKey is used to force delete Configuration
+	ForceDeleteKey = "forceDelete"
 )
 
 // Workload is component
@@ -688,6 +690,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
 	}
+	configuration.Spec.ForceDelete = wl.FullTemplate.Terraform.ForceDelete
 
 	// 1. parse writeConnectionSecretToRef
 	if err := json.Unmarshal(params, &configuration); err != nil {
@@ -733,6 +736,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	delete(variableMap, WriteConnectionSecretToRefKey)
 	delete(variableMap, RegionKey)
 	delete(variableMap, ProviderRefKey)
+	delete(variableMap, ForceDeleteKey)
 
 	data, err := json.Marshal(variableMap)
 	if err != nil {
