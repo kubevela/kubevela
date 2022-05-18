@@ -73,6 +73,8 @@ var addonVersion string
 
 var addonClusters string
 
+var verboseSatatus bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -330,7 +332,7 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 
 // NewAddonStatusCommand create addon status command
 func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "status",
 		Short:   "get an addon's status.",
 		Long:    "get an addon's status from cluster.",
@@ -347,6 +349,8 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&verboseSatatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	return cmd
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) error {
@@ -425,14 +429,16 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 	var addonPackage *pkgaddon.WholeAddonPackage
 
 	// Get addon install package
-	// We need the metadata to get descriptions about parameters
-	addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
-	// Not found error can be ignored, because the user can define their own addon. Others can't.
-	if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
-		return "", pkgaddon.Status{}, err
-	}
-	if len(addonPackages) != 0 {
-		addonPackage = addonPackages[0]
+	if verboseSatatus {
+		// We need the metadata to get descriptions about parameters
+		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
+		// Not found error can be ignored, because the user can define their own addon. Others can't.
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) && !errors.Is(err, pkgaddon.ErrRegistryNotExist) {
+			return "", pkgaddon.Status{}, err
+		}
+		if len(addonPackages) != 0 {
+			addonPackage = addonPackages[0]
+		}
 	}
 
 	// Check current addon status

@@ -303,7 +303,7 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 		for _, registryName := range registryNames {
 			r, err := registryDataStore.GetRegistry(ctx, registryName)
 			if err != nil {
-				return nil, err
+				continue
 			}
 			registries = append(registries, r)
 		}
@@ -340,7 +340,10 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 			}
 
 			for _, addonName := range addonNames {
-				sourceMeta := meta[addonName]
+				sourceMeta, ok := meta[addonName]
+				if !ok {
+					continue
+				}
 				uiData, err := r.GetUIData(&sourceMeta, CLIMetaOptions)
 				if err != nil {
 					continue
