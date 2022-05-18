@@ -50,6 +50,15 @@ func GetNamespacesForCompletion(ctx context.Context, f Factory, toComplete strin
 	return listObjectNamesForCompletion(ctx, f, corev1.SchemeGroupVersion.WithKind("Namespace"), nil, toComplete)
 }
 
+// GetServiceAccountForCompletion auto-complete serviceaccount
+func GetServiceAccountForCompletion(ctx context.Context, f Factory, namespace string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var options []client.ListOption
+	if namespace != "" {
+		options = append(options, client.InNamespace(namespace))
+	}
+	return listObjectNamesForCompletion(ctx, f, corev1.SchemeGroupVersion.WithKind("ServiceAccount"), options, toComplete)
+}
+
 // GetRevisionForCompletion auto-complete the revision according to the application
 func GetRevisionForCompletion(ctx context.Context, f Factory, appName string, namespace string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	var options []client.ListOption
