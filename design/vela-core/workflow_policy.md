@@ -654,27 +654,22 @@ The process goes as:
 
 ### Case 5: Conditional Check
 
-In this case, users want to send notification if the responseCode of the HTTP request is 400. When the `if` condition is not met, the step will be skipped.
+In this case, users want to execute different steps based on the responseCode. When the `if` condition is not met, the step will be skipped.
 
 ```yaml
 workflow:
   steps:
-    // for example, in this case, the responseCode in a is 400
     - name: request
       type: webhook
-      phase: succeeded
     - name: handle-200
-      type: notification
+      type: deploy
       if: request.output.responseCode == 200
-      phase: skipped
     - name: handle-400
       type: notification
       if: request.output.responseCode == 400
-      phase: succeeded
     - name: handle-500
-      type: notification
+      type: rollback
       if: request.output.responseCode == 500
-      phase: skipped
 ```
 
 If users want to execute one step no matter what, they can use `if: always` in the step. In this way, whether the workflow is successful or not, the step will be executed`.
