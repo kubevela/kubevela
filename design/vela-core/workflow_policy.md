@@ -142,7 +142,7 @@ If the status of workflow step is `waiting` or `failed`, the workflow will be re
 int(0.05 * 2^(n-1))
 ```
 
-Based on the above formula, we will take `1s` min time.
+Based on the above formula, we will take `1s` as the min time and `60s` as the max time. You can change the max time by setting `MaxWorkflowWaitBackoffTime`.
 
 For example, if the workflow is `waiting`, the first ten reconciliation will be like:
 
@@ -160,19 +160,13 @@ For example, if the workflow is `waiting`, the first ten reconciliation will be 
 | 10 | 512 | 25.6 | 25 |
 | ... | ... | ... | ... |
 
-If the workflow step is `waiting`, the max backoff time is `60s`, you can change it by setting `MaxWorkflowWaitBackoffTime`.
-
-If the workflow step is `failed`, the max backoff time is `300s`, you can change it by setting `MaxWorkflowFailedBackoffTime`.
-
 #### Failed Workflow Steps
 
 If the workflow step is `failed`, it means that there may be some error in the workflow step, like some cue errors.
 
 > Note that if the workflow step is unhealthy, the workflow step will be marked as `wait` but not `failed` and it will wait for healthy.
 
-For this case, we will retry the workflow step 10 times by default, and if the workflow step is still `failed`, we will suspend this workflow, and it's message will be `The workflow suspends automatically because the failed times of steps have reached the limit`. You can change the retry times by setting `MaxWorkflowStepErrorRetryTimes`.
-
-After the workflow is suspended, we can change the workflow step to make it work, and then use `vela workflow resume <workflow-name>` to resume it.
+For this case, we will retry the workflow step 10 times by default, and if the workflow step is still `failed`, we will terminate this workflow, and it's message will be `The workflow terminates automatically because the failed times of steps have reached the limit`. You can change the retry times by setting `MaxWorkflowStepErrorRetryTimes`.
 
 ## Implementation
 
@@ -578,24 +572,20 @@ components:
 
 workflow:
   steps:
+  # Wait for the MySQL object's status.connSecret to have value.
   - type: apply-component
+    outputs:
+      - name: connSecret
+        valueFrom: output.status.connSecret
     properties:
       name: my-db
-
-  # Wait for the MySQL object's status.connSecret to have value.
-  - type: conditional-wait
-    properties:
-      resourceRef:
-        apiVersion: database.example.org/v1alpha1
-        kind: MySQLInstance
-        name: my-db
-      conditions:
-        - field: status.connSecret
-          op: NotEmpty
 
   # Patch my-app Deployment object's field with the secret name
   # emitted from MySQL object. And then apply my-app component.
   - type: apply-component
+    inputs:
+      - from: connSecret
+        parameterKey: patch.valueFrom.field
     properties:
       name: my-app
       patch:
@@ -605,8 +595,6 @@ workflow:
           apiVersion: database.example.org/v1alpha1
           kind: MySQLInstance
           name: my-db
-          field: status.connSecret
-
 ```
 
 ### Case 4: GitOps rollout
@@ -663,6 +651,38 @@ The process goes as:
 - On creating the application, app controller will apply the HelmTemplate/KustomizePatch objects, and wait for its status.
 - The HelmTemplate/KustomizePatch controller would read the template from specified source, render the final config. It will compare the config with the Application object -- if there is difference, it will write back to the Application object per se.
 - The update of Application will trigger another event, the app controller will apply the HelmTemplate/KustomizePatch objects with new context. But this time, the HelmTemplate/KustomizePatch controller will find no diff after the rendering. So it will skip this time.
+
+### Case 5: Conditional Check
+
+In this case, users want to execute different steps based on the responseCode. When the `if` condition is not met, the step will be skipped.
+
+```yaml
+workflow:
+  steps:
+    - name: request
+      type: webhook
+    - name: handle-200
+      type: deploy
+      if: request.output.responseCode == 200
+    - name: handle-400
+      type: notification
+      if: request.output.responseCode == 400
+    - name: handle-500
+      type: rollback
+      if: request.output.responseCode == 500
+```
+
+If users want to execute one step no matter what, they can use `if: always` in the step. In this way, whether the workflow is successful or not, the step will be executed`.
+
+```yaml
+workflow:
+steps:
+   - type: deploy
+     name: deploy-app
+   - name: notificationA
+     if: always
+     type: notification
+```
 
 ## Considerations
 
