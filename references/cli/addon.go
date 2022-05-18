@@ -433,7 +433,7 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 		// We need the metadata to get descriptions about parameters
 		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
 		// Not found error can be ignored, because the user can define their own addon. Others can't.
-		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) {
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) && !errors.Is(err, pkgaddon.ErrRegistryNotExist) {
 			return "", pkgaddon.Status{}, err
 		}
 		if len(addonPackages) != 0 {

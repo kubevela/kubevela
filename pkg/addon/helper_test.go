@@ -139,11 +139,6 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 			// Prepare local non-versioned registry
 			server = httptest.NewServer(ossHandler)
 			cm := v1.ConfigMap{}
-			//err := k8sClient.Get(context.Background(), types.NamespacedName{Name: "vela-addon-registry", Namespace: "vela-system"}, &cm)
-			//Expect(apierrors.IsNotFound(err) || err == nil).To(BeTrue())
-			//if err == nil {
-			//	Expect(k8sClient.Delete(context.Background(), &cm)).To(Succeed())
-			//}
 			cmYaml := strings.ReplaceAll(registryCmYaml, "TEST_SERVER_URL", server.URL)
 			cmYaml = strings.ReplaceAll(cmYaml, "KubeVela", "testreg")
 			Expect(yaml.Unmarshal([]byte(cmYaml), &cm)).Should(BeNil())

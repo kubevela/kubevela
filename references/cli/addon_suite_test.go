@@ -166,7 +166,7 @@ var _ = Describe("Addon status or info", func() {
 
 		It("should display addon name and disabled status, registry name, available versions, dependencies, and parameters(optional)", func() {
 			addonName := "velaux"
-			_, res, err := generateAddonInfo(k8sClient, addonName)
+			res, _, err := generateAddonInfo(k8sClient, addonName)
 			Expect(err).Should(BeNil())
 			// Should include disabled status, like:
 			// velaux: disabled
@@ -252,15 +252,6 @@ var _ = Describe("Addon status or info", func() {
 				// We cannot really get installed clusters in this test environment.
 				// Might change how this test is conducted in the future.
 
-				// Should include registry name, like:
-				// ==> Registry Name
-				// KubeVela
-				if !strings.Contains(res,
-					color.New(color.Bold).Sprintf("%s", "Registry Name")+"\n"+
-						"KubeVela",
-				) {
-					return fmt.Errorf("registry name incorrect, %s", res)
-				}
 				// Should include available versions, like:
 				// ==> Available Versions
 				// [v2.6.3]
