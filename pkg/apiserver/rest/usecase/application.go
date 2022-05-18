@@ -1264,11 +1264,8 @@ func (c *applicationUsecaseImpl) DeleteComponent(ctx context.Context, app *model
 		log.Logger.Warnf("delete app component %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
-	// update the workflow if added a first cloud resource component
-	if component.WorkloadType.Type == TerraformWorkloadType {
-		if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
-			return bcode.ErrEnvBindingUpdateWorkflow
-		}
+	if err := UpdateAppEnvWorkflow(ctx, c.kubeClient, c.ds, app); err != nil {
+		return bcode.ErrEnvBindingUpdateWorkflow
 	}
 	return nil
 }
