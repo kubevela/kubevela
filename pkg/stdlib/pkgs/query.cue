@@ -8,7 +8,10 @@
 			cluster?:          string
 			clusterNamespace?: string
 			components?: [...string]
+			kind?:       string
+			apiVersion?: string
 		}
+		withStatus?: bool
 	}
 	list?: [...{
 		cluster:   string
@@ -29,6 +32,8 @@
 			cluster?:          string
 			clusterNamespace?: string
 			components?: [...string]
+			kind?:       string
+			apiVersion?: string
 		}
 	}
 	list?: [...{
