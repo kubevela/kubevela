@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"net/http/httptest"
-	"sigs.k8s.io/yaml"
 	"strings"
+
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
