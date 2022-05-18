@@ -20,6 +20,11 @@ import (
 	"reflect"
 )
 
+const (
+	// DefaultParallelism default parallelism
+	DefaultParallelism int = 5
+)
+
 // ParInput input for parallel execution
 type ParInput interface{}
 

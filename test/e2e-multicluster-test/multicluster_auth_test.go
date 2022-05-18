@@ -37,6 +37,27 @@ var _ = Describe("Test multicluster Auth commands", func() {
 			Expect(outputs).Should(ContainSubstring("ServiceAccount vela-system/default found."))
 		})
 
+		It("Test vela list-privileges for user", func() {
+			outputs, err := execCommand("auth", "list-privileges", "--user", "example", "--group", "kubevela:dev-team", "--group", "kubevela:test-team")
+			Expect(err).Should(Succeed())
+			Expect(outputs).Should(ContainSubstring("local"))
+		})
+
+		It("Test vela list-privileges for ServiceAccount", func() {
+			outputs, err := execCommand("auth", "list-privileges", "--serviceaccount", "node-controller", "-n", "kube-system", "--cluster", "local", "--cluster", WorkerClusterName)
+			Expect(err).Should(Succeed())
+			Expect(outputs).Should(SatisfyAny(
+				ContainSubstring(WorkerClusterName),
+				ContainSubstring("nodes/status"),
+			))
+		})
+
+		It("Test vela list-privileges for kubeconfig", func() {
+			outputs, err := execCommand("auth", "list-privileges", "--kubeconfig", WorkerClusterKubeConfigPath, "--cluster", "local")
+			Expect(err).Should(Succeed())
+			Expect(outputs).Should(ContainSubstring("cluster-admin"))
+		})
+
 	})
 
 })

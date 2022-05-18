@@ -61,6 +61,7 @@ require (
 	github.com/tidwall/gjson v1.9.3
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
+	github.com/xlab/treeprint v1.1.0
 	go.mongodb.org/mongo-driver v1.5.1
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
@@ -259,7 +260,6 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/zclconf/go-cty v1.8.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.0 // indirect
