@@ -109,7 +109,7 @@ func UpdateNamespace(ctx context.Context, kubeClient client.Client, name string,
 	return kubeClient.Update(ctx, &namespace)
 }
 
-// GetServiceAccountSubjectFromConfig extract ServiceAccount subject from token
+// GetServiceAccountSubjectFromConfig extract ServiceAccountName subject from token
 func GetServiceAccountSubjectFromConfig(cfg *rest.Config) string {
 	sub, _ := GetTokenSubject(cfg.BearerToken)
 	return sub

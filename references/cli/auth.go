@@ -18,15 +18,17 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
+	"golang.org/x/term"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
+
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -45,74 +47,27 @@ func AuthCommandGroup(f velacmd.Factory, streams util.IOStreams) *cobra.Command 
 		},
 	}
 	cmd.AddCommand(NewGenKubeConfigCommand(f, streams))
+	cmd.AddCommand(NewListPrivilegesCommand(f, streams))
 	return cmd
 }
 
 // GenKubeConfigOptions options for create kubeconfig
 type GenKubeConfigOptions struct {
-	User                    string
-	Groups                  []string
-	ServiceAccountName      string
-	ServiceAccountNamespace string
-
+	auth.Identity
 	util.IOStreams
-}
-
-func (opt *GenKubeConfigOptions) options() []auth.KubeConfigGenerateOption {
-	var opts []auth.KubeConfigGenerateOption
-	if opt.User != "" {
-		opts = append(opts, auth.KubeConfigWithUserGenerateOption(opt.User))
-	}
-	for _, group := range opt.Groups {
-		opts = append(opts, auth.KubeConfigWithGroupGenerateOption(group))
-	}
-	if opt.ServiceAccountName != "" {
-		opts = append(opts, auth.KubeConfigWithServiceAccountGenerateOption{
-			Name:      opt.ServiceAccountName,
-			Namespace: opt.ServiceAccountNamespace,
-		})
-	}
-	return opts
 }
 
 // Complete .
 func (opt *GenKubeConfigOptions) Complete(f velacmd.Factory, cmd *cobra.Command) {
-	opt.User = strings.TrimSpace(opt.User)
-	groupMap := map[string]struct{}{}
-	var groups []string
-	for _, group := range opt.Groups {
-		group = strings.TrimSpace(group)
-		if _, found := groupMap[group]; !found {
-			groupMap[group] = struct{}{}
-			groups = append(groups, group)
-		}
+	if opt.Identity.ServiceAccount != "" {
+		opt.Identity.ServiceAccountNamespace = velacmd.GetNamespace(f, cmd)
 	}
-	opt.Groups = groups
-	opt.ServiceAccountName = strings.TrimSpace(opt.ServiceAccountName)
-	if opt.ServiceAccountName != "" {
-		if ns := velacmd.GetNamespace(f, cmd); ns != "" {
-			opt.ServiceAccountNamespace = ns
-		} else {
-			opt.ServiceAccountNamespace = corev1.NamespaceDefault
-		}
-	}
+	opt.Regularize()
 }
 
 // Validate .
 func (opt *GenKubeConfigOptions) Validate() error {
-	if opt.User == "" && opt.ServiceAccountName == "" {
-		return errors.Errorf("either `user` or `serviceaccount` should be set")
-	}
-	if opt.User != "" && opt.ServiceAccountName != "" {
-		return errors.Errorf("cannot set `user` and `serviceaccount` at the same time")
-	}
-	if opt.User == "" && len(opt.Groups) > 0 {
-		return errors.Errorf("cannot set groups when user is not set")
-	}
-	if opt.ServiceAccountName == "" && opt.ServiceAccountNamespace != "" {
-		return errors.Errorf("cannot set serviceaccount namespace when serviceaccount is not set")
-	}
-	return nil
+	return opt.Identity.Validate()
 }
 
 // Run .
@@ -126,7 +81,7 @@ func (opt *GenKubeConfigOptions) Run(f velacmd.Factory) error {
 	if err != nil {
 		return err
 	}
-	cfg, err = auth.GenerateKubeConfig(ctx, cli, cfg, opt.IOStreams.ErrOut, opt.options()...)
+	cfg, err = auth.GenerateKubeConfig(ctx, cli, cfg, opt.IOStreams.ErrOut, auth.KubeConfigWithIdentityGenerateOption(opt.Identity))
 	if err != nil {
 		return err
 	}
@@ -193,7 +148,7 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 	}
 	cmd.Flags().StringVarP(&o.User, "user", "u", o.User, "The user of the generated kubeconfig. If set, an X509-based kubeconfig will be intended to create. It will be embedded as the Subject in the X509 certificate.")
 	cmd.Flags().StringSliceVarP(&o.Groups, "group", "g", o.Groups, "The groups of the generated kubeconfig. This flag only works when `--user` is set. It will be embedded as the Organization in the X509 certificate.")
-	cmd.Flags().StringVarP(&o.ServiceAccountName, "serviceaccount", "", o.ServiceAccountName, "The serviceaccount of the generated kubeconfig. If set, a kubeconfig will be generated based on the secret token of the serviceaccount. Cannot be set when `--user` presents.")
+	cmd.Flags().StringVarP(&o.ServiceAccount, "serviceaccount", "", o.ServiceAccount, "The serviceaccount of the generated kubeconfig. If set, a kubeconfig will be generated based on the secret token of the serviceaccount. Cannot be set when `--user` presents.")
 	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"serviceaccount", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if strings.TrimSpace(o.User) != "" {
@@ -201,6 +156,141 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			}
 			namespace := velacmd.GetNamespace(f, cmd)
 			return velacmd.GetServiceAccountForCompletion(cmd.Context(), f, namespace, toComplete)
+		}))
+
+	return velacmd.NewCommandBuilder(f, cmd).
+		WithNamespaceFlag(velacmd.NamespaceFlagUsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithStreams(streams).
+		WithResponsiveWriter().
+		Build()
+}
+
+// ListPrivilegesOptions options for list privileges
+type ListPrivilegesOptions struct {
+	auth.Identity
+	KubeConfig string
+	Clusters   []string
+	util.IOStreams
+}
+
+// Complete .
+func (opt *ListPrivilegesOptions) Complete(f velacmd.Factory, cmd *cobra.Command) {
+	if opt.KubeConfig != "" {
+		identity, err := auth.ReadIdentityFromKubeConfig(opt.KubeConfig)
+		cmdutil.CheckErr(err)
+		opt.Identity = *identity
+	}
+	if opt.Identity.ServiceAccount != "" {
+		opt.Identity.ServiceAccountNamespace = velacmd.GetNamespace(f, cmd)
+	}
+	if len(opt.Clusters) == 0 {
+		opt.Clusters = []string{types.ClusterLocalName}
+	}
+	opt.Regularize()
+}
+
+// Validate .
+func (opt *ListPrivilegesOptions) Validate(f velacmd.Factory, cmd *cobra.Command) error {
+	if err := opt.Identity.Validate(); err != nil {
+		return err
+	}
+	for _, cluster := range opt.Clusters {
+		if _, err := prismclusterv1alpha1.NewClusterClient(f.Client()).Get(cmd.Context(), cluster); err != nil {
+			return fmt.Errorf("failed to find cluster %s: %w", cluster, err)
+		}
+	}
+	return nil
+}
+
+// Run .
+func (opt *ListPrivilegesOptions) Run(f velacmd.Factory) error {
+	ctx := context.Background()
+	m, err := auth.ListPrivileges(ctx, f.Client(), opt.Clusters, &opt.Identity)
+	if err != nil {
+		return err
+	}
+	width, _, err := term.GetSize(0)
+	if err != nil {
+		width = 80
+	}
+	_, _ = opt.Out.Write([]byte(auth.PrettyPrintPrivileges(&opt.Identity, m, opt.Clusters, uint(width)-40)))
+	return nil
+}
+
+var (
+	listPrivilegesLong = templates.LongDesc(i18n.T(`
+		List privileges for user
+
+		List privileges that user has in clusters. Use --user/--group to check the privileges
+		for specified user and group. They can be jointly configured to see the union of
+		privileges. Use --serviceaccount and -n/--namespace to see the privileges for 
+		ServiceAccount. You can also use --kubeconfig to use the identity inside implicitly. 
+		The privileges will be shown in tree format.
+
+		This command supports listing privileges across multiple clusters, by using --cluster.
+		If not set, the control plane will be used. This feature requires cluster-gateway to be
+		properly setup to use. 
+
+		The privileges are collected through listing all ClusterRoleBinding and RoleBinding,
+		following the Kubernetes RBAC Authorization. Other authorization mechanism is not supported
+		now. See https://kubernetes.io/docs/reference/access-authn-authz/rbac/ for details.
+		
+		The ClusterRoleBinding and RoleBinding that matches the specified identity will be 
+		tracked. Related ClusterRoles and Roles are retrieved and the contained PolicyRules are
+		demonstrated.`))
+
+	listPrivilegesExample = templates.Examples(i18n.T(`
+		# List privileges for User alice in the control plane
+		vela auth list-privileges --user alice
+		
+		# List privileges for Group org:dev-team in the control plane
+		vela auth list-privileges --group org:dev-team
+
+		# List privileges for User bob with Groups org:dev-team and org:test-team in the control plane and managed cluster example-cluster
+		vela auth list-privileges --user bob --group org:dev-team --group org:test-team --cluster local --cluster example-cluster
+		
+		# List privileges for ServiceAccount example-sa in demo namespace in multiple managed clusters 
+		vela auth list-privileges --serviceaccount example-sa -n demo --cluster cluster-1 --cluster cluster-2
+
+		# List privileges for identity in kubeconfig
+		vela auth list-privileges --kubeconfig ./example.kubeconfig --cluster local --cluster cluster-1`))
+)
+
+// NewListPrivilegesCommand list privileges for given identity
+func NewListPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
+	o := &ListPrivilegesOptions{IOStreams: streams}
+	cmd := &cobra.Command{
+		Use:                   "list-privileges",
+		DisableFlagsInUseLine: true,
+		Short:                 i18n.T("List privileges for user/group/serviceaccount"),
+		Long:                  listPrivilegesLong,
+		Example:               listPrivilegesExample,
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeCD,
+		},
+		Args: cobra.ExactValidArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			o.Complete(f, cmd)
+			cmdutil.CheckErr(o.Validate(f, cmd))
+			cmdutil.CheckErr(o.Run(f))
+		},
+	}
+	cmd.Flags().StringVarP(&o.User, "user", "u", o.User, "The user to list privileges.")
+	cmd.Flags().StringSliceVarP(&o.Groups, "group", "g", o.Groups, "The group to list privileges. Can be set together with --user.")
+	cmd.Flags().StringVarP(&o.ServiceAccount, "serviceaccount", "", o.ServiceAccount, "The serviceaccount to list privileges. Cannot be set with --user and --group.")
+	cmd.Flags().StringSliceVarP(&o.Clusters, "cluster", "c", o.Clusters, "The cluster to list privileges. If not set, the command will list privileges in the control plane.")
+	cmd.Flags().StringVarP(&o.KubeConfig, "kubeconfig", "", o.KubeConfig, "The kubeconfig to list privileges. If set, it will override all the other identity flags.")
+	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
+		"serviceaccount", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if strings.TrimSpace(o.User) != "" {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			namespace := velacmd.GetNamespace(f, cmd)
+			return velacmd.GetServiceAccountForCompletion(cmd.Context(), f, namespace, toComplete)
+		}))
+	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
+		"cluster", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return velacmd.GetClustersForCompletion(cmd.Context(), f, toComplete)
 		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).

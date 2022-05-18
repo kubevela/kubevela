@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -70,7 +71,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
-	f := velacmd.NewDefaultFactory(commandArgs.GetClient, commandArgs.GetConfig)
+	f := velacmd.NewDefaultFactory(config.GetConfigOrDie())
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
