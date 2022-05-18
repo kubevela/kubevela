@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/pkg/errors"
@@ -33,10 +34,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/utils/pointer"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // KubeConfigGenerateOptions options for create KubeConfig
@@ -89,6 +94,25 @@ func (opt KubeConfigWithServiceAccountGenerateOption) ApplyToOptions(options *Ku
 	options.ServiceAccount = &KubeConfigGenerateServiceAccountOptions{
 		ServiceAccountName:      opt.Name,
 		ServiceAccountNamespace: opt.Namespace,
+	}
+}
+
+// KubeConfigWithIdentityGenerateOption option for setting identity in KubeConfig
+type KubeConfigWithIdentityGenerateOption Identity
+
+// ApplyToOptions .
+func (opt KubeConfigWithIdentityGenerateOption) ApplyToOptions(options *KubeConfigGenerateOptions) {
+	if opt.User != "" {
+		KubeConfigWithUserGenerateOption(opt.User).ApplyToOptions(options)
+	}
+	for _, group := range opt.Groups {
+		KubeConfigWithGroupGenerateOption(group).ApplyToOptions(options)
+	}
+	if opt.ServiceAccount != "" {
+		(KubeConfigWithServiceAccountGenerateOption{
+			Name:      opt.ServiceAccount,
+			Namespace: opt.ServiceAccountNamespace,
+		}).ApplyToOptions(options)
 	}
 }
 
@@ -234,4 +258,59 @@ func generateServiceAccountKubeConfig(ctx context.Context, cli kubernetes.Interf
 	return genKubeConfig(cfg, &clientcmdapi.AuthInfo{
 		Token: string(secret.Data["token"]),
 	}, secret.Data["ca.crt"]), nil
+}
+
+// ReadIdentityFromKubeConfig extract identity from kubeconfig
+func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
+	cfg, err := clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+	ctx, exists := cfg.Contexts[cfg.CurrentContext]
+	if !exists {
+		return nil, fmt.Errorf("cannot find current-context %s", cfg.CurrentContext)
+	}
+	authInfo, exists := cfg.AuthInfos[ctx.AuthInfo]
+	if !exists {
+		return nil, fmt.Errorf("cannot find auth-info %s", ctx.AuthInfo)
+	}
+
+	identity := &Identity{}
+	token := authInfo.Token
+	if token == "" && authInfo.TokenFile != "" {
+		bs, err := ioutil.ReadFile(authInfo.TokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read token file %s: %w", authInfo.TokenFile, err)
+		}
+		token = string(bs)
+	}
+	if token != "" {
+		sub, err := utils.GetTokenSubject(token)
+		if err != nil {
+			return nil, fmt.Errorf("failed to recognize serviceaccount: %w", err)
+		}
+		identity.ServiceAccountNamespace, identity.ServiceAccount, err = serviceaccount.SplitUsername(sub)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse serviceaccount from %s: %w", sub, err)
+		}
+		return identity, nil
+	}
+
+	certData := authInfo.ClientCertificateData
+	if len(certData) == 0 && authInfo.ClientCertificate != "" {
+		certData, err = ioutil.ReadFile(authInfo.ClientCertificate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read cert file %s: %w", authInfo.ClientCertificate, err)
+		}
+	}
+	if len(certData) > 0 {
+		name, err := utils.GetCertificateSubject(certData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get subject from certificate data: %w", err)
+		}
+		identity.User = name.CommonName
+		identity.Groups = name.Organization
+		return identity, nil
+	}
+	return nil, fmt.Errorf("cannot find client certificate or serviceaccount token in kubeconfig")
 }

@@ -17,10 +17,15 @@ limitations under the License.
 package cmd
 
 import (
+	"sync"
+
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // Factory client factory for running command
@@ -35,26 +40,62 @@ type ClientGetter func() (client.Client, error)
 // ConfigGetter function for getting config
 type ConfigGetter func() (*rest.Config, error)
 
-type defaultFactory struct {
+type delegateFactory struct {
 	ClientGetter
 	ConfigGetter
 }
 
 // Client return the client for command line use, interrupt if error encountered
-func (f *defaultFactory) Client() client.Client {
+func (f *delegateFactory) Client() client.Client {
 	cli, err := f.ClientGetter()
 	cmdutil.CheckErr(err)
 	return cli
 }
 
 // Config return the kubeConfig for command line use
-func (f *defaultFactory) Config() *rest.Config {
+func (f *delegateFactory) Config() *rest.Config {
 	cfg, err := f.ConfigGetter()
 	cmdutil.CheckErr(err)
 	return cfg
 }
 
+// NewDelegateFactory create a factory based on getter function
+func NewDelegateFactory(clientGetter ClientGetter, configGetter ConfigGetter) Factory {
+	return &delegateFactory{ClientGetter: clientGetter, ConfigGetter: configGetter}
+}
+
+var (
+	// DefaultRateLimiter default rate limiter for cmd client
+	DefaultRateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
+)
+
+type defaultFactory struct {
+	sync.Mutex
+	cfg *rest.Config
+	cli client.Client
+}
+
+// Client return the client for command line use, interrupt if error encountered
+func (f *defaultFactory) Client() client.Client {
+	f.Lock()
+	defer f.Unlock()
+	if f.cli == nil {
+		var err error
+		f.cli, err = client.New(f.cfg, client.Options{Scheme: common.Scheme})
+		cmdutil.CheckErr(err)
+	}
+	return f.cli
+}
+
+// Config return the kubeConfig for command line use
+func (f *defaultFactory) Config() *rest.Config {
+	return f.cfg
+}
+
 // NewDefaultFactory create a factory based on client getter function
-func NewDefaultFactory(clientGetter ClientGetter, configGetter ConfigGetter) Factory {
-	return &defaultFactory{ClientGetter: clientGetter, ConfigGetter: configGetter}
+func NewDefaultFactory(cfg *rest.Config) Factory {
+	copiedCfg := *cfg
+	copiedCfg.RateLimiter = DefaultRateLimiter
+	copiedCfg.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	return &defaultFactory{cfg: &copiedCfg}
 }
