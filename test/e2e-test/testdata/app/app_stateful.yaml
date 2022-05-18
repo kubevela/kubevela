@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: statefulservice-replicas
+spec:
+  components:
+    - name: hello-world
+      type: statefulservice
+      properties:
+        image: crccheck/hello-world
+        replicas: 2

@@ -207,6 +207,25 @@ var _ = Describe("Application Normal tests", func() {
 			time.Second*60, time.Millisecond*500).Should(BeNil())
 	}
 
+	verifyStatefulsetRunningExpected := func(workloadName string, replicas int32, image string) {
+		var workload v1.StatefulSet
+		By("Verify Workload running as expected")
+		Eventually(
+			func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: workloadName}, &workload); err != nil {
+					return err
+				}
+				if workload.Status.ReadyReplicas != replicas {
+					return fmt.Errorf("expect replicas %v != real %v", replicas, workload.Status.ReadyReplicas)
+				}
+				if workload.Spec.Template.Spec.Containers[0].Image != image {
+					return fmt.Errorf("expect replicas %v != real %v", image, workload.Spec.Template.Spec.Containers[0].Image)
+				}
+				return nil
+			},
+			time.Second*60, time.Millisecond*500).Should(BeNil())
+	}
+
 	verifyComponentRevision := func(compName string, revisionNum int64) {
 		By("Verify Component revision")
 		expectCompRevName := fmt.Sprintf("%s-v%d", compName, revisionNum)
@@ -261,6 +280,13 @@ var _ = Describe("Application Normal tests", func() {
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
 		verifyComponentRevision("myweb", 4)
+	})
+
+	It("Test stateful app with two replicas", func() {
+		applyApp("app_stateful.yaml")
+		By("Apply the application rollout go directly to the target")
+		verifyStatefulsetRunningExpected("hello-world", 2, "crccheck/hello-world")
+		verifyComponentRevision("hello-world", 1)
 	})
 
 	It("Test app have component with multiple same type traits", func() {
