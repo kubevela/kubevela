@@ -19,11 +19,11 @@ package addon
 import (
 	"context"
 	"errors"
-	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"net/http/httptest"
-	"sigs.k8s.io/yaml"
 	"strings"
+
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -44,7 +44,6 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 		Context("when non-empty addonNames and registryNames is supplied", func() {
 			It("should return error saying ErrRegistryNotExist", func() {
 				_, err := FindWholeAddonPackagesFromRegistry(context.Background(), k8sClient, []string{"fluxcd"}, []string{"some-registry"})
-				fmt.Println(err)
 				Expect(errors.Is(err, ErrRegistryNotExist)).To(BeTrue())
 			})
 		})

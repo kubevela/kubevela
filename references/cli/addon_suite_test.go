@@ -251,26 +251,6 @@ var _ = Describe("Addon status or info", func() {
 
 				// We cannot really get installed clusters in this test environment.
 				// Might change how this test is conducted in the future.
-
-				// Should include available versions, like:
-				// ==> Available Versions
-				// [v2.6.3]
-				if !strings.Contains(res,
-					color.New(color.Bold).Sprintf("%s", "Available Versions")+"\n"+
-						"[",
-				) {
-					return fmt.Errorf("available versions incorrect, %s", res)
-				}
-				// Should include dependencies, like:
-				// ==> Dependencies ✔
-				// []
-				if !strings.Contains(res,
-					color.New(color.Bold).Sprintf("%s", "Dependencies ")+color.GreenString("✔")+"\n"+
-						"[]",
-				) {
-					return fmt.Errorf("dependencies incorrect, %s", res)
-				}
-				// fluxcd does not have any parameters, so we skip it.
 				return nil
 			}, 30*time.Second, 1000*time.Millisecond).Should(BeNil())
 		})
