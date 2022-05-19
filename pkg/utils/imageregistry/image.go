@@ -17,19 +17,12 @@ limitations under the License.
 package image
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 
-	"github.com/valyala/fasthttp"
-
-	"github.com/heroku/docker-registry-client/registry"
-)
-
-const (
-	dockerHub            = "hub.docker.com"
-	dockerIO             = "docker.io"
-	dockerHubDefaultRepo = "library"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // Meta is the struct for image metadata
@@ -53,96 +46,43 @@ type Result struct {
 
 // IsExisted checks whether a public or private image exists
 func IsExisted(username, password, image string) (bool, error) {
-	meta, err := retrieveImageMeta(image)
+	ref, err := name.ParseReference(image)
 	if err != nil {
 		return false, err
 	}
 
+	var img v1.Image
+
 	if username != "" || password != "" {
-		hub, err := registry.New("https://"+meta.Registry, username, password)
-		if err != nil {
-			return false, err
+		basic := &authn.Basic{
+			Username: username,
+			Password: password,
 		}
-		digest, err := hub.ManifestDigest(meta.Repository+"/"+meta.Name, meta.Tag)
-		if err != nil {
-			return false, err
-		}
-		if digest == "" {
-			return false, fmt.Errorf("image %s not found as its degest is empty", image)
-		}
-		return true, nil
-	}
 
-	switch meta.Registry {
-	case dockerHub:
-		api := fmt.Sprintf("https://%s/v2/repositories/%s/%s/tags?page_size=10000", meta.Registry, meta.Repository, meta.Name)
-		statusCode, body, err := fasthttp.Get(nil, api) //nolint:gosec
+		option := remote.WithAuth(basic)
+		img, err = remote.Image(ref, option)
 		if err != nil {
 			return false, err
 		}
-		if statusCode == 200 {
-			var r DockerHubImageTagResponse
-			var tagExisted bool
-			if err := json.Unmarshal(body, &r); err == nil {
-				for _, result := range r.Results {
-					if result.Name == meta.Tag {
-						tagExisted = true
-						break
-					}
-				}
-			}
-			if tagExisted {
-				return true, nil
-			}
-			return false, fmt.Errorf("image %s not found as its tag %s is not existed", meta.Name, meta.Tag)
-		}
-		return false, nil
-	default:
-		return false, fmt.Errorf("image doesn't exist as its registry %s is not supported yet", meta.Registry)
-	}
-}
-
-func retrieveImageMeta(image string) (*Meta, error) {
-	var (
-		reg  string
-		repo string
-		name string
-		tag  string
-	)
-	if image == "" {
-		return nil, fmt.Errorf("image is empty")
-	}
-	meta := strings.Split(image, ":")
-	if len(meta) == 1 {
-		tag = "latest"
 	} else {
-		tag = meta[1]
+		img, err = remote.Image(ref)
+		if err != nil {
+			return false, err
+		}
 	}
 
-	tmp := strings.Split(meta[0], "/")
-	switch len(tmp) {
-	case 1:
-		reg = dockerHub
-		repo = dockerHubDefaultRepo
-		name = tmp[0]
-	case 2:
-		if tmp[0] == dockerIO {
-			repo = dockerHubDefaultRepo
-		} else {
-			repo = tmp[0]
-		}
-		reg = dockerHub
-		name = tmp[1]
-	case 3:
-		if tmp[0] == dockerIO {
-			reg = dockerHub
-		} else {
-			reg = tmp[0]
-		}
-		repo = tmp[1]
-		name = tmp[2]
+	_, err = img.Digest()
+	if err != nil {
+		return false, err
 	}
-	return &Meta{Registry: reg, Repository: repo, Name: name, Tag: tag}, nil
+
+	m, err := img.Manifest()
+	if err != nil {
+		return false, err
+	}
+	fmt.Println(m)
+
+	return true, nil
 }
 
 // RegistryMeta is the struct for registry metadata

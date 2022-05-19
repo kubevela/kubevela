@@ -509,7 +509,7 @@ func TestValidateImage(t *testing.T) {
 			Name:      "s1",
 			Namespace: velatypes.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				velatypes.LabelConfigCatalog:    velaCoreConfig,
+				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
 				velatypes.LabelConfigType:       velatypes.ImageRegistry,
 				velatypes.LabelConfigProject:    "",
 				velatypes.LabelConfigIdentifier: "abc.com",

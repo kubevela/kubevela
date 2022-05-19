@@ -42,7 +42,7 @@ func TestExisted(t *testing.T) {
 			},
 			want: want{
 				existed: false,
-				errMsg:  "image is empty",
+				errMsg:  "could not parse referenc",
 			},
 		},
 		"just image name": {
@@ -91,7 +91,7 @@ func TestExisted(t *testing.T) {
 			},
 			want: want{
 				existed: false,
-				errMsg:  "image jfsdfjwfjwf not found as its tag",
+				errMsg:  "UNAUTHORIZED",
 			},
 		},
 		"invalid image registry": {
@@ -100,16 +100,25 @@ func TestExisted(t *testing.T) {
 			},
 			want: want{
 				existed: false,
-				errMsg:  "image jfsdfjwfjwf not found as its tag fwefsfsjflwejfwjfoewfsffsfw is not existed",
+				errMsg:  "UNAUTHORIZED",
+			},
+		},
+		"registry is not valid": {
+			args: args{
+				image: "abcYeidlfdned877239.com/d/e:v0.1",
+			},
+			want: want{
+				existed: false,
+				errMsg:  "EOF",
 			},
 		},
 		"not docker hub registry": {
 			args: args{
-				image: "abc.com/d/e:v0.1",
+				image: "alibabacloud.com/d/e:v0.1",
 			},
 			want: want{
 				existed: false,
-				errMsg:  "image doesn't exist as its registry abc.com is not supported yet",
+				errMsg:  "invalid character '<' looking for beginning of value",
 			},
 		},
 		"private registry, invalid authentication": {
@@ -119,7 +128,7 @@ func TestExisted(t *testing.T) {
 			},
 			want: want{
 				existed: false,
-				errMsg:  "no such host",
+				errMsg:  "Get",
 			},
 		},
 	}

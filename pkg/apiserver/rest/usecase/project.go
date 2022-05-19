@@ -633,7 +633,7 @@ func validateImage(ctx context.Context, k8sClient client.Client, project, imageN
 
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
-			types.LabelConfigCatalog:    velaCoreConfig,
+			types.LabelConfigCatalog:    types.VelaCoreConfig,
 			types.LabelConfigType:       types.ImageRegistry,
 			types.LabelConfigIdentifier: imageURL,
 		}); err != nil {
