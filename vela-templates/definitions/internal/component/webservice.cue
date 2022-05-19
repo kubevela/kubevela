@@ -520,7 +520,9 @@ template: {
 			// +usage=The endpoint, relative to the port, to which the HTTP GET request should be directed.
 			path: string
 			// +usage=The TCP socket within the container to which the HTTP GET request should be directed.
-			port: int
+			port:    int
+			host?:   string
+			scheme?: *"HTTP" | string
 			httpHeaders?: [...{
 				name:  string
 				value: string
