@@ -459,10 +459,13 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 	case statusDisabled:
 		c := color.New(color.Faint)
 		phase = c.Sprintf("%s", status.AddonPhase)
-		// If the addon is 1. disabled, and 2. does not exist in the registry
-		// means it does not exist at all.
+		// If the addon is
+		// 1. disabled,
+		// 2. does not exist in the registry,
+		// 3. verbose is on (when off, it is not possible to know whether the addon is in registry or not),
+		// means the addon does not exist at all.
 		// So, no need to go further, we return error message saying that we can't find it.
-		if addonPackage == nil {
+		if addonPackage == nil && verboseSatatus {
 			return res, pkgaddon.Status{}, fmt.Errorf("addon %s is not found in registries nor locally installed", name)
 		}
 	default:
