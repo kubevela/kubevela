@@ -329,11 +329,11 @@ var _ = Describe("Addon status or info", func() {
 			})
 
 			It("should display addon name and disabled status, and registry name", func() {
-				addonName := "fluxcd"
+				addonName := "dex"
 				res, _, err := generateAddonInfo(k8sClient, addonName)
 				Expect(err).Should(BeNil())
 				// Should include disabled status, like:
-				// velaux: disabled
+				// dex: disabled
 				Expect(res).To(ContainSubstring(
 					color.New(color.Bold).Sprintf("%s", addonName) + ": " + color.New(color.Faint).Sprintf("%s", statusDisabled),
 				))
