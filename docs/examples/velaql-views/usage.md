@@ -62,7 +62,7 @@ status: {
       // if phase == "Pending" or "Unknown": podIP, hostIP, nodeName will be empty
       podIP:    string
       hostIP:   string
-      nodeName: strin
+      nodeName: string
     }
   }]
 }
