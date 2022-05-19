@@ -319,6 +319,25 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithHttpsHealthProbe := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-httphealthprobe",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "app-httphealthprobe-component",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"livenessProbe\":{\"failureThreshold\":3,\"httpGet\":{\"path\":\"/v1/health\",\"port\":8080,\"scheme\":\"HTTP\"},\"initialDelaySeconds\":60,\"periodSeconds\":60,\"successThreshold\":1,\"timeoutSeconds\":5}}")},
+				},
+			},
+		},
+	}
+
 	appWithApplyOnce := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -2896,6 +2915,49 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
+	It("test application with healthProbe which use https", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-httpshealthprobe",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithHttpsHealthProbe.SetNamespace(ns.Name)
+		app := appWithHttpsHealthProbe.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 const (
