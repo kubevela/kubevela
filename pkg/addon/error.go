@@ -37,6 +37,9 @@ var (
 
 	// ErrNotExist  means addon not exists
 	ErrNotExist = NewAddonError("addon not exist")
+
+	// ErrRegistryNotExist means registry not exists
+	ErrRegistryNotExist = NewAddonError("registry does not exist")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

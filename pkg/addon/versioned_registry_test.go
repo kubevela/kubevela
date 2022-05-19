@@ -62,6 +62,13 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonsInstallPackage.YAMLTemplates)
 	assert.NotEmpty(t, addonsInstallPackage.DefSchemas)
 
+	addonWholePackage, err := r.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, addonWholePackage)
+	assert.NotEmpty(t, addonWholePackage.YAMLTemplates)
+	assert.NotEmpty(t, addonWholePackage.DefSchemas)
+	assert.NotEmpty(t, addonWholePackage.RegistryName)
+
 	ar := BuildVersionedRegistry("auth-helm-repo", "http://127.0.0.1:18083/authReg", &common.HTTPOption{Username: "hello", Password: "hello"})
 	addons, err = ar.ListAddon()
 	assert.NoError(t, err)
@@ -79,6 +86,13 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonsInstallPackage)
 	assert.NotEmpty(t, addonsInstallPackage.YAMLTemplates)
 	assert.NotEmpty(t, addonsInstallPackage.DefSchemas)
+
+	addonWholePackage, err = ar.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, addonWholePackage)
+	assert.NotEmpty(t, addonWholePackage.YAMLTemplates)
+	assert.NotEmpty(t, addonWholePackage.DefSchemas)
+	assert.NotEmpty(t, addonWholePackage.RegistryName)
 
 	testListUIData(t)
 

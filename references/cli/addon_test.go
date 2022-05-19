@@ -25,6 +25,8 @@ import (
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 
@@ -207,28 +209,6 @@ func TestTransCluster(t *testing.T) {
 	}
 }
 
-func TestGenerateStatusIn(t *testing.T) {
-	testcases := []struct {
-		c   pkgaddon.Status
-		res []string
-	}{
-		{
-			c:   pkgaddon.Status{InstalledVersion: "1.2.1", Clusters: map[string]map[string]interface{}{"cluster1": nil, "cluster2": nil}, AddonPhase: statusEnabled},
-			res: []string{"installedVersion: 1.2.1", "installedClusters: [cluster1 cluster2]", fmt.Sprintf("status is %s", color.New(color.FgGreen).Sprintf(statusEnabled))},
-		},
-		{
-			c:   pkgaddon.Status{InstalledVersion: "1.2.3", AddonPhase: statusSuspend},
-			res: []string{"installedVersion: 1.2.3", fmt.Sprintf("status is %s", color.New(color.FgRed).Sprintf(statusSuspend))},
-		},
-	}
-	for _, testcase := range testcases {
-		res := generateAddonInfo("test", testcase.c)
-		for _, re := range testcase.res {
-			assert.Equal(t, strings.Contains(res, re), true)
-		}
-	}
-}
-
 func TestGenerateAvailableVersions(t *testing.T) {
 	type testcase struct {
 		inVersion string
@@ -261,7 +241,65 @@ func TestGenerateAvailableVersions(t *testing.T) {
 		},
 	}
 	for _, s := range testcases {
-		re := genAvailableVersionInfo(s.c.versions, s.c.inVersion)
+		re := genAvailableVersionInfo(s.c.versions, s.c.inVersion, 3)
+		assert.Equal(t, re, s.res)
+	}
+}
+
+func TestLimitStringLength(t *testing.T) {
+	type testcase struct {
+		testString  string
+		lengthLimit int
+	}
+
+	testcases := []struct {
+		c   testcase
+		res string
+	}{
+		// len = limit
+		{
+			c: testcase{
+				testString:  "4444",
+				lengthLimit: 4,
+			},
+			res: "4444",
+		},
+		// len > limit
+		{
+			c: testcase{
+				testString:  "3333",
+				lengthLimit: 3,
+			},
+			res: "333...",
+		},
+		// len < limit
+		{
+			c: testcase{
+				testString:  "22",
+				lengthLimit: 3,
+			},
+			res: "22",
+		},
+		// limit = 0
+		{
+			c: testcase{
+				testString:  "000",
+				lengthLimit: 0,
+			},
+			res: "000",
+		},
+		// limit < 0
+		{
+			c: testcase{
+				testString:  "000",
+				lengthLimit: -1,
+			},
+			res: "000",
+		},
+	}
+
+	for _, s := range testcases {
+		re := limitStringLength(s.c.testString, s.c.lengthLimit)
 		assert.Equal(t, re, s.res)
 	}
 }
@@ -301,4 +339,79 @@ func TestPackageValidAddon(t *testing.T) {
 	cmd.SetArgs([]string{"./test-data/addon/sample"})
 	err := cmd.Execute()
 	assert.NilError(t, err)
+}
+
+func TestGenerateParameterString(t *testing.T) {
+	testcase := []struct {
+		status       pkgaddon.Status
+		addonPackage *pkgaddon.WholeAddonPackage
+		outputs      []string
+	}{
+		{
+			status: pkgaddon.Status{},
+			addonPackage: &pkgaddon.WholeAddonPackage{
+				APISchema: nil,
+			},
+			outputs: []string{""},
+		},
+		{
+			status: pkgaddon.Status{
+				Parameters: map[string]interface{}{
+					"database": "kubevela",
+					"dbType":   "kubeapi",
+				},
+			},
+			addonPackage: &pkgaddon.WholeAddonPackage{
+				APISchema: &openapi3.Schema{
+					Required: []string{"dbType", "serviceAccountName", "serviceType", "dex"},
+					Properties: openapi3.Schemas{
+						"database": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the database name, for the kubeapi db type, it represents namespace.",
+								Default:     nil,
+							},
+						},
+						"dbURL": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
+								Default:     nil,
+							},
+						},
+						"dbType": &openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: "Specify the database type, current support KubeAPI(default) and MongoDB.",
+								Default:     "kubeapi",
+							},
+						},
+					},
+				},
+			},
+			outputs: []string{
+				// dbType
+				color.New(color.FgCyan).Sprintf("-> ") +
+					color.New(color.Bold).Sprint("dbType") + ": " +
+					"Specify the database type, current support KubeAPI(default) and MongoDB.\n" +
+					"\tcurrent: " + color.New(color.FgGreen).Sprint("\"kubeapi\"\n") +
+					"\tdefault: " + "\"kubeapi\"\n" +
+					"\trequired: " + color.GreenString("✔\n"),
+				// dbURL
+				color.New(color.FgCyan).Sprintf("-> ") +
+					color.New(color.Bold).Sprint("dbURL") + ": " +
+					"Specify the MongoDB URL. it only enabled where DB type is MongoDB.",
+				// database
+				color.New(color.FgCyan).Sprintf("-> ") +
+					color.New(color.Bold).Sprint("database") + ": " +
+					"Specify the database name, for the kubeapi db type, it represents namespace.\n" +
+					"\tcurrent: " + color.New(color.FgGreen).Sprint("\"kubevela\""),
+			},
+		},
+	}
+
+	for _, s := range testcase {
+		res := generateParameterString(s.status, s.addonPackage)
+		for _, o := range s.outputs {
+			assert.Check(t, strings.Contains(res, o))
+		}
+
+	}
 }
