@@ -347,6 +347,8 @@ type WorkflowStep struct {
 
 	SubSteps []WorkflowSubStep `json:"subSteps,omitempty"`
 
+	If string `json:"if,omitempty"`
+
 	DependsOn []string `json:"dependsOn,omitempty"`
 
 	Inputs StepInputs `json:"inputs,omitempty"`
@@ -397,6 +399,10 @@ const (
 	WorkflowStepPhaseSucceeded WorkflowStepPhase = "succeeded"
 	// WorkflowStepPhaseFailed will report error in `message`.
 	WorkflowStepPhaseFailed WorkflowStepPhase = "failed"
+	// WorkflowStepPhaseFailedAfterRetries will report error in `message` and stop retrying the step.
+	WorkflowStepPhaseFailedAfterRetries WorkflowStepPhase = "failedAfterRetries"
+	// WorkflowStepPhaseSkipped will make the controller skip the step.
+	WorkflowStepPhaseSkipped WorkflowStepPhase = "skipped"
 	// WorkflowStepPhaseStopped will make the controller stop the workflow.
 	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
 	// WorkflowStepPhaseRunning will make the controller continue the workflow.
