@@ -512,17 +512,34 @@ func TestValidateImage(t *testing.T) {
 				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
 				velatypes.LabelConfigType:       velatypes.ImageRegistry,
 				velatypes.LabelConfigProject:    "",
-				velatypes.LabelConfigIdentifier: "abc.com",
+				velatypes.LabelConfigIdentifier: "abce34289jwerojwerofaf77.com789",
 			},
 		},
 		Data: map[string][]byte{
-			".dockerconfigjson": []byte(`{"auths":{"abc.com":{"auth":"eyJ1c2VybmFtZSI6ImFiYyIsICJwYXNzd29yZCI6ICJkZWYifQ=="}}}`),
+			".dockerconfigjson": []byte(`{"auths":{"abce34289jwerojwerofaf77.com789":{"auth":"aHlicmlkY2xvdWRAcHJvZC5YTEyMw==","username":"xxx","password":"yyy"}}}`),
+		},
+	}
+	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(s1).Build()
+	h1 := &projectUsecaseImpl{k8sClient: k8sClient1}
+
+	s2 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "s2",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
+				velatypes.LabelConfigType:       velatypes.ImageRegistry,
+				velatypes.LabelConfigProject:    "",
+				velatypes.LabelConfigIdentifier: "index.docker.io",
+			},
+		},
+		Data: map[string][]byte{
+			".dockerconfigjson": []byte(`{"auths":{"index.docker.io":{"auth":"aHlicmlkY2xvdWRAcHJvZC5YTEyMw==","username":"xxx","password":"yyy"}}}`),
 		},
 	}
 
-	k8sClient := fake.NewClientBuilder().WithScheme(s).WithObjects(s1).Build()
-
-	h := &projectUsecaseImpl{k8sClient: k8sClient}
+	k8sClient2 := fake.NewClientBuilder().WithScheme(s).WithObjects(s2).Build()
+	h2 := &projectUsecaseImpl{k8sClient: k8sClient2}
 
 	type args struct {
 		project   string
@@ -547,7 +564,7 @@ func TestValidateImage(t *testing.T) {
 			args: args{
 				project:   "p1",
 				imageName: "nginx",
-				h:         h,
+				h:         h1,
 			},
 			want: want{
 				resp: &apisv1.ImageResponse{
@@ -559,11 +576,22 @@ func TestValidateImage(t *testing.T) {
 			name: "invalid image",
 			args: args{
 				project:   "p1",
-				imageName: "abc.com/d/e:v1",
-				h:         h,
+				imageName: "abce34289jwerojwerofaf77.com789/d/e:v1",
+				h:         h1,
 			},
 			want: want{
-				errMsg: "url",
+				errMsg: "EOF",
+			},
+		},
+		{
+			name: "private docker image",
+			args: args{
+				project:   "p1",
+				imageName: "nginx424ru823-should-not-existed",
+				h:         h2,
+			},
+			want: want{
+				errMsg: "incorrect username or password",
 			},
 		},
 	}
