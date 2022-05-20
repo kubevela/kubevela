@@ -21,7 +21,6 @@ import (
 	"errors"
 
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

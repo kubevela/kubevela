@@ -22,17 +22,16 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
-
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"gotest.tools/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -928,6 +927,17 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
 			},
 			want: want{err: nil}},
+		"valid hcl workload, and there are some custom params compared to ComponentDefinition": {
+			args: args{
+				hcl: "def",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss2", "namespace": "default2"},
+					"providerRef":                map[string]interface{}{"name": "aws2", "namespace": "default2"}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+				providerRef:                &terraformtypes.Reference{Name: "aws", Namespace: "default"},
+			},
+			want: want{err: nil},
+		},
 		"valid hcl workload, but the namespace of WriteConnectionSecretToReference is empty": {
 			args: args{
 				hcl: "abc",
@@ -1045,6 +1055,17 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 							Terraform: tf,
 						},
 					},
+				}
+			}
+
+			if tc.args.hcl == "def" {
+				configSpec.WriteConnectionSecretToReference = &terraformtypes.SecretReference{
+					Name:      "oss2",
+					Namespace: "default2",
+				}
+				configSpec.ProviderReference = &terraformtypes.Reference{
+					Name:      "aws2",
+					Namespace: "default2",
 				}
 			}
 

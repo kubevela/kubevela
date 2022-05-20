@@ -684,10 +684,23 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 			Namespace:   ns,
 			Annotations: wl.FullTemplate.ComponentDefinition.Annotations,
 		},
-		Spec: terraformapi.ConfigurationSpec{
-			WriteConnectionSecretToReference: wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.WriteConnectionSecretToReference,
-			ProviderReference:                wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference,
-		},
+	}
+	// 1. parse the spec of configuration
+	var spec terraformapi.ConfigurationSpec
+	if err := json.Unmarshal(params, &spec); err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
+	}
+	configuration.Spec = spec
+
+	if configuration.Spec.WriteConnectionSecretToReference == nil {
+		configuration.Spec.WriteConnectionSecretToReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.WriteConnectionSecretToReference
+	}
+	if configuration.Spec.WriteConnectionSecretToReference != nil && configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
+		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+	}
+
+	if configuration.Spec.ProviderReference == nil {
+		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
 
 	switch wl.FullTemplate.Terraform.Type {
@@ -696,15 +709,6 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	case "remote":
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
-	}
-
-	if configuration.Spec.WriteConnectionSecretToReference != nil && configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
-		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
-	}
-
-	// 1. parse writeConnectionSecretToRef
-	if err := json.Unmarshal(params, &configuration); err != nil {
-		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 
 	// 2. parse variable
