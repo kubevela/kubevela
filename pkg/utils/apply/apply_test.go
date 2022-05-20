@@ -23,8 +23,10 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -422,4 +424,20 @@ func TestMustBeControlledByApp(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFilterSpecialAnn(t *testing.T) {
+	var cm = &corev1.ConfigMap{}
+	var sc = &corev1.Secret{}
+	var dp = &appsv1.Deployment{}
+	assert.Equal(t, false, filterRecordForSpecial(cm))
+	assert.Equal(t, false, filterRecordForSpecial(sc))
+	assert.Equal(t, true, filterRecordForSpecial(dp))
+
+	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "-"}
+	assert.Equal(t, false, filterRecordForSpecial(dp))
+	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "skip"}
+	assert.Equal(t, false, filterRecordForSpecial(dp))
+	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "xxx"}
+	assert.Equal(t, true, filterRecordForSpecial(dp))
 }
