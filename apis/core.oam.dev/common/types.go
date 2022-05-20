@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/oam-dev/terraform-controller/api/v1beta2"
+	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -119,7 +119,22 @@ type Terraform struct {
 	// Path is the sub-directory of remote git repository. It's valid when remote is set
 	Path string `json:"path,omitempty"`
 
-	v1beta2.BaseConfigurationSpec `json:",inline"`
+	// WriteConnectionSecretToReference specifies the namespace and name of a
+	// Secret to which any connection details for this managed resource should
+	// be written. Connection details frequently include the endpoint, username,
+	// and password required to connect to the managed resource.
+	// +optional
+	WriteConnectionSecretToReference *types.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
+
+	// ProviderReference specifies the reference to Provider
+	ProviderReference *types.Reference `json:"providerRef,omitempty"`
+
+	// DeleteResource will determine whether provisioned cloud resources will be deleted when CR is deleted
+	// +kubebuilder:default:=true
+	DeleteResource bool `json:"deleteResource,omitempty"`
+
+	// Region is cloud provider's region. It will override the region in the region field of ProviderReference
+	Region string `json:"customRegion,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type

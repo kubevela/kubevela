@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-terraform-force-delete
+spec:
+  components:
+    - name: force-delete-vpc
+      type: alibaba-vpc
+      properties:
+        vpc_cidr: "172.16.0.0/12"
+        providerRef:
+          name: xxx-not-existed
+        writeConnectionSecretToRef:
+          name: vpc-conn
