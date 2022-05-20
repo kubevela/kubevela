@@ -559,6 +559,13 @@ variable "password" {
 					Configuration: configuration,
 					Type:          "hcl",
 				},
+				ComponentDefinition: &v1beta1.ComponentDefinition{
+					Spec: v1beta1.ComponentDefinitionSpec{
+						Schematic: &common.Schematic{
+							Terraform: &common.Terraform{},
+						},
+					},
+				},
 			},
 			CapabilityCategory: oamtypes.TerraformCategory,
 			Params: map[string]interface{}{
@@ -857,6 +864,13 @@ variable "password" {
 }
 `,
 						Type: "hcl",
+					},
+					ComponentDefinition: &v1beta1.ComponentDefinition{
+						Spec: v1beta1.ComponentDefinitionSpec{
+							Schematic: &common.Schematic{
+								Terraform: &common.Terraform{},
+							},
+						},
 					},
 				},
 				CapabilityCategory: oamtypes.TerraformCategory,
