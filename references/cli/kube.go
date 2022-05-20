@@ -30,7 +30,6 @@ import (
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 	"k8s.io/utils/strings/slices"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -151,7 +150,7 @@ func (opt *KubeApplyOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 			if err = copiedObj.UnmarshalJSON(bs); err != nil {
 				return err
 			}
-			res, err := controllerutil.CreateOrPatch(ctx, f.Client(), copiedObj, nil)
+			res, err := utils.CreateOrUpdate(ctx, f.Client(), copiedObj)
 			if err != nil {
 				return err
 			}
