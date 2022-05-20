@@ -34,8 +34,8 @@ import (
 
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
+	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
-	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
@@ -1416,11 +1416,11 @@ func checkSemVer(actual string, require string) (bool, error) {
 	}
 	smeVer := strings.TrimPrefix(actual, "v")
 	l := strings.ReplaceAll(require, "v", " ")
-	constraint, err := version.NewConstraint(l)
+	constraint, err := semver.NewConstraint(l)
 	if err != nil {
 		return false, err
 	}
-	v, err := version.NewVersion(smeVer)
+	v, err := semver.NewVersion(smeVer)
 	if err != nil {
 		return false, err
 	}

@@ -6,6 +6,7 @@ require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/FogDong/uitable v0.0.5
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/agiledragon/gomonkey/v2 v2.4.0
 	github.com/alibabacloud-go/cs-20151215/v2 v2.4.5
@@ -123,7 +124,6 @@ require (
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/Masterminds/squirrel v1.5.2 // indirect
