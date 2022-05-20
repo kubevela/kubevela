@@ -18,12 +18,15 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -37,6 +40,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	image "github.com/oam-dev/kubevela/pkg/utils/imageregistry"
 )
 
 // ProjectUsecase project manage usecase.
@@ -54,6 +58,7 @@ type ProjectUsecase interface {
 	UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error)
 	Init(ctx context.Context) error
 	GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error)
+	ValidateImage(ctx context.Context, projectName, image string) (*apisv1.ImageResponse, error)
 }
 
 type projectUsecaseImpl struct {
@@ -612,4 +617,58 @@ func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv
 		Alias:             a.Annotations[types.AnnotationConfigAlias],
 		Description:       a.Annotations[types.AnnotationConfigDescription],
 	}
+}
+
+func (p *projectUsecaseImpl) ValidateImage(ctx context.Context, projectName, image string) (*apisv1.ImageResponse, error) {
+	return validateImage(ctx, p.k8sClient, projectName, image)
+}
+
+func validateImage(ctx context.Context, k8sClient client.Client, project, imageName string) (*apisv1.ImageResponse, error) {
+	var (
+		secrets         v1.SecretList
+		username        string
+		password        string
+		imagePullSecret string
+	)
+
+	ref, err := name.ParseReference(imageName)
+	if err != nil {
+		return nil, err
+	}
+	imageURL := ref.Context().RegistryStr()
+
+	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			types.LabelConfigCatalog:    types.VelaCoreConfig,
+			types.LabelConfigType:       types.ImageRegistry,
+			types.LabelConfigIdentifier: ref.Context().RegistryStr(),
+		}); err != nil {
+		return nil, err
+	}
+
+	for _, s := range secrets.Items {
+		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
+			conf := s.Data[".dockerconfigjson"]
+			var auths map[string]map[string]map[string]string
+			if err := json.Unmarshal(conf, &auths); err != nil {
+				return nil, err
+			}
+			imagePullSecret = s.Name
+			if auths["auths"] != nil && auths["auths"][imageURL] != nil {
+				data := auths["auths"][imageURL]
+				username = data["username"]
+				password = data["password"]
+				break
+			}
+		}
+	}
+
+	existed, err := image.IsExisted(username, password, imageName)
+	if err != nil {
+		return nil, err
+	}
+	return &apisv1.ImageResponse{
+		Existed: existed,
+		Secret:  imagePullSecret,
+	}, nil
 }

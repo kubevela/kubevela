@@ -497,3 +497,112 @@ func TestProjectGetConfigs(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateImage(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	terraformapi.AddToScheme(s)
+
+	s1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "s1",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
+				velatypes.LabelConfigType:       velatypes.ImageRegistry,
+				velatypes.LabelConfigProject:    "",
+				velatypes.LabelConfigIdentifier: "abce34289jwerojwerofaf77.com789",
+			},
+		},
+		Data: map[string][]byte{
+			".dockerconfigjson": []byte(`{"auths":{"abce34289jwerojwerofaf77.com789":{"auth":"aHlicmlkY2xvdWRAcHJvZC5YTEyMw==","username":"xxx","password":"yyy"}}}`),
+		},
+	}
+	k8sClient1 := fake.NewClientBuilder().WithScheme(s).WithObjects(s1).Build()
+	h1 := &projectUsecaseImpl{k8sClient: k8sClient1}
+
+	s2 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "s2",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels: map[string]string{
+				velatypes.LabelConfigCatalog:    velatypes.VelaCoreConfig,
+				velatypes.LabelConfigType:       velatypes.ImageRegistry,
+				velatypes.LabelConfigProject:    "",
+				velatypes.LabelConfigIdentifier: "index.docker.io",
+			},
+		},
+		Data: map[string][]byte{
+			".dockerconfigjson": []byte(`{"auths":{"index.docker.io":{"auth":"aHlicmlkY2xvdWRAcHJvZC5YTEyMw==","username":"xxx","password":"yyy"}}}`),
+		},
+	}
+
+	k8sClient2 := fake.NewClientBuilder().WithScheme(s).WithObjects(s2).Build()
+	h2 := &projectUsecaseImpl{k8sClient: k8sClient2}
+
+	type args struct {
+		project   string
+		imageName string
+		h         ProjectUsecase
+	}
+
+	type want struct {
+		resp   *apisv1.ImageResponse
+		errMsg string
+	}
+
+	ctx := context.Background()
+
+	testcases := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "validate image",
+			args: args{
+				project:   "p1",
+				imageName: "nginx",
+				h:         h1,
+			},
+			want: want{
+				resp: &apisv1.ImageResponse{
+					Existed: true,
+				},
+			},
+		},
+		{
+			name: "invalid image",
+			args: args{
+				project:   "p1",
+				imageName: "abce34289jwerojwerofaf77.com789/d/e:v1",
+				h:         h1,
+			},
+			want: want{
+				errMsg: "Get",
+			},
+		},
+		{
+			name: "private docker image",
+			args: args{
+				project:   "p1",
+				imageName: "nginx424ru823-should-not-existed",
+				h:         h2,
+			},
+			want: want{
+				errMsg: "incorrect username or password",
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.args.h.ValidateImage(ctx, tc.args.project, tc.args.imageName)
+			if tc.want.errMsg != "" || err != nil {
+				assert.ErrorContains(t, err, tc.want.errMsg)
+			}
+			assert.DeepEqual(t, got, tc.want.resp)
+		})
+	}
+}

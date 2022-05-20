@@ -210,6 +210,12 @@ type Config struct {
 	Status            string                  `json:"status"`
 }
 
+// ImageResponse is the response for checking image
+type ImageResponse struct {
+	Existed bool   `json:"existed"`
+	Secret  string `json:"secret"`
+}
+
 // AccessKeyRequest request parameters to access cloud provider
 type AccessKeyRequest struct {
 	AccessKeyID     string `json:"accessKeyID"`
