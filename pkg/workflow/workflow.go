@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/debug"
 	"github.com/oam-dev/kubevela/pkg/workflow/recorder"
 	wfTasks "github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -61,8 +62,10 @@ const (
 	// backoffTimeCoefficient is the coefficient of time to wait before reconcile workflow again
 	backoffTimeCoefficient = 0.05
 
-	// MessageFailedAfterRetries is the message of failed after retries
-	MessageFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit"
+	// MessageTerminatedFailedAfterRetries is the message of failed after retries
+	MessageTerminatedFailedAfterRetries = "The workflow terminates automatically because the failed times of steps have reached the limit"
+	// MessageSuspendFailedAfterRetries is the message of failed after retries
+	MessageSuspendFailedAfterRetries = "The workflow suspends automatically because the failed times of steps have reached the limit"
 	// MessageInitializingWorkflow is the message of initializing workflow
 	MessageInitializingWorkflow = "Initializing workflow"
 )
@@ -432,18 +435,15 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 	wfCtx := e.wfCtx
 	done := true
 	for _, tRunner := range taskRunners {
-		ready := false
+		finish := false
 		var stepID string
-		for _, ss := range e.status.Steps {
-			if ss.Name == tRunner.Name() {
-				stepID = ss.ID
-				ready = ss.Phase == common.WorkflowStepPhaseSucceeded
-				break
-			}
+		if status, ok := e.stepStatus[tRunner.Name()]; ok {
+			stepID = status.ID
+			finish = custom.IsStepFinish(status.Phase)
 		}
-		if !ready {
+		if !finish {
 			done = false
-			if tRunner.Pending(wfCtx) {
+			if tRunner.Pending(wfCtx, e.stepStatus) {
 				pendingTasks = append(pendingTasks, tRunner)
 				continue
 			}
@@ -475,20 +475,35 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 }
 
 func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
+	stepStatus := make(map[string]common.WorkflowStepStatus)
+	for _, ss := range e.status.Steps {
+		stepStatus[ss.Name] = common.WorkflowStepStatus{
+			StepStatus: common.StepStatus{
+				Phase: ss.Phase,
+				ID:    ss.ID,
+			},
+		}
+	}
+	e.stepStatus = stepStatus
 	var err error
 	if dag {
 		err = e.runAsDAG(taskRunners)
 	} else {
-		err = e.steps(e.todoByIndex(taskRunners), dag)
+		err = e.steps(taskRunners, dag)
 	}
 
+	e.checkFailedAfterRetries()
 	e.setNextExecuteTime()
 	return err
 }
 
 func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 	if !e.waiting && e.failedAfterRetries {
-		e.status.Message = MessageFailedAfterRetries
+		if custom.EnableSuspendFailedWorkflow {
+			e.status.Message = MessageSuspendFailedAfterRetries
+		} else {
+			e.status.Message = MessageTerminatedFailedAfterRetries
+		}
 		return
 	}
 
@@ -500,24 +515,15 @@ func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 	}
 }
 
-func (e *engine) todoByIndex(taskRunners []wfTypes.TaskRunner) []wfTypes.TaskRunner {
-	index := 0
-	for _, t := range taskRunners {
-		for _, ss := range e.status.Steps {
-			if ss.Name == t.Name() {
-				if ss.Phase == common.WorkflowStepPhaseSucceeded {
-					index++
-				}
-				break
-			}
-		}
-	}
-	return taskRunners[index:]
-}
-
 func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 	wfCtx := e.wfCtx
-	for _, runner := range taskRunners {
+	var err error
+	for index, runner := range taskRunners {
+		if status, ok := e.stepStatus[runner.Name()]; ok {
+			if custom.IsStepFinish(status.Phase) {
+				continue
+			}
+		}
 		options := &wfTypes.TaskRunOptions{
 			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
 				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
@@ -535,42 +541,41 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 				return nil
 			}
 		}
-		status, operation, err := runner.Run(wfCtx, options)
-		if err != nil {
-			return err
+
+		var status common.StepStatus
+		operation := &wfTypes.Operation{}
+		skip := false
+		status, skip = runner.Skip(wfCtx, e.findDependPhase(taskRunners, index, dag), e.stepStatus)
+		if !skip {
+			status, operation, err = runner.Run(wfCtx, options)
+			if err != nil {
+				return err
+			}
 		}
 
 		e.updateStepStatus(status)
 
 		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
 		e.waiting = e.waiting || operation.Waiting
-		if status.Phase == common.WorkflowStepPhaseSucceeded || (status.Phase == common.WorkflowStepPhaseRunning && status.Type == wfTypes.WorkflowStepTypeSuspend) {
-			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
-			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID)
-			if err := wfCtx.Commit(); err != nil {
-				return errors.WithMessage(err, "commit workflow context")
+		// for the suspend step with duration, there's no need to increase the backoff time in reconcile when it's still running
+		if !custom.IsStepFinish(status.Phase) && !isWaitSuspendStep(status) {
+			if err := handleBackoffTimes(wfCtx, status, false); err != nil {
+				return err
 			}
-
-			e.finishStep(operation)
-			if e.needStop() {
-				return nil
+			if dag {
+				continue
 			}
-			continue
+			return nil
+		}
+		// clear the backoff time when the step is finished
+		if err := handleBackoffTimes(wfCtx, status, true); err != nil {
+			return err
 		}
 
-		if val, exists := wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID); !exists || val != status.Message {
-			wfCtx.SetValueInMemory(status.Message, wfTypes.ContextPrefixBackoffReason, status.ID)
-			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		e.finishStep(operation)
+		if e.needStop() {
+			return nil
 		}
-		wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
-		if err := wfCtx.Commit(); err != nil {
-			return errors.WithMessage(err, "commit workflow context")
-		}
-		if dag {
-			continue
-		}
-		e.checkFailedAfterRetries()
-		return nil
 	}
 	return nil
 }
@@ -586,6 +591,7 @@ type engine struct {
 	cli                client.Client
 	rk                 resourcekeeper.ResourceKeeper
 	parentRunner       string
+	stepStatus         map[string]common.WorkflowStepStatus
 }
 
 func (e *engine) finishStep(operation *wfTypes.Operation) {
@@ -643,20 +649,28 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 				index = len(e.status.Steps) - 1
 			}
 			e.status.Steps[index].SubStepsStatus = append(e.status.Steps[index].SubStepsStatus, common.WorkflowSubStepStatus{StepStatus: status})
+			e.stepStatus[status.Name] = e.status.Steps[index]
 		} else {
 			e.status.Steps = append(e.status.Steps, common.WorkflowStepStatus{StepStatus: status})
+			e.stepStatus[status.Name] = common.WorkflowStepStatus{StepStatus: status}
 		}
 	}
 }
 
 func (e *engine) checkFailedAfterRetries() {
 	if !e.waiting && e.failedAfterRetries {
-		e.status.Suspend = true
+		if custom.EnableSuspendFailedWorkflow {
+			e.status.Suspend = true
+		} else {
+			e.status.Terminated = true
+		}
 	}
 }
 
 func (e *engine) needStop() bool {
-	e.checkFailedAfterRetries()
+	if custom.EnableSuspendFailedWorkflow {
+		e.checkFailedAfterRetries()
+	}
 	return e.status.Suspend || e.status.Terminated
 }
 
@@ -678,7 +692,38 @@ func ComputeWorkflowRevisionHash(rev string, app *oamcore.Application) (string, 
 
 // IsFailedAfterRetry check if application is hang due to FailedAfterRetry
 func IsFailedAfterRetry(app *oamcore.Application) bool {
-	return app.Status.Workflow != nil && app.Status.Workflow.Message == MessageFailedAfterRetries
+	return app.Status.Workflow != nil && (app.Status.Workflow.Message == MessageTerminatedFailedAfterRetries || app.Status.Workflow.Message == MessageSuspendFailedAfterRetries)
+}
+
+func (e *engine) findDependPhase(taskRunners []wfTypes.TaskRunner, index int, dag bool) common.WorkflowStepPhase {
+	if dag {
+		return ""
+	}
+	if index < 1 {
+		return common.WorkflowStepPhaseSucceeded
+	}
+	return e.stepStatus[taskRunners[index-1].Name()].Phase
+}
+
+func isWaitSuspendStep(step common.StepStatus) bool {
+	return step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == common.WorkflowStepPhaseRunning
+}
+
+func handleBackoffTimes(wfCtx wfContext.Context, status common.StepStatus, clear bool) error {
+	if clear {
+		wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID)
+	} else {
+		if val, exists := wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffReason, status.ID); !exists || val != status.Message {
+			wfCtx.SetValueInMemory(status.Message, wfTypes.ContextPrefixBackoffReason, status.ID)
+			wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+		}
+		wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+	}
+	if err := wfCtx.Commit(); err != nil {
+		return errors.WithMessage(err, "commit workflow context")
+	}
+	return nil
 }
 
 func (e *engine) GetStepStatus(stepName string) common.WorkflowStepStatus {

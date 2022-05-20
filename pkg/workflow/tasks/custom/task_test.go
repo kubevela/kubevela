@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -438,14 +437,14 @@ func TestPendingInputCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), true)
+	r.Equal(run.Pending(wfCtx, nil), true)
 	score, err := value.NewValue(`
 100
 `, nil, "")
 	r.NoError(err)
 	err = wfCtx.SetVar(score, "score")
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), false)
+	r.Equal(run.Pending(wfCtx, nil), false)
 }
 
 func TestPendingDependsOnCheck(t *testing.T) {
@@ -473,12 +472,13 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), true)
-	ready, err := value.NewValue("true", nil, "")
-	r.NoError(err)
-	err = wfCtx.SetVar(ready, hooks.ReadyComponent, "depend")
-	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), false)
+	r.Equal(run.Pending(wfCtx, nil), true)
+	ss := map[string]common.WorkflowStepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(run.Pending(wfCtx, ss), false)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {

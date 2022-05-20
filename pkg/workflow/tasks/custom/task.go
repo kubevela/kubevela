@@ -42,11 +42,15 @@ import (
 var (
 	// MaxWorkflowStepErrorRetryTimes is the max retry times of the failed workflow step.
 	MaxWorkflowStepErrorRetryTimes = 10
+	// EnableSuspendFailedWorkflow enable suspend failed workflow
+	EnableSuspendFailedWorkflow = false
 )
 
 const (
 	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
 	StatusReasonWait = "Wait"
+	// StatusReasonSkip is the reason of the workflow progress condition which is Skip.
+	StatusReasonSkip = "Skip"
 	// StatusReasonRendering is the reason of the workflow progress condition which is Rendering.
 	StatusReasonRendering = "Rendering"
 	// StatusReasonExecute is the reason of the workflow progress condition which is Execute.
@@ -85,7 +89,8 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 type taskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context) bool
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool
+	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -99,10 +104,15 @@ func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions
 }
 
 // Pending check task should be executed or not.
-func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
-	return tr.checkPending(ctx)
+func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
+	return tr.checkPending(ctx, stepStatus)
 }
 
+func (tr *taskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+	return tr.skip(ctx, dependsOnPhase, stepStatus)
+}
+
+// nolint:gocyclo
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
@@ -141,9 +151,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
-		tRunner.checkPending = func(ctx wfContext.Context) bool {
+		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
 			for _, depend := range wfStep.DependsOn {
-				if _, err := ctx.GetVar(hooks.ReadyComponent, depend); err != nil {
+				if status, ok := stepStatus[depend]; ok {
+					if !IsStepFinish(status.Phase) {
+						return true
+					}
+				} else {
 					return true
 				}
 			}
@@ -153,6 +167,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				}
 			}
 			return false
+		}
+		tRunner.skip = func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+			if EnableSuspendFailedWorkflow {
+				return exec.status(), false
+			}
+			skip := SkipTaskRunner(ctx, wfStep, dependsOnPhase, stepStatus)
+			if skip {
+				exec.Skip("")
+			}
+			return exec.status(), skip
 		}
 		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			if options.GetTracer == nil {
@@ -261,6 +285,7 @@ type executor struct {
 	terminated         bool
 	failedAfterRetries bool
 	wait               bool
+	skip               bool
 
 	tracer monitorContext.Context
 }
@@ -289,6 +314,13 @@ func (exec *executor) Wait(message string) {
 	exec.wfStatus.Message = message
 }
 
+func (exec *executor) Skip(message string) {
+	exec.skip = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseSkipped
+	exec.wfStatus.Reason = StatusReasonSkip
+	exec.wfStatus.Message = message
+}
+
 func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
@@ -302,6 +334,7 @@ func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
 	if times >= MaxWorkflowStepErrorRetryTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true
+		exec.wfStatus.Phase = common.WorkflowStepPhaseFailedAfterRetries
 	}
 }
 
@@ -440,4 +473,35 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 		},
 		logLevel: logLevel,
 	}
+}
+
+// SkipTaskRunner will decide whether to skip task runner.
+func SkipTaskRunner(ctx wfContext.Context, step v1beta1.WorkflowStep, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) bool {
+	switch step.If {
+	case "always":
+		return false
+	case "":
+		if dependsOnPhase != "" {
+			return dependsOnPhase != common.WorkflowStepPhaseSucceeded
+		}
+		for _, depend := range step.DependsOn {
+			if status, ok := stepStatus[depend]; ok {
+				if status.Phase == common.WorkflowStepPhaseSkipped || status.Phase == common.WorkflowStepPhaseFailedAfterRetries {
+					return true
+				}
+			}
+		}
+		return false
+	default:
+		//
+		return true
+	}
+}
+
+// IsStepFinish will decide whether step is finish.
+func IsStepFinish(phase common.WorkflowStepPhase) bool {
+	if EnableSuspendFailedWorkflow {
+		return phase == common.WorkflowStepPhaseSucceeded
+	}
+	return phase == common.WorkflowStepPhaseSucceeded || phase == common.WorkflowStepPhaseFailedAfterRetries || phase == common.WorkflowStepPhaseSkipped
 }

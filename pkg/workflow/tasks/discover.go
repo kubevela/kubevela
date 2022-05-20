@@ -119,9 +119,10 @@ func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers pr
 }
 
 type suspendTaskRunner struct {
-	id   string
-	name string
-	wait bool
+	id    string
+	name  string
+	wait  bool
+	phase common.WorkflowStepPhase
 }
 
 // Name return suspend step name.
@@ -131,23 +132,28 @@ func (tr *suspendTaskRunner) Name() string {
 
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
+	if tr.wait {
+		tr.phase = common.WorkflowStepPhaseRunning
+	} else {
+		tr.phase = common.WorkflowStepPhaseSucceeded
+	}
 	stepStatus := common.StepStatus{
 		ID:    tr.id,
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeSuspend,
-		Phase: common.WorkflowStepPhaseSucceeded,
-	}
-
-	if tr.wait {
-		stepStatus.Phase = common.WorkflowStepPhaseRunning
+		Phase: tr.phase,
 	}
 
 	return stepStatus, &types.Operation{Suspend: true}, nil
 }
 
 // Pending check task should be executed or not.
-func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
+func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
 	return false
+}
+
+func (tr *suspendTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+	return common.StepStatus{}, false
 }
 
 type stepGroupTaskRunner struct {
@@ -159,6 +165,15 @@ type stepGroupTaskRunner struct {
 // Name return suspend step name.
 func (tr *stepGroupTaskRunner) Name() string {
 	return tr.name
+}
+
+// Pending check task should be executed or not.
+func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
+	return false
+}
+
+func (tr *stepGroupTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+	return common.StepStatus{}, false
 }
 
 // Run make workflow step group.
@@ -201,11 +216,6 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		Type:  types.WorkflowStepTypeStepGroup,
 		Phase: phase,
 	}, e.GetOperation(), nil
-}
-
-// Pending check task should be executed or not.
-func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context) bool {
-	return false
 }
 
 // NewViewTaskDiscover will create a client for load task generator.

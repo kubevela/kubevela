@@ -37,6 +37,7 @@ import (
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -352,8 +353,9 @@ var _ = Describe("Test Workflow", func() {
 		})).Should(BeEquivalentTo(""))
 	})
 
-	It("Workflow test for failed after retries", func() {
-		By("Test failed-after-retries in StepByStep mode")
+	It("Workflow test for failed after retries with suspend", func() {
+		By("Test failed-after-retries in StepByStep mode with suspend")
+		custom.EnableSuspendFailedWorkflow = true
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -384,7 +386,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
-			Message:     MessageFailedAfterRetries,
+			Message:     MessageSuspendFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
 				StepStatus: common.StepStatus{
@@ -401,7 +403,7 @@ var _ = Describe("Test Workflow", func() {
 			}},
 		})).Should(BeEquivalentTo(""))
 
-		By("Test failed-after-retries in DAG mode")
+		By("Test failed-after-retries in DAG mode with suspend")
 		app, runners = makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -432,7 +434,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*workflowStatus, common.WorkflowStatus{
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeDAG,
-			Message:     MessageFailedAfterRetries,
+			Message:     MessageSuspendFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
 				StepStatus: common.StepStatus{
@@ -495,7 +497,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeStep,
-			Message:     MessageFailedAfterRetries,
+			Message:     MessageSuspendFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
 				StepStatus: common.StepStatus{
@@ -1126,7 +1128,7 @@ func makeRunner(name string, tpy string, subTaskRunners []wfTypes.TaskRunner) wf
 	return &testTaskRunner{
 		name: name,
 		run:  run,
-		checkPending: func(ctx wfContext.Context) bool {
+		checkPending: func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
 			if tpy != "pending" {
 				return false
 			}
@@ -1135,7 +1137,6 @@ func makeRunner(name string, tpy string, subTaskRunners []wfTypes.TaskRunner) wf
 			}
 			return false
 		},
-		subTaskRunners: subTaskRunners,
 	}
 }
 
@@ -1156,10 +1157,10 @@ metadata:
 )
 
 type testTaskRunner struct {
-	name           string
-	run            func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	checkPending   func(ctx wfContext.Context) bool
-	subTaskRunners []wfTypes.TaskRunner
+	name         string
+	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool
+	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -1173,12 +1174,12 @@ func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOpt
 }
 
 // Pending check task should be executed or not.
-func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
-	return tr.checkPending(ctx)
+func (tr *testTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
+	return tr.checkPending(ctx, stepStatus)
 }
 
-func (tr *testTaskRunner) SubTaskRunners() []wfTypes.TaskRunner {
-	return tr.subTaskRunners
+func (tr *testTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+	return tr.skip(ctx, dependsOnPhase, stepStatus)
 }
 
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
