@@ -912,12 +912,28 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		args args
 		want want
 	}{
+		"invalid ComponentDefinition": {
+			args: args{
+				hcl: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
+			},
+			want: want{err: errors.New("terraform component definition is not valid")},
+		},
 		"valid hcl workload": {
 			args: args{
 				hcl: "abc",
 				params: map[string]interface{}{"acl": "private",
 					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
 				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+			},
+			want: want{err: nil}},
+		"valid hcl workload, but the namespace of WriteConnectionSecretToReference is empty": {
+			args: args{
+				hcl: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss"},
 			},
 			want: want{err: nil}},
 
@@ -964,86 +980,99 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 	}
 
 	for tcName, tc := range testcases {
-		var (
-			template   *Template
-			configSpec terraformapi.ConfigurationSpec
-		)
-		data, _ := json.Marshal(variable)
-		raw := &runtime.RawExtension{}
-		raw.Raw = data
-		if tc.args.hcl != "" {
-			template = &Template{
-				Terraform: &common.Terraform{
-					Configuration: tc.args.hcl,
-					Type:          "hcl",
-				},
-			}
-			configSpec = terraformapi.ConfigurationSpec{
-				HCL:      tc.args.hcl,
-				Variable: raw,
-			}
-			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
-		}
-		if tc.args.remote != "" {
-			template = &Template{
-				Terraform: &common.Terraform{
-					Configuration: tc.args.remote,
-					Type:          "remote",
-				},
-			}
-			configSpec = terraformapi.ConfigurationSpec{
-				Remote:   tc.args.remote,
-				Variable: raw,
-			}
-			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
-		}
-		if tc.args.hcl == "" && tc.args.remote == "" {
-			template = &Template{
-				Terraform: &common.Terraform{},
-			}
+		t.Run(tcName, func(t *testing.T) {
 
-			configSpec = terraformapi.ConfigurationSpec{
-				Variable: raw,
-			}
-			configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
-		}
-		if tc.args.providerRef != nil {
-			tf := &common.Terraform{}
-			tf.ProviderReference = tc.args.providerRef
-			template.ComponentDefinition = &v1beta1.ComponentDefinition{
-				Spec: v1beta1.ComponentDefinitionSpec{
-					Schematic: &common.Schematic{
-						Terraform: tf,
+			var (
+				template   *Template
+				configSpec terraformapi.ConfigurationSpec
+			)
+			data, _ := json.Marshal(variable)
+			raw := &runtime.RawExtension{}
+			raw.Raw = data
+			if tc.args.hcl != "" {
+				template = &Template{
+					Terraform: &common.Terraform{
+						Configuration: tc.args.hcl,
+						Type:          "hcl",
 					},
-				},
+				}
+				configSpec = terraformapi.ConfigurationSpec{
+					HCL:      tc.args.hcl,
+					Variable: raw,
+				}
+				configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 			}
-			configSpec.ProviderReference = tc.args.providerRef
-		}
-
-		wl := &Workload{
-			FullTemplate: template,
-			Name:         name,
-			Params:       tc.args.params,
-		}
-
-		got, err := generateTerraformConfigurationWorkload(wl, ns)
-		if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want error, +got error:\n%s\n", tcName, diff)
-		}
-
-		if err == nil {
-			tfConfiguration := terraformapi.Configuration{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
-				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-				Spec:       configSpec,
+			if tc.args.remote != "" {
+				template = &Template{
+					Terraform: &common.Terraform{
+						Configuration: tc.args.remote,
+						Type:          "remote",
+					},
+				}
+				configSpec = terraformapi.ConfigurationSpec{
+					Remote:   tc.args.remote,
+					Variable: raw,
+				}
+				configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 			}
-			rawConf := util.Object2RawExtension(tfConfiguration)
-			wantWL, _ := util.RawExtension2Unstructured(rawConf)
+			if tc.args.hcl == "" && tc.args.remote == "" {
+				template = &Template{
+					Terraform: &common.Terraform{},
+				}
 
-			if diff := cmp.Diff(wantWL, got); diff != "" {
-				t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", tcName, diff)
+				configSpec = terraformapi.ConfigurationSpec{
+					Variable: raw,
+				}
+				configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
 			}
-		}
+			tf := &common.Terraform{}
+			if tc.args.providerRef != nil {
+				tf.ProviderReference = tc.args.providerRef
+				configSpec.ProviderReference = tc.args.providerRef
+			}
+			if tc.args.writeConnectionSecretToRef != nil {
+				tf.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
+				configSpec.WriteConnectionSecretToReference = tc.args.writeConnectionSecretToRef
+				if tc.args.writeConnectionSecretToRef.Namespace == "" {
+					configSpec.WriteConnectionSecretToReference.Namespace = ns
+				}
+			}
+
+			if tc.args.providerRef != nil || tc.args.writeConnectionSecretToRef != nil {
+				template.ComponentDefinition = &v1beta1.ComponentDefinition{
+					Spec: v1beta1.ComponentDefinitionSpec{
+						Schematic: &common.Schematic{
+							Terraform: tf,
+						},
+					},
+				}
+			}
+
+			wl := &Workload{
+				FullTemplate: template,
+				Name:         name,
+				Params:       tc.args.params,
+			}
+
+			got, err := generateTerraformConfigurationWorkload(wl, ns)
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want error, +got error:\n%s\n", tcName, diff)
+			}
+
+			if err == nil {
+				tfConfiguration := terraformapi.Configuration{
+					TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
+					ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+					Spec:       configSpec,
+				}
+				rawConf := util.Object2RawExtension(tfConfiguration)
+				wantWL, _ := util.RawExtension2Unstructured(rawConf)
+
+				if diff := cmp.Diff(wantWL, got); diff != "" {
+					t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", tcName, diff)
+				}
+			}
+		})
 	}
 }
 

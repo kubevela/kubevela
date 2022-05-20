@@ -56,8 +56,8 @@ import (
 const (
 	errInvalidValueType                          = "require %q type parameter value"
 	errTerraformConfigurationIsNotSet            = "terraform configuration is not set"
+	errTerraformComponentDefinition              = "terraform component definition is not valid"
 	errFailToConvertTerraformComponentProperties = "failed to convert Terraform component properties"
-	errConvertTerraformBaseConfigurationSpec     = "failed to convert properties to Terraform Configuration spec"
 )
 
 const (
@@ -672,15 +672,22 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 
+	if wl.FullTemplate.ComponentDefinition == nil || wl.FullTemplate.ComponentDefinition.Spec.Schematic == nil ||
+		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform == nil {
+		return nil, errors.New(errTerraformComponentDefinition)
+	}
+
 	configuration := terraformapi.Configuration{
 		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wl.Name,
-			Namespace: ns,
+			Name:        wl.Name,
+			Namespace:   ns,
+			Annotations: wl.FullTemplate.ComponentDefinition.Annotations,
 		},
-	}
-	if wl.FullTemplate.ComponentDefinition != nil {
-		configuration.ObjectMeta.Annotations = wl.FullTemplate.ComponentDefinition.Annotations
+		Spec: terraformapi.ConfigurationSpec{
+			WriteConnectionSecretToReference: wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.WriteConnectionSecretToReference,
+			ProviderReference:                wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference,
+		},
 	}
 
 	switch wl.FullTemplate.Terraform.Type {
@@ -690,37 +697,14 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
 	}
-	configuration.Spec.ForceDelete = wl.FullTemplate.Terraform.ForceDelete
+
+	if configuration.Spec.WriteConnectionSecretToReference != nil && configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
+		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+	}
 
 	// 1. parse writeConnectionSecretToRef
 	if err := json.Unmarshal(params, &configuration); err != nil {
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
-	}
-
-	var spec terraformapi.BaseConfigurationSpec
-	if err := json.Unmarshal(params, &spec); err != nil {
-		return nil, errors.Wrap(err, errConvertTerraformBaseConfigurationSpec)
-	}
-	if spec.ProviderReference != nil && !reflect.DeepEqual(configuration.Spec.ProviderReference, spec.ProviderReference) {
-		configuration.Spec.ProviderReference = spec.ProviderReference
-	} else if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference != nil {
-		// Check whether the provider reference is set in ComponentDefinition
-		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
-	}
-
-	if spec.Region != "" && configuration.Spec.Region != spec.Region {
-		configuration.Spec.Region = spec.Region
-	}
-	if spec.WriteConnectionSecretToReference != nil && spec.WriteConnectionSecretToReference.Name != "" &&
-		!reflect.DeepEqual(configuration.Spec.WriteConnectionSecretToReference, spec.WriteConnectionSecretToReference) {
-		configuration.Spec.WriteConnectionSecretToReference = spec.WriteConnectionSecretToReference
-		// set namespace for writeConnectionSecretToRef, developer needn't manually set it
-		if configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
-			configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
-		}
 	}
 
 	// 2. parse variable

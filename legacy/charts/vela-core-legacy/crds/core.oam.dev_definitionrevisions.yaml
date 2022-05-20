@@ -233,20 +233,6 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              forceDelete:
-                                description: ForceDelete will force delete Configuration
-                                  no matter which state it is or whether it has provisioned
-                                  some resources It will help delete Configuration
-                                  in unexpected cases.
-                                type: boolean
-                              inlineCredentials:
-                                description: "InlineCredentials specifies the credentials
-                                  in spec.HCl field as below. \tprovider \"aws\" {
-                                  \t\tregion     = \"us-west-2\" \t\taccess_key =
-                                  \"my-access-key\" \t\tsecret_key = \"my-secret-key\"
-                                  \t} Or indicates a Terraform module or configuration
-                                  don't need credentials at all, like provider `random`"
-                                type: boolean
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -562,20 +548,6 @@ spec:
                                 description: DeleteResource will determine whether
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
-                                type: boolean
-                              forceDelete:
-                                description: ForceDelete will force delete Configuration
-                                  no matter which state it is or whether it has provisioned
-                                  some resources It will help delete Configuration
-                                  in unexpected cases.
-                                type: boolean
-                              inlineCredentials:
-                                description: "InlineCredentials specifies the credentials
-                                  in spec.HCl field as below. \tprovider \"aws\" {
-                                  \t\tregion     = \"us-west-2\" \t\taccess_key =
-                                  \"my-access-key\" \t\tsecret_key = \"my-secret-key\"
-                                  \t} Or indicates a Terraform module or configuration
-                                  don't need credentials at all, like provider `random`"
                                 type: boolean
                               path:
                                 description: Path is the sub-directory of remote git
@@ -894,20 +866,6 @@ spec:
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
                                 type: boolean
-                              forceDelete:
-                                description: ForceDelete will force delete Configuration
-                                  no matter which state it is or whether it has provisioned
-                                  some resources It will help delete Configuration
-                                  in unexpected cases.
-                                type: boolean
-                              inlineCredentials:
-                                description: "InlineCredentials specifies the credentials
-                                  in spec.HCl field as below. \tprovider \"aws\" {
-                                  \t\tregion     = \"us-west-2\" \t\taccess_key =
-                                  \"my-access-key\" \t\tsecret_key = \"my-secret-key\"
-                                  \t} Or indicates a Terraform module or configuration
-                                  don't need credentials at all, like provider `random`"
-                                type: boolean
                               path:
                                 description: Path is the sub-directory of remote git
                                   repository. It's valid when remote is set
@@ -1197,20 +1155,6 @@ spec:
                                 description: DeleteResource will determine whether
                                   provisioned cloud resources will be deleted when
                                   CR is deleted
-                                type: boolean
-                              forceDelete:
-                                description: ForceDelete will force delete Configuration
-                                  no matter which state it is or whether it has provisioned
-                                  some resources It will help delete Configuration
-                                  in unexpected cases.
-                                type: boolean
-                              inlineCredentials:
-                                description: "InlineCredentials specifies the credentials
-                                  in spec.HCl field as below. \tprovider \"aws\" {
-                                  \t\tregion     = \"us-west-2\" \t\taccess_key =
-                                  \"my-access-key\" \t\tsecret_key = \"my-secret-key\"
-                                  \t} Or indicates a Terraform module or configuration
-                                  don't need credentials at all, like provider `random`"
                                 type: boolean
                               path:
                                 description: Path is the sub-directory of remote git
