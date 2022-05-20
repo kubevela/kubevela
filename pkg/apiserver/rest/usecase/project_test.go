@@ -580,7 +580,7 @@ func TestValidateImage(t *testing.T) {
 				h:         h1,
 			},
 			want: want{
-				errMsg: "EOF",
+				errMsg: "Get",
 			},
 		},
 		{
