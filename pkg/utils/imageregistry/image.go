@@ -17,8 +17,6 @@ limitations under the License.
 package image
 
 import (
-	"fmt"
-
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -76,11 +74,10 @@ func IsExisted(username, password, image string) (bool, error) {
 		return false, err
 	}
 
-	m, err := img.Manifest()
+	_, err = img.Manifest()
 	if err != nil {
 		return false, err
 	}
-	fmt.Println(m)
 
 	return true, nil
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	v1 "k8s.io/api/core/v1"
@@ -625,17 +626,22 @@ func (p *projectUsecaseImpl) ValidateImage(ctx context.Context, projectName, ima
 func validateImage(ctx context.Context, k8sClient client.Client, project, imageName string) (*apisv1.ImageResponse, error) {
 	var (
 		secrets         v1.SecretList
-		imageURL        = strings.Split(imageName, "/")[0]
 		username        string
 		password        string
 		imagePullSecret string
 	)
 
+	ref, err := name.ParseReference(imageName)
+	if err != nil {
+		return nil, err
+	}
+	imageURL := ref.Context().RegistryStr()
+
 	if err := k8sClient.List(ctx, &secrets, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			types.LabelConfigCatalog:    types.VelaCoreConfig,
 			types.LabelConfigType:       types.ImageRegistry,
-			types.LabelConfigIdentifier: imageURL,
+			types.LabelConfigIdentifier: ref.Context().RegistryStr(),
 		}); err != nil {
 		return nil, err
 	}
@@ -643,19 +649,17 @@ func validateImage(ctx context.Context, k8sClient client.Client, project, imageN
 	for _, s := range secrets.Items {
 		if s.Labels[types.LabelConfigProject] == "" || s.Labels[types.LabelConfigProject] == project {
 			conf := s.Data[".dockerconfigjson"]
-			var auths map[string]map[string]map[string][]byte
+			var auths map[string]map[string]map[string]string
 			if err := json.Unmarshal(conf, &auths); err != nil {
 				return nil, err
 			}
 			imagePullSecret = s.Name
-			data := auths["auths"][imageURL]["auth"]
-			var auth image.RegistryMeta
-			if err := json.Unmarshal(data, &auth); err != nil {
-				return nil, err
+			if auths["auths"] != nil && auths["auths"][imageURL] != nil {
+				data := auths["auths"][imageURL]
+				username = data["username"]
+				password = data["password"]
+				break
 			}
-			username = auth.Username
-			password = auth.Password
-			break
 		}
 	}
 

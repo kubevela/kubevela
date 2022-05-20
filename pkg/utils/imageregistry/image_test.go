@@ -103,15 +103,6 @@ func TestExisted(t *testing.T) {
 				errMsg:  "UNAUTHORIZED",
 			},
 		},
-		"registry is not valid": {
-			args: args{
-				image: "abcYeidlfdned877239.com/d/e:v0.1",
-			},
-			want: want{
-				existed: false,
-				errMsg:  "EOF",
-			},
-		},
 		"not docker hub registry": {
 			args: args{
 				image: "alibabacloud.com/d/e:v0.1",
