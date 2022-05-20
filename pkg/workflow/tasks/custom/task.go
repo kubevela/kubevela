@@ -152,21 +152,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
 		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
-			for _, depend := range wfStep.DependsOn {
-				if status, ok := stepStatus[depend]; ok {
-					if !IsStepFinish(status.Phase) {
-						return true
-					}
-				} else {
-					return true
-				}
-			}
-			for _, input := range wfStep.Inputs {
-				if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
-					return true
-				}
-			}
-			return false
+			return CheckPending(ctx, wfStep, stepStatus)
 		}
 		tRunner.skip = func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
 			if EnableSuspendFailedWorkflow {
@@ -496,6 +482,24 @@ func SkipTaskRunner(ctx wfContext.Context, step v1beta1.WorkflowStep, dependsOnP
 		//
 		return true
 	}
+}
+
+func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.WorkflowStepStatus) bool {
+	for _, depend := range step.DependsOn {
+		if status, ok := stepStatus[depend]; ok {
+			if !IsStepFinish(status.Phase) {
+				return true
+			}
+		} else {
+			return true
+		}
+	}
+	for _, input := range step.Inputs {
+		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // IsStepFinish will decide whether step is finish.
