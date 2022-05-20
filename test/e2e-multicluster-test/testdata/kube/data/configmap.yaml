@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: busybox-1
+data:
+  key: value-1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: busybox-2
+data:
+  key: value-2
