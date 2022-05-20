@@ -73,7 +73,7 @@ func (td *taskDiscover) GetTaskGenerator(ctx context.Context, name string) (type
 func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 	tr := &suspendTaskRunner{
 		id:   opt.ID,
-		name: step.Name,
+		step: step,
 		wait: false,
 	}
 
@@ -120,14 +120,15 @@ func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers pr
 
 type suspendTaskRunner struct {
 	id    string
-	name  string
+	step  v1beta1.WorkflowStep
 	wait  bool
+	skip  bool
 	phase common.WorkflowStepPhase
 }
 
 // Name return suspend step name.
 func (tr *suspendTaskRunner) Name() string {
-	return tr.name
+	return tr.step.Name
 }
 
 // Run make workflow suspend.
@@ -139,21 +140,36 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 	}
 	stepStatus := common.StepStatus{
 		ID:    tr.id,
-		Name:  tr.name,
+		Name:  tr.step.Name,
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: tr.phase,
 	}
 
-	return stepStatus, &types.Operation{Suspend: true}, nil
+	return stepStatus, &types.Operation{Suspend: true, Skip: tr.skip}, nil
 }
 
 // Pending check task should be executed or not.
 func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
-	return false
+	return custom.CheckPending(ctx, tr.step, stepStatus)
 }
 
 func (tr *suspendTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
-	return common.StepStatus{}, false
+	status := common.StepStatus{
+		ID:    tr.id,
+		Name:  tr.step.Name,
+		Type:  types.WorkflowStepTypeSuspend,
+		Phase: tr.phase,
+	}
+	if custom.EnableSuspendFailedWorkflow {
+		return status, false
+	}
+	skip := custom.SkipTaskRunner(ctx, tr.step, dependsOnPhase, stepStatus)
+	if skip {
+		tr.skip = true
+		status.Phase = common.WorkflowStepPhaseSkipped
+		status.Reason = custom.StatusReasonSkip
+	}
+	return status, skip
 }
 
 type stepGroupTaskRunner struct {

@@ -18,14 +18,21 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
-
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -254,3 +261,68 @@ func TestStepGroupStep(t *testing.T) {
 		})
 	}
 }
+
+func TestPendingDependsOnCheck(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	r := require.New(t)
+	step := v1beta1.WorkflowStep{
+		Name:      "pending",
+		Type:      "suspend",
+		DependsOn: []string{"depend"},
+	}
+	discover := &taskDiscover{
+		builtins: map[string]types.TaskGenerator{
+			"suspend": suspend,
+		},
+	}
+	gen, err := discover.GetTaskGenerator(context.Background(), step.Type)
+	r.NoError(err)
+	run, err := gen(step, &types.GeneratorOptions{})
+	r.NoError(err)
+	r.Equal(run.Pending(wfCtx, nil), true)
+	ss := map[string]common.WorkflowStepStatus{
+		"depend": {
+			StepStatus: common.StepStatus{
+				Phase: common.WorkflowStepPhaseSucceeded,
+			},
+		},
+	}
+	r.Equal(run.Pending(wfCtx, ss), false)
+}
+
+func newWorkflowContextForTest(t *testing.T) wfContext.Context {
+	r := require.New(t)
+	cm := corev1.ConfigMap{}
+	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
+	r.NoError(err)
+	err = json.Unmarshal(testCaseJson, &cm)
+	r.NoError(err)
+
+	cli := &test.MockClient{
+		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			o, ok := obj.(*corev1.ConfigMap)
+			if ok {
+				*o = cm
+			}
+			return nil
+		},
+		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			return nil
+		},
+	}
+	wfCtx, err := wfContext.NewContext(cli, "default", "app-v1", "testuid")
+	r.NoError(err)
+	v, _ := value.NewValue(`name: "app"`, nil, "")
+	r.NoError(wfCtx.SetVar(v, types.ContextKeyMetadata))
+	return wfCtx
+}
+
+var (
+	testCaseYaml = `apiVersion: v1
+data:
+  components: '{"server":"{\"Scopes\":null,\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Pod\\\",\\\"metadata\\\":{\\\"labels\\\":{\\\"app\\\":\\\"nginx\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"env\\\":[{\\\"name\\\":\\\"APP\\\",\\\"value\\\":\\\"nginx\\\"}],\\\"image\\\":\\\"nginx:1.14.2\\\",\\\"imagePullPolicy\\\":\\\"IfNotPresent\\\",\\\"name\\\":\\\"main\\\",\\\"ports\\\":[{\\\"containerPort\\\":8080,\\\"protocol\\\":\\\"TCP\\\"}]}]}}\",\"Traits\":[\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Service\\\",\\\"metadata\\\":{\\\"name\\\":\\\"my-service\\\"},\\\"spec\\\":{\\\"ports\\\":[{\\\"port\\\":80,\\\"protocol\\\":\\\"TCP\\\",\\\"targetPort\\\":8080}],\\\"selector\\\":{\\\"app\\\":\\\"nginx\\\"}}}\"]}"}'
+kind: ConfigMap
+metadata:
+  name: app-v1
+`
+)
