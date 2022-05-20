@@ -27,11 +27,14 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("Test multicluster CLI commands", func() {
@@ -115,6 +118,43 @@ var _ = Describe("Test multicluster CLI commands", func() {
 				))
 			}
 		})
+	})
+
+})
+
+var _ = Describe("Test kube commands", func() {
+
+	Context("Test apply command", func() {
+
+		var namespace string
+		var hubCtx context.Context
+		var workerCtx context.Context
+
+		BeforeEach(func() {
+			hubCtx, workerCtx, namespace = initializeContextAndNamespace()
+		})
+
+		AfterEach(func() {
+			cleanUpNamespace(hubCtx, workerCtx, namespace)
+		})
+
+		It("Test vela kube apply", func() {
+			_, err := execCommand("kube", "apply",
+				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"-f", "./testdata/kube",
+				"-f", "https://gist.githubusercontent.com/Somefive/b189219a9222eaa70b8908cf4379402b/raw/e603987b3e0989e01e50f69ebb1e8bb436461326/example-busybox-deployment.yaml",
+			)
+			Expect(err).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{})).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{})).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &v1.Service{})).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &v1.Service{})).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{})).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{})).Should(Succeed())
+			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
+			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
+		})
+
 	})
 
 })

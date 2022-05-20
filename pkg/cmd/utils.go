@@ -50,3 +50,23 @@ func GetNamespace(f Factory, cmd *cobra.Command) string {
 	}
 	return envMeta.Namespace
 }
+
+// GetCluster get cluster from command flags
+func GetCluster(cmd *cobra.Command) string {
+	cluster, err := cmd.Flags().GetString(flagCluster)
+	cmdutil.CheckErr(err)
+	if cluster == "" {
+		return types.ClusterLocalName
+	}
+	return cluster
+}
+
+// GetClusters get cluster from command flags
+func GetClusters(cmd *cobra.Command) []string {
+	clusters, err := cmd.Flags().GetStringSlice(flagCluster)
+	cmdutil.CheckErr(err)
+	if len(clusters) == 0 {
+		return []string{types.ClusterLocalName}
+	}
+	return clusters
+}

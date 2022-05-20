@@ -159,7 +159,7 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).
-		WithNamespaceFlag(velacmd.NamespaceFlagUsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
 		WithStreams(streams).
 		WithResponsiveWriter().
 		Build()
@@ -183,9 +183,7 @@ func (opt *ListPrivilegesOptions) Complete(f velacmd.Factory, cmd *cobra.Command
 	if opt.Identity.ServiceAccount != "" {
 		opt.Identity.ServiceAccountNamespace = velacmd.GetNamespace(f, cmd)
 	}
-	if len(opt.Clusters) == 0 {
-		opt.Clusters = []string{types.ClusterLocalName}
-	}
+	opt.Clusters = velacmd.GetClusters(cmd)
 	opt.Regularize()
 }
 
@@ -278,7 +276,6 @@ func NewListPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 	cmd.Flags().StringVarP(&o.User, "user", "u", o.User, "The user to list privileges.")
 	cmd.Flags().StringSliceVarP(&o.Groups, "group", "g", o.Groups, "The group to list privileges. Can be set together with --user.")
 	cmd.Flags().StringVarP(&o.ServiceAccount, "serviceaccount", "", o.ServiceAccount, "The serviceaccount to list privileges. Cannot be set with --user and --group.")
-	cmd.Flags().StringSliceVarP(&o.Clusters, "cluster", "c", o.Clusters, "The cluster to list privileges. If not set, the command will list privileges in the control plane.")
 	cmd.Flags().StringVarP(&o.KubeConfig, "kubeconfig", "", o.KubeConfig, "The kubeconfig to list privileges. If set, it will override all the other identity flags.")
 	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"serviceaccount", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -288,13 +285,10 @@ func NewListPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 			namespace := velacmd.GetNamespace(f, cmd)
 			return velacmd.GetServiceAccountForCompletion(cmd.Context(), f, namespace, toComplete)
 		}))
-	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
-		"cluster", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return velacmd.GetClustersForCompletion(cmd.Context(), f, toComplete)
-		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).
-		WithNamespaceFlag(velacmd.NamespaceFlagUsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithClusterFlag(velacmd.UsageOption("The cluster to list privileges. If not set, the command will list privileges in the control plane.")).
 		WithStreams(streams).
 		WithResponsiveWriter().
 		Build()
