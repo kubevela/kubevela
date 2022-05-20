@@ -229,15 +229,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			handler.app.Status.Workflow.SuspendState = ""
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, false)
 		}
-		if !workflow.IsFailedAfterRetry(app) {
-			r.stateKeep(logCtx, handler, app)
-		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
 	case common.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
 		if err := r.doWorkflowFinish(app, wf); err != nil {
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
+		}
+		if !workflow.IsFailedAfterRetry(app) {
+			r.stateKeep(logCtx, handler, app)
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, true)
 	case common.WorkflowStateExecuting:

@@ -85,7 +85,7 @@ func TestSuspendStep(t *testing.T) {
 	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil), false)
+	r.Equal(runner.Pending(nil, nil), false)
 	status, act, err := runner.Run(nil, nil)
 	r.NoError(err)
 	r.Equal(act.Suspend, true)
@@ -130,7 +130,7 @@ func TestStepGroupStep(t *testing.T) {
 	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124", SubTaskRunners: []types.TaskRunner{subRunner}})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil), false)
+	r.Equal(runner.Pending(nil, nil), false)
 
 	testCases := []struct {
 		name          string

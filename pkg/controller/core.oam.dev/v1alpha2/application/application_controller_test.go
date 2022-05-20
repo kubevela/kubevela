@@ -1947,11 +1947,12 @@ var _ = Describe("Test Application Controller", func() {
 			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
 		}
 
-		By("application should be suspended after failed twenty reconciles")
+		By("application should be suspended after failed max reconciles")
+		custom.EnableSuspendFailedWorkflow = true
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
 
 		By("resume the suspended application")
@@ -2060,11 +2061,11 @@ var _ = Describe("Test Application Controller", func() {
 			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
 		}
 
-		By("application should be suspended after failed twenty reconciles")
+		By("application should be suspended after failed max reconciles")
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
 
 		By("resume the suspended application")

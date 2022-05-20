@@ -144,6 +144,7 @@ func main() {
 	flag.IntVar(&workflow.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	flag.IntVar(&workflow.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
 	flag.IntVar(&custom.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
+	flag.BoolVar(&custom.EnableSuspendFailedWorkflow, "enable-suspend-failed-workflow", false, "Enable suspend failed workflow, defaults to false, if set to true, the if capability in workflow is disabled")
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	flag.Parse()
