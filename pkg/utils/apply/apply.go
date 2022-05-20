@@ -20,19 +20,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -107,13 +107,42 @@ func loggingApply(msg string, desired client.Object) {
 	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
+// filterRecordForSpecial will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
+func filterRecordForSpecial(desired client.Object) bool {
+	if desired == nil {
+		return false
+	}
+	gvk := desired.GetObjectKind().GroupVersionKind()
+	gp, kd := gvk.Group, gvk.Kind
+	if gp == "" {
+		// group is empty means it's Kubernetes core API, we won't record annotation for Secret and Configmap
+		if kd == "Secret" || kd == "ConfigMap" {
+			return false
+		}
+		if _, ok := desired.(*corev1.ConfigMap); ok {
+			return false
+		}
+		if _, ok := desired.(*corev1.Secret); ok {
+			return false
+		}
+	}
+	ann := desired.GetAnnotations()
+	if ann != nil {
+		lac := ann[oam.AnnotationLastAppliedConfig]
+		if lac == "-" || lac == "skip" {
+			return false
+		}
+	}
+	return true
+}
+
 // Apply applies new state to an object or create it if not exist
 func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...ApplyOption) error {
 	_, err := generateRenderHash(desired)
 	if err != nil {
 		return err
 	}
-	applyAct := &applyAction{updateAnnotation: true}
+	applyAct := &applyAction{updateAnnotation: filterRecordForSpecial(desired)}
 	existing, err := a.createOrGetExisting(ctx, applyAct, a.c, desired, ao...)
 	if err != nil {
 		return err
