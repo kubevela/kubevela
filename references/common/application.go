@@ -29,6 +29,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -177,6 +178,13 @@ func (o *DeleteOptions) WaitUntilDeleteApp(io cmdutil.IOStreams) error {
 // DeleteAppWithoutDoubleCheck delete application without double check
 func (o *DeleteOptions) DeleteAppWithoutDoubleCheck(io cmdutil.IOStreams) error {
 	ctx := context.Background()
+
+	if o.ForceDelete {
+		if err := prepareToForceDeleteTerraformComponents(ctx, o.Client, o.Namespace, o.AppName); err != nil {
+			return err
+		}
+	}
+
 	var app = new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Namespace}, app)
 	if err != nil {
@@ -203,6 +211,40 @@ func (o *DeleteOptions) DeleteAppWithoutDoubleCheck(io cmdutil.IOStreams) error 
 			}
 			if err = o.Client.Delete(ctx, &healthScope); err != nil {
 				return fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
+			}
+		}
+	}
+	return nil
+}
+
+// prepareToForceDeleteTerraformComponents sets Terraform typed Component to force-delete mode
+func prepareToForceDeleteTerraformComponents(ctx context.Context, k8sClient client.Client, namespace, name string) error {
+	var (
+		app         = new(corev1beta1.Application)
+		forceDelete = true
+	)
+	err := k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, app)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("app %s already deleted or not exist", name)
+		}
+		return fmt.Errorf("delete application err: %w", err)
+	}
+	for _, c := range app.Spec.Components {
+		var def corev1beta1.ComponentDefinition
+		if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Type, Namespace: types.DefaultKubeVelaNS}, &def); err != nil {
+			return err
+		}
+		if def.Spec.Schematic != nil && def.Spec.Schematic.Terraform != nil {
+			var conf terraformapi.Configuration
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: c.Name, Namespace: namespace}, &conf); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+			}
+			conf.Spec.ForceDelete = &forceDelete
+			if err := k8sClient.Update(ctx, &conf); err != nil {
+				return err
 			}
 		}
 	}

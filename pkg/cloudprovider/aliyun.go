@@ -205,11 +205,9 @@ func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clu
 			},
 		},
 		Spec: v1beta12.ConfigurationSpec{
-			BaseConfigurationSpec: v1beta12.BaseConfigurationSpec{
-				ProviderReference: &types.Reference{
-					Name:      terraformProviderName,
-					Namespace: ns,
-				},
+			ProviderReference: &types.Reference{
+				Name:      terraformProviderName,
+				Namespace: ns,
 			},
 			Remote:   "https://github.com/kubevela-contrib/terraform-modules.git",
 			Variable: &runtime.RawExtension{Raw: bs},
