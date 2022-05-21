@@ -224,11 +224,13 @@ admissionWebhooks:
     enabled: true
     image:
       repository: oamdev/kube-webhook-certgen
-      tag: v2.3
+      tag: v2.4.0
       pullPolicy: IfNotPresent
     nodeSelector: {}
     affinity: {}
     tolerations: []
+  appConversion:
+    enabled: false
   certManager:
     enabled: false
     revisionHistoryLimit: 3
