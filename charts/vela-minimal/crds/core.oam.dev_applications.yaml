@@ -6,18 +6,6 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.6.2
   name: applications.core.oam.dev
 spec:
-  conversion:
-    strategy: Webhook
-    webhook:
-      clientConfig:
-        service:
-          name: vela-core-webhook
-          namespace: vela-system
-          path: /convert
-          port: 443
-      conversionReviewVersions:
-      - v1beta1
-      - v1alpha2
   group: core.oam.dev
   names:
     categories:
