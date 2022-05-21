@@ -12,6 +12,7 @@ require (
 	github.com/alibabacloud-go/darabonba-openapi v0.1.4
 	github.com/alibabacloud-go/tea v1.1.15
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
+	github.com/barnettZQG/inject v0.0.1
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
 	github.com/containerd/containerd v1.5.10
@@ -165,6 +166,7 @@ require (
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.1.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
+	github.com/facebookgo/structtag v0.0.0-20150214074306-217e25fb9691 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/fvbommel/sortorder v1.0.1 // indirect

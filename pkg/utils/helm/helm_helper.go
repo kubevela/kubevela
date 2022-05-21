@@ -45,7 +45,7 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/yaml"
 
-	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	utils2 "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"

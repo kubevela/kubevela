@@ -32,11 +32,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/clients"
-	"github.com/oam-dev/kubevela/pkg/apiserver/datastore"
-	arest "github.com/oam-dev/kubevela/pkg/apiserver/rest"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/apiserver"
+	"github.com/oam-dev/kubevela/pkg/apiserver/config"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 )
 
 var k8sClient client.Client
@@ -64,7 +65,7 @@ var _ = BeforeSuite(func() {
 
 	ctx := context.Background()
 
-	cfg := arest.Config{
+	cfg := config.Config{
 		BindAddr: "127.0.0.1:8000",
 		Datastore: datastore.Config{
 			Type:     "kubeapi",
@@ -76,11 +77,11 @@ var _ = BeforeSuite(func() {
 	cfg.LeaderConfig.LockName = "apiserver-lock"
 	cfg.LeaderConfig.Duration = time.Second * 10
 
-	server, err := arest.New(cfg)
+	server, err := apiserver.New(cfg)
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(server).ShouldNot(BeNil())
 	go func() {
-		err = server.Run(ctx)
+		err = server.Run(ctx, make(chan error))
 		Expect(err).ShouldNot(HaveOccurred())
 	}()
 	By("wait for api server to start")

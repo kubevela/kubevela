@@ -30,23 +30,24 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/google/uuid"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest"
+	"github.com/oam-dev/kubevela/pkg/apiserver"
+	"github.com/oam-dev/kubevela/pkg/apiserver/config"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/version"
 )
 
 func main() {
 	s := &Server{}
-	flag.StringVar(&s.restCfg.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
-	flag.StringVar(&s.restCfg.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
-	flag.StringVar(&s.restCfg.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
-	flag.StringVar(&s.restCfg.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
-	flag.StringVar(&s.restCfg.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
-	flag.StringVar(&s.restCfg.LeaderConfig.ID, "id", uuid.New().String(), "the holder identity name")
-	flag.StringVar(&s.restCfg.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
-	flag.DurationVar(&s.restCfg.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
-	flag.DurationVar(&s.restCfg.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
-	flag.BoolVar(&s.restCfg.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
+	flag.StringVar(&s.serverConfig.BindAddr, "bind-addr", "0.0.0.0:8000", "The bind address used to serve the http APIs.")
+	flag.StringVar(&s.serverConfig.MetricPath, "metrics-path", "/metrics", "The path to expose the metrics.")
+	flag.StringVar(&s.serverConfig.Datastore.Type, "datastore-type", "kubeapi", "Metadata storage driver type, support kubeapi and mongodb")
+	flag.StringVar(&s.serverConfig.Datastore.Database, "datastore-database", "kubevela", "Metadata storage database name, takes effect when the storage driver is mongodb.")
+	flag.StringVar(&s.serverConfig.Datastore.URL, "datastore-url", "", "Metadata storage database url,takes effect when the storage driver is mongodb.")
+	flag.StringVar(&s.serverConfig.LeaderConfig.ID, "id", uuid.New().String(), "the holder identity name")
+	flag.StringVar(&s.serverConfig.LeaderConfig.LockName, "lock-name", "apiserver-lock", "the lease lock resource name")
+	flag.DurationVar(&s.serverConfig.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
+	flag.DurationVar(&s.serverConfig.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
+	flag.BoolVar(&s.serverConfig.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
 	flag.Parse()
 
 	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
@@ -77,14 +78,13 @@ func main() {
 		return
 	}
 
-	srvc := make(chan struct{})
+	errChan := make(chan error, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if err := s.run(ctx); err != nil {
-			log.Logger.Errorf("failed to run apiserver: %v", err)
+		if err := s.run(ctx, errChan); err != nil {
+			errChan <- fmt.Errorf("failed to run apiserver: %w", err)
 		}
-		close(srvc)
 	}()
 	var term = make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
@@ -93,33 +93,37 @@ func main() {
 	case <-term:
 		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
 		cancel()
-	case <-srvc:
+	case err := <-errChan:
 		cancel()
-		os.Exit(1)
+		log.Logger.Errorf("Received an error: %s, exiting gracefully...", err.Error())
 	}
 	log.Logger.Infof("See you next time!")
 }
 
 // Server apiserver
 type Server struct {
-	restCfg rest.Config
+	serverConfig config.Config
 }
 
-func (s *Server) run(ctx context.Context) error {
+func (s *Server) run(ctx context.Context, errChan chan error) error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
 
-	server, err := rest.New(s.restCfg)
+	server, err := apiserver.New(s.serverConfig)
 	if err != nil {
 		return fmt.Errorf("create apiserver failed : %w ", err)
 	}
 
-	return server.Run(ctx)
+	return server.Run(ctx, errChan)
 }
 
 func (s *Server) buildSwagger() (*spec.Swagger, error) {
-	server, err := rest.New(s.restCfg)
+	server, err := apiserver.New(s.serverConfig)
 	if err != nil {
-		return nil, fmt.Errorf("create apiserver failed : %w ", err)
+		return nil, err
 	}
-	return restfulspec.BuildSwagger(server.RegisterServices(context.Background(), false)), nil
+	config, err := server.BuildRestfulConfig()
+	if err != nil {
+		return nil, err
+	}
+	return restfulspec.BuildSwagger(*config), nil
 }
