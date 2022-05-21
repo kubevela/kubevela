@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -44,6 +45,7 @@ type DryRunCmdOptions struct {
 	cmdutil.IOStreams
 	ApplicationFile string
 	DefinitionFile  string
+	OfflineMode     bool
 }
 
 // NewDryRunCommand creates `dry-run` command
@@ -61,8 +63,15 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		RunE: func(cmd *cobra.Command, args []string) error {
 			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
-				return err
+				// We need to return an error only if not in offline mode
+				if !o.OfflineMode {
+					return err
+				}
+
+				// Set the namespace to default to match behaviour of `GetFlagNamespaceOrEnv`
+				namespace = "default"
 			}
+
 			buff, err := DryRunApplication(o, c, namespace)
 			if err != nil {
 				return err
@@ -74,6 +83,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
+	cmd.Flags().BoolVar(&o.OfflineMode, "offline", false, "Run `dry-run` in offline / local mode, all validation steps will be skipped")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -81,12 +91,9 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 // DryRunApplication will dry-run an application and return the render result
 func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+	var err error
 	var buff = bytes.Buffer{}
 
-	newClient, err := c.GetClient()
-	if err != nil {
-		return buff, err
-	}
 	objs := []oam.Object{}
 	if cmdOption.DefinitionFile != "" {
 		objs, err = ReadObjectsFromFile(cmdOption.DefinitionFile)
@@ -94,6 +101,20 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 			return buff, err
 		}
 	}
+
+	// Load a kubernetes client
+	var newClient client.Client
+	if cmdOption.OfflineMode {
+		// We will load a fake client with all the objects present in the definitions file preloaded
+		newClient, err = c.GetFakeClient(objs)
+	} else {
+		// Load an actual client here
+		newClient, err = c.GetClient()
+	}
+	if err != nil {
+		return buff, err
+	}
+
 	pd, err := c.GetPackageDiscover()
 	if err != nil {
 		return buff, err
@@ -110,9 +131,12 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
-	err = dryRunOpt.ValidateApp(ctx, cmdOption.ApplicationFile)
-	if err != nil {
-		return buff, errors.WithMessagef(err, "validate application: %s by dry-run", cmdOption.ApplicationFile)
+	// Perform validation only if not in offline mode
+	if !cmdOption.OfflineMode {
+		err = dryRunOpt.ValidateApp(ctx, cmdOption.ApplicationFile)
+		if err != nil {
+			return buff, errors.WithMessagef(err, "validate application: %s by dry-run", cmdOption.ApplicationFile)
+		}
 	}
 
 	app, err := readApplicationFromFile(cmdOption.ApplicationFile)
