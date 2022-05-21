@@ -59,6 +59,14 @@ template: {
 			if parameter.classInSpec {
 				ingressClassName: parameter.class
 			}
+			if parameter.secretName != _|_ {
+				tls: [{
+					hosts: [
+						parameter.domain,
+					]
+					secretName: parameter.secretName
+				}]
+			}
 			rules: [{
 				host: parameter.domain
 				http: paths: [
@@ -87,5 +95,8 @@ template: {
 
 		// +usage=Set ingress class in '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
 		classInSpec: *false | bool
+
+		// +usage=Specify the secret name you want to quote.
+		secretName?: string
 	}
 }

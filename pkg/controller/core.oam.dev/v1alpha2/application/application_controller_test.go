@@ -265,6 +265,31 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithHttpsGateway := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-gateway",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "myworker",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
+	}
+	appWithHttpsGateway.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "gateway",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"secretName":"myworker-secret","domain":"example.com","http":{"/":80}}`)},
+		},
+	}
+
 	appWithMountPath := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -411,7 +436,7 @@ var _ = Describe("Test Application Controller", func() {
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
 
 	importTd := &v1alpha2.TraitDefinition{}
-
+	importGateway := &v1alpha2.TraitDefinition{}
 	importStorage := &v1alpha2.TraitDefinition{}
 
 	importEnv := &v1alpha2.TraitDefinition{}
@@ -448,6 +473,11 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importTd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		gatewayJson, gatewayErr := yaml.YAMLToJSON([]byte(gatewayYaml))
+		Expect(gatewayErr).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(gatewayJson, importGateway)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importGateway.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		storageJson, storageErr := yaml.YAMLToJSON([]byte(storageYaml))
 		Expect(storageErr).ShouldNot(HaveOccurred())
@@ -2683,6 +2713,63 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
+	It("test application with trait-gateway support https protocol", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-trait-gateway-https",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithHttpsGateway.SetNamespace(ns.Name)
+		app := appWithHttpsGateway.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check ingress Created with the expected trait-gateway spec")
+		ingress := &v1beta12.Ingress{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      app.Spec.Components[0].Name,
+		}, ingress)).Should(BeNil())
+		Expect(len(ingress.Spec.TLS) > 0).Should(BeTrue())
+		Expect(ingress.Spec.TLS[0].SecretName).ShouldNot(BeNil())
+		Expect(ingress.Spec.TLS[0].SecretName).ShouldNot(BeEmpty())
+		Expect(len(ingress.Spec.TLS[0].Hosts) > 0).Should(BeTrue())
+		Expect(ingress.Spec.TLS[0].Hosts[0]).ShouldNot(BeEmpty())
+		Expect(k8sClient.Delete(ctx, ingress)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
 	It("test application with multi-mountToEnv will create application", func() {
 
 		ns := &corev1.Namespace{
@@ -3381,6 +3468,106 @@ spec:
           image: string
           cmd?: [...string]
       }
+`
+	gatewayYaml = `apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: Enable public web traffic for the component, the ingress API matches K8s v1.20+.
+  name: gateway
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - '*'
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	metadata: name: context.name
+        	spec: {
+        		selector: "app.oam.dev/component": context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
+        }
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1"
+        	kind:       "Ingress"
+        	metadata: {
+        		name: context.name
+        		annotations: {
+        			if !parameter.classInSpec {
+        				"kubernetes.io/ingress.class": parameter.class
+        			}
+        		}
+        	}
+        	spec: {
+        		if parameter.classInSpec {
+        			ingressClassName: parameter.class
+        		}
+        		if parameter.secretName != _|_ {
+        			tls: [{
+        				hosts: [
+        					parameter.domain,
+        				]
+        				secretName: parameter.secretName
+        			}]
+        		}
+        		rules: [{
+        			host: parameter.domain
+        			http: paths: [
+        				for k, v in parameter.http {
+        					path:     k
+        					pathType: "ImplementationSpecific"
+        					backend: service: {
+        						name: context.name
+        						port: number: v
+        					}
+        				},
+        			]
+        		}]
+        	}
+        }
+        parameter: {
+        	// +usage=Specify the domain you want to expose
+        	domain: string
+
+        	// +usage=Specify the mapping relationship between the http path and the workload port
+        	http: [string]: int
+
+        	// +usage=Specify the class of ingress to use
+        	class: *"nginx" | string
+
+        	// +usage=Set ingress class in '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
+        	classInSpec: *false | bool
+
+        	// +usage=Specify the secret name you want to quote.
+        	secretName?: string
+        }
+  status:
+    customStatus: |-
+      let igs = context.outputs.ingress.status.loadBalancer.ingress
+      if igs == _|_ {
+        message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
+      }
+      if len(igs) > 0 {
+        if igs[0].ip != _|_ {
+      	  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+        }
+        if igs[0].ip == _|_ {
+      	  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+        }
+      }
+    healthPolicy: 'isHealth: len(context.outputs.service.spec.clusterIP) > 0'
+
 `
 	cdDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
