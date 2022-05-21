@@ -105,6 +105,35 @@ func TestPodStatus(t *testing.T) {
 		}, Status: v1.PodStatus{Phase: v1.PodPending},
 	}
 
+	failedWithMessagePod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "Pod"},
+		Status: v1.PodStatus{Phase: v1.PodFailed, Message: "some message"},
+	}
+
+	failedWithOOMKillPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "Pod"},
+		Status: v1.PodStatus{Phase: v1.PodFailed, ContainerStatuses: []v1.ContainerStatus{
+			{
+				State: v1.ContainerState{
+					Terminated: &v1.ContainerStateTerminated{
+						Reason: "OOMKilled",
+					},
+				},
+			},
+		}},
+	}
+
+	failedWithExistCodePod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "Pod"},
+		Status: v1.PodStatus{Phase: v1.PodFailed, ContainerStatuses: []v1.ContainerStatus{
+			{
+				Name: "nginx",
+				State: v1.ContainerState{
+					Terminated: &v1.ContainerStateTerminated{
+						ExitCode: 189,
+					},
+				},
+			},
+		}},
+	}
+
 	testCases := map[string]struct {
 		intput v1.Pod
 		result types.HealthStatus
@@ -131,7 +160,19 @@ func TestPodStatus(t *testing.T) {
 		},
 		"pendingPod": {
 			intput: pendingPod,
-			result: types.HealthStatus{Status: types.HealthStatusUnKnown, Reason: "Pending"},
+			result: types.HealthStatus{Status: types.HealthStatusProgressing},
+		},
+		"failedWithMessagePod": {
+			intput: failedWithMessagePod,
+			result: types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: "some message"},
+		},
+		"failedWithOOMKillPod": {
+			intput: failedWithOOMKillPod,
+			result: types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: "OOMKilled"},
+		},
+		"failedWithExistCodePod": {
+			intput: failedWithExistCodePod,
+			result: types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: "container \"nginx\" failed with exit code 189"},
 		},
 	}
 	for _, s := range testCases {

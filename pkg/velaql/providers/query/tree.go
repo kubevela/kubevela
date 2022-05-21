@@ -214,14 +214,14 @@ var checkPodStatus = func(obj unstructured.Unstructured) (*types.HealthStatus, e
 	case v12.PodFailed:
 		if pod.Status.Message != "" {
 			// Pod has a nice error message. Use that.
-			return &types.HealthStatus{Status: types.HealthStatusHealthy, Message: pod.Status.Message}, nil
+			return &types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: pod.Status.Message}, nil
 		}
 		for _, ctr := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 			if msg := getFailMessage(ctr.DeepCopy()); msg != "" {
-				return &types.HealthStatus{Status: types.HealthStatusHealthy, Message: msg}, nil
+				return &types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: msg}, nil
 			}
 		}
-		return &types.HealthStatus{Status: types.HealthStatusHealthy, Message: ""}, nil
+		return &types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: ""}, nil
 	default:
 	}
 	return &types.HealthStatus{
