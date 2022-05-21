@@ -19,8 +19,9 @@ package event
 import (
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"gotest.tools/assert"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 )
 
 func TestInitEvent(t *testing.T) {

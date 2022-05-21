@@ -22,8 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
-	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,6 +30,9 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 )
 
 func TestKubeapi(t *testing.T) {
