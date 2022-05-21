@@ -21,13 +21,16 @@ import (
 
 	"k8s.io/client-go/discovery"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -88,6 +91,25 @@ func (a *Args) GetClient() (client.Client, error) {
 	}
 	a.client = newClient
 	return a.client, nil
+}
+
+// GetFakeClient returns a fake client with the definition objects preloaded
+func (a *Args) GetFakeClient(defs []oam.Object) (client.Client, error) {
+	if a.client != nil {
+		return a.client, nil
+	}
+	if a.config == nil {
+		if err := a.SetConfig(nil); err != nil {
+			return nil, err
+		}
+	}
+	objs := make([]client.Object, 0, len(defs))
+	for _, def := range defs {
+		if unstructDef, ok := def.(*unstructured.Unstructured); ok {
+			objs = append(objs, unstructDef)
+		}
+	}
+	return fake.NewClientBuilder().WithObjects(objs...).WithScheme(a.Schema).Build(), nil
 }
 
 // GetDiscoveryMapper get discoveryMapper client if exist, create if not exist.
