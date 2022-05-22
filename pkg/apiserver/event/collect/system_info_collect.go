@@ -57,19 +57,21 @@ var waitBackOff = wait.Backoff{
 // InfoCalculateCronJob is the cronJob to calculate the system info store in db
 type InfoCalculateCronJob struct {
 	Store datastore.DataStore `inject:"datastore"`
+	cron  *cron.Cron
 }
 
 // Start start the worker
 func (i *InfoCalculateCronJob) Start(ctx context.Context, errChan chan error) {
 	i.start(CrontabSpec)
+	defer i.cron.Stop()
+	<-ctx.Done()
 }
 
-func (i InfoCalculateCronJob) start(cronSpec string) {
+func (i *InfoCalculateCronJob) start(cronSpec string) {
 	c := cron.New(cron.WithChain(
 		// don't let job panic crash whole api-server process
 		cron.Recover(cron.DefaultLogger),
 	))
-
 	// ignore the entityId and error, the cron spec is defined by hard code, mustn't generate error
 	_, _ = c.AddFunc(cronSpec, func() {
 
@@ -89,7 +91,7 @@ func (i InfoCalculateCronJob) start(cronSpec string) {
 			log.Logger.Errorf("After 5 tries the calculating cronJob failed: %v", err)
 		}
 	})
-
+	i.cron = c
 	c.Start()
 }
 

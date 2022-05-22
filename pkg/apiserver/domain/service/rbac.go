@@ -362,7 +362,7 @@ func (p *rbacServiceImpl) Init(ctx context.Context) error {
 		Alias:       "Admin",
 		Permissions: []string{"admin"},
 	})
-	if err := p.Store.BatchAdd(context.Background(), batchData); err != nil {
+	if err := p.Store.BatchAdd(ctx, batchData); err != nil {
 		return fmt.Errorf("init the platform perm policies failure %w", err)
 	}
 	return nil

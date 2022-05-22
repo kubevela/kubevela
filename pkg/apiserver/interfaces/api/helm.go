@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 type helmAPIInterface struct {
@@ -90,8 +91,8 @@ func (h helmAPIInterface) GetWebServiceRoute() *restful.WebService {
 }
 
 func (h helmAPIInterface) listCharts(req *restful.Request, res *restful.Response) {
-	url := req.QueryParameter("repoUrl")
-	secName := req.QueryParameter("secretName")
+	url := utils.Sanitize(req.QueryParameter("repoUrl"))
+	secName := utils.Sanitize(req.QueryParameter("secretName"))
 	skipCache, err := isSkipCache(req)
 	if err != nil {
 		bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)

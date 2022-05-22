@@ -45,6 +45,6 @@ func InitEvent(cfg config.Config) []interface{} {
 // StartEventWorker start all event worker
 func StartEventWorker(ctx context.Context, errChan chan error) {
 	for i := range workers {
-		workers[i].Start(ctx, errChan)
+		go workers[i].Start(ctx, errChan)
 	}
 }

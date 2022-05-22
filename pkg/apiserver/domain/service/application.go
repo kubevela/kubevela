@@ -578,7 +578,7 @@ func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model
 	}
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: component.Type, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", component.Type, err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(component.Type), err.Error())
 	}
 
 	return &apisv1.DetailComponentResponse{
@@ -1063,7 +1063,7 @@ func (c *applicationServiceImpl) UpdateComponent(ctx context.Context, app *model
 func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: com.ComponentType, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", com.ComponentType, err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(com.ComponentType), err.Error())
 		return nil, bcode.ErrComponentTypeNotSupport
 	}
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)

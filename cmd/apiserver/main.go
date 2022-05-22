@@ -78,9 +78,9 @@ func main() {
 		return
 	}
 
-	errChan := make(chan error, 1)
+	errChan := make(chan error)
 	ctx, cancel := context.WithCancel(context.Background())
-
+	defer cancel()
 	go func() {
 		if err := s.run(ctx, errChan); err != nil {
 			errChan <- fmt.Errorf("failed to run apiserver: %w", err)
@@ -92,9 +92,7 @@ func main() {
 	select {
 	case <-term:
 		log.Logger.Infof("Received SIGTERM, exiting gracefully...")
-		cancel()
 	case err := <-errChan:
-		cancel()
 		log.Logger.Errorf("Received an error: %s, exiting gracefully...", err.Error())
 	}
 	log.Logger.Infof("See you next time!")

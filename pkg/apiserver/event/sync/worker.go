@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 	dynamicInformer "k8s.io/client-go/dynamic/dynamicinformer"
@@ -56,7 +55,11 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 	informer := factory.ForResource(v1beta1.SchemeGroupVersion.WithResource("applications")).Informer()
 	getApp := func(obj interface{}) *v1beta1.Application {
 		app := &v1beta1.Application{}
-		bs, _ := json.Marshal(obj)
+		bs, err := json.Marshal(obj)
+		if err != nil {
+			log.Logger.Errorf("decode the application failure %s", err.Error())
+			return app
+		}
 		_ = json.Unmarshal(bs, app)
 		return app
 	}
@@ -76,7 +79,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 			klog.Infof("watched add app event, namespace: %s, name: %s", app.Namespace, app.Name)
 			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
-				logrus.Errorf("Application %-30s Create Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				log.Logger.Errorf("Application %-30s Create Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -84,7 +87,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 			klog.Infof("watched update app event, namespace: %s, name: %s", app.Namespace, app.Name)
 			err = cu.AddOrUpdate(ctx, app)
 			if err != nil {
-				klog.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				log.Logger.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -92,7 +95,7 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 			klog.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
 			err = cu.DeleteApp(ctx, app)
 			if err != nil {
-				klog.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
+				log.Logger.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
 		},
 	}

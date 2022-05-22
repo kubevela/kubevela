@@ -418,7 +418,7 @@ func UpdateAppEnvWorkflow(ctx context.Context, kubeClient client.Client, ds data
 			log.Logger.Errorf("fail to update the env workflow %s", envs[i].PrimaryKey())
 		}
 	}
-	log.Logger.Infof("The env workflows of app %s updated successfully", app.PrimaryKey())
+	log.Logger.Infof("The env workflows of app %s updated successfully", utils2.Sanitize(app.PrimaryKey()))
 	return nil
 }
 
