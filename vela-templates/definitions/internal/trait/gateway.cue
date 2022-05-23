@@ -14,10 +14,20 @@ gateway: {
 				}
 				if len(igs) > 0 {
 				  if igs[0].ip != _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+				  	if igs[0].host != _|_ {
+					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+				  	}
+				  	if igs[0].host == _|_ {
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
+				  	}
 				  }
 				  if igs[0].ip == _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+				  	if igs[0].host != _|_ {
+						  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+						}
+				  	if igs[0].host != _|_ {
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
+						}
 				  }
 				}
 				"""#
@@ -68,7 +78,9 @@ template: {
 				}]
 			}
 			rules: [{
-				host: parameter.domain
+				if parameter.domain != _|_ {
+					host: parameter.domain
+				}
 				http: paths: [
 					for k, v in parameter.http {
 						path:     k
@@ -85,7 +97,7 @@ template: {
 
 	parameter: {
 		// +usage=Specify the domain you want to expose
-		domain: string
+		domain?: string
 
 		// +usage=Specify the mapping relationship between the http path and the workload port
 		http: [string]: int
