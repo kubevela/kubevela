@@ -652,7 +652,7 @@ The process goes as:
 - The HelmTemplate/KustomizePatch controller would read the template from specified source, render the final config. It will compare the config with the Application object -- if there is difference, it will write back to the Application object per se.
 - The update of Application will trigger another event, the app controller will apply the HelmTemplate/KustomizePatch objects with new context. But this time, the HelmTemplate/KustomizePatch controller will find no diff after the rendering. So it will skip this time.
 
-### Case 5: Conditional Check
+### Case 6: Conditional Check
 
 In this case, users want to execute different steps based on the responseCode. When the `if` condition is not met, the step will be skipped.
 
@@ -683,6 +683,28 @@ steps:
      if: always
      type: notification
 ```
+
+### Case 7: step group
+
+In this case, the user runs multiple workflow steps in the `step-group` workflow type. subSteps in a step group will be executed in dag mode.
+```yaml
+workflow:
+  steps:
+  - type: step-group
+    name: run-step-group1
+    subSteps: 
+    - name: sub-step1
+      type: ...
+      ...
+    - name: sub-step2
+      type: ...
+      ...
+
+```
+
+The process is as follows:
+
+- When executing a `step-group` step, the subSteps in the step group are executed in dag mode. A step group will only complete when all subSteps have been executed to completion.
 
 ## Considerations
 
