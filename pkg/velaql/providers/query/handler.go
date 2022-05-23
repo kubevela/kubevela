@@ -165,7 +165,7 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 			Name:       resource.Name,
 			UID:        resource.UID,
 		}
-		root.ChildrenResources, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root)
+		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
 		if err != nil {
 			return v.FillObject(err.Error(), "err")
 		}
@@ -177,7 +177,7 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		if err != nil {
 			return v.FillObject(err.Error(), "err")
 		}
-		root.ResourceHealthStatus = *rootStatus
+		root.HealthStatus = *rootStatus
 		resource.ResourceTree = root
 	}
 	return v.FillObject(appResList, "list")

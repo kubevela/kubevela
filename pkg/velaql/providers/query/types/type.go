@@ -105,14 +105,14 @@ type AppliedResource struct {
 
 // ResourceTreeNode is the tree node of every resource
 type ResourceTreeNode struct {
-	Cluster              string             `json:"cluster"`
-	APIVersion           string             `json:"apiVersion,omitempty"`
-	Kind                 string             `json:"kind"`
-	Namespace            string             `json:"namespace,omitempty"`
-	Name                 string             `json:"name,omitempty"`
-	UID                  types.UID          `json:"uid,omitempty"`
-	ResourceHealthStatus HealthStatus       `json:"resourceHealthStatus,omitempty"`
-	ChildrenResources    []ResourceTreeNode `json:"childrenResources,omitempty"`
+	Cluster      string             `json:"cluster"`
+	APIVersion   string             `json:"apiVersion,omitempty"`
+	Kind         string             `json:"kind"`
+	Namespace    string             `json:"namespace,omitempty"`
+	Name         string             `json:"name,omitempty"`
+	UID          types.UID          `json:"uid,omitempty"`
+	HealthStatus HealthStatus       `json:"healthStatus,omitempty"`
+	LeafNodes    []ResourceTreeNode `json:"leafNodes,omitempty"`
 }
 
 // GroupVersionKind returns the stored group, version, and kind of an object

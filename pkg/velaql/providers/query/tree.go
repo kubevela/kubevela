@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +35,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
+
+// set the iterator max depth is 5
+var maxDepth = 5
 
 // globalRule define the whole relationShip rule
 var globalRule map[GroupResourceType]ChildrenResourcesRule
@@ -393,7 +398,11 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 	return itemList.Items, nil
 }
 
-func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode) ([]types.ResourceTreeNode, error) {
+func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int) ([]types.ResourceTreeNode, error) {
+	if depth > maxDepth {
+		log.Logger.Warnf("listing application resource tree has reached the max-depth %d parentObject is %v", depth, parentResource)
+		return nil, nil
+	}
 	parentObject, err := fetchObjectWithResourceTreeNode(ctx, cluster, k8sClient, parentResource)
 	if err != nil {
 		return nil, err
@@ -419,17 +428,17 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 					Cluster:    cluster,
 				}
 				if _, ok := globalRule[GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}]; ok {
-					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn)
+					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn, depth+1)
 					if err != nil {
 						return nil, err
 					}
-					rtn.ChildrenResources = childrenRes
+					rtn.LeafNodes = childrenRes
 				}
 				healthStatus, err := checkResourceStatus(item)
 				if err != nil {
 					return nil, err
 				}
-				rtn.ResourceHealthStatus = *healthStatus
+				rtn.HealthStatus = *healthStatus
 				resList = append(resList, rtn)
 			}
 		}

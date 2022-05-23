@@ -760,11 +760,11 @@ var _ = Describe("unit-test to e2e test", func() {
 			Name:       "deploy1",
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
-		})
+		}, 1)
 		Expect(err).Should(BeNil())
 		Expect(len(tn)).Should(BeEquivalentTo(2))
-		Expect(len(tn[0].ChildrenResources)).Should(BeEquivalentTo(1))
-		Expect(len(tn[1].ChildrenResources)).Should(BeEquivalentTo(1))
+		Expect(len(tn[0].LeafNodes)).Should(BeEquivalentTo(1))
+		Expect(len(tn[1].LeafNodes)).Should(BeEquivalentTo(1))
 	})
 
 	It("test provider handler func", func() {
