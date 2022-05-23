@@ -131,6 +131,11 @@
 	app: {
 		name:      string
 		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+		}
 	}
 	list?: [...{
 		name:             string
