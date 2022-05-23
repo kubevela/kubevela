@@ -694,7 +694,7 @@ func (e *engine) SetParentRunner(name string) {
 	e.parentRunner = name
 }
 
-func (e *engine) GetOperations() *wfTypes.Operation {
+func (e *engine) GetOperation() *wfTypes.Operation {
 	return &wfTypes.Operation{
 		Suspend:            e.status.Suspend,
 		Terminated:         e.status.Terminated,

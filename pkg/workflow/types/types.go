@@ -44,7 +44,7 @@ type Engine interface {
 	Run(taskRunners []TaskRunner, dag bool) error
 	GetStepStatus(stepName string) common.WorkflowStepStatus
 	SetParentRunner(name string)
-	GetOperations() *Operation
+	GetOperation() *Operation
 }
 
 // TaskRunOptions is the options for task run.

@@ -173,24 +173,24 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 				Name:  tr.name,
 				Type:  types.WorkflowStepTypeStepGroup,
 				Phase: common.WorkflowStepPhaseRunning,
-			}, e.GetOperations(), err
+			}, e.GetOperation(), err
 		}
 		e.SetParentRunner("")
 	}
 	stepStatus := e.GetStepStatus(tr.name)
 	var phase common.WorkflowStepPhase
-	subStepPhaseToCount := make(map[common.WorkflowStepPhase]int)
+	subStepPhases := make(map[common.WorkflowStepPhase]int)
 	for _, subStepsStatus := range stepStatus.SubStepsStatus {
-		subStepPhaseToCount[subStepsStatus.Phase]++
+		subStepPhases[subStepsStatus.Phase]++
 	}
 	switch {
 	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
 		phase = common.WorkflowStepPhaseRunning
-	case subStepPhaseToCount[common.WorkflowStepPhaseRunning] != 0:
+	case subStepPhases[common.WorkflowStepPhaseRunning] > 0:
 		phase = common.WorkflowStepPhaseRunning
-	case subStepPhaseToCount[common.WorkflowStepPhaseStopped] != 0:
+	case subStepPhases[common.WorkflowStepPhaseStopped] > 0:
 		phase = common.WorkflowStepPhaseStopped
-	case subStepPhaseToCount[common.WorkflowStepPhaseFailed] != 0:
+	case subStepPhases[common.WorkflowStepPhaseFailed] > 0:
 		phase = common.WorkflowStepPhaseFailed
 	default:
 		phase = common.WorkflowStepPhaseSucceeded
@@ -200,7 +200,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeStepGroup,
 		Phase: phase,
-	}, e.GetOperations(), nil
+	}, e.GetOperation(), nil
 }
 
 // Pending check task should be executed or not.
