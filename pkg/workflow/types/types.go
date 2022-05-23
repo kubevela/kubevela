@@ -30,7 +30,6 @@ import (
 // TaskRunner is a task runner.
 type TaskRunner interface {
 	Name() string
-	SubTaskRunners() []TaskRunner
 	Pending(ctx wfContext.Context) bool
 	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
 }
@@ -38,6 +37,14 @@ type TaskRunner interface {
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
 	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
+}
+
+// Engine is the engine to run workflow
+type Engine interface {
+	Run(taskRunners []TaskRunner, dag bool) error
+	GetStepStatus(stepName string) common.WorkflowStepStatus
+	SetParentRunner(name string)
+	GetOperation() *Operation
 }
 
 // TaskRunOptions is the options for task run.
@@ -49,6 +56,8 @@ type TaskRunOptions struct {
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
 	Debug         func(step string, v *value.Value) error
+	Engine        Engine
+	ParentRunner  string
 }
 
 // TaskPreStartHook run before task execution.
