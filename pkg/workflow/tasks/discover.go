@@ -87,7 +87,8 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 	return tr, nil
 }
 
-func stepGroup(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
+// StepGroup is the step group runner
+func StepGroup(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.TaskRunner, error) {
 	return &stepGroupTaskRunner{
 		id:             opt.ID,
 		name:           step.Name,
@@ -104,7 +105,7 @@ func newTaskDiscover(ctx monitorContext.Context, providerHandlers providers.Prov
 	return &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			types.WorkflowStepTypeSuspend:   suspend,
-			types.WorkflowStepTypeStepGroup: stepGroup,
+			types.WorkflowStepTypeStepGroup: StepGroup,
 		},
 		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, providerHandlers, 0, pCtx),
 		templateLoader:     templateLoader,
@@ -149,11 +150,6 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context) bool {
 	return false
 }
 
-// SubTaskRunners return child step names. it could be null if the step have no sub-step
-func (tr *suspendTaskRunner) SubTaskRunners() []types.TaskRunner {
-	return nil
-}
-
 type stepGroupTaskRunner struct {
 	id             string
 	name           string
@@ -165,15 +161,38 @@ func (tr *stepGroupTaskRunner) Name() string {
 	return tr.name
 }
 
-// SubTaskRunners return child step runners. it could be null if the step have no sub-step
-func (tr *stepGroupTaskRunner) SubTaskRunners() []types.TaskRunner {
-	return tr.subTaskRunners
-}
-
 // Run make workflow step group.
 func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
-	phase := common.WorkflowStepPhaseRunning
-	if tr.subTaskRunners == nil {
+	e := options.Engine
+	if len(tr.subTaskRunners) > 0 {
+		// set sub steps to dag mode for now
+		e.SetParentRunner(tr.name)
+		if err := e.Run(tr.subTaskRunners, true); err != nil {
+			return common.StepStatus{
+				ID:    tr.id,
+				Name:  tr.name,
+				Type:  types.WorkflowStepTypeStepGroup,
+				Phase: common.WorkflowStepPhaseRunning,
+			}, e.GetOperation(), err
+		}
+		e.SetParentRunner("")
+	}
+	stepStatus := e.GetStepStatus(tr.name)
+	var phase common.WorkflowStepPhase
+	subStepPhases := make(map[common.WorkflowStepPhase]int)
+	for _, subStepsStatus := range stepStatus.SubStepsStatus {
+		subStepPhases[subStepsStatus.Phase]++
+	}
+	switch {
+	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
+		phase = common.WorkflowStepPhaseRunning
+	case subStepPhases[common.WorkflowStepPhaseRunning] > 0:
+		phase = common.WorkflowStepPhaseRunning
+	case subStepPhases[common.WorkflowStepPhaseStopped] > 0:
+		phase = common.WorkflowStepPhaseStopped
+	case subStepPhases[common.WorkflowStepPhaseFailed] > 0:
+		phase = common.WorkflowStepPhaseFailed
+	default:
 		phase = common.WorkflowStepPhaseSucceeded
 	}
 	return common.StepStatus{
@@ -181,7 +200,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		Name:  tr.name,
 		Type:  types.WorkflowStepTypeStepGroup,
 		Phase: phase,
-	}, &types.Operation{}, nil
+	}, e.GetOperation(), nil
 }
 
 // Pending check task should be executed or not.
