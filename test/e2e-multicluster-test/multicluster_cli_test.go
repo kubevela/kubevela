@@ -29,6 +29,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -138,7 +139,7 @@ var _ = Describe("Test kube commands", func() {
 			cleanUpNamespace(hubCtx, workerCtx, namespace)
 		})
 
-		It("Test vela kube apply", func() {
+		It("Test vela kube apply & delete", func() {
 			_, err := execCommand("kube", "apply",
 				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
 				"-f", "./testdata/kube",
@@ -153,6 +154,22 @@ var _ = Describe("Test kube commands", func() {
 			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{})).Should(Succeed())
 			Expect(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
 			Expect(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{})).Should(Succeed())
+			_, err = execCommand("kube", "delete",
+				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"deployment", "busybox",
+			)
+			Expect(err).Should(Succeed())
+			Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{}))).Should(BeTrue())
+			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox"}, &appsv1.Deployment{}))).Should(BeTrue())
+			_, err = execCommand("kube", "delete",
+				"--cluster", types.ClusterLocalName, "--cluster", WorkerClusterName, "-n", namespace,
+				"configmap", "--all",
+			)
+			Expect(err).Should(Succeed())
+			Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{}))).Should(BeTrue())
+			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-1"}, &v1.ConfigMap{}))).Should(BeTrue())
+			Expect(apierrors.IsNotFound(k8sClient.Get(hubCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{}))).Should(BeTrue())
+			Expect(apierrors.IsNotFound(k8sClient.Get(workerCtx, apitypes.NamespacedName{Namespace: namespace, Name: "busybox-2"}, &v1.ConfigMap{}))).Should(BeTrue())
 		})
 
 	})
