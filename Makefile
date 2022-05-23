@@ -16,7 +16,7 @@ test-cli-gen:
 	mkdir -p ./bin/doc
 	go run ./hack/docgen/gen.go ./bin/doc
 unit-test-core:
-	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver)
+	go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	go test $(shell go list ./references/... | grep -v apiserver)
 unit-test-apiserver:
 	go test -gcflags=all=-l -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
@@ -112,7 +112,7 @@ manifests: installcue kustomize
 	# TODO(yangsoon): kustomize will merge all CRD into a whole file, it may not work if we want patch more than one CRD in this way
 	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
 	./hack/crd/cleanup.sh
-	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds charts/oam-runtime/crds runtime/ charts/vela-minimal/crds
+	go run ./hack/crd/dispatch/dispatch.go config/crd/base charts/vela-core/crds runtime/ charts/vela-minimal/crds
 	rm -f config/crd/base/*
 	./vela-templates/gen_definitions.sh
 

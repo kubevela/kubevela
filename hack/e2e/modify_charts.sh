@@ -9,9 +9,3 @@ sed '/          args:/r tmp_add.txt' ./charts/vela-core/templates/kubevela-contr
 rm ./charts/vela-core/templates/kubevela-controller.yaml
 cat tmp.yaml
 mv tmp.yaml ./charts/vela-core/templates/kubevela-controller.yaml
-
-sed '/          args:/r tmp_add.txt' ./charts/oam-runtime/templates/oam-runtime-controller.yaml > tmp.yaml
-rm ./charts/oam-runtime/templates/oam-runtime-controller.yaml
-rm tmp_add.txt
-cat tmp.yaml
-mv tmp.yaml ./charts/oam-runtime/templates/oam-runtime-controller.yaml
