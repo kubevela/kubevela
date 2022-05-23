@@ -475,7 +475,9 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	r.Equal(run.Pending(wfCtx, nil), true)
 	ss := map[string]common.WorkflowStepStatus{
 		"depend": {
-			Phase: common.WorkflowStepPhaseSucceeded,
+			StepStatus: common.StepStatus{
+				Phase: common.WorkflowStepPhaseSucceeded,
+			},
 		},
 	}
 	r.Equal(run.Pending(wfCtx, ss), false)

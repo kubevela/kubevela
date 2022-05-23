@@ -158,7 +158,12 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			if EnableSuspendFailedWorkflow {
 				return exec.status(), false
 			}
-			skip := SkipTaskRunner(ctx, wfStep, dependsOnPhase, stepStatus)
+			skip := SkipTaskRunner(ctx, &SkipOptions{
+				If:             wfStep.If,
+				DependsOn:      wfStep.DependsOn,
+				DependsOnPhase: dependsOnPhase,
+				StepStatus:     stepStatus,
+			})
 			if skip {
 				exec.Skip("")
 			}
@@ -461,17 +466,24 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 	}
 }
 
+type SkipOptions struct {
+	If             string
+	DependsOn      []string
+	DependsOnPhase common.WorkflowStepPhase
+	StepStatus     map[string]common.WorkflowStepStatus
+}
+
 // SkipTaskRunner will decide whether to skip task runner.
-func SkipTaskRunner(ctx wfContext.Context, step v1beta1.WorkflowStep, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) bool {
-	switch step.If {
+func SkipTaskRunner(ctx wfContext.Context, options *SkipOptions) bool {
+	switch options.If {
 	case "always":
 		return false
 	case "":
-		if dependsOnPhase != "" {
-			return dependsOnPhase != common.WorkflowStepPhaseSucceeded
+		if options.DependsOnPhase != "" {
+			return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
 		}
-		for _, depend := range step.DependsOn {
-			if status, ok := stepStatus[depend]; ok {
+		for _, depend := range options.DependsOn {
+			if status, ok := options.StepStatus[depend]; ok {
 				if status.Phase == common.WorkflowStepPhaseSkipped || status.Phase == common.WorkflowStepPhaseFailedAfterRetries {
 					return true
 				}
@@ -479,8 +491,8 @@ func SkipTaskRunner(ctx wfContext.Context, step v1beta1.WorkflowStep, dependsOnP
 		}
 		return false
 	default:
-		//
-		return true
+		// TODO:(fog)
+		return false
 	}
 }
 

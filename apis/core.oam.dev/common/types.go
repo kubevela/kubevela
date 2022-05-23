@@ -366,6 +366,8 @@ type WorkflowSubStep struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
+	If string `json:"if,omitempty"`
+
 	DependsOn []string `json:"dependsOn,omitempty"`
 
 	Inputs StepInputs `json:"inputs,omitempty"`
