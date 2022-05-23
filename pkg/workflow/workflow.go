@@ -144,19 +144,19 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	wfStatus := w.app.Status.Workflow
 	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
 
+	allTasksDone, allTasksSucceeded := w.allDone(taskRunners)
+	if allTasksSucceeded {
+		return common.WorkflowStateSucceeded, nil
+	}
 	if wfStatus.Finished {
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
-	if wfStatus.Terminated {
+	if (IsFailedAfterRetry(w.app) && allTasksDone) || wfStatus.Terminated && !IsFailedAfterRetry(w.app) {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
-	}
-	allTasksDone := w.allDone(taskRunners)
-	if allTasksDone {
-		return common.WorkflowStateSucceeded, nil
 	}
 
 	wfCtx, err := w.makeContext(w.app.Name)
@@ -194,7 +194,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
-	if wfStatus.Terminated {
+	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
+	if (IsFailedAfterRetry(w.app) && allTasksDone) || wfStatus.Terminated && !IsFailedAfterRetry(w.app) {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
 	}
@@ -202,7 +203,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateSuspended, nil
 	}
-	if w.allDone(taskRunners) {
+	if allTasksSucceeded {
 		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -297,21 +298,23 @@ func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
 	return oamcore.WorkflowStep{}
 }
 
-func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) bool {
+func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
 	status := w.app.Status.Workflow
+	success := true
 	for _, t := range taskRunners {
 		done := false
 		for _, ss := range status.Steps {
 			if ss.Name == t.Name() {
-				done = ss.Phase == common.WorkflowStepPhaseSucceeded
+				done = custom.IsStepFinish(ss.Phase)
+				success = done && (ss.Phase == common.WorkflowStepPhaseSucceeded)
 				break
 			}
 		}
 		if !done {
-			return false
+			return false, false
 		}
 	}
-	return true
+	return true, success
 }
 
 func (w *workflow) makeContext(appName string) (wfCtx wfContext.Context, err error) {

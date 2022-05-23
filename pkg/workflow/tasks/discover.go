@@ -163,7 +163,12 @@ func (tr *suspendTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.W
 	if custom.EnableSuspendFailedWorkflow {
 		return status, false
 	}
-	skip := custom.SkipTaskRunner(ctx, tr.step, dependsOnPhase, stepStatus)
+	skip := custom.SkipTaskRunner(ctx, &custom.SkipOptions{
+		If:             tr.step.If,
+		DependsOn:      tr.step.DependsOn,
+		DependsOnPhase: dependsOnPhase,
+		StepStatus:     stepStatus,
+	})
 	if skip {
 		tr.skip = true
 		status.Phase = common.WorkflowStepPhaseSkipped
@@ -223,6 +228,8 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		phase = common.WorkflowStepPhaseStopped
 	case subStepPhases[common.WorkflowStepPhaseFailed] > 0:
 		phase = common.WorkflowStepPhaseFailed
+	case subStepPhases[common.WorkflowStepPhaseFailedAfterRetries] > 0:
+		phase = common.WorkflowStepPhaseFailedAfterRetries
 	default:
 		phase = common.WorkflowStepPhaseSucceeded
 	}
