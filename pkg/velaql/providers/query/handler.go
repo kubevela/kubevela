@@ -136,6 +136,53 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	return v.FillObject(appResList, "list")
 }
 
+// ListAppliedResources list applied resource from tracker
+func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("app")
+	if err != nil {
+		return err
+	}
+	opt := Option{}
+	if err = val.UnmarshalTo(&opt); err != nil {
+		return err
+	}
+	collector := NewAppCollector(h.cli, opt)
+	app := new(v1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := h.cli.Get(context.Background(), appKey, app); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	appResList, err := collector.ListApplicationResources(app)
+	if err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	for _, resource := range appResList {
+		root := querytypes.ResourceTreeNode{
+			APIVersion: resource.APIVersion,
+			Kind:       resource.Kind,
+			Cluster:    resource.Cluster,
+			Namespace:  resource.Namespace,
+			Name:       resource.Name,
+			UID:        resource.UID,
+		}
+		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
+		if err != nil {
+			return v.FillObject(err.Error(), "err")
+		}
+		rootObject, err := fetchObjectWithResourceTreeNode(context.Background(), resource.Cluster, h.cli, root)
+		if err != nil {
+			return v.FillObject(err.Error(), "err")
+		}
+		rootStatus, err := checkResourceStatus(*rootObject)
+		if err != nil {
+			return v.FillObject(err.Error(), "err")
+		}
+		root.HealthStatus = *rootStatus
+		resource.ResourceTree = root
+	}
+	return v.FillObject(appResList, "list")
+}
+
 func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
@@ -426,6 +473,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 		"searchEvents":            prd.SearchEvents,
 		"collectLogsInPod":        prd.CollectLogsInPod,
 		"collectServiceEndpoints": prd.GeneratorServiceEndpoints,
+		"getApplicationTree":      prd.GetApplicationResourceTree,
 	})
 }
 
