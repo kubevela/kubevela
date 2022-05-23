@@ -56,7 +56,7 @@ func TestDiscover(t *testing.T) {
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
 			"suspend":   suspend,
-			"stepGroup": stepGroup,
+			"stepGroup": StepGroup,
 		},
 		remoteTaskDiscover: custom.NewTaskLoader(loadTemplate, nil, nil, 0, pCtx),
 	}
@@ -97,7 +97,7 @@ func TestSuspendStep(t *testing.T) {
 func TestStepGroupStep(t *testing.T) {
 	discover := &taskDiscover{
 		builtins: map[string]types.TaskGenerator{
-			"stepGroup": stepGroup,
+			"stepGroup": StepGroup,
 		},
 	}
 	gen, err := discover.GetTaskGenerator(context.Background(), "stepGroup")

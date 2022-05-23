@@ -103,11 +103,6 @@ func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
 	return tr.checkPending(ctx)
 }
 
-// SubTaskRunners return child step names. it could be null if the step have no sub-step
-func (tr *taskRunner) SubTaskRunners() []wfTypes.TaskRunner {
-	return nil
-}
-
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
