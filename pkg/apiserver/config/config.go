@@ -40,6 +40,12 @@ type Config struct {
 
 	// DisableStatisticCronJob close the calculate system info cronJob
 	DisableStatisticCronJob bool
+
+	// KubeBurst the burst of kube client
+	KubeBurst int
+
+	// KubeQPS the QPS of kube client
+	KubeQPS float64
 }
 
 type leaderConfig struct {
