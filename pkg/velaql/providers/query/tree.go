@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/log"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
