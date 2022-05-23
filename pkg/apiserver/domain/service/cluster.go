@@ -181,6 +181,9 @@ func (c *clusterServiceImpl) ListKubeClusters(ctx context.Context, query string,
 		}
 		resp.Clusters = append(resp.Clusters, *newClusterBaseFromCluster(clusterModel))
 	}
+	if page <= 0 {
+		return resp, nil
+	}
 	begin, end := (page-1)*pageSize, page*pageSize
 	if begin >= len(resp.Clusters) {
 		resp.Clusters = []apis.ClusterBase{}
