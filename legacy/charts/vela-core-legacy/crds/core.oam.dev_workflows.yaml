@@ -74,6 +74,54 @@ spec:
                 properties:
                   type: object
                   
+                subSteps:
+                  items:
+                    description: WorkflowSubStep defines how to execute a workflow
+                      subStep.
+                    properties:
+                      dependsOn:
+                        items:
+                          type: string
+                        type: array
+                      inputs:
+                        description: StepInputs defines variable input of WorkflowStep
+                        items:
+                          properties:
+                            from:
+                              type: string
+                            parameterKey:
+                              type: string
+                          required:
+                          - from
+                          - parameterKey
+                          type: object
+                        type: array
+                      name:
+                        description: Name is the unique name of the workflow step.
+                        type: string
+                      outputs:
+                        description: StepOutputs defines output variable of WorkflowStep
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            valueFrom:
+                              type: string
+                          required:
+                          - name
+                          - valueFrom
+                          type: object
+                        type: array
+                      properties:
+                        type: object
+                        
+                      type:
+                        type: string
+                    required:
+                    - name
+                    - type
+                    type: object
+                  type: array
                 type:
                   type: string
               required:
@@ -131,6 +179,54 @@ spec:
                 properties:
                   type: object
                   
+                subSteps:
+                  items:
+                    description: WorkflowSubStep defines how to execute a workflow
+                      subStep.
+                    properties:
+                      dependsOn:
+                        items:
+                          type: string
+                        type: array
+                      inputs:
+                        description: StepInputs defines variable input of WorkflowStep
+                        items:
+                          properties:
+                            from:
+                              type: string
+                            parameterKey:
+                              type: string
+                          required:
+                          - from
+                          - parameterKey
+                          type: object
+                        type: array
+                      name:
+                        description: Name is the unique name of the workflow step.
+                        type: string
+                      outputs:
+                        description: StepOutputs defines output variable of WorkflowStep
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            valueFrom:
+                              type: string
+                          required:
+                          - name
+                          - valueFrom
+                          type: object
+                        type: array
+                      properties:
+                        type: object
+                        
+                      type:
+                        type: string
+                    required:
+                    - name
+                    - type
+                    type: object
+                  type: array
                 type:
                   type: string
               required:

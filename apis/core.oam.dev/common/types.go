@@ -268,25 +268,8 @@ type RawComponent struct {
 	Raw runtime.RawExtension `json:"raw"`
 }
 
-// WorkflowStepStatus record the status of a workflow step
-type WorkflowStepStatus struct {
-	ID    string            `json:"id"`
-	Name  string            `json:"name,omitempty"`
-	Type  string            `json:"type,omitempty"`
-	Phase WorkflowStepPhase `json:"phase,omitempty"`
-	// A human readable message indicating details about why the workflowStep is in this state.
-	Message string `json:"message,omitempty"`
-	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason   string          `json:"reason,omitempty"`
-	SubSteps *SubStepsStatus `json:"subSteps,omitempty"`
-	// FirstExecuteTime is the first time this step execution.
-	FirstExecuteTime metav1.Time `json:"firstExecuteTime,omitempty"`
-	// LastExecuteTime is the last time this step execution.
-	LastExecuteTime metav1.Time `json:"lastExecuteTime,omitempty"`
-}
-
-// WorkflowSubStepStatus record the status of a workflow step
-type WorkflowSubStepStatus struct {
+// StepStatus record the base status of workflow step, which could be workflow step or subStep
+type StepStatus struct {
 	ID    string            `json:"id"`
 	Name  string            `json:"name,omitempty"`
 	Type  string            `json:"type,omitempty"`
@@ -295,6 +278,21 @@ type WorkflowSubStepStatus struct {
 	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the workflowStep is in this state.
 	Reason string `json:"reason,omitempty"`
+	// FirstExecuteTime is the first time this step execution.
+	FirstExecuteTime metav1.Time `json:"firstExecuteTime,omitempty"`
+	// LastExecuteTime is the last time this step execution.
+	LastExecuteTime metav1.Time `json:"lastExecuteTime,omitempty"`
+}
+
+// WorkflowStepStatus record the status of a workflow step, include step status and subStep status
+type WorkflowStepStatus struct {
+	StepStatus     `json:",inline"`
+	SubStepsStatus []WorkflowSubStepStatus `json:"subSteps,omitempty"`
+}
+
+// WorkflowSubStepStatus record the status of a workflow subStep
+type WorkflowSubStepStatus struct {
+	StepStatus `json:",inline"`
 }
 
 // AppStatus defines the observed state of Application
@@ -347,6 +345,25 @@ type WorkflowStep struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
+	SubSteps []WorkflowSubStep `json:"subSteps,omitempty"`
+
+	DependsOn []string `json:"dependsOn,omitempty"`
+
+	Inputs StepInputs `json:"inputs,omitempty"`
+
+	Outputs StepOutputs `json:"outputs,omitempty"`
+}
+
+// WorkflowSubStep defines how to execute a workflow subStep.
+type WorkflowSubStep struct {
+	// Name is the unique name of the workflow step.
+	Name string `json:"name"`
+
+	Type string `json:"type"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties *runtime.RawExtension `json:"properties,omitempty"`
+
 	DependsOn []string `json:"dependsOn,omitempty"`
 
 	Inputs StepInputs `json:"inputs,omitempty"`
@@ -370,13 +387,6 @@ type WorkflowStatus struct {
 	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
-}
-
-// SubStepsStatus record the status of workflow steps.
-type SubStepsStatus struct {
-	StepIndex int                     `json:"stepIndex,omitempty"`
-	Mode      WorkflowMode            `json:"mode,omitempty"`
-	Steps     []WorkflowSubStepStatus `json:"steps,omitempty"`
 }
 
 // WorkflowStepPhase describes the phase of a workflow step.
