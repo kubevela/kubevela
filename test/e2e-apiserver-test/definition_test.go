@@ -24,8 +24,8 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )

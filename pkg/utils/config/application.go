@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 )
 
 const (
