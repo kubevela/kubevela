@@ -90,21 +90,21 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]types.AppliedResource, error) {
+func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*types.AppliedResource, error) {
 	ctx := context.Background()
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
 
-	var managedResources []types.AppliedResource
+	var managedResources []*types.AppliedResource
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
 					isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion) {
-					managedResources = append(managedResources, types.AppliedResource{
+					managedResources = append(managedResources, &types.AppliedResource{
 						Cluster:         managedResource.Cluster,
 						Kind:            managedResource.Kind,
 						Component:       managedResource.Component,
