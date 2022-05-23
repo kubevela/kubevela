@@ -18,17 +18,23 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"reflect"
 	"strings"
 	"sync"
 
 	"github.com/gosuri/uitable/util/wordwrap"
 	"github.com/xlab/treeprint"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/oam-dev/kubevela/pkg/utils/parallel"
 )
@@ -215,4 +221,138 @@ func PrettyPrintPrivileges(identity *Identity, privilegesMap map[string][]Privil
 		}
 	}
 	return tree.String()
+}
+
+// PrivilegeDescription describe the privilege to grant
+type PrivilegeDescription interface {
+	GetCluster() string
+	GetRoles() []client.Object
+	GetRoleBinding([]rbacv1.Subject) client.Object
+}
+
+const (
+	// KubeVelaReaderRoleName a role that can read any resources
+	KubeVelaReaderRoleName = "kubevela:reader"
+	// KubeVelaWriterRoleName a role that can read/write any resources
+	KubeVelaWriterRoleName = "kubevela:writer"
+)
+
+// ScopedPrivilege includes all resource privileges in the destination
+type ScopedPrivilege struct {
+	Prefix    string
+	Cluster   string
+	Namespace string
+	ReadOnly  bool
+}
+
+// GetCluster the cluster of the privilege
+func (p *ScopedPrivilege) GetCluster() string {
+	return p.Cluster
+}
+
+// GetRoles the underlying Roles/ClusterRoles for the privilege
+func (p *ScopedPrivilege) GetRoles() []client.Object {
+	if p.ReadOnly {
+		return []client.Object{&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{Name: p.Prefix + KubeVelaReaderRoleName},
+			Rules: []rbacv1.PolicyRule{
+				{APIGroups: []string{rbacv1.APIGroupAll}, Resources: []string{rbacv1.ResourceAll}, Verbs: []string{"get", "list", "watch"}},
+				{NonResourceURLs: []string{rbacv1.NonResourceAll}, Verbs: []string{"get", "list", "watch"}},
+			},
+		}}
+	}
+	return []client.Object{&rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: p.Prefix + KubeVelaWriterRoleName},
+		Rules: []rbacv1.PolicyRule{
+			{APIGroups: []string{rbacv1.APIGroupAll}, Resources: []string{rbacv1.ResourceAll}, Verbs: []string{"get", "list", "watch", "create", "update", "patch", "delete"}},
+			{NonResourceURLs: []string{rbacv1.NonResourceAll}, Verbs: []string{"get", "list", "watch", "create", "update", "patch", "delete"}},
+		},
+	}}
+}
+
+// GetRoleBinding the underlying RoleBinding/ClusterRoleBinding for the privilege
+func (p *ScopedPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
+	var binding client.Object
+	if p.Namespace == "" {
+		binding = &rbacv1.ClusterRoleBinding{
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: KubeVelaReaderRoleName},
+			Subjects: subs,
+		}
+	} else {
+		binding = &rbacv1.RoleBinding{
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: KubeVelaWriterRoleName},
+			Subjects: subs,
+		}
+		binding.SetNamespace(p.Namespace)
+	}
+	if p.ReadOnly {
+		binding.SetName(p.Prefix + KubeVelaReaderRoleName + ":binding")
+	} else {
+		binding.SetName(p.Prefix + KubeVelaWriterRoleName + ":binding")
+	}
+	return binding
+}
+
+func mergeSubjects(src []rbacv1.Subject, merge []rbacv1.Subject) []rbacv1.Subject {
+	subs := append([]rbacv1.Subject{}, src...)
+	for _, sub := range merge {
+		contains := false
+		for _, s := range subs {
+			if reflect.DeepEqual(sub, s) {
+				contains = true
+				break
+			}
+		}
+		if !contains {
+			subs = append(subs, sub)
+		}
+	}
+	return subs
+}
+
+// GrantPrivileges grant privileges to identity
+func GrantPrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer) error {
+	subs := identity.Subjects()
+	if len(subs) == 0 {
+		return fmt.Errorf("failed to find RBAC subjects in identity")
+	}
+	for _, p := range privileges {
+		_ctx := multicluster.ContextWithClusterName(ctx, p.GetCluster())
+		for _, role := range p.GetRoles() {
+			kind, key := "ClusterRole", role.GetName()
+			if role.GetNamespace() != "" {
+				kind, key = "Role", role.GetNamespace()+"/"+role.GetName()
+			}
+			res, err := utils.CreateOrUpdate(_ctx, cli, role)
+			if err != nil {
+				return fmt.Errorf("failed to create/update %s %s: %w", kind, key, err)
+			}
+			if res != controllerutil.OperationResultNone {
+				_, _ = fmt.Fprintf(writer, "%s %s %s.\n", kind, key, res)
+			}
+		}
+		binding := p.GetRoleBinding(subs)
+		kind, key := "ClusterRoleBinding", binding.GetName()
+		if binding.GetNamespace() != "" {
+			kind, key = "RoleBinding", binding.GetNamespace()+"/"+binding.GetName()
+		}
+		switch bindingObj := binding.(type) {
+		case *rbacv1.RoleBinding:
+			obj := &rbacv1.RoleBinding{}
+			if err := cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
+				bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+			}
+		case *rbacv1.ClusterRoleBinding:
+			obj := &rbacv1.ClusterRoleBinding{}
+			if err := cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
+				bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+			}
+		}
+		res, err := utils.CreateOrUpdate(_ctx, cli, binding)
+		if err != nil {
+			return fmt.Errorf("failed to create/update %s %s: %w", kind, key, err)
+		}
+		_, _ = fmt.Fprintf(writer, "%s %s %s.\n", kind, key, res)
+	}
+	return nil
 }

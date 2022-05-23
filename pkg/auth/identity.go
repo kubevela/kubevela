@@ -111,3 +111,18 @@ func (identity *Identity) Validate() error {
 	}
 	return nil
 }
+
+// Subjects return rbac subjects
+func (identity *Identity) Subjects() []rbacv1.Subject {
+	var subs []rbacv1.Subject
+	if identity.User != "" {
+		subs = append(subs, rbacv1.Subject{Kind: rbacv1.UserKind, APIGroup: rbacv1.GroupName, Name: identity.User})
+	}
+	for _, group := range identity.Groups {
+		subs = append(subs, rbacv1.Subject{Kind: rbacv1.GroupKind, APIGroup: rbacv1.GroupName, Name: group})
+	}
+	if identity.ServiceAccount != "" {
+		subs = append(subs, rbacv1.Subject{Kind: rbacv1.ServiceAccountKind, Name: identity.ServiceAccount, Namespace: identity.ServiceAccountNamespace})
+	}
+	return subs
+}
