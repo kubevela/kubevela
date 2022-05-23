@@ -17,8 +17,14 @@ limitations under the License.
 package e2e_multicluster_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/api/core/v1"
+	apitypes "k8s.io/apimachinery/pkg/types"
+
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 var _ = Describe("Test multicluster Auth commands", func() {
@@ -56,6 +62,28 @@ var _ = Describe("Test multicluster Auth commands", func() {
 			outputs, err := execCommand("auth", "list-privileges", "--kubeconfig", WorkerClusterKubeConfigPath, "--cluster", "local")
 			Expect(err).Should(Succeed())
 			Expect(outputs).Should(ContainSubstring("cluster-admin"))
+		})
+
+		It("Test vela grant-privileges for user and create namespace", func() {
+			_, err := execCommand("auth", "grant-privileges", "--user", "alice", "--for-namespace", "alice", "--create-namespace", "--for-cluster", "local", "--for-cluster", WorkerClusterName)
+			Expect(err).Should(Succeed())
+			Expect(k8sClient.Get(multicluster.ContextWithClusterName(context.Background(), "local"), apitypes.NamespacedName{Name: "alice"}, &metav1.Namespace{})).Should(Succeed())
+			Expect(k8sClient.Get(multicluster.ContextWithClusterName(context.Background(), WorkerClusterName), apitypes.NamespacedName{Name: "alice"}, &metav1.Namespace{})).Should(Succeed())
+		})
+
+		It("Test vela grant-privileges for groups and readonly", func() {
+			_, err := execCommand("auth", "grant-privileges", "--group", "kubevela:dev-team", "--group", "kubevela:test-team", "--readonly")
+			Expect(err).Should(Succeed())
+		})
+
+		It("Test vela grant-privileges for serviceaccount", func() {
+			_, err := execCommand("auth", "grant-privileges", "--serviceaccount", "default", "-n", "default", "--for-namespace", "default")
+			Expect(err).Should(Succeed())
+		})
+
+		It("Test vela grant-privileges for kubeconfig with cluster-scoped privileges", func() {
+			_, err := execCommand("auth", "grant-privileges", "--kubeconfig", WorkerClusterKubeConfigPath, "--for-cluster", WorkerClusterName)
+			Expect(err).Should(Succeed())
 		})
 
 	})

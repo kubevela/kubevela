@@ -147,4 +147,7 @@ subjects:
   - kind: Group
     name: cluster-gateway-accessor
     apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: kubevela:client
+    apiGroup: rbac.authorization.k8s.io
 {{ end }}
