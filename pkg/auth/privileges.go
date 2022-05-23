@@ -273,23 +273,25 @@ func (p *ScopedPrivilege) GetRoles() []client.Object {
 // GetRoleBinding the underlying RoleBinding/ClusterRoleBinding for the privilege
 func (p *ScopedPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
 	var binding client.Object
+	var roleName string
+	if p.ReadOnly {
+		roleName = KubeVelaReaderRoleName
+	} else {
+		roleName = KubeVelaWriterRoleName
+	}
 	if p.Namespace == "" {
 		binding = &rbacv1.ClusterRoleBinding{
-			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: KubeVelaReaderRoleName},
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: roleName},
 			Subjects: subs,
 		}
 	} else {
 		binding = &rbacv1.RoleBinding{
-			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: KubeVelaWriterRoleName},
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: roleName},
 			Subjects: subs,
 		}
 		binding.SetNamespace(p.Namespace)
 	}
-	if p.ReadOnly {
-		binding.SetName(p.Prefix + KubeVelaReaderRoleName + ":binding")
-	} else {
-		binding.SetName(p.Prefix + KubeVelaWriterRoleName + ":binding")
-	}
+	binding.SetName(p.Prefix + roleName + ":binding")
 	return binding
 }
 
