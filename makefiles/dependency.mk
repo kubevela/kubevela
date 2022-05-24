@@ -57,15 +57,17 @@ CUE=$(shell which cue)
 endif
 
 KUSTOMIZE_VERSION ?= 4.5.4
-KUSTOMIZE = $(shell pwd)/bin/kustomize
+KUSTOMIZE_HOME = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize:
-ifeq (, $(shell $(KUSTOMIZE) version | grep $(KUSTOMIZE_VERSION)))
+ifneq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
+else ifneq (, $(shell $(KUSTOMIZE_HOME) version | grep $(KUSTOMIZE_VERSION)))
+else
 	@{ \
 	set -eo pipefail ;\
     echo "installing kustomize-v$(KUSTOMIZE_VERSION) into $(shell pwd)/bin" ;\
     mkdir -p $(shell pwd)/bin ;\
-    rm -f $(KUSTOMIZE) ;\
+    rm -f $(KUSTOMIZE_HOME) ;\
 	curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(shell pwd)/bin;\
 	echo 'Install succeed' ;\
     }
