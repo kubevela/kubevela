@@ -19,9 +19,11 @@ package cmd
 const (
 	flagNamespace = "namespace"
 	flagEnv       = "env"
+	flagCluster   = "cluster"
 )
 
 const (
 	usageNamespace = "If present, the namespace scope for this CLI request"
 	usageEnv       = "The environment name for the CLI request"
+	usageCluster   = "The cluster to execute the current command"
 )

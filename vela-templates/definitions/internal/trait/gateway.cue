@@ -14,10 +14,20 @@ gateway: {
 				}
 				if len(igs) > 0 {
 				  if igs[0].ip != _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+				  	if igs[0].host != _|_ {
+					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip
+				  	}
+				  	if igs[0].host == _|_ {
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
+				  	}
 				  }
 				  if igs[0].ip == _|_ {
-					  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+				  	if igs[0].host != _|_ {
+						  message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host
+						}
+				  	if igs[0].host != _|_ {
+					    message: "Host not specified, visit the cluster or load balancer in front of the cluster"
+						}
 				  }
 				}
 				"""#
@@ -59,8 +69,18 @@ template: {
 			if parameter.classInSpec {
 				ingressClassName: parameter.class
 			}
+			if parameter.secretName != _|_ {
+				tls: [{
+					hosts: [
+						parameter.domain,
+					]
+					secretName: parameter.secretName
+				}]
+			}
 			rules: [{
-				host: parameter.domain
+				if parameter.domain != _|_ {
+					host: parameter.domain
+				}
 				http: paths: [
 					for k, v in parameter.http {
 						path:     k
@@ -77,7 +97,7 @@ template: {
 
 	parameter: {
 		// +usage=Specify the domain you want to expose
-		domain: string
+		domain?: string
 
 		// +usage=Specify the mapping relationship between the http path and the workload port
 		http: [string]: int
@@ -87,5 +107,8 @@ template: {
 
 		// +usage=Set ingress class in '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
 		classInSpec: *false | bool
+
+		// +usage=Specify the secret name you want to quote.
+		secretName?: string
 	}
 }

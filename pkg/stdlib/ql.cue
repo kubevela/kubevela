@@ -15,3 +15,5 @@
 #CollectLogsInPod: query.#CollectLogsInPod
 
 #CollectServiceEndpoints: query.#CollectServiceEndpoints
+
+#GetApplicationTree: query.#GetApplicationTree

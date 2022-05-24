@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	v1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 )

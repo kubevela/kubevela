@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -84,15 +85,21 @@ var _ = Describe("Test Workflow", func() {
 			AppRevision: workflowStatus.AppRevision,
 			Mode:        common.WorkflowModeStep,
 			Message:     string(common.WorkflowStateExecuting),
-			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
-			}, {
-				Name:  "s2",
-				Type:  "failed",
-				Phase: common.WorkflowStepPhaseFailed,
-			}},
+			Steps: []common.WorkflowStepStatus{
+				{
+					StepStatus: common.StepStatus{
+						Name:  "s1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2",
+						Type:  "failed",
+						Phase: common.WorkflowStepPhaseFailed,
+					},
+				},
+			},
 		})).Should(BeEquivalentTo(""))
 
 		app, runners = makeTestCase([]oamcore.WorkflowStep{
@@ -129,17 +136,218 @@ var _ = Describe("Test Workflow", func() {
 			Mode:        common.WorkflowModeStep,
 			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s3",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+
+	It("Workflow test failed with sub steps", func() {
+		By("Test failed with step group")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "step-group",
+				SubSteps: []common.WorkflowSubStep{
+					{
+						Name: "s2-sub1",
+						Type: "success",
+					},
+					{
+						Name: "s2-sub2",
+						Type: "failed",
+					},
+				},
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		state, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateExecuting))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateExecuting),
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseFailed,
+				},
+				SubStepsStatus: []common.WorkflowSubStepStatus{{
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub2",
+						Type:  "failed",
+						Phase: common.WorkflowStepPhaseFailed,
+					},
+				}},
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+
+	It("Workflow test success with sub steps", func() {
+		By("Test success with step group")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "step-group",
+				SubSteps: []common.WorkflowSubStep{
+					{
+						Name: "s2-sub1",
+						Type: "success",
+					},
+					{
+						Name: "s2-sub2",
+						Type: "success",
+					},
+				},
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		state, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateSucceeded),
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+				SubStepsStatus: []common.WorkflowSubStepStatus{{
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub2",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}},
+		})).Should(BeEquivalentTo(""))
+
+		By("Test success with step group and empty subSteps")
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name:     "s2",
+				Type:     "step-group",
+				SubSteps: []common.WorkflowSubStep{},
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Message:     string(common.WorkflowStateSucceeded),
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
@@ -179,13 +387,17 @@ var _ = Describe("Test Workflow", func() {
 			Message:     MessageFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "failed-after-retries",
-				Phase: common.WorkflowStepPhaseFailed,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "failed-after-retries",
+					Phase: common.WorkflowStepPhaseFailed,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 
@@ -223,17 +435,93 @@ var _ = Describe("Test Workflow", func() {
 			Message:     MessageFailedAfterRetries,
 			Suspend:     true,
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "failed-after-retries",
-				Phase: common.WorkflowStepPhaseFailed,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "failed-after-retries",
+					Phase: common.WorkflowStepPhaseFailed,
+				},
 			}, {
-				Name:  "s3",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}},
+		})).Should(BeEquivalentTo(""))
+	})
+
+	It("Test failed after retries with sub steps", func() {
+		By("Test failed-after-retries with step group in StepByStep mode")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "step-group",
+				SubSteps: []common.WorkflowSubStep{
+					{
+						Name: "s2-sub1",
+						Type: "success",
+					},
+					{
+						Name: "s2-sub2",
+						Type: "failed-after-retries",
+					},
+				},
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		state, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSuspended))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Message:     MessageFailedAfterRetries,
+			Suspend:     true,
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseFailed,
+				},
+				SubStepsStatus: []common.WorkflowSubStepStatus{{
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub2",
+						Type:  "failed-after-retries",
+						Phase: common.WorkflowStepPhaseFailed,
+					},
+				}},
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
@@ -326,13 +614,17 @@ var _ = Describe("Test Workflow", func() {
 			Suspend:     true,
 			Message:     string(common.WorkflowStateSuspended),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "suspend",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "suspend",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 
@@ -355,23 +647,99 @@ var _ = Describe("Test Workflow", func() {
 			Mode:        common.WorkflowModeStep,
 			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "suspend",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "suspend",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s3",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSucceeded))
+	})
+
+	It("test for suspend with sub steps", func() {
+		By("Test suspend with step group")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "step-group",
+				SubSteps: []common.WorkflowSubStep{
+					{
+						Name: "s2-sub1",
+						Type: "success",
+					},
+					{
+						Name: "s2-sub2",
+						Type: "suspend",
+					},
+				},
+			},
+			{
+				Name: "s3",
+				Type: "success",
+			},
+		})
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		state, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateSuspended))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Suspend:     true,
+			Message:     string(common.WorkflowStateSuspended),
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+				SubStepsStatus: []common.WorkflowSubStepStatus{{
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub2",
+						Type:  "suspend",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}},
+			}},
+		})).Should(BeEquivalentTo(""))
 	})
 
 	It("test for terminate", func() {
@@ -401,13 +769,88 @@ var _ = Describe("Test Workflow", func() {
 			Terminated:  true,
 			Message:     string(common.WorkflowStateTerminated),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "terminate",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "terminate",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}},
+		})).Should(BeEquivalentTo(""))
+
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateTerminated))
+	})
+
+	It("test for terminate with sub steps", func() {
+
+		By("Test terminate with step group")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "success",
+			},
+			{
+				Name: "s2",
+				Type: "step-group",
+				SubSteps: []common.WorkflowSubStep{
+					{
+						Name: "s2-sub1",
+						Type: "success",
+					},
+					{
+						Name: "s2-sub2",
+						Type: "terminate",
+					},
+				},
+			},
+		})
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeStep, false, nil)
+		state, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateInitializing))
+		state, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(state).Should(BeEquivalentTo(common.WorkflowStateTerminated))
+		app.Status.Workflow.ContextBackend = nil
+		cleanStepTimeStamp(app.Status.Workflow)
+		Expect(cmp.Diff(*app.Status.Workflow, common.WorkflowStatus{
+			AppRevision: app.Status.Workflow.AppRevision,
+			Mode:        common.WorkflowModeStep,
+			Terminated:  true,
+			Message:     string(common.WorkflowStateTerminated),
+			Steps: []common.WorkflowStepStatus{{
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			}, {
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "step-group",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+				SubStepsStatus: []common.WorkflowSubStepStatus{{
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2-sub2",
+						Type:  "terminate",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}},
 			}},
 		})).Should(BeEquivalentTo(""))
 
@@ -442,9 +885,11 @@ var _ = Describe("Test Workflow", func() {
 			Mode:        common.WorkflowModeStep,
 			Message:     string(common.WorkflowStateExecuting),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
@@ -489,13 +934,17 @@ var _ = Describe("Test Workflow", func() {
 			Mode:        common.WorkflowModeDAG,
 			Message:     string(common.WorkflowStateExecuting),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s3",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 
@@ -514,17 +963,23 @@ var _ = Describe("Test Workflow", func() {
 			Mode:        common.WorkflowModeDAG,
 			Message:     string(common.WorkflowStateSucceeded),
 			Steps: []common.WorkflowStepStatus{{
-				Name:  "s1",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s1",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s3",
-				Type:  "success",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s3",
+					Type:  "success",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}, {
-				Name:  "s2",
-				Type:  "pending",
-				Phase: common.WorkflowStepPhaseSucceeded,
+				StepStatus: common.StepStatus{
+					Name:  "s2",
+					Type:  "pending",
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
 			}},
 		})).Should(BeEquivalentTo(""))
 	})
@@ -573,19 +1028,27 @@ func makeTestCase(steps []oamcore.WorkflowStep) (*oamcore.Application, []wfTypes
 	app.Name = "app"
 	runners := []wfTypes.TaskRunner{}
 	for _, step := range steps {
-		runners = append(runners, makeRunner(step.Name, step.Type))
+		if step.SubSteps != nil {
+			subStepRunners := []wfTypes.TaskRunner{}
+			for _, subStep := range step.SubSteps {
+				subStepRunners = append(subStepRunners, makeRunner(subStep.Name, subStep.Type, nil))
+			}
+			runners = append(runners, makeRunner(step.Name, step.Type, subStepRunners))
+		} else {
+			runners = append(runners, makeRunner(step.Name, step.Type, nil))
+		}
 	}
 	return app, runners
 }
 
 var pending bool
 
-func makeRunner(name string, tpy string) wfTypes.TaskRunner {
-	var run func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
+func makeRunner(name string, tpy string, subTaskRunners []wfTypes.TaskRunner) wfTypes.TaskRunner {
+	var run func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
 	switch tpy {
 	case "suspend":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 					Name:  name,
 					Type:  "suspend",
 					Phase: common.WorkflowStepPhaseSucceeded,
@@ -594,8 +1057,8 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				}, nil
 		}
 	case "terminate":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 					Name:  name,
 					Type:  "terminate",
 					Phase: common.WorkflowStepPhaseSucceeded,
@@ -604,24 +1067,24 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				}, nil
 		}
 	case "success":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 				Name:  name,
 				Type:  "success",
 				Phase: common.WorkflowStepPhaseSucceeded,
 			}, &wfTypes.Operation{}, nil
 		}
 	case "failed":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 				Name:  name,
 				Type:  "failed",
 				Phase: common.WorkflowStepPhaseFailed,
 			}, &wfTypes.Operation{}, nil
 		}
 	case "failed-after-retries":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 					Name:  name,
 					Type:  "failed-after-retries",
 					Phase: common.WorkflowStepPhaseFailed,
@@ -630,27 +1093,29 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 				}, nil
 		}
 	case "error":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 				Name:  name,
 				Type:  "error",
 				Phase: common.WorkflowStepPhaseRunning,
 			}, &wfTypes.Operation{}, errors.New("error for test")
 		}
 	case "wait-with-set-var":
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			v, _ := value.NewValue(`saved: true`, nil, "")
 			err := ctx.SetVar(v)
-			return common.WorkflowStepStatus{
+			return common.StepStatus{
 				Name:  name,
 				Type:  "wait-with-set-var",
 				Phase: common.WorkflowStepPhaseRunning,
 			}, &wfTypes.Operation{}, err
 		}
-
+	case "step-group":
+		group, _ := tasks.StepGroup(oamcore.WorkflowStep{Name: name}, &wfTypes.GeneratorOptions{SubTaskRunners: subTaskRunners})
+		run = group.Run
 	default:
-		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-			return common.WorkflowStepStatus{
+		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+			return common.StepStatus{
 				Name:  name,
 				Type:  tpy,
 				Phase: common.WorkflowStepPhaseSucceeded,
@@ -670,6 +1135,7 @@ func makeRunner(name string, tpy string) wfTypes.TaskRunner {
 			}
 			return false
 		},
+		subTaskRunners: subTaskRunners,
 	}
 }
 
@@ -690,9 +1156,10 @@ metadata:
 )
 
 type testTaskRunner struct {
-	name         string
-	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context) bool
+	name           string
+	run            func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
+	checkPending   func(ctx wfContext.Context) bool
+	subTaskRunners []wfTypes.TaskRunner
 }
 
 // Name return step name.
@@ -701,8 +1168,8 @@ func (tr *testTaskRunner) Name() string {
 }
 
 // Run execute task.
-func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
-	return tr.run(ctx, nil)
+func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+	return tr.run(ctx, options)
 }
 
 // Pending check task should be executed or not.
@@ -710,10 +1177,20 @@ func (tr *testTaskRunner) Pending(ctx wfContext.Context) bool {
 	return tr.checkPending(ctx)
 }
 
+func (tr *testTaskRunner) SubTaskRunners() []wfTypes.TaskRunner {
+	return tr.subTaskRunners
+}
+
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {
 	wfStatus.StartTime = metav1.Time{}
-	for index := range wfStatus.Steps {
+	for index, step := range wfStatus.Steps {
 		wfStatus.Steps[index].FirstExecuteTime = metav1.Time{}
 		wfStatus.Steps[index].LastExecuteTime = metav1.Time{}
+		if step.SubStepsStatus != nil {
+			for indexSubStep := range step.SubStepsStatus {
+				wfStatus.Steps[index].SubStepsStatus[indexSubStep].FirstExecuteTime = metav1.Time{}
+				wfStatus.Steps[index].SubStepsStatus[indexSubStep].LastExecuteTime = metav1.Time{}
+			}
+		}
 	}
 }

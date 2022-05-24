@@ -124,3 +124,34 @@
 	}]
 	...
 }
+
+#GetApplicationTree: {
+	#do:       "getApplicationTree"
+	#provider: "query"
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+		}
+	}
+	list?: [...{
+		name:             string
+		namespace?:       string
+		cluster?:         string
+		component?:       string
+		trait?:           string
+		kind?:            string
+		uid?:             string
+		apiVersion?:      string
+		resourceVersion?: string
+		publishVersion?:  string
+		deployVersion?:   string
+		revision?:        string
+		latest?:          bool
+		...
+	}]
+	...
+}

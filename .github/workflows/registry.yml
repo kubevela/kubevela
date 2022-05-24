@@ -127,7 +127,6 @@ jobs:
       HELM_CHART: charts/vela-core
       MINIMAL_HELM_CHART: charts/vela-minimal
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
-      OAM_RUNTIME_HELM_CHART: charts/oam-runtime
       VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
       LOCAL_OSS_DIRECTORY: .oss/
     runs-on: ubuntu-20.04
@@ -178,13 +177,11 @@ jobs:
           sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $MINIMAL_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $OAM_RUNTIME_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $VELA_ROLLOUT_HELM_CHART/values.yaml
           chart_smever=${chart_version#"v"}
           sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $MINIMAL_HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $OAM_RUNTIME_HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $VELA_ROLLOUT_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
@@ -195,7 +192,6 @@ jobs:
       - name: add artifacthub stuff to the repo
         run: |
           rsync $HELM_CHART/README.md $LEGACY_HELM_CHART/README.md
-          rsync $HELM_CHART/README.md $OAM_RUNTIME_HELM_CHART/README.md
           rsync $HELM_CHART/README.md $VELA_ROLLOUT_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
@@ -204,7 +200,6 @@ jobs:
           helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $MINIMAL_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $OAM_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $VELA_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud

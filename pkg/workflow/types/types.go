@@ -31,12 +31,20 @@ import (
 type TaskRunner interface {
 	Name() string
 	Pending(ctx wfContext.Context) bool
-	Run(ctx wfContext.Context, options *TaskRunOptions) (common.WorkflowStepStatus, *Operation, error)
+	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
 type TaskDiscover interface {
 	GetTaskGenerator(ctx context.Context, name string) (TaskGenerator, error)
+}
+
+// Engine is the engine to run workflow
+type Engine interface {
+	Run(taskRunners []TaskRunner, dag bool) error
+	GetStepStatus(stepName string) common.WorkflowStepStatus
+	SetParentRunner(name string)
+	GetOperation() *Operation
 }
 
 // TaskRunOptions is the options for task run.
@@ -48,6 +56,8 @@ type TaskRunOptions struct {
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
 	Debug         func(step string, v *value.Value) error
+	Engine        Engine
+	ParentRunner  string
 }
 
 // TaskPreStartHook run before task execution.
@@ -69,9 +79,10 @@ type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) 
 
 // GeneratorOptions is the options for generate task.
 type GeneratorOptions struct {
-	ID            string
-	PrePhase      common.WorkflowStepPhase
-	StepConvertor func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+	ID             string
+	PrePhase       common.WorkflowStepPhase
+	StepConvertor  func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+	SubTaskRunners []TaskRunner
 }
 
 // Action is that workflow provider can do.
@@ -103,4 +114,6 @@ const (
 	WorkflowStepTypeApplyComponent = "apply-component"
 	// WorkflowStepTypeBuiltinApplyComponent type builtin-apply-component
 	WorkflowStepTypeBuiltinApplyComponent = "builtin-apply-component"
+	// WorkflowStepTypeStepGroup type step-group
+	WorkflowStepTypeStepGroup = "step-group"
 )

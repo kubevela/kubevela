@@ -26,12 +26,12 @@ import (
 
 // GetTokenSubject extract the subject field from the jwt token
 func GetTokenSubject(token string) (string, error) {
-	claims := jwt.MapClaims{}
-	if _, err := jwt.ParseWithClaims(token, claims, nil); err != nil {
-		return "", err
+	claims, sub := jwt.MapClaims{}, ""
+	_, err := jwt.ParseWithClaims(token, claims, nil)
+	if len(claims) > 0 {
+		sub, _ = claims["sub"].(string)
 	}
-	sub, _ := claims["sub"].(string)
-	return sub, nil
+	return sub, err
 }
 
 // GetCertificateSubject extract Subject from Certificate
