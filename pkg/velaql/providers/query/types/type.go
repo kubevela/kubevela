@@ -87,20 +87,20 @@ type Endpoint struct {
 
 // AppliedResource resource metadata
 type AppliedResource struct {
-	Cluster         string           `json:"cluster"`
-	Component       string           `json:"component"`
-	Trait           string           `json:"trait"`
-	Kind            string           `json:"kind"`
-	Namespace       string           `json:"namespace,omitempty"`
-	Name            string           `json:"name,omitempty"`
-	UID             types.UID        `json:"uid,omitempty"`
-	APIVersion      string           `json:"apiVersion,omitempty"`
-	ResourceVersion string           `json:"resourceVersion,omitempty"`
-	DeployVersion   string           `json:"deployVersion,omitempty"`
-	PublishVersion  string           `json:"publishVersion,omitempty"`
-	Revision        string           `json:"revision,omitempty"`
-	Latest          bool             `json:"latest"`
-	ResourceTree    ResourceTreeNode `json:"resourceTree,omitempty"`
+	Cluster         string            `json:"cluster"`
+	Component       string            `json:"component"`
+	Trait           string            `json:"trait"`
+	Kind            string            `json:"kind"`
+	Namespace       string            `json:"namespace,omitempty"`
+	Name            string            `json:"name,omitempty"`
+	UID             types.UID         `json:"uid,omitempty"`
+	APIVersion      string            `json:"apiVersion,omitempty"`
+	ResourceVersion string            `json:"resourceVersion,omitempty"`
+	DeployVersion   string            `json:"deployVersion,omitempty"`
+	PublishVersion  string            `json:"publishVersion,omitempty"`
+	Revision        string            `json:"revision,omitempty"`
+	Latest          bool              `json:"latest"`
+	ResourceTree    *ResourceTreeNode `json:"resourceTree,omitempty"`
 }
 
 // ResourceTreeNode is the tree node of every resource

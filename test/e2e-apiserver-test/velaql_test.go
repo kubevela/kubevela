@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -383,6 +385,51 @@ var _ = Describe("Test velaQL rest api", func() {
 		}{}
 		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
 	})
+
+	It("test appliedResource and application tree velaql", func() {
+		ctx := context.Background()
+		app := v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(testApp), &app)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
+		Eventually(func() error {
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appNs=%s,appName=%s}.%s", "service-applied-resources-view", "default", "app-test-velaql", "status"))
+			status := &struct {
+				Resources []types2.AppliedResource `json:"resources"`
+			}{}
+			if err := decodeResponseBody(queryRes, status); err != nil {
+				return err
+			}
+			if len(status.Resources) != 1 {
+				return fmt.Errorf("applied resource velaql error")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+		// test app resource tree velaql
+		Eventually(func() error {
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appNs=%s,appName=%s}.%s", "application-resource-tree-view", "default", "app-test-velaql", "status"))
+			status := &struct {
+				Resources []types2.AppliedResource `json:"resources"`
+			}{}
+			if err := decodeResponseBody(queryRes, status); err != nil {
+				return err
+			}
+			if status.Resources[0].ResourceTree.Kind != "Deployment" &&
+				status.Resources[0].ResourceTree.APIVersion != "apps/v1" {
+				return fmt.Errorf("tree root error")
+			}
+			if len(status.Resources[0].ResourceTree.LeafNodes) != 1 {
+				return fmt.Errorf("length application tree error")
+			}
+			if status.Resources[0].ResourceTree.LeafNodes[0].Kind != "ReplicaSet" &&
+				status.Resources[0].ResourceTree.LeafNodes[0].APIVersion != "apps/v1" {
+				return fmt.Errorf("replciaset not ready")
+			}
+			return nil
+		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
+	})
 })
 
 var cronJobComponentDefinition = `
@@ -454,4 +501,19 @@ spec:
       type: garbage-collect
       properties:
         keepLegacyResource: true
+`
+
+var testApp = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-test-velaql
+  namespace: default
+spec:
+  components:
+    - name: app-test-velaql
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
 `

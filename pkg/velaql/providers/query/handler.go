@@ -178,7 +178,7 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 			return v.FillObject(err.Error(), "err")
 		}
 		root.HealthStatus = *rootStatus
-		resource.ResourceTree = root
+		resource.ResourceTree = &root
 	}
 	return v.FillObject(appResList, "list")
 }
