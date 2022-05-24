@@ -214,6 +214,7 @@ type Config struct {
 type ImageResponse struct {
 	Existed bool   `json:"existed"`
 	Secret  string `json:"secret"`
+	Message string `json:"message"`
 }
 
 // AccessKeyRequest request parameters to access cloud provider

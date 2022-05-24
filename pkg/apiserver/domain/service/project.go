@@ -657,12 +657,15 @@ func validateImage(ctx context.Context, k8sClient client.Client, project, imageN
 		}
 	}
 
+	var errMsg string
 	existed, err := image.IsExisted(username, password, imageName)
 	if err != nil {
-		return nil, err
+		errMsg = err.Error()
 	}
+
 	return &apisv1.ImageResponse{
 		Existed: existed,
 		Secret:  imagePullSecret,
+		Message: errMsg,
 	}, nil
 }
