@@ -144,7 +144,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	wfStatus := w.app.Status.Workflow
 	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
 
-	_, allTasksSucceeded := allDone(w.app.Status.Workflow, taskRunners)
 	if wfStatus.Finished {
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
@@ -155,6 +154,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
 	}
+	_, allTasksSucceeded := allDone(w.app.Status.Workflow, taskRunners)
 	if allTasksSucceeded {
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -186,7 +186,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
-	_, allTasksSucceeded = allDone(w.app.Status.Workflow, taskRunners)
 	if wfStatus.Terminated {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
@@ -195,6 +194,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateSuspended, nil
 	}
+	_, allTasksSucceeded = allDone(w.app.Status.Workflow, taskRunners)
 	if allTasksSucceeded {
 		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
@@ -679,10 +679,8 @@ func (e *engine) checkFailedAfterRetries(taskRunners []wfTypes.TaskRunner) {
 	if !e.waiting && e.failedAfterRetries {
 		if custom.EnableSuspendFailedWorkflow {
 			e.status.Suspend = true
-		} else {
-			if allTasksDone, _ := allDone(e.status, taskRunners); allTasksDone {
-				e.status.Terminated = true
-			}
+		} else if allTasksDone, _ := allDone(e.status, taskRunners); allTasksDone {
+			e.status.Terminated = true
 		}
 	}
 }
