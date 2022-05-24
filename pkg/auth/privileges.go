@@ -27,6 +27,7 @@ import (
 	"github.com/gosuri/uitable/util/wordwrap"
 	"github.com/xlab/treeprint"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/strings/slices"
@@ -61,6 +62,14 @@ func (ref authObjRef) FullName() string {
 		return ref.Name
 	}
 	return ref.Namespace + "/" + ref.Name
+}
+
+// Scope the scope of the object
+func (ref authObjRef) Scope() apiextensions.ResourceScope {
+	if ref.Namespace == "" {
+		return apiextensions.ClusterScoped
+	}
+	return apiextensions.NamespaceScoped
 }
 
 // RoleRef the references to ClusterRole or Role
@@ -207,9 +216,13 @@ func PrettyPrintPrivileges(identity *Identity, privilegesMap map[string][]Privil
 		root := tree.AddMetaBranch("Cluster", cluster)
 		for _, info := range privileges {
 			branch := root.AddMetaBranch(info.RoleRef.Kind, authObjRef(info.RoleRef).FullName())
-			bindingsBranch := branch.AddMetaBranch("Bindings", "")
+			bindingsBranch := branch.AddMetaBranch("Scope", "")
 			for _, ref := range info.RoleBindingRefs {
-				bindingsBranch.AddMetaNode(ref.Kind, authObjRef(ref).FullName())
+				var prefix string
+				if ref.Namespace != "" {
+					prefix = ref.Namespace + " "
+				}
+				bindingsBranch.AddMetaNode(authObjRef(ref).Scope(), fmt.Sprintf("%s(%s %s)", prefix, ref.Kind, ref.Name))
 			}
 			rulesBranch := branch.AddMetaBranch("PolicyRules", "")
 			for _, rule := range info.Rules {
@@ -319,7 +332,8 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 		return fmt.Errorf("failed to find RBAC subjects in identity")
 	}
 	for _, p := range privileges {
-		_ctx := multicluster.ContextWithClusterName(ctx, p.GetCluster())
+		cluster := p.GetCluster()
+		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
 		for _, role := range p.GetRoles() {
 			kind, key := "ClusterRole", role.GetName()
 			if role.GetNamespace() != "" {
@@ -327,10 +341,10 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 			}
 			res, err := utils.CreateOrUpdate(_ctx, cli, role)
 			if err != nil {
-				return fmt.Errorf("failed to create/update %s %s: %w", kind, key, err)
+				return fmt.Errorf("failed to create/update %s %s in %s: %w", kind, key, cluster, err)
 			}
 			if res != controllerutil.OperationResultNone {
-				_, _ = fmt.Fprintf(writer, "%s %s %s.\n", kind, key, res)
+				_, _ = fmt.Fprintf(writer, "%s %s %s in %s.\n", kind, key, res, cluster)
 			}
 		}
 		binding := p.GetRoleBinding(subs)
@@ -352,9 +366,9 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 		}
 		res, err := utils.CreateOrUpdate(_ctx, cli, binding)
 		if err != nil {
-			return fmt.Errorf("failed to create/update %s %s: %w", kind, key, err)
+			return fmt.Errorf("failed to create/update %s %s in %s: %w", kind, key, cluster, err)
 		}
-		_, _ = fmt.Fprintf(writer, "%s %s %s.\n", kind, key, res)
+		_, _ = fmt.Fprintf(writer, "%s %s %s in %s.\n", kind, key, res, cluster)
 	}
 	return nil
 }
