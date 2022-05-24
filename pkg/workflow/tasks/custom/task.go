@@ -90,7 +90,7 @@ type taskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
 	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
-	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
+	skip         func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -108,8 +108,8 @@ func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]commo
 	return tr.checkPending(ctx, stepStatus)
 }
 
-func (tr *taskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-	return tr.skip(ctx, dependsOnPhase, stepStatus)
+func (tr *taskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+	return tr.skip(dependsOnPhase, stepStatus)
 }
 
 // nolint:gocyclo
@@ -154,15 +154,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
-		tRunner.skip = func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+		tRunner.skip = func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 			if EnableSuspendFailedWorkflow {
 				return exec.status(), false
 			}
-			skip := SkipTaskRunner(ctx, &SkipOptions{
+			skip := SkipTaskRunner(&SkipOptions{
 				If:             wfStep.If,
-				DependsOn:      wfStep.DependsOn,
 				DependsOnPhase: dependsOnPhase,
-				StepStatus:     stepStatus,
 			})
 			if skip {
 				exec.Skip("")
@@ -469,13 +467,11 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 // SkipOptions is the options of skip task runner
 type SkipOptions struct {
 	If             string
-	DependsOn      []string
 	DependsOnPhase common.WorkflowStepPhase
-	StepStatus     map[string]common.StepStatus
 }
 
 // SkipTaskRunner will decide whether to skip task runner.
-func SkipTaskRunner(ctx wfContext.Context, options *SkipOptions) bool {
+func SkipTaskRunner(options *SkipOptions) bool {
 	switch options.If {
 	case "always":
 		return false

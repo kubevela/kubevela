@@ -18,22 +18,15 @@ package tasks
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -90,10 +83,35 @@ func TestSuspendStep(t *testing.T) {
 	}
 	gen, err := discover.GetTaskGenerator(context.Background(), "suspend")
 	r.NoError(err)
-	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124"})
+	runner, err := gen(v1beta1.WorkflowStep{
+		Name:      "test",
+		DependsOn: []string{"depend"},
+	}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil, nil), false)
+
+	// test pending
+	r.Equal(runner.Pending(nil, nil), true)
+	ss := map[string]common.StepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(runner.Pending(nil, ss), false)
+
+	// test skip
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	r.Equal(skip, true)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, custom.StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	r.Equal(skip, false)
+
+	// test run
 	status, act, err := runner.Run(nil, nil)
 	r.NoError(err)
 	r.Equal(act.Suspend, true)
@@ -135,11 +153,37 @@ func TestStepGroupStep(t *testing.T) {
 	r.NoError(err)
 	gen, err := discover.GetTaskGenerator(context.Background(), "stepGroup")
 	r.NoError(err)
-	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124", SubTaskRunners: []types.TaskRunner{subRunner}})
+	runner, err := gen(v1beta1.WorkflowStep{
+		Name:      "test",
+		DependsOn: []string{"depend"},
+	}, &types.GeneratorOptions{ID: "124", SubTaskRunners: []types.TaskRunner{subRunner}})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil, nil), false)
 
+	// test pending
+	r.Equal(runner.Pending(nil, nil), true)
+	ss := map[string]common.StepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(runner.Pending(nil, ss), false)
+
+	// test skip
+	stepStatus := make(map[string]common.StepStatus)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, stepStatus)
+	r.Equal(skip, false)
+	r.Equal(stepStatus["test"].Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, custom.StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, stepStatus)
+	r.Equal(skip, false)
+
+	// test run
 	testCases := []struct {
 		name          string
 		engine        *testEngine
@@ -262,66 +306,3 @@ func TestStepGroupStep(t *testing.T) {
 		})
 	}
 }
-
-func TestPendingDependsOnCheck(t *testing.T) {
-	wfCtx := newWorkflowContextForTest(t)
-	r := require.New(t)
-	step := v1beta1.WorkflowStep{
-		Name:      "pending",
-		Type:      "suspend",
-		DependsOn: []string{"depend"},
-	}
-	discover := &taskDiscover{
-		builtins: map[string]types.TaskGenerator{
-			"suspend": suspend,
-		},
-	}
-	gen, err := discover.GetTaskGenerator(context.Background(), step.Type)
-	r.NoError(err)
-	run, err := gen(step, &types.GeneratorOptions{})
-	r.NoError(err)
-	r.Equal(run.Pending(wfCtx, nil), true)
-	ss := map[string]common.StepStatus{
-		"depend": {
-			Phase: common.WorkflowStepPhaseSucceeded,
-		},
-	}
-	r.Equal(run.Pending(wfCtx, ss), false)
-}
-
-func newWorkflowContextForTest(t *testing.T) wfContext.Context {
-	r := require.New(t)
-	cm := corev1.ConfigMap{}
-	testCaseJson, err := yaml.YAMLToJSON([]byte(testCaseYaml))
-	r.NoError(err)
-	err = json.Unmarshal(testCaseJson, &cm)
-	r.NoError(err)
-
-	cli := &test.MockClient{
-		MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-			o, ok := obj.(*corev1.ConfigMap)
-			if ok {
-				*o = cm
-			}
-			return nil
-		},
-		MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-			return nil
-		},
-	}
-	wfCtx, err := wfContext.NewContext(cli, "default", "app-v1", "testuid")
-	r.NoError(err)
-	v, _ := value.NewValue(`name: "app"`, nil, "")
-	r.NoError(wfCtx.SetVar(v, types.ContextKeyMetadata))
-	return wfCtx
-}
-
-var (
-	testCaseYaml = `apiVersion: v1
-data:
-  components: '{"server":"{\"Scopes\":null,\"StandardWorkload\":\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Pod\\\",\\\"metadata\\\":{\\\"labels\\\":{\\\"app\\\":\\\"nginx\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"env\\\":[{\\\"name\\\":\\\"APP\\\",\\\"value\\\":\\\"nginx\\\"}],\\\"image\\\":\\\"nginx:1.14.2\\\",\\\"imagePullPolicy\\\":\\\"IfNotPresent\\\",\\\"name\\\":\\\"main\\\",\\\"ports\\\":[{\\\"containerPort\\\":8080,\\\"protocol\\\":\\\"TCP\\\"}]}]}}\",\"Traits\":[\"{\\\"apiVersion\\\":\\\"v1\\\",\\\"kind\\\":\\\"Service\\\",\\\"metadata\\\":{\\\"name\\\":\\\"my-service\\\"},\\\"spec\\\":{\\\"ports\\\":[{\\\"port\\\":80,\\\"protocol\\\":\\\"TCP\\\",\\\"targetPort\\\":8080}],\\\"selector\\\":{\\\"app\\\":\\\"nginx\\\"}}}\"]}"}'
-kind: ConfigMap
-metadata:
-  name: app-v1
-`
-)

@@ -563,7 +563,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		var status common.StepStatus
 		operation := &wfTypes.Operation{}
 		skip := false
-		status, skip = runner.Skip(wfCtx, e.findDependPhase(taskRunners, index, dag), e.stepStatus)
+		status, skip = runner.Skip(e.findDependPhase(taskRunners, index, dag), e.stepStatus)
 		if !skip {
 			status, operation, err = runner.Run(wfCtx, options)
 			if err != nil {

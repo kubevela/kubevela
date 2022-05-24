@@ -1381,7 +1381,7 @@ var pending bool
 
 func makeRunner(name, tpy, ifDecl string, dependsOn []string, subTaskRunners []wfTypes.TaskRunner) wfTypes.TaskRunner {
 	var run func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	skip := func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+	skip := func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 		status := common.StepStatus{
 			Name: name,
 			Type: tpy,
@@ -1389,11 +1389,9 @@ func makeRunner(name, tpy, ifDecl string, dependsOn []string, subTaskRunners []w
 		if custom.EnableSuspendFailedWorkflow {
 			return status, false
 		}
-		skip := custom.SkipTaskRunner(ctx, &custom.SkipOptions{
+		skip := custom.SkipTaskRunner(&custom.SkipOptions{
 			If:             ifDecl,
-			DependsOn:      dependsOn,
 			DependsOnPhase: dependsOnPhase,
-			StepStatus:     stepStatus,
 		})
 		if skip {
 			status.Phase = common.WorkflowStepPhaseSkipped
@@ -1521,7 +1519,7 @@ type testTaskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
 	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
-	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
+	skip         func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -1539,8 +1537,8 @@ func (tr *testTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]c
 	return tr.checkPending(ctx, stepStatus)
 }
 
-func (tr *testTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-	return tr.skip(ctx, dependsOnPhase, stepStatus)
+func (tr *testTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+	return tr.skip(dependsOnPhase, stepStatus)
 }
 
 func cleanStepTimeStamp(wfStatus *common.WorkflowStatus) {

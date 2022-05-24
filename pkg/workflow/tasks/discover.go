@@ -153,7 +153,7 @@ func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[strin
 	return custom.CheckPending(ctx, tr.step, stepStatus)
 }
 
-func (tr *suspendTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+func (tr *suspendTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 	status := common.StepStatus{
 		ID:    tr.id,
 		Name:  tr.step.Name,
@@ -163,11 +163,9 @@ func (tr *suspendTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.W
 	if custom.EnableSuspendFailedWorkflow {
 		return status, false
 	}
-	skip := custom.SkipTaskRunner(ctx, &custom.SkipOptions{
+	skip := custom.SkipTaskRunner(&custom.SkipOptions{
 		If:             tr.step.If,
-		DependsOn:      tr.step.DependsOn,
 		DependsOnPhase: dependsOnPhase,
-		StepStatus:     stepStatus,
 	})
 	if skip {
 		status.Phase = common.WorkflowStepPhaseSkipped
@@ -193,7 +191,7 @@ func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[str
 	return custom.CheckPending(ctx, tr.step, stepStatus)
 }
 
-func (tr *stepGroupTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+func (tr *stepGroupTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 	status := common.StepStatus{
 		ID:   tr.id,
 		Name: tr.step.Name,
@@ -202,11 +200,9 @@ func (tr *stepGroupTaskRunner) Skip(ctx wfContext.Context, dependsOnPhase common
 	if custom.EnableSuspendFailedWorkflow {
 		return status, false
 	}
-	skip := custom.SkipTaskRunner(ctx, &custom.SkipOptions{
+	skip := custom.SkipTaskRunner(&custom.SkipOptions{
 		If:             tr.step.If,
-		DependsOn:      tr.step.DependsOn,
 		DependsOnPhase: dependsOnPhase,
-		StepStatus:     stepStatus,
 	})
 	if skip {
 		status.Phase = common.WorkflowStepPhaseSkipped

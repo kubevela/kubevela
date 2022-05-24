@@ -481,6 +481,41 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	r.Equal(run.Pending(wfCtx, ss), false)
 }
 
+func TestSkip(t *testing.T) {
+	r := require.New(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name: "skip",
+		Type: "ok",
+	}
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
+	r.NoError(err)
+	runner, err := gen(step, &types.GeneratorOptions{})
+	r.NoError(err)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	r.Equal(skip, true)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	r.Equal(skip, false)
+}
+
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	r := require.New(t)
 	cm := corev1.ConfigMap{}
