@@ -110,10 +110,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0
 )
 
-require (
-	github.com/google/go-containerregistry v0.9.0
-	gopkg.in/yaml.v2 v2.4.0
-)
+require github.com/google/go-containerregistry v0.9.0
 
 require (
 	cloud.google.com/go/compute v1.6.1 // indirect
@@ -300,6 +297,7 @@ require (
 	gopkg.in/src-d/go-billy.v4 v4.3.2 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
 	oras.land/oras-go v0.4.0 // indirect
