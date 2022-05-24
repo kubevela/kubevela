@@ -26,10 +26,12 @@ require (
 	github.com/emicklei/go-restful/v3 v3.0.0-rc2
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/fatih/color v1.13.0
+	github.com/fluxcd/helm-controller/api v0.21.0
+	github.com/fluxcd/source-controller/api v0.24.4
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.94.0
-	github.com/go-logr/logr v1.2.0
+	github.com/go-logr/logr v1.2.2
 	github.com/go-openapi/spec v0.19.8
 	github.com/go-playground/validator/v10 v10.9.0
 	github.com/go-resty/resty/v2 v2.7.0
@@ -78,7 +80,7 @@ require (
 	helm.sh/helm/v3 v3.7.2
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
 	k8s.io/api v0.23.6
-	k8s.io/apiextensions-apiserver v0.23.5
+	k8s.io/apiextensions-apiserver v0.23.6
 	k8s.io/apimachinery v0.23.6
 	k8s.io/apiserver v0.23.6
 	k8s.io/cli-runtime v0.23.6
@@ -168,6 +170,9 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/facebookgo/structtag v0.0.0-20150214074306-217e25fb9691 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
+	github.com/fluxcd/pkg/apis/acl v0.0.3 // indirect
+	github.com/fluxcd/pkg/apis/kustomize v0.3.3 // indirect
+	github.com/fluxcd/pkg/apis/meta v0.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/fvbommel/sortorder v1.0.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -187,7 +192,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
@@ -304,7 +309,7 @@ require (
 	sigs.k8s.io/apiserver-network-proxy v0.0.24 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/apiserver-runtime v1.1.1 // indirect
-	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
+	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect

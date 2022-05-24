@@ -172,6 +172,10 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		}
 		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
 		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
 			return v.FillObject(err.Error(), "err")
 		}
 		rootObject, err := fetchObjectWithResourceTreeNode(context.Background(), resource.Cluster, h.cli, root)
@@ -183,6 +187,13 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 			return v.FillObject(err.Error(), "err")
 		}
 		root.HealthStatus = *rootStatus
+		addInfo, err := additionalInfo(*rootObject)
+		if err != nil {
+			return err
+		}
+		root.AdditionalInfo = addInfo
+		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
+		root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
 		resource.ResourceTree = &root
 	}
 	return v.FillObject(appResList, "list")
