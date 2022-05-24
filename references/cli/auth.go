@@ -377,6 +377,9 @@ func (opt *GrantPrivilegesOptions) Run(f velacmd.Factory, cmd *cobra.Command) er
 		for _, namespace := range opt.GrantNamespaces {
 			privileges = append(privileges, &auth.ScopedPrivilege{Cluster: cluster, Namespace: namespace, ReadOnly: opt.ReadOnly})
 		}
+		if len(opt.GrantNamespaces) == 0 {
+			privileges = append(privileges, &auth.ScopedPrivilege{Cluster: cluster, ReadOnly: opt.ReadOnly})
+		}
 	}
 	if err := auth.GrantPrivileges(ctx, f.Client(), privileges, &opt.Identity, opt.IOStreams.Out); err != nil {
 		return err
