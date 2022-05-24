@@ -2,7 +2,8 @@
 	type: "trait"
 	annotations: {}
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
+		"deprecated": "true"
 	}
 	description: "affinity specify node affinity and toleration on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
