@@ -61,7 +61,10 @@ var k8sClient client.Client
 var scheme = runtime.NewScheme()
 var crd crdv1.CustomResourceDefinition
 
+// OAM runtime is deprecated and we won't run test here.
 func TestReconcilerSuit(t *testing.T) {
+	t.SkipNow()
+
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

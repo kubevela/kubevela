@@ -25,8 +25,6 @@ import (
 )
 
 var (
-	common = map[string]bool{"workloaddefinitions": true, "traitdefinitions": true, "scopedefinitions": true, "healthscopes": true,
-		"manualscalertraits": true}
 	oldCRD = map[string]bool{"components": true, "applicationconfigurations": true}
 	// when controller need to run in runtime cluster, just add them in this map, key=crdName, value=subPath
 	runtimeCRD = map[string]string{"rollouts": "rollout"}
@@ -37,26 +35,16 @@ var (
 
 func main() {
 	var dir string
-	var oldDir string
 	var newDir string
 	var minimalDir string
 	var runtimeDir string
 	if len(os.Args) > 2 {
 		dir = os.Args[1]
 		newDir = os.Args[2]
-		oldDir = os.Args[3]
-		runtimeDir = os.Args[4]
-		minimalDir = os.Args[5]
+		runtimeDir = os.Args[3]
+		minimalDir = os.Args[4]
 	} else {
 		log.Fatal(fmt.Errorf("not enough args"))
-	}
-
-	writeOld := func(fileName string, data []byte) {
-		pathOld := fmt.Sprintf("%s/%s", oldDir, fileName)
-		/* #nosec */
-		if err := os.WriteFile(pathOld, data, 0644); err != nil {
-			log.Fatal(err)
-		}
 	}
 
 	writeNew := func(fileName string, data []byte) {
@@ -95,11 +83,7 @@ func main() {
 			return err
 		}
 		if oldCRD[resourceName] {
-			writeOld(info.Name(), data)
 			return nil
-		}
-		if common[resourceName] {
-			writeOld(info.Name(), data)
 		}
 		if minimalCRD[resourceName] {
 			writeMinimal(info.Name(), data)
