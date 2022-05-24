@@ -268,7 +268,7 @@ close({
 			r.NoError(err)
 			r.Equal(operation.Waiting, false)
 			r.Equal(operation.FailedAfterRetries, true)
-			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailedAfterRetries)
 		default:
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
@@ -473,11 +473,9 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
 	r.Equal(run.Pending(wfCtx, nil), true)
-	ss := map[string]common.WorkflowStepStatus{
+	ss := map[string]common.StepStatus{
 		"depend": {
-			StepStatus: common.StepStatus{
-				Phase: common.WorkflowStepPhaseSucceeded,
-			},
+			Phase: common.WorkflowStepPhaseSucceeded,
 		},
 	}
 	r.Equal(run.Pending(wfCtx, ss), false)
