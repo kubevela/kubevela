@@ -96,6 +96,8 @@ const (
 
 	// LabelProject recorde the project the resource belong to
 	LabelProject = "core.oam.dev/project"
+
+	LabelResourceRules = "rules.oam.dev/resources"
 )
 
 const (
