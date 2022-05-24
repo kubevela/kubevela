@@ -398,7 +398,7 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 	return itemList.Items, nil
 }
 
-func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int) ([]types.ResourceTreeNode, error) {
+func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int) ([]*types.ResourceTreeNode, error) {
 	if depth > maxDepth {
 		log.Logger.Warnf("listing application resource tree has reached the max-depth %d parentObject is %v", depth, parentResource)
 		return nil, nil
@@ -411,7 +411,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 	kind := parentObject.GetObjectKind().GroupVersionKind().Kind
 
 	if rules, ok := globalRule[GroupResourceType{Group: group, Kind: kind}]; ok {
-		var resList []types.ResourceTreeNode
+		var resList []*types.ResourceTreeNode
 		for resource, specifiedFunc := range rules.CareResource {
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc)
@@ -439,7 +439,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 					return nil, err
 				}
 				rtn.HealthStatus = *healthStatus
-				resList = append(resList, rtn)
+				resList = append(resList, &rtn)
 			}
 		}
 		return resList, nil
