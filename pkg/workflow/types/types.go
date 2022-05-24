@@ -32,7 +32,7 @@ type TaskRunner interface {
 	Name() string
 	Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
 	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
-	Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
+	Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
