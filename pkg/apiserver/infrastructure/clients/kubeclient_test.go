@@ -20,12 +20,13 @@ import (
 	"context"
 	"sync"
 
-	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 )
 
 var _ = Describe("Test kube client", func() {
@@ -34,7 +35,7 @@ var _ = Describe("Test kube client", func() {
 		defer GinkgoRecover()
 		err := SetKubeConfig(config.Config{
 			KubeQPS:   50,
-			KubeBurst: 100,
+			KubeBurst: 300,
 		})
 		Expect(err).Should(BeNil())
 		cli, err := GetKubeClient()

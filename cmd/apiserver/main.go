@@ -48,8 +48,8 @@ func main() {
 	flag.DurationVar(&s.serverConfig.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.DurationVar(&s.serverConfig.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
 	flag.BoolVar(&s.serverConfig.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
-	flag.Float64Var(&s.serverConfig.KubeQPS, "kube-api-qps", 50, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
-	flag.IntVar(&s.serverConfig.KubeBurst, "kube-api-burst", 100, "the burst for reconcile clients. Recommend setting it qps*2.")
+	flag.Float64Var(&s.serverConfig.KubeQPS, "kube-api-qps", 100, "the qps for reconcile clients. Low qps may lead to low throughput. High qps may give stress to api-server. Raise this value if concurrent-reconciles is set to be high.")
+	flag.IntVar(&s.serverConfig.KubeBurst, "kube-api-burst", 300, "the burst for reconcile clients. Recommend setting it qps*3.")
 
 	flag.Parse()
 
