@@ -466,6 +466,7 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 	}
 }
 
+// SkipOptions is the options of skip task runner
 type SkipOptions struct {
 	If             string
 	DependsOn      []string
@@ -496,6 +497,7 @@ func SkipTaskRunner(ctx wfContext.Context, options *SkipOptions) bool {
 	}
 }
 
+// CheckPending checks whether to pending task run
 func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.WorkflowStepStatus) bool {
 	for _, depend := range step.DependsOn {
 		if status, ok := stepStatus[depend]; ok {
