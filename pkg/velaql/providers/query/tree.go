@@ -91,14 +91,10 @@ type ResourceType struct {
 	Kind       string `json:"kind,omitempty"`
 }
 
-// CustomRules define the customize rule created by user
-type CustomRule struct {
+// customRule define the customize rule created by user
+type customRule struct {
 	ParentResourceType   *GroupResourceType `json:"parentResourceType,omitempty"`
 	ChildrenResourceType []ResourceType     `json:"childrenResourceType,omitempty"`
-}
-
-type CustomRules struct {
-	CustomRules []CustomRule `json:"customRules"`
 }
 
 // ChildrenResourcesRule define the relationShip between parentObject and children resource
@@ -472,10 +468,11 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 	}
 	for _, item := range rulesList.Items {
 		ruleStr := item.Data[relationshipKey]
-		var customRules []*CustomRule
+		var customRules []*customRule
 		err := yaml.Unmarshal([]byte(ruleStr), &customRules)
 		if err != nil {
-			return err
+			// don't let one miss-config configmap brake whole process
+			log.Logger.Errorf("relationship rule configamp %s miss config %v", item.Name, err)
 		}
 		for _, rule := range customRules {
 			if cResource, ok := globalRule[*rule.ParentResourceType]; ok {
