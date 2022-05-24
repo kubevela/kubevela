@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -38,13 +39,32 @@ func SetKubeClient(c client.Client) {
 	kubeClient = c
 }
 
+// SetKubeConfig generate the kube config from the config of apiserver
+func SetKubeConfig(c apiConfig.Config) error {
+	conf, err := config.GetConfig()
+	if err != nil {
+		return err
+	}
+	kubeConfig = conf
+	kubeConfig.Burst = c.KubeBurst
+	kubeConfig.QPS = float32(c.KubeQPS)
+	return nil
+}
+
 // GetKubeClient create and return kube runtime client
 func GetKubeClient() (client.Client, error) {
 	if kubeClient != nil {
 		return kubeClient, nil
 	}
+	if kubeConfig == nil {
+		conf, err := config.GetConfig()
+		if err != nil {
+			return nil, err
+		}
+		kubeConfig = conf
+	}
 	var err error
-	kubeClient, kubeConfig, err = multicluster.GetMulticlusterKubernetesClient()
+	kubeClient, err = multicluster.Initialize(kubeConfig, false)
 	if err == nil {
 		return kubeClient, nil
 	}
@@ -52,11 +72,7 @@ func GetKubeClient() (client.Client, error) {
 		return nil, err
 	}
 	// create single cluster client
-	conf, err := config.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	kubeClient, err = client.New(conf, client.Options{Scheme: common.Scheme})
+	kubeClient, err = client.New(kubeConfig, client.Options{Scheme: common.Scheme})
 	if err != nil {
 		return nil, err
 	}

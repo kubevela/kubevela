@@ -92,6 +92,10 @@ func (s *restServer) buildIoCContainer() error {
 	if err := s.beanContainer.ProvideWithName("datastore", s.dataStore); err != nil {
 		return fmt.Errorf("fail to provides the datastore bean to the container: %w", err)
 	}
+	err := clients.SetKubeConfig(s.cfg)
+	if err != nil {
+		return err
+	}
 	kubeConfig, err := clients.GetKubeConfig()
 	if err != nil {
 		return err
