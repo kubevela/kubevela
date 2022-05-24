@@ -30,9 +30,9 @@ import (
 // TaskRunner is a task runner.
 type TaskRunner interface {
 	Name() string
-	Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool
+	Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
 	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
-	Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool)
+	Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。

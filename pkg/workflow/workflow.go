@@ -144,19 +144,19 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	wfStatus := w.app.Status.Workflow
 	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
 
-	allTasksDone, allTasksSucceeded := w.allDone(taskRunners)
-	if allTasksSucceeded {
-		return common.WorkflowStateSucceeded, nil
-	}
+	_, allTasksSucceeded := allDone(w.app.Status.Workflow, taskRunners)
 	if wfStatus.Finished {
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
-	if (IsFailedAfterRetry(w.app) && allTasksDone) || wfStatus.Terminated && !IsFailedAfterRetry(w.app) {
+	if wfStatus.Terminated {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
+	}
+	if allTasksSucceeded {
+		return common.WorkflowStateSucceeded, nil
 	}
 
 	wfCtx, err := w.makeContext(w.app.Name)
@@ -174,15 +174,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		}
 	}
 
-	e := &engine{
-		status:     wfStatus,
-		monitorCtx: ctx,
-		app:        w.app,
-		wfCtx:      wfCtx,
-		cli:        w.cli,
-		debug:      w.debug,
-		rk:         w.rk,
-	}
+	e := newEngine(ctx, wfCtx, w, wfStatus)
 
 	err = e.Run(taskRunners, w.dagMode)
 	if err != nil {
@@ -194,8 +186,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
-	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
-	if (IsFailedAfterRetry(w.app) && allTasksDone) || wfStatus.Terminated && !IsFailedAfterRetry(w.app) {
+	_, allTasksSucceeded = allDone(w.app.Status.Workflow, taskRunners)
+	if wfStatus.Terminated {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
 	}
@@ -209,6 +201,40 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 	wfStatus.Message = string(common.WorkflowStateExecuting)
 	return common.WorkflowStateExecuting, nil
+}
+
+func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow, wfStatus *common.WorkflowStatus) *engine {
+	stepStatus := make(map[string]common.StepStatus)
+	for _, ss := range wfStatus.Steps {
+		stepStatus[ss.Name] = common.StepStatus{
+			Phase: ss.Phase,
+			ID:    ss.ID,
+		}
+		for _, sss := range ss.SubStepsStatus {
+			stepStatus[sss.Name] = common.StepStatus{
+				Phase: sss.Phase,
+				ID:    sss.ID,
+			}
+		}
+	}
+	stepDependsOn := make(map[string][]string)
+	for _, step := range w.app.Spec.Workflow.Steps {
+		stepDependsOn[step.Name] = append(stepDependsOn[step.Name], step.DependsOn...)
+		for _, sub := range step.SubSteps {
+			stepDependsOn[sub.Name] = append(stepDependsOn[sub.Name], sub.DependsOn...)
+		}
+	}
+	return &engine{
+		status:        wfStatus,
+		monitorCtx:    ctx,
+		app:           w.app,
+		wfCtx:         wfCtx,
+		cli:           w.cli,
+		debug:         w.debug,
+		rk:            w.rk,
+		stepStatus:    stepStatus,
+		stepDependsOn: stepDependsOn,
+	}
 }
 
 // Trace record the workflow execute history.
@@ -298,8 +324,7 @@ func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
 	return oamcore.WorkflowStep{}
 }
 
-func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
-	status := w.app.Status.Workflow
+func allDone(status *common.WorkflowStatus, taskRunners []wfTypes.TaskRunner) (bool, bool) {
 	success := true
 	for _, t := range taskRunners {
 		done := false
@@ -478,16 +503,6 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 }
 
 func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
-	stepStatus := make(map[string]common.WorkflowStepStatus)
-	for _, ss := range e.status.Steps {
-		stepStatus[ss.Name] = common.WorkflowStepStatus{
-			StepStatus: common.StepStatus{
-				Phase: ss.Phase,
-				ID:    ss.ID,
-			},
-		}
-	}
-	e.stepStatus = stepStatus
 	var err error
 	if dag {
 		err = e.runAsDAG(taskRunners)
@@ -495,7 +510,7 @@ func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		err = e.steps(taskRunners, dag)
 	}
 
-	e.checkFailedAfterRetries()
+	e.checkFailedAfterRetries(taskRunners)
 	e.setNextExecuteTime()
 	return err
 }
@@ -594,7 +609,8 @@ type engine struct {
 	cli                client.Client
 	rk                 resourcekeeper.ResourceKeeper
 	parentRunner       string
-	stepStatus         map[string]common.WorkflowStepStatus
+	stepStatus         map[string]common.StepStatus
+	stepDependsOn      map[string][]string
 }
 
 func (e *engine) finishStep(operation *wfTypes.Operation) {
@@ -652,27 +668,28 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 				index = len(e.status.Steps) - 1
 			}
 			e.status.Steps[index].SubStepsStatus = append(e.status.Steps[index].SubStepsStatus, common.WorkflowSubStepStatus{StepStatus: status})
-			e.stepStatus[status.Name] = e.status.Steps[index]
 		} else {
 			e.status.Steps = append(e.status.Steps, common.WorkflowStepStatus{StepStatus: status})
-			e.stepStatus[status.Name] = common.WorkflowStepStatus{StepStatus: status}
 		}
 	}
+	e.stepStatus[status.Name] = status
 }
 
-func (e *engine) checkFailedAfterRetries() {
+func (e *engine) checkFailedAfterRetries(taskRunners []wfTypes.TaskRunner) {
 	if !e.waiting && e.failedAfterRetries {
 		if custom.EnableSuspendFailedWorkflow {
 			e.status.Suspend = true
 		} else {
-			e.status.Terminated = true
+			if allTasksDone, _ := allDone(e.status, taskRunners); allTasksDone {
+				e.status.Terminated = true
+			}
 		}
 	}
 }
 
 func (e *engine) needStop() bool {
 	if custom.EnableSuspendFailedWorkflow {
-		e.checkFailedAfterRetries()
+		e.checkFailedAfterRetries(nil)
 	}
 	return e.status.Suspend || e.status.Terminated
 }
@@ -699,13 +716,35 @@ func IsFailedAfterRetry(app *oamcore.Application) bool {
 }
 
 func (e *engine) findDependPhase(taskRunners []wfTypes.TaskRunner, index int, dag bool) common.WorkflowStepPhase {
+	if e.parentRunner != "" {
+		if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseSkipped {
+			return common.WorkflowStepPhaseSkipped
+		}
+	}
 	if dag {
-		return ""
+		return e.findDependsOnPhase(taskRunners[index].Name())
 	}
 	if index < 1 {
 		return common.WorkflowStepPhaseSucceeded
 	}
+	for i := index - 1; i >= 0; i-- {
+		if e.stepStatus[taskRunners[i].Name()].Phase != common.WorkflowStepPhaseSucceeded {
+			return e.stepStatus[taskRunners[i].Name()].Phase
+		}
+	}
 	return e.stepStatus[taskRunners[index-1].Name()].Phase
+}
+
+func (e *engine) findDependsOnPhase(name string) common.WorkflowStepPhase {
+	for _, dependsOn := range e.stepDependsOn[name] {
+		if e.stepStatus[dependsOn].Phase != common.WorkflowStepPhaseSucceeded {
+			return e.stepStatus[dependsOn].Phase
+		}
+		if result := e.findDependsOnPhase(dependsOn); result != common.WorkflowStepPhaseSucceeded {
+			return result
+		}
+	}
+	return common.WorkflowStepPhaseSucceeded
 }
 
 func isWaitSuspendStep(step common.StepStatus) bool {

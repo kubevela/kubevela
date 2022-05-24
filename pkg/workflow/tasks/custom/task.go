@@ -89,8 +89,8 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 type taskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool
-	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool)
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
+	skip         func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -104,11 +104,11 @@ func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions
 }
 
 // Pending check task should be executed or not.
-func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
+func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 	return tr.checkPending(ctx, stepStatus)
 }
 
-func (tr *taskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+func (tr *taskRunner) Skip(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 	return tr.skip(ctx, dependsOnPhase, stepStatus)
 }
 
@@ -151,10 +151,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
-		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.WorkflowStepStatus) bool {
+		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
-		tRunner.skip = func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.WorkflowStepStatus) (common.StepStatus, bool) {
+		tRunner.skip = func(ctx wfContext.Context, dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
 			if EnableSuspendFailedWorkflow {
 				return exec.status(), false
 			}
@@ -471,7 +471,7 @@ type SkipOptions struct {
 	If             string
 	DependsOn      []string
 	DependsOnPhase common.WorkflowStepPhase
-	StepStatus     map[string]common.WorkflowStepStatus
+	StepStatus     map[string]common.StepStatus
 }
 
 // SkipTaskRunner will decide whether to skip task runner.
@@ -480,17 +480,7 @@ func SkipTaskRunner(ctx wfContext.Context, options *SkipOptions) bool {
 	case "always":
 		return false
 	case "":
-		if options.DependsOnPhase != "" {
-			return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
-		}
-		for _, depend := range options.DependsOn {
-			if status, ok := options.StepStatus[depend]; ok {
-				if status.Phase == common.WorkflowStepPhaseSkipped || status.Phase == common.WorkflowStepPhaseFailedAfterRetries {
-					return true
-				}
-			}
-		}
-		return false
+		return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
 	default:
 		// TODO:(fog)
 		return false
@@ -498,7 +488,7 @@ func SkipTaskRunner(ctx wfContext.Context, options *SkipOptions) bool {
 }
 
 // CheckPending checks whether to pending task run
-func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.WorkflowStepStatus) bool {
+func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.StepStatus) bool {
 	for _, depend := range step.DependsOn {
 		if status, ok := stepStatus[depend]; ok {
 			if !IsStepFinish(status.Phase) {

@@ -281,11 +281,9 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
 	r.Equal(run.Pending(wfCtx, nil), true)
-	ss := map[string]common.WorkflowStepStatus{
+	ss := map[string]common.StepStatus{
 		"depend": {
-			StepStatus: common.StepStatus{
-				Phase: common.WorkflowStepPhaseSucceeded,
-			},
+			Phase: common.WorkflowStepPhaseSucceeded,
 		},
 	}
 	r.Equal(run.Pending(wfCtx, ss), false)
