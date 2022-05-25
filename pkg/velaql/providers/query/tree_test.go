@@ -904,9 +904,5 @@ var _ = Describe("test merge globalRules", func() {
 		crSpecifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
 		Expect(ok).Should(BeTrue())
 		Expect(crSpecifyFunc).Should(BeNil())
-
-		Expect(k8sClient.Delete(ctx, &cloneSetConfigMap)).Should(BeNil())
-		Expect(k8sClient.Delete(ctx, &daemonSetConfigMap)).Should(BeNil())
-		Expect(k8sClient.Delete(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(BeNil())
 	})
 })
