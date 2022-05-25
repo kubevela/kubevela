@@ -36,7 +36,7 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
 FROM ${BASE_IMAGE:-alpine:3.15}
-# This is required by daemon connnecting with cri
+# This is required by daemon connecting with cri
 RUN apk add --no-cache ca-certificates bash expat
 
 WORKDIR /
