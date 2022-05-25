@@ -56,12 +56,6 @@ func TestE2eApiserverTest(t *testing.T) {
 
 // Suite test in e2e-apiserver-test relies on the pre-setup kubernetes environment
 var _ = BeforeSuite(func() {
-	By("new kube client")
-	var err error
-	k8sClient, err = clients.GetKubeClient()
-	Expect(err).Should(BeNil())
-	Expect(k8sClient).ToNot(BeNil())
-	By("new kube client success")
 
 	ctx := context.Background()
 
@@ -72,6 +66,8 @@ var _ = BeforeSuite(func() {
 			Database: "kubevela",
 		},
 		AddonCacheTime: 10 * time.Minute,
+		KubeQPS:        100,
+		KubeBurst:      300,
 	}
 	cfg.LeaderConfig.ID = uuid.New().String()
 	cfg.LeaderConfig.LockName = "apiserver-lock"
@@ -80,7 +76,7 @@ var _ = BeforeSuite(func() {
 	server := apiserver.New(cfg)
 	Expect(server).ShouldNot(BeNil())
 	go func() {
-		err = server.Run(ctx, make(chan error))
+		err := server.Run(ctx, make(chan error))
 		Expect(err).ShouldNot(HaveOccurred())
 	}()
 	By("wait for api server to start")
@@ -113,6 +109,9 @@ var _ = BeforeSuite(func() {
 			Expect(err).Should(BeNil())
 			return fmt.Errorf("rest service not ready code:%d message:%s", resp.StatusCode, code.Message)
 		}, time.Second*10, time.Millisecond*200).Should(BeNil())
+	var err error
+	k8sClient, err = clients.GetKubeClient()
+	Expect(err).ShouldNot(HaveOccurred())
 	By("api server started")
 })
 
