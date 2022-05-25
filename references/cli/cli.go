@@ -130,10 +130,8 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 
-	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
-	_ = fset.Set("v", "-1")
 
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")
