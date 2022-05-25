@@ -60,7 +60,10 @@ KUSTOMIZE_VERSION ?= 4.5.4
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize:
-ifeq (, $(shell $(KUSTOMIZE) version | grep $(KUSTOMIZE_VERSION)))
+ifneq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
+KUSTOMIZE=$(shell which kustomize)
+else ifneq (, $(shell $(KUSTOMIZE) version | grep $(KUSTOMIZE_VERSION)))
+else
 	@{ \
 	set -eo pipefail ;\
     echo "installing kustomize-v$(KUSTOMIZE_VERSION) into $(shell pwd)/bin" ;\
