@@ -363,6 +363,12 @@ func (p *projectServiceImpl) UpdateProject(ctx context.Context, projectName stri
 			}
 			return nil, err
 		}
+		if _, err := p.AddProjectUser(ctx, projectName, apisv1.AddProjectUserRequest{
+			UserName:  req.Owner,
+			UserRoles: []string{"project-admin"},
+		}); err != nil && !errors.Is(err, bcode.ErrProjectUserExist) {
+			return nil, err
+		}
 		project.Owner = req.Owner
 	}
 	err = p.Store.Put(ctx, project)

@@ -77,8 +77,7 @@ var _ = BeforeSuite(func() {
 	cfg.LeaderConfig.LockName = "apiserver-lock"
 	cfg.LeaderConfig.Duration = time.Second * 10
 
-	server, err := apiserver.New(cfg)
-	Expect(err).ShouldNot(HaveOccurred())
+	server := apiserver.New(cfg)
 	Expect(server).ShouldNot(BeNil())
 	go func() {
 		err = server.Run(ctx, make(chan error))

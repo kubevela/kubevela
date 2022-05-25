@@ -51,7 +51,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
 		Name:      "app-management",
 		Alias:     "App Management",
-		Resources: []string{"project:{projectName}/application:*/*", "definition:*"},
+		Resources: []string{"project:{projectName}/application:*/*", "definition:list", "definition:detail"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
