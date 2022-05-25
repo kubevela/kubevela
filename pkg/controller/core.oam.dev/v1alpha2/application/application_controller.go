@@ -56,6 +56,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -228,6 +229,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			handler.app.Status.Workflow.Suspend = false
 			handler.app.Status.Workflow.SuspendState = ""
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, false)
+		}
+		if !workflow.IsFailedAfterRetry(app) || !custom.EnableSuspendFailedWorkflow {
+			r.stateKeep(logCtx, handler, app)
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
 	case common.WorkflowStateTerminated:
