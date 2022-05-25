@@ -740,7 +740,7 @@ options: {
 				Name: "vela-system",
 			},
 		})
-		Expect(err).Should(BeNil())
+		Expect(err).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		for _, s := range testServicelist {
 			ns := "default"
 			if s["namespace"] != nil {
