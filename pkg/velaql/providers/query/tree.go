@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -31,10 +34,14 @@ import (
 	"k8s.io/kubectl/pkg/util/podutils"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
+
+// relationshipKey is the configmap key of relationShip rule
+var relationshipKey = "rules"
 
 // set the iterator max depth is 5
 var maxDepth = 5
@@ -82,6 +89,12 @@ type GroupResourceType struct {
 type ResourceType struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 	Kind       string `json:"kind,omitempty"`
+}
+
+// customRule define the customize rule created by user
+type customRule struct {
+	ParentResourceType   *GroupResourceType `json:"parentResourceType,omitempty"`
+	ChildrenResourceType []ResourceType     `json:"childrenResourceType,omitempty"`
 }
 
 // ChildrenResourcesRule define the relationShip between parentObject and children resource
@@ -445,4 +458,37 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 		return resList, nil
 	}
 	return nil, nil
+}
+
+// mergeCustomRules merge the customize
+func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
+	rulesList := v12.ConfigMapList{}
+	if err := k8sClient.List(ctx, &rulesList, client.InNamespace(velatypes.DefaultKubeVelaNS), client.HasLabels{oam.LabelResourceRules}); err != nil {
+		return err
+	}
+	for _, item := range rulesList.Items {
+		ruleStr := item.Data[relationshipKey]
+		var customRules []*customRule
+		err := yaml.Unmarshal([]byte(ruleStr), &customRules)
+		if err != nil {
+			// don't let one miss-config configmap brake whole process
+			log.Logger.Errorf("relationship rule configamp %s miss config %v", item.Name, err)
+		}
+		for _, rule := range customRules {
+			if cResource, ok := globalRule[*rule.ParentResourceType]; ok {
+				for _, resourceType := range rule.ChildrenResourceType {
+					if _, ok := cResource.CareResource[resourceType]; !ok {
+						cResource.CareResource[resourceType] = nil
+					}
+				}
+			} else {
+				caredResources := map[ResourceType]genListOptionFunc{}
+				for _, resourceType := range rule.ChildrenResourceType {
+					caredResources[resourceType] = nil
+				}
+				globalRule[*rule.ParentResourceType] = ChildrenResourcesRule{DefaultGenListOptionFunc: nil, CareResource: caredResources}
+			}
+		}
+	}
+	return nil
 }
