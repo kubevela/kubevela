@@ -637,7 +637,8 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 			if index < 0 {
 				e.status.Steps = append(e.status.Steps, common.WorkflowStepStatus{
 					StepStatus: common.StepStatus{
-						Name: parentRunner,
+						Name:             parentRunner,
+						FirstExecuteTime: now,
 					}})
 				index = len(e.status.Steps) - 1
 			}
