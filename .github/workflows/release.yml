@@ -121,6 +121,7 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig sync ./_bin/vela oss://$BUCKET/binary/vela/${{ env.VELA_VERSION }}
       
       - name: sync the latest version file
+        if: !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta')
         run: |
           echo ${{ env.VELA_VERSION }} > ./latest_version
           ./ossutil --config-file .ossutilconfig cp -u ./latest_version oss://$BUCKET/binary/vela/latest_version
