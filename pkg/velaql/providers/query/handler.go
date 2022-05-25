@@ -156,6 +156,11 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
+	// merge user defined customize rule before every request.
+	err = mergeCustomRules(context.Background(), h.cli)
+	if err != nil {
+		return err
+	}
 	for _, resource := range appResList {
 		root := querytypes.ResourceTreeNode{
 			APIVersion: resource.APIVersion,
