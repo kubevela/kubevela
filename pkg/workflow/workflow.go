@@ -144,17 +144,17 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	wfStatus := w.app.Status.Workflow
 	cacheKey := fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace)
 
+	allTasksDone, allTasksSucceeded := w.allDone(taskRunners)
 	if wfStatus.Finished {
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
-	if wfStatus.Terminated {
+	if wfStatus.Terminated && allTasksDone {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		return common.WorkflowStateSuspended, nil
 	}
-	_, allTasksSucceeded := allDone(w.app.Status.Workflow, taskRunners)
 	if allTasksSucceeded {
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -186,7 +186,8 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
-	if wfStatus.Terminated {
+	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
+	if wfStatus.Terminated && allTasksDone {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
 	}
@@ -194,7 +195,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateSuspended, nil
 	}
-	_, allTasksSucceeded = allDone(w.app.Status.Workflow, taskRunners)
 	if allTasksSucceeded {
 		wfStatus.Message = string(common.WorkflowStateSucceeded)
 		return common.WorkflowStateSucceeded, nil
@@ -218,10 +218,16 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 		}
 	}
 	stepDependsOn := make(map[string][]string)
-	for _, step := range w.app.Spec.Workflow.Steps {
-		stepDependsOn[step.Name] = append(stepDependsOn[step.Name], step.DependsOn...)
-		for _, sub := range step.SubSteps {
-			stepDependsOn[sub.Name] = append(stepDependsOn[sub.Name], sub.DependsOn...)
+	if w.app.Spec.Workflow != nil {
+		for _, step := range w.app.Spec.Workflow.Steps {
+			stepDependsOn[step.Name] = append(stepDependsOn[step.Name], step.DependsOn...)
+			for _, sub := range step.SubSteps {
+				stepDependsOn[sub.Name] = append(stepDependsOn[sub.Name], sub.DependsOn...)
+			}
+		}
+	} else {
+		for _, comp := range w.app.Spec.Components {
+			stepDependsOn[comp.Name] = append(stepDependsOn[comp.Name], comp.DependsOn...)
 		}
 	}
 	return &engine{
@@ -324,8 +330,9 @@ func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
 	return oamcore.WorkflowStep{}
 }
 
-func allDone(status *common.WorkflowStatus, taskRunners []wfTypes.TaskRunner) (bool, bool) {
+func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
 	success := true
+	status := w.app.Status.Workflow
 	for _, t := range taskRunners {
 		done := false
 		for _, ss := range status.Steps {
@@ -510,7 +517,7 @@ func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		err = e.steps(taskRunners, dag)
 	}
 
-	e.checkFailedAfterRetries(taskRunners)
+	e.checkFailedAfterRetries()
 	e.setNextExecuteTime()
 	return err
 }
@@ -616,7 +623,7 @@ type engine struct {
 func (e *engine) finishStep(operation *wfTypes.Operation) {
 	if operation != nil {
 		e.status.Suspend = operation.Suspend
-		e.status.Terminated = operation.Terminated
+		e.status.Terminated = e.status.Terminated || operation.Terminated
 	}
 }
 
@@ -675,19 +682,18 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 	e.stepStatus[status.Name] = status
 }
 
-func (e *engine) checkFailedAfterRetries(taskRunners []wfTypes.TaskRunner) {
-	if !e.waiting && e.failedAfterRetries {
-		if custom.EnableSuspendFailedWorkflow {
-			e.status.Suspend = true
-		} else if allTasksDone, _ := allDone(e.status, taskRunners); allTasksDone {
-			e.status.Terminated = true
-		}
+func (e *engine) checkFailedAfterRetries() {
+	if !e.waiting && e.failedAfterRetries && custom.EnableSuspendFailedWorkflow {
+		e.status.Suspend = true
+	}
+	if e.failedAfterRetries && !custom.EnableSuspendFailedWorkflow {
+		e.status.Terminated = true
 	}
 }
 
 func (e *engine) needStop() bool {
 	if custom.EnableSuspendFailedWorkflow {
-		e.checkFailedAfterRetries(nil)
+		e.checkFailedAfterRetries()
 	}
 	return e.status.Suspend || e.status.Terminated
 }
