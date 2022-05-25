@@ -868,6 +868,26 @@ var _ = Describe("test merge globalRules", func() {
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
+	stsStr := `
+- parentResourceType:
+    group: apps
+    kind: StatefulSet
+  childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
+	missConfigedStr := `
+- parentResourceType:
+    group: apps
+    kind: StatefulSet
+childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
 
 	It("test merge rules", func() {
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
@@ -883,6 +903,18 @@ var _ = Describe("test merge globalRules", func() {
 		}
 		Expect(k8sClient.Create(ctx, &daemonSetConfigMap)).Should(BeNil())
 
+		stsConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: stsStr},
+		}
+		Expect(k8sClient.Create(ctx, &stsConfigMap)).Should(BeNil())
+
+		missConfigedCm := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "miss-configed", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: missConfigedStr},
+		}
+		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
+
 		Expect(mergeCustomRules(ctx, k8sClient)).Should(BeNil())
 		childrenResources, ok := globalRule[GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"}]
 		Expect(ok).Should(BeTrue())
@@ -893,16 +925,22 @@ var _ = Describe("test merge globalRules", func() {
 		Expect(specifyFunc).Should(BeNil())
 
 		dsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "DaemonSet"}]
-		//rule := globalRule
-		//fmt.Println(rule)
 		Expect(ok).Should(BeTrue())
-		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
 		Expect(len(dsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
-		dsSpecifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
+		dsSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
 		Expect(ok).Should(BeTrue())
 		Expect(dsSpecifyFunc).Should(BeNil())
-		crSpecifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
+		crSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
 		Expect(ok).Should(BeTrue())
 		Expect(crSpecifyFunc).Should(BeNil())
+
+		stsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "StatefulSet"}]
+		Expect(ok).Should(BeTrue())
+		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(len(stsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
+		stsCrSpecifyFunc, ok := stsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
+		Expect(ok).Should(BeTrue())
+		Expect(stsCrSpecifyFunc).Should(BeNil())
 	})
 })
