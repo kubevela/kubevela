@@ -512,6 +512,7 @@ func TestSkip(t *testing.T) {
 		If:   "always",
 		Name: "test",
 	}, &types.GeneratorOptions{ID: "124"})
+	r.NoError(err)
 	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
 	r.Equal(skip, false)
 }
