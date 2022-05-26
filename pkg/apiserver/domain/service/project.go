@@ -27,6 +27,7 @@ import (
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -501,7 +502,11 @@ func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, config
 		// legacy providers
 		var providers = &terraformapi.ProviderList{}
 		if err := p.K8sClient.List(ctx, providers, client.InNamespace(types.DefaultAppNamespace)); err != nil {
-			return nil, err
+			// this logic depends on the terraform addon, ignore the no matches kind error before the terraform addon is installed.
+			if !meta.IsNoMatchError(err) {
+				return nil, err
+			}
+			log.Logger.Infof("terraform Provider CRD is not installed")
 		}
 		for _, p := range providers.Items {
 			if p.Labels[types.LabelConfigCatalog] == types.VelaCoreConfig {
