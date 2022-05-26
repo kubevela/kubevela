@@ -37,24 +37,14 @@ type VelaQLService interface {
 }
 
 type velaQLServiceImpl struct {
-	kubeClient client.Client
-	kubeConfig *rest.Config
+	KubeClient client.Client `inject:"kubeClient"`
+	KubeConfig *rest.Config  `inject:"kubeConfig"`
 	dm         discoverymapper.DiscoveryMapper
 	pd         *packages.PackageDiscover
 }
 
 // NewVelaQLService new velaQL service
 func NewVelaQLService() VelaQLService {
-	k8sClient, err := clients.GetKubeClient()
-	if err != nil {
-		log.Logger.Fatalf("get kubeclient failure %s", err.Error())
-	}
-
-	kubeConfig, err := clients.GetKubeConfig()
-	if err != nil {
-		log.Logger.Fatalf("get kubeconfig failure %s", err.Error())
-	}
-
 	dm, err := clients.GetDiscoverMapper()
 	if err != nil {
 		log.Logger.Fatalf("get discover mapper failure %s", err.Error())
@@ -65,10 +55,8 @@ func NewVelaQLService() VelaQLService {
 		log.Logger.Fatalf("get package discover failure %s", err.Error())
 	}
 	return &velaQLServiceImpl{
-		kubeClient: k8sClient,
-		kubeConfig: kubeConfig,
-		dm:         dm,
-		pd:         pd,
+		dm: dm,
+		pd: pd,
 	}
 }
 
@@ -79,7 +67,7 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 		return nil, bcode.ErrParseVelaQL
 	}
 
-	queryValue, err := velaql.NewViewHandler(v.kubeClient, v.kubeConfig, v.dm, v.pd).QueryView(ctx, query)
+	queryValue, err := velaql.NewViewHandler(v.KubeClient, v.KubeConfig, v.dm, v.pd).QueryView(ctx, query)
 	if err != nil {
 		log.Logger.Errorf("fail to query the view %s", err.Error())
 		return nil, bcode.ErrViewQuery
@@ -88,6 +76,7 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 	resp := apis.VelaQLViewResponse{}
 	err = queryValue.UnmarshalTo(&resp)
 	if err != nil {
+		log.Logger.Errorf("decode the velaQL response to json failure %s", err.Error())
 		return nil, bcode.ErrParseQuery2Json
 	}
 	return &resp, err
