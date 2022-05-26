@@ -667,14 +667,12 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 			}
 			for _, item := range items {
 				rtn := types.ResourceTreeNode{
-					APIVersion:        item.GetAPIVersion(),
-					Kind:              item.GroupVersionKind().Kind,
-					Namespace:         item.GetNamespace(),
-					Name:              item.GetName(),
-					UID:               item.GetUID(),
-					Cluster:           cluster,
-					CreationTimestamp: item.GetCreationTimestamp().Time,
-					DeletionTimestamp: item.GetDeletionTimestamp().Time,
+					APIVersion: item.GetAPIVersion(),
+					Kind:       item.GroupVersionKind().Kind,
+					Namespace:  item.GetNamespace(),
+					Name:       item.GetName(),
+					UID:        item.GetUID(),
+					Cluster:    cluster,
 				}
 				if _, ok := globalRule[GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}]; ok {
 					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn, depth+1)
@@ -691,6 +689,10 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 				addInfo, err := additionalInfo(item)
 				if err != nil {
 					return nil, err
+				}
+				rtn.CreationTimestamp = item.GetCreationTimestamp().Time
+				if !item.GetDeletionTimestamp().IsZero() {
+					rtn.DeletionTimestamp = item.GetDeletionTimestamp().Time
 				}
 				rtn.AdditionalInfo = addInfo
 				resList = append(resList, &rtn)
