@@ -293,7 +293,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 		var found bool
 		_, configs := appfile.GetApplicationSettings(o.App, compName)
 		for k, v := range configs {
-			if k == "port" {
+			portConv := func(o *VelaPortForwardOptions, v interface{}, k string) (bool, error) {
 				var val string
 				switch pv := v.(type) {
 				case int:
@@ -303,7 +303,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 				case float64:
 					val = strconv.Itoa(int(pv))
 				default:
-					return fmt.Errorf("invalid type '%s' of port %v", reflect.TypeOf(v), k)
+					return false, fmt.Errorf("invalid type '%s' of port %v", reflect.TypeOf(v), k)
 				}
 				if val == "80" {
 					val = "8080:80"
@@ -311,7 +311,22 @@ func (o *VelaPortForwardOptions) Complete() error {
 					val = "8443:443"
 				}
 				o.Args = append(o.Args, val)
-				found = true
+				return true, nil
+			}
+			if k == "port" {
+				found, err = portConv(o, v, k)
+				if err != nil {
+					return err
+				}
+			}
+			if k == "ports" {
+				portArray := v.([]interface{})
+				for _, p := range portArray {
+					found, err = portConv(o, p.(map[string]interface{})["port"], k)
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 		if !found {
