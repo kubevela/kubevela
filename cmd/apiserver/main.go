@@ -109,19 +109,13 @@ type Server struct {
 func (s *Server) run(ctx context.Context, errChan chan error) error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
 
-	server, err := apiserver.New(s.serverConfig)
-	if err != nil {
-		return fmt.Errorf("create apiserver failed : %w ", err)
-	}
+	server := apiserver.New(s.serverConfig)
 
 	return server.Run(ctx, errChan)
 }
 
 func (s *Server) buildSwagger() (*spec.Swagger, error) {
-	server, err := apiserver.New(s.serverConfig)
-	if err != nil {
-		return nil, err
-	}
+	server := apiserver.New(s.serverConfig)
 	config, err := server.BuildRestfulConfig()
 	if err != nil {
 		return nil, err

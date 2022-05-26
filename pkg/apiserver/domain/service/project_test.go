@@ -189,6 +189,27 @@ var _ = Describe("Test project service functions", func() {
 		Expect(base.Description).Should(BeEquivalentTo("Change description"))
 		Expect(base.Owner.Alias).Should(BeEquivalentTo("Administrator"))
 
+		user := &model.User{
+			Name:     "admin-2",
+			Alias:    "Administrator2",
+			Password: "ddddd",
+			Disabled: false,
+		}
+		err = projectService.Store.Add(context.TODO(), user)
+		Expect(err).Should(BeNil())
+		base, err = projectService.UpdateProject(context.TODO(), "test-project", apisv1.UpdateProjectRequest{
+			Alias:       "Change alias",
+			Description: "Change description",
+			Owner:       "admin-2",
+		})
+		Expect(err).Should(BeNil())
+		Expect(base.Alias).Should(BeEquivalentTo("Change alias"))
+		Expect(base.Description).Should(BeEquivalentTo("Change description"))
+		Expect(base.Owner.Alias).Should(BeEquivalentTo("Administrator2"))
+		res, err := projectService.ListProjectUser(context.TODO(), "test-project", 0, 0)
+		Expect(err).Should(BeNil())
+		Expect(res.Total).Should(Equal(int64(2)))
+
 		_, err = projectService.UpdateProject(context.TODO(), "test-project", apisv1.UpdateProjectRequest{
 			Alias:       "Change alias",
 			Description: "Change description",
