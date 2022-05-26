@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	apiserverutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -552,6 +553,7 @@ func (p *rbacServiceImpl) CheckPerm(resource string, actions ...string) func(req
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
+		apiserverutils.SetUsernameAndProjectInRequestContext(req, userName, projectName)
 		chain.ProcessFilter(req, res)
 	}
 	return f
