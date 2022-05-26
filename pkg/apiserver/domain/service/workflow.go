@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/references/cli"
 )
 
 // WorkflowService workflow manage api
@@ -577,8 +578,7 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 		return err
 	}
 
-	oamApp.Status.Workflow.Terminated = true
-	if err := w.KubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
+	if err := cli.TerminateWorkflow(w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {

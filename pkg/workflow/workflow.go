@@ -149,7 +149,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
-	if wfStatus.Terminated && allTasksDone {
+	if (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend) {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
@@ -187,8 +187,14 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
-	fmt.Println(wfStatus.Terminated, allTasksDone)
-	if wfStatus.Terminated && allTasksDone {
+	if wfStatus.Terminated {
+		e.cleanBackoffTimesForTerminated()
+		if allTasksDone || wfStatus.Suspend {
+			wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
+			return common.WorkflowStateTerminated, nil
+		}
+	}
+	if (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend) {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
 	}
@@ -208,13 +214,15 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 	stepStatus := make(map[string]common.StepStatus)
 	for _, ss := range wfStatus.Steps {
 		stepStatus[ss.Name] = common.StepStatus{
-			Phase: ss.Phase,
-			ID:    ss.ID,
+			Phase:  ss.Phase,
+			ID:     ss.ID,
+			Reason: ss.Reason,
 		}
 		for _, sss := range ss.SubStepsStatus {
 			stepStatus[sss.Name] = common.StepStatus{
-				Phase: sss.Phase,
-				ID:    sss.ID,
+				Phase:  sss.Phase,
+				ID:     sss.ID,
+				Reason: ss.Reason,
 			}
 		}
 	}
@@ -772,6 +780,21 @@ func handleBackoffTimes(wfCtx wfContext.Context, status common.StepStatus, clear
 		return errors.WithMessage(err, "commit workflow context")
 	}
 	return nil
+}
+
+func (e *engine) cleanBackoffTimesForTerminated() {
+	for _, ss := range e.status.Steps {
+		for _, sub := range ss.SubStepsStatus {
+			if sub.Reason == custom.StatusReasonTerminate {
+				e.wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, sub.ID)
+				e.wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffReason, sub.ID)
+			}
+		}
+		if ss.Reason == custom.StatusReasonTerminate {
+			e.wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, ss.ID)
+			e.wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffReason, ss.ID)
+		}
+	}
 }
 
 func (e *engine) GetStepStatus(stepName string) common.WorkflowStepStatus {
