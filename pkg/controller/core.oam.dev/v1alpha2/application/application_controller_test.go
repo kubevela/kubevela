@@ -1953,7 +1953,8 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1999,7 +2000,8 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
 		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
 	})
 
 	It("application with step by step workflow failed after retries", func() {
@@ -2074,7 +2076,8 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())

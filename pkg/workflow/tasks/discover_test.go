@@ -100,7 +100,7 @@ func TestSuspendStep(t *testing.T) {
 	r.Equal(runner.Pending(nil, ss), false)
 
 	// test skip
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
 	r.Equal(skip, true)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, custom.StatusReasonSkip)
@@ -109,7 +109,7 @@ func TestSuspendStep(t *testing.T) {
 		Name: "test",
 	}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
 	r.Equal(skip, false)
 
 	// test run
@@ -172,7 +172,7 @@ func TestStepGroupStep(t *testing.T) {
 
 	// test skip
 	stepStatus := make(map[string]common.StepStatus)
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, stepStatus)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, stepStatus)
 	r.Equal(skip, false)
 	r.Equal(stepStatus["test"].Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
@@ -182,7 +182,7 @@ func TestStepGroupStep(t *testing.T) {
 		Name: "test",
 	}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, stepStatus)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, stepStatus)
 	r.Equal(skip, false)
 
 	// test run

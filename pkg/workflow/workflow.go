@@ -187,6 +187,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	e.checkWorkflowStatusMessage(wfStatus)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
+	fmt.Println(wfStatus.Terminated, allTasksDone)
 	if wfStatus.Terminated && allTasksDone {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 		return common.WorkflowStateTerminated, nil
@@ -337,7 +338,7 @@ func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
 		done := false
 		for _, ss := range status.Steps {
 			if ss.Name == t.Name() {
-				done = custom.IsStepFinish(ss.Phase)
+				done = custom.IsStepFinish(ss.Phase, ss.Reason)
 				success = done && (ss.Phase == common.WorkflowStepPhaseSucceeded)
 				break
 			}
@@ -474,7 +475,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 		var stepID string
 		if status, ok := e.stepStatus[tRunner.Name()]; ok {
 			stepID = status.ID
-			finish = custom.IsStepFinish(status.Phase)
+			finish = custom.IsStepFinish(status.Phase, status.Reason)
 		}
 		if !finish {
 			done = false
@@ -545,7 +546,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 	var err error
 	for index, runner := range taskRunners {
 		if status, ok := e.stepStatus[runner.Name()]; ok {
-			if custom.IsStepFinish(status.Phase) {
+			if custom.IsStepFinish(status.Phase, status.Reason) {
 				continue
 			}
 		}
@@ -583,7 +584,7 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		e.failedAfterRetries = e.failedAfterRetries || operation.FailedAfterRetries
 		e.waiting = e.waiting || operation.Waiting
 		// for the suspend step with duration, there's no need to increase the backoff time in reconcile when it's still running
-		if !custom.IsStepFinish(status.Phase) && !isWaitSuspendStep(status) {
+		if !custom.IsStepFinish(status.Phase, status.Reason) && !isWaitSuspendStep(status) {
 			if err := handleBackoffTimes(wfCtx, status, false); err != nil {
 				return err
 			}
@@ -695,7 +696,8 @@ func (e *engine) needStop() bool {
 	if custom.EnableSuspendFailedWorkflow {
 		e.checkFailedAfterRetries()
 	}
-	return e.status.Suspend || e.status.Terminated
+	// if the workflow is terminated, we still need to execute all the remaining steps
+	return e.status.Suspend
 }
 
 // ComputeWorkflowRevisionHash compute workflow revision.

@@ -240,22 +240,27 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		Type: types.WorkflowStepTypeStepGroup,
 	}
 
-	subStepPhases := make(map[common.WorkflowStepPhase]int)
+	subStepCounts := make(map[string]int)
 	for _, subStepsStatus := range stepStatus.SubStepsStatus {
-		subStepPhases[subStepsStatus.Phase]++
+		subStepCounts[string(subStepsStatus.Phase)]++
+		subStepCounts[subStepsStatus.Reason]++
 	}
 	switch {
 	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
 		status.Phase = common.WorkflowStepPhaseRunning
-	case subStepPhases[common.WorkflowStepPhaseRunning] > 0:
+	case subStepCounts[string(common.WorkflowStepPhaseRunning)] > 0:
 		status.Phase = common.WorkflowStepPhaseRunning
-	case subStepPhases[common.WorkflowStepPhaseStopped] > 0:
+	case subStepCounts[string(common.WorkflowStepPhaseStopped)] > 0:
 		status.Phase = common.WorkflowStepPhaseStopped
-	case subStepPhases[common.WorkflowStepPhaseFailed] > 0:
+	case subStepCounts[string(common.WorkflowStepPhaseFailed)] > 0:
 		status.Phase = common.WorkflowStepPhaseFailed
-	case subStepPhases[common.WorkflowStepPhaseFailedAfterRetries] > 0:
-		status.Phase = common.WorkflowStepPhaseFailedAfterRetries
-	case subStepPhases[common.WorkflowStepPhaseSkipped] > 0:
+		switch {
+		case subStepCounts[custom.StatusReasonFailedAfterRetries] > 0:
+			status.Reason = custom.StatusReasonFailedAfterRetries
+		case subStepCounts[custom.StatusReasonTerminate] > 0:
+			status.Reason = custom.StatusReasonTerminate
+		}
+	case subStepCounts[string(common.WorkflowStepPhaseSkipped)] > 0:
 		status.Phase = common.WorkflowStepPhaseSkipped
 		status.Reason = custom.StatusReasonSkip
 	default:

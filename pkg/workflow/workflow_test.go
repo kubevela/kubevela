@@ -270,9 +270,10 @@ var _ = Describe("Test Workflow", func() {
 			Message:     string(MessageTerminatedFailedAfterRetries),
 			Steps: []common.WorkflowStepStatus{{
 				StepStatus: common.StepStatus{
-					Name:  "s1",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s1",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -353,15 +354,17 @@ var _ = Describe("Test Workflow", func() {
 			Message:     string(MessageTerminatedFailedAfterRetries),
 			Steps: []common.WorkflowStepStatus{{
 				StepStatus: common.StepStatus{
-					Name:  "s1",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s1",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "step-group",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "step-group",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -371,9 +374,10 @@ var _ = Describe("Test Workflow", func() {
 					},
 				}, {
 					StepStatus: common.StepStatus{
-						Name:  "s2-sub2",
-						Type:  "failed-after-retries",
-						Phase: common.WorkflowStepPhaseFailedAfterRetries,
+						Name:   "s2-sub2",
+						Type:   "failed-after-retries",
+						Phase:  common.WorkflowStepPhaseFailed,
+						Reason: custom.StatusReasonFailedAfterRetries,
 					},
 				}},
 			}, {
@@ -556,9 +560,10 @@ var _ = Describe("Test Workflow", func() {
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -604,9 +609,10 @@ var _ = Describe("Test Workflow", func() {
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -672,9 +678,10 @@ var _ = Describe("Test Workflow", func() {
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -757,9 +764,10 @@ var _ = Describe("Test Workflow", func() {
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -841,9 +849,10 @@ var _ = Describe("Test Workflow", func() {
 				},
 			}, {
 				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "step-group",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   "s2",
+					Type:   "step-group",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -853,9 +862,10 @@ var _ = Describe("Test Workflow", func() {
 					},
 				}, {
 					StepStatus: common.StepStatus{
-						Name:  "s2-sub2",
-						Type:  "failed-after-retries",
-						Phase: common.WorkflowStepPhaseFailedAfterRetries,
+						Name:   "s2-sub2",
+						Type:   "failed-after-retries",
+						Phase:  common.WorkflowStepPhaseFailed,
+						Reason: custom.StatusReasonFailedAfterRetries,
 					},
 				}},
 			}},
@@ -1439,9 +1449,10 @@ func makeRunner(name, tpy, ifDecl string, dependsOn []string, subTaskRunners []w
 	case "failed-after-retries":
 		run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			return common.StepStatus{
-					Name:  name,
-					Type:  "failed-after-retries",
-					Phase: common.WorkflowStepPhaseFailedAfterRetries,
+					Name:   name,
+					Type:   "failed-after-retries",
+					Phase:  common.WorkflowStepPhaseFailed,
+					Reason: custom.StatusReasonFailedAfterRetries,
 				}, &wfTypes.Operation{
 					FailedAfterRetries: true,
 				}, nil

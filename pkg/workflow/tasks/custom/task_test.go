@@ -268,7 +268,8 @@ close({
 			r.NoError(err)
 			r.Equal(operation.Waiting, false)
 			r.Equal(operation.FailedAfterRetries, true)
-			r.Equal(status.Phase, common.WorkflowStepPhaseFailedAfterRetries)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Reason, StatusReasonFailedAfterRetries)
 		default:
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
@@ -504,7 +505,7 @@ func TestSkip(t *testing.T) {
 	r.NoError(err)
 	runner, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
 	r.Equal(skip, true)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, StatusReasonSkip)
@@ -513,7 +514,7 @@ func TestSkip(t *testing.T) {
 		Name: "test",
 	}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailedAfterRetries, nil)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
 	r.Equal(skip, false)
 }
 
