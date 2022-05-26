@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
@@ -542,7 +543,7 @@ func (h *AppHandler) handleComponentRevisionNameSpecified(ctx context.Context, c
 	revisionName := comp.ExternalRevision
 	cr := &appsv1.ControllerRevision{}
 
-	if err := h.r.Client.Get(ctx, client.ObjectKey{Namespace: h.getComponentRevisionNamespace(ctx), Name: revisionName}, cr); err != nil {
+	if err := h.r.Client.Get(auth.ContextWithUserInfo(ctx, h.app), client.ObjectKey{Namespace: h.getComponentRevisionNamespace(ctx), Name: revisionName}, cr); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to get controllerRevision:%s", revisionName)
 		}
@@ -592,7 +593,7 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 	listOpts := []client.ListOption{client.MatchingLabels{
 		oam.LabelControllerRevisionComponent: comp.Name,
 	}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
-	if err := h.r.List(ctx, crList, listOpts...); err != nil {
+	if err := h.r.List(auth.ContextWithUserInfo(ctx, h.app), crList, listOpts...); err != nil {
 		return err
 	}
 

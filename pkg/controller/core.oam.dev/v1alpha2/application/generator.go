@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -219,7 +220,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		if err != nil {
 			return false, err
 		}
-		wl.Ctx.SetCtx(ctx)
+		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
@@ -258,7 +259,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
-		wl.Ctx.SetCtx(ctx)
+		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
