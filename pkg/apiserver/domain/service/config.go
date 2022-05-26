@@ -463,6 +463,8 @@ func destroySyncConfigsApp(ctx context.Context, k8sClient client.Client, project
 		if !kerrors.IsNotFound(err) {
 			return err
 		}
+		klog.InfoS("config sync application doesn't exist, no need destroy", "application", name)
+		return nil
 	}
 	return k8sClient.Delete(ctx, app)
 }
