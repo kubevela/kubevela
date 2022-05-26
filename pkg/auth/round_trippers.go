@@ -25,7 +25,6 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/transport"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -54,11 +53,8 @@ func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Respons
 	if exists && userInfo != nil {
 		if name := userInfo.GetName(); name != "" {
 			req.Header.Set(transport.ImpersonateUserHeader, name)
-			req.Header.Set(transport.ImpersonateGroupHeader, types.ClusterGatewayAccessorGroup)
 			for _, group := range userInfo.GetGroups() {
-				if group != types.ClusterGatewayAccessorGroup {
-					req.Header.Add(transport.ImpersonateGroupHeader, group)
-				}
+				req.Header.Add(transport.ImpersonateGroupHeader, group)
 			}
 			q := req.URL.Query()
 			q.Add(impersonateKey, "true")

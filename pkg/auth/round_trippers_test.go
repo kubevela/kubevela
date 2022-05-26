@@ -31,7 +31,6 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -66,21 +65,21 @@ func TestImpersonatingRoundTripper(t *testing.T) {
 				return ContextWithUserInfo(ctx, app)
 			},
 			expectedUser:  "system:serviceaccount:vela-system:default",
-			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
+			expectedGroup: []string{},
 		},
 		"without service account and app": {
 			ctxFn: func(ctx context.Context) context.Context {
 				return ContextWithUserInfo(ctx, nil)
 			},
 			expectedUser:  "",
-			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
+			expectedGroup: []string{},
 		},
 		"without service account": {
 			ctxFn: func(ctx context.Context) context.Context {
 				return ContextWithUserInfo(ctx, &v1beta1.Application{})
 			},
 			expectedUser:  AuthenticationDefaultUser,
-			expectedGroup: []string{types.ClusterGatewayAccessorGroup},
+			expectedGroup: []string{},
 		},
 		"with user and groups": {
 			ctxFn: func(ctx context.Context) context.Context {
@@ -92,7 +91,7 @@ func TestImpersonatingRoundTripper(t *testing.T) {
 				return ContextWithUserInfo(ctx, app)
 			},
 			expectedUser:  "username",
-			expectedGroup: []string{types.ClusterGatewayAccessorGroup, "kubevela:group1", "kubevela:group2"},
+			expectedGroup: []string{"kubevela:group1", "kubevela:group2"},
 		},
 	}
 	for name, ts := range testSets {
