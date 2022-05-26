@@ -63,6 +63,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
+	// StatusReasonFailedAfterRetries is the reason of the workflow progress condition which is FailedAfterRetries.
+	StatusReasonFailedAfterRetries = "FailedAfterRetries"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -323,7 +325,7 @@ func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
 	if times >= MaxWorkflowStepErrorRetryTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true
-		exec.wfStatus.Phase = common.WorkflowStepPhaseFailedAfterRetries
+		exec.wfStatus.Reason = StatusReasonFailedAfterRetries
 	}
 }
 
@@ -487,7 +489,7 @@ func SkipTaskRunner(options *SkipOptions) bool {
 func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.StepStatus) bool {
 	for _, depend := range step.DependsOn {
 		if status, ok := stepStatus[depend]; ok {
-			if !IsStepFinish(status.Phase) {
+			if !IsStepFinish(status.Phase, status.Reason) {
 				return true
 			}
 		} else {
@@ -503,9 +505,12 @@ func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus m
 }
 
 // IsStepFinish will decide whether step is finish.
-func IsStepFinish(phase common.WorkflowStepPhase) bool {
+func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
 	if EnableSuspendFailedWorkflow {
 		return phase == common.WorkflowStepPhaseSucceeded
 	}
-	return phase == common.WorkflowStepPhaseSucceeded || phase == common.WorkflowStepPhaseFailedAfterRetries || phase == common.WorkflowStepPhaseSkipped
+	if phase == common.WorkflowStepPhaseFailed {
+		return reason == StatusReasonTerminate || reason == StatusReasonFailedAfterRetries
+	}
+	return phase == common.WorkflowStepPhaseSucceeded || phase == common.WorkflowStepPhaseSkipped
 }

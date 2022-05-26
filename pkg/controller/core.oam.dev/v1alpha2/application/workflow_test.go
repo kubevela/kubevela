@@ -279,7 +279,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 	})
 
-	It("test workflow terminate a suspend workflow", func() {
+	FIt("test workflow terminate a suspend workflow", func() {
 		suspendApp := appWithWorkflow.DeepCopy()
 		suspendApp.Name = "test-terminate-suspend-app"
 		suspendApp.Spec.Workflow.Steps = []oamcore.WorkflowStep{
