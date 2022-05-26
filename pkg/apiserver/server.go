@@ -105,6 +105,7 @@ func (s *restServer) buildIoCContainer() error {
 		return fmt.Errorf("fail to provides the datastore bean to the container: %w", err)
 	}
 
+	kubeClient = utils.NewAuthApplicationClient(kubeClient)
 	if err := s.beanContainer.ProvideWithName("kubeClient", kubeClient); err != nil {
 		return fmt.Errorf("fail to provides the kubeClient bean to the container: %w", err)
 	}
