@@ -29,7 +29,7 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 # Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE:-alpine:latest}
-# This is required by daemon connnecting with cri
+# This is required by daemon connecting with cri
 RUN apk add --no-cache ca-certificates bash
 
 WORKDIR /
