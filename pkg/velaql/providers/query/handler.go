@@ -193,7 +193,9 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		}
 		root.AdditionalInfo = addInfo
 		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
-		root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		if !rootObject.GetDeletionTimestamp().IsZero() {
+			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		}
 		resource.ResourceTree = &root
 	}
 	return v.FillObject(appResList, "list")
