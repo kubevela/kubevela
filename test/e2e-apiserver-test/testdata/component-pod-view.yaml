@@ -52,7 +52,7 @@ data:
         }
       }
 
-      podsWithCluster: [ for i, pods in podsMap for podObj in pods.list {
+      podsWithCluster: [ for i, pods in podsMap if pods.list != null for podObj in pods.list {
         cluster: pods.cluster
         obj:     podObj
       }]
