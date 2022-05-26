@@ -31,7 +31,7 @@ spec:
             - "apiserver"
             - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
             - "--secret-namespace={{ .Release.Namespace }}"
-            - "--feature-gates=APIPriorityAndFairness=false"
+            - "--feature-gates=APIPriorityAndFairness=false,ClientIdentityPenetration={{ .Values.authentication.enabled }}"
             {{- if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
             - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"

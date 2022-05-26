@@ -175,8 +175,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			}()
 			serviceAccount = &corev1.ServiceAccount{}
 			Eventually(func(g Gomega) {
-				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
-				Expect(len(serviceAccount.Secrets)).Should(Equal(1))
+				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
+				g.Expect(len(serviceAccount.Secrets)).Should(Equal(1))
 			}, time.Second*30).Should(Succeed())
 			secret := &corev1.Secret{}
 			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
@@ -314,9 +314,11 @@ var _ = Describe("Test multicluster scenario", func() {
 			envs := spec.Envs
 			bs, err = json.Marshal(&v1alpha1.EnvBindingSpec{Envs: []v1alpha1.EnvConfig{envs[0]}})
 			Expect(err).Should(Succeed())
-			Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
-			app.Spec.Policies[0].Properties.Raw = bs
-			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
+				app.Spec.Policies[0].Properties.Raw = bs
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
 			Eventually(func(g Gomega) {
 				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())
