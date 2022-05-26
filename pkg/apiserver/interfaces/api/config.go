@@ -65,7 +65,7 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.POST("/{configType}").To(s.createConfig).
 		Doc("create or update a config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("configType", "create")).
+		Filter(s.RbacService.CheckPerm("configType/config", "create")).
 		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
 		Reads(apis.CreateConfigRequest{}).
 		Returns(200, "OK", apis.EmptyResponse{}).
@@ -76,7 +76,7 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("/{configType}/configs").To(s.getConfigs).
 		Doc("get configs from a config type").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("config", "list")).
+		Filter(s.RbacService.CheckPerm("configType/config", "list")).
 		Param(ws.PathParameter("configType", "identifier of the config").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
@@ -85,7 +85,7 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("/{configType}/configs/{name}").To(s.getConfig).
 		Doc("get a config from a config type").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("config", "get")).
+		Filter(s.RbacService.CheckPerm("configType/config", "get")).
 		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
 		Param(ws.PathParameter("name", "identifier of the config").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
@@ -95,7 +95,7 @@ func (s *configAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.DELETE("/{configType}/configs/{name}").To(s.deleteConfig).
 		Doc("delete a config").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("config", "delete")).
+		Filter(s.RbacService.CheckPerm("configType/config", "delete")).
 		Param(ws.PathParameter("configType", "identifier of the config type").DataType("string")).
 		Param(ws.PathParameter("name", "identifier of the config").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
