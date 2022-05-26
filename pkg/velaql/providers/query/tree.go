@@ -81,6 +81,7 @@ func init() {
 			{APIVersion: "v1", Kind: "ConfigMap"}:                             nil,
 			{APIVersion: "v1", Kind: "Secret"}:                                nil,
 			{APIVersion: "v1", Kind: "Service"}:                               nil,
+			{APIVersion: "v1", Kind: "PersistentVolumeClaim"}:                 nil,
 			{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"}:             nil,
 			{APIVersion: "v1", Kind: "ServiceAccount"}:                        nil,
 			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"}:        nil,
