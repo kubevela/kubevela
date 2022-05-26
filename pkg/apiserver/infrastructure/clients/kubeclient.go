@@ -18,6 +18,7 @@ package clients
 
 import (
 	"errors"
+	"fmt"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
@@ -57,11 +58,7 @@ func GetKubeClient() (client.Client, error) {
 		return kubeClient, nil
 	}
 	if kubeConfig == nil {
-		conf, err := config.GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		kubeConfig = conf
+		return nil, fmt.Errorf("please call SetKubeConfig first")
 	}
 	var err error
 	kubeClient, err = multicluster.Initialize(kubeConfig, false)
@@ -81,10 +78,8 @@ func GetKubeClient() (client.Client, error) {
 
 // GetKubeConfig create/get kube runtime config
 func GetKubeConfig() (*rest.Config, error) {
-	var err error
 	if kubeConfig == nil {
-		kubeConfig, err = config.GetConfig()
-		return kubeConfig, err
+		return nil, fmt.Errorf("please call SetKubeConfig first")
 	}
 	return kubeConfig, nil
 }

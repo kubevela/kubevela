@@ -61,37 +61,18 @@ type restServer struct {
 }
 
 // New create api server with config data
-func New(cfg config.Config) (a APIServer, err error) {
-	var ds datastore.DataStore
-	switch cfg.Datastore.Type {
-	case "mongodb":
-		ds, err = mongodb.New(context.Background(), cfg.Datastore)
-		if err != nil {
-			return nil, fmt.Errorf("create mongodb datastore instance failure %w", err)
-		}
-	case "kubeapi":
-		ds, err = kubeapi.New(context.Background(), cfg.Datastore)
-		if err != nil {
-			return nil, fmt.Errorf("create kubeapi datastore instance failure %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("not support datastore type %s", cfg.Datastore.Type)
-	}
-
+func New(cfg config.Config) (a APIServer) {
 	s := &restServer{
 		webContainer:  restful.NewContainer(),
 		beanContainer: container.NewContainer(),
 		cfg:           cfg,
-		dataStore:     ds,
 	}
-	return s, nil
+	return s
 }
 
 func (s *restServer) buildIoCContainer() error {
 	// infrastructure
-	if err := s.beanContainer.ProvideWithName("datastore", s.dataStore); err != nil {
-		return fmt.Errorf("fail to provides the datastore bean to the container: %w", err)
-	}
+
 	err := clients.SetKubeConfig(s.cfg)
 	if err != nil {
 		return err
@@ -104,6 +85,26 @@ func (s *restServer) buildIoCContainer() error {
 	if err != nil {
 		return err
 	}
+	var ds datastore.DataStore
+	switch s.cfg.Datastore.Type {
+	case "mongodb":
+		ds, err = mongodb.New(context.Background(), s.cfg.Datastore)
+		if err != nil {
+			return fmt.Errorf("create mongodb datastore instance failure %w", err)
+		}
+	case "kubeapi":
+		ds, err = kubeapi.New(context.Background(), s.cfg.Datastore)
+		if err != nil {
+			return fmt.Errorf("create kubeapi datastore instance failure %w", err)
+		}
+	default:
+		return fmt.Errorf("not support datastore type %s", s.cfg.Datastore.Type)
+	}
+	s.dataStore = ds
+	if err := s.beanContainer.ProvideWithName("datastore", s.dataStore); err != nil {
+		return fmt.Errorf("fail to provides the datastore bean to the container: %w", err)
+	}
+
 	if err := s.beanContainer.ProvideWithName("kubeClient", kubeClient); err != nil {
 		return fmt.Errorf("fail to provides the kubeClient bean to the container: %w", err)
 	}

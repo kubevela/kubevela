@@ -21,13 +21,13 @@ type HealthStatusCode string
 
 const (
 	// HealthStatusHealthy  resource is healthy
-	HealthStatusHealthy HealthStatusCode = "HealthStatusHealthy"
+	HealthStatusHealthy HealthStatusCode = "Healthy"
 	// HealthStatusUnHealthy resource is unhealthy
-	HealthStatusUnHealthy HealthStatusCode = "HealthStatusUnHealthy"
+	HealthStatusUnHealthy HealthStatusCode = "UnHealthy"
 	// HealthStatusProgressing resource is still progressing
-	HealthStatusProgressing HealthStatusCode = "HealthStatusProgressing"
+	HealthStatusProgressing HealthStatusCode = "Progressing"
 	// HealthStatusUnKnown health status is unknown
-	HealthStatusUnKnown HealthStatusCode = "HealthStatusUnKnown"
+	HealthStatusUnKnown HealthStatusCode = "UnKnown"
 )
 
 // HealthStatus the resource health status
