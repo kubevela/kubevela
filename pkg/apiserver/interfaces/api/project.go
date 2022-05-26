@@ -179,7 +179,7 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("/{projectName}/configs").To(n.getConfigs).
 		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.RbacService.CheckPerm("project/configs", "list")).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
 		Param(ws.QueryParameter("configType", "config type").DataType("string")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
