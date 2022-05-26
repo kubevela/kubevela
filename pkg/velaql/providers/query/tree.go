@@ -19,11 +19,7 @@ package query
 import (
 	"context"
 	"fmt"
-
-	velatypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
@@ -31,13 +27,20 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/duration"
 	"k8s.io/kubectl/pkg/util/podutils"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+
+	helmreleaseapi "github.com/fluxcd/helm-controller/api/v2beta1"
+	helmrepoapi "github.com/fluxcd/source-controller/api/v1beta2"
 )
 
 // relationshipKey is the configmap key of relationShip rule
@@ -66,14 +69,23 @@ func init() {
 			{APIVersion: "v1", Kind: "Pod"}: statefulSet2PodListOption,
 		},
 	}
+	globalRule[GroupResourceType{Group: "", Kind: "Service"}] = ChildrenResourcesRule{
+		CareResource: map[ResourceType]genListOptionFunc{
+			{APIVersion: "discovery.k8s.io/v1", Kind: "EndpointSlice"}: nil,
+		},
+	}
 	globalRule[GroupResourceType{Group: "helm.toolkit.fluxcd.io", Kind: "HelmRelease"}] = ChildrenResourcesRule{
 		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "apps/v1", Kind: "Deployment"}:           nil,
-			{APIVersion: "apps/v1", Kind: "StatefulSet"}:          nil,
-			{APIVersion: "v1", Kind: "ConfigMap"}:                 nil,
-			{APIVersion: "v1", Kind: "Secret"}:                    nil,
-			{APIVersion: "v1", Kind: "Service"}:                   nil,
-			{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"}: nil,
+			{APIVersion: "apps/v1", Kind: "Deployment"}:                       nil,
+			{APIVersion: "apps/v1", Kind: "StatefulSet"}:                      nil,
+			{APIVersion: "v1", Kind: "ConfigMap"}:                             nil,
+			{APIVersion: "v1", Kind: "Secret"}:                                nil,
+			{APIVersion: "v1", Kind: "Service"}:                               nil,
+			{APIVersion: "v1", Kind: "PersistentVolumeClaim"}:                 nil,
+			{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"}:             nil,
+			{APIVersion: "v1", Kind: "ServiceAccount"}:                        nil,
+			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"}:        nil,
+			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"}: nil,
 		},
 		DefaultGenListOptionFunc: helmRelease2AnyListOption,
 	}
@@ -249,6 +261,59 @@ var checkPodStatus = func(obj unstructured.Unstructured) (*types.HealthStatus, e
 	}, nil
 }
 
+var checkHelmReleaseStatus = func(obj unstructured.Unstructured) (*types.HealthStatus, error) {
+	helmRelease := &helmreleaseapi.HelmRelease{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &helmRelease)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unstructured helmRelease to typed: %w", err)
+	}
+	if len(helmRelease.Status.Conditions) != 0 {
+		for _, condition := range helmRelease.Status.Conditions {
+			if condition.Type == "Ready" {
+				if condition.Status == v1.ConditionTrue {
+					return &types.HealthStatus{
+						Status: types.HealthStatusHealthy,
+					}, nil
+				}
+				return &types.HealthStatus{
+					Status:  types.HealthStatusUnHealthy,
+					Message: condition.Message,
+				}, nil
+			}
+		}
+	}
+	return &types.HealthStatus{
+		Status: types.HealthStatusUnKnown,
+	}, nil
+}
+
+var checkHelmRepoStatus = func(obj unstructured.Unstructured) (*types.HealthStatus, error) {
+	helmRepo := helmrepoapi.HelmRepository{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &helmRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unstructured helmRelease to typed: %w", err)
+	}
+	if len(helmRepo.Status.Conditions) != 0 {
+		for _, condition := range helmRepo.Status.Conditions {
+			if condition.Type == "Ready" {
+				if condition.Status == v1.ConditionTrue {
+					return &types.HealthStatus{
+						Status:  types.HealthStatusHealthy,
+						Message: condition.Message,
+					}, nil
+				}
+				return &types.HealthStatus{
+					Status:  types.HealthStatusUnHealthy,
+					Message: condition.Message,
+				}, nil
+			}
+		}
+	}
+	return &types.HealthStatus{
+		Status: types.HealthStatusUnKnown,
+	}, nil
+}
+
 var checkReplicaSetStatus = func(obj unstructured.Unstructured) (*types.HealthStatus, error) {
 	replicaSet := appsv1.ReplicaSet{}
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &replicaSet)
@@ -348,11 +413,180 @@ func checkResourceStatus(obj unstructured.Unstructured) (*types.HealthStatus, er
 			checkFunc = checkReplicaSetStatus
 		default:
 		}
+	case "helm.toolkit.fluxcd.io":
+		switch kind {
+		case "HelmRelease":
+			checkFunc = checkHelmReleaseStatus
+		default:
+		}
+	case "source.toolkit.fluxcd.io":
+		switch kind {
+		case "HelmRepository":
+			checkFunc = checkHelmRepoStatus
+		default:
+		}
+	default:
 	}
 	if checkFunc != nil {
 		return checkFunc(obj)
 	}
 	return &types.HealthStatus{Status: types.HealthStatusHealthy}, nil
+}
+
+type additionalInfoFunc func(obj unstructured.Unstructured) (map[string]interface{}, error)
+
+func additionalInfo(obj unstructured.Unstructured) (map[string]interface{}, error) {
+	group := obj.GroupVersionKind().Group
+	kind := obj.GroupVersionKind().Kind
+	var infoFunc additionalInfoFunc
+	switch group {
+	case "":
+		switch kind {
+		case "Pod":
+			infoFunc = podAdditionalInfo
+		case "Service":
+			infoFunc = svcAdditionalInfo
+		}
+	default:
+	}
+	if infoFunc != nil {
+		return infoFunc(obj)
+	}
+	return nil, nil
+}
+
+func svcAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, error) {
+	svc := v12.Service{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unstructured svc to typed: %w", err)
+	}
+	if svc.Spec.Type == v12.ServiceTypeLoadBalancer {
+		var eip string
+		for _, ingress := range svc.Status.LoadBalancer.Ingress {
+			if len(ingress.IP) != 0 {
+				eip = ingress.IP
+			}
+		}
+		if len(eip) == 0 {
+			eip = "pending"
+		}
+		return map[string]interface{}{
+			"EIP": eip,
+		}, nil
+	}
+	return nil, nil
+}
+
+// the logic of this func totaly copy from the source-code of kubernetes tableConvertor
+// https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/pkg/printers/internalversion/printers.go#L740
+// The result is same with the output of kubectl.
+//nolint
+func podAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, error) {
+	pod := v12.Pod{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unstructured Pod to typed: %w", err)
+	}
+
+	hasPodReadyCondition := func(conditions []v12.PodCondition) bool {
+		for _, condition := range conditions {
+			if condition.Type == v12.PodReady && condition.Status == v12.ConditionTrue {
+				return true
+			}
+		}
+		return false
+	}
+
+	translateTimestampSince := func(timestamp v1.Time) string {
+		if timestamp.IsZero() {
+			return "<unknown>"
+		}
+
+		return duration.HumanDuration(time.Since(timestamp.Time))
+	}
+
+	restarts := 0
+	totalContainers := len(pod.Spec.Containers)
+	readyContainers := 0
+
+	reason := string(pod.Status.Phase)
+	if pod.Status.Reason != "" {
+		reason = pod.Status.Reason
+	}
+
+	initializing := false
+	for i := range pod.Status.InitContainerStatuses {
+		container := pod.Status.InitContainerStatuses[i]
+		restarts += int(container.RestartCount)
+		switch {
+		case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
+			continue
+		case container.State.Terminated != nil:
+			// initialization is failed
+			if len(container.State.Terminated.Reason) == 0 {
+				if container.State.Terminated.Signal != 0 {
+					reason = fmt.Sprintf("Init:Signal:%d", container.State.Terminated.Signal)
+				} else {
+					reason = fmt.Sprintf("Init:ExitCode:%d", container.State.Terminated.ExitCode)
+				}
+			} else {
+				reason = "Init:" + container.State.Terminated.Reason
+			}
+			initializing = true
+		case container.State.Waiting != nil && len(container.State.Waiting.Reason) > 0 && container.State.Waiting.Reason != "PodInitializing":
+			reason = "Init:" + container.State.Waiting.Reason
+			initializing = true
+		default:
+			reason = fmt.Sprintf("Init:%d/%d", i, len(pod.Spec.InitContainers))
+			initializing = true
+		}
+		break
+	}
+	if !initializing {
+		restarts = 0
+		hasRunning := false
+		for i := len(pod.Status.ContainerStatuses) - 1; i >= 0; i-- {
+			container := pod.Status.ContainerStatuses[i]
+
+			restarts += int(container.RestartCount)
+			if container.State.Waiting != nil && container.State.Waiting.Reason != "" {
+				reason = container.State.Waiting.Reason
+			} else if container.State.Terminated != nil && container.State.Terminated.Reason != "" {
+				reason = container.State.Terminated.Reason
+			} else if container.State.Terminated != nil && container.State.Terminated.Reason == "" {
+				if container.State.Terminated.Signal != 0 {
+					reason = fmt.Sprintf("Signal:%d", container.State.Terminated.Signal)
+				} else {
+					reason = fmt.Sprintf("ExitCode:%d", container.State.Terminated.ExitCode)
+				}
+			} else if container.Ready && container.State.Running != nil {
+				hasRunning = true
+				readyContainers++
+			}
+		}
+
+		// change pod status back to "Running" if there is at least one container still reporting as "Running" status
+		if reason == "Completed" && hasRunning {
+			if hasPodReadyCondition(pod.Status.Conditions) {
+				reason = "Running"
+			} else {
+				reason = "NotReady"
+			}
+		}
+	}
+
+	if pod.DeletionTimestamp != nil && pod.Status.Reason == "NodeLost" {
+		reason = "Unknown"
+	} else if pod.DeletionTimestamp != nil {
+		reason = "Terminating"
+	}
+	return map[string]interface{}{
+		"Ready":    fmt.Sprintf("%d/%d", readyContainers, totalContainers),
+		"Status":   reason,
+		"Restarts": restarts,
+		"Age":      translateTimestampSince(pod.CreationTimestamp),
+	}, nil
 }
 
 func fetchObjectWithResourceTreeNode(ctx context.Context, cluster string, k8sClient client.Client, resource types.ResourceTreeNode) (*unstructured.Unstructured, error) {
@@ -452,6 +686,15 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 					return nil, err
 				}
 				rtn.HealthStatus = *healthStatus
+				addInfo, err := additionalInfo(item)
+				if err != nil {
+					return nil, err
+				}
+				rtn.CreationTimestamp = item.GetCreationTimestamp().Time
+				if !item.GetDeletionTimestamp().IsZero() {
+					rtn.DeletionTimestamp = item.GetDeletionTimestamp().Time
+				}
+				rtn.AdditionalInfo = addInfo
 				resList = append(resList, &rtn)
 			}
 		}

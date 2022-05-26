@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -105,14 +106,17 @@ type AppliedResource struct {
 
 // ResourceTreeNode is the tree node of every resource
 type ResourceTreeNode struct {
-	Cluster      string              `json:"cluster"`
-	APIVersion   string              `json:"apiVersion,omitempty"`
-	Kind         string              `json:"kind"`
-	Namespace    string              `json:"namespace,omitempty"`
-	Name         string              `json:"name,omitempty"`
-	UID          types.UID           `json:"uid,omitempty"`
-	HealthStatus HealthStatus        `json:"healthStatus,omitempty"`
-	LeafNodes    []*ResourceTreeNode `json:"leafNodes,omitempty"`
+	Cluster           string                 `json:"cluster"`
+	APIVersion        string                 `json:"apiVersion,omitempty"`
+	Kind              string                 `json:"kind"`
+	Namespace         string                 `json:"namespace,omitempty"`
+	Name              string                 `json:"name,omitempty"`
+	UID               types.UID              `json:"uid,omitempty"`
+	HealthStatus      HealthStatus           `json:"healthStatus,omitempty"`
+	DeletionTimestamp time.Time              `json:"deletionTimestamp,omitempty"`
+	CreationTimestamp time.Time              `json:"creationTimestamp,omitempty"`
+	LeafNodes         []*ResourceTreeNode    `json:"leafNodes,omitempty"`
+	AdditionalInfo    map[string]interface{} `json:"additionalInfo,omitempty"`
 }
 
 // GroupVersionKind returns the stored group, version, and kind of an object
