@@ -73,6 +73,14 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Effect:    "Allow",
 		Scope:     "project",
 	},
+	{
+		Name:      "configuration-read",
+		Alias:     "Environment Management",
+		Resources: []string{"project:{projectName}/config:*"},
+		Actions:   []string{"list", "detail"},
+		Effect:    "Allow",
+		Scope:     "project",
+	},
 }
 
 var defaultPlatformPermission = []*model.PermissionTemplate{
@@ -120,6 +128,14 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Name:      "role-management",
 		Alias:     "Platform Role Management",
 		Resources: []string{"role:*", "permission:*"},
+		Actions:   []string{"*"},
+		Effect:    "Allow",
+		Scope:     "platform",
+	},
+	{
+		Name:      "integration-management",
+		Alias:     "Integration Management",
+		Resources: []string{"config:*", "configType:*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "platform",
@@ -183,7 +199,7 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "userName",
 			},
 			"applicationTemplate": {},
-			"configs":             {},
+			"config":              {},
 			"image":               {},
 		},
 		pathName: "projectName",
@@ -756,12 +772,12 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	batchData = append(batchData, &model.Role{
 		Name:        "app-developer",
 		Alias:       "App Developer",
-		Permissions: []string{"project-read", "app-management", "env-management"},
+		Permissions: []string{"project-read", "app-management", "env-management", "configuration-read"},
 		Project:     project.Name,
 	}, &model.Role{
 		Name:        "project-admin",
 		Alias:       "Project Admin",
-		Permissions: []string{"project-read", "app-management", "env-management", "role-management"},
+		Permissions: []string{"project-read", "app-management", "env-management", "role-management", "configuration-read"},
 		Project:     project.Name,
 	})
 	if project.Owner != "" {
