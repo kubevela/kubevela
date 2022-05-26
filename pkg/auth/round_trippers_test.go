@@ -65,21 +65,21 @@ func TestImpersonatingRoundTripper(t *testing.T) {
 				return ContextWithUserInfo(ctx, app)
 			},
 			expectedUser:  "system:serviceaccount:vela-system:default",
-			expectedGroup: []string{},
+			expectedGroup: nil,
 		},
 		"without service account and app": {
 			ctxFn: func(ctx context.Context) context.Context {
 				return ContextWithUserInfo(ctx, nil)
 			},
 			expectedUser:  "",
-			expectedGroup: []string{},
+			expectedGroup: nil,
 		},
 		"without service account": {
 			ctxFn: func(ctx context.Context) context.Context {
 				return ContextWithUserInfo(ctx, &v1beta1.Application{})
 			},
 			expectedUser:  AuthenticationDefaultUser,
-			expectedGroup: []string{},
+			expectedGroup: nil,
 		},
 		"with user and groups": {
 			ctxFn: func(ctx context.Context) context.Context {
