@@ -157,7 +157,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
 		tRunner.skip = func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-			if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+			if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 				return exec.status(), false
 			}
 			skip := SkipTaskRunner(&SkipOptions{
@@ -506,7 +506,7 @@ func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus m
 
 // IsStepFinish will decide whether step is finish.
 func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		return phase == common.WorkflowStepPhaseSucceeded
 	}
 	if phase == common.WorkflowStepPhaseFailed {

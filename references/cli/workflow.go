@@ -289,7 +289,7 @@ func resumeWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 
 // TerminateWorkflow terminate workflow
 func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
-	if err := service.TerminateWorkflow(kubecli, app); err != nil {
+	if err := service.TerminateWorkflow(context.TODO(), kubecli, app); err != nil {
 		return err
 	}
 

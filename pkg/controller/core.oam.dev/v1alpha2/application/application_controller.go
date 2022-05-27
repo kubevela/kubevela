@@ -231,7 +231,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			handler.app.Status.Workflow.SuspendState = ""
 			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, false)
 		}
-		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 			r.stateKeep(logCtx, handler, app)
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)

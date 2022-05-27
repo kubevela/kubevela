@@ -540,9 +540,9 @@ func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 
 func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 	switch {
-	case !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow):
+	case !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure):
 		e.status.Message = MessageSuspendFailedAfterRetries
-	case e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow):
+	case e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure):
 		e.status.Message = MessageTerminatedFailedAfterRetries
 	case wfStatus.Terminated:
 		e.status.Message = string(common.WorkflowStateTerminated)
@@ -695,16 +695,16 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 }
 
 func (e *engine) checkFailedAfterRetries() {
-	if !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		e.status.Suspend = true
 	}
-	if e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		e.status.Terminated = true
 	}
 }
 
 func (e *engine) needStop() bool {
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		e.checkFailedAfterRetries()
 	}
 	// if the workflow is terminated, we still need to execute all the remaining steps

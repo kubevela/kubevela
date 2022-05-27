@@ -162,7 +162,7 @@ func (tr *suspendTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepS
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: tr.phase,
 	}
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		return status, false
 	}
 	skip := custom.SkipTaskRunner(&custom.SkipOptions{
@@ -199,7 +199,7 @@ func (tr *stepGroupTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, ste
 		Name: tr.step.Name,
 		Type: types.WorkflowStepTypeStepGroup,
 	}
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		return status, false
 	}
 	skip := custom.SkipTaskRunner(&custom.SkipOptions{
