@@ -344,9 +344,11 @@ var _ = Describe("Test multicluster scenario", func() {
 			envs[1].Placement.ClusterSelector.Name = multicluster.ClusterLocalName
 			bs, err = json.Marshal(&v1alpha1.EnvBindingSpec{Envs: envs})
 			Expect(err).Should(Succeed())
-			Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
-			app.Spec.Policies[0].Properties.Raw = bs
-			Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, namespacedName, app)).Should(Succeed())
+				app.Spec.Policies[0].Properties.Raw = bs
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
 			Eventually(func(g Gomega) {
 				deploys := &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(testNamespace))).Should(Succeed())

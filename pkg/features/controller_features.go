@@ -46,7 +46,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DeprecatedPolicySpec:          {Default: false, PreRelease: featuregate.Alpha},
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
-	LegacyResourceTrackerGC:       {Default: true, PreRelease: featuregate.Alpha},
+	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
 	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
