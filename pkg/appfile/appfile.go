@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -922,6 +923,7 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 		return nil, errors.Wrapf(err, "invalid ref-objects component properties")
 	}
 	var uns []*unstructured.Unstructured
+	ctx = auth.ContextWithUserInfo(ctx, af.app)
 	for _, selector := range spec.Objects {
 		objs, err := component.SelectRefObjectsForDispatch(ctx, component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects), af.Namespace, comp.Name, selector)
 		if err != nil {

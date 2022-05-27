@@ -35,6 +35,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
 		return nil
 	}
+	ctx = auth.ContextWithUserInfo(ctx, h.app)
 	for _, rt := range []*v1beta1.ResourceTracker{h._currentRT, h._rootRT} {
 		if rt != nil && rt.GetDeletionTimestamp() == nil {
 			for _, mr := range rt.Spec.ManagedResources {
@@ -45,7 +46,6 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 				if mr.Deleted {
 					if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
 						deleteCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-						deleteCtx = auth.ContextWithUserInfo(deleteCtx, h.app)
 						if err := h.Client.Delete(deleteCtx, entry.obj); err != nil {
 							return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
 						}
@@ -64,7 +64,6 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					if err != nil {
 						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
-					applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
 					if err = h.applicator.Apply(applyCtx, manifest, apply.MustBeControlledByApp(h.app)); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
