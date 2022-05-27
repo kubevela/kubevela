@@ -71,7 +71,8 @@ func init() {
 	}
 	globalRule[GroupResourceType{Group: "", Kind: "Service"}] = ChildrenResourcesRule{
 		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "discovery.k8s.io/v1", Kind: "EndpointSlice"}: nil,
+			{APIVersion: "discovery.k8s.io/v1beta1", Kind: "EndpointSlice"}: nil,
+			{APIVersion: "v1", Kind: "Endpoints"}:                           service2EndpointListOption,
 		},
 	}
 	globalRule[GroupResourceType{Group: "helm.toolkit.fluxcd.io", Kind: "HelmRelease"}] = ChildrenResourcesRule{
@@ -156,6 +157,19 @@ var statefulSet2PodListOption = func(obj unstructured.Unstructured) (client.List
 		return client.ListOptions{}, err
 	}
 	return client.ListOptions{Namespace: sts.Namespace, LabelSelector: stsSelector}, nil
+}
+
+var service2EndpointListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
+	svc := v12.Service{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &svc)
+	if err != nil {
+		return client.ListOptions{}, err
+	}
+	stsSelector, err := v1.LabelSelectorAsSelector(&v1.LabelSelector{MatchLabels: svc.Labels})
+	if err != nil {
+		return client.ListOptions{}, err
+	}
+	return client.ListOptions{Namespace: svc.Namespace, LabelSelector: stsSelector}, nil
 }
 
 var helmRelease2AnyListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
