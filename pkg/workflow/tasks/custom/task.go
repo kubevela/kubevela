@@ -509,8 +509,14 @@ func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
 	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 		return phase == common.WorkflowStepPhaseSucceeded
 	}
-	if phase == common.WorkflowStepPhaseFailed {
+	switch phase {
+	case common.WorkflowStepPhaseFailed:
 		return reason == StatusReasonTerminate || reason == StatusReasonFailedAfterRetries
+	case common.WorkflowStepPhaseSkipped:
+		return true
+	case common.WorkflowStepPhaseSucceeded:
+		return true
+	default:
+		return false
 	}
-	return phase == common.WorkflowStepPhaseSucceeded || phase == common.WorkflowStepPhaseSkipped
 }
