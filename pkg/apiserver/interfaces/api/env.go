@@ -70,7 +70,7 @@ func (n *envAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Doc("update an env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RBACService.CheckPerm("environment", "update")).
-		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the environment").DataType("string")).
 		Reads(apis.CreateEnvRequest{}).
 		Returns(200, "OK", apis.Env{}).
 		Writes(apis.Env{}))
@@ -80,7 +80,7 @@ func (n *envAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Doc("delete one env").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(n.RBACService.CheckPerm("environment", "delete")).
-		Param(ws.PathParameter("envName", "identifier of the application ").DataType("string")).
+		Param(ws.PathParameter("envName", "identifier of the environment").DataType("string")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))

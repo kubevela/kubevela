@@ -201,6 +201,40 @@ func ConvertPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBas
 	return pb
 }
 
+// ConvertRole2DTO convert role model to role base struct
+func ConvertRole2DTO(role *model.Role, policies []*model.Permission) *apisv1.RoleBase {
+	return &apisv1.RoleBase{
+		CreateTime: role.CreateTime,
+		UpdateTime: role.UpdateTime,
+		Name:       role.Name,
+		Alias:      role.Alias,
+		Permissions: func() (list []apisv1.NameAlias) {
+			for _, policy := range policies {
+				if policy != nil {
+					list = append(list, apisv1.NameAlias{Name: policy.Name, Alias: policy.Alias})
+				}
+			}
+			return
+		}(),
+	}
+}
+
+// ConvertPermission2DTO convert permission model to the DTO
+func ConvertPermission2DTO(permission *model.Permission) *apisv1.PermissionBase {
+	if permission == nil {
+		return nil
+	}
+	return &apisv1.PermissionBase{
+		Name:       permission.Name,
+		Alias:      permission.Alias,
+		Resources:  permission.Resources,
+		Actions:    permission.Actions,
+		Effect:     permission.Effect,
+		CreateTime: permission.CreateTime,
+		UpdateTime: permission.UpdateTime,
+	}
+}
+
 func convertBool(b *bool) bool {
 	if b == nil {
 		return false
