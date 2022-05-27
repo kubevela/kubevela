@@ -25,9 +25,6 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-  - kind: Group
-    name: core.oam.dev
-    apiGroup: rbac.authorization.k8s.io
 
 ---
 # permissions to do leader election.

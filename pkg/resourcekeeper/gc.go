@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -182,7 +183,7 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 				if rt != nil {
 					inactive := true
 					for _, mr := range rt.Spec.ManagedResources {
-						entry := h.cache.get(ctx, mr)
+						entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
 						if entry.err == nil && (entry.gcExecutorRT != rt || !entry.exists) {
 							continue
 						}
@@ -225,7 +226,7 @@ func (h *gcHandler) Mark(ctx context.Context) error {
 // checkAndRemoveResourceTrackerFinalizer return (all resource recycled, error)
 func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, rt *v1beta1.ResourceTracker) (bool, v1beta1.ManagedResource, error) {
 	for _, mr := range rt.Spec.ManagedResources {
-		entry := h.cache.get(ctx, mr)
+		entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
 		if entry.err != nil {
 			return false, entry.mr, entry.err
 		}
@@ -257,6 +258,7 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 }
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
+	ctx = auth.ContextWithUserInfo(ctx, h.app)
 	switch h.cfg.order {
 	case v1alpha1.OrderDependency:
 		for _, mr := range rt.Spec.ManagedResources {
@@ -380,14 +382,16 @@ func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.C
 	}
 	var managedResources []v1beta1.ManagedResource
 	for _, cr := range h._crRT.Spec.ManagedResources { // legacy code for rollout-plan
+		_ctx := multicluster.ContextWithClusterName(ctx, cr.Cluster)
+		_ctx = auth.ContextWithUserInfo(_ctx, h.app)
 		if _, exists := inUseComponents[cr.ComponentKey()]; !exists {
 			_cr := &appsv1.ControllerRevision{}
-			err := h.Client.Get(multicluster.ContextWithClusterName(ctx, cr.Cluster), cr.NamespacedName(), _cr)
+			err := h.Client.Get(_ctx, cr.NamespacedName(), _cr)
 			if err != nil && !multicluster.IsNotFoundOrClusterNotExists(err) {
 				return errors.Wrapf(err, "failed to get component revision %s", cr.ResourceKey())
 			}
 			if err == nil {
-				if err = h.Client.Delete(multicluster.ContextWithClusterName(ctx, cr.Cluster), _cr); err != nil && !kerrors.IsNotFound(err) {
+				if err = h.Client.Delete(_ctx, _cr); err != nil && !kerrors.IsNotFound(err) {
 					return errors.Wrapf(err, "failed to delete component revision %s", cr.ResourceKey())
 				}
 			}

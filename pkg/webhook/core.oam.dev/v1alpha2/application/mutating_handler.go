@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -52,7 +51,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Patched("")
 	}
 
-	if slices.Contains(req.UserInfo.Groups, common.Group) || slices.Contains(h.skipUsers, req.UserInfo.Username) {
+	if slices.Contains(h.skipUsers, req.UserInfo.Username) {
 		return admission.Patched("")
 	}
 
@@ -86,11 +85,9 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	handler := &MutatingHandler{}
-	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.ControllerAutoImpersonation) {
-		if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
-			klog.Infof("[ApplicationMutatingHandler] add skip user %s", userInfo.Username)
-			handler.skipUsers = []string{userInfo.Username}
-		}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		klog.Infof("[ApplicationMutatingHandler] add skip user %s", userInfo.Username)
+		handler.skipUsers = []string{userInfo.Username}
 	}
 	server.Register("/mutating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
 }
