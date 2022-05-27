@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -364,7 +365,7 @@ var _ = Describe("Application Normal tests", func() {
 				{
 					Verbs:     []string{rbacv1.VerbAll},
 					APIGroups: []string{"apps"},
-					Resources: []string{"deployments"},
+					Resources: []string{"deployments", "controllerrevisions"},
 				},
 			},
 		}
@@ -402,6 +403,11 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking an application status")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
 		verifyComponentRevision("myweb", 1)
+
+		Expect(k8sClient.Delete(ctx, &newApp)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&newApp), &newApp)).Should(Satisfy(errors.IsNotFound))
+		}, 15*time.Second).Should(Succeed())
 	})
 
 	It("Test app with ServiceAccount which has no permission for the component", func() {
