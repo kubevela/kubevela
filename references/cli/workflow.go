@@ -29,6 +29,7 @@ import (
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -36,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -289,35 +289,7 @@ func resumeWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 
 // TerminateWorkflow terminate workflow
 func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
-	// set the workflow terminated to true
-	app.Status.Workflow.Terminated = true
-	steps := app.Status.Workflow.Steps
-	for i, step := range steps {
-		switch step.Phase {
-		case oamcommon.WorkflowStepPhaseFailed:
-			if step.Reason != custom.StatusReasonFailedAfterRetries {
-				steps[i].Reason = custom.StatusReasonTerminate
-			}
-		case oamcommon.WorkflowStepPhaseRunning:
-			steps[i].Phase = oamcommon.WorkflowStepPhaseFailed
-			steps[i].Reason = custom.StatusReasonTerminate
-		default:
-		}
-		for j, sub := range step.SubStepsStatus {
-			switch sub.Phase {
-			case oamcommon.WorkflowStepPhaseFailed:
-				if sub.Reason != custom.StatusReasonFailedAfterRetries {
-					steps[i].SubStepsStatus[j].Phase = custom.StatusReasonTerminate
-				}
-			case oamcommon.WorkflowStepPhaseRunning:
-				steps[i].SubStepsStatus[j].Phase = oamcommon.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = custom.StatusReasonTerminate
-			default:
-			}
-		}
-	}
-
-	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
+	if err := service.TerminateWorkflow(kubecli, app); err != nil {
 		return err
 	}
 

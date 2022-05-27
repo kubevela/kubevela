@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,11 +30,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
@@ -519,7 +523,7 @@ var _ = Describe("Test Workflow", func() {
 
 	It("Workflow test for failed after retries with suspend", func() {
 		By("Test failed-after-retries in StepByStep mode with suspend")
-		custom.EnableSuspendFailedWorkflow = true
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -626,7 +630,6 @@ var _ = Describe("Test Workflow", func() {
 
 	It("Workflow test if always", func() {
 		By("Test if always in StepByStep mode")
-		custom.EnableSuspendFailedWorkflow = false
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -801,7 +804,7 @@ var _ = Describe("Test Workflow", func() {
 
 	It("Test failed after retries with sub steps", func() {
 		By("Test failed-after-retries with step group in StepByStep mode")
-		custom.EnableSuspendFailedWorkflow = true
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -1396,7 +1399,7 @@ func makeRunner(name, tpy, ifDecl string, dependsOn []string, subTaskRunners []w
 			Name: name,
 			Type: tpy,
 		}
-		if custom.EnableSuspendFailedWorkflow {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 			return status, false
 		}
 		skip := custom.SkipTaskRunner(&custom.SkipOptions{

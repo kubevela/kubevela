@@ -33,6 +33,8 @@ const (
 	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
 	// LegacyResourceTrackerGC enable the gc of legacy resource tracker in managed clusters
 	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
+	// EnableSuspendFailedWorkflow enable suspend failed workflow
+	EnableSuspendFailedWorkflow featuregate.Feature = "EnableSuspendFailedWorkflow"
 
 	// Edge Features
 
@@ -45,6 +47,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:       {Default: true, PreRelease: featuregate.Alpha},
+	EnableSuspendFailedWorkflow:   {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 

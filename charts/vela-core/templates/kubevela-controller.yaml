@@ -169,10 +169,10 @@ spec:
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
             - "--kube-api-burst={{ .Values.kubeClient.burst }}"
-            - "--enable-suspend-failed-workflow={{ .Values.workflow.enableSuspendFailedWorkflow }}"
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--feature-gates=EnableSuspendFailedWorkflow={{- .Values.workflow.enableSuspendFailedWorkflow | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

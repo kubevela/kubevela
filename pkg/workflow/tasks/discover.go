@@ -22,6 +22,7 @@ import (
 	builtintime "time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
@@ -160,7 +162,7 @@ func (tr *suspendTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepS
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: tr.phase,
 	}
-	if custom.EnableSuspendFailedWorkflow {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		return status, false
 	}
 	skip := custom.SkipTaskRunner(&custom.SkipOptions{
@@ -197,7 +199,7 @@ func (tr *stepGroupTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, ste
 		Name: tr.step.Name,
 		Type: types.WorkflowStepTypeStepGroup,
 	}
-	if custom.EnableSuspendFailedWorkflow {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		return status, false
 	}
 	skip := custom.SkipTaskRunner(&custom.SkipOptions{
