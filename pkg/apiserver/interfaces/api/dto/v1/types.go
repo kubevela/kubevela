@@ -1345,8 +1345,17 @@ type PermissionBase struct {
 	UpdateTime time.Time `json:"updateTime"`
 }
 
-// UpdatePermissionRequest the request body that update permission policy
+// UpdatePermissionRequest the request body that updating a permission policy
 type UpdatePermissionRequest struct {
+	Alias     string   `json:"alias" validate:"checkalias"`
+	Resources []string `json:"resources"`
+	Actions   []string `json:"actions"`
+	Effect    string   `json:"effect" validate:"oneof=Allow Deny"`
+}
+
+// CreatePermissionRequest the request body that creating a permission policy
+type CreatePermissionRequest struct {
+	Name      string   `json:"name" validate:"checkname"`
 	Alias     string   `json:"alias" validate:"checkalias"`
 	Resources []string `json:"resources"`
 	Actions   []string `json:"actions"`
