@@ -187,6 +187,20 @@ func TestPodStatus(t *testing.T) {
 	}
 }
 
+func TestService2EndpointOption(t *testing.T) {
+	labels := map[string]string{
+		"service-name": "test",
+		"uid":          "test-uid",
+	}
+	u := unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("Service")
+	u.SetLabels(labels)
+	l, err := service2EndpointListOption(u)
+	assert.NoError(t, err)
+	assert.Equal(t, "service-name=test,uid=test-uid", l.LabelSelector.String())
+}
+
 func TestServiceStatus(t *testing.T) {
 	lbHealthSvc := v1.Service{Spec: v1.ServiceSpec{Type: v1.ServiceTypeLoadBalancer}, Status: v1.ServiceStatus{
 		LoadBalancer: v1.LoadBalancerStatus{
