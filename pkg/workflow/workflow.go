@@ -119,7 +119,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 		StepStatusCache.Delete(cacheKey)
 		return common.WorkflowStateFinished, nil
 	}
-	if (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend) {
+	if checkWorkflowTerminated(wfStatus, allTasksDone) {
 		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
@@ -155,19 +155,14 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 
 	e.checkWorkflowStatusMessage(wfStatus)
-	fmt.Println(99999, e.status.Message)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
 	if wfStatus.Terminated {
 		e.cleanBackoffTimesForTerminated()
-		if allTasksDone || wfStatus.Suspend {
+		if checkWorkflowTerminated(wfStatus, allTasksDone) {
 			wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
 			return common.WorkflowStateTerminated, nil
 		}
-	}
-	if (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend) {
-		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
-		return common.WorkflowStateTerminated, nil
 	}
 	if wfStatus.Suspend {
 		wfContext.CleanupMemoryStore(e.app.Name, e.app.Namespace)
@@ -179,6 +174,10 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 	wfStatus.Message = string(common.WorkflowStateExecuting)
 	return common.WorkflowStateExecuting, nil
+}
+
+func checkWorkflowTerminated(wfStatus *common.WorkflowStatus, allTasksDone bool) bool {
+	return (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend)
 }
 
 func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash string) (common.WorkflowState, error) {

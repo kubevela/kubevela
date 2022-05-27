@@ -480,7 +480,7 @@ func SkipTaskRunner(options *SkipOptions) bool {
 	case "":
 		return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
 	default:
-		// TODO:(fog) support cue syntax in if
+		// TODO:(fog) support more if cases
 		return false
 	}
 }
