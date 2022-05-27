@@ -97,6 +97,16 @@ func CreateNamespace(ctx context.Context, kubeClient client.Client, name string,
 	return kubeClient.Create(ctx, obj)
 }
 
+// GetNamespace will return a namespace with mutate option
+func GetNamespace(ctx context.Context, kubeClient client.Client, name string) (*corev1.Namespace, error) {
+	obj := &corev1.Namespace{}
+	err := kubeClient.Get(ctx, client.ObjectKey{Name: name}, obj)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 // UpdateNamespace will update a namespace with mutate option
 func UpdateNamespace(ctx context.Context, kubeClient client.Client, name string, options ...MutateOption) error {
 	var namespace corev1.Namespace
