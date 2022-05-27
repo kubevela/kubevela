@@ -63,6 +63,7 @@ func (r *rbacAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.PUT("/roles/{roleName}").To(r.updatePlatformRole).
 		Doc("update platform level role").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("roleName", "identifier of the role").DataType("string")).
 		Filter(r.RbacService.CheckPerm("role", "update")).
 		Reads(apis.UpdateRoleRequest{}).
 		Returns(200, "OK", apis.RoleBase{}).
@@ -71,16 +72,33 @@ func (r *rbacAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.DELETE("/roles/{roleName}").To(r.deletePlatformRole).
 		Doc("update platform level role").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("roleName", "identifier of the role").DataType("string")).
 		Filter(r.RbacService.CheckPerm("role", "delete")).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Writes(apis.EmptyResponse{}))
 
 	ws.Route(ws.GET("/permissions").To(r.listPlatformPermissions).
-		Doc("list all project level perm policies").
+		Doc("list all platform level perm policies").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(r.RbacService.CheckPerm("permission", "list")).
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
+
+	ws.Route(ws.POST("/permissions").To(r.createPlatformPermission).
+		Doc("create the platform perm policy").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Reads(apis.CreatePermissionRequest{}).
+		Filter(r.RbacService.CheckPerm("permission", "create")).
+		Returns(200, "OK", apis.PermissionBase{}).
+		Writes(apis.PermissionBase{}))
+
+	ws.Route(ws.DELETE("/permissions/{permissionName}").To(r.deletePlatformPermission).
+		Doc("delete a platform perm policy").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("permissionName", "identifier of the permission").DataType("string")).
+		Filter(r.RbacService.CheckPerm("permission", "delete")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Writes(apis.EmptyResponse{}))
 
 	ws.Filter(authCheckFilter)
 	return ws
@@ -175,6 +193,45 @@ func (r *rbacAPIInterface) listPlatformPermissions(req *restful.Request, res *re
 		return
 	}
 	if err := res.WriteEntity(policies); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (r *rbacAPIInterface) createPlatformPermission(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreatePermissionRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the domain layer code
+	permissionBase, err := r.RbacService.CreatePermission(req.Request.Context(), "", createReq)
+	if err != nil {
+		log.Logger.Errorf("create the permission failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(permissionBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (r *rbacAPIInterface) deletePlatformPermission(req *restful.Request, res *restful.Response) {
+	err := r.RbacService.DeletePermission(req.Request.Context(), "", req.PathParameter("permissionName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
