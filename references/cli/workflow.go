@@ -287,6 +287,7 @@ func resumeWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	return nil
 }
 
+// TerminateWorkflow terminate workflow
 func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow terminated to true
 	app.Status.Workflow.Terminated = true
@@ -300,6 +301,7 @@ func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 		case oamcommon.WorkflowStepPhaseRunning:
 			steps[i].Phase = oamcommon.WorkflowStepPhaseFailed
 			steps[i].Reason = custom.StatusReasonTerminate
+		default:
 		}
 		for j, sub := range step.SubStepsStatus {
 			switch sub.Phase {
@@ -310,11 +312,12 @@ func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 			case oamcommon.WorkflowStepPhaseRunning:
 				steps[i].SubStepsStatus[j].Phase = oamcommon.WorkflowStepPhaseFailed
 				steps[i].SubStepsStatus[j].Reason = custom.StatusReasonTerminate
+			default:
 			}
 		}
 	}
 
-	if err := kubecli.Status().Update(context.TODO(), app); err != nil {
+	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
 		return err
 	}
 

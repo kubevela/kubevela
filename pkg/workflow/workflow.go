@@ -106,39 +106,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 
 	if w.app.Status.Workflow == nil || w.app.Status.Workflow.AppRevision != revAndSpecHash {
-		ctx.Info("Restart Workflow")
-		status := w.app.Status.Workflow
-		if status != nil && !status.Finished {
-			status.Terminated = true
-			return common.WorkflowStateTerminated, nil
-		}
-		w.app.Status.Workflow = &common.WorkflowStatus{
-			AppRevision: revAndSpecHash,
-			Mode:        common.WorkflowModeStep,
-			StartTime:   metav1.Now(),
-		}
-		w.app.Status.Workflow.Message = MessageInitializingWorkflow
-		if w.dagMode {
-			w.app.Status.Workflow.Mode = common.WorkflowModeDAG
-		}
-		// clean recorded resources info.
-		w.app.Status.Services = nil
-		w.app.Status.AppliedResources = nil
-
-		// clean conditions after render
-		var reservedConditions []condition.Condition
-		for i, cond := range w.app.Status.Conditions {
-			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
-			if err == nil {
-				if condTpy <= common.RenderCondition {
-					reservedConditions = append(reservedConditions, w.app.Status.Conditions[i])
-				}
-			}
-		}
-		w.app.Status.Conditions = reservedConditions
-		StepStatusCache.Delete(fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace))
-		wfContext.CleanupMemoryStore(w.app.Name, w.app.Namespace)
-		return common.WorkflowStateInitializing, nil
+		return w.restartWorkflow(ctx, revAndSpecHash)
 	}
 
 	wfStatus := w.app.Status.Workflow
@@ -208,6 +176,42 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 	wfStatus.Message = string(common.WorkflowStateExecuting)
 	return common.WorkflowStateExecuting, nil
+}
+
+func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash string) (common.WorkflowState, error) {
+	ctx.Info("Restart Workflow")
+	status := w.app.Status.Workflow
+	if status != nil && !status.Finished {
+		status.Terminated = true
+		return common.WorkflowStateTerminated, nil
+	}
+	w.app.Status.Workflow = &common.WorkflowStatus{
+		AppRevision: revAndSpecHash,
+		Mode:        common.WorkflowModeStep,
+		StartTime:   metav1.Now(),
+	}
+	w.app.Status.Workflow.Message = MessageInitializingWorkflow
+	if w.dagMode {
+		w.app.Status.Workflow.Mode = common.WorkflowModeDAG
+	}
+	// clean recorded resources info.
+	w.app.Status.Services = nil
+	w.app.Status.AppliedResources = nil
+
+	// clean conditions after render
+	var reservedConditions []condition.Condition
+	for i, cond := range w.app.Status.Conditions {
+		condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+		if err == nil {
+			if condTpy <= common.RenderCondition {
+				reservedConditions = append(reservedConditions, w.app.Status.Conditions[i])
+			}
+		}
+	}
+	w.app.Status.Conditions = reservedConditions
+	StepStatusCache.Delete(fmt.Sprintf("%s-%s", w.app.Name, w.app.Namespace))
+	wfContext.CleanupMemoryStore(w.app.Name, w.app.Namespace)
+	return common.WorkflowStateInitializing, nil
 }
 
 func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow, wfStatus *common.WorkflowStatus) *engine {
