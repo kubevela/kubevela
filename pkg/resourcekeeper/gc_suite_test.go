@@ -19,6 +19,7 @@ package resourcekeeper
 import (
 	"context"
 	"encoding/json"
+	"testing"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -30,10 +31,13 @@ import (
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -56,6 +60,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 	})
 
 	It("Test gcHandler garbage collect legacy RT", func() {
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyResourceTrackerGC, true)()
 		version.VelaVersion = velaVersionNumberToUpgradeResourceTracker
 		ctx := context.Background()
 		cli := multicluster.NewFakeClient(testClient)
