@@ -578,7 +578,7 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 		return err
 	}
 
-	if err := TerminateWorkflow(w.KubeClient, oamApp); err != nil {
+	if err := TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
@@ -589,7 +589,7 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 }
 
 // TerminateWorkflow terminate workflow
-func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
+func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow terminated to true
 	app.Status.Workflow.Terminated = true
 	steps := app.Status.Workflow.Steps
@@ -618,7 +618,7 @@ func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 		}
 	}
 
-	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
 		return err
 	}
 	return nil

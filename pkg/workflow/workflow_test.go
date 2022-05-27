@@ -523,7 +523,7 @@ var _ = Describe("Test Workflow", func() {
 
 	It("Workflow test for failed after retries with suspend", func() {
 		By("Test failed-after-retries in StepByStep mode with suspend")
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendOnFailure, true)()
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -804,7 +804,7 @@ var _ = Describe("Test Workflow", func() {
 
 	It("Test failed after retries with sub steps", func() {
 		By("Test failed-after-retries with step group in StepByStep mode")
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendOnFailure, true)()
 		app, runners := makeTestCase([]oamcore.WorkflowStep{
 			{
 				Name: "s1",
@@ -1399,7 +1399,7 @@ func makeRunner(name, tpy, ifDecl string, dependsOn []string, subTaskRunners []w
 			Name: name,
 			Type: tpy,
 		}
-		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 			return status, false
 		}
 		skip := custom.SkipTaskRunner(&custom.SkipOptions{

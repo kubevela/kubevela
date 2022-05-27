@@ -38,12 +38,12 @@ dependCheckWait: 30s
 
 ## @section KubeVela workflow parameters
 
-## @param workflow.enableSuspendFailedWorkflow Enable suspend failed workflow
+## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 workflow:
-  enableSuspendFailedWorkflow: false
+  enableSuspendOnFailure: false
   backoff:
     maxTime:
       waitState: 60
