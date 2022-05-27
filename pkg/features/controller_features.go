@@ -36,8 +36,6 @@ const (
 
 	// Edge Features
 
-	// ControllerAutoImpersonation enable the auto impersonation for controller (to use explicit identity for requests)
-	ControllerAutoImpersonation featuregate.Feature = "ControllerAutoImpersonation"
 	// AuthenticateApplication enable the authentication for application
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
 )
@@ -47,7 +45,6 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:       {Default: true, PreRelease: featuregate.Alpha},
-	ControllerAutoImpersonation:   {Default: true, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 
