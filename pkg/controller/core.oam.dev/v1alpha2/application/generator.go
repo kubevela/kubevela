@@ -237,7 +237,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			return false, err
 		}
 
-		_, isHealth, err := h.collectHealthStatus(ctx, wl, appRev, overrideNamespace)
+		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace)
 		return isHealth, err
 	}
 }
@@ -288,7 +288,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if DisableResourceApplyDoubleCheck {
 			return readyWorkload, readyTraits, true, nil
 		}
-		workload, traits, err := getComponentResources(ctx, manifest, wl.SkipApplyWorkload, h.r.Client)
+		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
 		return workload, traits, true, err
 	}
 }

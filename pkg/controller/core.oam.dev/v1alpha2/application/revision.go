@@ -898,6 +898,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	}
 	// collect component revision in use
 	compRevisionInUse := map[string]map[string]struct{}{}
+	ctx = auth.ContextWithUserInfo(ctx, h.app)
 	for i, resource := range h.app.Status.AppliedResources {
 		compName := resource.Name
 		ns := resource.Namespace
