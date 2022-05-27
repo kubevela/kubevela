@@ -275,7 +275,7 @@ func (m *mongodb) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	if entity.Index() != nil {
 		for k, v := range entity.Index() {
 			filter = append(filter, bson.E{
-				Key:   k,
+				Key:   strings.ToLower(k),
 				Value: v,
 			})
 		}
