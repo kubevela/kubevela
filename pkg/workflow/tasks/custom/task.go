@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
+	"k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -32,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
@@ -42,8 +44,6 @@ import (
 var (
 	// MaxWorkflowStepErrorRetryTimes is the max retry times of the failed workflow step.
 	MaxWorkflowStepErrorRetryTimes = 10
-	// EnableSuspendFailedWorkflow enable suspend failed workflow
-	EnableSuspendFailedWorkflow = false
 )
 
 const (
@@ -157,7 +157,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
 		tRunner.skip = func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-			if EnableSuspendFailedWorkflow {
+			if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 				return exec.status(), false
 			}
 			skip := SkipTaskRunner(&SkipOptions{
@@ -506,7 +506,7 @@ func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus m
 
 // IsStepFinish will decide whether step is finish.
 func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
-	if EnableSuspendFailedWorkflow {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		return phase == common.WorkflowStepPhaseSucceeded
 	}
 	if phase == common.WorkflowStepPhaseFailed {

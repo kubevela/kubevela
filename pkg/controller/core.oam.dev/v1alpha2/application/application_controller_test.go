@@ -23,8 +23,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 	"time"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/pointer"
 
 	. "github.com/onsi/ginkgo"
@@ -50,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -1896,7 +1900,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with dag workflow failed after retries", func() {
-		custom.EnableSuspendFailedWorkflow = true
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "dag-failed-after-retries",
@@ -2005,7 +2009,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with step by step workflow failed after retries", func() {
-		custom.EnableSuspendFailedWorkflow = true
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendFailedWorkflow, true)()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "step-by-step-failed-after-retries",
@@ -2204,7 +2208,6 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with if always in workflow", func() {
-		custom.EnableSuspendFailedWorkflow = false
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-with-if-always-workflow",
@@ -2304,7 +2307,6 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with if always in workflow sub steps", func() {
-		custom.EnableSuspendFailedWorkflow = false
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-with-if-always-workflow-sub-steps",

@@ -25,6 +25,7 @@ import (
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -32,6 +33,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -153,6 +155,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	}
 
 	e.checkWorkflowStatusMessage(wfStatus)
+	fmt.Println(99999, e.status.Message)
 	StepStatusCache.Store(cacheKey, len(wfStatus.Steps))
 	allTasksDone, allTasksSucceeded = w.allDone(taskRunners)
 	if wfStatus.Terminated {
@@ -536,20 +539,16 @@ func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 }
 
 func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
-	if !e.waiting && e.failedAfterRetries {
-		if custom.EnableSuspendFailedWorkflow {
-			e.status.Message = MessageSuspendFailedAfterRetries
-		} else {
-			e.status.Message = MessageTerminatedFailedAfterRetries
-		}
-		return
-	}
-
-	if wfStatus.Terminated {
+	switch {
+	case !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow):
+		e.status.Message = MessageSuspendFailedAfterRetries
+	case e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow):
+		e.status.Message = MessageTerminatedFailedAfterRetries
+	case wfStatus.Terminated:
 		e.status.Message = string(common.WorkflowStateTerminated)
-	}
-	if wfStatus.Suspend {
+	case wfStatus.Suspend:
 		e.status.Message = string(common.WorkflowStateSuspended)
+	default:
 	}
 }
 
@@ -696,16 +695,16 @@ func (e *engine) updateStepStatus(status common.StepStatus) {
 }
 
 func (e *engine) checkFailedAfterRetries() {
-	if !e.waiting && e.failedAfterRetries && custom.EnableSuspendFailedWorkflow {
+	if !e.waiting && e.failedAfterRetries && feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		e.status.Suspend = true
 	}
-	if e.failedAfterRetries && !custom.EnableSuspendFailedWorkflow {
+	if e.failedAfterRetries && !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		e.status.Terminated = true
 	}
 }
 
 func (e *engine) needStop() bool {
-	if custom.EnableSuspendFailedWorkflow {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendFailedWorkflow) {
 		e.checkFailedAfterRetries()
 	}
 	// if the workflow is terminated, we still need to execute all the remaining steps
