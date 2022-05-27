@@ -2209,6 +2209,8 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                if:
+                                  type: string
                                 inputs:
                                   description: StepInputs defines variable input of
                                     WorkflowStep
@@ -2253,6 +2255,8 @@ spec:
                                         items:
                                           type: string
                                         type: array
+                                      if:
+                                        type: string
                                       inputs:
                                         description: StepInputs defines variable input
                                           of WorkflowStep
@@ -3954,6 +3958,8 @@ spec:
                           items:
                             type: string
                           type: array
+                        if:
+                          type: string
                         inputs:
                           description: StepInputs defines variable input of WorkflowStep
                           items:
@@ -3995,6 +4001,8 @@ spec:
                                 items:
                                   type: string
                                 type: array
+                              if:
+                                type: string
                               inputs:
                                 description: StepInputs defines variable input of
                                   WorkflowStep

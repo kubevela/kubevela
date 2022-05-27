@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 )
 
 // WorkflowService workflow manage api
@@ -577,14 +578,49 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 		return err
 	}
 
-	oamApp.Status.Workflow.Terminated = true
-	if err := w.KubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
+	if err := TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// TerminateWorkflow terminate workflow
+func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
+	// set the workflow terminated to true
+	app.Status.Workflow.Terminated = true
+	steps := app.Status.Workflow.Steps
+	for i, step := range steps {
+		switch step.Phase {
+		case common.WorkflowStepPhaseFailed:
+			if step.Reason != custom.StatusReasonFailedAfterRetries {
+				steps[i].Reason = custom.StatusReasonTerminate
+			}
+		case common.WorkflowStepPhaseRunning:
+			steps[i].Phase = common.WorkflowStepPhaseFailed
+			steps[i].Reason = custom.StatusReasonTerminate
+		default:
+		}
+		for j, sub := range step.SubStepsStatus {
+			switch sub.Phase {
+			case common.WorkflowStepPhaseFailed:
+				if sub.Reason != custom.StatusReasonFailedAfterRetries {
+					steps[i].SubStepsStatus[j].Phase = custom.StatusReasonTerminate
+				}
+			case common.WorkflowStepPhaseRunning:
+				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseFailed
+				steps[i].SubStepsStatus[j].Reason = custom.StatusReasonTerminate
+			default:
+			}
+		}
+	}
+
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
+		return err
+	}
 	return nil
 }
 
