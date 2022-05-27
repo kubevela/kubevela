@@ -10,11 +10,11 @@ e2e-setup-core-post-hook:
 	sleep 15
 	bin/vela addon enable rollout
 
-.PHONY: e2e-setup-core-wo-auth:
+.PHONY: e2e-setup-core-wo-auth
 e2e-setup-core-wo-auth:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 
-.PHONY: e2e-setup-core-w-auth:
+.PHONY: e2e-setup-core-w-auth
 e2e-setup-core-w-auth:
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core --set authentication.enabled=true --set authentication.withUser=true
 
