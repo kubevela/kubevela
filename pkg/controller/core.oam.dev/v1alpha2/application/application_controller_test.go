@@ -424,6 +424,31 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithAffinity := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-with-affinity",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "myweb",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
+	}
+	appWithAffinity.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "affinity",
+			Properties: &runtime.RawExtension{Raw: []byte("{\"podAffinity\":{\"preferred\":[{\"podAffinityTerm\":{\"labelSelector\":{\"matchExpressions\":[{\"key\": \"security\",\"values\": [\"S1\"]}]},\"namespaces\":[\"default\"],\"topologyKey\": \"kubernetes.io/hostname\"},\"weight\": 1}]}}")},
+		},
+	}
+
 	cd := &v1beta1.ComponentDefinition{}
 	cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
 	k8sObjectsCDJson, _ := yaml.YAMLToJSON([]byte(k8sObjectsComponentDefinitionYaml))
@@ -442,6 +467,8 @@ var _ = Describe("Test Application Controller", func() {
 	importEnv := &v1alpha2.TraitDefinition{}
 
 	importHubCpuScaler := &v1beta1.TraitDefinition{}
+
+	importPodAffinity := &v1beta1.TraitDefinition{}
 
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
@@ -493,6 +520,11 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(hubCpuScalerErr).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(hubCpuScalerJson, importHubCpuScaler)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importHubCpuScaler.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		affinityJson, podAffinityErr := yaml.YAMLToJSON([]byte(affinityYaml))
+		Expect(podAffinityErr).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(affinityJson, importPodAffinity)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importPodAffinity.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -3045,6 +3077,50 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("test application with pod affinity will create application", func() {
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-with-affinity",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithAffinity.SetNamespace(ns.Name)
+		app := appWithAffinity.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		appRevision := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      curApp.Status.LatestRevision.Name,
+		}, appRevision)).Should(BeNil())
+		By("Check affiliated resource tracker is created")
+		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		By("Check AppRevision Created with the expected workload spec")
+		appRev := &v1beta1.ApplicationRevision{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 const (
@@ -4554,6 +4630,190 @@ spec:
         	targetAPIVersion: *"apps/v1" | string
         	// +usage=Specify the kind of scale target
         	targetKind: *"Deployment" | string
+        }
+`
+	affinityYaml = `apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: affinity specify affinity and tolerationon K8s pod for your workload which follows the pod spec in path 'spec.template'.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
+  name: affinity
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - '*'
+  podDisruptive: true
+  schematic:
+    cue:
+      template: |
+        patch: spec: template: spec: {
+        	if parameter.podAffinity != _|_ {
+        		affinity: podAffinity: {
+        			if parameter.podAffinity.required != _|_ {
+        				requiredDuringSchedulingIgnoredDuringExecution: [
+        					for k in parameter.podAffinity.required {
+        						if k.labelSelector != _|_ {
+        							labelSelector: k.labelSelector
+        						}
+        						if k.namespace != _|_ {
+        							namespace: k.namespace
+        						}
+        						topologyKey: k.topologyKey
+        						if k.namespaceSelector != _|_ {
+        							namespaceSelector: k.namespaceSelector
+        						}
+        					}]
+        			}
+        			if parameter.podAffinity.preferred != _|_ {
+        				preferredDuringSchedulingIgnoredDuringExecution: [
+        					for k in parameter.podAffinity.preferred {
+        						weight:          k.weight
+        						podAffinityTerm: k.podAffinityTerm
+        					}]
+        			}
+        		}
+        	}
+        	if parameter.podAntiAffinity != _|_ {
+        		affinity: podAntiAffinity: {
+        			if parameter.podAntiAffinity.required != _|_ {
+        				requiredDuringSchedulingIgnoredDuringExecution: [
+        					for k in parameter.podAntiAffinity.required {
+        						if k.labelSelector != _|_ {
+        							labelSelector: k.labelSelector
+        						}
+        						if k.namespace != _|_ {
+        							namespace: k.namespace
+        						}
+        						topologyKey: k.topologyKey
+        						if k.namespaceSelector != _|_ {
+        							namespaceSelector: k.namespaceSelector
+        						}
+        					}]
+        			}
+        			if parameter.podAntiAffinity.preferred != _|_ {
+        				preferredDuringSchedulingIgnoredDuringExecution: [
+        					for k in parameter.podAntiAffinity.preferred {
+        						weight:          k.weight
+        						podAffinityTerm: k.podAffinityTerm
+        					}]
+        			}
+        		}
+        	}
+        	if parameter.nodeAffinity != _|_ {
+        		affinity: nodeAffinity: {
+        			if parameter.nodeAffinity.required != _|_ {
+        				requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [
+        					for k in parameter.nodeAffinity.required.nodeSelectorTerms {
+        						if k.matchExpressions != _|_ {
+        							matchExpressions: k.matchExpressions
+        						}
+        						if k.matchFields != _|_ {
+        							matchFields: k.matchFields
+        						}
+        					}]
+        			}
+        			if parameter.nodeAffinity.preferred != _|_ {
+        				preferredDuringSchedulingIgnoredDuringExecution: [
+        					for k in parameter.nodeAffinity.preferred {
+        						weight:     k.weight
+        						preference: k.preference
+        					}]
+        			}
+        		}
+        	}
+        	if parameter.tolerations != _|_ {
+        		tolerations: [
+        			for k in parameter.tolerations {
+        				if k.key != _|_ {
+        					key: k.key
+        				}
+        				if k.effect != _|_ {
+        					effect: k.effect
+        				}
+        				if k.value != _|_ {
+        					value: k.value
+        				}
+        				operator: k.operator
+        				if k.tolerationSeconds != _|_ {
+        					tolerationSeconds: k.tolerationSeconds
+        				}
+        			}]
+        	}
+        }
+        #labelSelector: {
+        	matchLabels?: [string]: string
+        	matchExpressions?: [...{
+        		key:      string
+        		operator: *"In" | "NotIn" | "Exists" | "DoesNotExist"
+        		values?: [...string]
+        	}]
+        }
+        #podAffinityTerm: {
+        	labelSelector?: #labelSelector
+        	namespaces?: [...string]
+        	topologyKey:        string
+        	namespaceSelector?: #labelSelector
+        }
+        #nodeSelecor: {
+        	key:      string
+        	operator: *"In" | "NotIn" | "Exists" | "DoesNotExist" | "Gt" | "Lt"
+        	values?: [...string]
+        }
+        #nodeSelectorTerm: {
+        	matchExpressions?: [...#nodeSelecor]
+        	matchFields?: [...#nodeSelecor]
+        }
+        parameter: {
+        	// +usage=Specify the pod affinity scheduling rules
+        	podAffinity?: {
+        		// +usage=Specify the required during scheduling ignored during execution
+        		required?: [...#podAffinityTerm]
+        		// +usage=Specify the preferred during scheduling ignored during execution
+        		preferred?: [...{
+        			// +usage=Specify weight associated with matching the corresponding podAffinityTerm
+        			weight: int & >=1 & <=100
+        			// +usage=Specify a set of pods
+        			podAffinityTerm: #podAffinityTerm
+        		}]
+        	}
+        	// +usage=Specify the pod anti-affinity scheduling rules
+        	podAntiAffinity?: {
+        		// +usage=Specify the required during scheduling ignored during execution
+        		required?: [...#podAffinityTerm]
+        		// +usage=Specify the preferred during scheduling ignored during execution
+        		preferred?: [...{
+        			// +usage=Specify weight associated with matching the corresponding podAffinityTerm
+        			weight: int & >=1 & <=100
+        			// +usage=Specify a set of pods
+        			podAffinityTerm: #podAffinityTerm
+        		}]
+        	}
+        	// +usage=Specify the node affinity scheduling rules for the pod
+        	nodeAffinity?: {
+        		// +usage=Specify the required during scheduling ignored during execution
+        		required?: {
+        			// +usage=Specify a list of node selector
+        			nodeSelectorTerms: [...#nodeSelectorTerm]
+        		}
+        		// +usage=Specify the preferred during scheduling ignored during execution
+        		preferred?: [...{
+        			// +usage=Specify weight associated with matching the corresponding nodeSelector
+        			weight: int & >=1 & <=100
+        			// +usage=Specify a node selector
+        			preference: #nodeSelectorTerm
+        		}]
+        	}
+        	// +usage=Specify tolerant taint
+        	tolerations?: [...{
+        		key?:     string
+        		operator: *"Equal" | "Exists"
+        		value?:   string
+        		effect?:  "NoSchedule" | "PreferNoSchedule" | "NoExecute"
+        		// +usage=Specify the period of time the toleration
+        		tolerationSeconds?: int
+        	}]
         }
 `
 )
