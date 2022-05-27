@@ -25,4 +25,8 @@ var (
 	ErrRoleIsNotExist = NewBcode(400, 15003, "the role is not exist")
 	// ErrPermissionNotExist means the permission is not exist
 	ErrPermissionNotExist = NewBcode(404, 15004, "the permission is not exist")
+	// ErrPermissionIsExist means the he permission is exist
+	ErrPermissionIsExist = NewBcode(400, 15005, "the permission name is exist")
+	// ErrPermissionIsUsed means the permission is bound by role, can not be deleted
+	ErrPermissionIsUsed = NewBcode(400, 15006, "the permission have been used")
 )
