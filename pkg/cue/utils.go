@@ -16,6 +16,16 @@ limitations under the License.
 
 package cue
 
+import (
+	"bytes"
+
+	"cuelang.org/go/pkg/encoding/json"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+)
+
 // int data can evaluate with number in CUE, so it's OK if we convert the original float type data to int
 func isIntegral(val float64) bool {
 	return val == float64(int(val))
@@ -54,4 +64,17 @@ func intifyMap(m map[string]interface{}) interface{} {
 		m2[k] = IntifyValues(v)
 	}
 	return m2
+}
+
+// FillUnstructuredObject fill runtime.Unstructured to *value.Value
+func FillUnstructuredObject(v *value.Value, obj runtime.Unstructured, paths ...string) error {
+	var buf bytes.Buffer
+	if err := unstructured.UnstructuredJSONScheme.Encode(obj, &buf); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	expr, err := json.Unmarshal(buf.Bytes())
+	if err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	return v.FillObject(expr, paths...)
 }

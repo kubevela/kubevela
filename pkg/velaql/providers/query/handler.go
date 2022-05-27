@@ -110,7 +110,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	return fillQueryResult(v, appResList, "list")
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
@@ -133,10 +133,10 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	return fillQueryResult(v, appResList, "list")
 }
 
-// ListAppliedResources list applied resource from tracker
+// GetApplicationResourceTree get resource tree of application
 func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -198,7 +198,7 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		}
 		resource.ResourceTree = &root
 	}
-	return v.FillObject(appResList, "list")
+	return fillQueryResult(v, appResList, "list")
 }
 
 func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -229,7 +229,7 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(pods, "list")
+	return fillQueryResult(v, pods, "list")
 }
 
 func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -258,7 +258,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	if err := h.cli.List(listCtx, &eventList, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(eventList.Items, "list")
+	return fillQueryResult(v, eventList.Items, "list")
 }
 
 // GeneratorServiceEndpoints generator service endpoints is available for common component type,
@@ -388,7 +388,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
-	return v.FillObject(serviceEndpoints, "list")
+	return fillQueryResult(v, serviceEndpoints, "list")
 }
 
 var (
