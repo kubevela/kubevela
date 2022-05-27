@@ -19,6 +19,7 @@ package e2e
 import (
 	context2 "context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Netflix/go-expect"
@@ -98,7 +99,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			cli := fmt.Sprintf("vela status %s", applicationName)
 			output, err := e2e.LongTimeExec(cli, 120*time.Second)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("healthy"))
+			gomega.Expect(strings.ToLower(output)).To(gomega.ContainSubstring("healthy"))
 			// TODO(zzxwill) need to check workloadType after app status is refined
 		})
 	})
