@@ -232,6 +232,11 @@ var _ = Describe("Test mongodb datastore driver", func() {
 		}})
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(3)))
+
+		app.Name = "kubevela-app-3"
+		count, err = mongodbDriver.Count(context.TODO(), &app, &datastore.FilterOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(1)))
 	})
 
 	It("Test isExist function", func() {
