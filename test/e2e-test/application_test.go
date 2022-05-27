@@ -122,15 +122,15 @@ var _ = Describe("Application Normal tests", func() {
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 	}
 
-	verifyApplicationWorkflowSuspending := func(ns, appName string) {
+	verifyApplicationWorkflowTerminated := func(ns, appName string) {
 		var testApp v1beta1.Application
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
 			if err != nil {
 				return err
 			}
-			if testApp.Status.Phase != oamcomm.ApplicationWorkflowSuspending {
-				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowSuspending, testApp.Status.Phase)
+			if testApp.Status.Phase != oamcomm.ApplicationWorkflowTerminated {
+				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowTerminated, testApp.Status.Phase)
 			}
 			return nil
 		}, 120*time.Second, time.Second).Should(BeNil())
@@ -335,7 +335,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("check application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 
 	It("Test wait suspend", func() {
@@ -425,7 +425,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 
 	It("Test app with non-existence ServiceAccount", func() {
@@ -453,6 +453,6 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 })
