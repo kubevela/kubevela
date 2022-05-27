@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
@@ -332,6 +333,7 @@ func (p *Parser) parseReferredObjectsFromRevision(af *Appfile) error {
 }
 
 func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
+	ctx = auth.ContextWithUserInfo(ctx, af.app)
 	for _, comp := range af.Components {
 		if comp.Type != v1alpha1.RefObjectsComponentType {
 			continue
