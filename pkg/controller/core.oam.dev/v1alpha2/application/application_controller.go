@@ -442,10 +442,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 }
 
 func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
+	app.Status.Workflow.Finished = true
 	if err := wf.Trace(); err != nil {
 		return errors.WithMessage(err, "record workflow state")
 	}
-	app.Status.Workflow.Finished = true
 	return nil
 }
 
