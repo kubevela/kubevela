@@ -58,6 +58,9 @@ func (s *ServiceEndpoint) String() string {
 	if (protocol == HTTPS && s.Endpoint.Port == 443) || (protocol == HTTP && s.Endpoint.Port == 80) {
 		return fmt.Sprintf("%s://%s%s", protocol, s.Endpoint.Host, path)
 	}
+	if protocol == "tcp" {
+		return fmt.Sprintf("%s:%d%s", s.Endpoint.Host, s.Endpoint.Port, path)
+	}
 	return fmt.Sprintf("%s://%s:%d%s", protocol, s.Endpoint.Host, s.Endpoint.Port, path)
 }
 
