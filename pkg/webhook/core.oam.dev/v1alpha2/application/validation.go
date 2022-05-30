@@ -68,6 +68,9 @@ func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, ap
 	var componentErrs field.ErrorList
 
 	for index, comp := range app.Spec.Components {
+		if comp.DependsOn != nil && len(comp.DependsOn) == 0 {
+			componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].dependsOn", index)), app, "empty array not allowed"))
+		}
 		if len(comp.ExternalRevision) == 0 {
 			continue
 		}

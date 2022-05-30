@@ -372,5 +372,25 @@ var _ = Describe("Test Application Validator", func() {
 		}
 		resp = handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
+
+		By("dependsOn cannot be an empty array")
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-external-revision", "namespace":"default"},
+"spec":{"components":[{"name":"myworker","type":"worker",
+"dependsOn": [],
+"properties":{"image":"stefanprodan/podinfo:4.0.6"},
+"externalRevision":"external-comp2"}]}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
 	})
 })
