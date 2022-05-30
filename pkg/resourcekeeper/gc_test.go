@@ -253,3 +253,86 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	r.NoError(err)
 	r.True(finished)
 }
+
+func TestCheckDependentComponent(t *testing.T) {
+	rk := &resourceKeeper{
+		app: &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []apicommon.ApplicationComponent{
+					{
+						Name: "comp-1",
+						Outputs: apicommon.StepOutputs{
+							{
+								Name: "output-1",
+							},
+						},
+					},
+					{
+						Name: "comp-2",
+						Outputs: apicommon.StepOutputs{
+							{
+								Name: "output-2",
+							},
+						},
+					},
+					{
+						Name: "comp-3",
+						Inputs: apicommon.StepInputs{
+							{
+								From: "output-1",
+							},
+							{
+								From: "output-2",
+							},
+						},
+					},
+					{
+						Name:      "comp-4",
+						DependsOn: []string{"comp-3"},
+					},
+					{
+						Name:      "comp-5",
+						DependsOn: []string{"comp-4", "comp-3"},
+					},
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		comp   string
+		result []string
+	}{
+		{
+			comp:   "comp-1",
+			result: []string{"comp-3"},
+		},
+		{
+			comp:   "comp-2",
+			result: []string{"comp-3"},
+		},
+		{
+			comp:   "comp-3",
+			result: []string{"comp-4", "comp-5"},
+		},
+		{
+			comp:   "comp-4",
+			result: []string{"comp-5"},
+		},
+		{
+			comp:   "comp-5",
+			result: []string{},
+		},
+	}
+	gcHandler := &gcHandler{
+		resourceKeeper: rk,
+	}
+	r := require.New(t)
+	for _, tc := range testCases {
+		mr := v1beta1.ManagedResource{
+			OAMObjectReference: apicommon.OAMObjectReference{
+				Component: tc.comp,
+			},
+		}
+		r.Equal(gcHandler.checkDependentComponent(mr), tc.result)
+	}
+}
