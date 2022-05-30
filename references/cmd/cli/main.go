@@ -17,8 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -37,6 +37,6 @@ func main() {
 	command := cli.NewCommand()
 
 	if err := command.Execute(); err != nil {
-		log.Fatal(err)
+		os.Exit(1)
 	}
 }
