@@ -110,6 +110,9 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
+	if appResList == nil {
+		appResList = make([]Resource, 0)
+	}
 	return fillQueryResult(v, appResList, "list")
 }
 
@@ -132,6 +135,9 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	appResList, err := collector.ListApplicationResources(app)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
+	}
+	if appResList == nil {
+		appResList = make([]*querytypes.AppliedResource, 0)
 	}
 	return fillQueryResult(v, appResList, "list")
 }
@@ -293,7 +299,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	if err != nil {
 		return fmt.Errorf("query app failure %w", err)
 	}
-	var serviceEndpoints []querytypes.ServiceEndpoint
+	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
 	resources, err := collector.ListApplicationResources(app)
