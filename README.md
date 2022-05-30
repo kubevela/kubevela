@@ -23,7 +23,7 @@ KubeVela is a modern application delivery platform that makes deploying and oper
 
 ![kubevela](docs/resources/what-is-kubevela.png)
 
-## Key Features
+## Highlights
 
 KubeVela practices the "render, orchestrate, deploy" workflow with below highlighted values added to existing ecosystem:
 
@@ -43,7 +43,7 @@ Progressive rollout across test/staging/production environments, automatic canar
 
 We provide a demo environment for you quickly experience:
 
-Demo Address: [http://demo.kubevela.net](http://demo.kubevela.net)
+Demo Address: [https://demo.kubevela.net](https://demo.kubevela.net)
 
 Demo Account(username/password): demo / KubeVela666
 
@@ -63,7 +63,7 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 
 ## Community
 
-We want your contributions and suggestions! 
+We want your contributions and suggestions!
 One of the easiest ways to contribute is to participate in discussions on the Github Issues/Discussion, chat on IM or the bi-weekly community calls.
 For more information on the community engagement, developer and contributing guidelines and more, head over to the [KubeVela community repo](https://github.com/kubevela/community).
 
