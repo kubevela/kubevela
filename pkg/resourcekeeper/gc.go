@@ -327,26 +327,25 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 
 func (h *gcHandler) checkDependentComponent(mr v1beta1.ManagedResource) []string {
 	dependent := make([]string, 0)
-	inputs := make([]string, 0)
+	outputs := make([]string, 0)
 	for _, comp := range h.app.Spec.Components {
 		if comp.Name == mr.Component {
-			dependent = comp.DependsOn
-			if len(comp.Inputs) > 0 {
-				for _, input := range comp.Inputs {
-					inputs = append(inputs, input.From)
-				}
-			} else {
-				return dependent
+			for _, output := range comp.Outputs {
+				outputs = append(outputs, output.Name)
 			}
-			break
+		} else {
+			for _, dependsOn := range comp.DependsOn {
+				if dependsOn == mr.Component {
+					dependent = append(dependent, comp.Name)
+					break
+				}
+			}
 		}
 	}
 	for _, comp := range h.app.Spec.Components {
-		if len(comp.Outputs) > 0 {
-			for _, output := range comp.Outputs {
-				if utils.StringsContain(inputs, output.Name) {
-					dependent = append(dependent, comp.Name)
-				}
+		for _, input := range comp.Inputs {
+			if utils.StringsContain(outputs, input.From) {
+				dependent = append(dependent, comp.Name)
 			}
 		}
 	}
