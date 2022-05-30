@@ -244,7 +244,7 @@ func (c *applicationServiceImpl) DetailApplication(ctx context.Context, app *mod
 		}
 	}
 	base := assembler.ConvertAppModelToBase(app, []*apisv1.ProjectBase{project})
-	policies, err := c.queryApplicationPolicies(ctx, app)
+	policies, err := repository.ListApplicationPolicies(ctx, c.Store, app)
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +589,7 @@ func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model
 
 // ListPolicies list application policies
 func (c *applicationServiceImpl) ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error) {
-	policies, err := c.queryApplicationPolicies(ctx, app)
+	policies, err := repository.ListApplicationPolicies(ctx, c.Store, app)
 	if err != nil {
 		return nil, err
 	}
@@ -598,21 +598,6 @@ func (c *applicationServiceImpl) ListPolicies(ctx context.Context, app *model.Ap
 		list = append(list, assembler.ConvertPolicyModelToBase(policy))
 	}
 	return list, nil
-}
-
-func (c *applicationServiceImpl) queryApplicationPolicies(ctx context.Context, app *model.Application) (list []*model.ApplicationPolicy, err error) {
-	var policy = model.ApplicationPolicy{
-		AppPrimaryKey: app.PrimaryKey(),
-	}
-	policies, err := c.Store.List(ctx, &policy, &datastore.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, policy := range policies {
-		pm := policy.(*model.ApplicationPolicy)
-		list = append(list, pm)
-	}
-	return
 }
 
 // DetailPolicy detail app policy
@@ -853,22 +838,11 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 
 	// query the policies for this environment
-	var policy = model.ApplicationPolicy{
-		AppPrimaryKey: appModel.PrimaryKey(),
-	}
-	policies, err := c.Store.List(ctx, &policy, &datastore.ListOptions{
-		FilterOptions: datastore.FilterOptions{
-			IsNotExist: []datastore.IsNotExistQueryOption{{
-				Key: "envName",
-			},
-			},
-		},
-	})
+	policies, err := repository.ListApplicationCommonPolicies(ctx, c.Store, appModel)
 	if err != nil {
 		return nil, err
 	}
-	policy.EnvName = env.Name
-	envPolicies, err := c.Store.List(ctx, &policy, &datastore.ListOptions{})
+	envPolicies, err := repository.ListApplicationEnvPolicies(ctx, c.Store, appModel, env.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -903,8 +877,7 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		app.Spec.Components = append(app.Spec.Components, bc)
 	}
 
-	for _, entity := range policies {
-		policy := entity.(*model.ApplicationPolicy)
+	for _, policy := range policies {
 		appPolicy := v1beta1.AppPolicy{
 			Name: policy.Name,
 			Type: policy.Type,
