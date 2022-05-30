@@ -393,8 +393,8 @@ var _ = Describe("Test velaQL", func() {
 			fmt.Sprintf("http://%s:30229", gatewayIP),
 			"http://10.10.10.10",
 			"http://text.example.com",
-			"tcp://10.10.10.10:81",
-			"tcp://text.example.com:81",
+			"10.10.10.10:81",
+			"text.example.com:81",
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
