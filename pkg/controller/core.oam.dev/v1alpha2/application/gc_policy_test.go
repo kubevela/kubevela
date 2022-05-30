@@ -561,15 +561,21 @@ var _ = Describe("Test Application with GC options", func() {
 
 			By("delete application")
 			Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-			By("worker3 will be deleted")
+			By("worker1 will be deleted")
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
+			for _, worker := range workerList.Items {
+				Expect(worker.Name).ShouldNot(Equal("worker1"))
+			}
 			Expect(len(workerList.Items)).Should(Equal(2))
 			By("worker2 will be deleted")
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
 			Expect(len(workerList.Items)).Should(Equal(1))
-			By("worker1 will be deleted")
+			for _, worker := range workerList.Items {
+				Expect(worker.Name).ShouldNot(Equal("worker2"))
+			}
+			By("worker3 will be deleted")
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
 			Expect(k8sClient.List(ctx, workerList, listOpts...)).Should(BeNil())
 			Expect(len(workerList.Items)).Should(Equal(0))
