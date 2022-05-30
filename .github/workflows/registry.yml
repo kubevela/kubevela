@@ -122,23 +122,6 @@ jobs:
             ghcr.io/${{ github.repository }}/vela-cli:${{ steps.get_version.outputs.VERSION }}
 
       - uses: docker/build-push-action@v2
-        name: Build & Pushing vela runtime rollout for ACR
-        with:
-          context: .
-          file: runtime/rollout/Dockerfile
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-            GOPROXY=https://proxy.golang.org
-          tags: |-
-            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-
-      - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout for Dockerhub and GHCR
         with:
           context: .
@@ -155,6 +138,7 @@ jobs:
           tags: |-
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
