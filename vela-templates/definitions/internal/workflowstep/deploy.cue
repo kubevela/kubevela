@@ -23,5 +23,7 @@ template: {
 		parallelism: *5 | int
 		//+usage=If set false, this step will apply the components with the terraform workload.
 		ignoreTerraformComponent: *true | bool
+		//+usage=If set true, the workflow will wait until all components are in healthy
+		waitHealthy: *true | bool
 	}
 }

@@ -186,7 +186,11 @@ func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Act
 	if err != nil {
 		return err
 	}
-	if !healthy {
+	waitHealthy, err := v.GetBool("waitHealthy")
+	if err != nil {
+		waitHealthy = true
+	}
+	if waitHealthy && !healthy {
 		act.Wait(reason)
 	}
 	return nil
