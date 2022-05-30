@@ -42,7 +42,7 @@ import (
 
 const (
 	providerNameParam       = "name"
-	errAuthenticateProvider = "failed to authenticate Terraform cloud provider %s"
+	errAuthenticateProvider = "failed to authenticate Terraform cloud provider %s err: %w"
 )
 
 // NewProviderCommand create `addon` command
@@ -188,11 +188,11 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				}
 				data, err := json.Marshal(properties)
 				if err != nil {
-					return fmt.Errorf(errAuthenticateProvider, providerType)
+					return fmt.Errorf(errAuthenticateProvider, providerType, err)
 				}
 
 				if err := config.CreateApplication(ctx, k8sClient, name, providerType, string(data), config.UIParam{}); err != nil {
-					return fmt.Errorf(errAuthenticateProvider, providerType)
+					return fmt.Errorf(errAuthenticateProvider, providerType, err)
 				}
 				ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
 				return nil
