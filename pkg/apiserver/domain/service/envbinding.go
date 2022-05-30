@@ -204,10 +204,7 @@ func (e *envBindingServiceImpl) DeleteEnvBinding(ctx context.Context, appModel *
 	}
 
 	// delete the topology and env-bindings policies
-	if err := e.Store.Delete(ctx, &model.ApplicationPolicy{AppPrimaryKey: appModel.PrimaryKey(), EnvName: envName}); err != nil && !errors.Is(err, datastore.ErrRecordNotExist) {
-		return fmt.Errorf("fail to clear the policies belong to the env %w", err)
-	}
-	return nil
+	return repository.DeleteApplicationEnvPolicies(ctx, e.Store, appModel, envName)
 }
 
 func (e *envBindingServiceImpl) BatchDeleteEnvBinding(ctx context.Context, app *model.Application) error {
