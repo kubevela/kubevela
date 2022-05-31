@@ -71,8 +71,9 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
-	f := velacmd.NewDefaultFactory(config.GetConfigOrDie())
+	f := velacmd.NewDeferredFactory(config.GetConfig)
 
+	_, _ = commandArgs, f
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
 		os.Exit(1)

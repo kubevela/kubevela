@@ -99,3 +99,40 @@ func NewDefaultFactory(cfg *rest.Config) Factory {
 	copiedCfg.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	return &defaultFactory{cfg: &copiedCfg}
 }
+
+type deferredFactory struct {
+	sync.Mutex
+	Factory
+	ConfigGetter
+}
+
+// NewDeferredFactory create a factory that will only get KubeConfig until it is needed for the first time
+func NewDeferredFactory(getter ConfigGetter) Factory {
+	return &deferredFactory{ConfigGetter: getter}
+}
+
+func (f *deferredFactory) init() {
+	cfg, err := f.ConfigGetter()
+	cmdutil.CheckErr(err)
+	f.Factory = NewDefaultFactory(cfg)
+}
+
+// Config return the kubeConfig
+func (f *deferredFactory) Config() *rest.Config {
+	f.Lock()
+	defer f.Unlock()
+	if f.Factory == nil {
+		f.init()
+	}
+	return f.Factory.Config()
+}
+
+// Client return the kubeClient
+func (f *deferredFactory) Client() client.Client {
+	f.Lock()
+	defer f.Unlock()
+	if f.Factory == nil {
+		f.init()
+	}
+	return f.Factory.Client()
+}
