@@ -23,6 +23,9 @@ import (
 
 	"sort"
 
+	"github.com/Masterminds/semver/v3"
+
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -128,19 +131,8 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 	if len(versions) == 0 {
 		return nil, ErrNotExist
 	}
-	var addonVersion *repo.ChartVersion
 	sort.Sort(sort.Reverse(versions))
-	if len(version) == 0 {
-		// if not specify version will always use the latest version
-		addonVersion = versions[0]
-	}
-	var availableVersions []string
-	for i, v := range versions {
-		availableVersions = append(availableVersions, v.Version)
-		if v.Version == version {
-			addonVersion = versions[i]
-		}
-	}
+	addonVersion, availableVersions := chooseVersion(version, versions)
 	if addonVersion == nil {
 		return nil, fmt.Errorf("specified version %s not exist", version)
 	}
@@ -190,4 +182,33 @@ func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAdd
 		Detail:         addonUIData.Detail,
 		APISchema:      addonUIData.APISchema,
 	}, nil
+}
+
+// chooseVersion will return the target version and all available versions
+func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*repo.ChartVersion, []string) {
+	var addonVersion *repo.ChartVersion
+	var availableVersions []string
+	for i, v := range versions {
+		availableVersions = append(availableVersions, v.Version)
+		if addonVersion != nil {
+			// already find the latest not-prerelease version, skip the find
+			continue
+		}
+		if len(specifiedVersion) != 0 {
+			if v.Version == specifiedVersion {
+				addonVersion = versions[i]
+			}
+		} else {
+			vv, err := semver.NewVersion(v.Version)
+			if err != nil {
+				continue
+			}
+			if len(vv.Prerelease()) != 0 {
+				continue
+			}
+			addonVersion = v
+			log.Logger.Infof("Not specified any version, so use the latest version %s", v.Version)
+		}
+	}
+	return addonVersion, availableVersions
 }

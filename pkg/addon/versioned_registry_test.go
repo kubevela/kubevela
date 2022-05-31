@@ -27,6 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/repo"
+
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/stretchr/testify/assert"
@@ -96,6 +99,33 @@ func TestVersionRegistry(t *testing.T) {
 
 	testListUIData(t)
 
+}
+
+func TestChooseAddonVersion(t *testing.T) {
+	versions := []*repo.ChartVersion{
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.4.0-beta1",
+			},
+		},
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.3.6",
+			},
+		},
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.2.0",
+			},
+		},
+	}
+	targetVersion, availableVersion := chooseVersion("v1.2.0", versions)
+	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
+	assert.Equal(t, targetVersion.Version, "v1.2.0")
+
+	targetVersion, availableVersion = chooseVersion("", versions)
+	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
+	assert.Equal(t, targetVersion.Version, "v1.3.6")
 }
 
 var versionedHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
