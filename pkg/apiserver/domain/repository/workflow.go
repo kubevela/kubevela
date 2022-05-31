@@ -457,13 +457,13 @@ func HaveTerraformWorkload(ctx context.Context, kubeClient client.Client, compon
 	return terraformComponents
 }
 
-func createOverriteConfigForTerraformComponent(env *model.Env, target *model.Target, terraformComponents []*model.ApplicationComponent) v1alpha1.EnvConfig {
+func createOverrideConfigForTerraformComponent(env *model.Env, target *model.Target, terraformComponents []*model.ApplicationComponent) v1alpha1.EnvConfig {
 	placement := v1alpha1.EnvPlacement{}
 	if target.Cluster != nil {
 		placement.ClusterSelector = &common.ClusterSelector{Name: target.Cluster.ClusterName}
 		placement.NamespaceSelector = &v1alpha1.NamespaceSelector{Name: target.Cluster.Namespace}
 	}
-	var componentPatchs []v1alpha1.EnvComponentPatch
+	var componentPatches []v1alpha1.EnvComponentPatch
 	// init cloud application region and provider info
 	for _, component := range terraformComponents {
 		properties := model.JSONStruct{
@@ -476,7 +476,7 @@ func createOverriteConfigForTerraformComponent(env *model.Env, target *model.Tar
 			},
 		}
 		if region, ok := target.Variable["region"]; ok {
-			properties["region"] = region
+			properties["customRegion"] = region
 		}
 		if providerName, ok := target.Variable["providerName"]; ok {
 			properties["providerRef"].(map[string]interface{})["name"] = providerName
@@ -484,7 +484,7 @@ func createOverriteConfigForTerraformComponent(env *model.Env, target *model.Tar
 		if providerNamespace, ok := target.Variable["providerNamespace"]; ok {
 			properties["providerRef"].(map[string]interface{})["namespace"] = providerNamespace
 		}
-		componentPatchs = append(componentPatchs, v1alpha1.EnvComponentPatch{
+		componentPatches = append(componentPatches, v1alpha1.EnvComponentPatch{
 			Name:       component.Name,
 			Properties: properties.RawExtension(),
 			Type:       component.Type,
@@ -495,7 +495,7 @@ func createOverriteConfigForTerraformComponent(env *model.Env, target *model.Tar
 		Name:      genPolicyEnvName(target.Name),
 		Placement: placement,
 		Patch: v1alpha1.EnvPatch{
-			Components: componentPatchs,
+			Components: componentPatches,
 		},
 	}
 }
@@ -543,7 +543,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 				}),
 			}
 			workflowSteps = append(workflowSteps, step)
-			envs = append(envs, createOverriteConfigForTerraformComponent(env, target, terraformComponents))
+			envs = append(envs, createOverrideConfigForTerraformComponent(env, target, terraformComponents))
 		}
 		properties, err := model.NewJSONStructByStruct(v1alpha1.EnvBindingSpec{
 			Envs: envs,
