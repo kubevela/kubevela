@@ -13,7 +13,7 @@ metadata:
   name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
   namespace: {{ .Release.Namespace }}
 spec:
-  secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
+  secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
   duration: 8760h # 1y
   issuerRef:
     name: {{ template "kubevela.fullname" . }}-cluster-gateway-issuer
