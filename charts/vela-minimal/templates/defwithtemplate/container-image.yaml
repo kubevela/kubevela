@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Set the image of the container.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: container-image
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
