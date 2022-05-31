@@ -41,14 +41,6 @@ Progressive rollout across test/staging/production environments, automatic canar
 
 ## Getting Started
 
-We provide a demo environment for you quickly experience:
-
-Demo Address: [https://demo.kubevela.net](https://demo.kubevela.net)
-
-Demo Account(username/password): demo / KubeVela666
-
-> This account has limited permissions, to get full capabilities please install your own environment.
-
 * [Introduction](https://kubevela.io/docs)
 * [Installation](https://kubevela.io/docs/install)
 * [Deploy Your Application](https://kubevela.io/docs/quick-start)
