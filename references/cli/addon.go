@@ -367,6 +367,9 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			continue
 		}
 		if err != nil {
+			if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
+				fmt.Printf("this version of addon cannot meet system requirement, you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
+			}
 			return err
 		}
 		if err = waitApplicationRunning(k8sClient, name); err != nil {
