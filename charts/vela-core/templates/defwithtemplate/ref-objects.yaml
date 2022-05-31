@@ -5,6 +5,8 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Ref-objects allow users to specify ref objects to use. Notice that this component type have special handle logic.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: ref-objects
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

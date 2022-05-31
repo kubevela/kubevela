@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Deploy env binding component to target env
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: deploy2env
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
