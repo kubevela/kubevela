@@ -1,7 +1,9 @@
 "container-image": {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Set the image of the container."
 	attributes: {
 		podDisruptive: true

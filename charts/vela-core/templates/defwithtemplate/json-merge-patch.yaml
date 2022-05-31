@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Patch the output following Json Merge Patch strategy, following RFC 7396.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: json-merge-patch
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
