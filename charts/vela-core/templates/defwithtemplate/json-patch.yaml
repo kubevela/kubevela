@@ -5,6 +5,8 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Patch the output following Json Patch strategy, following RFC 6902.
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: json-patch
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

@@ -5,6 +5,8 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: step group
+  labels:
+    custom.definition.oam.dev/ui-hidden: "true"
   name: step-group
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
