@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/gosuri/uitable"
 	tcv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -57,12 +59,18 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 		},
 	}
 	add, err := prepareProviderAddCommand(c, ioStreams)
-	if err == nil {
+	if err != nil {
+		ioStreams.Errorf("fail to init the provider command:%s \n", err.Error())
+	}
+	if add != nil {
 		cmd.AddCommand(add)
 	}
 
 	delete, err := prepareProviderDeleteCommand(c, ioStreams)
-	if err == nil {
+	if err != nil {
+		ioStreams.Errorf("fail to init the provider command:%s \n", err.Error())
+	}
+	if delete != nil {
 		cmd.AddCommand(delete)
 	}
 
@@ -94,7 +102,11 @@ func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 }
 
 func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
-	ctx := context.Background()
+	if len(os.Args) < 2 || os.Args[1] != "provider" {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -147,7 +159,8 @@ func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cob
 }
 
 func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -316,10 +329,8 @@ func getTerraformProviderType(ctx context.Context, k8sClient client.Client, name
 }
 
 func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
-	ctx := context.Background()
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
+	if len(os.Args) < 2 || os.Args[1] != "provider" {
+		return nil, nil
 	}
 
 	cmd := &cobra.Command{
@@ -337,6 +348,12 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*
 	cmd.AddCommand(deleteSubCommands...)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		k8sClient, err := c.GetClient()
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+		defer cancel()
 		defs, err := getTerraformProviderTypes(ctx, k8sClient)
 		if len(args) < 1 {
 			errMsg := "must specify a Terraform Cloud Provider type"
@@ -370,7 +387,8 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*
 }
 
 func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
