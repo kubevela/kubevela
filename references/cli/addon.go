@@ -30,6 +30,7 @@ import (
 
 	"helm.sh/helm/v3/pkg/strvals"
 
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"k8s.io/client-go/rest"
@@ -201,8 +202,7 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 	}
 	if name == "velaux" {
 		if !isUpgrade {
-			fmt.Println(`To check the initialized admin user name and password by:`)
-			fmt.Println(`    vela logs -n vela-system --name apiserver addon-velaux | grep "initialized admin username"`)
+			fmt.Printf("Initialized admin username and password: admin / %s \n", service.InitAdminPassword)
 		}
 		fmt.Println(`To open the dashboard directly by port-forward:`)
 		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
