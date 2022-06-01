@@ -20,7 +20,9 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/term"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // Builder build command with factory
@@ -53,19 +55,53 @@ func newNamespaceFlagOptions(options ...NamespaceFlagOption) NamespaceFlagConfig
 	return cfg
 }
 
-// NamespaceFlagNoCompletionOption disable auto-completion for namespace flag
-type NamespaceFlagNoCompletionOption struct{}
+// ClusterFlagConfig config for cluster flag in cmd
+type ClusterFlagConfig struct {
+	completion        bool
+	usage             string
+	disableSliceInput bool
+}
+
+// ClusterFlagOption the option for configuring cluster flag
+type ClusterFlagOption interface {
+	ApplyToClusterFlagOptions(*ClusterFlagConfig)
+}
+
+func newClusterFlagOptions(options ...ClusterFlagOption) ClusterFlagConfig {
+	cfg := ClusterFlagConfig{
+		completion:        true,
+		usage:             usageCluster,
+		disableSliceInput: false,
+	}
+	for _, option := range options {
+		option.ApplyToClusterFlagOptions(&cfg)
+	}
+	return cfg
+}
+
+// FlagNoCompletionOption disable auto-completion for flag
+type FlagNoCompletionOption struct{}
 
 // ApplyToNamespaceFlagOptions .
-func (option NamespaceFlagNoCompletionOption) ApplyToNamespaceFlagOptions(cfg *NamespaceFlagConfig) {
+func (option FlagNoCompletionOption) ApplyToNamespaceFlagOptions(cfg *NamespaceFlagConfig) {
 	cfg.completion = false
 }
 
-// NamespaceFlagUsageOption the usage description for namespace flag
-type NamespaceFlagUsageOption string
+// ApplyToClusterFlagOptions .
+func (option FlagNoCompletionOption) ApplyToClusterFlagOptions(cfg *ClusterFlagConfig) {
+	cfg.completion = false
+}
+
+// UsageOption the usage description for flag
+type UsageOption string
 
 // ApplyToNamespaceFlagOptions .
-func (option NamespaceFlagUsageOption) ApplyToNamespaceFlagOptions(cfg *NamespaceFlagConfig) {
+func (option UsageOption) ApplyToNamespaceFlagOptions(cfg *NamespaceFlagConfig) {
+	cfg.usage = string(option)
+}
+
+// ApplyToClusterFlagOptions .
+func (option UsageOption) ApplyToClusterFlagOptions(cfg *ClusterFlagConfig) {
 	cfg.usage = string(option)
 }
 
@@ -97,6 +133,40 @@ func (builder *Builder) WithNamespaceFlag(options ...NamespaceFlagOption) *Build
 // WithEnvFlag add env flag to the command
 func (builder *Builder) WithEnvFlag() *Builder {
 	builder.cmd.PersistentFlags().StringP(flagEnv, "e", "", usageEnv)
+	return builder
+}
+
+// ClusterFlagDisableSliceInputOption set the cluster flag to allow multiple input
+type ClusterFlagDisableSliceInputOption struct{}
+
+// ApplyToClusterFlagOptions .
+func (option ClusterFlagDisableSliceInputOption) ApplyToClusterFlagOptions(cfg *ClusterFlagConfig) {
+	cfg.disableSliceInput = true
+}
+
+// WithClusterFlag add cluster flag to the command
+func (builder *Builder) WithClusterFlag(options ...ClusterFlagOption) *Builder {
+	cfg := newClusterFlagOptions(options...)
+	if cfg.disableSliceInput {
+		builder.cmd.Flags().StringP(flagCluster, "c", types.ClusterLocalName, cfg.usage)
+	} else {
+		builder.cmd.Flags().StringSliceP(flagCluster, "c", []string{types.ClusterLocalName}, cfg.usage)
+	}
+	if cfg.completion {
+		cmdutil.CheckErr(builder.cmd.RegisterFlagCompletionFunc(
+			flagCluster,
+			func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+				return GetClustersForCompletion(cmd.Context(), builder.f, toComplete)
+			}))
+	}
+	return builder
+}
+
+// WithStreams set the in/out/err streams for the command
+func (builder *Builder) WithStreams(streams util.IOStreams) *Builder {
+	builder.cmd.SetIn(streams.In)
+	builder.cmd.SetOut(streams.Out)
+	builder.cmd.SetErr(streams.ErrOut)
 	return builder
 }
 

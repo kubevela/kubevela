@@ -30,11 +30,8 @@ import (
 	"strings"
 	"testing"
 
-	version2 "github.com/oam-dev/kubevela/version"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
-	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,9 +41,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	v1alpha12 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	version2 "github.com/oam-dev/kubevela/version"
 )
 
 var paths = []string{
@@ -321,6 +322,18 @@ func TestGetAddonStatus(t *testing.T) {
 			app := &v1beta1.Application{}
 			app.Status.Phase = common.ApplicationDeleting
 			*o = *app
+		case "addon-secret-enabled":
+			o := obj.(*corev1.Secret)
+			secret := &corev1.Secret{}
+			secret.Data = map[string][]byte{
+				"some-key": []byte("some-value"),
+			}
+			*o = *secret
+		case "addon-secret-disabling", "addon-secret-enabling":
+			o := obj.(*corev1.Secret)
+			secret := &corev1.Secret{}
+			secret.Data = map[string][]byte{}
+			*o = *secret
 		default:
 			o := obj.(*v1beta1.Application)
 			app := &v1beta1.Application{}
@@ -335,8 +348,9 @@ func TestGetAddonStatus(t *testing.T) {
 	}
 
 	cases := []struct {
-		name         string
-		expectStatus string
+		name               string
+		expectStatus       string
+		expectedParameters map[string]interface{}
 	}{
 		{
 			name: "disabled", expectStatus: "disabled",
@@ -403,7 +417,7 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-secret",
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+				clustercommon.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
 			},
 		},
 		Data: map[string][]byte{
@@ -578,7 +592,7 @@ func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-secret",
 			Labels: map[string]string{
-				v1alpha12.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
+				clustercommon.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
 			},
 		},
 		Data: map[string][]byte{
@@ -742,6 +756,26 @@ func TestCheckSemVer(t *testing.T) {
 		{
 			actual:  "1.2.3",
 			require: ">=v1.3.0-alpha.1",
+			res:     false,
+		},
+		{
+			actual:  "v1.4.0-alpha.3",
+			require: ">=v1.3.0-beta.2",
+			res:     true,
+		},
+		{
+			actual:  "v1.4.0-beta.1",
+			require: ">=v1.3.0",
+			res:     true,
+		},
+		{
+			actual:  "v1.4.0",
+			require: ">=v1.3.0-beta.2",
+			res:     true,
+		},
+		{
+			actual:  "1.2.4-beta.2",
+			require: ">=v1.2.4-beta.3",
 			res:     false,
 		},
 	}

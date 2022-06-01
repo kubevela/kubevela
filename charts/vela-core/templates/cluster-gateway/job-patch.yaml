@@ -1,0 +1,141 @@
+{{- if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled (not .Values.multicluster.clusterGateway.secureTLS.certManager.enabled) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.name" . }}-cluster-gateway-admission
+    {{- include "kubevela.labels" . | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{- if .Capabilities.APIVersions.Has "batch/v1alpha1" }}
+  # Alpha feature since k8s 1.12
+  ttlSecondsAfterFinished: 0
+  {{- end }}
+  template:
+    metadata:
+      name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
+      labels:
+        app: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-create
+        {{- include "kubevela.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: create
+        image: {{ .Values.imageRegistry }}{{ .Values.admissionWebhooks.patch.image.repository }}:{{ .Values.admissionWebhooks.patch.image.tag }}
+        imagePullPolicy: {{ .Values.admissionWebhooks.patch.image.pullPolicy }}
+        args:
+          - create
+          - --host={{ .Release.Name }}-cluster-gateway-service,{{ .Release.Name }}-cluster-gateway-service.{{ .Release.Namespace }}.svc
+          - --namespace={{ .Release.Namespace }}
+          - --secret-name={{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+          - --cert-name=tls.crt
+          - --key-name=tls.key
+      restartPolicy: OnFailure
+      serviceAccountName: {{ template "kubevela.fullname" . }}-cluster-gateway-admission
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  labels:
+    app: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  {{- if .Capabilities.APIVersions.Has "batch/v1alpha1" }}
+  # Alpha feature since k8s 1.12
+  ttlSecondsAfterFinished: 0
+  {{- end }}
+  template:
+    metadata:
+      name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
+      labels:
+        app: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-secret-patch
+        {{- include "kubevela.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: patch
+        image: {{ .Values.imageRegistry }}{{ .Values.multicluster.clusterGateway.image.repository }}:{{ .Values.multicluster.clusterGateway.image.tag }}
+        imagePullPolicy: {{ .Values.multicluster.clusterGateway.image.pullPolicy }}
+        command:
+          - /patch
+        args:
+          - --secret-namespace={{ .Release.Namespace }}
+          - --secret-name={{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "kubevela.serviceAccountName" . }}
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+{{ end }}

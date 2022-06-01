@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -40,8 +41,11 @@ var assumeYes bool
 
 // NewCommand will contain all commands
 func NewCommand() *cobra.Command {
-	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	return NewCommandWithIOStreams(util.NewDefaultIOStreams())
+}
 
+// NewCommandWithIOStreams will contain all commands and initialize them with given ioStream
+func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	cmds := &cobra.Command{
 		Use:                "vela",
 		DisableFlagParsing: true,
@@ -67,8 +71,9 @@ func NewCommand() *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
-	f := velacmd.NewDefaultFactory(commandArgs.GetClient)
+	f := velacmd.NewDeferredFactory(config.GetConfig)
 
+	_, _ = commandArgs, f
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
 		os.Exit(1)
@@ -82,6 +87,7 @@ func NewCommand() *cobra.Command {
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
+		NewQlCommand(commandArgs, "10", ioStream),
 		NewListCommand(commandArgs, "9", ioStream),
 		NewAppStatusCommand(commandArgs, "8", ioStream),
 		NewDeleteCommand(commandArgs, "7", ioStream),
@@ -107,6 +113,8 @@ func NewCommand() *cobra.Command {
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
 		NewProviderCommand(commandArgs, "10", ioStream),
+		AuthCommandGroup(f, ioStream),
+		KubeCommandGroup(f, ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),
@@ -124,10 +132,8 @@ func NewCommand() *cobra.Command {
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 
-	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
-	_ = fset.Set("v", "-1")
 
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")

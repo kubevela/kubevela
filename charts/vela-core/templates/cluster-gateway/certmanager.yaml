@@ -1,0 +1,24 @@
+{{- if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+  duration: 8760h # 1y
+  issuerRef:
+    name: {{ template "kubevela.fullname" . }}-cluster-gateway-issuer
+  dnsNames:
+    - {{ .Release.Name }}-cluster-gateway-service
+    - {{ .Release.Name }}-cluster-gateway-service.{{ .Release.Namespace }}.svc
+    - {{ .Release.Name }}-cluster-gateway-service.{{ .Release.Namespace }}.svc.cluster.local
+{{- end }}

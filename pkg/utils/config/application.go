@@ -31,13 +31,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 )
 
 const (
 	errAuthenticateProvider   = "failed to authenticate Terraform cloud provider %s for %s"
 	errProviderExists         = "terraform provider %s for %s already exists"
-	errDeleteProvider         = "failed to delete Terraform Provider %s"
+	errDeleteProvider         = "failed to delete Terraform Provider %s err: %w"
 	errCouldNotDeleteProvider = "the Terraform Provider %s could not be disabled because it was created by enabling a Terraform provider or was manually created"
 	errCheckProviderExistence = "failed to check if Terraform Provider %s exists"
 )
@@ -112,16 +112,16 @@ func DeleteApplication(ctx context.Context, k8sClient client.Client, name string
 				name = legacyName
 			}
 			if err1 != nil {
-				if kerrors.IsNotFound(err1) {
-					err2 := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, &v1beta1.Application{})
-					if err2 != nil {
-						if kerrors.IsNotFound(err2) {
-							return fmt.Errorf(errCouldNotDeleteProvider, name)
-						}
-						return fmt.Errorf(errDeleteProvider, name)
-					}
+				if !kerrors.IsNotFound(err1) {
+					return fmt.Errorf(errDeleteProvider, name, err1)
 				}
-				return fmt.Errorf(errDeleteProvider, name)
+				err2 := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, &v1beta1.Application{})
+				if err2 != nil {
+					if kerrors.IsNotFound(err2) {
+						return fmt.Errorf(errCouldNotDeleteProvider, name)
+					}
+					return fmt.Errorf(errDeleteProvider, name, err2)
+				}
 			}
 		}
 	}

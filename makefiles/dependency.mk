@@ -56,20 +56,22 @@ else
 CUE=$(shell which cue)
 endif
 
-KUSTOMIZE_VERSION ?= 3.8.2
-
+KUSTOMIZE_VERSION ?= 4.5.4
+KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize:
-ifeq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
+ifneq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
+KUSTOMIZE=$(shell which kustomize)
+else ifneq (, $(shell $(KUSTOMIZE) version | grep $(KUSTOMIZE_VERSION)))
+else
 	@{ \
 	set -eo pipefail ;\
-	echo 'installing kustomize-v$(KUSTOMIZE_VERSION) into $(GOBIN)' ;\
-	curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
+    echo "installing kustomize-v$(KUSTOMIZE_VERSION) into $(shell pwd)/bin" ;\
+    mkdir -p $(shell pwd)/bin ;\
+    rm -f $(KUSTOMIZE) ;\
+	curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(shell pwd)/bin;\
 	echo 'Install succeed' ;\
-	}
-KUSTOMIZE=$(GOBIN)/kustomize
-else
-KUSTOMIZE=$(shell which kustomize)
+    }
 endif
 
 .PHONY: helmdoc

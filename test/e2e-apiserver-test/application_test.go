@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/model"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
 
 var appName = "app-e2e"
@@ -206,13 +206,13 @@ var _ = Describe("Test application rest api", func() {
 		var req2 = apisv1.CreatePolicyRequest{
 			Name:        "test2",
 			Description: "this is a test2 policy",
-			Type:        "wqsdasd",
-			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
+			Type:        "override",
+			Properties:  `{"components": [{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}]}`,
 		}
 		res = post("/applications/"+appName+"/policies", req2)
 		var response apisv1.PolicyBase
 		Expect(decodeResponseBody(res, &response)).Should(Succeed())
-		Expect(cmp.Diff(response.Type, "wqsdasd")).Should(BeEmpty())
+		Expect(cmp.Diff(response.Type, "override")).Should(BeEmpty())
 	})
 
 	It("Test detail application policy", func() {
@@ -226,7 +226,7 @@ var _ = Describe("Test application rest api", func() {
 	It("Test update application policy", func() {
 		var req = apisv1.UpdatePolicyRequest{
 			Description: "this is a test2 policy update",
-			Type:        "wqsdasd",
+			Type:        "override",
 			Properties:  `{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}`,
 		}
 		res := put("/applications/"+appName+"/policies/test2", req)

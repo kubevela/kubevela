@@ -16,14 +16,36 @@ limitations under the License.
 
 package utils
 
-import "github.com/form3tech-oss/jwt-go"
+import (
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+
+	"github.com/form3tech-oss/jwt-go"
+)
 
 // GetTokenSubject extract the subject field from the jwt token
 func GetTokenSubject(token string) (string, error) {
-	claims := jwt.MapClaims{}
-	if _, err := jwt.ParseWithClaims(token, claims, nil); err != nil {
-		return "", err
+	claims, sub := jwt.MapClaims{}, ""
+	_, err := jwt.ParseWithClaims(token, claims, nil)
+	if len(claims) > 0 {
+		sub, _ = claims["sub"].(string)
 	}
-	sub, _ := claims["sub"].(string)
-	return sub, nil
+	return sub, err
+}
+
+// GetCertificateSubject extract Subject from Certificate
+func GetCertificateSubject(certificate []byte) (*pkix.Name, error) {
+	if len(certificate) == 0 {
+		return nil, nil
+	}
+	blk, _ := pem.Decode(certificate)
+	if blk == nil {
+		return nil, nil
+	}
+	cert, err := x509.ParseCertificate(blk.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	return &cert.Subject, nil
 }

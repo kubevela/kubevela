@@ -35,10 +35,12 @@ dependCheckWait: 30s
 
 ## @section KubeVela workflow parameters
 
+## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 workflow:
+  enableSuspendOnFailure: false
   backoff:
     maxTime:
       waitState: 60
@@ -85,7 +87,7 @@ healthCheck:
   port: 9440
 
 ## @section KubeVela controller optimization parameters
-##@param optimize.optimizeCachedGvks Optimize types of resources to be cached.
+##@param optimize.cachedGvks Optimize types of resources to be cached.
 ##@param optimize.resourceTrackerListOp Optimize ResourceTracker List Op by adding index.
 ##@param optimize.controllerReconcileLoopReduction Optimize ApplicationController reconcile by reducing the number of loops to reconcile application.
 ##@param optimize.markWithProb Optimize ResourceTracker GC by only run mark with probability. Side effect: outdated ResourceTracker might not be able to be removed immediately.
@@ -96,7 +98,7 @@ healthCheck:
 ##@param optimize.disableResourceApplyDoubleCheck Optimize workflow by ignoring resource double check after apply.
 ##@param optimize.enableResourceTrackerDeleteOnlyTrigger Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.
 optimize:
-  optimizeCachedGvks:
+  cachedGvks: ""
   resourceTrackerListOp: true
   controllerReconcileLoopReduction: false
   markWithProb: 0.1
@@ -120,6 +122,7 @@ optimize:
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
+## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 multicluster:
   enabled: true
   metrics:
@@ -129,7 +132,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.3.2
+      tag: v1.4.0
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -137,6 +140,8 @@ multicluster:
         memory: 200Mi
     secureTLS:
       enabled: true
+      certManager:
+        enabled: false
       certPath: /etc/k8s-cluster-gateway-certs
 
 
@@ -221,11 +226,13 @@ admissionWebhooks:
     enabled: true
     image:
       repository: oamdev/kube-webhook-certgen
-      tag: v2.3
+      tag: v2.4.0
       pullPolicy: IfNotPresent
     nodeSelector: {}
     affinity: {}
     tolerations: []
+  appConversion:
+    enabled: false
   certManager:
     enabled: false
     revisionHistoryLimit: 3

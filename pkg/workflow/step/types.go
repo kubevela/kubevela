@@ -29,4 +29,6 @@ type DeployWorkflowStepSpec struct {
 	Policies []string `json:"policies,omitempty"`
 	// Parallelism allows setting parallelism for the component deploy process
 	Parallelism *int `json:"parallelism,omitempty"`
+	// IgnoreTerraformComponent default is true, true means this step will apply the components without the terraform workload.
+	IgnoreTerraformComponent *bool `json:"ignoreTerraformComponent,omitempty"`
 }

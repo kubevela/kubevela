@@ -27,7 +27,7 @@ import (
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -56,17 +57,21 @@ import (
 const (
 	errInvalidValueType                          = "require %q type parameter value"
 	errTerraformConfigurationIsNotSet            = "terraform configuration is not set"
+	errTerraformComponentDefinition              = "terraform component definition is not valid"
 	errFailToConvertTerraformComponentProperties = "failed to convert Terraform component properties"
-	errConvertTerraformBaseConfigurationSpec     = "failed to convert properties to Terraform Configuration spec"
 )
 
 const (
 	// WriteConnectionSecretToRefKey is used to create a secret for cloud resource connection
 	WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
 	// RegionKey is the region of a Cloud Provider
-	RegionKey = "region"
+	// It's used to override the region of a Cloud Provider
+	// Refer to https://github.com/oam-dev/terraform-controller/blob/master/api/v1beta2/configuration_types.go#L66 for details
+	RegionKey = "customRegion"
 	// ProviderRefKey is the reference of a Provider
 	ProviderRefKey = "providerRef"
+	// ForceDeleteKey is used to force delete Configuration
+	ForceDeleteKey = "forceDelete"
 )
 
 // Workload is component
@@ -668,56 +673,43 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 
+	if wl.FullTemplate.ComponentDefinition == nil || wl.FullTemplate.ComponentDefinition.Spec.Schematic == nil ||
+		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform == nil {
+		return nil, errors.New(errTerraformComponentDefinition)
+	}
+
 	configuration := terraformapi.Configuration{
-		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+		TypeMeta: metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta2", Kind: "Configuration"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      wl.Name,
-			Namespace: ns,
+			Name:        wl.Name,
+			Namespace:   ns,
+			Annotations: wl.FullTemplate.ComponentDefinition.Annotations,
 		},
 	}
-	if wl.FullTemplate.ComponentDefinition != nil {
-		configuration.ObjectMeta.Annotations = wl.FullTemplate.ComponentDefinition.Annotations
+	// 1. parse the spec of configuration
+	var spec terraformapi.ConfigurationSpec
+	if err := json.Unmarshal(params, &spec); err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
+	}
+	configuration.Spec = spec
+
+	if configuration.Spec.WriteConnectionSecretToReference == nil {
+		configuration.Spec.WriteConnectionSecretToReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.WriteConnectionSecretToReference
+	}
+	if configuration.Spec.WriteConnectionSecretToReference != nil && configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
+		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+	}
+
+	if configuration.Spec.ProviderReference == nil {
+		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
 	}
 
 	switch wl.FullTemplate.Terraform.Type {
 	case "hcl":
 		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
-	case "json":
-		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	case "remote":
 		configuration.Spec.Remote = wl.FullTemplate.Terraform.Configuration
 		configuration.Spec.Path = wl.FullTemplate.Terraform.Path
-	}
-
-	// 1. parse writeConnectionSecretToRef
-	if err := json.Unmarshal(params, &configuration); err != nil {
-		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
-	}
-
-	var spec terraformapi.BaseConfigurationSpec
-	if err := json.Unmarshal(params, &spec); err != nil {
-		return nil, errors.Wrap(err, errConvertTerraformBaseConfigurationSpec)
-	}
-	if spec.ProviderReference != nil && !reflect.DeepEqual(configuration.Spec.ProviderReference, spec.ProviderReference) {
-		configuration.Spec.ProviderReference = spec.ProviderReference
-	} else if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform != nil &&
-		wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference != nil {
-		// Check whether the provider reference is set in ComponentDefinition
-		configuration.Spec.ProviderReference = wl.FullTemplate.ComponentDefinition.Spec.Schematic.Terraform.ProviderReference
-	}
-
-	if spec.Region != "" && configuration.Spec.Region != spec.Region {
-		configuration.Spec.Region = spec.Region
-	}
-	if spec.WriteConnectionSecretToReference != nil && spec.WriteConnectionSecretToReference.Name != "" &&
-		!reflect.DeepEqual(configuration.Spec.WriteConnectionSecretToReference, spec.WriteConnectionSecretToReference) {
-		configuration.Spec.WriteConnectionSecretToReference = spec.WriteConnectionSecretToReference
-		// set namespace for writeConnectionSecretToRef, developer needn't manually set it
-		if configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
-			configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
-		}
 	}
 
 	// 2. parse variable
@@ -733,6 +725,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	delete(variableMap, WriteConnectionSecretToRefKey)
 	delete(variableMap, RegionKey)
 	delete(variableMap, ProviderRefKey)
+	delete(variableMap, ForceDeleteKey)
 
 	data, err := json.Marshal(variableMap)
 	if err != nil {
@@ -930,6 +923,7 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 		return nil, errors.Wrapf(err, "invalid ref-objects component properties")
 	}
 	var uns []*unstructured.Unstructured
+	ctx = auth.ContextWithUserInfo(ctx, af.app)
 	for _, selector := range spec.Objects {
 		objs, err := component.SelectRefObjectsForDispatch(ctx, component.ReferredObjectsDelegatingClient(cli, af.ReferredObjects), af.Namespace, comp.Name, selector)
 		if err != nil {

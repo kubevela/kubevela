@@ -20,6 +20,7 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -67,25 +68,37 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 			}
 		}
 		data, err := xml.Marshal(res)
+		error := map[string]error{"error": err}
+		// Make and parse the data
+		t, err := template.New("").Parse(string(data))
 		if err != nil {
-			_, _ = rw.Write([]byte(err.Error()))
+			// Render the data
+			t.Execute(rw, error)
 		}
-		_, _ = rw.Write(data)
+		// Render the data
+		t.Execute(rw, data)
+
 	} else {
 		found := false
 		for _, p := range paths {
 			if queryPath == p.path {
 				file, err := testData.ReadFile(path.Join("testdata", queryPath))
+				error := map[string]error{"error": err}
+				// Make and parse the data
+				t, err := template.New("").Parse(string(file))
 				if err != nil {
-					_, _ = rw.Write([]byte(err.Error()))
+					// Render the data
+					t.Execute(rw, error)
 				}
 				found = true
-				_, _ = rw.Write(file)
+				t.Execute(rw, file)
 				break
 			}
 		}
 		if !found {
-			_, _ = rw.Write([]byte("not found"))
+			nf := "not found"
+			t, _ := template.New("").Parse(nf)
+			t.Execute(rw, nf)
 		}
 	}
 }

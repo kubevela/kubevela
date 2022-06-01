@@ -24,7 +24,7 @@ controllerArgs:
 OAMSpecVer: "minimal"
 
 ## @param disableCaps Disable capability
-disableCaps: "manualscalertrait,containerizedwokrload,envbinding,rollout"
+disableCaps: "manualscalertrait,envbinding,rollout"
 
 ## @param applyOnceOnly Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
@@ -38,10 +38,12 @@ dependCheckWait: 30s
 
 ## @section KubeVela workflow parameters
 
+## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 workflow:
+  enableSuspendOnFailure: false
   backoff:
     maxTime:
       waitState: 60
@@ -107,7 +109,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.3.2
+      tag: v1.4.0
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -201,11 +203,13 @@ admissionWebhooks:
     enabled: true
     image:
       repository: oamdev/kube-webhook-certgen
-      tag: v2.3
+      tag: v2.4.0
       pullPolicy: IfNotPresent
     nodeSelector: {}
     affinity: {}
     tolerations: []
+  appConversion:
+    enabled: false
   certManager:
     enabled: false
     revisionHistoryLimit: 3

@@ -1,1 +1,0 @@
-Welcome to use the oam-runtime follows OAM spec v0.2! Enjoy your shipping application journey!

@@ -51,18 +51,21 @@ const (
 
 // GarbageCollectPolicyRule defines a single garbage-collect policy rule
 type GarbageCollectPolicyRule struct {
-	Selector GarbageCollectPolicyRuleSelector `json:"selector"`
-	Strategy GarbageCollectStrategy           `json:"strategy"`
+	Selector ResourcePolicyRuleSelector `json:"selector"`
+	Strategy GarbageCollectStrategy     `json:"strategy"`
 }
 
-// GarbageCollectPolicyRuleSelector select the targets of the rule
+// ResourcePolicyRuleSelector select the targets of the rule
+// 1) for GarbageCollectPolicyRule
 // if both traitTypes, oamTypes and componentTypes are specified, combination logic is OR
 // if one resource is specified with conflict strategies, strategy as component go first.
-type GarbageCollectPolicyRuleSelector struct {
+// 2) for ApplyOncePolicyRule only CompNames and ResourceTypes are used
+type ResourcePolicyRuleSelector struct {
 	CompNames        []string `json:"componentNames"`
 	CompTypes        []string `json:"componentTypes"`
 	OAMResourceTypes []string `json:"oamTypes"`
 	TraitTypes       []string `json:"traitTypes"`
+	ResourceTypes    []string `json:"resourceTypes"`
 }
 
 // GarbageCollectStrategy the strategy for target resource to recycle

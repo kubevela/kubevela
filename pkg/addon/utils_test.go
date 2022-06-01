@@ -30,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -120,7 +122,12 @@ var _ = Describe("Test definition check", func() {
 		cmYaml := strings.ReplaceAll(registryCmYaml, "TEST_SERVER_URL", url)
 		cm := v1.ConfigMap{}
 		Expect(yaml.Unmarshal([]byte(cmYaml), &cm)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, &cm)).Should(BeNil())
+		err := k8sClient.Create(ctx, &cm)
+		if apierrors.IsAlreadyExists(err) {
+			Expect(k8sClient.Update(ctx, &cm)).To(Succeed())
+		} else {
+			Expect(err).To(Succeed())
+		}
 
 		disableTestAddonApp := v1beta1.Application{}
 		Expect(yaml.Unmarshal([]byte(addonDisableTestAppYaml), &disableTestAddonApp)).Should(BeNil())

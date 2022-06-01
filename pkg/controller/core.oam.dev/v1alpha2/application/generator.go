@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -73,6 +74,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
 		h.checkComponentHealth(appParser, appRev, af),
+		func(comp common.ApplicationComponent) (*appfile.Workload, error) {
+			return appParser.ParseWorkloadFromRevision(comp, appRev)
+		},
 	)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
@@ -80,33 +84,65 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
-		options := &wfTypes.GeneratorOptions{
-			ID: generateStepID(step.Name, app.Status.Workflow),
-		}
-		generatorName := step.Type
-		if generatorName == wfTypes.WorkflowStepTypeApplyComponent {
-			generatorName = wfTypes.WorkflowStepTypeBuiltinApplyComponent
-			options.StepConvertor = func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
-				copierStep := lstep.DeepCopy()
-				if err := convertStepProperties(copierStep, app); err != nil {
-					return lstep, errors.WithMessage(err, "convert [apply-component]")
-				}
-				return *copierStep, nil
-			}
-		}
-
-		genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
-		if err != nil {
-			return nil, err
-		}
-
-		task, err := genTask(step, options)
+		task, err := generateStep(ctx, app, step, taskDiscover, "")
 		if err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+func generateStep(ctx context.Context,
+	app *v1beta1.Application,
+	step v1beta1.WorkflowStep,
+	taskDiscover wfTypes.TaskDiscover,
+	parentStepName string) (wfTypes.TaskRunner, error) {
+	options := &wfTypes.GeneratorOptions{
+		ID: generateStepID(step.Name, app.Status.Workflow, parentStepName),
+	}
+	generatorName := step.Type
+	switch {
+	case generatorName == wfTypes.WorkflowStepTypeApplyComponent:
+		generatorName = wfTypes.WorkflowStepTypeBuiltinApplyComponent
+		options.StepConvertor = func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
+			copierStep := lstep.DeepCopy()
+			if err := convertStepProperties(copierStep, app); err != nil {
+				return lstep, errors.WithMessage(err, "convert [apply-component]")
+			}
+			return *copierStep, nil
+		}
+	case generatorName == wfTypes.WorkflowStepTypeStepGroup:
+		var subTaskRunners []wfTypes.TaskRunner
+		for _, subStep := range step.SubSteps {
+			workflowStep := v1beta1.WorkflowStep{
+				Name:       subStep.Name,
+				Type:       subStep.Type,
+				Properties: subStep.Properties,
+				DependsOn:  subStep.DependsOn,
+				Inputs:     subStep.Inputs,
+				Outputs:    subStep.Outputs,
+				If:         subStep.If,
+			}
+			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, step.Name)
+			if err != nil {
+				return nil, err
+			}
+			subTaskRunners = append(subTaskRunners, subTask)
+		}
+		options.SubTaskRunners = subTaskRunners
+	}
+
+	genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
+	if err != nil {
+		return nil, err
+	}
+
+	task, err := genTask(step, options)
+	if err != nil {
+		return nil, err
+	}
+	return task, nil
 }
 
 func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application) error {
@@ -185,7 +221,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		if err != nil {
 			return false, err
 		}
-		wl.Ctx.SetCtx(ctx)
+		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
@@ -201,7 +237,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 			return false, err
 		}
 
-		_, isHealth, err := h.collectHealthStatus(ctx, wl, appRev, overrideNamespace)
+		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace)
 		return isHealth, err
 	}
 }
@@ -224,7 +260,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 				return nil, nil, false, errors.WithMessage(err, "cannot dispatch packaged workload resources")
 			}
 		}
-		wl.Ctx.SetCtx(ctx)
+		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(h.r.Client, manifest, appRev, clusterName, overrideNamespace, env)
 		if err != nil {
@@ -252,7 +288,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		if DisableResourceApplyDoubleCheck {
 			return readyWorkload, readyTraits, true, nil
 		}
-		workload, traits, err := getComponentResources(ctx, manifest, wl.SkipApplyWorkload, h.r.Client)
+		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
 		return workload, traits, true, err
 	}
 }
@@ -348,7 +384,8 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 
 	for _, trait := range manifest.Traits {
 		v := trait.DeepCopy()
-		if err := cli.Get(ctx, client.ObjectKeyFromObject(trait), v); err != nil {
+		remoteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(v))
+		if err := cli.Get(remoteCtx, client.ObjectKeyFromObject(trait), v); err != nil {
 			return workload, nil, err
 		}
 		traits = append(traits, v)
@@ -356,15 +393,38 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 	return workload, traits, nil
 }
 
-func generateStepID(stepName string, wfStatus *common.WorkflowStatus) string {
-	var id string
-	if wfStatus != nil {
-		for _, status := range wfStatus.Steps {
-			if status.Name == stepName {
-				id = status.ID
-			}
+func getStepID(stepName string, stepsStatus []common.StepStatus) string {
+	for _, status := range stepsStatus {
+		if status.Name == stepName {
+			return status.ID
 		}
 	}
+	return ""
+}
+
+func generateStepID(stepName string, workflowStatus *common.WorkflowStatus, parentStepName string) string {
+	var id string
+	if workflowStatus != nil {
+		workflowStepsStatus := workflowStatus.Steps
+		if parentStepName != "" {
+			for _, status := range workflowStepsStatus {
+				if status.Name == parentStepName {
+					var stepsStatus []common.StepStatus
+					for _, status := range status.SubStepsStatus {
+						stepsStatus = append(stepsStatus, status.StepStatus)
+					}
+					id = getStepID(stepName, stepsStatus)
+				}
+			}
+		} else {
+			var stepsStatus []common.StepStatus
+			for _, status := range workflowStepsStatus {
+				stepsStatus = append(stepsStatus, status.StepStatus)
+			}
+			id = getStepID(stepName, stepsStatus)
+		}
+	}
+
 	if id == "" {
 		id = utils.RandomString(10)
 	}

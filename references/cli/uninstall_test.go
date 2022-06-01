@@ -70,7 +70,29 @@ metadata:
   name: addon-fluxcd
   namespace: vela-system
   labels:
-     addons.oam.dev/name: fluxcd
+    addons.oam.dev/name: fluxcd
+    addons.oam.dev/registry: local
+    addons.oam.dev/version: 1.1.0
+spec:
+  components:
+  - name: ns-flux-system
+    properties:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: flux-system
+`
+
+var fluxcdRemoteYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-fluxcd
+  namespace: vela-system
+  labels:
+    addons.oam.dev/name: fluxcd
+    addons.oam.dev/registry: KubeVela
+    addons.oam.dev/version: 1.1.0
 spec:
   components:
   - name: ns-flux-system

@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
+	"k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -32,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
@@ -47,6 +49,8 @@ var (
 const (
 	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
 	StatusReasonWait = "Wait"
+	// StatusReasonSkip is the reason of the workflow progress condition which is Skip.
+	StatusReasonSkip = "Skip"
 	// StatusReasonRendering is the reason of the workflow progress condition which is Rendering.
 	StatusReasonRendering = "Rendering"
 	// StatusReasonExecute is the reason of the workflow progress condition which is Execute.
@@ -59,6 +63,8 @@ const (
 	StatusReasonParameter = "ProcessParameter"
 	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
 	StatusReasonOutput = "Output"
+	// StatusReasonFailedAfterRetries is the reason of the workflow progress condition which is FailedAfterRetries.
+	StatusReasonFailedAfterRetries = "FailedAfterRetries"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -84,8 +90,9 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 
 type taskRunner struct {
 	name         string
-	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context) bool
+	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
+	skip         func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -94,21 +101,26 @@ func (tr *taskRunner) Name() string {
 }
 
 // Run execute task.
-func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 	return tr.run(ctx, options)
 }
 
 // Pending check task should be executed or not.
-func (tr *taskRunner) Pending(ctx wfContext.Context) bool {
-	return tr.checkPending(ctx)
+func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
+	return tr.checkPending(ctx, stepStatus)
 }
 
+func (tr *taskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+	return tr.skip(dependsOnPhase, stepStatus)
+}
+
+// nolint:gocyclo
 func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, error) {
 	return func(wfStep v1beta1.WorkflowStep, genOpt *wfTypes.GeneratorOptions) (wfTypes.TaskRunner, error) {
 
 		exec := &executor{
 			handlers: t.handlers,
-			wfStatus: common.WorkflowStepStatus{
+			wfStatus: common.StepStatus{
 				Name:  wfStep.Name,
 				Type:  wfStep.Type,
 				Phase: common.WorkflowStepPhaseSucceeded,
@@ -141,20 +153,23 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
-		tRunner.checkPending = func(ctx wfContext.Context) bool {
-			for _, depend := range wfStep.DependsOn {
-				if _, err := ctx.GetVar(hooks.ReadyComponent, depend); err != nil {
-					return true
-				}
-			}
-			for _, input := range wfStep.Inputs {
-				if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
-					return true
-				}
-			}
-			return false
+		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
+			return CheckPending(ctx, wfStep, stepStatus)
 		}
-		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.WorkflowStepStatus, *wfTypes.Operation, error) {
+		tRunner.skip = func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
+			if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
+				return exec.status(), false
+			}
+			skip := SkipTaskRunner(&SkipOptions{
+				If:             wfStep.If,
+				DependsOnPhase: dependsOnPhase,
+			})
+			if skip {
+				exec.Skip("")
+			}
+			return exec.status(), skip
+		}
+		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			if options.GetTracer == nil {
 				options.GetTracer = func(id string, step v1beta1.WorkflowStep) monitorContext.Context {
 					return monitorContext.NewTraceContext(context.Background(), "")
@@ -177,13 +192,13 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			paramsValue, err := ctx.MakeParameter(params)
 			if err != nil {
 				tracer.Error(err, "make parameter")
-				return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "make parameter")
+				return common.StepStatus{}, nil, errors.WithMessage(err, "make parameter")
 			}
 
 			for _, hook := range options.PreStartHooks {
 				if err := hook(ctx, paramsValue, wfStep); err != nil {
 					tracer.Error(err, "do preStartHook")
-					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "do preStartHook")
+					return common.StepStatus{}, nil, errors.WithMessage(err, "do preStartHook")
 				}
 			}
 
@@ -196,7 +211,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			if params != nil {
 				ps, err := paramsValue.String()
 				if err != nil {
-					return common.WorkflowStepStatus{}, nil, errors.WithMessage(err, "params encode")
+					return common.StepStatus{}, nil, errors.WithMessage(err, "params encode")
 				}
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
@@ -256,11 +271,12 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, p
 type executor struct {
 	handlers providers.Providers
 
-	wfStatus           common.WorkflowStepStatus
+	wfStatus           common.StepStatus
 	suspend            bool
 	terminated         bool
 	failedAfterRetries bool
 	wait               bool
+	skip               bool
 
 	tracer monitorContext.Context
 }
@@ -289,6 +305,13 @@ func (exec *executor) Wait(message string) {
 	exec.wfStatus.Message = message
 }
 
+func (exec *executor) Skip(message string) {
+	exec.skip = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseSkipped
+	exec.wfStatus.Reason = StatusReasonSkip
+	exec.wfStatus.Message = message
+}
+
 func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
@@ -302,6 +325,7 @@ func (exec *executor) checkErrorTimes(ctx wfContext.Context) {
 	if times >= MaxWorkflowStepErrorRetryTimes {
 		exec.wait = false
 		exec.failedAfterRetries = true
+		exec.wfStatus.Reason = StatusReasonFailedAfterRetries
 	}
 }
 
@@ -314,7 +338,7 @@ func (exec *executor) operation() *wfTypes.Operation {
 	}
 }
 
-func (exec *executor) status() common.WorkflowStepStatus {
+func (exec *executor) status() common.StepStatus {
 	return exec.wfStatus
 }
 
@@ -439,5 +463,60 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 			options.PCtx = pCtx
 		},
 		logLevel: logLevel,
+	}
+}
+
+// SkipOptions is the options of skip task runner
+type SkipOptions struct {
+	If             string
+	DependsOnPhase common.WorkflowStepPhase
+}
+
+// SkipTaskRunner will decide whether to skip task runner.
+func SkipTaskRunner(options *SkipOptions) bool {
+	switch options.If {
+	case "always":
+		return false
+	case "":
+		return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
+	default:
+		// TODO:(fog) support more if cases
+		return false
+	}
+}
+
+// CheckPending checks whether to pending task run
+func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.StepStatus) bool {
+	for _, depend := range step.DependsOn {
+		if status, ok := stepStatus[depend]; ok {
+			if !IsStepFinish(status.Phase, status.Reason) {
+				return true
+			}
+		} else {
+			return true
+		}
+	}
+	for _, input := range step.Inputs {
+		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// IsStepFinish will decide whether step is finish.
+func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
+		return phase == common.WorkflowStepPhaseSucceeded
+	}
+	switch phase {
+	case common.WorkflowStepPhaseFailed:
+		return reason == StatusReasonTerminate || reason == StatusReasonFailedAfterRetries
+	case common.WorkflowStepPhaseSkipped:
+		return true
+	case common.WorkflowStepPhaseSucceeded:
+		return true
+	default:
+		return false
 	}
 }

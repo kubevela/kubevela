@@ -17,7 +17,6 @@ limitations under the License.
 package e2e_multicluster_test
 
 import (
-	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -30,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/cli"
 )
 
@@ -43,11 +43,11 @@ var (
 )
 
 func execCommand(args ...string) (string, error) {
-	command := cli.NewCommand()
+	ioStream, buf := util.NewTestIOStreams()
+	command := cli.NewCommandWithIOStreams(ioStream)
 	command.SetArgs(args)
-	var buf bytes.Buffer
-	command.SetOut(&buf)
-	command.SetErr(&buf)
+	command.SetOut(buf)
+	command.SetErr(buf)
 	err := command.Execute()
 	return buf.String(), err
 }
@@ -79,6 +79,8 @@ var _ = AfterSuite(func() {
 		for _, app := range apps.Items {
 			g.Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
 		}
+		err := k8sClient.List(context.Background(), apps)
+		g.Expect(err, nil)
 		g.Expect(len(apps.Items)).Should(Equal(0))
 	}, 3*time.Minute).Should(Succeed())
 	Eventually(func(g Gomega) {

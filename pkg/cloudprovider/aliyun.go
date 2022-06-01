@@ -26,7 +26,7 @@ import (
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	"github.com/alibabacloud-go/tea/tea"
 	types "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
-	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	v1beta12 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -205,11 +205,9 @@ func (provider *AliyunCloudProvider) CreateCloudCluster(ctx context.Context, clu
 			},
 		},
 		Spec: v1beta12.ConfigurationSpec{
-			BaseConfigurationSpec: v1beta12.BaseConfigurationSpec{
-				ProviderReference: &types.Reference{
-					Name:      terraformProviderName,
-					Namespace: ns,
-				},
+			ProviderReference: &types.Reference{
+				Name:      terraformProviderName,
+				Namespace: ns,
 			},
 			Remote:   "https://github.com/kubevela-contrib/terraform-modules.git",
 			Variable: &runtime.RawExtension{Raw: bs},

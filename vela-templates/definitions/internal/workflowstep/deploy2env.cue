@@ -5,7 +5,9 @@ import (
 "deploy2env": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Deploy env binding component to target env"
 }
 template: {

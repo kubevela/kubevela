@@ -22,10 +22,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -34,12 +34,9 @@ const (
 	ProviderName = "terraform"
 )
 
-// WorkloadRenderer renderer to render application component into workload
-type WorkloadRenderer func(comp common.ApplicationComponent) (*appfile.Workload, error)
-
 type provider struct {
 	app      *v1beta1.Application
-	renderer WorkloadRenderer
+	renderer oamProvider.WorkloadRenderer
 }
 
 func (p *provider) LoadTerraformComponents(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
@@ -71,7 +68,7 @@ func (p *provider) GetConnectionStatus(ctx wfContext.Context, v *value.Value, ac
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, app *v1beta1.Application, renderer WorkloadRenderer) {
+func Install(p providers.Providers, app *v1beta1.Application, renderer oamProvider.WorkloadRenderer) {
 	prd := &provider{app: app, renderer: renderer}
 	p.Register(ProviderName, map[string]providers.Handler{
 		"load-terraform-components": prd.LoadTerraformComponents,

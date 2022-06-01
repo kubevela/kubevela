@@ -32,6 +32,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -80,6 +81,9 @@ type Option struct {
 	Name      string       `json:"name"`
 	Namespace string       `json:"namespace"`
 	Filter    FilterOption `json:"filter,omitempty"`
+	// WithStatus means query the object from the cluster and get the latest status
+	// This field only suitable for ListResourcesInApp
+	WithStatus bool `json:"withStatus,omitempty"`
 }
 
 // FilterOption filter resource created by component
@@ -87,9 +91,11 @@ type FilterOption struct {
 	Cluster          string   `json:"cluster,omitempty"`
 	ClusterNamespace string   `json:"clusterNamespace,omitempty"`
 	Components       []string `json:"components,omitempty"`
+	APIVersion       string   `json:"apiVersion,omitempty"`
+	Kind             string   `json:"kind,omitempty"`
 }
 
-// ListResourcesInApp lists CRs created by Application
+// ListResourcesInApp lists CRs created by Application, this provider queries the object data.
 func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -104,10 +110,13 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	if appResList == nil {
+		appResList = make([]Resource, 0)
+	}
+	return fillQueryResult(v, appResList, "list")
 }
 
-// ListAppliedResources list applied resource from tracker
+// ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
 func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -127,7 +136,75 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	if appResList == nil {
+		appResList = make([]*querytypes.AppliedResource, 0)
+	}
+	return fillQueryResult(v, appResList, "list")
+}
+
+// GetApplicationResourceTree get resource tree of application
+func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	val, err := v.LookupValue("app")
+	if err != nil {
+		return err
+	}
+	opt := Option{}
+	if err = val.UnmarshalTo(&opt); err != nil {
+		return err
+	}
+	collector := NewAppCollector(h.cli, opt)
+	app := new(v1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := h.cli.Get(context.Background(), appKey, app); err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	appResList, err := collector.ListApplicationResources(app)
+	if err != nil {
+		return v.FillObject(err.Error(), "err")
+	}
+	// merge user defined customize rule before every request.
+	err = mergeCustomRules(context.Background(), h.cli)
+	if err != nil {
+		return err
+	}
+	for _, resource := range appResList {
+		root := querytypes.ResourceTreeNode{
+			APIVersion: resource.APIVersion,
+			Kind:       resource.Kind,
+			Cluster:    resource.Cluster,
+			Namespace:  resource.Namespace,
+			Name:       resource.Name,
+			UID:        resource.UID,
+		}
+		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
+		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			return v.FillObject(err.Error(), "err")
+		}
+		rootObject, err := fetchObjectWithResourceTreeNode(context.Background(), resource.Cluster, h.cli, root)
+		if err != nil {
+			return v.FillObject(err.Error(), "err")
+		}
+		rootStatus, err := checkResourceStatus(*rootObject)
+		if err != nil {
+			return v.FillObject(err.Error(), "err")
+		}
+		root.HealthStatus = *rootStatus
+		addInfo, err := additionalInfo(*rootObject)
+		if err != nil {
+			return err
+		}
+		root.AdditionalInfo = addInfo
+		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
+		if !rootObject.GetDeletionTimestamp().IsZero() {
+			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		}
+		resource.ResourceTree = &root
+	}
+	return fillQueryResult(v, appResList, "list")
 }
 
 func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -158,7 +235,7 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(pods, "list")
+	return fillQueryResult(v, pods, "list")
 }
 
 func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -187,7 +264,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	if err := h.cli.List(listCtx, &eventList, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(eventList.Items, "list")
+	return fillQueryResult(v, eventList.Items, "list")
 }
 
 // GeneratorServiceEndpoints generator service endpoints is available for common component type,
@@ -222,7 +299,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	if err != nil {
 		return fmt.Errorf("query app failure %w", err)
 	}
-	var serviceEndpoints []querytypes.ServiceEndpoint
+	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
 	resources, err := collector.ListApplicationResources(app)
@@ -275,14 +352,17 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			for _, service := range services {
 				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
 			}
-
-			// only support network/v1beta1
 			ingress, err := hc.CollectIngress(ctx, resource.Cluster)
 			if err != nil {
 				klog.Error(err, "collect ingres by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
 			}
-			for _, ing := range ingress {
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ing, cluster, resource.Component)...)
+			for _, uns := range ingress {
+				var ingress networkv1beta1.Ingress
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uns.UnstructuredContent(), &ingress); err != nil {
+					klog.Errorf("fail to convert unstructured to ingress %s", err.Error())
+					continue
+				}
+				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, resource.Component)...)
 			}
 		case "SeldonDeployment":
 			obj := new(unstructured.Unstructured)
@@ -314,7 +394,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
-	return v.FillObject(serviceEndpoints, "list")
+	return fillQueryResult(v, serviceEndpoints, "list")
 }
 
 var (
@@ -417,6 +497,7 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 		"searchEvents":            prd.SearchEvents,
 		"collectLogsInPod":        prd.CollectLogsInPod,
 		"collectServiceEndpoints": prd.GeneratorServiceEndpoints,
+		"getApplicationTree":      prd.GetApplicationResourceTree,
 	})
 }
 

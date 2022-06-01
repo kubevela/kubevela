@@ -298,9 +298,10 @@ var _ = Describe("Test Query Provider", func() {
 							ClusterObjectReference: common.ClusterObjectReference{
 								Cluster: "",
 								ObjectReference: corev1.ObjectReference{
-									Kind:      "Deployment",
-									Namespace: "default",
-									Name:      "web",
+									Kind:       "Deployment",
+									APIVersion: "apps/v1",
+									Namespace:  "default",
+									Name:       "web",
 								},
 							},
 							OAMObjectReference: common.OAMObjectReference{
@@ -311,9 +312,10 @@ var _ = Describe("Test Query Provider", func() {
 							ClusterObjectReference: common.ClusterObjectReference{
 								Cluster: "",
 								ObjectReference: corev1.ObjectReference{
-									Kind:      "Service",
-									Namespace: "default",
-									Name:      "web",
+									Kind:       "Service",
+									APIVersion: "v1",
+									Namespace:  "default",
+									Name:       "web",
 								},
 							},
 							OAMObjectReference: common.OAMObjectReference{
@@ -344,6 +346,41 @@ var _ = Describe("Test Query Provider", func() {
 			err = v.UnmarshalTo(&res)
 			Expect(err).Should(BeNil())
 			Expect(len(res.List)).Should(Equal(2))
+
+			By("test filter with the apiVersion and kind")
+			optWithVersion := `app: {
+				name: "test-applied"
+				namespace: "default"
+				filter: {
+					components: ["web"]
+					apiVersion: "apps/v1"
+				}
+			}`
+			valueWithVersion, err := value.NewValue(optWithVersion, nil, "")
+			Expect(err).Should(BeNil())
+			Expect(prd.ListAppliedResources(nil, valueWithVersion, nil)).Should(BeNil())
+			var res2 Res
+			err = valueWithVersion.UnmarshalTo(&res2)
+			Expect(err).Should(BeNil())
+			Expect(len(res2.List)).Should(Equal(1))
+			Expect(res2.List[0].Kind).Should(Equal("Deployment"))
+
+			optWithKind := `app: {
+				name: "test-applied"
+				namespace: "default"
+				filter: {
+					components: ["web"]
+					kind: "Service"
+				}
+			}`
+			valueWithKind, err := value.NewValue(optWithKind, nil, "")
+			Expect(err).Should(BeNil())
+			Expect(prd.ListAppliedResources(nil, valueWithKind, nil)).Should(BeNil())
+			var res3 Res
+			err = valueWithKind.UnmarshalTo(&res3)
+			Expect(err).Should(BeNil())
+			Expect(len(res3.List)).Should(Equal(1))
+			Expect(res3.List[0].Kind).Should(Equal("Service"))
 		})
 	})
 
@@ -703,7 +740,7 @@ options: {
 				Name: "vela-system",
 			},
 		})
-		Expect(err).Should(BeNil())
+		Expect(err).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		for _, s := range testServicelist {
 			ns := "default"
 			if s["namespace"] != nil {
@@ -923,12 +960,12 @@ options: {
 			fmt.Sprintf("http://%s:30229", gatewayIP),
 			"http://10.10.10.10",
 			"http://text.example.com",
-			"tcp://10.10.10.10:81",
-			"tcp://text.example.com:81",
+			"10.10.10.10:81",
+			"text.example.com:81",
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
-			"tcp://1.1.1.1:80/seldon/test",
+			"1.1.1.1:80/seldon/test",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())

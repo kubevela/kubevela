@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -50,6 +52,15 @@ func GetNamespacesForCompletion(ctx context.Context, f Factory, toComplete strin
 	return listObjectNamesForCompletion(ctx, f, corev1.SchemeGroupVersion.WithKind("Namespace"), nil, toComplete)
 }
 
+// GetServiceAccountForCompletion auto-complete serviceaccount
+func GetServiceAccountForCompletion(ctx context.Context, f Factory, namespace string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var options []client.ListOption
+	if namespace != "" {
+		options = append(options, client.InNamespace(namespace))
+	}
+	return listObjectNamesForCompletion(ctx, f, corev1.SchemeGroupVersion.WithKind("ServiceAccount"), options, toComplete)
+}
+
 // GetRevisionForCompletion auto-complete the revision according to the application
 func GetRevisionForCompletion(ctx context.Context, f Factory, appName string, namespace string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	var options []client.ListOption
@@ -69,4 +80,19 @@ func GetApplicationsForCompletion(ctx context.Context, f Factory, namespace stri
 		options = append(options, client.InNamespace(namespace))
 	}
 	return listObjectNamesForCompletion(ctx, f, v1beta1.SchemeGroupVersion.WithKind(v1beta1.ApplicationKind), options, toComplete)
+}
+
+// GetClustersForCompletion auto-complete the cluster
+func GetClustersForCompletion(ctx context.Context, f Factory, toComplete string) ([]string, cobra.ShellCompDirective) {
+	clusters, err := prismclusterv1alpha1.NewClusterClient(f.Client()).List(ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	var candidates []string
+	for _, obj := range clusters.Items {
+		if name := obj.GetName(); strings.HasPrefix(name, toComplete) {
+			candidates = append(candidates, name)
+		}
+	}
+	return candidates, cobra.ShellCompDirectiveNoFileComp
 }

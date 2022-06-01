@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,7 +58,7 @@ func TestUpgradeExistingClusterSecret(t *testing.T) {
 	if err := c.Get(ctx, client.ObjectKeyFromObject(secret), newSecret); err != nil {
 		t.Fatalf("found error while getting updated cluster secret: %v", err)
 	}
-	if newSecret.Labels[v1alpha1.LabelKeyClusterCredentialType] != string(v1alpha1.CredentialTypeX509Certificate) {
+	if newSecret.Labels[clustercommon.LabelKeyClusterCredentialType] != string(v1alpha1.CredentialTypeX509Certificate) {
 		t.Fatalf("updated secret label should has credential type x509")
 	}
 }

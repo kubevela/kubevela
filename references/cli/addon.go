@@ -30,7 +30,6 @@ import (
 
 	"helm.sh/helm/v3/pkg/strvals"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"k8s.io/client-go/rest"
@@ -74,6 +73,8 @@ var addonVersion string
 
 var addonClusters string
 
+var verboseSatatus bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -109,10 +110,11 @@ func NewAddonListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = listAddons(context.Background(), k8sClient, "")
+			table, err := listAddons(context.Background(), k8sClient, "")
 			if err != nil {
 				return err
 			}
+			fmt.Println(table.String())
 			return nil
 		},
 	}
@@ -129,7 +131,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 Enable addon by:
 	vela addon enable <addon-name>
 Enable addon with specify version:
-    vela addon enable <addon-name> --version <addon-version>
+	vela addon enable <addon-name> --version <addon-version>
 Enable addon for specific clusters, (local means control plane):
 	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -192,7 +194,7 @@ Enable addon for specific clusters, (local means control plane):
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
 	fmt.Printf("Please access the %s from the following endpoints:\n", name)
-	err := printAppEndpoints(ctx, k8sClient, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
+	err := printAppEndpoints(ctx, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
@@ -220,7 +222,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 Upgrade addon by:
 	vela addon upgrade <addon-name>
 Upgrade addon with specify version:
-    vela addon upgrade <addon-name> --version <addon-version>
+	vela addon upgrade <addon-name> --version <addon-version>
 Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
 `,
@@ -330,7 +332,7 @@ func NewAddonDisableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 
 // NewAddonStatusCommand create addon status command
 func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "status",
 		Short:   "get an addon's status.",
 		Long:    "get an addon's status from cluster.",
@@ -347,6 +349,8 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&verboseSatatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	return cmd
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) error {
@@ -363,6 +367,9 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			continue
 		}
 		if err != nil {
+			if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
+				return fmt.Errorf("%w\nyou can try another version by command: \"vela addon enable %s --version <version> \" ", err, name)
+			}
 			return err
 		}
 		if err = waitApplicationRunning(k8sClient, name); err != nil {
@@ -396,12 +403,13 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	if err != nil {
 		return err
 	}
-	status, err := pkgaddon.GetAddonStatus(context.Background(), k8sClient, name)
+
+	statusString, status, err := generateAddonInfo(k8sClient, name)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print(generateAddonInfo(name, status))
+	fmt.Print(statusString)
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
 		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
@@ -413,45 +421,226 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	return nil
 }
 
-func generateAddonInfo(name string, status pkgaddon.Status) string {
+// generateAddonInfo will get addon status, description, version, dependencies (and whether they are installed),
+// and parameters (and their current values).
+// The first return value is the formatted string for printing.
+// The second return value is just for diagnostic purposes, as it is needed in statusAddon to print diagnostic info.
+func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, error) {
 	var res string
 	var phase string
+	var installed bool
+	var addonPackage *pkgaddon.WholeAddonPackage
+
+	// Get addon install package
+	if verboseSatatus {
+		// We need the metadata to get descriptions about parameters
+		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
+		// Not found error can be ignored, because the user can define their own addon. Others can't.
+		if err != nil && !errors.Is(err, pkgaddon.ErrNotExist) && !errors.Is(err, pkgaddon.ErrRegistryNotExist) {
+			return "", pkgaddon.Status{}, err
+		}
+		if len(addonPackages) != 0 {
+			addonPackage = addonPackages[0]
+		}
+	}
+
+	// Check current addon status
+	status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+	if err != nil {
+		return res, status, err
+	}
 
 	switch status.AddonPhase {
 	case statusEnabled:
+		installed = true
 		c := color.New(color.FgGreen)
 		phase = c.Sprintf("%s", status.AddonPhase)
 	case statusSuspend:
+		installed = true
 		c := color.New(color.FgRed)
 		phase = c.Sprintf("%s", status.AddonPhase)
+	case statusDisabled:
+		c := color.New(color.Faint)
+		phase = c.Sprintf("%s", status.AddonPhase)
+		// If the addon is
+		// 1. disabled,
+		// 2. does not exist in the registry,
+		// 3. verbose is on (when off, it is not possible to know whether the addon is in registry or not),
+		// means the addon does not exist at all.
+		// So, no need to go further, we return error message saying that we can't find it.
+		if addonPackage == nil && verboseSatatus {
+			return res, pkgaddon.Status{}, fmt.Errorf("addon %s is not found in registries nor locally installed", name)
+		}
 	default:
-		phase = status.AddonPhase
-	}
-	res += fmt.Sprintf("addon %s status is %s \n", name, phase)
-	if len(status.InstalledVersion) != 0 {
-		res += fmt.Sprintf("installedVersion: %s \n", status.InstalledVersion)
+		c := color.New(color.Faint)
+		phase = c.Sprintf("%s", status.AddonPhase)
 	}
 
+	// Addon name
+	res += color.New(color.Bold).Sprintf("%s", name)
+	res += fmt.Sprintf(": %s ", phase)
+	if installed {
+		res += fmt.Sprintf("(%s)", status.InstalledVersion)
+	}
+	res += "\n"
+
+	// Description
+	// Skip this if addon is installed from local sources.
+	// Description is fetched from the Internet, which is not useful for local sources.
+	if status.InstalledRegistry != pkgaddon.LocalAddonRegistryName && addonPackage != nil {
+		res += fmt.Sprintln(addonPackage.Description)
+	}
+
+	// Installed Clusters
 	if len(status.Clusters) != 0 {
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Installed Clusters")
 		var ic []string
 		for c := range status.Clusters {
 			ic = append(ic, c)
 		}
 		sort.Strings(ic)
-		res += fmt.Sprintf("installedClusters: %s \n", ic)
+		res += fmt.Sprintln(ic)
 	}
-	return res
+
+	// Registry name
+	registryName := status.InstalledRegistry
+	// Disabled addons will have empty InstalledRegistry, so if the addon exists in the registry, we use the registry name.
+	if registryName == "" && addonPackage != nil {
+		registryName = addonPackage.RegistryName
+	}
+	if registryName != "" {
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Registry Name")
+		res += fmt.Sprintln(registryName)
+	}
+
+	// If the addon is installed from local sources, or does not exist at all, stop here!
+	// The following information is fetched from the Internet, which is not useful for local sources.
+	if registryName == pkgaddon.LocalAddonRegistryName || registryName == "" || addonPackage == nil {
+		return res, status, nil
+	}
+
+	// Available Versions
+	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Available Versions")
+	res += genAvailableVersionInfo(addonPackage.AvailableVersions, status.InstalledVersion, 8)
+	res += "\n"
+
+	// Dependencies
+	dependenciesString, allInstalled := generateDependencyString(c, addonPackage.Dependencies)
+	res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprint("Dependencies ")
+	if allInstalled {
+		res += color.GreenString("✔")
+	} else {
+		res += color.RedString("✘")
+	}
+	res += "\n"
+	res += dependenciesString
+	res += "\n"
+
+	// Parameters
+	parameterString := generateParameterString(status, addonPackage)
+	if len(parameterString) != 0 {
+		res += color.New(color.FgHiBlue).Sprint("==> ") + color.New(color.Bold).Sprintln("Parameters")
+		res += parameterString
+	}
+
+	return res, status, nil
 }
 
-func listAddons(ctx context.Context, clt client.Client, registry string) error {
+func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.WholeAddonPackage) string {
+	ret := ""
+
+	if addonPackage.APISchema == nil {
+		return ret
+	}
+
+	// Required parameters
+	required := make(map[string]bool)
+	for _, k := range addonPackage.APISchema.Required {
+		required[k] = true
+	}
+
+	for propKey, propValue := range addonPackage.APISchema.Properties {
+		desc := propValue.Value.Description
+		defaultValue := propValue.Value.Default
+		if defaultValue == nil {
+			defaultValue = ""
+		}
+		required := required[propKey]
+		currentValue := status.Parameters[propKey]
+		if currentValue == nil {
+			currentValue = ""
+		}
+
+		// Header: addon: description
+		ret += color.New(color.FgCyan).Sprintf("-> ")
+		ret += color.New(color.Bold).Sprint(propKey) + ": "
+		ret += fmt.Sprintf("%s\n", desc)
+		// Current value
+		if currentValue != "" {
+			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
+		}
+		// Default value
+		if defaultValue != "" {
+			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
+		}
+		// Required or not
+		if required {
+			ret += "\trequired: "
+			ret += color.GreenString("✔\n")
+		}
+	}
+
+	return ret
+}
+
+func generateDependencyString(c client.Client, dependencies []*pkgaddon.Dependency) (string, bool) {
+	if len(dependencies) == 0 {
+		return "[]", true
+	}
+
+	ret := "["
+	allDependenciesInstalled := true
+
+	for idx, d := range dependencies {
+		name := d.Name
+
+		// Checks if the dependency is enabled, and mark it
+		status, err := pkgaddon.GetAddonStatus(context.Background(), c, name)
+		if err != nil {
+			continue
+		}
+
+		var enabledString string
+		switch status.AddonPhase {
+		case statusEnabled:
+			enabledString = color.GreenString("✔")
+		case statusSuspend:
+			enabledString = color.RedString("✔")
+		default:
+			enabledString = color.RedString("✘")
+			allDependenciesInstalled = false
+		}
+		ret += fmt.Sprintf("%s %s", name, enabledString)
+
+		if idx != len(dependencies)-1 {
+			ret += ", "
+		}
+	}
+
+	ret += "]"
+
+	return ret, allDependenciesInstalled
+}
+
+func listAddons(ctx context.Context, clt client.Client, registry string) (*uitable.Table, error) {
 	var addons []*pkgaddon.UIData
 	var err error
 	registryDS := pkgaddon.NewRegistryDataStore(clt)
 	registries, err := registryDS.ListRegistries(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	onlineAddon := map[string]bool{}
+
 	for _, r := range registries {
 		if registry != "" && r.Name != registry {
 			continue
@@ -480,31 +669,38 @@ func listAddons(ctx context.Context, clt client.Client, registry string) error {
 	table := uitable.New()
 	table.AddRow("NAME", "REGISTRY", "DESCRIPTION", "AVAILABLE-VERSIONS", "STATUS")
 
+	// get locally installed addons first
+	locallyInstalledAddons := map[string]bool{}
+	appList := v1beta1.ApplicationList{}
+	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
+		return table, err
+	}
+	for _, app := range appList.Items {
+		labels := app.GetLabels()
+		addonName := labels[oam.LabelAddonName]
+		addonVersion := labels[oam.LabelAddonVersion]
+		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", genAvailableVersionInfo([]string{addonVersion}, addonVersion, 3), statusEnabled)
+		locallyInstalledAddons[addonName] = true
+	}
+
 	for _, addon := range addons {
+		// if the addon with same name has already installed locally, display the registry one as not installed
+		if locallyInstalledAddons[addon.Name] {
+			table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, "", 3), "disabled")
+			continue
+		}
 		status, err := pkgaddon.GetAddonStatus(ctx, clt, addon.Name)
 		if err != nil {
-			return err
+			return table, err
 		}
 		statusRow := status.AddonPhase
 		if len(status.InstalledVersion) != 0 {
 			statusRow += fmt.Sprintf(" (%s)", status.InstalledVersion)
 		}
-		table.AddRow(addon.Name, addon.RegistryName, addon.Description, genAvailableVersionInfo(addon.AvailableVersions, status), statusRow)
-		onlineAddon[addon.Name] = true
+		table.AddRow(addon.Name, addon.RegistryName, limitStringLength(addon.Description, 60), genAvailableVersionInfo(addon.AvailableVersions, status.InstalledVersion, 3), statusRow)
 	}
-	appList := v1alpha2.ApplicationList{}
-	if err := clt.List(ctx, &appList, client.MatchingLabels{oam.LabelAddonRegistry: pkgaddon.LocalAddonRegistryName}); err != nil {
-		return err
-	}
-	for _, app := range appList.Items {
-		addonName := app.GetLabels()[oam.LabelAddonName]
-		if onlineAddon[addonName] {
-			continue
-		}
-		table.AddRow(addonName, app.GetLabels()[oam.LabelAddonRegistry], "", statusEnabled)
-	}
-	fmt.Println(table.String())
-	return nil
+
+	return table, nil
 }
 
 func waitApplicationRunning(k8sClient client.Client, addonName string) error {
@@ -540,13 +736,13 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 // generate the available version
 // this func put the installed version as the first version and keep the origin order
 // print ... if available version too much
-func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
+func genAvailableVersionInfo(versions []string, installedVersion string, limit int) string {
 	var v []string
 
 	// put installed-version as the first version and keep the origin order
-	if len(status.InstalledVersion) != 0 {
+	if len(installedVersion) != 0 {
 		for i, version := range versions {
-			if version == status.InstalledVersion {
+			if version == installedVersion {
 				v = append(v, version)
 				versions = append(versions[:i], versions[i+1:]...)
 			}
@@ -557,12 +753,12 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 	res := "["
 	var count int
 	for _, version := range v {
-		if count == 3 {
+		if count == limit {
 			// just show  newest 3 versions
 			res += "..."
 			break
 		}
-		if version == status.InstalledVersion {
+		if version == installedVersion {
 			col := color.New(color.Bold, color.FgGreen)
 			res += col.Sprintf("%s", version)
 		} else {
@@ -574,6 +770,17 @@ func genAvailableVersionInfo(versions []string, status pkgaddon.Status) string {
 	res = strings.TrimSuffix(res, ", ")
 	res += "]"
 	return res
+}
+
+// limitStringLength limits the length of the string, and add ... if it is too long
+func limitStringLength(str string, length int) string {
+	if length <= 0 {
+		return str
+	}
+	if len(str) > length {
+		return str[:length] + "..."
+	}
+	return str
 }
 
 // TransAddonName will turn addon's name from xxx/yyy to xxx-yyy

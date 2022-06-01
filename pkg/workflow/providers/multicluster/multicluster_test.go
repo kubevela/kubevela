@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -273,7 +275,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: multicluster.ClusterGatewaySecretNamespace,
 					Name:      testCase.PreAddCluster,
-					Labels:    map[string]string{clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)},
+					Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)},
 				},
 			}))
 		}
@@ -489,7 +491,7 @@ func TestListClusters(t *testing.T) {
 		secret := &corev1.Secret{}
 		secret.Name = secretName
 		secret.Namespace = multicluster.ClusterGatewaySecretNamespace
-		secret.Labels = map[string]string{clusterv1alpha1.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
+		secret.Labels = map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate)}
 		r.NoError(cli.Create(context.Background(), secret))
 	}
 	app := &v1beta1.Application{}

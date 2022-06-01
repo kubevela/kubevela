@@ -56,27 +56,28 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`                                                        |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`                                                         |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`                                                         |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`                                                          |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                                                         |
-| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`                                                    |
-| `disableCaps`                 | Disable capability                                                                            | `manualscalertrait,containerizedwokrload,envbinding,rollout` |
-| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                                                        |
-| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`                                                      |
-| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                                                        |
+| Name                          | Description                                                                                   | Value                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil`                                  |
+| `applicationRevisionLimit`    | Application revision limit                                                                    | `10`                                   |
+| `definitionRevisionLimit`     | Definition revision limit                                                                     | `20`                                   |
+| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`                                    |
+| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`                                   |
+| `OAMSpecVer`                  | OAMSpecVer is the oam spec version controller want to setup                                   | `minimal`                              |
+| `disableCaps`                 | Disable capability                                                                            | `manualscalertrait,envbinding,rollout` |
+| `applyOnceOnly`               | Valid applyOnceOnly values: true/false/on/off/force                                           | `off`                                  |
+| `enableFluxcdAddon`           | Whether to enable fluxcd addon                                                                | `false`                                |
+| `dependCheckWait`             | dependCheckWait is the time to wait for ApplicationConfiguration's dependent-resource ready   | `30s`                                  |
 
 
 ### KubeVela workflow parameters
 
-| Name                                   | Description                                            | Value |
-| -------------------------------------- | ------------------------------------------------------ | ----- |
-| `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`  |
-| `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300` |
-| `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`  |
+| Name                                   | Description                                            | Value   |
+| -------------------------------------- | ------------------------------------------------------ | ------- |
+| `workflow.enableSuspendOnFailure`      | Enable suspend on workflow failure                     | `false` |
+| `workflow.backoff.maxTime.waitState`   | The max backoff time of workflow in a wait condition   | `60`    |
+| `workflow.backoff.maxTime.failedState` | The max backoff time of workflow in a failed condition | `300`   |
+| `workflow.step.errorRetryTimes`        | The max retry times of a failed workflow step          | `10`    |
 
 
 ### KubeVela controller parameters
@@ -105,7 +106,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-minimal --
 | `multicluster.clusterGateway.replicaCount`            | ClusterGateway replica count     | `1`                              |
 | `multicluster.clusterGateway.port`                    | ClusterGateway port              | `9443`                           |
 | `multicluster.clusterGateway.image.repository`        | ClusterGateway image repository  | `oamdev/cluster-gateway`         |
-| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.3.2`                         |
+| `multicluster.clusterGateway.image.tag`               | ClusterGateway image tag         | `v1.4.0`                         |
 | `multicluster.clusterGateway.image.pullPolicy`        | ClusterGateway image pull policy | `IfNotPresent`                   |
 | `multicluster.clusterGateway.resources.limits.cpu`    | ClusterGateway cpu limit         | `100m`                           |
 | `multicluster.clusterGateway.resources.limits.memory` | ClusterGateway memory limit      | `200Mi`                          |

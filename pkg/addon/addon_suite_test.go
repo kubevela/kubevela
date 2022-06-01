@@ -21,26 +21,25 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
-
-	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types2 "k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	types2 "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	v1alpha12 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 var _ = Describe("Addon test", func() {
@@ -282,9 +281,9 @@ var _ = Describe("Test render addon with specified clusters", func() {
 				Name:      "add-c1",
 				Namespace: "vela-system",
 				Labels: map[string]string{
-					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
-					v1alpha1.LabelKeyClusterEndpointType:   v1alpha1.ClusterEndpointTypeConst,
-					"key":                                  "value",
+					clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					clustercommon.LabelKeyClusterEndpointType:   string(v1alpha1.ClusterEndpointTypeConst),
+					"key": "value",
 				},
 			},
 		})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -293,9 +292,9 @@ var _ = Describe("Test render addon with specified clusters", func() {
 				Name:      "add-c2",
 				Namespace: "vela-system",
 				Labels: map[string]string{
-					v1alpha1.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
-					v1alpha1.LabelKeyClusterEndpointType:   v1alpha1.ClusterEndpointTypeConst,
-					"key":                                  "value",
+					clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate),
+					clustercommon.LabelKeyClusterEndpointType:   string(v1alpha1.ClusterEndpointTypeConst),
+					"key": "value",
 				},
 			},
 		})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

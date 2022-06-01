@@ -11,15 +11,15 @@ function check_install() {
     kubectl create namespace vela-system
   fi
   echo "applying definitions ..."
-  cd $DEF_PATH
+  cd "$DEF_PATH"
 
   for file in *.yaml ;
     do
-      echo "Info: changing "$DEF_PATH"/"$file
-      sed -i.bak "s#namespace: {{ include \"systemDefinitionNamespace\" . }}#namespace: vela-system#g" $file
-      kubectl apply -f $file
-      rm $file
-      mv $file".bak" $file
+      echo "Info: changing "$DEF_PATH"/""$file"
+      sed -i.bak "s#namespace: {{ include \"systemDefinitionNamespace\" . }}#namespace: vela-system#g" "$file"
+      kubectl apply -f "$file"
+      rm "$file"
+      mv "$file"".bak" "$file"
     done
 
   cd -

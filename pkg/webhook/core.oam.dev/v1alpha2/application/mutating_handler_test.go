@@ -29,8 +29,8 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -40,7 +40,7 @@ var _ = Describe("Test Application Mutator", func() {
 	var mutatingHandler *MutatingHandler
 
 	BeforeEach(func() {
-		mutatingHandler = &MutatingHandler{}
+		mutatingHandler = &MutatingHandler{skipUsers: []string{types.VelaCoreName}}
 		Expect(mutatingHandler.InjectDecoder(decoder)).Should(BeNil())
 	})
 
@@ -55,7 +55,7 @@ var _ = Describe("Test Application Mutator", func() {
 		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.AuthenticateApplication))).Should(Succeed())
 		resp := mutatingHandler.Handle(ctx, admission.Request{
 			AdmissionRequest: admissionv1.AdmissionRequest{
-				UserInfo: authv1.UserInfo{Groups: []string{common.Group}},
+				UserInfo: authv1.UserInfo{Username: types.VelaCoreName},
 			}})
 		Expect(resp.Allowed).Should(BeTrue())
 		Expect(resp.Patches).Should(BeNil())

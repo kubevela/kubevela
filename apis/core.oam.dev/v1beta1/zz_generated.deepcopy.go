@@ -954,6 +954,13 @@ func (in *WorkflowStep) DeepCopyInto(out *WorkflowStep) {
 		*out = new(runtime.RawExtension)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.SubSteps != nil {
+		in, out := &in.SubSteps, &out.SubSteps
+		*out = make([]common.WorkflowSubStep, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.DependsOn != nil {
 		in, out := &in.DependsOn, &out.DependsOn
 		*out = make([]string, len(*in))

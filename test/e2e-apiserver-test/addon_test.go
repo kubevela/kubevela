@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/pkg/addon"
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
 
 var _ = Describe("Test addon rest api", func() {

@@ -96,6 +96,8 @@ const (
 
 	// LabelProject recorde the project the resource belong to
 	LabelProject = "core.oam.dev/project"
+
+	LabelResourceRules = "rules.oam.dev/resources"
 )
 
 const (
@@ -117,7 +119,7 @@ const (
 	AnnotationAppGeneration = "app.oam.dev/generation"
 
 	// AnnotationLastAppliedConfig records the previous configuration of a
-	// resource for use in a three way diff during a patching apply
+	// resource for use in a three-way diff during a patching apply
 	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 
 	// AnnotationLastAppliedTime indicates the last applied time

@@ -99,10 +99,28 @@ jobs:
             docker.io/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository }}/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
 
-      - name: Build & Pushing vela runtime rollout for ACR
+      - name: Build & Pushing vela CLI for ACR
         run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }} .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.cli .
+          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
+      - uses: docker/build-push-action@v2
+        name: Build & Pushing CLI for Dockerhub and GHCR
+        with:
+          context: .
+          file: Dockerfile.cli
+          labels: |-
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
+            VERSION=${{ steps.get_version.outputs.VERSION }}
+            GOPROXY=https://proxy.golang.org
+          tags: |-
+            docker.io/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}/vela-cli:${{ steps.get_version.outputs.VERSION }}
+
       - uses: docker/build-push-action@v2
         name: Build & Pushing runtime rollout for Dockerhub and GHCR
         with:
@@ -120,6 +138,7 @@ jobs:
           tags: |-
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
@@ -127,7 +146,6 @@ jobs:
       HELM_CHART: charts/vela-core
       MINIMAL_HELM_CHART: charts/vela-minimal
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
-      OAM_RUNTIME_HELM_CHART: charts/oam-runtime
       VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
       LOCAL_OSS_DIRECTORY: .oss/
     runs-on: ubuntu-20.04
@@ -178,13 +196,11 @@ jobs:
           sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $MINIMAL_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $OAM_RUNTIME_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $VELA_ROLLOUT_HELM_CHART/values.yaml
           chart_smever=${chart_version#"v"}
           sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $MINIMAL_HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $OAM_RUNTIME_HELM_CHART/Chart.yaml
           sed -i "s/0.1.0/$chart_smever/g" $VELA_ROLLOUT_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
@@ -195,7 +211,6 @@ jobs:
       - name: add artifacthub stuff to the repo
         run: |
           rsync $HELM_CHART/README.md $LEGACY_HELM_CHART/README.md
-          rsync $HELM_CHART/README.md $OAM_RUNTIME_HELM_CHART/README.md
           rsync $HELM_CHART/README.md $VELA_ROLLOUT_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
@@ -204,7 +219,6 @@ jobs:
           helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $MINIMAL_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $OAM_RUNTIME_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm package $VELA_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud

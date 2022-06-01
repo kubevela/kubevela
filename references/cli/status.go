@@ -124,7 +124,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				f := Filter{
 					Component: component,
 				}
-				return printAppEndpoints(ctx, newClient, appName, namespace, f, c)
+				return printAppEndpoints(ctx, appName, namespace, f, c)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -163,7 +163,15 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
-func printAppEndpoints(ctx context.Context, client client.Client, appName string, namespace string, f Filter, velaC common.Args) error {
+func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args) error {
+	config, err := velaC.GetConfig()
+	if err != nil {
+		return err
+	}
+	client, err := multicluster.Initialize(config, false)
+	if err != nil {
+		return err
+	}
 	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
 	if err != nil {
 		return err
@@ -390,12 +398,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		return err
 	}
 
-	svc, err := multicluster.GetClusterGatewayService(context.Background(), cli)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
-	}
-	multicluster.ClusterGatewaySecretNamespace = svc.Namespace
-	clusterMapper, err := multicluster.NewClusterMapper(ctx, cli)
+	clusterNameMapper, err := multicluster.NewClusterNameMapper(context.Background(), cli)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get cluster mapper")
 	}
@@ -410,7 +413,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
 		maxWidth = pointer.Int(w)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterMapper: clusterMapper}
+	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
 		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)

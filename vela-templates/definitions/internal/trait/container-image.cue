@@ -1,7 +1,9 @@
 "container-image": {
 	type: "trait"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Set the image of the container."
 	attributes: {
 		podDisruptive: true
@@ -65,7 +67,7 @@ template: {
 		}
 	}
 
-	parameter: #PatchParams | close({
+	parameter: *#PatchParams | close({
 		// +usage=Specify the container image for multiple containers
 		containers: [...#PatchParams]
 	})

@@ -34,8 +34,8 @@ import (
 
 	"cuelang.org/go/cue"
 	cueyaml "cuelang.org/go/encoding/yaml"
+	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
-	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
@@ -61,6 +61,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -1419,15 +1420,31 @@ func checkSemVer(actual string, require string) (bool, error) {
 	}
 	smeVer := strings.TrimPrefix(actual, "v")
 	l := strings.ReplaceAll(require, "v", " ")
-	constraint, err := version.NewConstraint(l)
+	constraint, err := semver.NewConstraint(l)
 	if err != nil {
+		log.Logger.Errorf("fail to new constraint: %s", err.Error())
 		return false, err
 	}
-	v, err := version.NewVersion(smeVer)
+	v, err := semver.NewVersion(smeVer)
 	if err != nil {
+		log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
 		return false, err
 	}
-	return constraint.Check(v), nil
+	if constraint.Check(v) {
+		return true, nil
+	}
+	if strings.Contains(actual, "-") && !strings.Contains(require, "-") {
+		smeVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v")
+		v, err := semver.NewVersion(smeVer)
+		if err != nil {
+			log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
+			return false, err
+		}
+		if constraint.Check(v) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string, error) {

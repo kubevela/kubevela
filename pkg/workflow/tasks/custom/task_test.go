@@ -36,7 +36,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/hooks"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -270,6 +269,7 @@ close({
 			r.Equal(operation.Waiting, false)
 			r.Equal(operation.FailedAfterRetries, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Reason, StatusReasonFailedAfterRetries)
 		default:
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
@@ -438,14 +438,14 @@ func TestPendingInputCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), true)
+	r.Equal(run.Pending(wfCtx, nil), true)
 	score, err := value.NewValue(`
 100
 `, nil, "")
 	r.NoError(err)
 	err = wfCtx.SetVar(score, "score")
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), false)
+	r.Equal(run.Pending(wfCtx, nil), false)
 }
 
 func TestPendingDependsOnCheck(t *testing.T) {
@@ -473,12 +473,49 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), true)
-	ready, err := value.NewValue("true", nil, "")
+	r.Equal(run.Pending(wfCtx, nil), true)
+	ss := map[string]common.StepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(run.Pending(wfCtx, ss), false)
+}
+
+func TestSkip(t *testing.T) {
+	r := require.New(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name: "skip",
+		Type: "ok",
+	}
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
-	err = wfCtx.SetVar(ready, hooks.ReadyComponent, "depend")
+	runner, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx), false)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
+	r.Equal(skip, true)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	r.NoError(err)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
+	r.Equal(skip, false)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {

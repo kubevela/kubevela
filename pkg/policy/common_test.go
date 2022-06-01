@@ -44,10 +44,10 @@ func TestParseGarbageCollectPolicy(t *testing.T) {
 	policySpec := &v1alpha1.GarbageCollectPolicySpec{
 		KeepLegacyResource: false,
 		Rules: []v1alpha1.GarbageCollectPolicyRule{{
-			Selector: v1alpha1.GarbageCollectPolicyRuleSelector{TraitTypes: []string{"a"}},
+			Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"a"}},
 			Strategy: v1alpha1.GarbageCollectStrategyOnAppUpdate,
 		}, {
-			Selector: v1alpha1.GarbageCollectPolicyRuleSelector{TraitTypes: []string{"b"}},
+			Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"b"}},
 			Strategy: v1alpha1.GarbageCollectStrategyNever,
 		}},
 	}

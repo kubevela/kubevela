@@ -8,7 +8,10 @@
 			cluster?:          string
 			clusterNamespace?: string
 			components?: [...string]
+			kind?:       string
+			apiVersion?: string
 		}
+		withStatus?: bool
 	}
 	list?: [...{
 		cluster:   string
@@ -29,6 +32,8 @@
 			cluster?:          string
 			clusterNamespace?: string
 			components?: [...string]
+			kind?:       string
+			apiVersion?: string
 		}
 	}
 	list?: [...{
@@ -115,6 +120,37 @@
 		ref: {...}
 		cluster?:   string
 		component?: string
+		...
+	}]
+	...
+}
+
+#GetApplicationTree: {
+	#do:       "getApplicationTree"
+	#provider: "query"
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+		}
+	}
+	list?: [...{
+		name:             string
+		namespace?:       string
+		cluster?:         string
+		component?:       string
+		trait?:           string
+		kind?:            string
+		uid?:             string
+		apiVersion?:      string
+		resourceVersion?: string
+		publishVersion?:  string
+		deployVersion?:   string
+		revision?:        string
+		latest?:          bool
 		...
 	}]
 	...

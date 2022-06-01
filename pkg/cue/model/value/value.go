@@ -317,7 +317,7 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 func (val *Value) LookupByScript(script string) (*Value, error) {
 	var outputKey = "zz_output__"
 	script = strings.TrimSpace(script)
-	scriptFile, err := parser.ParseFile("-", script)
+	scriptFile, err := parser.ParseFile("-", script, parser.ParseComments)
 	if err != nil {
 		return nil, errors.WithMessage(err, "parse script")
 	}
@@ -327,7 +327,7 @@ func (val *Value) LookupByScript(script string) (*Value, error) {
 		return nil, err
 	}
 
-	rawFile, err := parser.ParseFile("-", raw)
+	rawFile, err := parser.ParseFile("-", raw, parser.ParseComments)
 	if err != nil {
 		return nil, errors.WithMessage(err, "parse script")
 	}

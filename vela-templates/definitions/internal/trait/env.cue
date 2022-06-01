@@ -55,7 +55,8 @@ template: {
 						}
 					}
 				}] + [ for k, v in _params.env if _delKeys[k] == _|_ && (_params.replace || _baseEnvMap[k] == _|_) {
-					v
+					name:  k
+					value: v
 				}]
 			}
 		}
@@ -90,7 +91,7 @@ template: {
 		}
 	}
 
-	parameter: #PatchParams | close({
+	parameter: *#PatchParams | close({
 		// +usage=Specify the environment variables for multiple containers
 		containers: [...#PatchParams]
 	})

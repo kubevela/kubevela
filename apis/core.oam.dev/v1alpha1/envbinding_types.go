@@ -117,6 +117,9 @@ type PlacementDecision struct {
 
 // String encode placement decision
 func (in PlacementDecision) String() string {
+	if in.Namespace == "" {
+		return in.Cluster
+	}
 	return in.Cluster + "/" + in.Namespace
 }
 

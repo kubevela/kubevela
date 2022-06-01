@@ -36,7 +36,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
-	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
@@ -46,13 +45,11 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	_ "github.com/oam-dev/kubevela/pkg/features"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -205,17 +202,10 @@ func main() {
 	restConfig.QPS = float32(qps)
 	restConfig.Burst = burst
 	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
-	restConfig.Impersonate.UserName = types.VelaCoreName
-	if sub := pkgutils.GetServiceAccountSubjectFromConfig(restConfig); sub != "" {
-		restConfig.Impersonate.UserName = sub
-	}
-	restConfig.Impersonate.Groups = []string{apicommon.Group}
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", restConfig.UserAgent,
 		"QPS", restConfig.QPS,
 		"Burst", restConfig.Burst,
-		"Impersonate-User", restConfig.Impersonate.UserName,
-		"Impersonate-Group", strings.Join(restConfig.Impersonate.Groups, ","),
 	)
 
 	// wrapper the round tripper by multi cluster rewriter

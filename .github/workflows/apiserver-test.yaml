@@ -99,6 +99,9 @@ jobs:
           kind create cluster --image kindest/node:${{ matrix.k8s-version }}
           kubectl version
           kubectl cluster-info
+      
+      - name: Run api server unit test
+        run: make unit-test-apiserver
 
       - name: Load Image to kind cluster
         run: make kind-load
@@ -113,9 +116,6 @@ jobs:
           kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
           kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
           kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
-
-      - name: Run api server unit test
-        run: make unit-test-apiserver
 
       - name: Run api server e2e test
         run: |

@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -57,6 +58,9 @@ func (s *ServiceEndpoint) String() string {
 	if (protocol == HTTPS && s.Endpoint.Port == 443) || (protocol == HTTP && s.Endpoint.Port == 80) {
 		return fmt.Sprintf("%s://%s%s", protocol, s.Endpoint.Host, path)
 	}
+	if protocol == "tcp" {
+		return fmt.Sprintf("%s:%d%s", s.Endpoint.Host, s.Endpoint.Port, path)
+	}
 	return fmt.Sprintf("%s://%s:%d%s", protocol, s.Endpoint.Host, s.Endpoint.Port, path)
 }
 
@@ -87,19 +91,35 @@ type Endpoint struct {
 
 // AppliedResource resource metadata
 type AppliedResource struct {
-	Cluster         string    `json:"cluster"`
-	Component       string    `json:"component"`
-	Trait           string    `json:"trait"`
-	Kind            string    `json:"kind"`
-	Namespace       string    `json:"namespace,omitempty"`
-	Name            string    `json:"name,omitempty"`
-	UID             types.UID `json:"uid,omitempty"`
-	APIVersion      string    `json:"apiVersion,omitempty"`
-	ResourceVersion string    `json:"resourceVersion,omitempty"`
-	DeployVersion   string    `json:"deployVersion,omitempty"`
-	PublishVersion  string    `json:"publishVersion,omitempty"`
-	Revision        string    `json:"revision,omitempty"`
-	Latest          bool      `json:"latest"`
+	Cluster         string            `json:"cluster"`
+	Component       string            `json:"component"`
+	Trait           string            `json:"trait"`
+	Kind            string            `json:"kind"`
+	Namespace       string            `json:"namespace,omitempty"`
+	Name            string            `json:"name,omitempty"`
+	UID             types.UID         `json:"uid,omitempty"`
+	APIVersion      string            `json:"apiVersion,omitempty"`
+	ResourceVersion string            `json:"resourceVersion,omitempty"`
+	DeployVersion   string            `json:"deployVersion,omitempty"`
+	PublishVersion  string            `json:"publishVersion,omitempty"`
+	Revision        string            `json:"revision,omitempty"`
+	Latest          bool              `json:"latest"`
+	ResourceTree    *ResourceTreeNode `json:"resourceTree,omitempty"`
+}
+
+// ResourceTreeNode is the tree node of every resource
+type ResourceTreeNode struct {
+	Cluster           string                 `json:"cluster"`
+	APIVersion        string                 `json:"apiVersion,omitempty"`
+	Kind              string                 `json:"kind"`
+	Namespace         string                 `json:"namespace,omitempty"`
+	Name              string                 `json:"name,omitempty"`
+	UID               types.UID              `json:"uid,omitempty"`
+	HealthStatus      HealthStatus           `json:"healthStatus,omitempty"`
+	DeletionTimestamp time.Time              `json:"deletionTimestamp,omitempty"`
+	CreationTimestamp time.Time              `json:"creationTimestamp,omitempty"`
+	LeafNodes         []*ResourceTreeNode    `json:"leafNodes,omitempty"`
+	AdditionalInfo    map[string]interface{} `json:"additionalInfo,omitempty"`
 }
 
 // GroupVersionKind returns the stored group, version, and kind of an object

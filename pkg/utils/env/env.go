@@ -26,6 +26,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -69,7 +70,18 @@ func CreateEnv(envArgs *types.EnvMeta) error {
 			return err
 		}
 	}
-	err = utils.CreateOrUpdateNamespace(context.TODO(), c, envArgs.Namespace, utils.MergeOverrideLabels(map[string]string{
+	ctx := context.TODO()
+	namespace, err := utils.GetNamespace(ctx, c, envArgs.Namespace)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if namespace != nil {
+		existedEnv := namespace.GetLabels()[oam.LabelNamespaceOfEnvName]
+		if existedEnv != "" && existedEnv != envArgs.Name {
+			return fmt.Errorf("the namespace %s was already assigned to env %s", envArgs.Namespace, existedEnv)
+		}
+	}
+	err = utils.CreateOrUpdateNamespace(ctx, c, envArgs.Namespace, utils.MergeOverrideLabels(map[string]string{
 		oam.LabelControlPlaneNamespaceUsage: oam.VelaNamespaceUsageEnv,
 	}), utils.MergeNoConflictLabels(map[string]string{
 		oam.LabelNamespaceOfEnvName: envArgs.Name,

@@ -115,3 +115,42 @@ func TestConvert2OssItem(t *testing.T) {
 	assert.Equal(t, expectItemCase, addonMetas)
 
 }
+
+func TestSafeCopy(t *testing.T) {
+	var git *GitAddonSource
+	sgit := git.SafeCopy()
+	assert.Nil(t, sgit)
+	git = &GitAddonSource{URL: "http://github.com/kubevela", Path: "addons", Token: "123456"}
+	sgit = git.SafeCopy()
+	assert.Empty(t, sgit.Token)
+	assert.Equal(t, "http://github.com/kubevela", sgit.URL)
+	assert.Equal(t, "addons", sgit.Path)
+
+	var gitee *GiteeAddonSource
+	sgitee := gitee.SafeCopy()
+	assert.Nil(t, sgitee)
+	gitee = &GiteeAddonSource{URL: "http://gitee.com/kubevela", Path: "addons", Token: "123456"}
+	sgitee = gitee.SafeCopy()
+	assert.Empty(t, sgitee.Token)
+	assert.Equal(t, "http://gitee.com/kubevela", sgitee.URL)
+	assert.Equal(t, "addons", sgitee.Path)
+
+	var gitlab *GitlabAddonSource
+	sgitlab := gitlab.SafeCopy()
+	assert.Nil(t, sgitlab)
+	gitlab = &GitlabAddonSource{URL: "http://gitlab.com/kubevela", Repo: "vela", Path: "addons", Token: "123456"}
+	sgitlab = gitlab.SafeCopy()
+	assert.Empty(t, sgitlab.Token)
+	assert.Equal(t, "http://gitlab.com/kubevela", sgitlab.URL)
+	assert.Equal(t, "addons", sgitlab.Path)
+	assert.Equal(t, "vela", sgitlab.Repo)
+
+	var helm *HelmSource
+	shelm := helm.SafeCopy()
+	assert.Nil(t, shelm)
+	helm = &HelmSource{URL: "https://hub.vela.com/chartrepo/addons", Username: "user123", Password: "pass456"}
+	shelm = helm.SafeCopy()
+	assert.Empty(t, shelm.Username)
+	assert.Empty(t, shelm.Password)
+	assert.Equal(t, "https://hub.vela.com/chartrepo/addons", shelm.URL)
+}

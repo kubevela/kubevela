@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/rest/apis/v1"
+	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 )
 
 var _ = Describe("Test system info  rest api", func() {

@@ -3802,7 +3802,7 @@
 				"tags": [
 					"addon"
 				],
-				"summary": "list all addons",
+				"summary": "list all enabled addons",
 				"operationId": "list",
 				"parameters": [
 					{
@@ -3910,7 +3910,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application ",
+						"description": "identifier of the environment",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -3950,7 +3950,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "identifier of the application ",
+						"description": "identifier of the environment",
 						"name": "envName",
 						"in": "path",
 						"required": true
@@ -4013,7 +4013,7 @@
 				"tags": [
 					"rbac"
 				],
-				"summary": "list all project level perm policies",
+				"summary": "list all platform level perm policies",
 				"operationId": "listPlatformPermissions",
 				"responses": {
 					"200": {
@@ -4023,6 +4023,73 @@
 							"items": {
 								"$ref": "#/definitions/v1.PermissionBase"
 							}
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "create the platform perm policy",
+				"operationId": "createPlatformPermission",
+				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.CreatePermissionRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.PermissionBase"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/permissions/{permissionName}": {
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"rbac"
+				],
+				"summary": "delete a platform perm policy",
+				"operationId": "deletePlatformPermission",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the permission",
+						"name": "permissionName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.EmptyResponse"
 						}
 					}
 				}
@@ -4261,6 +4328,85 @@
 						"type": "string",
 						"description": "identifier of the project",
 						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/v1.PermissionBase"
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "create a project level perm policy",
+				"operationId": "createProjectPermission",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/v1.PermissionBase"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/projects/{projectName}/permissions/{permissionName}": {
+			"delete": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "delete a project level perm policy",
+				"operationId": "deleteProjectPermission",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "identifier of the permission",
+						"name": "permissionName",
 						"in": "path",
 						"required": true
 					}
@@ -4644,6 +4790,55 @@
 				}
 			}
 		},
+		"/api/v1/projects/{projectName}/validate_image": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"project"
+				],
+				"summary": "validate an image in a project",
+				"operationId": "validateImage",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "image name",
+						"name": "image",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "identifier of the project",
+						"name": "projectName",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/*v1.ImageResponse"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
 		"/api/v1/query": {
 			"get": {
 				"consumes": [
@@ -4942,6 +5137,13 @@
 				"operationId": "updatePlatformRole",
 				"parameters": [
 					{
+						"type": "string",
+						"description": "identifier of the role",
+						"name": "roleName",
+						"in": "path",
+						"required": true
+					},
+					{
 						"name": "body",
 						"in": "body",
 						"required": true,
@@ -4973,6 +5175,15 @@
 				],
 				"summary": "update platform level role",
 				"operationId": "deletePlatformRole",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "identifier of the role",
+						"name": "roleName",
+						"in": "path",
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -5683,6 +5894,7 @@
 		"*v1.ApplicationTriggerBase": {},
 		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
+		"*v1.ImageResponse": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -5752,7 +5964,13 @@
 		},
 		"addon.HelmSource": {
 			"properties": {
+				"password": {
+					"type": "string"
+				},
 				"url": {
+					"type": "string"
+				},
+				"username": {
 					"type": "string"
 				}
 			}
@@ -6400,20 +6618,34 @@
 				}
 			}
 		},
-		"common.SubStepsStatus": {
+		"common.StepStatus": {
+			"required": [
+				"id"
+			],
 			"properties": {
-				"mode": {
+				"firstExecuteTime": {
 					"type": "string"
 				},
-				"stepIndex": {
-					"type": "integer",
-					"format": "int32"
+				"id": {
+					"type": "string"
 				},
-				"steps": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/common.WorkflowSubStepStatus"
-					}
+				"lastExecuteTime": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
 				}
 			}
 		},
@@ -6515,7 +6747,45 @@
 					"type": "string"
 				},
 				"subSteps": {
-					"$ref": "#/definitions/common.SubStepsStatus"
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowSubStepStatus"
+					}
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"common.WorkflowSubStep": {
+			"required": [
+				"name",
+				"type"
+			],
+			"properties": {
+				"dependsOn": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"inputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.inputItem"
+					}
+				},
+				"name": {
+					"type": "string"
+				},
+				"outputs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.outputItem"
+					}
+				},
+				"properties": {
+					"type": "string"
 				},
 				"type": {
 					"type": "string"
@@ -6527,7 +6797,13 @@
 				"id"
 			],
 			"properties": {
+				"firstExecuteTime": {
+					"type": "string"
+				},
 				"id": {
+					"type": "string"
+				},
+				"lastExecuteTime": {
 					"type": "string"
 				},
 				"message": {
@@ -6722,6 +6998,9 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"workloadType": {
+					"$ref": "#/definitions/common.WorkloadTypeDescriptor"
 				}
 			}
 		},
@@ -7390,8 +7669,8 @@
 		},
 		"v1.AddonStatusResponse": {
 			"required": [
-				"name",
 				"phase",
+				"name",
 				"args"
 			],
 			"properties": {
@@ -7547,11 +7826,11 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"version",
 				"status",
+				"note",
 				"triggerType",
 				"createTime",
-				"note",
+				"version",
 				"envName"
 			],
 			"properties": {
@@ -8057,6 +8336,9 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"workloadType": {
+					"$ref": "#/definitions/common.WorkloadTypeDescriptor"
 				}
 			}
 		},
@@ -8518,6 +8800,38 @@
 				}
 			}
 		},
+		"v1.CreatePermissionRequest": {
+			"required": [
+				"name",
+				"alias",
+				"resources",
+				"actions",
+				"effect"
+			],
+			"properties": {
+				"actions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"alias": {
+					"type": "string"
+				},
+				"effect": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"resources": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"v1.CreatePolicyRequest": {
 			"required": [
 				"name",
@@ -8714,11 +9028,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"icon",
-				"description",
 				"invisible",
 				"name",
+				"description",
 				"version",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -8799,22 +9113,18 @@
 		"v1.DetailApplicationResponse": {
 			"required": [
 				"name",
-				"description",
-				"alias",
 				"project",
+				"description",
+				"icon",
+				"alias",
 				"createTime",
 				"updateTime",
-				"icon",
 				"policies",
 				"envBindings",
-				"applicationType",
 				"resourceInfo"
 			],
 			"properties": {
 				"alias": {
-					"type": "string"
-				},
-				"applicationType": {
 					"type": "string"
 				},
 				"createTime": {
@@ -8866,19 +9176,19 @@
 		"v1.DetailClusterResponse": {
 			"required": [
 				"name",
-				"apiServerURL",
-				"labels",
-				"status",
-				"provider",
-				"kubeConfigSecret",
-				"kubeConfig",
-				"updateTime",
-				"createTime",
-				"alias",
 				"description",
+				"createTime",
 				"icon",
+				"status",
 				"reason",
+				"provider",
+				"apiServerURL",
+				"alias",
 				"dashboardURL",
+				"updateTime",
+				"labels",
+				"kubeConfig",
+				"kubeConfigSecret",
 				"resourceInfo"
 			],
 			"properties": {
@@ -8937,13 +9247,13 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"creator",
-				"name",
-				"main",
-				"updateTime",
 				"appPrimaryKey",
-				"createTime",
 				"alias",
 				"type",
+				"main",
+				"createTime",
+				"updateTime",
+				"name",
 				"definition"
 			],
 			"properties": {
@@ -9023,17 +9333,20 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"workloadType": {
+					"$ref": "#/definitions/common.WorkloadTypeDescriptor"
 				}
 			}
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
 				"alias",
-				"icon",
+				"description",
 				"status",
 				"labels",
 				"name",
-				"description",
+				"icon",
 				"schema",
 				"uiSchema"
 			],
@@ -9087,13 +9400,14 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"creator",
-				"properties",
 				"createTime",
 				"updateTime",
+				"envName",
 				"name",
 				"type",
-				"description"
+				"description",
+				"creator",
+				"properties"
 			],
 			"properties": {
 				"createTime": {
@@ -9104,6 +9418,9 @@
 					"type": "string"
 				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"name": {
@@ -9123,17 +9440,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"reason",
-				"deployUser",
-				"triggerType",
 				"createTime",
-				"note",
+				"updateTime",
+				"reason",
 				"appPrimaryKey",
 				"version",
 				"status",
-				"workflowName",
 				"envName",
-				"updateTime"
+				"deployUser",
+				"note",
+				"triggerType",
+				"workflowName"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9188,9 +9505,9 @@
 		"v1.DetailTargetResponse": {
 			"required": [
 				"createTime",
+				"updateTime",
 				"project",
-				"name",
-				"updateTime"
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -9230,11 +9547,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"email",
 				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
+				"email",
 				"projects",
 				"roles"
 			],
@@ -9275,12 +9592,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"namespace",
-				"workflowName",
-				"workflowAlias",
 				"applicationRevision",
 				"status",
 				"name",
+				"namespace",
+				"workflowName",
+				"workflowAlias",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -9332,14 +9649,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"name",
 				"alias",
-				"description",
 				"enable",
-				"envName",
-				"default",
 				"createTime",
-				"updateTime"
+				"name",
+				"default",
+				"envName",
+				"updateTime",
+				"description"
 			],
 			"properties": {
 				"alias": {
@@ -9534,8 +9851,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"name",
-				"alias"
+				"alias",
+				"name"
 			],
 			"properties": {
 				"alias": {
@@ -9918,11 +10235,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
-				"email",
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
+				"email",
+				"disabled",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -10068,7 +10385,8 @@
 				"creator",
 				"properties",
 				"createTime",
-				"updateTime"
+				"updateTime",
+				"envName"
 			],
 			"properties": {
 				"createTime": {
@@ -10079,6 +10397,9 @@
 					"type": "string"
 				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"name": {
@@ -10923,6 +11244,12 @@
 				"properties": {
 					"type": "string"
 				},
+				"subSteps": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/common.WorkflowSubStep"
+					}
+				},
 				"type": {
 					"type": "string"
 				}
@@ -10935,22 +11262,6 @@
 				},
 				"schematic": {
 					"$ref": "#/definitions/common.Schematic"
-				}
-			}
-		},
-		"v1beta2.BaseConfigurationSpec": {
-			"properties": {
-				"customRegion": {
-					"type": "string"
-				},
-				"deleteResource": {
-					"type": "boolean"
-				},
-				"providerRef": {
-					"$ref": "#/definitions/types.Reference"
-				},
-				"writeConnectionSecretToRef": {
-					"$ref": "#/definitions/types.SecretReference"
 				}
 			}
 		}

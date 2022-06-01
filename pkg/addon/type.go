@@ -20,7 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/rest/utils"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 )
 
 // UIData contains all information represent an addon for UI
@@ -68,6 +68,7 @@ type WholeAddonPackage struct {
 	// Detail is README.md in an addon
 	Detail            string   `json:"detail,omitempty"`
 	AvailableVersions []string `json:"availableVersions"`
+	RegistryName      string   `json:"registryName"`
 }
 
 // Meta defines the format for a single addon

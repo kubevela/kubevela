@@ -24,21 +24,23 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // MutatingHandler adding user info to application annotations
 type MutatingHandler struct {
-	Decoder *admission.Decoder
+	skipUsers []string
+	Decoder   *admission.Decoder
 }
 
 var _ admission.Handler = &MutatingHandler{}
@@ -49,7 +51,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Patched("")
 	}
 
-	if slices.Contains(req.UserInfo.Groups, common.Group) {
+	if slices.Contains(h.skipUsers, req.UserInfo.Username) {
 		return admission.Patched("")
 	}
 
@@ -61,6 +63,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationApplicationServiceAccountName) {
 		return admission.Errored(http.StatusBadRequest, errors.New("service-account annotation is not permitted when authentication enabled"))
 	}
+	klog.Infof("[ApplicationMutatingHandler] Setting UserInfo into Application, UserInfo: %v, Application: %s/%s", req.UserInfo, app.GetNamespace(), app.GetName())
 	auth.SetUserInfoInAnnotation(&app.ObjectMeta, req.UserInfo)
 
 	bs, err := json.Marshal(app)
@@ -81,5 +84,10 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &MutatingHandler{}})
+	handler := &MutatingHandler{}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		klog.Infof("[ApplicationMutatingHandler] add skip user %s", userInfo.Username)
+		handler.skipUsers = []string{userInfo.Username}
+	}
+	server.Register("/mutating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
 }

@@ -27,6 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/repo"
+
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/stretchr/testify/assert"
@@ -62,6 +65,13 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonsInstallPackage.YAMLTemplates)
 	assert.NotEmpty(t, addonsInstallPackage.DefSchemas)
 
+	addonWholePackage, err := r.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, addonWholePackage)
+	assert.NotEmpty(t, addonWholePackage.YAMLTemplates)
+	assert.NotEmpty(t, addonWholePackage.DefSchemas)
+	assert.NotEmpty(t, addonWholePackage.RegistryName)
+
 	ar := BuildVersionedRegistry("auth-helm-repo", "http://127.0.0.1:18083/authReg", &common.HTTPOption{Username: "hello", Password: "hello"})
 	addons, err = ar.ListAddon()
 	assert.NoError(t, err)
@@ -80,6 +90,42 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonsInstallPackage.YAMLTemplates)
 	assert.NotEmpty(t, addonsInstallPackage.DefSchemas)
 
+	addonWholePackage, err = ar.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, addonWholePackage)
+	assert.NotEmpty(t, addonWholePackage.YAMLTemplates)
+	assert.NotEmpty(t, addonWholePackage.DefSchemas)
+	assert.NotEmpty(t, addonWholePackage.RegistryName)
+
+	testListUIData(t)
+
+}
+
+func TestChooseAddonVersion(t *testing.T) {
+	versions := []*repo.ChartVersion{
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.4.0-beta1",
+			},
+		},
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.3.6",
+			},
+		},
+		{
+			Metadata: &chart.Metadata{
+				Version: "v1.2.0",
+			},
+		},
+	}
+	targetVersion, availableVersion := chooseVersion("v1.2.0", versions)
+	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
+	assert.Equal(t, targetVersion.Version, "v1.2.0")
+
+	targetVersion, availableVersion = chooseVersion("", versions)
+	assert.Equal(t, availableVersion, []string{"v1.4.0-beta1", "v1.3.6", "v1.2.0"})
+	assert.Equal(t, targetVersion.Version, "v1.3.6")
 }
 
 var versionedHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
