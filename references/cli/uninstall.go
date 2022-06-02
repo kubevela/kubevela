@@ -209,6 +209,21 @@ func forceDisableAddon(ctx context.Context, kubeClient client.Client, config *re
 		if err := pkgaddon.DisableAddon(ctx, kubeClient, "fluxcd", config, true); err != nil {
 			return err
 		}
+		timeConsumed = time.Now()
+		for {
+			if time.Now().After(timeConsumed.Add(2 * time.Minute)) {
+				return errors.New("timeout disable fluxcd addon, please disable the addon manually")
+			}
+			addons, err := checkInstallAddon(kubeClient)
+			if err != nil {
+				return err
+			}
+			if len(addons) == 0 {
+				break
+			}
+			fmt.Println("Waiting delete the fluxcd addon......")
+			time.Sleep(5 * time.Second)
+		}
 	}
 	return nil
 }
