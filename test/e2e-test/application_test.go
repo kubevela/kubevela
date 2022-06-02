@@ -201,11 +201,11 @@ var _ = Describe("Application Normal tests", func() {
 					return fmt.Errorf("expect replicas %v != real %v", replicas, workload.Status.ReadyReplicas)
 				}
 				if workload.Spec.Template.Spec.Containers[0].Image != image {
-					return fmt.Errorf("expect replicas %v != real %v", image, workload.Spec.Template.Spec.Containers[0].Image)
+					return fmt.Errorf("expect image %v != real %v", image, workload.Spec.Template.Spec.Containers[0].Image)
 				}
 				return nil
 			},
-			time.Second*60, time.Millisecond*500).Should(BeNil())
+			time.Second*120, time.Millisecond*500).Should(BeNil())
 	}
 
 	BeforeEach(func() {
@@ -225,22 +225,22 @@ var _ = Describe("Application Normal tests", func() {
 	It("Test app created normally", func() {
 		applyApp("app1.yaml")
 		By("Apply the application rollout go directly to the target")
-		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
+		verifyWorkloadRunningExpected("myweb", 1, "crccheck/hello-world")
 
 		By("Update app with trait")
 		updateApp("app2.yaml")
 		By("Apply the application rollout go directly to the target")
-		verifyWorkloadRunningExpected("myweb", 2, "stefanprodan/podinfo:4.0.3")
+		verifyWorkloadRunningExpected("myweb", 2, "crccheck/hello-world")
 
 		By("Update app with trait updated")
 		updateApp("app3.yaml")
 		By("Apply the application rollout go directly to the target")
-		verifyWorkloadRunningExpected("myweb", 3, "stefanprodan/podinfo:4.0.3")
+		verifyWorkloadRunningExpected("myweb", 3, "crccheck/hello-world")
 
 		By("Update app with trait and workload image updated")
 		updateApp("app4.yaml")
 		By("Apply the application rollout go directly to the target")
-		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
+		verifyWorkloadRunningExpected("myweb", 1, "hello-world")
 	})
 
 	It("Test app have component with multiple same type traits", func() {

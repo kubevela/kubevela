@@ -255,7 +255,7 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
-			}, time.Minute).Should(Succeed())
+			}, 4*time.Minute, time.Second).Should(Succeed())
 			Expect(hubDeployName).Should(Equal("data-worker"))
 			// delete application
 			By("delete application")
@@ -455,7 +455,7 @@ var _ = Describe("Test multicluster scenario", func() {
 					Components: []common.ApplicationComponent{{
 						Name:       "test-busybox",
 						Type:       "webservice",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"busybox","cmd":["sleep","86400"]}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"crccheck/hello-world"}`)},
 					}},
 					Policies: []v1beta1.AppPolicy{{
 						Name:       "topology-local",

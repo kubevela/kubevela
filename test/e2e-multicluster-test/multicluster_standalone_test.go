@@ -138,7 +138,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(k8sClient.Status().Update(hubCtx, _app)).Should(Succeed())
 		}, 15*time.Second).Should(Succeed())
 
-		// test application can run without external policies and workflow since they are recorded in the application revision
+		By("Test application can run without external policies and workflow since they are recorded in the application revision")
 		_app := &v1beta1.Application{}
 		Eventually(func(g Gomega) {
 			deploys := &v1.DeploymentList{}
@@ -149,14 +149,13 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(_app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
 
-		// update application without updating publishVersion
+		By("Update application without updating publishVersion. App should not re-run workflow")
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
 			_app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(`{"clusters":["local"]}`)}
 			g.Expect(k8sClient.Update(hubCtx, _app)).Should(Succeed())
 		}, 10*time.Second).Should(Succeed())
 
-		// application should no re-run workflow
 		time.Sleep(10 * time.Second)
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
@@ -166,7 +165,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(len(apprevs.Items)).Should(Equal(1))
 		}, 10*time.Second).Should(Succeed())
 
-		// update application with publishVersion
+		By("Update application with publishVersion")
 		applyFile("policy.yaml")
 		applyFile("workflow.yaml")
 		Eventually(func(g Gomega) {
@@ -184,7 +183,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 			g.Expect(len(deploys.Items)).Should(Equal(1))
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(3)))
-		}, 30*time.Second).Should(Succeed())
+		}, 2*time.Minute, time.Second).Should(Succeed())
 	})
 
 	It("Test rollback application with publish version", func() {
@@ -198,7 +197,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 60*time.Second).Should(Succeed())
 
 		By("Update Application to first failed version")
 		Eventually(func(g Gomega) {
@@ -206,7 +205,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			app.Annotations[oam.AnnotationPublishVersion] = "alpha2"
 			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"image":"busybox:bad"}`)}
 			g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
-		}, 30*time.Second).Should(Succeed())
+		}, 60*time.Second).Should(Succeed())
 
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, app)).Should(Succeed())

@@ -7,7 +7,7 @@ spec:
     - name: myworker
       type: worker
       properties:
-        image: nginx
+        image: crccheck/hello-world
       traits:
         - type: config
           properties:

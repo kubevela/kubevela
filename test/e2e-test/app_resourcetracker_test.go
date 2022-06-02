@@ -174,7 +174,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "worker",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "crccheck/hello-world"}`)},
 						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cluster-scope-trait",
@@ -211,7 +211,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "worker",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image": "crccheck/hello-world"}`)},
 						Traits: []common.ApplicationTrait{
 							// remove the cluster-scoped trait and keep the
 							// cross-namespaced trait.
@@ -244,7 +244,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 		Eventually(func() error {
 			RequestReconcileNow(ctx, app)
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
-		}, 20*time.Second, 2*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
+		}, 120*time.Second, 1*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
 	})
 
 	It("Test application have cross-namespace workload", func() {
@@ -987,7 +987,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"crccheck/hello-world"}`)},
 						Traits: []common.ApplicationTrait{
 							{
 								Type:       "cross-scaler",
@@ -1033,8 +1033,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			trait := mts.Items[0]
 			deploys := new(appsv1.DeploymentList)
 			err = k8sClient.List(ctx, deploys, opts...)
-			if err != nil || len(deploys.Items) != 1 {
-				return fmt.Errorf("error to list deploy")
+			if err != nil {
+				return fmt.Errorf("error to list deploy: %v", err)
+			}
+			if len(deploys.Items) != 1 {
+				return fmt.Errorf("more than one deploy, actual %d", len(deploys.Items))
 			}
 			deploy := deploys.Items[0]
 			for _, resource := range resourceTracker.Spec.ManagedResources {
@@ -1084,8 +1087,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			}
 			deploys := new(appsv1.DeploymentList)
 			err = k8sClient.List(ctx, deploys, opts...)
-			if err != nil || len(deploys.Items) != 1 {
-				return fmt.Errorf("error to list deploy")
+			if err != nil {
+				return fmt.Errorf("error to list deploy: %v", err)
+			}
+			if len(deploys.Items) != 1 {
+				return fmt.Errorf("more than one deploy, actual %d", len(deploys.Items))
 			}
 			deploy := deploys.Items[0]
 			if resourceTracker.Spec.ManagedResources[0].Name != deploy.Name {
@@ -1136,7 +1142,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 					{
 						Name:       componentName,
 						Type:       "cross-worker",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"crccheck/hello-world"}`)},
 					},
 				},
 			},

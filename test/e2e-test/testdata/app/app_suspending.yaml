@@ -7,8 +7,7 @@ spec:
     - name: busybox
       type: webservice
       properties:
-        image: busybox
-        cmd: ["sleep", "86400"]
+        image: crccheck/hello-world
       traits:
         - type: scaler
           properties:
