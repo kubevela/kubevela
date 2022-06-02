@@ -36,7 +36,7 @@ type Context interface {
 	AppendAuxiliaries(auxiliaries ...Auxiliary) error
 	Output() (model.Instance, []Auxiliary)
 	BaseContextFile() (string, error)
-	ExtendedContextFile() string
+	ExtendedContextFile() (string, error)
 	BaseContextLabels() map[string]string
 	SetParameters(params map[string]interface{})
 	PushData(key string, data interface{})
@@ -264,25 +264,25 @@ func (ctx *templateContext) BaseContextFile() (string, error) {
 }
 
 // ExtendedContextFile return cue format string of templateContext and extended secret context
-func (ctx *templateContext) ExtendedContextFile() string {
+func (ctx *templateContext) ExtendedContextFile() (string, error) {
 	context, err := ctx.BaseContextFile()
 	if err != nil {
-		return fmt.Sprintf("failed to convert data to application with marshal err %v", err)
+		return "", fmt.Errorf("failed to convert data to application with marshal err %v", err)
 	}
 	var bareSecret string
 	if len(ctx.requiredSecrets) > 0 {
 		for _, s := range ctx.requiredSecrets {
 			data, err := json.Marshal(s.Data)
 			if err != nil {
-				return fmt.Sprintf("failed to convert data %v to application with marshal err %v", data, err)
+				return "", fmt.Errorf("failed to convert data %v to application with marshal err %v", data, err)
 			}
 			bareSecret += s.ContextName + ":" + string(data) + "\n"
 		}
 	}
 	if bareSecret != "" {
-		return context + "\n" + bareSecret
+		return context + "\n" + bareSecret, nil
 	}
-	return context
+	return context, nil
 }
 
 func (ctx *templateContext) BaseContextLabels() map[string]string {
