@@ -221,7 +221,7 @@ func forceDisableAddon(ctx context.Context, kubeClient client.Client, config *re
 			if len(addons) == 0 {
 				break
 			}
-			fmt.Printf("Waiting delete the fluxcd addon, timeout left %s \r\n", 5*time.Minute-time.Since(timeConsumed))
+			fmt.Printf("Waiting delete the fluxcd addon, timeout left %s . \r\n", 5*time.Minute-time.Since(timeConsumed))
 			time.Sleep(2 * time.Second)
 		}
 	}
