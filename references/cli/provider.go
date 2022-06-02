@@ -319,7 +319,7 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *c
 		Aliases: []string{"rm", "del"},
 		Short:   "Delete Terraform Cloud Provider",
 		Long:    "Delete Terraform Cloud Provider",
-		Example: "vela provider delete <provider-type> -name <provider-name>",
+		Example: "vela provider delete <provider-type> --name <provider-name>",
 	}
 
 	deleteSubCommands, err := prepareProviderDeleteSubCommand(c, ioStreams)
