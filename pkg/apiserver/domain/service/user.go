@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	initAdminPassword = "VelaUX12345"
+	// InitAdminPassword the password of first admin user
+	InitAdminPassword = "VelaUX12345"
 )
 
 // UserService User manage api
@@ -70,7 +71,7 @@ func (u *userServiceImpl) Init(ctx context.Context) error {
 		Name: admin,
 	}); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
-			encrypted, err := GeneratePasswordHash(initAdminPassword)
+			encrypted, err := GeneratePasswordHash(InitAdminPassword)
 			if err != nil {
 				return err
 			}
@@ -83,7 +84,7 @@ func (u *userServiceImpl) Init(ctx context.Context) error {
 				return err
 			}
 			// print default password of admin user in log
-			log.Logger.Infof("initialized admin username and password: admin / %s", initAdminPassword)
+			log.Logger.Infof("initialized admin username and password: admin / %s", InitAdminPassword)
 		} else {
 			return err
 		}
