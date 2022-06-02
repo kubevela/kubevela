@@ -58,25 +58,11 @@ func NewProviderCommand(c common.Args, order string, ioStreams cmdutil.IOStreams
 			types.TagCommandType:  types.TypeExtension,
 		},
 	}
-	add, err := prepareProviderAddCommand(c, ioStreams)
-	if err != nil {
-		ioStreams.Errorf("fail to init the provider command:%s \n", err.Error())
-	}
-	if add != nil {
-		cmd.AddCommand(add)
-	}
-
-	delete, err := prepareProviderDeleteCommand(c, ioStreams)
-	if err != nil {
-		ioStreams.Errorf("fail to init the provider command:%s \n", err.Error())
-	}
-	if delete != nil {
-		cmd.AddCommand(delete)
-	}
-
 	cmd.AddCommand(
 		NewProviderListCommand(c, ioStreams),
 	)
+	cmd.AddCommand(prepareProviderAddCommand(c, ioStreams))
+	cmd.AddCommand(prepareProviderDeleteCommand(c, ioStreams))
 	return cmd
 }
 
@@ -101,17 +87,7 @@ func NewProviderListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	}
 }
 
-func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
-	if len(os.Args) < 2 || os.Args[1] != "provider" {
-		return nil, nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
-	defer cancel()
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-
+func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add",
 		Short:   "Authenticate Terraform Cloud Provider",
@@ -119,13 +95,13 @@ func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cob
 		Example: "vela provider add <provider-type>",
 	}
 
-	addSubCommands, err := prepareProviderAddSubCommand(c, ioStreams)
-	if err != nil {
-		return nil, err
-	}
-	cmd.AddCommand(addSubCommands...)
-
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+		defer cancel()
+		k8sClient, err := c.GetClient()
+		if err != nil {
+			return err
+		}
 		defs, err := getTerraformProviderTypes(ctx, k8sClient)
 		if len(args) < 1 {
 			errMsg := "must specify a Terraform Cloud Provider type"
@@ -155,10 +131,19 @@ func prepareProviderAddCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cob
 		}
 		return nil
 	}
-	return cmd, nil
+
+	addSubCommands, err := prepareProviderAddSubCommand(c, ioStreams)
+	if err != nil {
+		ioStreams.Errorf("Fail to prepare the sub commands for the add command:%s \n", err.Error())
+	}
+	cmd.AddCommand(addSubCommands...)
+	return cmd
 }
 
 func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
+	if len(os.Args) < 2 || os.Args[1] != "provider" {
+		return nil, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	k8sClient, err := c.GetClient()
@@ -328,11 +313,7 @@ func getTerraformProviderType(ctx context.Context, k8sClient client.Client, name
 	return def, nil
 }
 
-func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*cobra.Command, error) {
-	if len(os.Args) < 2 || os.Args[1] != "provider" {
-		return nil, nil
-	}
-
+func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "delete",
 		Aliases: []string{"rm", "del"},
@@ -343,7 +324,7 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*
 
 	deleteSubCommands, err := prepareProviderDeleteSubCommand(c, ioStreams)
 	if err != nil {
-		return nil, err
+		ioStreams.Errorf("Fail to prepare the sub commands for the delete command:%s \n", err.Error())
 	}
 	cmd.AddCommand(deleteSubCommands...)
 
@@ -383,10 +364,13 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) (*
 		}
 		return nil
 	}
-	return cmd, nil
+	return cmd
 }
 
 func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
+	if len(os.Args) < 2 || os.Args[1] != "provider" {
+		return nil, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	k8sClient, err := c.GetClient()
