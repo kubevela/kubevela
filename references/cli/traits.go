@@ -228,6 +228,7 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 
 	table := newUITable()
 	table.AddRow("NAME", "APPLIES-TO")
+	table.AddRow("NAME", "APPLIES-TO", "DESCRIPTION")
 
 	for _, td := range list.Items {
 		data, err := json.Marshal(td)
@@ -243,7 +244,7 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 		if filter != nil && !filter(capa) {
 			continue
 		}
-		table.AddRow(capa.Name, capa.AppliesTo)
+		table.AddRow(capa.Name, capa.AppliesTo, capa.Description)
 	}
 	io.Info(table.String())
 	return nil
