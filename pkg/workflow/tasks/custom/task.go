@@ -263,7 +263,11 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, p
 		}
 		contextTempl = fmt.Sprintf("\ncontext: {%s}\ncontext: stepSessionID: \"%s\"", ms, id)
 	}
-	contextTempl += "\n" + pCtx.ExtendedContextFile()
+	c, err := pCtx.ExtendedContextFile()
+	if err != nil {
+		return nil, err
+	}
+	contextTempl += "\n" + c
 
 	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }

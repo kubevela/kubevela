@@ -712,7 +712,10 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 			if app.Spec.Policies == nil {
 				app.Spec.Policies = []v1beta1.AppPolicy{}
 			}
-			body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			if err != nil {
+				return nil, err
+			}
 			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 				Name:       "specified-addon-clusters",
 				Type:       v1alpha1.TopologyPolicyType,
