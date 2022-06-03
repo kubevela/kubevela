@@ -209,6 +209,14 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Kind: Service | Name: velaux" from the prompt.`)
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
+	if name == "pyroscope" {
+		fmt.Println(`Get the application URL by running these commands:`)
+		fmt.Println(`    export POD_NAME=$(kubectl get pods --namespace pyroscope-system -l "app.kubernetes.io/name=pyroscope,app.kubernetes.io/instance=pyroscope" -o jsonpath="{.items[0].metadata.name}")`)
+		fmt.Println(`    export CONTAINER_PORT=$(kubectl get pod --namespace pyroscope-system $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")`)
+		fmt.Println(`    kubectl --namespace pyroscope-system port-forward $POD_NAME 9084:$CONTAINER_PORT`)
+		fmt.Println(`Visit http://127.0.0.1:9084 to use your pyroscope`)
+		fmt.Println(`Please refer to https://github.com/fourierr/catalog/blob/master/addons/pyroscope/readme.md for more pyroscope addon installation and visiting method.`)
+	}
 }
 
 // NewAddonUpgradeCommand create addon upgrade command
