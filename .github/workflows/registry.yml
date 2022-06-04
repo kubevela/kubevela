@@ -55,12 +55,8 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:master
 
-      - name: Build & Pushing vela-core for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing vela-core for Dockerhub and GHCR
+        name: Build & Pushing vela-core for Dockerhub, GHCR and ACR
         with:
           context: .
           file: Dockerfile
@@ -75,14 +71,11 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-      - name: Build & Pushing vela-apiserver for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }} -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.apiserver .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing vela-apiserver for Dockerhub and GHCR
+        name: Build & Pushing vela-apiserver for Dockerhub, GHCR and ACR
         with:
           context: .
           file: Dockerfile.apiserver
@@ -97,14 +90,11 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
 
-      - name: Build & Pushing vela CLI for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.cli .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing CLI for Dockerhub and GHCR
+        name: Build & Pushing CLI for Dockerhub, GHCR and ACR
         with:
           context: .
           file: Dockerfile.cli
@@ -119,10 +109,11 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-cli:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
+            kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
 
       - uses: docker/build-push-action@v2
-        name: Build & Pushing runtime rollout for Dockerhub and GHCR
+        name: Build & Pushing runtime rollout Dockerhub, GHCR and ACR
         with:
           context: .
           file: runtime/rollout/Dockerfile
@@ -137,7 +128,7 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
