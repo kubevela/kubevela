@@ -27,8 +27,11 @@ import (
 	"github.com/emicklei/go-restful/v3"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	assembler "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/assembler/v1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	apiserverutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -51,7 +54,7 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
 		Name:      "app-management",
 		Alias:     "App Management",
-		Resources: []string{"project:{projectName}/application:*/*", "definition:*"},
+		Resources: []string{"project:{projectName}/application:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "project",
@@ -69,6 +72,14 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 		Alias:     "Role Management",
 		Resources: []string{"project:{projectName}/role:*", "project:{projectName}/projectUser:*", "project:{projectName}/permission:*"},
 		Actions:   []string{"*"},
+		Effect:    "Allow",
+		Scope:     "project",
+	},
+	{
+		Name:      "configuration-read",
+		Alias:     "Environment Management",
+		Resources: []string{"project:{projectName}/config:*"},
+		Actions:   []string{"list", "detail"},
 		Effect:    "Allow",
 		Scope:     "project",
 	},
@@ -119,6 +130,14 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Name:      "role-management",
 		Alias:     "Platform Role Management",
 		Resources: []string{"role:*", "permission:*"},
+		Actions:   []string{"*"},
+		Effect:    "Allow",
+		Scope:     "platform",
+	},
+	{
+		Name:      "integration-management",
+		Alias:     "Integration Management",
+		Resources: []string{"configType:*/*"},
 		Actions:   []string{"*"},
 		Effect:    "Allow",
 		Scope:     "platform",
@@ -182,7 +201,7 @@ var ResourceMaps = map[string]resourceMetadata{
 				pathName: "userName",
 			},
 			"applicationTemplate": {},
-			"configs":             {},
+			"config":              {},
 			"image":               {},
 		},
 		pathName: "projectName",
@@ -205,8 +224,10 @@ var ResourceMaps = map[string]resourceMetadata{
 	"user": {
 		pathName: "userName",
 	},
-	"role":          {},
-	"permission":    {},
+	"role": {},
+	"permission": {
+		pathName: "permissionName",
+	},
 	"systemSetting": {},
 	"definition": {
 		pathName: "definitionName",
@@ -325,6 +346,7 @@ type RBACService interface {
 	ListRole(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListRolesResponse, error)
 	ListPermissionTemplate(ctx context.Context, projectName string) ([]apisv1.PermissionTemplateBase, error)
 	ListPermissions(ctx context.Context, projectName string) ([]apisv1.PermissionBase, error)
+	CreatePermission(ctx context.Context, projectName string, req apisv1.CreatePermissionRequest) (*apisv1.PermissionBase, error)
 	DeletePermission(ctx context.Context, projectName, permName string) error
 	InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error
 	Init(ctx context.Context) error
@@ -429,9 +451,9 @@ func (p *rbacServiceImpl) GetUserPermissions(ctx context.Context, user *model.Us
 	return perms, nil
 }
 
-func (p *rbacServiceImpl) UpdatePermission(ctx context.Context, projetName string, permissionName string, req *apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error) {
+func (p *rbacServiceImpl) UpdatePermission(ctx context.Context, projectName string, permissionName string, req *apisv1.UpdatePermissionRequest) (*apisv1.PermissionBase, error) {
 	perm := &model.Permission{
-		Project: projetName,
+		Project: projectName,
 		Name:    permissionName,
 	}
 	err := p.Store.Get(ctx, perm)
@@ -539,6 +561,7 @@ func (p *rbacServiceImpl) CheckPerm(resource string, actions ...string) func(req
 			}
 			return req.PathParameter(name)
 		})
+		ra.SetActions(actions)
 
 		// get user's perm list.
 		projectName := getProjectName()
@@ -552,6 +575,7 @@ func (p *rbacServiceImpl) CheckPerm(resource string, actions ...string) func(req
 			bcode.ReturnError(req, res, bcode.ErrForbidden)
 			return
 		}
+		apiserverutils.SetUsernameAndProjectInRequestContext(req, userName, projectName)
 		chain.ProcessFilter(req, res)
 	}
 	return f
@@ -585,7 +609,7 @@ func (p *rbacServiceImpl) CreateRole(ctx context.Context, projectName string, re
 		}
 		return nil, err
 	}
-	return ConvertRole2Model(&role, policies), nil
+	return assembler.ConvertRole2DTO(&role, policies), nil
 }
 
 func (p *rbacServiceImpl) DeleteRole(ctx context.Context, projectName, roleName string) error {
@@ -603,6 +627,19 @@ func (p *rbacServiceImpl) DeleteRole(ctx context.Context, projectName, roleName 
 }
 
 func (p *rbacServiceImpl) DeletePermission(ctx context.Context, projectName, permName string) error {
+	roles, _, err := repository.ListRoles(ctx, p.Store, projectName, 0, 0)
+	if err != nil {
+		log.Logger.Errorf("fail to list the roles: %s", err.Error())
+		return bcode.ErrPermissionIsUsed
+	}
+	for _, role := range roles {
+		for _, p := range role.Permissions {
+			if p == permName {
+				return bcode.ErrPermissionIsUsed
+			}
+		}
+	}
+
 	var perm = model.Permission{
 		Name:    permName,
 		Project: projectName,
@@ -647,26 +684,17 @@ func (p *rbacServiceImpl) UpdateRole(ctx context.Context, projectName, roleName 
 	if err := p.Store.Put(ctx, &role); err != nil {
 		return nil, err
 	}
-	return ConvertRole2Model(&role, policies), nil
+	return assembler.ConvertRole2DTO(&role, policies), nil
 }
 
 func (p *rbacServiceImpl) ListRole(ctx context.Context, projectName string, page, pageSize int) (*apisv1.ListRolesResponse, error) {
-	var role = model.Role{
-		Project: projectName,
-	}
-	var filter datastore.FilterOptions
-	if projectName == "" {
-		filter.IsNotExist = append(filter.IsNotExist, datastore.IsNotExistQueryOption{
-			Key: "project",
-		})
-	}
-	entities, err := p.Store.List(ctx, &role, &datastore.ListOptions{FilterOptions: filter, Page: page, PageSize: pageSize, SortBy: []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}}})
+	roles, count, err := repository.ListRoles(ctx, p.Store, projectName, 0, 0)
 	if err != nil {
 		return nil, err
 	}
 	var policySet = make(map[string]string)
-	for _, entity := range entities {
-		for _, p := range entity.(*model.Role).Permissions {
+	for _, role := range roles {
+		for _, p := range role.Permissions {
 			policySet[p] = p
 		}
 	}
@@ -680,17 +708,12 @@ func (p *rbacServiceImpl) ListRole(ctx context.Context, projectName string, page
 		policyMap[policy.Name] = policies[i]
 	}
 	var res apisv1.ListRolesResponse
-	for _, entity := range entities {
-		role := entity.(*model.Role)
+	for _, role := range roles {
 		var rolePolicies []*model.Permission
 		for _, perm := range role.Permissions {
 			rolePolicies = append(rolePolicies, policyMap[perm])
 		}
-		res.Roles = append(res.Roles, ConvertRole2Model(entity.(*model.Role), rolePolicies))
-	}
-	count, err := p.Store.Count(ctx, &role, &filter)
-	if err != nil {
-		return nil, err
+		res.Roles = append(res.Roles, assembler.ConvertRole2DTO(role, rolePolicies))
 	}
 	res.Total = count
 	return &res, nil
@@ -728,11 +751,50 @@ func (p *rbacServiceImpl) ListPermissions(ctx context.Context, projectName strin
 	return perms, nil
 }
 
+func (p *rbacServiceImpl) CreatePermission(ctx context.Context, projectName string, req apisv1.CreatePermissionRequest) (*apisv1.PermissionBase, error) {
+	if projectName != "" {
+		var project = model.Project{
+			Name: projectName,
+		}
+		if err := p.Store.Get(ctx, &project); err != nil {
+			return nil, bcode.ErrProjectIsNotExist
+		}
+	}
+	if len(req.Resources) == 0 {
+		return nil, bcode.ErrRolePermissionCheckFailure
+	}
+
+	if len(req.Actions) == 0 {
+		req.Actions = []string{"*"}
+	}
+
+	if req.Effect == "" {
+		req.Effect = "Allow"
+	}
+
+	var permission = model.Permission{
+		Name:      req.Name,
+		Alias:     req.Alias,
+		Project:   projectName,
+		Resources: req.Resources,
+		Actions:   req.Actions,
+		Effect:    req.Effect,
+	}
+
+	if err := p.Store.Add(ctx, &permission); err != nil {
+		if errors.Is(err, datastore.ErrRecordExist) {
+			return nil, bcode.ErrPermissionIsExist
+		}
+		return nil, err
+	}
+	return assembler.ConvertPermission2DTO(&permission), nil
+}
+
 func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context, project *model.Project) error {
 	var batchData []datastore.Entity
 	for _, permissionTemp := range defaultProjectPermissionTemplate {
 		var rra = RequestResourceAction{}
-		var formatedResource []string
+		var formattedResource []string
 		for _, resource := range permissionTemp.Resources {
 			rra.SetResourceWithName(resource, func(name string) string {
 				if name == ResourceMaps["project"].pathName {
@@ -740,13 +802,13 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 				}
 				return ""
 			})
-			formatedResource = append(formatedResource, rra.GetResource().String())
+			formattedResource = append(formattedResource, rra.GetResource().String())
 		}
 		batchData = append(batchData, &model.Permission{
 			Name:      permissionTemp.Name,
 			Alias:     permissionTemp.Alias,
 			Project:   project.Name,
-			Resources: formatedResource,
+			Resources: formattedResource,
 			Actions:   permissionTemp.Actions,
 			Effect:    permissionTemp.Effect,
 		})
@@ -754,12 +816,12 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	batchData = append(batchData, &model.Role{
 		Name:        "app-developer",
 		Alias:       "App Developer",
-		Permissions: []string{"project-read", "app-management", "env-management"},
+		Permissions: []string{"project-read", "app-management", "env-management", "configuration-read"},
 		Project:     project.Name,
 	}, &model.Role{
 		Name:        "project-admin",
 		Alias:       "Project Admin",
-		Permissions: []string{"project-read", "app-management", "env-management", "role-management"},
+		Permissions: []string{"project-read", "app-management", "env-management", "role-management", "configuration-read"},
 		Project:     project.Name,
 	})
 	if project.Owner != "" {
@@ -771,24 +833,6 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 		batchData = append(batchData, projectUser)
 	}
 	return p.Store.BatchAdd(ctx, batchData)
-}
-
-// ConvertRole2Model convert role model to role base struct
-func ConvertRole2Model(role *model.Role, policies []*model.Permission) *apisv1.RoleBase {
-	return &apisv1.RoleBase{
-		CreateTime: role.CreateTime,
-		UpdateTime: role.UpdateTime,
-		Name:       role.Name,
-		Alias:      role.Alias,
-		Permissions: func() (list []apisv1.NameAlias) {
-			for _, policy := range policies {
-				if policy != nil {
-					list = append(list, apisv1.NameAlias{Name: policy.Name, Alias: policy.Alias})
-				}
-			}
-			return
-		}(),
-	}
 }
 
 // ResourceName it is similar to ARNs

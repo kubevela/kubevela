@@ -31,7 +31,7 @@ spec:
             - "apiserver"
             - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
             - "--secret-namespace={{ .Release.Namespace }}"
-            - "--feature-gates=APIPriorityAndFairness=false"
+            - "--feature-gates=APIPriorityAndFairness=false,ClientIdentityPenetration={{ .Values.authentication.enabled }}"
             {{- if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
             - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"
@@ -53,7 +53,7 @@ spec:
         - name: tls-cert-vol
           secret:
             defaultMode: 420
-            secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls
+            secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -129,7 +129,7 @@ spec:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 rules:
   - apiGroups: [ "cluster.core.oam.dev" ]
     resources: [ "clustergateways/proxy" ]
@@ -138,16 +138,16 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-rolebinding
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 subjects:
-  - kind: Group
-    name: cluster-gateway-accessor
-    apiGroup: rbac.authorization.k8s.io
   - kind: Group
     name: kubevela:client
     apiGroup: rbac.authorization.k8s.io
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
 {{ end }}

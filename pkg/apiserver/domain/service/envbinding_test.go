@@ -99,7 +99,7 @@ var _ = Describe("Test envBindingService functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(base.Name, req.Name)).Should(BeEmpty())
 
-		By("auto create two workflow")
+		By("test the auto created workflow")
 		workflow, err := workflowService.GetWorkflow(context.TODO(), testApp, repository.ConvertWorkflowName("envbinding-dev"))
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(workflow.Steps[0].Name, "dev-target")).Should(BeEmpty())
@@ -139,15 +139,19 @@ var _ = Describe("Test envBindingService functions", func() {
 		Expect(err).Should(BeNil())
 		_, err = workflowService.GetWorkflow(context.TODO(), testApp, repository.ConvertWorkflowName("envbinding-dev"))
 		Expect(err).ShouldNot(BeNil())
+
 		err = envBindingService.DeleteEnvBinding(context.TODO(), testApp, "envbinding-prod")
 		Expect(err).Should(BeNil())
 		_, err = workflowService.GetWorkflow(context.TODO(), testApp, repository.ConvertWorkflowName("envbinding-prod"))
 		Expect(err).ShouldNot(BeNil())
+		policies, err := repository.ListApplicationPolicies(context.TODO(), ds, testApp)
+		Expect(err).Should(BeNil())
+		Expect(len(policies)).Should(Equal(0))
 	})
 
 	It("Test Application BatchCreateEnv function", func() {
 		testBatchApp := &model.Application{
-			Name: "test-batch-createt",
+			Name: "test-batch-created",
 		}
 		err := envBindingService.BatchCreateEnvBinding(context.TODO(), testBatchApp, apisv1.EnvBindingList{&envBindingDemo1, &envBindingDemo2})
 		Expect(err).Should(BeNil())

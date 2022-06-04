@@ -169,8 +169,3 @@ const (
 	// VelaCoreConfig is to mark application, config and its secret or Terraform provider lelong to a KubeVela config
 	VelaCoreConfig = "velacore-config"
 )
-
-const (
-	// ClusterGatewayAccessorGroup the group to impersonate which allows the access to the cluster-gateway
-	ClusterGatewayAccessorGroup = "cluster-gateway-accessor"
-)

@@ -115,7 +115,12 @@ image: "myserver"
 	ctx.PushData(model.ContextDataArtifacts, targetData)
 	ctx.PushData("arbitraryData", targetArbitraryData)
 
-	ctxInst, err := r.Compile("-", ctx.ExtendedContextFile())
+	c, err := ctx.ExtendedContextFile()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	ctxInst, err := r.Compile("-", c)
 	if err != nil {
 		t.Error(err)
 		return

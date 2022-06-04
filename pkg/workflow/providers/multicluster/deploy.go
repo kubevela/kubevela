@@ -208,7 +208,7 @@ func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.C
 	var reasons []string
 	for i, res := range results {
 		if res.err != nil {
-			errs = append(errs, res.err)
+			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", todoTasks[i].placement.Cluster, res.err))
 		}
 		if !res.healthy {
 			allHealthy = false

@@ -740,7 +740,7 @@ options: {
 				Name: "vela-system",
 			},
 		})
-		Expect(err).Should(BeNil())
+		Expect(err).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		for _, s := range testServicelist {
 			ns := "default"
 			if s["namespace"] != nil {
@@ -960,12 +960,12 @@ options: {
 			fmt.Sprintf("http://%s:30229", gatewayIP),
 			"http://10.10.10.10",
 			"http://text.example.com",
-			"tcp://10.10.10.10:81",
-			"tcp://text.example.com:81",
+			"10.10.10.10:81",
+			"text.example.com:81",
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
-			"tcp://1.1.1.1:80/seldon/test",
+			"1.1.1.1:80/seldon/test",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())

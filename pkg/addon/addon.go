@@ -61,6 +61,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
 	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -711,7 +712,10 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 			if app.Spec.Policies == nil {
 				app.Spec.Policies = []v1beta1.AppPolicy{}
 			}
-			body, _ := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+			if err != nil {
+				return nil, err
+			}
 			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
 				Name:       "specified-addon-clusters",
 				Type:       v1alpha1.TopologyPolicyType,
@@ -1418,13 +1422,29 @@ func checkSemVer(actual string, require string) (bool, error) {
 	l := strings.ReplaceAll(require, "v", " ")
 	constraint, err := semver.NewConstraint(l)
 	if err != nil {
+		log.Logger.Errorf("fail to new constraint: %s", err.Error())
 		return false, err
 	}
 	v, err := semver.NewVersion(smeVer)
 	if err != nil {
+		log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
 		return false, err
 	}
-	return constraint.Check(v), nil
+	if constraint.Check(v) {
+		return true, nil
+	}
+	if strings.Contains(actual, "-") && !strings.Contains(require, "-") {
+		smeVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v")
+		v, err := semver.NewVersion(smeVer)
+		if err != nil {
+			log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
+			return false, err
+		}
+		if constraint.Check(v) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string, error) {

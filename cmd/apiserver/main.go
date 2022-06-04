@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -29,10 +28,12 @@ import (
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
 	"github.com/go-openapi/spec"
 	"github.com/google/uuid"
+	flag "github.com/spf13/pflag"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver"
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -48,6 +49,9 @@ func main() {
 	flag.DurationVar(&s.serverConfig.LeaderConfig.Duration, "duration", time.Second*5, "the lease lock resource name")
 	flag.DurationVar(&s.serverConfig.AddonCacheTime, "addon-cache-duration", time.Minute*10, "how long between two addon cache operation")
 	flag.BoolVar(&s.serverConfig.DisableStatisticCronJob, "disable-statistic-cronJob", false, "close the system statistic info calculating cronJob")
+	flag.Float64Var(&s.serverConfig.KubeQPS, "kube-api-qps", 100, "the qps for kube clients. Low qps may lead to low throughput. High qps may give stress to api-server.")
+	flag.IntVar(&s.serverConfig.KubeBurst, "kube-api-burst", 300, "the burst for kube clients. Recommend setting it qps*3.")
+	features.APIServerMutableFeatureGate.AddFlag(flag.CommandLine)
 	flag.Parse()
 
 	if len(os.Args) > 2 && os.Args[1] == "build-swagger" {
@@ -106,19 +110,13 @@ type Server struct {
 func (s *Server) run(ctx context.Context, errChan chan error) error {
 	log.Logger.Infof("KubeVela information: version: %v, gitRevision: %v", version.VelaVersion, version.GitRevision)
 
-	server, err := apiserver.New(s.serverConfig)
-	if err != nil {
-		return fmt.Errorf("create apiserver failed : %w ", err)
-	}
+	server := apiserver.New(s.serverConfig)
 
 	return server.Run(ctx, errChan)
 }
 
 func (s *Server) buildSwagger() (*spec.Swagger, error) {
-	server, err := apiserver.New(s.serverConfig)
-	if err != nil {
-		return nil, err
-	}
+	server := apiserver.New(s.serverConfig)
 	config, err := server.BuildRestfulConfig()
 	if err != nil {
 		return nil, err

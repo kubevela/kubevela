@@ -35,10 +35,12 @@ dependCheckWait: 30s
 
 ## @section KubeVela workflow parameters
 
+## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 workflow:
+  enableSuspendOnFailure: false
   backoff:
     maxTime:
       waitState: 60
@@ -130,7 +132,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.3.2
+      tag: v1.4.0
       pullPolicy: IfNotPresent
     resources:
       limits:

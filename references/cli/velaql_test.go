@@ -61,68 +61,76 @@ var _ = Describe("Test velaQL", func() {
 					},
 				},
 			},
-			Status: common.AppStatus{
-				AppliedResources: []common.ClusterObjectReference{
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-http",
-							APIVersion: "networking.k8s.io/v1beta1",
-						},
+		}
+
+		err := k8sClient.Create(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+
+		testApp.Status = common.AppStatus{
+			AppliedResources: []common.ClusterObjectReference{
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-http",
+						APIVersion: "networking.k8s.io/v1beta1",
 					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-https",
-							APIVersion: "networking.k8s.io/v1",
-						},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-https",
+						APIVersion: "networking.k8s.io/v1",
 					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-paths",
-							APIVersion: "networking.k8s.io/v1",
-						},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-paths",
+						APIVersion: "networking.k8s.io/v1",
 					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      "Service",
-							Namespace: "default",
-							Name:      "nodeport",
-						},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:      "Service",
+						Namespace: "default",
+						Name:      "nodeport",
 					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      "Service",
-							Namespace: "default",
-							Name:      "loadbalancer",
-						},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:      "Service",
+						Namespace: "default",
+						Name:      "loadbalancer",
 					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      helmapi.HelmReleaseGVK.Kind,
-							Namespace: "default",
-							Name:      "helmRelease",
-						},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:      helmapi.HelmReleaseGVK.Kind,
+						Namespace: "default",
+						Name:      "helmRelease",
 					},
 				},
 			},
 		}
-		err := k8sClient.Create(context.TODO(), testApp)
+
+		err = k8sClient.Status().Update(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 
 		var mr []v1beta1.ManagedResource
 		for i := range testApp.Status.AppliedResources {
 			mr = append(mr, v1beta1.ManagedResource{
+				OAMObjectReference: common.OAMObjectReference{
+					Component: "endpoints-test",
+				},
 				ClusterObjectReference: testApp.Status.AppliedResources[i],
 			})
 		}
@@ -385,8 +393,8 @@ var _ = Describe("Test velaQL", func() {
 			fmt.Sprintf("http://%s:30229", gatewayIP),
 			"http://10.10.10.10",
 			"http://text.example.com",
-			"tcp://10.10.10.10:81",
-			"tcp://text.example.com:81",
+			"10.10.10.10:81",
+			"text.example.com:81",
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",

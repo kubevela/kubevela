@@ -1,14 +1,14 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee
-design/                            @barnettZQG @leejanee @wonderflow
+*                                  @barnettZQG @wonderflow @leejanee @Somefive
+design/                            @barnettZQG @leejanee @wonderflow @Somefive
 
 # Owner of CUE
-pkg/cue                            @leejanee @FogDong
-pkg/stdlib                         @leejanee @FogDong
+pkg/cue                            @leejanee @FogDong @Somefive
+pkg/stdlib                         @leejanee @FogDong @Somefive
 
 # Owner of Workflow
-pkg/workflow                       @leejanee @FogDong
+pkg/workflow                       @leejanee @FogDong @Somefive
 
 # Owner of rollout
 pkg/controller/common/rollout/                              @wangyikewxgm @wonderflow
@@ -17,20 +17,20 @@ pkg/controller/standard.oam.dev/v1alpha1/rollout            @wangyikewxgm @wonde
 runtime/rollout                                             @wangyikewxgm @wonderflow
 
 # Owner of definition controller
-pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition  @yangsoon @Somefive
-pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition        @yangsoon @Somefive
-pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition   @yangsoon @zzxwill
-pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon @zzxwill
+pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition  @yangsoon @Somefive @FogDong
+pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition        @yangsoon @Somefive @FogDong
+pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition   @yangsoon @zzxwill @Somefive
+pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon @zzxwill @Somefive
 
 # Owner of health scope controller
-pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope     @captainroy-hy @zzxwill
+pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope     @captainroy-hy @zzxwill @yangsoon
 
 # Owner of vela templates
 vela-templates/                     @Somefive @barnettZQG @wonderflow
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill 
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang
 
 # Owner of vela APIServer
-pkg/apiserver/                     @barnettZQG @yangsoon
+pkg/apiserver/                     @barnettZQG @yangsoon @FogDong
 

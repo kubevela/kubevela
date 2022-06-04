@@ -21,23 +21,29 @@
 
 KubeVela is a modern application delivery platform that makes deploying and operating applications across today's hybrid, multi-cloud environments easier, faster and more reliable.
 
-![](docs/resources/what-is-kubevela.png)
+![kubevela](docs/resources/what-is-kubevela.png)
 
 ## Highlights
 
 KubeVela practices the "render, orchestrate, deploy" workflow with below highlighted values added to existing ecosystem:
 
-- *Application Centric* - KubeVela introduces [Open Application Model (OAM)](https://oam.dev/) as the consistent yet higher level API to capture and render a full deployment of microservices on top of hybrid environments. Placement strategy, traffic shifting and rolling update are declared at application level. No infrastructure level concern, simply deploy.
+* Deployment as Code
 
-- *Programmable Workflow* - KubeVela models application delivery as DAG (Directed Acyclic Graph) and expresses it with [CUE](https://cuelang.org/) - a modern data configuration language. This allows you to design application deployment steps per needs and orchestrate them in programmable approach. No restrictions, natively extensible.
+Declare your deployment plan as workflow, run it automatically with any CI/CD or GitOps system, extend or re-program the workflow steps with CUE. No add-hoc scripts, no dirty glue code, just deploy. The deployment workflow in KubeVela is powered by [Open Application Model](https://oam.dev/).
 
-- *Infrastructure Agnostic* - KubeVela works as an application delivery control plane that is fully decoupled from runtime infrastructure. It can deploy any workload types including containers, cloud services, databases, or even VM instances to any cloud or Kubernetes cluster, following the workflow designed by you.
+* Built-in security and compliance building blocks
+
+Choose from the wide range of LDAP integrations we provided out-of-box, enjoy multi-cluster authorization that is fully automated, pick and apply fine-grained RBAC modules and customize them per your own supply chain requirements.
+
+* Multi-cloud/hybrid-environments app delivery as first-class citizen
+
+Progressive rollout across test/staging/production environments, automatic canary, blue-green and continuous verification, rich placement strategy across clusters and clouds, fully managed cloud environments provision.
 
 ## Getting Started
 
-- [Introduction](https://kubevela.io/docs)
-- [Installation](https://kubevela.io/docs/install)
-- [Design Your First Deployment Plan](https://kubevela.io/docs/quick-start)
+* [Introduction](https://kubevela.io/docs)
+* [Installation](https://kubevela.io/docs/install)
+* [Deploy Your Application](https://kubevela.io/docs/quick-start)
 
 ## Documentation
 
@@ -49,7 +55,7 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 
 ## Community
 
-We want your contributions and suggestions! 
+We want your contributions and suggestions!
 One of the easiest ways to contribute is to participate in discussions on the Github Issues/Discussion, chat on IM or the bi-weekly community calls.
 For more information on the community engagement, developer and contributing guidelines and more, head over to the [KubeVela community repo](https://github.com/kubevela/community).
 

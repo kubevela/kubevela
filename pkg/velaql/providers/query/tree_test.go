@@ -19,31 +19,32 @@ package query
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	types3 "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
-
-	types2 "k8s.io/apimachinery/pkg/types"
-
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/stretchr/testify/assert"
 
 	v12 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	"github.com/fluxcd/helm-controller/api/v2beta1"
+	"github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPodStatus(t *testing.T) {
@@ -184,6 +185,20 @@ func TestPodStatus(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, *res, s.result)
 	}
+}
+
+func TestService2EndpointOption(t *testing.T) {
+	labels := map[string]string{
+		"service-name": "test",
+		"uid":          "test-uid",
+	}
+	u := unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("Service")
+	u.SetLabels(labels)
+	l, err := service2EndpointListOption(u)
+	assert.NoError(t, err)
+	assert.Equal(t, "service-name=test,uid=test-uid", l.LabelSelector.String())
 }
 
 func TestServiceStatus(t *testing.T) {
@@ -328,6 +343,100 @@ func TestReplicaSetStatus(t *testing.T) {
 	}
 }
 
+func TestHelmResourceStatus(t *testing.T) {
+	tm := metav1.TypeMeta{APIVersion: "helm.toolkit.fluxcd.io/v2beta1", Kind: "HelmRelease"}
+	healthHr := v2beta1.HelmRelease{TypeMeta: tm, Status: v2beta1.HelmReleaseStatus{Conditions: []metav1.Condition{
+		{
+			Type:   "Ready",
+			Status: metav1.ConditionTrue,
+		},
+	}}}
+	unHealthyHr := v2beta1.HelmRelease{TypeMeta: tm, Status: v2beta1.HelmReleaseStatus{Conditions: []metav1.Condition{
+		{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Message: "some reason",
+		},
+	}}}
+	unKnowHealthyHr := v2beta1.HelmRelease{TypeMeta: tm, Status: v2beta1.HelmReleaseStatus{Conditions: []metav1.Condition{
+		{
+			Type:   "OtherType",
+			Status: metav1.ConditionFalse,
+		},
+	}}}
+	testCases := map[string]struct {
+		hr  v2beta1.HelmRelease
+		res *types.HealthStatus
+	}{
+		"healthHr": {
+			hr:  healthHr,
+			res: &types.HealthStatus{Status: types.HealthStatusHealthy},
+		},
+		"unHealthyHr": {
+			hr:  unHealthyHr,
+			res: &types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: "some reason"},
+		},
+		"unKnowHealthyHr": {
+			hr:  unKnowHealthyHr,
+			res: &types.HealthStatus{Status: types.HealthStatusUnKnown},
+		},
+	}
+	for _, s := range testCases {
+		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s.hr.DeepCopy())
+		assert.NoError(t, err)
+		res, err := checkResourceStatus(unstructured.Unstructured{Object: obj})
+		assert.NoError(t, err)
+		assert.Equal(t, res, s.res)
+	}
+}
+
+func TestHelmRepoResourceStatus(t *testing.T) {
+	tm := metav1.TypeMeta{APIVersion: "source.toolkit.fluxcd.io/v1beta2", Kind: "HelmRepository"}
+	healthHr := v1beta2.HelmRepository{TypeMeta: tm, Status: v1beta2.HelmRepositoryStatus{Conditions: []metav1.Condition{
+		{
+			Type:   "Ready",
+			Status: metav1.ConditionTrue,
+		},
+	}}}
+	unHealthyHr := v1beta2.HelmRepository{TypeMeta: tm, Status: v1beta2.HelmRepositoryStatus{Conditions: []metav1.Condition{
+		{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Message: "some reason",
+		},
+	}}}
+	unKnowHealthyHr := v1beta2.HelmRepository{TypeMeta: tm, Status: v1beta2.HelmRepositoryStatus{Conditions: []metav1.Condition{
+		{
+			Type:   "OtherType",
+			Status: metav1.ConditionFalse,
+		},
+	}}}
+	testCases := map[string]struct {
+		hr  v1beta2.HelmRepository
+		res *types.HealthStatus
+	}{
+		"healthHr": {
+			hr:  healthHr,
+			res: &types.HealthStatus{Status: types.HealthStatusHealthy},
+		},
+		"unHealthyHr": {
+			hr:  unHealthyHr,
+			res: &types.HealthStatus{Status: types.HealthStatusUnHealthy, Message: "some reason"},
+		},
+		"unKnowHealthyHr": {
+			hr:  unKnowHealthyHr,
+			res: &types.HealthStatus{Status: types.HealthStatusUnKnown},
+		},
+	}
+	for _, s := range testCases {
+		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s.hr.DeepCopy())
+		assert.NoError(t, err)
+		res, err := checkResourceStatus(unstructured.Unstructured{Object: obj})
+		assert.NoError(t, err)
+		assert.Equal(t, res, s.res)
+	}
+}
+
 func TestGenListOption(t *testing.T) {
 	resLabel, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{MatchLabels: map[string]string{"testKey": "testVal"}})
 	assert.NoError(t, err)
@@ -366,6 +475,434 @@ func TestGenListOption(t *testing.T) {
 	hrls, err := helmRelease2AnyListOption(helmRelease)
 	assert.NoError(t, err)
 	assert.Equal(t, hrls, client.ListOptions{LabelSelector: hrll})
+}
+
+func TestPodAdditionalInfo(t *testing.T) {
+	typeMeta := metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"}
+
+	type testCase struct {
+		pod v1.Pod
+		res map[string]interface{}
+	}
+
+	case1 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &metav1.Time{Time: time.Now()}},
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								ExitCode: 0,
+							},
+						},
+					},
+				},
+				Reason: "NodeLost"},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Unknown",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case2 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								ExitCode: 127,
+							},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:ExitCode:127",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case3 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								ExitCode: 127,
+								Signal:   32,
+							},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:Signal:32",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case4 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								Reason:   "OOMKill",
+								ExitCode: 127,
+							},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:OOMKill",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case5 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								Reason:   "OOMKill",
+								ExitCode: 127,
+							},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:OOMKill",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case6 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Waiting: &v1.ContainerStateWaiting{
+								Reason: "ContainerCreating",
+							},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:ContainerCreating",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case7 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Spec: v1.PodSpec{
+				InitContainers: []v1.Container{
+					{Name: "test"},
+				}},
+			Status: v1.PodStatus{
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Waiting: &v1.ContainerStateWaiting{},
+						},
+					},
+				}},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Init:0/1",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case8 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Waiting: &v1.ContainerStateWaiting{
+								Reason: "ContainerCreating",
+							},
+						},
+					},
+				},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "ContainerCreating",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case9 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								Reason: "OOMKilled",
+							},
+						},
+					},
+				},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "OOMKilled",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case10 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								Signal: 2,
+							},
+						},
+					},
+				},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Signal:2",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case11 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								ExitCode: 127,
+							},
+						},
+					},
+				},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "ExitCode:127",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case12 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "nginx",
+				}},
+			},
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Running: &v1.ContainerStateRunning{
+								StartedAt: metav1.Now(),
+							},
+						},
+						Ready: true,
+					},
+				},
+				Phase: "Running",
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "1/1",
+			"Status":   "Running",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case13 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "nginx",
+				}},
+			},
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Running: &v1.ContainerStateRunning{
+								StartedAt: metav1.Now(),
+							},
+						},
+						Ready: true,
+					},
+				},
+				Phase: "Completed",
+				Conditions: []v1.PodCondition{
+					{
+						Type:   v1.PodReady,
+						Status: v1.ConditionTrue,
+					},
+				},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "1/1",
+			"Status":   "Running",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case14 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "nginx",
+				}},
+			},
+			Status: v1.PodStatus{
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Running: &v1.ContainerStateRunning{
+								StartedAt: metav1.Now(),
+							},
+						},
+						Ready: true,
+					},
+				},
+				Phase: "Completed",
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "1/1",
+			"Status":   "NotReady",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	case15 := testCase{
+		pod: v1.Pod{TypeMeta: typeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				DeletionTimestamp: &metav1.Time{Time: time.Now()},
+			},
+		},
+		res: map[string]interface{}{
+			"Ready":    "0/0",
+			"Status":   "Terminating",
+			"Restarts": 0,
+			"Age":      "<unknown>",
+		},
+	}
+
+	testCases := map[string]testCase{
+		"pod1":  case1,
+		"pod2":  case2,
+		"pod3":  case3,
+		"pod4":  case4,
+		"pod5":  case5,
+		"pod6":  case6,
+		"pod7":  case7,
+		"pod8":  case8,
+		"pod9":  case9,
+		"pod10": case10,
+		"pod11": case11,
+		"pod12": case12,
+		"pod13": case13,
+		"pod14": case14,
+		"pod15": case15,
+	}
+
+	for des, t2 := range testCases {
+		fmt.Println(des)
+		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.pod.DeepCopy())
+		assert.NoError(t, err)
+		res, err := additionalInfo(unstructured.Unstructured{Object: u})
+		assert.NoError(t, err)
+		assert.Equal(t, t2.res, res)
+	}
+}
+
+func TestSvcAdditionalInfo(t *testing.T) {
+	typeMeta := metav1.TypeMeta{APIVersion: "v1", Kind: "Service"}
+
+	type testCase struct {
+		svc v1.Service
+		res map[string]interface{}
+	}
+
+	case1 := testCase{
+		svc: v1.Service{TypeMeta: typeMeta, Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeLoadBalancer,
+		},
+			Status: v1.ServiceStatus{LoadBalancer: v1.LoadBalancerStatus{Ingress: []v1.LoadBalancerIngress{{IP: "145.2.2.1"}}}}},
+		res: map[string]interface{}{
+			"EIP": "145.2.2.1",
+		},
+	}
+
+	case2 := testCase{
+		svc: v1.Service{TypeMeta: typeMeta, Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeLoadBalancer,
+		},
+			Status: v1.ServiceStatus{}},
+		res: map[string]interface{}{
+			"EIP": "pending",
+		},
+	}
+
+	testCases := map[string]testCase{
+		"svc1": case1,
+		"svc2": case2,
+	}
+
+	for des, t2 := range testCases {
+		fmt.Println(des)
+		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.svc.DeepCopy())
+		assert.NoError(t, err)
+		res, err := additionalInfo(unstructured.Unstructured{Object: u})
+		assert.NoError(t, err)
+		assert.Equal(t, t2.res, res)
+	}
 }
 
 var _ = Describe("unit-test to e2e test", func() {
@@ -842,5 +1379,103 @@ var _ = Describe("unit-test to e2e test", func() {
 		err = v.UnmarshalTo(&res)
 		Expect(err).Should(BeNil())
 		Expect(len(res.List)).Should(Equal(2))
+	})
+})
+
+var _ = Describe("test merge globalRules", func() {
+	cloneSetStr := `
+- parentResourceType:
+    group: apps.kruise.io
+    kind: CloneSet
+  childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
+	daemonSetStr := `
+- parentResourceType:
+    group: apps
+    kind: DaemonSet
+  childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
+	stsStr := `
+- parentResourceType:
+    group: apps
+    kind: StatefulSet
+  childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
+	missConfigedStr := `
+- parentResourceType:
+    group: apps
+    kind: StatefulSet
+childrenResourceType:
+    - apiVersion: v1
+      kind: Pod
+    - apiVersion: apps/v1
+      kind: ControllerRevision
+`
+
+	It("test merge rules", func() {
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		cloneSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "cloneset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: cloneSetStr},
+		}
+		Expect(k8sClient.Create(ctx, &cloneSetConfigMap)).Should(BeNil())
+
+		daemonSetConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "daemonset", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: daemonSetStr},
+		}
+		Expect(k8sClient.Create(ctx, &daemonSetConfigMap)).Should(BeNil())
+
+		stsConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "sts", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: stsStr},
+		}
+		Expect(k8sClient.Create(ctx, &stsConfigMap)).Should(BeNil())
+
+		missConfigedCm := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "miss-configed", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: missConfigedStr},
+		}
+		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
+
+		Expect(mergeCustomRules(ctx, k8sClient)).Should(BeNil())
+		childrenResources, ok := globalRule[GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"}]
+		Expect(ok).Should(BeTrue())
+		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(len(childrenResources.CareResource)).Should(BeEquivalentTo(2))
+		specifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
+		Expect(ok).Should(BeTrue())
+		Expect(specifyFunc).Should(BeNil())
+
+		dsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "DaemonSet"}]
+		Expect(ok).Should(BeTrue())
+		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(len(dsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
+		dsSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
+		Expect(ok).Should(BeTrue())
+		Expect(dsSpecifyFunc).Should(BeNil())
+		crSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
+		Expect(ok).Should(BeTrue())
+		Expect(crSpecifyFunc).Should(BeNil())
+
+		stsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "StatefulSet"}]
+		Expect(ok).Should(BeTrue())
+		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
+		Expect(len(stsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
+		stsCrSpecifyFunc, ok := stsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
+		Expect(ok).Should(BeTrue())
+		Expect(stsCrSpecifyFunc).Should(BeNil())
 	})
 })

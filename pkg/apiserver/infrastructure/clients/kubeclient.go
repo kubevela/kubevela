@@ -18,12 +18,15 @@ package clients
 
 import (
 	"errors"
+	"fmt"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -38,13 +41,40 @@ func SetKubeClient(c client.Client) {
 	kubeClient = c
 }
 
+func setKubeConfig(conf *rest.Config) (err error) {
+	if conf == nil {
+		conf, err = config.GetConfig()
+		if err != nil {
+			return err
+		}
+	}
+	kubeConfig = conf
+	kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	return nil
+}
+
+// SetKubeConfig generate the kube config from the config of apiserver
+func SetKubeConfig(c apiConfig.Config) error {
+	conf, err := config.GetConfig()
+	if err != nil {
+		return err
+	}
+	kubeConfig = conf
+	kubeConfig.Burst = c.KubeBurst
+	kubeConfig.QPS = float32(c.KubeQPS)
+	return setKubeConfig(kubeConfig)
+}
+
 // GetKubeClient create and return kube runtime client
 func GetKubeClient() (client.Client, error) {
 	if kubeClient != nil {
 		return kubeClient, nil
 	}
+	if kubeConfig == nil {
+		return nil, fmt.Errorf("please call SetKubeConfig first")
+	}
 	var err error
-	kubeClient, kubeConfig, err = multicluster.GetMulticlusterKubernetesClient()
+	kubeClient, err = multicluster.Initialize(kubeConfig, false)
 	if err == nil {
 		return kubeClient, nil
 	}
@@ -52,11 +82,7 @@ func GetKubeClient() (client.Client, error) {
 		return nil, err
 	}
 	// create single cluster client
-	conf, err := config.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	kubeClient, err = client.New(conf, client.Options{Scheme: common.Scheme})
+	kubeClient, err = client.New(kubeConfig, client.Options{Scheme: common.Scheme})
 	if err != nil {
 		return nil, err
 	}
@@ -65,10 +91,8 @@ func GetKubeClient() (client.Client, error) {
 
 // GetKubeConfig create/get kube runtime config
 func GetKubeConfig() (*rest.Config, error) {
-	var err error
 	if kubeConfig == nil {
-		kubeConfig, err = config.GetConfig()
-		return kubeConfig, err
+		return nil, fmt.Errorf("please call SetKubeConfig first")
 	}
 	return kubeConfig, nil
 }

@@ -110,7 +110,10 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	if appResList == nil {
+		appResList = make([]Resource, 0)
+	}
+	return fillQueryResult(v, appResList, "list")
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
@@ -133,10 +136,13 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(appResList, "list")
+	if appResList == nil {
+		appResList = make([]*querytypes.AppliedResource, 0)
+	}
+	return fillQueryResult(v, appResList, "list")
 }
 
-// ListAppliedResources list applied resource from tracker
+// GetApplicationResourceTree get resource tree of application
 func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -156,6 +162,11 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
+	// merge user defined customize rule before every request.
+	err = mergeCustomRules(context.Background(), h.cli)
+	if err != nil {
+		return err
+	}
 	for _, resource := range appResList {
 		root := querytypes.ResourceTreeNode{
 			APIVersion: resource.APIVersion,
@@ -167,6 +178,10 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		}
 		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
 		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
 			return v.FillObject(err.Error(), "err")
 		}
 		rootObject, err := fetchObjectWithResourceTreeNode(context.Background(), resource.Cluster, h.cli, root)
@@ -178,9 +193,18 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 			return v.FillObject(err.Error(), "err")
 		}
 		root.HealthStatus = *rootStatus
-		resource.ResourceTree = root
+		addInfo, err := additionalInfo(*rootObject)
+		if err != nil {
+			return err
+		}
+		root.AdditionalInfo = addInfo
+		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
+		if !rootObject.GetDeletionTimestamp().IsZero() {
+			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		}
+		resource.ResourceTree = &root
 	}
-	return v.FillObject(appResList, "list")
+	return fillQueryResult(v, appResList, "list")
 }
 
 func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -211,7 +235,7 @@ func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(pods, "list")
+	return fillQueryResult(v, pods, "list")
 }
 
 func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -240,7 +264,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	if err := h.cli.List(listCtx, &eventList, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(eventList.Items, "list")
+	return fillQueryResult(v, eventList.Items, "list")
 }
 
 // GeneratorServiceEndpoints generator service endpoints is available for common component type,
@@ -275,7 +299,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	if err != nil {
 		return fmt.Errorf("query app failure %w", err)
 	}
-	var serviceEndpoints []querytypes.ServiceEndpoint
+	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
 	resources, err := collector.ListApplicationResources(app)
@@ -370,7 +394,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
 		}
 	}
-	return v.FillObject(serviceEndpoints, "list")
+	return fillQueryResult(v, serviceEndpoints, "list")
 }
 
 var (

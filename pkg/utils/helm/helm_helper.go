@@ -140,20 +140,16 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 				r.Info.Status == release.StatusPendingRollback {
 				return nil, fmt.Errorf("previous installation (e.g., using vela install or helm upgrade) is still in progress. Please try again in %d minutes", timeoutInMinutes)
 			}
-
 		}
 
 		// merge un-existing values into the values as user-input, because the helm chart upgrade didn't handle the new default values in the chart.
+		// the new default values <= the old custom values <= the new custom values
 		if config.ReuseValues {
 			// sort will sort the release by revision from old to new
 			relutil.SortByRevision(releases)
 			rel := releases[len(releases)-1]
-			// merge new chart values into old values, the values of old chart has the high priority
-			mergedWithNewValues := chartutil.CoalesceTables(rel.Chart.Values, ch.Values)
-			// merge the chart with the released chart config but follow the old config
-			mergeWithConfigs := chartutil.CoalesceTables(rel.Config, mergedWithNewValues)
 			// merge new values as the user input, follow the new user input for --set
-			values = chartutil.CoalesceTables(values, mergeWithConfigs)
+			values = chartutil.CoalesceTables(values, rel.Config)
 		}
 
 		// overwrite existing installation
@@ -161,7 +157,8 @@ func (h *Helper) UpgradeChart(ch *chart.Chart, releaseName, namespace string, va
 		install.Namespace = namespace
 		install.Wait = config.Wait
 		install.Timeout = time.Duration(timeoutInMinutes) * time.Minute
-		install.ReuseValues = config.ReuseValues
+		// use the new default value set.
+		install.ReuseValues = false
 		newRelease, err = install.Run(releaseName, ch, values)
 	}
 	// check if install/upgrade worked

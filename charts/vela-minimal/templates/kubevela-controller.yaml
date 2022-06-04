@@ -15,6 +15,7 @@ metadata:
 
 ---
 
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -22,14 +23,53 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: "cluster-admin"
+  name: {{ if .Values.authentication.enabled }} {{ include "kubevela.fullname" . }}:manager {{ else }} "cluster-admin" {{ end }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-  - kind: Group
-    name: core.oam.dev
-    apiGroup: rbac.authorization.k8s.io
+
+{{ if .Values.authentication.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kubevela.fullname" . }}:manager
+rules:
+  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["users", "groups", "serviceaccounts"]
+    verbs: ["impersonate"]
+  - apiGroups: [""]
+    resources: ["namespaces", "secrets", "services"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps", "events"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["controllerrevisions"]
+    verbs: ["*"]
+  - apiGroups: ["apiregistration.k8s.io"]
+    resources: ["apiservices"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["*"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["flowcontrol.apiserver.k8s.io"]
+    resources: ["prioritylevelconfigurations", "flowschemas"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["*"]
+{{ end }}
 
 ---
 # permissions to do leader election.
@@ -145,6 +185,7 @@ spec:
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -121,15 +122,15 @@ var _ = Describe("Application Normal tests", func() {
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 	}
 
-	verifyApplicationWorkflowSuspending := func(ns, appName string) {
+	verifyApplicationWorkflowTerminated := func(ns, appName string) {
 		var testApp v1beta1.Application
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
 			if err != nil {
 				return err
 			}
-			if testApp.Status.Phase != oamcomm.ApplicationWorkflowSuspending {
-				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowSuspending, testApp.Status.Phase)
+			if testApp.Status.Phase != oamcomm.ApplicationWorkflowTerminated {
+				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowTerminated, testApp.Status.Phase)
 			}
 			return nil
 		}, 120*time.Second, time.Second).Should(BeNil())
@@ -334,7 +335,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("check application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 
 	It("Test wait suspend", func() {
@@ -364,7 +365,7 @@ var _ = Describe("Application Normal tests", func() {
 				{
 					Verbs:     []string{rbacv1.VerbAll},
 					APIGroups: []string{"apps"},
-					Resources: []string{"deployments"},
+					Resources: []string{"deployments", "controllerrevisions"},
 				},
 			},
 		}
@@ -402,6 +403,11 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking an application status")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
 		verifyComponentRevision("myweb", 1)
+
+		Expect(k8sClient.Delete(ctx, &newApp)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&newApp), &newApp)).Should(Satisfy(errors.IsNotFound))
+		}, 15*time.Second).Should(Succeed())
 	})
 
 	It("Test app with ServiceAccount which has no permission for the component", func() {
@@ -419,7 +425,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 
 	It("Test app with non-existence ServiceAccount", func() {
@@ -447,6 +453,6 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowSuspending(newApp.Namespace, newApp.Name)
+		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 })

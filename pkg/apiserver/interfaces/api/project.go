@@ -176,10 +176,27 @@ func (n *projectAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(200, "OK", []apis.PermissionBase{}).
 		Writes([]apis.PermissionBase{}))
 
+	ws.Route(ws.POST("/{projectName}/permissions").To(n.createProjectPermission).
+		Doc("create a project level perm policy").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Filter(n.RbacService.CheckPerm("project/permission", "list")).
+		Returns(200, "OK", []apis.PermissionBase{}).
+		Writes([]apis.PermissionBase{}))
+
+	ws.Route(ws.DELETE("/{projectName}/permissions/{permissionName}").To(n.deleteProjectPermission).
+		Doc("delete a project level perm policy").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
+		Param(ws.PathParameter("permissionName", "identifier of the permission").DataType("string")).
+		Filter(n.RbacService.CheckPerm("project/permission", "list")).
+		Returns(200, "OK", []apis.PermissionBase{}).
+		Writes([]apis.PermissionBase{}))
+
 	ws.Route(ws.GET("/{projectName}/configs").To(n.getConfigs).
 		Doc("get configs which are in a project").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(n.RbacService.CheckPerm("project/configs", "list")).
+		Filter(n.RbacService.CheckPerm("project/config", "list")).
 		Param(ws.QueryParameter("configType", "config type").DataType("string")).
 		Param(ws.PathParameter("projectName", "identifier of the project").DataType("string")).
 		Returns(200, "OK", []*apis.Config{}).
@@ -519,6 +536,45 @@ func (n *projectAPIInterface) listProjectPermissions(req *restful.Request, res *
 		return
 	}
 	if err := res.WriteEntity(policies); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) createProjectPermission(req *restful.Request, res *restful.Response) {
+	// Verify the validity of parameters
+	var createReq apis.CreatePermissionRequest
+	if err := req.ReadEntity(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := validate.Struct(&createReq); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Call the domain layer code
+	permissionBase, err := n.RbacService.CreatePermission(req.Request.Context(), req.PathParameter("projectName"), createReq)
+	if err != nil {
+		log.Logger.Errorf("create the permission failure %s", err.Error())
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+	// Write back response data
+	if err := res.WriteEntity(permissionBase); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (n *projectAPIInterface) deleteProjectPermission(req *restful.Request, res *restful.Response) {
+	err := n.RbacService.DeletePermission(req.Request.Context(), req.PathParameter("projectName"), req.PathParameter("permissionName"))
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	// Write back response data
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}

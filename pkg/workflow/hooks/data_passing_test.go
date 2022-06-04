@@ -43,10 +43,6 @@ func TestInput(t *testing.T) {
 	r.NoError(err)
 	err = wfCtx.SetVar(score, "foo")
 	r.NoError(err)
-	ready, err := value.NewValue(`true`, nil, "")
-	r.NoError(err)
-	err = wfCtx.SetVar(ready, ReadyComponent, "mystep")
-	r.NoError(err)
 	err = Input(wfCtx, paramValue, v1beta1.WorkflowStep{
 		DependsOn: []string{"mystep"},
 		Inputs: common.StepInputs{{
@@ -85,12 +81,6 @@ output: score: 99
 	s, err := result.String()
 	r.NoError(err)
 	r.Equal(s, `99
-`)
-	ready, err := wfCtx.GetVar(ReadyComponent, "mystep")
-	r.NoError(err)
-	s, err = ready.String()
-	r.NoError(err)
-	r.Equal(s, `true
 `)
 }
 

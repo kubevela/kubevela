@@ -49,7 +49,10 @@ var _ = Describe("Test helm helper", func() {
 		helper := NewHelper()
 		chart, err := helper.LoadCharts("./testdata/autoscalertrait-0.1.0.tgz", nil)
 		Expect(err).Should(BeNil())
-		release, err := helper.UpgradeChart(chart, "autoscalertrait", "default", nil, UpgradeChartOptions{
+		release, err := helper.UpgradeChart(chart, "autoscalertrait", "default", map[string]interface{}{
+			"replicaCount": 2,
+			"image.tag":    "0.1.0",
+		}, UpgradeChartOptions{
 			Config:  cfg,
 			Detail:  false,
 			Logging: util.IOStreams{Out: os.Stdout, ErrOut: os.Stderr},
@@ -58,6 +61,42 @@ var _ = Describe("Test helm helper", func() {
 		crds := GetCRDFromChart(release.Chart)
 		Expect(cmp.Diff(len(crds), 1)).Should(BeEmpty())
 		Expect(err).Should(BeNil())
+		deployments := GetDeploymentsFromManifest(release.Manifest)
+		Expect(cmp.Diff(len(deployments), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(*deployments[0].Spec.Replicas, int32(2))).Should(BeEmpty())
+		containers := deployments[0].Spec.Template.Spec.Containers
+		Expect(cmp.Diff(len(containers), 1)).Should(BeEmpty())
+
+		// add new default value
+		Expect(cmp.Diff(containers[0].Image, "ghcr.io/oam-dev/catalog/autoscalertrait:0.1.0")).Should(BeEmpty())
+
+		chartNew, err := helper.LoadCharts("./testdata/autoscalertrait-0.2.0.tgz", nil)
+		Expect(err).Should(BeNil())
+
+		// the new custom values should override the last release custom values
+		releaseNew, err := helper.UpgradeChart(chartNew, "autoscalertrait", "default", map[string]interface{}{
+			"image.tag": "0.2.0",
+		}, UpgradeChartOptions{
+			Config:      cfg,
+			Detail:      false,
+			ReuseValues: true,
+			Logging:     util.IOStreams{Out: os.Stdout, ErrOut: os.Stderr},
+			Wait:        false,
+		})
+		Expect(err).Should(BeNil())
+		deployments = GetDeploymentsFromManifest(releaseNew.Manifest)
+		Expect(cmp.Diff(len(deployments), 1)).Should(BeEmpty())
+		// keep the custom values
+		Expect(cmp.Diff(*deployments[0].Spec.Replicas, int32(2))).Should(BeEmpty())
+		containers = deployments[0].Spec.Template.Spec.Containers
+		Expect(cmp.Diff(len(containers), 1)).Should(BeEmpty())
+
+		// change the default value
+		Expect(cmp.Diff(containers[0].Image, "ghcr.io/oam-dev/catalog/autoscalertrait:0.2.0")).Should(BeEmpty())
+
+		// add new default value
+		Expect(cmp.Diff(len(containers[0].Env), 1)).Should(BeEmpty())
+		Expect(cmp.Diff(containers[0].Env[0].Name, "env1")).Should(BeEmpty())
 	})
 
 	It("Test UninstallRelease", func() {

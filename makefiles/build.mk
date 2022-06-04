@@ -9,7 +9,7 @@ kubectl-vela:
 
 # Build the docker image
 .PHONY: docker-build
-docker-build: docker-build-core docker-build-apiserver
+docker-build: docker-build-core docker-build-apiserver docker-build-cli
 	@$(OK)
 
 .PHONY: docker-build-core
@@ -19,6 +19,10 @@ docker-build-core:
 .PHONY: docker-build-apiserver
 docker-build-apiserver:
 	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_APISERVER_IMAGE) -f Dockerfile.apiserver .
+
+.PHONY: docker-build-cli
+docker-build-cli:
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CLI_IMAGE)  -f Dockerfile.cli .
 
 # Build the runtime docker image
 .PHONY: docker-build-runtime-rollout

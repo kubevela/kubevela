@@ -1,7 +1,9 @@
 "ref-objects": {
 	type: "component"
 	annotations: {}
-	labels: {}
+	labels: {
+		"ui-hidden": "true"
+	}
 	description: "Ref-objects allow users to specify ref objects to use. Notice that this component type have special handle logic."
 	attributes: {
 		workload: type: "autodetects.core.oam.dev"

@@ -28,6 +28,7 @@ import (
 	"github.com/xlab/treeprint"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/strings/slices"
@@ -325,6 +326,23 @@ func mergeSubjects(src []rbacv1.Subject, merge []rbacv1.Subject) []rbacv1.Subjec
 	return subs
 }
 
+func removeSubjects(src []rbacv1.Subject, toRemove []rbacv1.Subject) []rbacv1.Subject {
+	var subs []rbacv1.Subject
+	for _, sub := range src {
+		add := true
+		for _, t := range toRemove {
+			if reflect.DeepEqual(t, sub) {
+				add = false
+				break
+			}
+		}
+		if add {
+			subs = append(subs, sub)
+		}
+	}
+	return subs
+}
+
 // GrantPrivileges grant privileges to identity
 func GrantPrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer) error {
 	subs := identity.Subjects()
@@ -369,6 +387,62 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 			return fmt.Errorf("failed to create/update %s %s in %s: %w", kind, key, cluster, err)
 		}
 		_, _ = fmt.Fprintf(writer, "%s %s %s in %s.\n", kind, key, res, cluster)
+	}
+	return nil
+}
+
+// RevokePrivileges revoke privileges (notice that the revoking process only deletes bond subject in the
+// RoleBinding/ClusterRoleBinding, it does not ensure the identity's other related privileges are removed to
+// prevent identity from accessing)
+func RevokePrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer) error {
+	subs := identity.Subjects()
+	if len(subs) == 0 {
+		return fmt.Errorf("failed to find RBAC subjects in identity")
+	}
+	for _, p := range privileges {
+		cluster := p.GetCluster()
+		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
+		binding := p.GetRoleBinding(subs)
+		kind, key := "ClusterRoleBinding", binding.GetName()
+		if binding.GetNamespace() != "" {
+			kind, key = "RoleBinding", binding.GetNamespace()+"/"+binding.GetName()
+		}
+		var err error
+		remove := false
+		var toDel client.Object
+		switch bindingObj := binding.(type) {
+		case *rbacv1.RoleBinding:
+			obj := &rbacv1.RoleBinding{}
+			if err = cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
+				bindingObj.Subjects = removeSubjects(obj.Subjects, bindingObj.Subjects)
+				remove = len(bindingObj.Subjects) == 0
+				toDel = obj
+			}
+		case *rbacv1.ClusterRoleBinding:
+			obj := &rbacv1.ClusterRoleBinding{}
+			if err = cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
+				bindingObj.Subjects = removeSubjects(obj.Subjects, bindingObj.Subjects)
+				remove = len(bindingObj.Subjects) == 0
+				toDel = obj
+			}
+		}
+		if err != nil {
+			if !kerrors.IsNotFound(err) {
+				return fmt.Errorf("failed to fetch %s %s in cluster %s: %w", kind, key, cluster, err)
+			}
+			return nil
+		}
+		if remove {
+			if err = cli.Delete(_ctx, toDel); err != nil {
+				return fmt.Errorf("failed to delete %s %s in cluster %s: %w", kind, key, cluster, err)
+			}
+		} else {
+			res, err := utils.CreateOrUpdate(_ctx, cli, binding)
+			if err != nil {
+				return fmt.Errorf("failed to update %s %s in cluster %s: %w", kind, key, cluster, err)
+			}
+			_, _ = fmt.Fprintf(writer, "%s %s %s in cluster %s.\n", kind, key, res, cluster)
+		}
 	}
 	return nil
 }

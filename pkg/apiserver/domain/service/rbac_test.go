@@ -51,6 +51,10 @@ var _ = Describe("Test rbac service", func() {
 		Expect(err).Should(BeNil())
 		Expect(path).Should(BeEquivalentTo("project:{projectName}/application:{appName}"))
 
+		path, err = checkResourcePath("environment")
+		Expect(err).Should(BeNil())
+		Expect(path).Should(BeEquivalentTo("project:{projectName}/environment:{envName}"))
+
 		_, err = checkResourcePath("applications")
 		Expect(err).ShouldNot(BeNil())
 
@@ -94,7 +98,7 @@ var _ = Describe("Test rbac service", func() {
 		Expect(err).Should(BeNil())
 		policies, err := rbacService.ListPermissions(context.TODO(), "")
 		Expect(err).Should(BeNil())
-		Expect(len(policies)).Should(BeEquivalentTo(int64(7)))
+		Expect(len(policies)).Should(BeEquivalentTo(int64(8)))
 	})
 
 	It("Test checkPerm by admin user", func() {
@@ -194,7 +198,7 @@ var _ = Describe("Test rbac service", func() {
 
 		policies, err := rbacService.ListPermissions(context.TODO(), "init-test")
 		Expect(err).Should(BeNil())
-		Expect(len(policies)).Should(BeEquivalentTo(int64(4)))
+		Expect(len(policies)).Should(BeEquivalentTo(int64(5)))
 	})
 
 	It("Test UpdatePermission", func() {
@@ -262,6 +266,21 @@ func TestRequestResourceActionMatch(t *testing.T) {
 	ra5.SetResourceWithName("project:*/application:*", testPathParameter)
 	ra5.SetActions([]string{"list"})
 	assert.Equal(t, ra5.Match([]*model.Permission{{Resources: []string{"project:*/application:*"}, Actions: []string{"list"}, Effect: "Allow"}}), true)
+
+	ra6 := &RequestResourceAction{}
+	path, err := checkResourcePath("environment")
+	assert.Equal(t, err, nil)
+	ra6.SetResourceWithName(path, func(name string) string {
+		if name == "projectName" {
+			return "default"
+		}
+		return ""
+	})
+	ra6.SetActions([]string{"create"})
+	assert.Equal(t, ra6.Match([]*model.Permission{{Resources: []string{
+		"project:*/*", "addon:* addonRegistry:*", "target:*", "cluster:*/namespace:*", "user:*", "role:*", "permission:*", "configType:*/*", "project:*",
+		"project:default/config:*", "project:default/role:*", "project:default/projectUser:*", "project:default/permission:*", "project:default/environment:*", "project:default/application:*/*", "project:default",
+	}, Actions: []string{"list", "detail"}, Effect: "Allow"}}), false)
 
 }
 

@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -92,7 +93,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
-	return v.FillObject(workload.Object, "value")
+	return cue.FillUnstructuredObject(v, workload, "value")
 }
 
 // ApplyInParallel create or update CRs in parallel.
@@ -136,7 +137,6 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err != nil {
 		return err
 	}
-
 	obj := new(unstructured.Unstructured)
 	if err := val.UnmarshalTo(obj); err != nil {
 		return err
@@ -154,7 +154,7 @@ func (h *provider) Read(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err := h.cli.Get(readCtx, key, obj); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(obj.Object, "value")
+	return cue.FillUnstructuredObject(v, obj, "value")
 }
 
 // List lists CRs from cluster.
@@ -197,7 +197,7 @@ func (h *provider) List(ctx wfContext.Context, v *value.Value, act types.Action)
 	if err := h.cli.List(readCtx, list, listOpts...); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	return v.FillObject(list, "list")
+	return cue.FillUnstructuredObject(v, list, "list")
 }
 
 // Delete deletes CR from cluster.

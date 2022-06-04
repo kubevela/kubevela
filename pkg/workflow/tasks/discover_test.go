@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -82,10 +83,36 @@ func TestSuspendStep(t *testing.T) {
 	}
 	gen, err := discover.GetTaskGenerator(context.Background(), "suspend")
 	r.NoError(err)
-	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124"})
+	runner, err := gen(v1beta1.WorkflowStep{
+		Name:      "test",
+		DependsOn: []string{"depend"},
+	}, &types.GeneratorOptions{ID: "124"})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil), false)
+
+	// test pending
+	r.Equal(runner.Pending(nil, nil), true)
+	ss := map[string]common.StepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(runner.Pending(nil, ss), false)
+
+	// test skip
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
+	r.Equal(skip, true)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, custom.StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	r.NoError(err)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
+	r.Equal(skip, false)
+
+	// test run
 	status, act, err := runner.Run(nil, nil)
 	r.NoError(err)
 	r.Equal(act.Suspend, true)
@@ -127,11 +154,38 @@ func TestStepGroupStep(t *testing.T) {
 	r.NoError(err)
 	gen, err := discover.GetTaskGenerator(context.Background(), "stepGroup")
 	r.NoError(err)
-	runner, err := gen(v1beta1.WorkflowStep{Name: "test"}, &types.GeneratorOptions{ID: "124", SubTaskRunners: []types.TaskRunner{subRunner}})
+	runner, err := gen(v1beta1.WorkflowStep{
+		Name:      "test",
+		DependsOn: []string{"depend"},
+	}, &types.GeneratorOptions{ID: "124", SubTaskRunners: []types.TaskRunner{subRunner}})
 	r.NoError(err)
 	r.Equal(runner.Name(), "test")
-	r.Equal(runner.Pending(nil), false)
 
+	// test pending
+	r.Equal(runner.Pending(nil, nil), true)
+	ss := map[string]common.StepStatus{
+		"depend": {
+			Phase: common.WorkflowStepPhaseSucceeded,
+		},
+	}
+	r.Equal(runner.Pending(nil, ss), false)
+
+	// test skip
+	stepStatus := make(map[string]common.StepStatus)
+	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, stepStatus)
+	r.Equal(skip, false)
+	r.Equal(stepStatus["test"].Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
+	r.Equal(status.Reason, custom.StatusReasonSkip)
+	runner2, err := gen(v1beta1.WorkflowStep{
+		If:   "always",
+		Name: "test",
+	}, &types.GeneratorOptions{ID: "124"})
+	r.NoError(err)
+	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, stepStatus)
+	r.Equal(skip, false)
+
+	// test run
 	testCases := []struct {
 		name          string
 		engine        *testEngine

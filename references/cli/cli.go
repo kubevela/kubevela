@@ -71,7 +71,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
-	f := velacmd.NewDefaultFactory(config.GetConfigOrDie())
+	f := velacmd.NewDeferredFactory(config.GetConfig)
 
 	if err := system.InitDirs(); err != nil {
 		fmt.Println("InitDir err", err)
@@ -86,6 +86,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
+		NewQlCommand(commandArgs, "10", ioStream),
 		NewListCommand(commandArgs, "9", ioStream),
 		NewAppStatusCommand(commandArgs, "8", ioStream),
 		NewDeleteCommand(commandArgs, "7", ioStream),
@@ -130,10 +131,8 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 
-	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
-	_ = fset.Set("v", "-1")
 
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")

@@ -554,8 +554,9 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("application", "compare")).
 		Filter(c.appCheckFilter).
+		Reads(apis.AppCompareReq{}).
 		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
-		Returns(200, "OK", apis.ApplicationBase{}).
+		Returns(200, "OK", apis.AppCompareResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.AppCompareResponse{}))
 
@@ -574,6 +575,7 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("application", "detail")).
 		Filter(c.appCheckFilter).
+		Reads(apis.AppDryRunReq{}).
 		Param(ws.PathParameter("appName", "identifier of the application ").DataType("string")).
 		Returns(200, "OK", apis.AppDryRunResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).

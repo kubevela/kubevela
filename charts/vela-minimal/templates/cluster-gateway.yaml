@@ -31,7 +31,7 @@ spec:
             - "apiserver"
             - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
             - "--secret-namespace={{ .Release.Namespace }}"
-            - "--feature-gates=APIPriorityAndFairness=false"
+            - "--feature-gates=APIPriorityAndFairness=false,ClientIdentityPenetration={{ .Values.authentication.enabled }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--cert-dir={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}"
             {{ end }}
@@ -194,24 +194,25 @@ spec:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 rules:
   - apiGroups: [ "cluster.core.oam.dev" ]
     resources: [ "clustergateways/proxy" ]
     verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
-{{ end }}
 ---
-{{ if and .Values.multicluster.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-rolebinding
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "kubevela.fullname" . }}:cluster-gateway-access-role
+  name: {{ include "kubevela.fullname" . }}:cluster-gateway:proxy
 subjects:
   - kind: Group
-    name: cluster-gateway-accessor
+    name: kubevela:client
     apiGroup: rbac.authorization.k8s.io
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
 {{ end }}
