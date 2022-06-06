@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -219,17 +220,9 @@ func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash st
 func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow, wfStatus *common.WorkflowStatus) *engine {
 	stepStatus := make(map[string]common.StepStatus)
 	for _, ss := range wfStatus.Steps {
-		stepStatus[ss.Name] = common.StepStatus{
-			Phase:  ss.Phase,
-			ID:     ss.ID,
-			Reason: ss.Reason,
-		}
+		setStepStatus(stepStatus, ss.StepStatus)
 		for _, sss := range ss.SubStepsStatus {
-			stepStatus[sss.Name] = common.StepStatus{
-				Phase:  sss.Phase,
-				ID:     sss.ID,
-				Reason: ss.Reason,
-			}
+			setStepStatus(stepStatus, sss.StepStatus)
 		}
 	}
 	stepDependsOn := make(map[string][]string)
@@ -255,6 +248,15 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 		rk:            w.rk,
 		stepStatus:    stepStatus,
 		stepDependsOn: stepDependsOn,
+	}
+}
+
+func setStepStatus(statusMap map[string]common.StepStatus, status common.StepStatus) {
+	statusMap[status.Name] = common.StepStatus{
+		Phase:            status.Phase,
+		ID:               status.ID,
+		Reason:           status.Reason,
+		FirstExecuteTime: status.FirstExecuteTime,
 	}
 }
 
@@ -553,40 +555,17 @@ func (e *engine) checkWorkflowStatusMessage(wfStatus *common.WorkflowStatus) {
 
 func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 	wfCtx := e.wfCtx
-	var err error
 	for index, runner := range taskRunners {
 		if status, ok := e.stepStatus[runner.Name()]; ok {
 			if custom.IsStepFinish(status.Phase, status.Reason) {
 				continue
 			}
 		}
-		options := &wfTypes.TaskRunOptions{
-			GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
-				return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
-					metrics.StepDurationHistogram.WithLabelValues("application", stepStatus.Type).Observe(v)
-				}))
-			},
-			Engine: e,
-		}
-		if e.debug {
-			options.Debug = func(step string, v *value.Value) error {
-				debugContext := debug.NewContext(e.cli, e.rk, e.app, step)
-				if err := debugContext.Set(v); err != nil {
-					return err
-				}
-				return nil
-			}
-		}
+		options := e.generateRunOptions(e.findDependPhase(taskRunners, index, dag))
 
-		var status common.StepStatus
-		operation := &wfTypes.Operation{}
-		skip := false
-		status, skip = runner.Skip(e.findDependPhase(taskRunners, index, dag), e.stepStatus)
-		if !skip {
-			status, operation, err = runner.Run(wfCtx, options)
-			if err != nil {
-				return err
-			}
+		status, operation, err := runner.Run(wfCtx, options)
+		if err != nil {
+			return err
 		}
 
 		e.updateStepStatus(status)
@@ -614,6 +593,59 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		}
 	}
 	return nil
+}
+
+func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wfTypes.TaskRunOptions {
+	options := &wfTypes.TaskRunOptions{
+		GetTracer: func(id string, stepStatus oamcore.WorkflowStep) monitorContext.Context {
+			return e.monitorCtx.Fork(id, monitorContext.DurationMetric(func(v float64) {
+				metrics.StepDurationHistogram.WithLabelValues("application", stepStatus.Type).Observe(v)
+			}))
+		},
+		StepStatus: e.stepStatus,
+		Engine:     e,
+		PreCheckHooks: []wfTypes.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*wfTypes.PreCheckResult, error) {
+				if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
+					return &wfTypes.PreCheckResult{Skip: false}, nil
+				}
+				switch step.If {
+				case "always":
+					return &wfTypes.PreCheckResult{Skip: false}, nil
+				case "":
+					return &wfTypes.PreCheckResult{Skip: dependsOnPhase != common.WorkflowStepPhaseSucceeded}, nil
+				default:
+					// TODO:(fog) support more if cases
+					return &wfTypes.PreCheckResult{Skip: false}, nil
+				}
+			},
+			func(step v1beta1.WorkflowStep) (*wfTypes.PreCheckResult, error) {
+				status := e.stepStatus[step.Name]
+				if step.Timeout != "" {
+					duration, err := time.ParseDuration(step.Timeout)
+					if err != nil {
+						return nil, err
+					}
+					if !status.FirstExecuteTime.Time.IsZero() {
+						if remaining := duration - time.Since(status.FirstExecuteTime.Time); remaining <= 0 {
+							return &wfTypes.PreCheckResult{Timeout: true}, nil
+						}
+					}
+				}
+				return &wfTypes.PreCheckResult{Timeout: false}, nil
+			},
+		},
+	}
+	if e.debug {
+		options.Debug = func(step string, v *value.Value) error {
+			debugContext := debug.NewContext(e.cli, e.rk, e.app, step)
+			if err := debugContext.Set(v); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	return options
 }
 
 type engine struct {

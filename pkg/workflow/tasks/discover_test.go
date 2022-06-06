@@ -100,17 +100,29 @@ func TestSuspendStep(t *testing.T) {
 	r.Equal(runner.Pending(nil, ss), false)
 
 	// test skip
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
-	r.Equal(skip, true)
+	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Skip: true}, nil
+			},
+		},
+	})
+	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, custom.StatusReasonSkip)
-	runner2, err := gen(v1beta1.WorkflowStep{
-		If:   "always",
-		Name: "test",
-	}, &types.GeneratorOptions{ID: "124"})
+	r.Equal(operations.Skip, true)
+
+	// test timeout
+	status, operations, err = runner.Run(nil, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Timeout: true}, nil
+			},
+		},
+	})
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
-	r.Equal(skip, false)
+	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+	r.Equal(status.Reason, custom.StatusReasonTimeout)
 
 	// test run
 	status, act, err := runner.Run(nil, nil)
@@ -171,19 +183,39 @@ func TestStepGroupStep(t *testing.T) {
 	r.Equal(runner.Pending(nil, ss), false)
 
 	// test skip
-	stepStatus := make(map[string]common.StepStatus)
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, stepStatus)
-	r.Equal(skip, false)
-	r.Equal(stepStatus["test"].Phase, common.WorkflowStepPhaseSkipped)
+	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Skip: true}, nil
+			},
+		},
+		StepStatus: map[string]common.StepStatus{},
+		Engine: &testEngine{
+			stepStatus: common.WorkflowStepStatus{},
+			operation:  &types.Operation{},
+		},
+	})
+	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, custom.StatusReasonSkip)
-	runner2, err := gen(v1beta1.WorkflowStep{
-		If:   "always",
-		Name: "test",
-	}, &types.GeneratorOptions{ID: "124"})
+	r.Equal(operations.Skip, true)
+
+	// test timeout
+	status, operations, err = runner.Run(nil, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Timeout: true}, nil
+			},
+		},
+		StepStatus: map[string]common.StepStatus{},
+		Engine: &testEngine{
+			stepStatus: common.WorkflowStepStatus{},
+			operation:  &types.Operation{},
+		},
+	})
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, stepStatus)
-	r.Equal(skip, false)
+	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+	r.Equal(status.Reason, custom.StatusReasonTimeout)
 
 	// test run
 	testCases := []struct {

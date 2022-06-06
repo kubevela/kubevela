@@ -22,7 +22,6 @@ import (
 	builtintime "time"
 
 	"github.com/pkg/errors"
-	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
@@ -135,16 +133,36 @@ func (tr *suspendTaskRunner) Name() string {
 
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
-	if tr.wait {
-		tr.phase = common.WorkflowStepPhaseRunning
-	} else {
-		tr.phase = common.WorkflowStepPhaseSucceeded
-	}
 	stepStatus := common.StepStatus{
 		ID:    tr.id,
 		Name:  tr.step.Name,
 		Type:  types.WorkflowStepTypeSuspend,
-		Phase: tr.phase,
+		Phase: common.WorkflowStepPhaseSucceeded,
+	}
+	operations := &types.Operation{Suspend: true}
+
+	if options != nil {
+		for _, hook := range options.PreCheckHooks {
+			result, err := hook(tr.step)
+			if err != nil {
+				return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
+			}
+			switch {
+			case result.Skip:
+				stepStatus.Phase = common.WorkflowStepPhaseSkipped
+				stepStatus.Reason = custom.StatusReasonSkip
+				operations.Skip = true
+			case result.Timeout:
+				stepStatus.Phase = common.WorkflowStepPhaseFailed
+				stepStatus.Reason = custom.StatusReasonTimeout
+			default:
+				continue
+			}
+			return stepStatus, operations, nil
+		}
+	}
+	if tr.wait {
+		stepStatus.Phase = common.WorkflowStepPhaseRunning
 	}
 
 	return stepStatus, &types.Operation{Suspend: true}, nil
@@ -153,27 +171,6 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 // Pending check task should be executed or not.
 func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 	return custom.CheckPending(ctx, tr.step, stepStatus)
-}
-
-func (tr *suspendTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-	status := common.StepStatus{
-		ID:    tr.id,
-		Name:  tr.step.Name,
-		Type:  types.WorkflowStepTypeSuspend,
-		Phase: tr.phase,
-	}
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
-		return status, false
-	}
-	skip := custom.SkipTaskRunner(&custom.SkipOptions{
-		If:             tr.step.If,
-		DependsOnPhase: dependsOnPhase,
-	})
-	if skip {
-		status.Phase = common.WorkflowStepPhaseSkipped
-		status.Reason = custom.StatusReasonSkip
-	}
-	return status, skip
 }
 
 type stepGroupTaskRunner struct {
@@ -193,34 +190,29 @@ func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[str
 	return custom.CheckPending(ctx, tr.step, stepStatus)
 }
 
-func (tr *stepGroupTaskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-	status := common.StepStatus{
-		ID:   tr.id,
-		Name: tr.step.Name,
-		Type: types.WorkflowStepTypeStepGroup,
-	}
-	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
-		return status, false
-	}
-	skip := custom.SkipTaskRunner(&custom.SkipOptions{
-		If:             tr.step.If,
-		DependsOnPhase: dependsOnPhase,
-	})
-	if skip {
-		status.Phase = common.WorkflowStepPhaseSkipped
-		status.Reason = custom.StatusReasonSkip
-		stepStatus[tr.step.Name] = common.StepStatus{
-			ID:    tr.id,
-			Phase: status.Phase,
-		}
-		// return false here to set all the sub steps to skipped
-		return status, false
-	}
-	return status, skip
-}
-
 // Run make workflow step group.
 func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
+	status := common.StepStatus{
+		ID:   tr.id,
+		Name: tr.name,
+		Type: types.WorkflowStepTypeStepGroup,
+	}
+	for _, hook := range options.PreCheckHooks {
+		result, err := hook(tr.step)
+		if err != nil {
+			return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
+		}
+		if result.Skip {
+			status.Phase = common.WorkflowStepPhaseSkipped
+			status.Reason = custom.StatusReasonSkip
+			options.StepStatus[tr.step.Name] = status
+			break
+		} else if result.Timeout {
+			status.Phase = common.WorkflowStepPhaseFailed
+			status.Reason = custom.StatusReasonTimeout
+			options.StepStatus[tr.step.Name] = status
+		}
+	}
 	e := options.Engine
 	if len(tr.subTaskRunners) > 0 {
 		e.SetParentRunner(tr.name)
@@ -236,11 +228,6 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		e.SetParentRunner("")
 	}
 	stepStatus := e.GetStepStatus(tr.name)
-	status := common.StepStatus{
-		ID:   tr.id,
-		Name: tr.name,
-		Type: types.WorkflowStepTypeStepGroup,
-	}
 
 	subStepCounts := make(map[string]int)
 	for _, subStepsStatus := range stepStatus.SubStepsStatus {
@@ -248,6 +235,9 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		subStepCounts[subStepsStatus.Reason]++
 	}
 	switch {
+	case status.Phase == common.WorkflowStepPhaseSkipped:
+		return status, &types.Operation{Skip: true}, nil
+	case status.Phase == common.WorkflowStepPhaseFailed && status.Reason == custom.StatusReasonTimeout:
 	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
 		status.Phase = common.WorkflowStepPhaseRunning
 	case subStepCounts[string(common.WorkflowStepPhaseRunning)] > 0:
@@ -259,6 +249,8 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		switch {
 		case subStepCounts[custom.StatusReasonFailedAfterRetries] > 0:
 			status.Reason = custom.StatusReasonFailedAfterRetries
+		case subStepCounts[custom.StatusReasonTimeout] > 0:
+			status.Reason = custom.StatusReasonTimeout
 		case subStepCounts[custom.StatusReasonTerminate] > 0:
 			status.Reason = custom.StatusReasonTerminate
 		}

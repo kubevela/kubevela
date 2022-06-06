@@ -123,6 +123,7 @@ func generateStep(ctx context.Context,
 				Inputs:     subStep.Inputs,
 				Outputs:    subStep.Outputs,
 				If:         subStep.If,
+				Timeout:    subStep.Timeout,
 			}
 			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, step.Name)
 			if err != nil {

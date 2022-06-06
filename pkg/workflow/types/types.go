@@ -32,7 +32,6 @@ type TaskRunner interface {
 	Name() string
 	Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
 	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
-	Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // TaskDiscover is the interface to obtain the TaskGenerator。
@@ -52,14 +51,22 @@ type Engine interface {
 type TaskRunOptions struct {
 	Data          *value.Value
 	PCtx          process.Context
+	PreCheckHooks []TaskPreCheckHook
 	PreStartHooks []TaskPreStartHook
 	PostStopHooks []TaskPostStopHook
 	GetTracer     func(id string, step v1beta1.WorkflowStep) monitorCtx.Context
 	RunSteps      func(isDag bool, runners ...TaskRunner) (*common.WorkflowStatus, error)
 	Debug         func(step string, v *value.Value) error
+	StepStatus    map[string]common.StepStatus
 	Engine        Engine
-	ParentRunner  string
 }
+
+type PreCheckResult struct {
+	Skip    bool
+	Timeout bool
+}
+
+type TaskPreCheckHook func(step v1beta1.WorkflowStep) (*PreCheckResult, error)
 
 // TaskPreStartHook run before task execution.
 type TaskPreStartHook func(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error
