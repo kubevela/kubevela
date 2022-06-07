@@ -37,4 +37,6 @@ type Workflow interface {
 	GetBackoffWaitTime() time.Duration
 
 	HandleSuspendWait(ctx monitorContext.Context) (bool, time.Duration, error)
+
+	GetSuspendBackoffWaitTime() time.Duration
 }

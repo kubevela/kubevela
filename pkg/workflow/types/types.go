@@ -61,11 +61,13 @@ type TaskRunOptions struct {
 	Engine        Engine
 }
 
+// PreCheckResult is the result of pre check.
 type PreCheckResult struct {
 	Skip    bool
 	Timeout bool
 }
 
+// TaskPreCheckHook is the hook for pre check.
 type TaskPreCheckHook func(step v1beta1.WorkflowStep) (*PreCheckResult, error)
 
 // TaskPreStartHook run before task execution.

@@ -110,6 +110,7 @@ func TestSuspendStep(t *testing.T) {
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, custom.StatusReasonSkip)
+	r.Equal(operations.Suspend, false)
 	r.Equal(operations.Skip, true)
 
 	// test timeout
@@ -123,6 +124,8 @@ func TestSuspendStep(t *testing.T) {
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 	r.Equal(status.Reason, custom.StatusReasonTimeout)
+	r.Equal(operations.Suspend, false)
+	r.Equal(operations.Terminated, true)
 
 	// test run
 	status, act, err := runner.Run(nil, nil)
@@ -130,7 +133,7 @@ func TestSuspendStep(t *testing.T) {
 	r.Equal(act.Suspend, true)
 	r.Equal(status.ID, "124")
 	r.Equal(status.Name, "test")
-	r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded)
+	r.Equal(status.Phase, common.WorkflowStepPhaseRunning)
 }
 
 type testEngine struct {
@@ -216,6 +219,7 @@ func TestStepGroupStep(t *testing.T) {
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 	r.Equal(status.Reason, custom.StatusReasonTimeout)
+	r.Equal(operations.Terminated, true)
 
 	// test run
 	testCases := []struct {

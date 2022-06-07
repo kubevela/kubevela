@@ -65,7 +65,8 @@ const (
 	StatusReasonOutput = "Output"
 	// StatusReasonFailedAfterRetries is the reason of the workflow progress condition which is FailedAfterRetries.
 	StatusReasonFailedAfterRetries = "FailedAfterRetries"
-	StatusReasonTimeout            = "Timeout"
+	// StatusReasonTimeout is the reason of the workflow progress condition which is Timeout.
+	StatusReasonTimeout = "Timeout"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -176,6 +177,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				}
 				if result.Timeout {
 					exec.err(ctx, errors.New("timeout"), StatusReasonTimeout)
+					exec.terminated = true
 					return exec.status(), exec.operation(), nil
 				}
 			}

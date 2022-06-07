@@ -30,7 +30,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
@@ -123,9 +122,6 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	if checkWorkflowTerminated(wfStatus, allTasksDone) {
 		return common.WorkflowStateTerminated, nil
 	}
-	if wfStatus.Suspend {
-		return common.WorkflowStateSuspended, nil
-	}
 	if allTasksSucceeded {
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -178,7 +174,7 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 }
 
 func checkWorkflowTerminated(wfStatus *common.WorkflowStatus, allTasksDone bool) bool {
-	return (wfStatus.Terminated && allTasksDone) || (wfStatus.Terminated && wfStatus.Suspend)
+	return wfStatus.Terminated && allTasksDone
 }
 
 func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash string) (common.WorkflowState, error) {
@@ -248,6 +244,7 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 		rk:            w.rk,
 		stepStatus:    stepStatus,
 		stepDependsOn: stepDependsOn,
+		stepTimeout:   make(map[string]time.Time),
 	}
 }
 
@@ -272,9 +269,74 @@ func (w *workflow) Trace() error {
 	return recorder.With(w.cli, w.app).Save("", data).Limit(10).Error()
 }
 
+func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
+	if w.app.Status.Workflow == nil {
+		return 0
+	}
+	stepStatus := make(map[string]common.StepStatus)
+	for _, ss := range w.app.Status.Workflow.Steps {
+		setStepStatus(stepStatus, ss.StepStatus)
+		for _, sss := range ss.SubStepsStatus {
+			setStepStatus(stepStatus, sss.StepStatus)
+		}
+	}
+	max := time.Duration(1<<63 - 1)
+	min := max
+	for _, step := range w.app.Spec.Workflow.Steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup {
+			min = handleSuspendBackoffTime(step, stepStatus[step.Name], min)
+		}
+		for _, sub := range step.SubSteps {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend {
+				min = handleSuspendBackoffTime(oamcore.WorkflowStep{
+					Name:       sub.Name,
+					Type:       sub.Type,
+					Timeout:    sub.Timeout,
+					Properties: sub.Properties,
+				}, stepStatus[sub.Name], min)
+			}
+		}
+	}
+	if min == max {
+		return 0
+	}
+	return min
+}
+
+func handleSuspendBackoffTime(step oamcore.WorkflowStep, status common.StepStatus, min time.Duration) time.Duration {
+	if status.Phase == common.WorkflowStepPhaseRunning {
+		if step.Timeout != "" {
+			duration, err := time.ParseDuration(step.Timeout)
+			if err != nil {
+				return 0
+			}
+			timeout := status.FirstExecuteTime.Add(duration)
+			if time.Now().Before(timeout) {
+				d := time.Until(timeout)
+				if duration < min {
+					min = d
+				}
+			}
+		}
+
+		d, wd, err := wfTasks.GetSuspendStepDurationWaiting(step)
+		if err != nil {
+			return 0
+		}
+		if d && wd < min {
+			min = wd
+		}
+
+	}
+	return min
+}
+
 func (w *workflow) GetBackoffWaitTime() time.Duration {
 	nextTime, ok := w.wfCtx.GetValueInMemory(wfTypes.ContextKeyNextExecuteTime)
 	if !ok {
+		if w.app.Status.Workflow.Suspend {
+			return 0
+		}
 		return time.Second
 	}
 	unix, ok := nextTime.(int64)
@@ -460,8 +522,31 @@ func (e *engine) getMaxBackoffWaitTime() int {
 	return MaxWorkflowWaitBackoffTime
 }
 
+func (e *engine) getNextTimeout() int64 {
+	max := time.Duration(1<<63 - 1)
+	min := max
+	now := time.Now()
+	for _, step := range e.status.Steps {
+		if step.Phase == common.WorkflowStepPhaseRunning {
+			if timeout, ok := e.stepTimeout[step.Name]; ok {
+				duration := timeout.Sub(now)
+				if duration < min {
+					min = duration
+				}
+			}
+		}
+	}
+	if min == max {
+		return -1
+	}
+	if min.Seconds() < 1 {
+		return minWorkflowBackoffWaitTime
+	}
+	return int64(math.Ceil(min.Seconds()))
+}
+
 func (e *engine) setNextExecuteTime() {
-	interval := e.getBackoffWaitTime()
+	backoff := e.getBackoffWaitTime()
 	lastExecuteTime, ok := e.wfCtx.GetValueInMemory(wfTypes.ContextKeyLastExecuteTime)
 	if !ok {
 		e.monitorCtx.Error(fmt.Errorf("failed to get last execute time"), "application", e.app.Name)
@@ -471,12 +556,20 @@ func (e *engine) setNextExecuteTime() {
 	if !ok {
 		e.monitorCtx.Error(fmt.Errorf("failed to parse last execute time to int64"), "lastExecuteTime", lastExecuteTime)
 	}
-
-	next := last + int64(interval)
-	e.wfCtx.SetValueInMemory(next, wfTypes.ContextKeyNextExecuteTime)
-	if err := e.wfCtx.Commit(); err != nil {
-		e.monitorCtx.Error(err, "failed to commit next execute time", "nextExecuteTime", next)
+	interval := int64(backoff)
+	timeout := e.getNextTimeout()
+	if timeout > 0 {
+		if e.app.Status.Workflow.Suspend {
+			e.wfCtx.DeleteValueInMemory(wfTypes.ContextKeyNextExecuteTime)
+			return
+		}
+		if timeout < interval {
+			interval = timeout
+		}
 	}
+
+	next := last + interval
+	e.wfCtx.SetValueInMemory(next, wfTypes.ContextKeyNextExecuteTime)
 }
 
 func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
@@ -588,6 +681,9 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 		}
 
 		e.finishStep(operation)
+		if dag {
+			continue
+		}
 		if e.needStop() {
 			return nil
 		}
@@ -605,7 +701,7 @@ func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wf
 		StepStatus: e.stepStatus,
 		Engine:     e,
 		PreCheckHooks: []wfTypes.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*wfTypes.PreCheckResult, error) {
+			func(step oamcore.WorkflowStep) (*wfTypes.PreCheckResult, error) {
 				if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				}
@@ -619,17 +715,22 @@ func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wf
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				}
 			},
-			func(step v1beta1.WorkflowStep) (*wfTypes.PreCheckResult, error) {
+			func(step oamcore.WorkflowStep) (*wfTypes.PreCheckResult, error) {
 				status := e.stepStatus[step.Name]
-				if step.Timeout != "" {
+				if e.parentRunner != "" {
+					if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseFailed && status.Reason == custom.StatusReasonTimeout {
+						return &wfTypes.PreCheckResult{Timeout: true}, nil
+					}
+				}
+				if !status.FirstExecuteTime.Time.IsZero() && step.Timeout != "" {
 					duration, err := time.ParseDuration(step.Timeout)
 					if err != nil {
 						return nil, err
 					}
-					if !status.FirstExecuteTime.Time.IsZero() {
-						if remaining := duration - time.Since(status.FirstExecuteTime.Time); remaining <= 0 {
-							return &wfTypes.PreCheckResult{Timeout: true}, nil
-						}
+					timeout := status.FirstExecuteTime.Add(duration)
+					e.stepTimeout[step.Name] = timeout
+					if time.Now().After(timeout) {
+						return &wfTypes.PreCheckResult{Timeout: true}, nil
 					}
 				}
 				return &wfTypes.PreCheckResult{Timeout: false}, nil
@@ -660,6 +761,7 @@ type engine struct {
 	rk                 resourcekeeper.ResourceKeeper
 	parentRunner       string
 	stepStatus         map[string]common.StepStatus
+	stepTimeout        map[string]time.Time
 	stepDependsOn      map[string][]string
 }
 

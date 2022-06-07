@@ -19,7 +19,7 @@ package tasks
 import (
 	"context"
 	"encoding/json"
-	builtintime "time"
+	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
@@ -37,7 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/email"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/time"
+	timeprovider "github.com/oam-dev/kubevela/pkg/workflow/providers/time"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/workspace"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
@@ -74,15 +74,7 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 	tr := &suspendTaskRunner{
 		id:   opt.ID,
 		step: step,
-		wait: false,
 	}
-
-	doDelay, _, err := GetSuspendStepDurationWaiting(step)
-	if err != nil {
-		return nil, err
-	}
-
-	tr.wait = doDelay
 
 	return tr, nil
 }
@@ -120,10 +112,8 @@ func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers pr
 }
 
 type suspendTaskRunner struct {
-	id    string
-	step  v1beta1.WorkflowStep
-	wait  bool
-	phase common.WorkflowStepPhase
+	id   string
+	step v1beta1.WorkflowStep
 }
 
 // Name return suspend step name.
@@ -137,7 +127,7 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 		ID:    tr.id,
 		Name:  tr.step.Name,
 		Type:  types.WorkflowStepTypeSuspend,
-		Phase: common.WorkflowStepPhaseSucceeded,
+		Phase: common.WorkflowStepPhaseRunning,
 	}
 	operations := &types.Operation{Suspend: true}
 
@@ -151,21 +141,35 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 			case result.Skip:
 				stepStatus.Phase = common.WorkflowStepPhaseSkipped
 				stepStatus.Reason = custom.StatusReasonSkip
+				operations.Suspend = false
 				operations.Skip = true
 			case result.Timeout:
 				stepStatus.Phase = common.WorkflowStepPhaseFailed
 				stepStatus.Reason = custom.StatusReasonTimeout
+				operations.Suspend = false
+				operations.Terminated = true
 			default:
 				continue
 			}
 			return stepStatus, operations, nil
 		}
 	}
-	if tr.wait {
-		stepStatus.Phase = common.WorkflowStepPhaseRunning
-	}
 
-	return stepStatus, &types.Operation{Suspend: true}, nil
+	d, wd, err := GetSuspendStepDurationWaiting(tr.step)
+	if err != nil {
+		return stepStatus, operations, err
+	}
+	if d {
+		e := options.Engine
+		firstExecuteTime := time.Now()
+		if ss := e.GetStepStatus(tr.step.Name); !ss.FirstExecuteTime.IsZero() {
+			firstExecuteTime = ss.FirstExecuteTime.Time
+		}
+		if time.Now().After(firstExecuteTime.Add(wd)) {
+			stepStatus.Phase = common.WorkflowStepPhaseSucceeded
+		}
+	}
+	return stepStatus, operations, nil
 }
 
 // Pending check task should be executed or not.
@@ -238,6 +242,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 	case status.Phase == common.WorkflowStepPhaseSkipped:
 		return status, &types.Operation{Skip: true}, nil
 	case status.Phase == common.WorkflowStepPhaseFailed && status.Reason == custom.StatusReasonTimeout:
+		return status, &types.Operation{Terminated: true}, nil
 	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
 		status.Phase = common.WorkflowStepPhaseRunning
 	case subStepCounts[string(common.WorkflowStepPhaseRunning)] > 0:
@@ -269,7 +274,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 
 	// install builtin provider
 	query.Install(handlerProviders, cli, cfg)
-	time.Install(handlerProviders)
+	timeprovider.Install(handlerProviders)
 	kube.Install(handlerProviders, nil, cli, apply, delete)
 	http.Install(handlerProviders, cli, viewNs)
 	email.Install(handlerProviders)
@@ -282,7 +287,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 }
 
 // GetSuspendStepDurationWaiting get suspend step wait duration
-func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime.Duration, error) {
+func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, time.Duration, error) {
 	if step.Properties.Size() > 0 {
 		o := struct {
 			Duration string `json:"duration"`
@@ -297,7 +302,7 @@ func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (bool, builtintime
 		}
 
 		if o.Duration != "" {
-			waitDuration, err := builtintime.ParseDuration(o.Duration)
+			waitDuration, err := time.ParseDuration(o.Duration)
 			return true, waitDuration, err
 		}
 	}
