@@ -76,6 +76,8 @@ func asyncExec(cli string) (*gexec.Session, error) {
 	c := strings.Fields(cli)
 	commandName := path.Join(rudrPath, c[0])
 	command := exec.Command(commandName, c[1:]...)
+	// Use project root as working directory
+	command.Dir = path.Join(rudrPath, "..")
 	session, err := gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
 	return session, err
 }
