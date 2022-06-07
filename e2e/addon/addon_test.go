@@ -83,8 +83,8 @@ var _ = Describe("Addon Test", func() {
 			}, 60*time.Second).Should(Succeed())
 		})
 
-		It("Enable local addon with . as path", func() {
-			output, err := e2e.LongTimeExec("vela addon enable ./e2e/addon/mock/testdata/sample/.", 600*time.Second)
+		FIt("Enable local addon with . as path", func() {
+			output, err := e2e.LongTimeExec("vela addon enable ../../e2e/addon/mock/testdata/sample/.", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).To(ContainSubstring("sample enabled successfully."))
 			Expect(output).To(ContainSubstring("access sample from"))
