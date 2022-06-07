@@ -1,3 +1,3 @@
 parameter: {
-	example: *"default"
+	example: *"default" | string
 }
