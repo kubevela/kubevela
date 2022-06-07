@@ -84,10 +84,10 @@ var _ = Describe("Addon Test", func() {
 		})
 
 		It("Enable local addon with . as path", func() {
-			output, err := e2e.LongTimeExec("vela addon enable ./e2e/addon/mock/testdata/test-addon/.", 600*time.Second)
+			output, err := e2e.LongTimeExec("vela addon enable ./e2e/addon/mock/testdata/sample/.", 600*time.Second)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("test-addon enabled successfully."))
-			Expect(output).To(ContainSubstring("access test-addon from"))
+			Expect(output).To(ContainSubstring("sample enabled successfully."))
+			Expect(output).To(ContainSubstring("access sample from"))
 		})
 
 		It("Test Change default namespace can work", func() {

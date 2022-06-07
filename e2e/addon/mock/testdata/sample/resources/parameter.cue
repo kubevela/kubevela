@@ -1,0 +1,3 @@
+parameter: {
+	example: *"default" | string
+}
