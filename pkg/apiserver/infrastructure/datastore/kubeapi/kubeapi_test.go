@@ -38,6 +38,9 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	It("Test add function", func() {
 		err := kubeStore.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
+
+		err = kubeStore.Add(context.TODO(), &model.Application{Name: "cat@delete", Description: "this is for test special symbol"})
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Test batch add function", func() {
