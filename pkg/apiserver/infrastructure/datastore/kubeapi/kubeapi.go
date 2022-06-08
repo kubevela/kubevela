@@ -85,7 +85,7 @@ func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 		labels = make(map[string]string)
 	}
 	for k, v := range labels {
-		labels[k] = verifyUserValue(v)
+		labels[k] = verifyValue(v)
 	}
 	labels["table"] = entity.TableName()
 	labels["primaryKey"] = entity.PrimaryKey()
@@ -180,7 +180,7 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 		labels = make(map[string]string)
 	}
 	for k, v := range labels {
-		labels[k] = verifyUserValue(v)
+		labels[k] = verifyValue(v)
 	}
 	labels["table"] = entity.TableName()
 	labels["primaryKey"] = entity.PrimaryKey()
@@ -351,7 +351,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	selector = selector.Add(*rq)
 
 	for k, v := range entity.Index() {
-		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyUserValue(v)})
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return nil, datastore.ErrIndexInvalid
 		}
@@ -437,7 +437,7 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		return 0, datastore.NewDBError(err)
 	}
 	for k, v := range entity.Index() {
-		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyUserValue(v)})
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return 0, datastore.ErrIndexInvalid
 		}
@@ -480,7 +480,7 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	return int64(len(items)), nil
 }
 
-func verifyUserValue(v string) string {
+func verifyValue(v string) string {
 	s := strings.ReplaceAll(v, "@", "-")
 	s = strings.ReplaceAll(s, " ", "-")
 	return strings.ToLower(s)
