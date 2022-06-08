@@ -223,12 +223,25 @@ func getAddonRegistry(ctx context.Context, c common.Args, name string) error {
 		return err
 	}
 	table := uitable.New()
-	if registry.OSS != nil {
+	switch {
+	case registry.OSS != nil:
 		table.AddRow("NAME", "Type", "ENDPOINT", "BUCKET", "PATH")
 		table.AddRow(registry.Name, "OSS", registry.OSS.Endpoint, registry.OSS.Bucket, registry.OSS.Path)
-	} else {
+	case registry.Helm != nil:
+		table.AddRow("NAME", "Type", "ENDPOINT")
+		table.AddRow(registry.Name, "Helm", registry.Helm.URL)
+	case registry.Gitee != nil:
 		table.AddRow("NAME", "Type", "ENDPOINT", "PATH")
-		table.AddRow(registry.Name, "git", registry.Git.URL, registry.Git.Path)
+		table.AddRow(registry.Name, "Gitee", registry.Gitee.URL, registry.Gitee.Path)
+	case registry.Gitlab != nil:
+		table.AddRow("NAME", "Type", "ENDPOINT", "REPOSITORY", "PATH")
+		table.AddRow(registry.Name, "Gitlab", registry.Gitlab.URL, registry.Gitlab.Repo, registry.Gitlab.Path)
+	case registry.Git != nil:
+		table.AddRow("NAME", "Type", "ENDPOINT", "PATH")
+		table.AddRow(registry.Name, "Git", registry.Git.URL, registry.Git.Path)
+	default:
+		table.AddRow("Name")
+		table.AddRow(registry.Name)
 	}
 	fmt.Println(table.String())
 	return nil
