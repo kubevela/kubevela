@@ -465,13 +465,14 @@ func (o *AppfileOptions) apply(app *corev1beta1.Application, scopes []oam.Object
 
 // Info shows the status of each service in the Appfile
 func Info(app *corev1beta1.Application) string {
+	yellow := color.New(color.FgYellow)
 	appName := app.Name
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
-		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
-		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
-		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
-		fmt.Sprintf("      App status: vela status %s\n", appName) +
-		fmt.Sprintf("        Endpoint: vela status %s --endpoint\n", appName)
+		"    Port forward: " + yellow.Sprintf("vela port-forward %s\n", appName) +
+		"             SSH: " + yellow.Sprintf("vela exec %s\n", appName) +
+		"         Logging: " + yellow.Sprintf("vela logs %s\n", appName) +
+		"      App status: " + yellow.Sprintf("vela status %s\n", appName) +
+		"        Endpoint: " + yellow.Sprintf("vela status %s --endpoint\n", appName)
 	return appUpMessage
 }
 
