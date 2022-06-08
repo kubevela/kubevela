@@ -679,6 +679,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+					log.Logger.Errorf("error to list subresources: %s err: %v", resource.Kind, err)
 					continue
 				}
 				return nil, err
