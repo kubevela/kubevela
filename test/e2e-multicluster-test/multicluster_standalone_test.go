@@ -130,6 +130,11 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			_app := &v1beta1.Application{}
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
 			_app.Status.Workflow.Suspend = false
+			for _, step := range _app.Status.Workflow.Steps {
+				if step.Type == "suspend" {
+					step.Phase = oamcomm.WorkflowStepPhaseSucceeded
+				}
+			}
 			g.Expect(k8sClient.Status().Update(hubCtx, _app)).Should(Succeed())
 		}, 15*time.Second).Should(Succeed())
 

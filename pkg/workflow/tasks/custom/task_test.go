@@ -531,7 +531,7 @@ func TestTimeout(t *testing.T) {
 		Type: "ok",
 	}
 	pCtx := process.NewContext(process.ContextData{
-		AppName:         "myapp",
+		AppName:         "myapp-timeout",
 		CompName:        "mycomp",
 		Namespace:       "default",
 		AppRevisionName: "myapp-v1",

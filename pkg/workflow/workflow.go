@@ -282,18 +282,20 @@ func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
 	}
 	max := time.Duration(1<<63 - 1)
 	min := max
-	for _, step := range w.app.Spec.Workflow.Steps {
-		if step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup {
-			min = handleSuspendBackoffTime(step, stepStatus[step.Name], min)
-		}
-		for _, sub := range step.SubSteps {
-			if sub.Type == wfTypes.WorkflowStepTypeSuspend {
-				min = handleSuspendBackoffTime(oamcore.WorkflowStep{
-					Name:       sub.Name,
-					Type:       sub.Type,
-					Timeout:    sub.Timeout,
-					Properties: sub.Properties,
-				}, stepStatus[sub.Name], min)
+	if w.app.Spec.Workflow != nil {
+		for _, step := range w.app.Spec.Workflow.Steps {
+			if step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup {
+				min = handleSuspendBackoffTime(step, stepStatus[step.Name], min)
+			}
+			for _, sub := range step.SubSteps {
+				if sub.Type == wfTypes.WorkflowStepTypeSuspend {
+					min = handleSuspendBackoffTime(oamcore.WorkflowStep{
+						Name:       sub.Name,
+						Type:       sub.Type,
+						Timeout:    sub.Timeout,
+						Properties: sub.Properties,
+					}, stepStatus[sub.Name], min)
+				}
 			}
 		}
 	}
@@ -319,12 +321,12 @@ func handleSuspendBackoffTime(step oamcore.WorkflowStep, status common.StepStatu
 			}
 		}
 
-		d, wd, err := wfTasks.GetSuspendStepDurationWaiting(step)
+		d, err := wfTasks.GetSuspendStepDurationWaiting(step)
 		if err != nil {
 			return 0
 		}
-		if d && wd < min {
-			min = wd
+		if d != 0 && d < min {
+			min = d
 		}
 
 	}
@@ -349,64 +351,6 @@ func (w *workflow) GetBackoffWaitTime() time.Duration {
 	}
 
 	return time.Second
-}
-
-func (w *workflow) HandleSuspendWait(ctx monitorContext.Context) (doWaiting bool, durationWaiting time.Duration, errRet error) {
-	ctx.Info("handle suspend wait")
-	for i, stepStatus := range w.app.Status.Workflow.Steps {
-		if !w.isWaitSuspendStep(stepStatus) {
-			continue
-		}
-
-		step := w.getWorkflowStepByName(stepStatus.Name)
-		if step.Name == "" {
-			errRet = fmt.Errorf("failed to get workflow step by name: %s", stepStatus.Name)
-			return
-		}
-
-		d, wd, err := wfTasks.GetSuspendStepDurationWaiting(step)
-		if err != nil {
-			ctx.Error(err, "failed to get suspend step wait duration")
-			errRet = err
-			return
-		}
-
-		if d {
-			doWaiting = d
-			remainingDuration := wd - time.Since(stepStatus.FirstExecuteTime.Time)
-			if remainingDuration <= 0 {
-				w.app.Status.Workflow.Steps[i].Phase = common.WorkflowStepPhaseSucceeded
-			}
-
-			if remainingDuration > 0 && (durationWaiting > remainingDuration || durationWaiting <= 0) {
-				suspendState := fmt.Sprintf("durationWaiting(%s)", wd.String())
-				if w.app.Status.Workflow.SuspendState != suspendState {
-					w.app.Status.Workflow.SuspendState = suspendState
-				}
-				durationWaiting = remainingDuration
-			}
-		}
-
-		if !w.dagMode {
-			return
-		}
-	}
-
-	return doWaiting, durationWaiting, errRet
-}
-
-func (w *workflow) isWaitSuspendStep(status common.WorkflowStepStatus) bool {
-	return status.Type == wfTypes.WorkflowStepTypeSuspend && status.Phase == common.WorkflowStepPhaseRunning
-}
-
-func (w *workflow) getWorkflowStepByName(name string) oamcore.WorkflowStep {
-	for _, s := range w.app.Spec.Workflow.Steps {
-		if s.Name == name {
-			return s
-		}
-	}
-
-	return oamcore.WorkflowStep{}
 }
 
 func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
@@ -524,7 +468,7 @@ func (e *engine) getMaxBackoffWaitTime() int {
 
 func (e *engine) getNextTimeout() int64 {
 	max := time.Duration(1<<63 - 1)
-	min := max
+	min := time.Duration(1<<63 - 1)
 	now := time.Now()
 	for _, step := range e.status.Steps {
 		if step.Phase == common.WorkflowStepPhaseRunning {
@@ -557,15 +501,8 @@ func (e *engine) setNextExecuteTime() {
 		e.monitorCtx.Error(fmt.Errorf("failed to parse last execute time to int64"), "lastExecuteTime", lastExecuteTime)
 	}
 	interval := int64(backoff)
-	timeout := e.getNextTimeout()
-	if timeout > 0 {
-		if e.app.Status.Workflow.Suspend {
-			e.wfCtx.DeleteValueInMemory(wfTypes.ContextKeyNextExecuteTime)
-			return
-		}
-		if timeout < interval {
-			interval = timeout
-		}
+	if timeout := e.getNextTimeout(); timeout > 0 && timeout < interval {
+		interval = timeout
 	}
 
 	next := last + interval

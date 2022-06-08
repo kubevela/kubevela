@@ -176,8 +176,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 					return exec.status(), exec.operation(), nil
 				}
 				if result.Timeout {
-					exec.err(ctx, errors.New("timeout"), StatusReasonTimeout)
-					exec.terminated = true
+					exec.timeout("")
 					return exec.status(), exec.operation(), nil
 				}
 			}
@@ -314,6 +313,13 @@ func (exec *executor) Skip(message string) {
 	exec.skip = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseSkipped
 	exec.wfStatus.Reason = StatusReasonSkip
+	exec.wfStatus.Message = message
+}
+
+func (exec *executor) timeout(message string) {
+	exec.terminated = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
+	exec.wfStatus.Reason = StatusReasonTimeout
 	exec.wfStatus.Message = message
 }
 
