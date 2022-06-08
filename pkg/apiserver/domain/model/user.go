@@ -70,10 +70,10 @@ func (u *User) PrimaryKey() string {
 func (u *User) Index() map[string]string {
 	index := make(map[string]string)
 	if u.Name != "" {
-		index["name"] = verifyUserValue(u.Name)
+		index["name"] = u.Name
 	}
 	if u.Email != "" {
-		index["email"] = verifyUserValue(u.Email)
+		index["email"] = u.Email
 	}
 	return index
 }
