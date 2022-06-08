@@ -168,7 +168,7 @@ Enable addon for specific clusters, (local means control plane):
 				// args[0] is a local path install with local dir, use base dir name as addonName
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {
-					return errors.Wrapf(err, "cannot open directory %s", addonOrDir)
+					return errors.Wrapf(err, "directory %s is invalid", addonOrDir)
 				}
 				name = filepath.Base(abs)
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
