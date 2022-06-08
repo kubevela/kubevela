@@ -39,8 +39,9 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		err := kubeStore.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
 		Expect(err).ToNot(HaveOccurred())
 
-		err = kubeStore.Add(context.TODO(), &model.Application{Name: "cat@delete", Description: "this is for test special symbol"})
+		err = kubeStore.Add(context.TODO(), &model.Application{Name: "can@delete", Description: "this is for test special symbol"})
 		Expect(err).ToNot(HaveOccurred())
+
 	})
 
 	It("Test batch add function", func() {
@@ -248,5 +249,9 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		err = kubeStore.Delete(context.TODO(), &app)
 		equal := cmp.Equal(err, datastore.ErrRecordNotExist, cmpopts.EquateErrors())
 		Expect(equal).Should(BeTrue())
+
+		app.Name = "can@delete"
+		err = kubeStore.Delete(context.TODO(), &app)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
