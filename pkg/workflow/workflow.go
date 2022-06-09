@@ -122,6 +122,9 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 	if checkWorkflowTerminated(wfStatus, allTasksDone) {
 		return common.WorkflowStateTerminated, nil
 	}
+	if checkWorkflowSuspended(wfStatus) {
+		return common.WorkflowStateSuspended, nil
+	}
 	if allTasksSucceeded {
 		return common.WorkflowStateSucceeded, nil
 	}
@@ -174,7 +177,25 @@ func (w *workflow) ExecuteSteps(ctx monitorContext.Context, appRev *oamcore.Appl
 }
 
 func checkWorkflowTerminated(wfStatus *common.WorkflowStatus, allTasksDone bool) bool {
+	// if all tasks are done, and the terminated is true, then the workflow is terminated
 	return wfStatus.Terminated && allTasksDone
+}
+
+func checkWorkflowSuspended(wfStatus *common.WorkflowStatus) bool {
+	// if workflow is suspended and the suspended step is still running, return false to run the suspended step
+	if wfStatus.Suspend {
+		for _, step := range wfStatus.Steps {
+			if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == common.WorkflowStepPhaseRunning {
+				return false
+			}
+			for _, sub := range step.SubStepsStatus {
+				if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == common.WorkflowStepPhaseRunning {
+					return false
+				}
+			}
+		}
+	}
+	return wfStatus.Suspend
 }
 
 func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash string) (common.WorkflowState, error) {

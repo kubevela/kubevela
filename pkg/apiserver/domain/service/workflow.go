@@ -44,6 +44,7 @@ import (
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // WorkflowService workflow manage api
@@ -561,8 +562,7 @@ func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.
 		return err
 	}
 
-	oamApp.Status.Workflow.Suspend = false
-	if err := w.KubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
+	if err := ResumeWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
@@ -588,6 +588,26 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 	return nil
 }
 
+// ResumeWorkflow resume workflow
+func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
+	app.Status.Workflow.Suspend = false
+	steps := app.Status.Workflow.Steps
+	for i, step := range steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == common.WorkflowStepPhaseRunning {
+			steps[i].Phase = common.WorkflowStepPhaseSucceeded
+		}
+		for j, sub := range step.SubStepsStatus {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == common.WorkflowStepPhaseRunning {
+				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseSucceeded
+			}
+		}
+	}
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
+		return err
+	}
+	return nil
+}
+
 // TerminateWorkflow terminate workflow
 func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow terminated to true
@@ -596,7 +616,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 	for i, step := range steps {
 		switch step.Phase {
 		case common.WorkflowStepPhaseFailed:
-			if step.Reason != custom.StatusReasonFailedAfterRetries {
+			if step.Reason != custom.StatusReasonFailedAfterRetries && step.Reason != custom.StatusReasonTimeout {
 				steps[i].Reason = custom.StatusReasonTerminate
 			}
 		case common.WorkflowStepPhaseRunning:
@@ -607,7 +627,7 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 		for j, sub := range step.SubStepsStatus {
 			switch sub.Phase {
 			case common.WorkflowStepPhaseFailed:
-				if sub.Reason != custom.StatusReasonFailedAfterRetries {
+				if sub.Reason != custom.StatusReasonFailedAfterRetries && sub.Reason != custom.StatusReasonTimeout {
 					steps[i].SubStepsStatus[j].Phase = custom.StatusReasonTerminate
 				}
 			case common.WorkflowStepPhaseRunning:
