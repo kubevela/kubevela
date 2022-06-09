@@ -7,7 +7,7 @@ on:
 
 jobs:
   bot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v2
@@ -15,7 +15,13 @@ jobs:
           repository: "oam-dev/kubevela-github-actions"
           path: ./actions
           ref: v0.4.2
-      - name: Install Actions
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+          cache: 'npm'
+          cache-dependency-path: ./actions/package-lock.json
+      - name: Install Dependencies
         run: npm ci --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
