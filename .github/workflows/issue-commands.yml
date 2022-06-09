@@ -15,7 +15,17 @@ jobs:
           repository: "oam-dev/kubevela-github-actions"
           path: ./actions
           ref: v0.4.2
-      - name: Install Actions
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Cache Dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('./actions/package-lock.json') }}
+          restore-keys: npm-
+      - name: Install Dependencies
         run: npm ci --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
