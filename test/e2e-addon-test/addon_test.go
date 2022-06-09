@@ -94,7 +94,7 @@ var _ = Describe("Addon tests", func() {
 			fmt.Println("exit code error:", string(ee.Stderr))
 		}
 		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("enabled Successfully"))
+		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
 
 		By("Checking Provider")
 		Eventually(func() error {
@@ -130,6 +130,6 @@ var _ = Describe("Addon tests", func() {
 			fmt.Println("exit code error:", string(ee.Stderr))
 		}
 		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("enabled Successfully"))
+		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
 	})
 })
