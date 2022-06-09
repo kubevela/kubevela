@@ -612,6 +612,8 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow terminated to true
 	app.Status.Workflow.Terminated = true
+	// set the workflow suspend to false
+	app.Status.Workflow.Suspend = false
 	steps := app.Status.Workflow.Steps
 	for i, step := range steps {
 		switch step.Phase {

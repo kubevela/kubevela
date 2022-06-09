@@ -313,6 +313,7 @@ var _ = Describe("Test Workflow", func() {
 
 		// terminate
 		appObj.Status.Workflow.Terminated = true
+		appObj.Status.Workflow.Suspend = false
 		appObj.Status.Workflow.Steps[0].Phase = common.WorkflowStepPhaseFailed
 		appObj.Status.Workflow.Steps[0].Reason = custom.StatusReasonTerminate
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
