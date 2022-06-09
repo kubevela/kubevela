@@ -16,15 +16,11 @@ jobs:
           path: ./actions
           ref: v0.4.2
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: '14'
-      - name: Cache Dependencies
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('./actions/package-lock.json') }}
-          restore-keys: npm-
+          cache: 'npm'
+          cache-dependency-path: ./actions/package-lock.json
       - name: Install Dependencies
         run: npm ci --production --prefix ./actions
       - name: Run Commands
