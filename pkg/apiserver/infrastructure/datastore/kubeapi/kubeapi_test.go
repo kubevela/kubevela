@@ -248,20 +248,20 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 	})
 
 	It("Test verify index", func() {
-		var app = model.Application{Name: "can@delete", Description: "this is for test special symbol"}
-		err := kubeStore.Add(context.TODO(), &app)
+		var usr = model.User{Name: "can@delete", Email: "xxx@xx.com"}
+		err := kubeStore.Add(context.TODO(), &usr)
 		Expect(err).ToNot(HaveOccurred())
 
-		app.Description = "change"
-		err = kubeStore.Put(context.TODO(), &app)
+		usr.Email = "change"
+		err = kubeStore.Put(context.TODO(), &usr)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = kubeStore.Get(context.TODO(), &app)
+		err = kubeStore.Get(context.TODO(), &usr)
 		Expect(err).Should(BeNil())
-		diff := cmp.Diff(app.Description, "change")
+		diff := cmp.Diff(usr.Email, "change")
 		Expect(diff).Should(BeEmpty())
 
-		list, err := kubeStore.List(context.TODO(), &app, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+		list, err := kubeStore.List(context.TODO(), &usr, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
 			{
 				Key:    "name",
 				Values: []string{"can@delete"},
@@ -271,7 +271,7 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		diff = cmp.Diff(len(list), 1)
 		Expect(diff).Should(BeEmpty())
 
-		count, err := kubeStore.Count(context.TODO(), &app, &datastore.FilterOptions{In: []datastore.InQueryOption{
+		count, err := kubeStore.Count(context.TODO(), &usr, &datastore.FilterOptions{In: []datastore.InQueryOption{
 			{
 				Key:    "name",
 				Values: []string{"can@delete"},
@@ -280,8 +280,8 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(count).Should(Equal(int64(1)))
 
-		app.Name = "can@delete"
-		err = kubeStore.Delete(context.TODO(), &app)
+		usr.Name = "can@delete"
+		err = kubeStore.Delete(context.TODO(), &usr)
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
