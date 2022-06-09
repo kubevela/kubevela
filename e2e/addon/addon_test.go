@@ -49,13 +49,13 @@ var _ = Describe("Addon Test", func() {
 		It("Enable addon test-addon", func() {
 			output, err := e2e.Exec("vela addon enable test-addon")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("enabled Successfully."))
+			Expect(output).To(ContainSubstring("enabled successfully."))
 		})
 
 		It("Upgrade addon test-addon", func() {
 			output, err := e2e.Exec("vela addon upgrade test-addon")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("enabled Successfully."))
+			Expect(output).To(ContainSubstring("enabled successfully."))
 		})
 
 		It("Disable addon test-addon", func() {
@@ -71,7 +71,7 @@ var _ = Describe("Addon Test", func() {
 		It("Enable addon with input", func() {
 			output, err := e2e.LongTimeExec("vela addon enable test-addon example=redis", 300*time.Second)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("enabled Successfully."))
+			Expect(output).To(ContainSubstring("enabled successfully."))
 		})
 
 		It("Disable addon test-addon", func() {
@@ -83,6 +83,13 @@ var _ = Describe("Addon Test", func() {
 			}, 60*time.Second).Should(Succeed())
 		})
 
+		It("Enable local addon with . as path", func() {
+			output, err := e2e.LongTimeExec("vela addon enable ../../e2e/addon/mock/testdata/sample/.", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("sample enabled successfully."))
+			Expect(output).To(ContainSubstring("access sample from"))
+		})
+
 		It("Test Change default namespace can work", func() {
 			output, err := e2e.LongTimeExecWithEnv("vela addon list", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
 			Expect(err).NotTo(HaveOccurred())
@@ -91,7 +98,7 @@ var _ = Describe("Addon Test", func() {
 
 			output, err = e2e.LongTimeExecWithEnv("vela addon enable test-addon", 600*time.Second, []string{"DEFAULT_VELA_NS=test-vela"})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("enabled Successfully."))
+			Expect(output).To(ContainSubstring("enabled successfully."))
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "test-vela"}, &v1beta1.Application{})).Should(BeNil())

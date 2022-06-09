@@ -166,7 +166,11 @@ Enable addon for specific clusters, (local means control plane):
 				}
 				ioStream.Infof("enable addon by local dir: %s \n", addonOrDir)
 				// args[0] is a local path install with local dir, use base dir name as addonName
-				name = filepath.Base(addonOrDir)
+				abs, err := filepath.Abs(addonOrDir)
+				if err != nil {
+					return errors.Wrapf(err, "directory %s is invalid", addonOrDir)
+				}
+				name = filepath.Base(abs)
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
@@ -181,7 +185,7 @@ Enable addon for specific clusters, (local means control plane):
 					return err
 				}
 			}
-			fmt.Printf("Addon: %s enabled Successfully.\n", name)
+			fmt.Printf("Addon %s enabled successfully.\n", name)
 			AdditionalEndpointPrinter(ctx, c, k8sClient, name, false)
 			return nil
 		},
@@ -194,7 +198,7 @@ Enable addon for specific clusters, (local means control plane):
 
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
-	fmt.Printf("Please access the %s from the following endpoints:\n", name)
+	fmt.Printf("Please access %s from the following endpoints:\n", name)
 	err := printAppEndpoints(ctx, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
@@ -255,7 +259,11 @@ Upgrade addon for specific clusters, (local means control plane):
 				}
 				ioStream.Infof("enable addon by local dir: %s \n", addonOrDir)
 				// args[0] is a local path install with local dir
-				name = filepath.Base(addonOrDir)
+				abs, err := filepath.Abs(addonOrDir)
+				if err != nil {
+					return errors.Wrapf(err, "cannot open directory %s", addonOrDir)
+				}
+				name = filepath.Base(abs)
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
@@ -279,7 +287,7 @@ Upgrade addon for specific clusters, (local means control plane):
 				}
 			}
 
-			fmt.Printf("Addon: %s\n enabled Successfully.", name)
+			fmt.Printf("Addon %s enabled successfully.", name)
 			AdditionalEndpointPrinter(ctx, c, k8sClient, name, true)
 			return nil
 		},
