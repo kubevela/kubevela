@@ -237,7 +237,7 @@ func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *c
 	if err != nil {
 		return err
 	}
-	cmd.Printf("Application %s/%s applied.\n", app.Namespace, app.Name)
+	cmd.Printf("Application %s applied.\n", green.Sprintf("%s/%s", app.Namespace, app.Name))
 	return nil
 }
 
