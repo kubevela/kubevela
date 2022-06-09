@@ -1380,6 +1380,54 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(err).Should(BeNil())
 		Expect(len(res.List)).Should(Equal(2))
 	})
+
+	It("Test not exist api don't break whole process", func() {
+		notExistRuleStr := `
+- parentResourceType:
+    group: apps
+    kind: Deployment
+  childrenResourceType:
+    - apiVersion: v2
+      kind: Pod
+`
+		notExistParentResourceStr := `
+- parentResourceType:
+    group: badgroup
+    kind: Deployment
+  childrenResourceType:
+    - apiVersion: v2
+      kind: Pod
+`
+		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		badRuleConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "bad-rule", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: notExistRuleStr},
+		}
+		Expect(k8sClient.Create(ctx, &badRuleConfigMap)).Should(BeNil())
+
+		notExistParentConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "not-exist-parent", Labels: map[string]string{oam.LabelResourceRules: "true"}},
+			Data:       map[string]string{relationshipKey: notExistParentResourceStr},
+		}
+		Expect(k8sClient.Create(ctx, &notExistParentConfigMap)).Should(BeNil())
+
+		prd := provider{cli: k8sClient}
+		opt := `app: {
+				name: "app"
+				namespace: "test-namespace"
+			}`
+		v, err := value.NewValue(opt, nil, "")
+
+		Expect(err).Should(BeNil())
+		Expect(prd.GetApplicationResourceTree(nil, v, nil)).Should(BeNil())
+		type Res struct {
+			List []types.AppliedResource `json:"list"`
+		}
+		var res Res
+		err = v.UnmarshalTo(&res)
+		Expect(err).Should(BeNil())
+		Expect(len(res.List)).Should(Equal(2))
+	})
 })
 
 var _ = Describe("test merge globalRules", func() {
