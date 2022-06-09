@@ -23,6 +23,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -677,6 +678,10 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc)
 			if err != nil {
+				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+					log.Logger.Errorf("error to list subresources: %s err: %v", resource.Kind, err)
+					continue
+				}
 				return nil, err
 			}
 			for _, item := range items {
