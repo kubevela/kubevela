@@ -450,7 +450,11 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	}
 	if filterOptions != nil {
 		for _, inFilter := range filterOptions.In {
-			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
+			var values []string
+			for _, value := range inFilter.Values {
+				values = append(values, verifyValue(value))
+			}
+			rq, err := labels.NewRequirement(inFilter.Key, selection.In, values)
 			if err != nil {
 				return 0, datastore.ErrIndexInvalid
 			}
