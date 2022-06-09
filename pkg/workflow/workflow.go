@@ -331,7 +331,7 @@ func handleSuspendBackoffTime(step oamcore.WorkflowStep, status common.StepStatu
 		if step.Timeout != "" {
 			duration, err := time.ParseDuration(step.Timeout)
 			if err != nil {
-				return 0
+				return min
 			}
 			timeout := status.FirstExecuteTime.Add(duration)
 			if time.Now().Before(timeout) {
@@ -344,7 +344,7 @@ func handleSuspendBackoffTime(step oamcore.WorkflowStep, status common.StepStatu
 
 		d, err := wfTasks.GetSuspendStepDurationWaiting(step)
 		if err != nil {
-			return 0
+			return min
 		}
 		if d != 0 && d < min {
 			min = d

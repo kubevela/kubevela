@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/yaml"
@@ -1247,6 +1248,128 @@ var _ = Describe("Test Workflow", func() {
 		}
 		interval = e.getBackoffWaitTime()
 		Expect(interval).Should(BeEquivalentTo(minWorkflowBackoffWaitTime))
+	})
+
+	It("Test get backoff time with timeout", func() {
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:    "s1",
+				Timeout: "30s",
+				Type:    "wait-with-set-var",
+			},
+		})
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Test get backoff time")
+		for i := 0; i < 10; i++ {
+			_, err = wf.ExecuteSteps(ctx, revision, runners)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		Expect(int(math.Ceil(wf.GetBackoffWaitTime().Seconds()))).Should(Equal(30))
+	})
+
+	It("Test get suspend backoff time", func() {
+		By("if there's no timeout and duration, return 0")
+		app, runners := makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name: "s1",
+				Type: "suspend",
+			},
+		})
+		ctx := monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf := NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err := wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(0))
+
+		By("return timeout if it's specified")
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:    "s1",
+				Type:    "suspend",
+				Timeout: "1m",
+			},
+		})
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(60))
+
+		By("return duration if it's specified")
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:       "s1",
+				Type:       "suspend",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"30s"}`)},
+			},
+		})
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(30))
+
+		By("return the minimum of the timeout and duration")
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:       "s1",
+				Type:       "suspend",
+				Timeout:    "1m",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"30s"}`)},
+			},
+		})
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(30))
+
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:       "s1",
+				Type:       "suspend",
+				Timeout:    "30s",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1m"}`)},
+			},
+		})
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(30))
+
+		By("return 0 if the value is invalid")
+		app, runners = makeTestCase([]oamcore.WorkflowStep{
+			{
+				Name:    "s1",
+				Type:    "suspend",
+				Timeout: "test",
+			},
+		})
+		ctx = monitorContext.NewTraceContext(context.Background(), "test-app")
+		wf = NewWorkflow(app, k8sClient, common.WorkflowModeDAG, false, nil)
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = wf.ExecuteSteps(ctx, revision, runners)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(int(math.Ceil(wf.GetSuspendBackoffWaitTime().Seconds()))).Should(Equal(0))
 	})
 
 	It("test for suspend", func() {
