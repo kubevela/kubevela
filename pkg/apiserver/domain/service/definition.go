@@ -240,30 +240,27 @@ func (d *definitionServiceImpl) DetailDefinition(ctx context.Context, name, defT
 	if err := d.KubeClient.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      fmt.Sprintf("%s-schema-%s", defType, name),
-	}, &cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, bcode.ErrDefinitionNoSchema
-		}
+	}, &cm); err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 
-	data, ok := cm.Data[types.OpenapiV3JSONSchema]
-	if !ok {
-		return nil, bcode.ErrDefinitionNoSchema
-	}
-	schema := &openapi3.Schema{}
-	if err := schema.UnmarshalJSON([]byte(data)); err != nil {
-		return nil, err
-	}
-	// render default ui schema
-	defaultUISchema := renderDefaultUISchema(schema)
-	// patch from custom ui schema
-	customUISchema := d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
-	return &apisv1.DetailDefinitionResponse{
+	definition := &apisv1.DetailDefinitionResponse{
 		DefinitionBase: *base,
-		APISchema:      schema,
-		UISchema:       customUISchema,
-	}, nil
+	}
+	data, ok := cm.Data[types.OpenapiV3JSONSchema]
+	if ok {
+		schema := &openapi3.Schema{}
+		if err := schema.UnmarshalJSON([]byte(data)); err != nil {
+			return nil, err
+		}
+		definition.APISchema = schema
+		// render default ui schema
+		defaultUISchema := renderDefaultUISchema(schema)
+		// patch from custom ui schema
+		definition.UISchema = d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
+	}
+
+	return definition, nil
 }
 
 func (d *definitionServiceImpl) renderCustomUISchema(ctx context.Context, name, defType string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
