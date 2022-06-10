@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,16 +39,32 @@ func (h *ValidatingHandler) ValidateWorkflow(ctx context.Context, app *v1beta1.A
 		stepName := make(map[string]interface{})
 		for _, step := range app.Spec.Workflow.Steps {
 			if _, ok := stepName[step.Name]; ok {
-				errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps"), step.Name, "duplicate step name"))
+				errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps"), step.Name, "duplicated step name"))
 			}
 			stepName[step.Name] = nil
+			if step.Timeout != "" {
+				errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
+			}
 			for _, sub := range step.SubSteps {
 				if _, ok := stepName[sub.Name]; ok {
-					errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps", "subSteps"), sub.Name, "duplicate step name"))
+					errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps", "subSteps"), sub.Name, "duplicated step name"))
 				}
 				stepName[sub.Name] = nil
+				if step.Timeout != "" {
+					errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
+				}
 			}
 		}
+	}
+	return errs
+}
+
+// ValidateTimeout validates the timeout of steps
+func (h *ValidatingHandler) ValidateTimeout(name, timeout string) field.ErrorList {
+	var errs field.ErrorList
+	_, err := time.ParseDuration(timeout)
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps", "timeout"), name, "invalid timeout, please use the format of timeout like 1s, 1m, 1h or 1d"))
 	}
 	return errs
 }

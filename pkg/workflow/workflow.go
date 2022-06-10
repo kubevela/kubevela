@@ -291,7 +291,7 @@ func (w *workflow) Trace() error {
 }
 
 func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
-	if w.app.Status.Workflow == nil {
+	if w.app.Spec.Workflow == nil || len(w.app.Spec.Workflow.Steps) == 0 {
 		return 0
 	}
 	stepStatus := make(map[string]common.StepStatus)
@@ -303,20 +303,18 @@ func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
 	}
 	max := time.Duration(1<<63 - 1)
 	min := max
-	if w.app.Spec.Workflow != nil {
-		for _, step := range w.app.Spec.Workflow.Steps {
-			if step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup {
-				min = handleSuspendBackoffTime(step, stepStatus[step.Name], min)
-			}
-			for _, sub := range step.SubSteps {
-				if sub.Type == wfTypes.WorkflowStepTypeSuspend {
-					min = handleSuspendBackoffTime(oamcore.WorkflowStep{
-						Name:       sub.Name,
-						Type:       sub.Type,
-						Timeout:    sub.Timeout,
-						Properties: sub.Properties,
-					}, stepStatus[sub.Name], min)
-				}
+	for _, step := range w.app.Spec.Workflow.Steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend || step.Type == wfTypes.WorkflowStepTypeStepGroup {
+			min = handleSuspendBackoffTime(step, stepStatus[step.Name], min)
+		}
+		for _, sub := range step.SubSteps {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend {
+				min = handleSuspendBackoffTime(oamcore.WorkflowStep{
+					Name:       sub.Name,
+					Type:       sub.Type,
+					Timeout:    sub.Timeout,
+					Properties: sub.Properties,
+				}, stepStatus[sub.Name], min)
 			}
 		}
 	}

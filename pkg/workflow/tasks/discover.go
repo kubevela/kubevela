@@ -212,7 +212,8 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 			status.Reason = custom.StatusReasonSkip
 			options.StepStatus[tr.step.Name] = status
 			break
-		} else if result.Timeout {
+		}
+		if result.Timeout {
 			status.Phase = common.WorkflowStepPhaseFailed
 			status.Reason = custom.StatusReasonTimeout
 			options.StepStatus[tr.step.Name] = status
