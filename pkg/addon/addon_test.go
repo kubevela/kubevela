@@ -1042,6 +1042,35 @@ func TestReadDefFile(t *testing.T) {
 	assert.True(t, len(uiData.Definitions) == 1)
 }
 
+// Test readDefFile only accept .cue
+func TestReadViewFile(t *testing.T) {
+
+	// setup test data
+	testAddonName := "test-view"
+	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
+	reader := localReader{dir: testAddonDir, name: testAddonName}
+	metas, err := reader.ListAddonMeta()
+	testAddonMeta := metas[testAddonName]
+	assert.NoError(t, err)
+
+	// run test
+	var addon = &InstallPackage{}
+	ptItems := ClassifyItemByPattern(&testAddonMeta, reader)
+	items := ptItems[ViewDirName]
+
+	for _, it := range items {
+		err := readViewFile(addon, reader, reader.RelativePath(it))
+		if err != nil {
+			assert.NoError(t, err)
+		}
+	}
+	notExistErr := readViewFile(addon, reader, "not-exist.cue")
+	assert.Error(t, notExistErr)
+
+	// verify
+	assert.True(t, len(addon.Views) == 1)
+}
+
 func TestRenderCUETemplate(t *testing.T) {
 	fileDate, err := os.ReadFile("./testdata/example/resources/configmap.cue")
 	assert.NoError(t, err)
