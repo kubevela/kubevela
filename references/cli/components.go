@@ -226,7 +226,7 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 	}
 
 	table := newUITable()
-	table.AddRow("NAME", "DEFINITION")
+	table.AddRow("NAME", "DEFINITION", "DESCRIPTION")
 
 	for _, cd := range list.Items {
 		data, err := json.Marshal(cd)
@@ -242,7 +242,7 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 		if filter != nil && !filter(capa) {
 			continue
 		}
-		table.AddRow(capa.Name, capa.CrdName)
+		table.AddRow(capa.Name, capa.CrdName, capa.Description)
 	}
 	io.Info(table.String())
 	return nil
