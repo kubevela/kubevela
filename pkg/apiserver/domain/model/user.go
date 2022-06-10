@@ -18,7 +18,6 @@ package model
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/form3tech-oss/jwt-go"
@@ -63,17 +62,17 @@ func (u *User) ShortTableName() string {
 
 // PrimaryKey return custom primary key
 func (u *User) PrimaryKey() string {
-	return verifyUserValue(u.Name)
+	return u.Name
 }
 
 // Index return custom index
 func (u *User) Index() map[string]string {
 	index := make(map[string]string)
 	if u.Name != "" {
-		index["name"] = verifyUserValue(u.Name)
+		index["name"] = u.Name
 	}
 	if u.Email != "" {
-		index["email"] = verifyUserValue(u.Email)
+		index["email"] = u.Email
 	}
 	return index
 }
@@ -99,25 +98,19 @@ func (u *ProjectUser) ShortTableName() string {
 
 // PrimaryKey return custom primary key
 func (u *ProjectUser) PrimaryKey() string {
-	return fmt.Sprintf("%s-%s", u.ProjectName, verifyUserValue(u.Username))
+	return fmt.Sprintf("%s-%s", u.ProjectName, u.Username)
 }
 
 // Index return custom index
 func (u *ProjectUser) Index() map[string]string {
 	index := make(map[string]string)
 	if u.Username != "" {
-		index["username"] = verifyUserValue(u.Username)
+		index["username"] = u.Username
 	}
 	if u.ProjectName != "" {
 		index["projectName"] = u.ProjectName
 	}
 	return index
-}
-
-func verifyUserValue(v string) string {
-	s := strings.ReplaceAll(v, "@", "-")
-	s = strings.ReplaceAll(s, " ", "-")
-	return strings.ToLower(s)
 }
 
 // CustomClaims is the custom claims

@@ -75,6 +75,7 @@ func generateName(entity datastore.Entity) string {
 	// record the old ways here, it'll be migrated
 	// name := fmt.Sprintf("veladatabase-%s-%s", entity.TableName(), entity.PrimaryKey())
 	name := fmt.Sprintf("%s-%s", entity.ShortTableName(), entity.PrimaryKey())
+	name = verifyValue(name)
 	return strings.ReplaceAll(name, "_", "-")
 }
 
@@ -86,6 +87,9 @@ func (m *kubeapi) generateConfigMap(entity datastore.Entity) *corev1.ConfigMap {
 	}
 	labels["table"] = entity.TableName()
 	labels["primaryKey"] = entity.PrimaryKey()
+	for k, v := range labels {
+		labels[k] = verifyValue(v)
+	}
 	var configMap = corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      generateName(entity),
@@ -178,6 +182,9 @@ func (m *kubeapi) Put(ctx context.Context, entity datastore.Entity) error {
 	}
 	labels["table"] = entity.TableName()
 	labels["primaryKey"] = entity.PrimaryKey()
+	for k, v := range labels {
+		labels[k] = verifyValue(v)
+	}
 	entity.SetUpdateTime(time.Now())
 	var configMap corev1.ConfigMap
 	if err := m.kubeClient.Get(ctx, types.NamespacedName{Namespace: m.namespace, Name: generateName(entity)}, &configMap); err != nil {
@@ -345,7 +352,7 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	selector = selector.Add(*rq)
 
 	for k, v := range entity.Index() {
-		rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return nil, datastore.ErrIndexInvalid
 		}
@@ -353,7 +360,11 @@ func (m *kubeapi) List(ctx context.Context, entity datastore.Entity, op *datasto
 	}
 	if op != nil {
 		for _, inFilter := range op.In {
-			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
+			var values []string
+			for _, value := range inFilter.Values {
+				values = append(values, verifyValue(value))
+			}
+			rq, err := labels.NewRequirement(inFilter.Key, selection.In, values)
 			if err != nil {
 				log.Logger.Errorf("new list requirement failure %s", err.Error())
 				return nil, datastore.ErrIndexInvalid
@@ -431,7 +442,7 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		return 0, datastore.NewDBError(err)
 	}
 	for k, v := range entity.Index() {
-		rq, err := labels.NewRequirement(k, selection.Equals, []string{v})
+		rq, err := labels.NewRequirement(k, selection.Equals, []string{verifyValue(v)})
 		if err != nil {
 			return 0, datastore.ErrIndexInvalid
 		}
@@ -439,7 +450,11 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 	}
 	if filterOptions != nil {
 		for _, inFilter := range filterOptions.In {
-			rq, err := labels.NewRequirement(inFilter.Key, selection.In, inFilter.Values)
+			var values []string
+			for _, value := range inFilter.Values {
+				values = append(values, verifyValue(value))
+			}
+			rq, err := labels.NewRequirement(inFilter.Key, selection.In, values)
 			if err != nil {
 				return 0, datastore.ErrIndexInvalid
 			}
@@ -472,4 +487,10 @@ func (m *kubeapi) Count(ctx context.Context, entity datastore.Entity, filterOpti
 		items = _filterConfigMapByFuzzyQueryOptions(configMaps.Items, filterOptions.Queries)
 	}
 	return int64(len(items)), nil
+}
+
+func verifyValue(v string) string {
+	s := strings.ReplaceAll(v, "@", "-")
+	s = strings.ReplaceAll(s, " ", "-")
+	return strings.ToLower(s)
 }
