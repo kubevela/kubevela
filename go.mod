@@ -23,7 +23,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/emicklei/go-restful-openapi/v2 v2.3.0
-	github.com/emicklei/go-restful/v3 v3.0.0-rc2
+	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/fatih/camelcase v1.0.0
 	github.com/fatih/color v1.13.0
