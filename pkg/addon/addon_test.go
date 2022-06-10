@@ -288,6 +288,22 @@ func TestRenderDefinitions(t *testing.T) {
 	assert.Nil(t, app.Spec.Workflow)
 }
 
+func TestRenderViews(t *testing.T) {
+	addonDeployToRuntime := viewAddon
+	addonDeployToRuntime.Meta.DeployTo = &DeployTo{
+		DisableControlPlane: false,
+		RuntimeCluster:      false,
+	}
+	views, err := RenderViews(&addonDeployToRuntime)
+	assert.NoError(t, err)
+	assert.Equal(t, len(views), 1)
+	view := views[0]
+	assert.Equal(t, view.GetKind(), "ConfigMap")
+	assert.Equal(t, view.GetAPIVersion(), "v1")
+	assert.Equal(t, view.GetNamespace(), types.DefaultKubeVelaNS)
+	assert.Equal(t, view.GetName(), "pod-view")
+}
+
 func TestRenderK8sObjects(t *testing.T) {
 	addonMultiYaml := multiYamlAddon
 	addonMultiYaml.Meta.DeployTo = &DeployTo{
@@ -475,6 +491,18 @@ var multiYamlAddon = InstallPackage{
 	},
 }
 
+var viewAddon = InstallPackage{
+	Meta: Meta{
+		Name: "test-render-view-addon",
+	},
+	Views: []ElementFile{
+		{
+			Data: testView,
+			Name: "pod-view",
+		},
+	},
+}
+
 var testCueDef = `annotations: {
 	type: "trait"
 	annotations: {}
@@ -551,6 +579,85 @@ spec:
         image: nginx:1.14.2
         ports:
         - containerPort: 80
+`
+
+var testView = `
+import (
+	"vela/ql"
+)
+
+parameter: {
+	name:      string
+	namespace: string
+	cluster:   *"" | string
+}
+pod: ql.#Read & {
+	value: {
+		apiVersion: "v1"
+		kind:       "Pod"
+		metadata: {
+			name:      parameter.name
+			namespace: parameter.namespace
+		}
+	}
+	cluster: parameter.cluster
+}
+eventList: ql.#SearchEvents & {
+	value: {
+		apiVersion: "v1"
+		kind:       "Pod"
+		metadata:   pod.value.metadata
+	}
+	cluster: parameter.cluster
+}
+podMetrics: ql.#Read & {
+	cluster: parameter.cluster
+	value: {
+		apiVersion: "metrics.k8s.io/v1beta1"
+		kind:       "PodMetrics"
+		metadata: {
+			name:      parameter.name
+			namespace: parameter.namespace
+		}
+	}
+}
+status: {
+	if pod.err == _|_ {
+		containers: [ for container in pod.value.spec.containers {
+			name:  container.name
+			image: container.image
+			resources: {
+				if container.resources.limits != _|_ {
+					limits: container.resources.limits
+				}
+				if container.resources.requests != _|_ {
+					requests: container.resources.requests
+				}
+				if podMetrics.err == _|_ {
+					usage: {for containerUsage in podMetrics.value.containers {
+						if containerUsage.name == container.name {
+							cpu:    containerUsage.usage.cpu
+							memory: containerUsage.usage.memory
+						}
+					}}
+				}
+			}
+			if pod.value.status.containerStatuses != _|_ {
+				status: {for containerStatus in pod.value.status.containerStatuses if containerStatus.name == container.name {
+					state:        containerStatus.state
+					restartCount: containerStatus.restartCount
+				}}
+			}
+		}]
+		if eventList.err == _|_ {
+			events: eventList.list
+		}
+	}
+	if pod.err != _|_ {
+		error: pod.err
+	}
+}
+
 `
 
 func TestRenderApp4Observability(t *testing.T) {
@@ -639,6 +746,13 @@ func TestGetPatternFromItem(t *testing.T) {
 	gitItemName := "parameter.cue"
 	gitItemType := FileType
 	gitItemPath := "addons/terraform/resources/parameter.cue"
+
+	viewOSSR := localReader{
+		dir:  "./testdata/test-view",
+		name: "test-view",
+	}
+	viewPath := filepath.Join("./testdata/test-view/views/pod-view.cue", "pod-view.cue")
+
 	testCases := []struct {
 		caseName    string
 		item        Item
@@ -663,6 +777,17 @@ func TestGetPatternFromItem(t *testing.T) {
 			root:        "terraform",
 			meetPattern: "resources/parameter.cue",
 			r:           gitR,
+		},
+		{
+			caseName: "views case",
+			item: OSSItem{
+				tp:   FileType,
+				path: viewPath,
+				name: "pod-view.cue",
+			},
+			root:        "test-view",
+			meetPattern: "views",
+			r:           viewOSSR,
 		},
 	}
 	for _, tc := range testCases {
