@@ -246,4 +246,42 @@ var _ = Describe("Test kubeapi datastore driver", func() {
 		equal := cmp.Equal(err, datastore.ErrRecordNotExist, cmpopts.EquateErrors())
 		Expect(equal).Should(BeTrue())
 	})
+
+	It("Test verify index", func() {
+		var usr = model.User{Name: "can@delete", Email: "xxx@xx.com"}
+		err := kubeStore.Add(context.TODO(), &usr)
+		Expect(err).ToNot(HaveOccurred())
+
+		usr.Email = "change"
+		err = kubeStore.Put(context.TODO(), &usr)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = kubeStore.Get(context.TODO(), &usr)
+		Expect(err).Should(BeNil())
+		diff := cmp.Diff(usr.Email, "change")
+		Expect(diff).Should(BeEmpty())
+
+		list, err := kubeStore.List(context.TODO(), &usr, &datastore.ListOptions{FilterOptions: datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"can@delete"},
+			},
+		}}})
+		Expect(err).ShouldNot(HaveOccurred())
+		diff = cmp.Diff(len(list), 1)
+		Expect(diff).Should(BeEmpty())
+
+		count, err := kubeStore.Count(context.TODO(), &usr, &datastore.FilterOptions{In: []datastore.InQueryOption{
+			{
+				Key:    "name",
+				Values: []string{"can@delete"},
+			},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(count).Should(Equal(int64(1)))
+
+		usr.Name = "can@delete"
+		err = kubeStore.Delete(context.TODO(), &usr)
+		Expect(err).ShouldNot(HaveOccurred())
+	})
 })
