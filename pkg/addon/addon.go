@@ -70,6 +70,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	version2 "github.com/oam-dev/kubevela/version"
@@ -611,7 +612,7 @@ func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
 	if app.Spec.Components == nil {
 		app.Spec.Components = []common2.ApplicationComponent{}
 	}
-	app.Name = Convert2AppName(addon.Name)
+	app.Name = addonutil.Convert2AppName(addon.Name)
 	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
 	app.SetNamespace(types.DefaultKubeVelaNS)
 	if app.Labels == nil {
@@ -769,7 +770,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructured.Unstructured, error) {
 	defObjs := make([]*unstructured.Unstructured, 0)
 
-	// No matter runtime mode or control mode , definition only needs to control plane k8s.
+	// No matter runtime mode or control mode, definition only needs to control plane k8s.
 	for _, def := range addon.Definitions {
 		obj, err := renderObject(def)
 		if err != nil {
@@ -1003,14 +1004,6 @@ func renderCUETemplate(elem ElementFile, parameters string, args map[string]inte
 	return &comp, err
 }
 
-const addonAppPrefix = "addon-"
-const addonSecPrefix = "addon-secret-"
-
-// Convert2AppName -
-func Convert2AppName(name string) string {
-	return addonAppPrefix + name
-}
-
 // RenderArgsSecret render addon enable argument to secret
 func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstructured.Unstructured {
 	argsByte, err := json.Marshal(args)
@@ -1020,7 +1013,7 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      Convert2SecName(addon.Name),
+			Name:      addonutil.Convert2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 		Data: map[string][]byte{
@@ -1052,11 +1045,6 @@ func FetchArgsFromSecret(sec *v1.Secret) (map[string]interface{}, error) {
 		res[k] = string(v)
 	}
 	return res, nil
-}
-
-// Convert2SecName generate addon argument secret name
-func Convert2SecName(name string) string {
-	return addonSecPrefix + name
 }
 
 // Installer helps addon enable, dependency-check, dispatch resources
@@ -1162,7 +1150,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	for _, dep := range addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
-			Name:      Convert2AppName(dep.Name),
+			Name:      addonutil.Convert2AppName(dep.Name),
 		}, &app)
 		if err == nil {
 			continue
@@ -1191,7 +1179,7 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 	for _, dep := range addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
-			Name:      Convert2AppName(dep.Name),
+			Name:      addonutil.Convert2AppName(dep.Name),
 		}, &app)
 		if err == nil {
 			continue
@@ -1333,7 +1321,7 @@ func determineAddonAppName(ctx context.Context, cli client.Client, addonName str
 			return "", err
 		}
 		// if the app still not exist, use addon-{addonName}
-		return Convert2AppName(addonName), nil
+		return addonutil.Convert2AppName(addonName), nil
 	}
 	return app.Name, nil
 }
@@ -1342,7 +1330,7 @@ func determineAddonAppName(ctx context.Context, cli client.Client, addonName str
 // if not find will try to get 1.1 legacy addon related app by using NamespacedName(vela-system, `addonName`)
 func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName string) (*v1beta1.Application, error) {
 	app := &v1beta1.Application{}
-	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: Convert2AppName(addonName)}, app); err != nil {
+	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Convert2AppName(addonName)}, app); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}

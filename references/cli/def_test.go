@@ -36,6 +36,7 @@ import (
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -59,12 +60,16 @@ func initCommand(cmd *cobra.Command) {
 }
 
 func createTrait(c common2.Args, t *testing.T) string {
+	return createTraitWithOwnerAddon(c, "", t)
+}
+
+func createTraitWithOwnerAddon(c common2.Args, addonName string, t *testing.T) string {
 	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
-	createNamespacedTrait(c, traitName, VelaTestNamespace, t)
+	createNamespacedTrait(c, traitName, VelaTestNamespace, addonName, t)
 	return traitName
 }
 
-func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T) {
+func createNamespacedTrait(c common2.Args, name string, ns string, ownerAddon string, t *testing.T) {
 	traitName := fmt.Sprintf("my-trait-%d", time.Now().UnixNano())
 	client, err := c.GetClient()
 	if err != nil {
@@ -77,6 +82,9 @@ func createNamespacedTrait(c common2.Args, name string, ns string, t *testing.T)
 			Annotations: map[string]string{
 				pkgdef.DescriptionKey: "My test-trait " + traitName,
 			},
+			OwnerReferences: []v1.OwnerReference{{
+				Name: addonutil.Convert2AppName(ownerAddon),
+			}},
 		},
 		Spec: v1beta1.TraitDefinitionSpec{
 			Schematic: &common3.Schematic{CUE: &common3.CUE{Template: "parameter: {}"}},
@@ -393,7 +401,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	// test multi trait
 	cmd = NewDefinitionGetCommand(c)
 	initCommand(cmd)
-	createNamespacedTrait(c, traitName, "default", t)
+	createNamespacedTrait(c, traitName, "default", "", t)
 	cmd.SetArgs([]string{traitName})
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expect found multiple traits error, but not found")
@@ -433,6 +441,13 @@ func TestNewDefinitionListCommand(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("no trait found should not return error, err: %v", err)
 	}
+	// with addon filter
+	cmd = NewDefinitionListCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"--from", "non-existent-addon"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("applying addon filter should not return error, err: %v", err)
+	}
 }
 
 func TestNewDefinitionEditCommand(t *testing.T) {
@@ -451,7 +466,7 @@ func TestNewDefinitionEditCommand(t *testing.T) {
 	// test no change
 	cmd = NewDefinitionEditCommand(c)
 	initCommand(cmd)
-	createNamespacedTrait(c, traitName, "default", t)
+	createNamespacedTrait(c, traitName, "default", "", t)
 	if err := os.Setenv("EDITOR", "sed -i -e 's/test-trait-test/TestTrait/g'"); err != nil {
 		t.Fatalf("failed to set editor env: %v", err)
 	}

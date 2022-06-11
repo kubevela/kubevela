@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerr "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -220,7 +221,7 @@ func (u *addonServiceImpl) StatusAddon(ctx context.Context, name string) (*apis.
 	var sec v1.Secret
 	err = u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      pkgaddon.Convert2SecName(name),
+		Name:      addonutil.Convert2SecName(name),
 	}, &sec)
 	if err != nil && !errors2.IsNotFound(err) {
 		return nil, bcode.ErrAddonSecretGet
@@ -445,7 +446,7 @@ func (u *addonServiceImpl) UpdateAddon(ctx context.Context, name string, args ap
 	// check addon application whether exist
 	err := u.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: types.DefaultKubeVelaNS,
-		Name:      pkgaddon.Convert2AppName(name),
+		Name:      addonutil.Convert2AppName(name),
 	}, &app)
 	if err != nil {
 		return err

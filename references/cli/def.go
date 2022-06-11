@@ -379,7 +379,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 }
 
 func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
-	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace)
+	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace, "")
 	if err != nil {
 		return nil, err
 	}
@@ -521,11 +521,15 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
+			addonFilter, err := cmd.Flags().GetString("from")
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", "from")
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition("*", k8sClient, definitionType, namespace)
+			definitions, err := pkgdef.SearchDefinition("*", k8sClient, definitionType, namespace, addonFilter)
 			if err != nil {
 				return err
 			}
@@ -548,6 +552,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
+	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
 	return cmd
 }
 

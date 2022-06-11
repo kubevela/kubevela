@@ -47,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -391,7 +392,7 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 
 	addonSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      Convert2SecName(ObservabilityAddon),
+			Name:      addonutil.Convert2SecName(ObservabilityAddon),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 		Data: map[string][]byte{},

@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -252,7 +253,7 @@ var _ = Describe("Test addon util func", func() {
 		secArgs := v1.Secret{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      Convert2SecName("test-addon-old-args"),
+				Name:      addonutil.Convert2SecName("test-addon-old-args"),
 				Namespace: types.DefaultKubeVelaNS,
 			},
 			StringData: map[string]string{

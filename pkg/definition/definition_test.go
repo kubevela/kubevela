@@ -22,10 +22,13 @@ import (
 	"strings"
 	"testing"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	addonutils "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -42,6 +45,9 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	})
 	def.SetName("test-trait")
 	def.SetGVK("TraitDefinition")
+	def.SetOwnerReferences([]v1.OwnerReference{{
+		Name: addonutils.Convert2AppName("test-addon"),
+	}})
 	if _type := def.GetType(); _type != "trait" {
 		t.Fatalf("set gvk invalid, expected trait got %s", _type)
 	}
@@ -107,10 +113,24 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	_ = GetDefinitionDefaultSpec("WorkloadDefinition")
 	_ = ValidDefinitionTypes()
 
-	if _, err = SearchDefinition("*", c, "", ""); err != nil {
+	if _, err = SearchDefinition("*", c, "", "", ""); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
-	if _, err = SearchDefinition("*", c, "trait", "default"); err != nil {
+	if _, err = SearchDefinition("*", c, "trait", "default", ""); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
+	}
+	res, err := SearchDefinition("*", c, "", "", "test-addon")
+	if err != nil {
+		t.Fatalf("failed to search definition: %v", err)
+	}
+	if len(res) < 1 {
+		t.Fatalf("failed to search definition with addon filter applied: %s", "no result returned")
+	}
+	res, err = SearchDefinition("*", c, "", "", "this-is-a-non-existent-addon")
+	if err != nil {
+		t.Fatalf("failed to search definition: %v", err)
+	}
+	if len(res) >= 1 {
+		t.Fatalf("failed to search definition with addon filter applied: %s", "too many results returned")
 	}
 }
