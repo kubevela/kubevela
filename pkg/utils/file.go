@@ -19,11 +19,14 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -79,4 +82,24 @@ func IsJSONOrYAMLFile(path string) bool {
 	return strings.HasSuffix(path, ".json") ||
 		strings.HasSuffix(path, ".yaml") ||
 		strings.HasSuffix(path, ".yml")
+}
+
+// IsEmptyDir checks if a given path is an empty directory
+func IsEmptyDir(path string) (bool, error) {
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return false, err
+	}
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
+
+	// Read just one file in the dir (just read names, which is faster)
+	_, err = f.Readdirnames(1)
+	// If the error is EOF, the dir is empty
+	if errors.Is(err, io.EOF) {
+		return true, nil
+	}
+
+	return false, err
 }

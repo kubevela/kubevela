@@ -415,3 +415,14 @@ func TestGenerateParameterString(t *testing.T) {
 
 	}
 }
+
+func TestNewAddonCreateCommand(t *testing.T) {
+	cmd := NewAddonCreateCommand()
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	assert.ErrorContains(t, err, "not set")
+
+	cmd.SetArgs([]string{"--chart", "a", "--helm-repo-url", "https://some.com", "--version", "c"})
+	err = cmd.Execute()
+	assert.ErrorContains(t, err, "required")
+}

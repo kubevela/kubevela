@@ -74,7 +74,11 @@ var addonVersion string
 
 var addonClusters string
 
-var verboseSatatus bool
+var verboseStatus bool
+
+var helmRepoURL string
+var chartName string
+var chartVersion string
 
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -95,6 +99,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
+		NewAddonCreateCommand(),
 	)
 	return cmd
 }
@@ -357,7 +362,45 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&verboseSatatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	cmd.Flags().BoolVarP(&verboseStatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	return cmd
+}
+
+// NewAddonCreateCommand creates an addon scaffold
+func NewAddonCreateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "bootstrap addon structure",
+		Long:  "Create an addon scaffold based on a Helm Chart for quick starting. Created files are located in <addon-name>.",
+		Example: `vela addon create <addon-name> --helm-repo-url=<repo-url> --chart=<chart-name> --version=<chart-version>
+vela addon create mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("an addon name is required. You can specify a path. It will be used as the base directory for the addon")
+			}
+
+			return pkgaddon.CreateAddonFromHelmChart(args[0], helmRepoURL, chartName, chartVersion)
+		},
+	}
+
+	cmd.Flags().StringVar(&helmRepoURL, "helm-repo-url", "", "URL that points to a Helm repo")
+	err := cmd.MarkFlagRequired("helm-repo-url")
+	if err != nil {
+		return nil
+	}
+
+	cmd.Flags().StringVar(&chartName, "chart", "", "Name of the chart to base on")
+	err = cmd.MarkFlagRequired("chart")
+	if err != nil {
+		return nil
+	}
+
+	cmd.Flags().StringVar(&chartVersion, "version", "", "Version of the chart to base on")
+	err = cmd.MarkFlagRequired("version")
+	if err != nil {
+		return nil
+	}
+
 	return cmd
 }
 
@@ -440,7 +483,7 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 	var addonPackage *pkgaddon.WholeAddonPackage
 
 	// Get addon install package
-	if verboseSatatus {
+	if verboseStatus {
 		// We need the metadata to get descriptions about parameters
 		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
 		// Not found error can be ignored, because the user can define their own addon. Others can't.
@@ -476,7 +519,7 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 		// 3. verbose is on (when off, it is not possible to know whether the addon is in registry or not),
 		// means the addon does not exist at all.
 		// So, no need to go further, we return error message saying that we can't find it.
-		if addonPackage == nil && verboseSatatus {
+		if addonPackage == nil && verboseStatus {
 			return res, pkgaddon.Status{}, fmt.Errorf("addon %s is not found in registries nor locally installed", name)
 		}
 	default:
