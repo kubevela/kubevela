@@ -76,10 +76,6 @@ var addonClusters string
 
 var verboseStatus bool
 
-var helmRepoURL string
-var chartName string
-var chartVersion string
-
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -368,6 +364,10 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 
 // NewAddonCreateCommand creates an addon scaffold
 func NewAddonCreateCommand() *cobra.Command {
+	var helmRepoURL string
+	var chartName string
+	var chartVersion string
+
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "bootstrap addon structure",
