@@ -418,7 +418,12 @@ func readViewFile(a *InstallPackage, reader AsyncReader, readPath string) error 
 	if err != nil {
 		return err
 	}
-	a.Views = append(a.Views, ElementFile{Data: b, Name: filepath.Base(readPath)})
+	filename := path.Base(readPath)
+	switch filepath.Ext(filename) {
+	case ".cue":
+		a.Views = append(a.Views, ElementFile{Data: b, Name: filepath.Base(readPath)})
+	default:
+	}
 	return nil
 }
 
