@@ -523,7 +523,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
-			addonFilter, err := cmd.Flags().GetString("from")
+			addonName, err := cmd.Flags().GetString("from")
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", "from")
 			}
@@ -535,7 +535,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 				k8sClient,
 				definitionType,
 				namespace,
-				filters.ByOwnerAddon(addonFilter))
+				filters.ByOwnerAddon(addonName))
 			if err != nil {
 				return err
 			}
