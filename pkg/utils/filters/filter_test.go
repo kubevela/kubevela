@@ -42,8 +42,8 @@ func TestKeepNone(t *testing.T) {
 func TestByOwnerAddon(t *testing.T) {
 	// Test with empty addon name
 	f := ByOwnerAddon("")
-	if f(unstructured.Unstructured{}) {
-		t.Errorf("expected false, got true")
+	if !f(unstructured.Unstructured{}) {
+		t.Errorf("expected true, got false")
 	}
 
 	f = ByOwnerAddon("addon-name")
