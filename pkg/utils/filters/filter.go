@@ -23,21 +23,21 @@ import (
 )
 
 // KeepAll returns a filter that keeps everything
-func KeepAll() func(unstructured unstructured.Unstructured) bool {
-	return func(unstructured unstructured.Unstructured) bool {
+func KeepAll() func(unstructured.Unstructured) bool {
+	return func(unstructured.Unstructured) bool {
 		return true
 	}
 }
 
 // KeepNone returns a filter that filters out everything
-func KeepNone() func(unstructured unstructured.Unstructured) bool {
-	return func(unstructured unstructured.Unstructured) bool {
+func KeepNone() func(unstructured.Unstructured) bool {
+	return func(unstructured.Unstructured) bool {
 		return false
 	}
 }
 
 // ByOwnerAddon returns a filter that filters out what does not belong to the owner addon
-func ByOwnerAddon(addonName string) func(unstructured unstructured.Unstructured) bool {
+func ByOwnerAddon(addonName string) func(unstructured.Unstructured) bool {
 	if addonName == "" {
 		// Empty addon name, just keep everything, no further action needed
 		return KeepAll()
@@ -45,8 +45,8 @@ func ByOwnerAddon(addonName string) func(unstructured unstructured.Unstructured)
 
 	// Filter by which addon installed it by owner reference
 	// only keep the ones that belong to the addon
-	return func(unstructured unstructured.Unstructured) bool {
-		ownerRefs := unstructured.GetOwnerReferences()
+	return func(obj unstructured.Unstructured) bool {
+		ownerRefs := obj.GetOwnerReferences()
 		isOwnedBy := false
 		for _, ownerRef := range ownerRefs {
 			if ownerRef.Name == addon.Convert2AppName(addonName) {
@@ -59,14 +59,14 @@ func ByOwnerAddon(addonName string) func(unstructured unstructured.Unstructured)
 }
 
 // ByName returns a filter that matches the given name
-func ByName(name string) func(unstructured unstructured.Unstructured) bool {
+func ByName(name string) func(unstructured.Unstructured) bool {
 	// Keep everything
 	if name == "" {
 		return KeepAll()
 	}
 
 	// Filter by name
-	return func(unstructured unstructured.Unstructured) bool {
-		return unstructured.GetName() == name
+	return func(obj unstructured.Unstructured) bool {
+		return obj.GetName() == name
 	}
 }
