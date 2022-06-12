@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -377,7 +375,7 @@ func ValidDefinitionTypes() []string {
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
-func SearchDefinition(definitionName string, c client.Client, definitionType string, namespace string, addonFilter string) ([]unstructured.Unstructured, error) {
+func SearchDefinition(definitionName string, c client.Client, definitionType, namespace string, additionalFilter func(unstructured.Unstructured) bool) ([]unstructured.Unstructured, error) {
 	ctx := context.Background()
 	var kinds []string
 	if definitionType != "" {
@@ -410,19 +408,9 @@ func SearchDefinition(definitionName string, c client.Client, definitionType str
 			if definitionName != "*" && obj.GetName() != definitionName {
 				continue
 			}
-			// Filter which addon installed it by owner reference
-			if addonFilter != "" {
-				ownerRefs := obj.GetOwnerReferences()
-				isOwnedBy := false
-				for _, ownerRef := range ownerRefs {
-					if ownerRef.Name == addonutil.Convert2AppName(addonFilter) {
-						isOwnedBy = true
-						break
-					}
-				}
-				if !isOwnedBy {
-					continue
-				}
+			// Apply additional filters
+			if !additionalFilter(obj) {
+				continue
 			}
 			definitions = append(definitions, obj)
 		}

@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
+
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 
 	"cuelang.org/go/cue"
@@ -379,7 +381,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 }
 
 func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
-	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace, "")
+	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace, filters.KeepAll())
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +531,11 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition("*", k8sClient, definitionType, namespace, addonFilter)
+			definitions, err := pkgdef.SearchDefinition("*",
+				k8sClient,
+				definitionType,
+				namespace,
+				filters.ByOwnerAddon(addonFilter))
 			if err != nil {
 				return err
 			}

@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -113,20 +115,20 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	_ = GetDefinitionDefaultSpec("WorkloadDefinition")
 	_ = ValidDefinitionTypes()
 
-	if _, err = SearchDefinition("*", c, "", "", ""); err != nil {
+	if _, err = SearchDefinition("*", c, "", "", filters.KeepAll()); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
-	if _, err = SearchDefinition("*", c, "trait", "default", ""); err != nil {
+	if _, err = SearchDefinition("*", c, "trait", "default", filters.KeepAll()); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
-	res, err := SearchDefinition("*", c, "", "", "test-addon")
+	res, err := SearchDefinition("*", c, "", "", filters.ByOwnerAddon("test-addon"))
 	if err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
 	if len(res) < 1 {
 		t.Fatalf("failed to search definition with addon filter applied: %s", "no result returned")
 	}
-	res, err = SearchDefinition("*", c, "", "", "this-is-a-non-existent-addon")
+	res, err = SearchDefinition("*", c, "", "", filters.ByOwnerAddon("this-is-a-non-existent-addon"))
 	if err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
