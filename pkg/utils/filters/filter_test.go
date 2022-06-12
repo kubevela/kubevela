@@ -19,6 +19,8 @@ package filters
 import (
 	"testing"
 
+	"gotest.tools/assert"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -27,74 +29,54 @@ import (
 
 func TestKeepAll(t *testing.T) {
 	f := KeepAll()
-	if !f(unstructured.Unstructured{}) {
-		t.Errorf("expected true, got false")
-	}
+	assert.Equal(t, true, f(unstructured.Unstructured{}))
 }
 
 func TestKeepNone(t *testing.T) {
 	f := KeepNone()
-	if f(unstructured.Unstructured{}) {
-		t.Errorf("expected false, got true")
-	}
+	assert.Equal(t, false, f(unstructured.Unstructured{}))
 }
 
 func TestByOwnerAddon(t *testing.T) {
 	// Test with empty addon name
 	f := ByOwnerAddon("")
-	if !f(unstructured.Unstructured{}) {
-		t.Errorf("expected true, got false")
-	}
+	assert.Equal(t, true, f(unstructured.Unstructured{}))
 
 	f = ByOwnerAddon("addon-name")
 
 	// Test with empty owner refs
 	u := unstructured.Unstructured{}
-	if f(u) {
-		t.Errorf("expected false, got true")
-	}
+	assert.Equal(t, false, f(u))
 
 	// Test with right owner refs
 	u.SetOwnerReferences([]v1.OwnerReference{{
 		Name: addonutil.Convert2AppName("addon-name"),
 	}})
-	if !f(u) {
-		t.Errorf("expected true, got false")
-	}
+	assert.Equal(t, true, f(u))
 
 	// Test with wrong owner refs
 	u.SetOwnerReferences([]v1.OwnerReference{{
 		Name: "addon-name-2",
 	}})
-	if f(u) {
-		t.Errorf("expected false, got true")
-	}
+	assert.Equal(t, false, f(u))
 }
 
 func TestByName(t *testing.T) {
 	// Test with empty name
 	f := ByName("")
-	if !f(unstructured.Unstructured{}) {
-		t.Errorf("expected true, got false")
-	}
+	assert.Equal(t, true, f(unstructured.Unstructured{}))
 
 	f = ByName("name")
 
 	// Test with empty name
 	u := unstructured.Unstructured{}
-	if f(u) {
-		t.Errorf("expected false, got true")
-	}
+	assert.Equal(t, false, f(u))
 
 	// Test with right name
 	u.SetName("name")
-	if !f(u) {
-		t.Errorf("expected true, got false")
-	}
+	assert.Equal(t, true, f(u))
 
 	// Test with wrong name
 	u.SetName("name-2")
-	if f(u) {
-		t.Errorf("expected false, got true")
-	}
+	assert.Equal(t, false, f(u))
 }
