@@ -70,3 +70,31 @@ func TestByOwnerAddon(t *testing.T) {
 		t.Errorf("expected false, got true")
 	}
 }
+
+func TestByName(t *testing.T) {
+	// Test with empty name
+	f := ByName("")
+	if !f(unstructured.Unstructured{}) {
+		t.Errorf("expected true, got false")
+	}
+
+	f = ByName("name")
+
+	// Test with empty name
+	u := unstructured.Unstructured{}
+	if f(u) {
+		t.Errorf("expected false, got true")
+	}
+
+	// Test with right name
+	u.SetName("name")
+	if !f(u) {
+		t.Errorf("expected true, got false")
+	}
+
+	// Test with wrong name
+	u.SetName("name-2")
+	if f(u) {
+		t.Errorf("expected false, got true")
+	}
+}

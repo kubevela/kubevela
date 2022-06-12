@@ -115,20 +115,20 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	_ = GetDefinitionDefaultSpec("WorkloadDefinition")
 	_ = ValidDefinitionTypes()
 
-	if _, err = SearchDefinition("*", c, "", "", filters.KeepAll()); err != nil {
+	if _, err = SearchDefinition(c, "", ""); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
-	if _, err = SearchDefinition("*", c, "trait", "default", filters.KeepAll()); err != nil {
+	if _, err = SearchDefinition(c, "trait", "default"); err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
-	res, err := SearchDefinition("*", c, "", "", filters.ByOwnerAddon("test-addon"))
+	res, err := SearchDefinition(c, "", "", filters.ByOwnerAddon("test-addon"))
 	if err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}
 	if len(res) < 1 {
 		t.Fatalf("failed to search definition with addon filter applied: %s", "no result returned")
 	}
-	res, err = SearchDefinition("*", c, "", "", filters.ByOwnerAddon("this-is-a-non-existent-addon"))
+	res, err = SearchDefinition(c, "", "", filters.ByOwnerAddon("this-is-a-non-existent-addon"))
 	if err != nil {
 		t.Fatalf("failed to search definition: %v", err)
 	}

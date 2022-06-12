@@ -375,7 +375,7 @@ func ValidDefinitionTypes() []string {
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
-func SearchDefinition(definitionName string, c client.Client, definitionType, namespace string, additionalFilter func(unstructured.Unstructured) bool) ([]unstructured.Unstructured, error) {
+func SearchDefinition(c client.Client, definitionType, namespace string, filters ...func(unstructured.Unstructured) bool) ([]unstructured.Unstructured, error) {
 	ctx := context.Background()
 	var kinds []string
 	if definitionType != "" {
@@ -404,13 +404,13 @@ func SearchDefinition(definitionName string, c client.Client, definitionType, na
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
+	itemLoop:
 		for _, obj := range objs.Items {
-			if definitionName != "*" && obj.GetName() != definitionName {
-				continue
-			}
 			// Apply additional filters
-			if !additionalFilter(obj) {
-				continue
+			for _, filter := range filters {
+				if !filter(obj) {
+					continue itemLoop
+				}
 			}
 			definitions = append(definitions, obj)
 		}

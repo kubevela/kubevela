@@ -22,11 +22,24 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
+// KeepAll returns a filter that keeps everything
+func KeepAll() func(unstructured unstructured.Unstructured) bool {
+	return func(unstructured unstructured.Unstructured) bool {
+		return true
+	}
+}
+
+// KeepNone returns a filter that filters out everything
+func KeepNone() func(unstructured unstructured.Unstructured) bool {
+	return func(unstructured unstructured.Unstructured) bool {
+		return false
+	}
+}
+
 // ByOwnerAddon returns a filter that filters out what does not belong to the owner addon
 func ByOwnerAddon(addonName string) func(unstructured unstructured.Unstructured) bool {
 	if addonName == "" {
-		// Empty addon name
-		// just keep everything, no further action needed
+		// Empty addon name, just keep everything, no further action needed
 		return KeepAll()
 	}
 
@@ -45,16 +58,15 @@ func ByOwnerAddon(addonName string) func(unstructured unstructured.Unstructured)
 	}
 }
 
-// KeepAll returns a filter that keeps everything
-func KeepAll() func(unstructured unstructured.Unstructured) bool {
-	return func(unstructured unstructured.Unstructured) bool {
-		return true
+// ByName returns a filter that matches the given name
+func ByName(name string) func(unstructured unstructured.Unstructured) bool {
+	// Keep everything
+	if name == "" {
+		return KeepAll()
 	}
-}
 
-// KeepNone returns a filter that filters out everything
-func KeepNone() func(unstructured unstructured.Unstructured) bool {
+	// Filter by name
 	return func(unstructured unstructured.Unstructured) bool {
-		return false
+		return unstructured.GetName() == name
 	}
 }

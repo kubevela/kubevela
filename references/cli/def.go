@@ -381,7 +381,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 }
 
 func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
-	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace, filters.KeepAll())
+	definitions, err := pkgdef.SearchDefinition(client, definitionType, namespace, filters.ByName(definitionName))
 	if err != nil {
 		return nil, err
 	}
@@ -531,8 +531,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition("*",
-				k8sClient,
+			definitions, err := pkgdef.SearchDefinition(k8sClient,
 				definitionType,
 				namespace,
 				filters.ByOwnerAddon(addonName))
