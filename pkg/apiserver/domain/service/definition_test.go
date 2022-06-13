@@ -44,7 +44,7 @@ var _ = Describe("Test namespace service functions", func() {
 	)
 
 	BeforeEach(func() {
-		definitionService = &definitionServiceImpl{KubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.TODO())}
+		definitionService = &definitionServiceImpl{KubeClient: k8sClient}
 		err := k8sClient.Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-system",
@@ -215,7 +215,6 @@ var _ = Describe("Test namespace service functions", func() {
 	It("Test update ui schema", func() {
 		du := &definitionServiceImpl{
 			KubeClient: k8sClient,
-			caches:     utils.NewMemoryCacheStore(context.Background()),
 		}
 		cdata, err := ioutil.ReadFile("./testdata/workflowstep-apply-object.yaml")
 		Expect(err).Should(Succeed())
@@ -235,7 +234,6 @@ var _ = Describe("Test namespace service functions", func() {
 	It("Test update status of the definition", func() {
 		du := &definitionServiceImpl{
 			KubeClient: k8sClient,
-			caches:     utils.NewMemoryCacheStore(context.Background()),
 		}
 		detail, err := du.UpdateDefinitionStatus(context.TODO(), "apply-object", v1.UpdateDefinitionStatusRequest{
 			DefinitionType: "workflowstep",
