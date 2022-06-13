@@ -124,11 +124,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				f := Filter{
 					Component: component,
 				}
-				table, err := getAppEndpoints(ctx, appName, namespace, f, c)
-				if err == nil {
-					table.Render()
-				}
-				return err
+				return printAppEndpoints(ctx, appName, namespace, f, c, false)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -167,18 +163,21 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
-func getAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args) (*tablewriter.Table, error) {
+func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args, skipEmptyTable bool) error {
 	config, err := velaC.GetConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	client, err := multicluster.Initialize(config, false)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if skipEmptyTable && len(endpoints) == 0 {
+		return nil
 	}
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
@@ -189,8 +188,8 @@ func getAppEndpoints(ctx context.Context, appName string, namespace string, f Fi
 		}
 		table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
 	}
-
-	return table, nil
+	table.Render()
+	return nil
 }
 
 func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Application, error) {
