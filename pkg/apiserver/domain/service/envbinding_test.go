@@ -27,7 +27,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 )
 
 var _ = Describe("Test envBindingService functions", func() {
@@ -54,7 +53,7 @@ var _ = Describe("Test envBindingService functions", func() {
 		projectService := &projectServiceImpl{Store: ds, K8sClient: k8sClient, RbacService: rbacService}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
 		workflowService = &workflowServiceImpl{Store: ds, KubeClient: k8sClient, EnvService: envService}
-		definitionService = &definitionServiceImpl{KubeClient: k8sClient, caches: utils.NewMemoryCacheStore(context.TODO())}
+		definitionService = &definitionServiceImpl{KubeClient: k8sClient}
 		envBindingService = &envBindingServiceImpl{Store: ds, WorkflowService: workflowService, DefinitionService: definitionService, KubeClient: k8sClient, EnvService: envService}
 		envBindingDemo1 = apisv1.EnvBinding{
 			Name: "envbinding-dev",

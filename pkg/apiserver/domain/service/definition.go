@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
@@ -55,7 +54,6 @@ type DefinitionService interface {
 
 type definitionServiceImpl struct {
 	KubeClient client.Client `inject:"kubeClient"`
-	caches     *utils.MemoryCacheStore
 }
 
 // DefinitionQueryOption define a set of query options
@@ -80,7 +78,7 @@ const (
 
 // NewDefinitionService new definition service
 func NewDefinitionService() DefinitionService {
-	return &definitionServiceImpl{caches: utils.NewMemoryCacheStore(context.Background())}
+	return &definitionServiceImpl{}
 }
 
 func (d *definitionServiceImpl) ListDefinitions(ctx context.Context, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
@@ -95,9 +93,6 @@ func (d *definitionServiceImpl) ListDefinitions(ctx context.Context, ops Definit
 }
 
 func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, kind string, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
-	if mc := d.caches.Get(ops.String()); mc != nil {
-		return mc.([]*apisv1.DefinitionBase), nil
-	}
 	matchLabels := metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
@@ -145,9 +140,6 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 			continue
 		}
 		defs = append(defs, definition)
-	}
-	if ops.AppliedWorkloads == "" {
-		d.caches.Put(ops.String(), defs, time.Minute*3)
 	}
 	return defs, nil
 }
@@ -240,30 +232,27 @@ func (d *definitionServiceImpl) DetailDefinition(ctx context.Context, name, defT
 	if err := d.KubeClient.Get(ctx, k8stypes.NamespacedName{
 		Namespace: types.DefaultKubeVelaNS,
 		Name:      fmt.Sprintf("%s-schema-%s", defType, name),
-	}, &cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, bcode.ErrDefinitionNoSchema
-		}
+	}, &cm); err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 
-	data, ok := cm.Data[types.OpenapiV3JSONSchema]
-	if !ok {
-		return nil, bcode.ErrDefinitionNoSchema
-	}
-	schema := &openapi3.Schema{}
-	if err := schema.UnmarshalJSON([]byte(data)); err != nil {
-		return nil, err
-	}
-	// render default ui schema
-	defaultUISchema := renderDefaultUISchema(schema)
-	// patch from custom ui schema
-	customUISchema := d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
-	return &apisv1.DetailDefinitionResponse{
+	definition := &apisv1.DetailDefinitionResponse{
 		DefinitionBase: *base,
-		APISchema:      schema,
-		UISchema:       customUISchema,
-	}, nil
+	}
+	data, ok := cm.Data[types.OpenapiV3JSONSchema]
+	if ok {
+		schema := &openapi3.Schema{}
+		if err := schema.UnmarshalJSON([]byte(data)); err != nil {
+			return nil, err
+		}
+		definition.APISchema = schema
+		// render default ui schema
+		defaultUISchema := renderDefaultUISchema(schema)
+		// patch from custom ui schema
+		definition.UISchema = d.renderCustomUISchema(ctx, name, defType, defaultUISchema)
+	}
+
+	return definition, nil
 }
 
 func (d *definitionServiceImpl) renderCustomUISchema(ctx context.Context, name, defType string, defaultSchema []*utils.UIParameter) []*utils.UIParameter {
