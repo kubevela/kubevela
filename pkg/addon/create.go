@@ -18,7 +18,6 @@ package addon
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -74,7 +73,7 @@ func CreateAddonFromHelmChart(addonPath, helmRepoURL, chartName, chartVersion st
 			return fmt.Errorf("directory %s is not empty. To avoid any data loss, manually delete it first", addonPath)
 		}
 
-		// addonPath is en empty dir, delete it
+		// Now we are sure addonPath is en empty dir, delete it
 		err = os.Remove(addonPath)
 		if err != nil {
 			return err
@@ -82,8 +81,8 @@ func CreateAddonFromHelmChart(addonPath, helmRepoURL, chartName, chartVersion st
 	}
 
 	// Make sure url is valid
-	_, err = url.ParseRequestURI(helmRepoURL)
-	if err != nil {
+	isValidURL := utils.IsValidURL(helmRepoURL)
+	if !isValidURL {
 		return fmt.Errorf("invalid helm repo url: %w", err)
 	}
 
