@@ -378,6 +378,23 @@ var _ = Describe("test enable addon in local dir", func() {
 	})
 })
 
+var _ = Describe("test enable addon which applies the views independently", func() {
+	BeforeEach(func() {
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-test-view"}}
+		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+	})
+
+	It("test enable addon which applies the views independently", func() {
+		ctx := context.Background()
+		err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		Expect(err).Should(BeNil())
+		app := v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-view"}, &app)).Should(BeNil())
+		configMap := v1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "pod-view"}, &configMap)).Should(BeNil())
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
