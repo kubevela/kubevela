@@ -94,6 +94,9 @@ const (
 	// DefSchemaName is the addon definition schemas dir name
 	DefSchemaName string = "schemas"
 
+	// ViewDirName is the addon views dir name
+	ViewDirName string = "views"
+
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
 
@@ -191,7 +194,7 @@ type Pattern struct {
 }
 
 // Patterns is the file pattern that the addon should be in
-var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName}, {Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}}
+var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName}, {Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -306,6 +309,7 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 		TemplateFileName: readTemplate,
 		ResourcesDirName: readResFile,
 		DefSchemaName:    readDefSchemaFile,
+		ViewDirName:      readViewFile,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
@@ -404,6 +408,23 @@ func readDefFile(a *UIData, reader AsyncReader, readPath string) error {
 		a.Definitions = append(a.Definitions, file)
 	default:
 		// skip other file formats
+	}
+	return nil
+}
+
+// readViewFile read single view file
+func readViewFile(a *InstallPackage, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	filename := path.Base(readPath)
+	switch filepath.Ext(filename) {
+	case ".cue":
+		a.CUEViews = append(a.CUEViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
+	case ".yaml":
+		a.YAMLViews = append(a.YAMLViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
+	default:
 	}
 	return nil
 }
@@ -809,6 +830,26 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 	return schemaConfigmaps, nil
 }
 
+// RenderViews will render views in addons.
+func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
+	views := make([]*unstructured.Unstructured, 0)
+	for _, view := range addon.YAMLViews {
+		obj, err := renderObject(view)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, obj)
+	}
+	for _, view := range addon.CUEViews {
+		obj, err := renderCUEView(view)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, obj)
+	}
+	return views, nil
+}
+
 func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]ObservabilityEnvironment, error) {
 	secrets, err := multicluster.ListExistingClusterSecrets(ctx, k8sClient)
 	if err != nil {
@@ -949,6 +990,16 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 		ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: strings.Split(elem.Name, ".")[0]},
 		Data: map[string]string{
 			types.UISchema: string(jsonData),
+		}}
+	return util.Object2Unstructured(cm)
+}
+
+func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
+	cm := v1.ConfigMap{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: strings.Split(elem.Name, ".")[0]},
+		Data: map[string]string{
+			types.VelaQLConfigmapKey: elem.Data,
 		}}
 	return util.Object2Unstructured(cm)
 }
@@ -1248,6 +1299,11 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrap(err, "render addon definitions' schema fail")
 	}
 
+	views, err := RenderViews(addon)
+	if err != nil {
+		return errors.Wrap(err, "render addon views fail")
+	}
+
 	if err := passDefInAppAnnotation(defs, app); err != nil {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
@@ -1267,6 +1323,14 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	for _, schema := range schemas {
 		addOwner(schema, app)
 		err = h.apply.Apply(h.ctx, schema, apply.DisableUpdateAnnotation())
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, view := range views {
+		addOwner(view, app)
+		err = h.apply.Apply(h.ctx, view, apply.DisableUpdateAnnotation())
 		if err != nil {
 			return err
 		}
