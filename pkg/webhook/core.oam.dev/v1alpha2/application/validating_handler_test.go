@@ -133,6 +133,85 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
+	It("Test Application Validator workflow step name duplicate [error]", func() {
+		By("test duplicated step name in workflow")
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-duplicate","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"suspend","type":"suspend"},{"name":"suspend","type":"suspend"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("test duplicated sub step name in workflow")
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-duplicate","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"step-group","subSteps":[{"name":"sub","type":"suspend"},{"name":"sub","type":"suspend"}]}]}}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("test duplicated sub and parent step name in workflow")
+		req = admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-duplicate","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"step-group","subSteps":[{"name":"group","type":"suspend"},{"name":"sub","type":"suspend"}]}]}}}
+`),
+				},
+			},
+		}
+		resp = handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Validator workflow step invalid timeout [error]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"test"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Validator workflow step invalid timeout [allow]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-timeout","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"crccheck/hello-world"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"1s"}]}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
 	It("Test Application Validator external revision name [allow]", func() {
 		externalComp1 := appsv1.ControllerRevision{
 			ObjectMeta: metav1.ObjectMeta{

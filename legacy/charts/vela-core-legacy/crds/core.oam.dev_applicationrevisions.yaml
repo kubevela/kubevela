@@ -2292,6 +2292,8 @@ spec:
                                       properties:
                                         type: object
                                         
+                                      timeout:
+                                        type: string
                                       type:
                                         type: string
                                     required:
@@ -2299,6 +2301,8 @@ spec:
                                     - type
                                     type: object
                                   type: array
+                                timeout:
+                                  type: string
                                 type:
                                   type: string
                               required:
@@ -4038,6 +4042,8 @@ spec:
                               properties:
                                 type: object
                                 
+                              timeout:
+                                type: string
                               type:
                                 type: string
                             required:
@@ -4045,6 +4051,8 @@ spec:
                             - type
                             type: object
                           type: array
+                        timeout:
+                          type: string
                         type:
                           type: string
                       required:
