@@ -296,12 +296,20 @@ func TestRenderViews(t *testing.T) {
 	}
 	views, err := RenderViews(&addonDeployToRuntime)
 	assert.NoError(t, err)
-	assert.Equal(t, len(views), 1)
+	assert.Equal(t, len(views), 2)
+
 	view := views[0]
 	assert.Equal(t, view.GetKind(), "ConfigMap")
 	assert.Equal(t, view.GetAPIVersion(), "v1")
 	assert.Equal(t, view.GetNamespace(), types.DefaultKubeVelaNS)
+	assert.Equal(t, view.GetName(), "cloud-resource-view")
+
+	view = views[1]
+	assert.Equal(t, view.GetKind(), "ConfigMap")
+	assert.Equal(t, view.GetAPIVersion(), "v1")
+	assert.Equal(t, view.GetNamespace(), types.DefaultKubeVelaNS)
 	assert.Equal(t, view.GetName(), "pod-view")
+
 }
 
 func TestRenderK8sObjects(t *testing.T) {
@@ -495,9 +503,15 @@ var viewAddon = InstallPackage{
 	Meta: Meta{
 		Name: "test-render-view-addon",
 	},
-	Views: []ElementFile{
+	YAMLViews: []ElementFile{
 		{
-			Data: testView,
+			Data: testYAMLView,
+			Name: "cloud-resource-view",
+		},
+	},
+	CUEViews: []ElementFile{
+		{
+			Data: testCUEView,
 			Name: "pod-view",
 		},
 	},
@@ -581,7 +595,47 @@ spec:
         - containerPort: 80
 `
 
-var testView = `
+var testYAMLView = `
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "cloud-resource-view"
+  namespace: "vela-system"
+data:
+  template: |
+    import (
+    "vela/ql"
+    )
+    
+    parameter: {
+      appName: string
+        appNs:   string
+    }
+    resources: ql.#ListResourcesInApp & {
+      app: {
+        name:      parameter.appName
+          namespace: parameter.appNs
+          filter: {
+            "apiVersion": "terraform.core.oam.dev/v1beta1"
+              "kind":       "Configuration"
+          }
+          withStatus: true
+      }
+    }
+    status: {
+      if resources.err == _|_ {
+        "cloud-resources": [ for i, resource in resources.list {
+          resource.object
+        }]
+      }
+      if resources.err != _|_ {
+        error: resources.err
+      }
+    }
+
+
+`
+var testCUEView = `
 import (
 	"vela/ql"
 )
@@ -1068,7 +1122,8 @@ func TestReadViewFile(t *testing.T) {
 	assert.Error(t, notExistErr)
 
 	// verify
-	assert.True(t, len(addon.Views) == 1)
+	assert.True(t, len(addon.CUEViews) == 1)
+	assert.True(t, len(addon.YAMLViews) == 1)
 }
 
 func TestRenderCUETemplate(t *testing.T) {

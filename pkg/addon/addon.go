@@ -421,7 +421,9 @@ func readViewFile(a *InstallPackage, reader AsyncReader, readPath string) error 
 	filename := path.Base(readPath)
 	switch filepath.Ext(filename) {
 	case ".cue":
-		a.Views = append(a.Views, ElementFile{Data: b, Name: filepath.Base(readPath)})
+		a.CUEViews = append(a.CUEViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
+	case ".yaml":
+		a.YAMLViews = append(a.YAMLViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
 	default:
 	}
 	return nil
@@ -831,8 +833,15 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 // RenderViews will render views in addons.
 func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	views := make([]*unstructured.Unstructured, 0)
-	for _, view := range addon.Views {
-		obj, err := renderCueView(view)
+	for _, view := range addon.YAMLViews {
+		obj, err := renderObject(view)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, obj)
+	}
+	for _, view := range addon.CUEViews {
+		obj, err := renderCUEView(view)
 		if err != nil {
 			return nil, err
 		}
@@ -985,12 +994,12 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 	return util.Object2Unstructured(cm)
 }
 
-func renderCueView(elem ElementFile) (*unstructured.Unstructured, error) {
+func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
 	cm := v1.ConfigMap{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: strings.Split(elem.Name, ".")[0]},
 		Data: map[string]string{
-			types.VelaQLTemplate: elem.Data,
+			types.VelaQLConfigmapKey: elem.Data,
 		}}
 	return util.Object2Unstructured(cm)
 }

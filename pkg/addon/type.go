@@ -48,9 +48,9 @@ type InstallPackage struct {
 	// Definitions and CUEDefinitions are converted as OAM X-Definitions, they will only in control plane cluster
 	Definitions    []ElementFile `json:"definitions"`
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
-	// Views are the instances of velaql, they will only in control plane cluster
-	Views []ElementFile `json:"views"`
-
+	// YAMLViews and CUEViews are the instances of velaql, they will only in control plane cluster
+	YAMLViews []ElementFile `json:"YAMLViews"`
+	CUEViews  []ElementFile `json:"CUEViews"`
 	// DefSchemas are UI schemas read by VelaUX, it will only be installed in control plane clusters
 	DefSchemas []ElementFile `json:"defSchemas,omitempty"`
 
