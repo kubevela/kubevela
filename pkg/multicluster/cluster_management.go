@@ -92,7 +92,9 @@ func (clusterConfig *KubeClusterConfig) RegisterByVelaSecret(ctx context.Context
 	var credentialType clusterv1alpha1.CredentialType
 	data := map[string][]byte{
 		"endpoint": []byte(clusterConfig.Cluster.Server),
-		"ca.crt":   clusterConfig.Cluster.CertificateAuthorityData,
+	}
+	if !clusterConfig.Cluster.InsecureSkipTLSVerify {
+		data["ca.crt"] = clusterConfig.Cluster.CertificateAuthorityData
 	}
 	if len(clusterConfig.AuthInfo.Token) > 0 {
 		credentialType = clusterv1alpha1.CredentialTypeServiceAccountToken
