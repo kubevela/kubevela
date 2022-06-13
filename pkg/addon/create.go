@@ -46,6 +46,8 @@ func CreateAddonFromHelmChart(addonPath, helmRepoURL, chartName, chartVersion st
 	// The user can still edit it after creation.
 	// Also, if the user is offline, we cannot check whether the Helm Chart exists.
 
+	// TODO(charlie0129): check if the Helm Chart exists (optional)
+
 	// Extract addon name from path (using dir name)
 	absPath, err := filepath.Abs(addonPath)
 	if err != nil {
@@ -149,7 +151,7 @@ func writeHelmComponentTemplate(tmpl HelmComponentTemplate, filePath string) err
 	return nil
 }
 
-// createAddonFiles creates the files structure for an addon,
+// createAddonFiles creates the file structure for an addon,
 // including template.yaml, readme.md, metadata.yaml, and <addon-nam>.cue.
 func createAddonFiles(addonPath, addonName, helmRepoURL, chartName, chartVersion string) error {
 
@@ -229,9 +231,10 @@ func createAddonFiles(addonPath, addonName, helmRepoURL, chartName, chartVersion
 	return nil
 }
 
-// createAddonDirs creates the directories structure for an addon
+// createAddonDirs creates the directory structure for an addon
 func createAddonDirs(addonDir string) error {
-	err := os.MkdirAll(addonDir, 0750)
+	// nolint:gosec
+	err := os.MkdirAll(addonDir, 0755)
 	if err != nil {
 		return err
 	}
@@ -241,7 +244,8 @@ func createAddonDirs(addonDir string) error {
 		path.Join(addonDir, DefSchemaName),
 	}
 	for _, dir := range dirs {
-		err = os.MkdirAll(dir, 0750)
+		// nolint:gosec
+		err = os.MkdirAll(dir, 0755)
 		if err != nil {
 			return err
 		}
