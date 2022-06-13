@@ -198,11 +198,14 @@ Enable addon for specific clusters, (local means control plane):
 
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
-	fmt.Printf("Please access %s from the following endpoints:\n", name)
-	err := printAppEndpoints(ctx, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
+	table, err := printAppEndpoints(ctx, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
+	}
+	if table.NumLines() > 0 {
+		fmt.Printf("Please access %s from the following endpoints:\n", name)
+		table.Render()
 	}
 	if name == "velaux" {
 		if !isUpgrade {
