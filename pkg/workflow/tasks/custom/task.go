@@ -65,6 +65,8 @@ const (
 	StatusReasonOutput = "Output"
 	// StatusReasonFailedAfterRetries is the reason of the workflow progress condition which is FailedAfterRetries.
 	StatusReasonFailedAfterRetries = "FailedAfterRetries"
+	// StatusReasonTimeout is the reason of the workflow progress condition which is Timeout.
+	StatusReasonTimeout = "Timeout"
 )
 
 // LoadTaskTemplate gets the workflowStep definition from cluster and resolve it.
@@ -92,7 +94,6 @@ type taskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
 	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
-	skip         func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool)
 }
 
 // Name return step name.
@@ -108,10 +109,6 @@ func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions
 // Pending check task should be executed or not.
 func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 	return tr.checkPending(ctx, stepStatus)
-}
-
-func (tr *taskRunner) Skip(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-	return tr.skip(dependsOnPhase, stepStatus)
 }
 
 // nolint:gocyclo
@@ -156,19 +153,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
-		tRunner.skip = func(dependsOnPhase common.WorkflowStepPhase, stepStatus map[string]common.StepStatus) (common.StepStatus, bool) {
-			if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
-				return exec.status(), false
-			}
-			skip := SkipTaskRunner(&SkipOptions{
-				If:             wfStep.If,
-				DependsOnPhase: dependsOnPhase,
-			})
-			if skip {
-				exec.Skip("")
-			}
-			return exec.status(), skip
-		}
 		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			if options.GetTracer == nil {
 				options.GetTracer = func(id string, step v1beta1.WorkflowStep) monitorContext.Context {
@@ -180,6 +164,22 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			defer func() {
 				tracer.Commit(string(exec.status().Phase))
 			}()
+
+			for _, hook := range options.PreCheckHooks {
+				result, err := hook(wfStep)
+				if err != nil {
+					tracer.Error(err, "do preCheckHook")
+					return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
+				}
+				if result.Skip {
+					exec.Skip("")
+					return exec.status(), exec.operation(), nil
+				}
+				if result.Timeout {
+					exec.timeout("")
+					return exec.status(), exec.operation(), nil
+				}
+			}
 
 			if exec.operation().FailedAfterRetries {
 				tracer.Info("failed after retries, skip this step")
@@ -316,6 +316,13 @@ func (exec *executor) Skip(message string) {
 	exec.wfStatus.Message = message
 }
 
+func (exec *executor) timeout(message string) {
+	exec.terminated = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
+	exec.wfStatus.Reason = StatusReasonTimeout
+	exec.wfStatus.Message = message
+}
+
 func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
@@ -338,6 +345,7 @@ func (exec *executor) operation() *wfTypes.Operation {
 		Suspend:            exec.suspend,
 		Terminated:         exec.terminated,
 		Waiting:            exec.wait,
+		Skip:               exec.skip,
 		FailedAfterRetries: exec.failedAfterRetries,
 	}
 }
@@ -515,7 +523,7 @@ func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
 	}
 	switch phase {
 	case common.WorkflowStepPhaseFailed:
-		return reason == StatusReasonTerminate || reason == StatusReasonFailedAfterRetries
+		return reason == StatusReasonTerminate || reason == StatusReasonFailedAfterRetries || reason == StatusReasonTimeout
 	case common.WorkflowStepPhaseSkipped:
 		return true
 	case common.WorkflowStepPhaseSucceeded:

@@ -349,6 +349,8 @@ type WorkflowStep struct {
 
 	If string `json:"if,omitempty"`
 
+	Timeout string `json:"timeout,omitempty"`
+
 	DependsOn []string `json:"dependsOn,omitempty"`
 
 	Inputs StepInputs `json:"inputs,omitempty"`
@@ -367,6 +369,8 @@ type WorkflowSubStep struct {
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
 	If string `json:"if,omitempty"`
+
+	Timeout string `json:"timeout,omitempty"`
 
 	DependsOn []string `json:"dependsOn,omitempty"`
 

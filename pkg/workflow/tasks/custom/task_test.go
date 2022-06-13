@@ -505,17 +505,53 @@ func TestSkip(t *testing.T) {
 	r.NoError(err)
 	runner, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	status, skip := runner.Skip(common.WorkflowStepPhaseFailed, nil)
-	r.Equal(skip, true)
+	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Skip: true}, nil
+			},
+		},
+	})
+	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
 	r.Equal(status.Reason, StatusReasonSkip)
-	runner2, err := gen(v1beta1.WorkflowStep{
-		If:   "always",
-		Name: "test",
-	}, &types.GeneratorOptions{ID: "124"})
+	r.Equal(operations.Skip, true)
+}
+
+func TestTimeout(t *testing.T) {
+	r := require.New(t)
+	discover := providers.NewProviders()
+	discover.Register("test", map[string]providers.Handler{
+		"ok": func(ctx wfContext.Context, v *value.Value, act types.Action) error {
+			return nil
+		},
+	})
+	step := v1beta1.WorkflowStep{
+		Name: "timeout",
+		Type: "ok",
+	}
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp-timeout",
+		CompName:        "mycomp",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+	tasksLoader := NewTaskLoader(mockLoadTemplate, nil, discover, 0, pCtx)
+	gen, err := tasksLoader.GetTaskGenerator(context.Background(), step.Type)
 	r.NoError(err)
-	_, skip = runner2.Skip(common.WorkflowStepPhaseFailed, nil)
-	r.Equal(skip, false)
+	runner, err := gen(step, &types.GeneratorOptions{})
+	r.NoError(err)
+	ctx := newWorkflowContextForTest(t)
+	status, _, err := runner.Run(ctx, &types.TaskRunOptions{
+		PreCheckHooks: []types.TaskPreCheckHook{
+			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+				return &types.PreCheckResult{Timeout: true}, nil
+			},
+		},
+	})
+	r.NoError(err)
+	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+	r.Equal(status.Reason, StatusReasonTimeout)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {

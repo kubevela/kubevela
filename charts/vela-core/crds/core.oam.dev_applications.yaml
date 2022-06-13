@@ -1100,6 +1100,8 @@ spec:
                               properties:
                                 type: object
                                 x-kubernetes-preserve-unknown-fields: true
+                              timeout:
+                                type: string
                               type:
                                 type: string
                             required:
@@ -1107,6 +1109,8 @@ spec:
                             - type
                             type: object
                           type: array
+                        timeout:
+                          type: string
                         type:
                           type: string
                       required:

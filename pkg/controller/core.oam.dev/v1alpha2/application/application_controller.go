@@ -218,18 +218,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false, false)
 	case common.WorkflowStateSuspended:
 		logCtx.Info("Workflow return state=Suspend")
-		doWaiting, durationWaiting, err := wf.HandleSuspendWait(logCtx)
-		if err != nil {
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), err), common.ApplicationRunningWorkflow)
-		}
-		if doWaiting {
-			if durationWaiting > 0 {
-				_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
-				return r.result(err).requeue(durationWaiting).ret()
-			}
-			handler.app.Status.Workflow.Suspend = false
-			handler.app.Status.Workflow.SuspendState = ""
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, false)
+		if duration := wf.GetSuspendBackoffWaitTime(); duration > 0 {
+			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
+			return r.result(err).requeue(duration).ret()
 		}
 		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 			r.stateKeep(logCtx, handler, app)

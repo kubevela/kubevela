@@ -171,7 +171,7 @@ func NewWorkflowTerminateCommand(c common.Args, ioStream cmdutil.IOStreams) *cob
 			if err != nil {
 				return err
 			}
-			err = TerminateWorkflow(client, app)
+			err = terminateWorkflow(client, app)
 			if err != nil {
 				return err
 			}
@@ -276,10 +276,7 @@ func suspendWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 }
 
 func resumeWorkflow(kubecli client.Client, app *v1beta1.Application) error {
-	// set the workflow suspend to false
-	app.Status.Workflow.Suspend = false
-
-	if err := kubecli.Status().Patch(context.TODO(), app, client.Merge); err != nil {
+	if err := service.ResumeWorkflow(context.TODO(), kubecli, app); err != nil {
 		return err
 	}
 
@@ -287,8 +284,7 @@ func resumeWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	return nil
 }
 
-// TerminateWorkflow terminate workflow
-func TerminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
+func terminateWorkflow(kubecli client.Client, app *v1beta1.Application) error {
 	if err := service.TerminateWorkflow(context.TODO(), kubecli, app); err != nil {
 		return err
 	}
