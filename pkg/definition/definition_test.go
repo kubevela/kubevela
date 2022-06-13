@@ -128,6 +128,13 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if len(res) < 1 {
 		t.Fatalf("failed to search definition with addon filter applied: %s", "no result returned")
 	}
+	res, err = SearchDefinition(c, "", "", filters.ByName("test-trait"), filters.ByOwnerAddon("test-addon"))
+	if err != nil {
+		t.Fatalf("failed to search definition: %v", err)
+	}
+	if len(res) < 1 {
+		t.Fatalf("failed to search definition with addon filter applied: %s", "no result returned")
+	}
 	res, err = SearchDefinition(c, "", "", filters.ByOwnerAddon("this-is-a-non-existent-addon"))
 	if err != nil {
 		t.Fatalf("failed to search definition: %v", err)
