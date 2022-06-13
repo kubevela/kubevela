@@ -124,7 +124,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				f := Filter{
 					Component: component,
 				}
-				table, err := printAppEndpoints(ctx, appName, namespace, f, c)
+				table, err := getAppEndpoints(ctx, appName, namespace, f, c)
 				if err == nil {
 					table.Render()
 				}
@@ -167,7 +167,7 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
-func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args) (*tablewriter.Table, error) {
+func getAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args) (*tablewriter.Table, error) {
 	config, err := velaC.GetConfig()
 	if err != nil {
 		return nil, err
