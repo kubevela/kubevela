@@ -422,9 +422,10 @@ func readViewFile(a *InstallPackage, reader AsyncReader, readPath string) error 
 	switch filepath.Ext(filename) {
 	case ".cue":
 		a.CUEViews = append(a.CUEViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
-	case ".yaml":
+	case ".yaml", ".yml":
 		a.YAMLViews = append(a.YAMLViews, ElementFile{Data: b, Name: filepath.Base(readPath)})
 	default:
+		// skip other file formats
 	}
 	return nil
 }
