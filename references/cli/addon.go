@@ -367,19 +367,32 @@ func NewAddonCreateCommand() *cobra.Command {
 	var helmRepoURL string
 	var chartName string
 	var chartVersion string
+	var path string
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "bootstrap addon structure",
-		Long:  "Create an addon scaffold based on a Helm Chart for quick starting. Created files are located in <addon-name>.",
-		Example: `vela addon create <addon-name> --helm-repo-url=<repo-url> --chart=<chart-name> --version=<chart-version>
-vela addon create mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16`,
+		Long:  "Create an addon scaffold along with the common files based on a Helm Chart for quick starting.",
+		Example: `	vela addon create mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+will create something like this:
+	mongodb/
+	├── definitions
+	├── metadata.yaml
+	├── readme.md
+	├── resources
+	│   └── mongodb.cue
+	├── schemas
+	└── template.yaml
+
+If you want to store the scaffold in a different directory, you can use the -p/--path flag:
+	vela addon create mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("an addon name is required. You can specify a path. It will be used as the base directory for the addon")
+				return fmt.Errorf("an addon name is required")
 			}
 
-			return pkgaddon.CreateAddonFromHelmChart(args[0], helmRepoURL, chartName, chartVersion)
+			return pkgaddon.CreateAddonFromHelmChart(args[0], path, helmRepoURL, chartName, chartVersion)
 		},
 	}
 
@@ -389,17 +402,19 @@ vela addon create mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1
 		return nil
 	}
 
-	cmd.Flags().StringVar(&chartName, "chart", "", "Name of the chart to base on")
+	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
 	err = cmd.MarkFlagRequired("chart")
 	if err != nil {
 		return nil
 	}
 
-	cmd.Flags().StringVar(&chartVersion, "version", "", "Version of the chart to base on")
+	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
 	err = cmd.MarkFlagRequired("version")
 	if err != nil {
 		return nil
 	}
+
+	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
 
 	return cmd
 }

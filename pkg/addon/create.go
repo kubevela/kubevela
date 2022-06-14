@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 
 	"cuelang.org/go/cue"
@@ -36,8 +35,8 @@ import (
 )
 
 // CreateAddonFromHelmChart create an addon scaffold from a Helm Chart
-func CreateAddonFromHelmChart(addonPath, helmRepoURL, chartName, chartVersion string) error {
-	if len(addonPath) == 0 || len(helmRepoURL) == 0 || len(chartName) == 0 || len(chartVersion) == 0 {
+func CreateAddonFromHelmChart(addonName, path, helmRepoURL, chartName, chartVersion string) error {
+	if len(addonName) == 0 || len(helmRepoURL) == 0 || len(chartName) == 0 || len(chartVersion) == 0 {
 		return fmt.Errorf("addon path, helm URL, chart name, and chart verion should not be empty")
 	}
 
@@ -45,17 +44,16 @@ func CreateAddonFromHelmChart(addonPath, helmRepoURL, chartName, chartVersion st
 	// The user can still edit it after creation.
 	// Also, if the user is offline, we cannot check whether the Helm Chart exists.
 
-	// TODO(charlie0129): check if the Helm Chart exists (optional)
+	// TODO(charlie0129): check whether the Helm Chart exists (if the user wants)
 
-	// Extract addon name from path (using dir name)
-	absPath, err := filepath.Abs(addonPath)
-	if err != nil {
-		return err
+	// Scaffold will be created in ./addonName, unless the user specifies a path
+	addonPath := addonName
+	if len(path) > 0 {
+		addonPath = path
 	}
-	addonName := filepath.Base(absPath)
 
 	// Make sure addon name is valid
-	err = CheckAddonName(addonName)
+	err := CheckAddonName(addonName)
 	if err != nil {
 		return err
 	}

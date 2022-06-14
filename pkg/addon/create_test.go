@@ -81,7 +81,7 @@ func TestWriteHelmComponentTemplate(t *testing.T) {
 }
 
 func TestCreateAddonFromHelmChart(t *testing.T) {
-	err := CreateAddonFromHelmChart("", "", "bitnami/nginx", "12.0.4")
+	err := CreateAddonFromHelmChart("", "", "", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "should not be empty")
 
 	checkFiles := func(base string) {
@@ -101,14 +101,14 @@ func TestCreateAddonFromHelmChart(t *testing.T) {
 
 	// Empty dir already exists
 	_ = os.MkdirAll("test-addon", 0755)
-	err = CreateAddonFromHelmChart("test-addon", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("test-addon", "./test-addon", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	checkFiles("test-addon")
 	defer func() {
 		_ = os.RemoveAll("test-addon")
 	}()
 
 	// Non-empty dir already exists
-	err = CreateAddonFromHelmChart("test-addon", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("test-addon", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "not empty")
 
 	// Name already taken
@@ -117,14 +117,14 @@ func TestCreateAddonFromHelmChart(t *testing.T) {
 	defer func() {
 		_ = os.Remove("already-taken")
 	}()
-	err = CreateAddonFromHelmChart("already-taken", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("already-taken", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "can't create")
 
 	// Invalid addon name
-	err = CreateAddonFromHelmChart("/", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("/", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "should only")
 
 	// Invalid URL
-	err = CreateAddonFromHelmChart("invalid-url", "invalid-url", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("invalid-url", "", "invalid-url", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "invalid helm repo url")
 }
