@@ -43,7 +43,7 @@ const (
 	addonHelmType     = "helm"
 	addonUsername     = "username"
 	addonPassword     = "password"
-	addonGitRepoName  = "gitRepoName"
+	addonRepoName     = "repoName"
 )
 
 // NewAddonRegistryCommand return an addon registry command
@@ -373,7 +373,7 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 			return nil, err
 		}
 		r.Gitlab.Token = token
-		gitLabRepoName, err := cmd.Flags().GetString(addonGitRepoName)
+		gitLabRepoName, err := cmd.Flags().GetString(addonRepoName)
 		if err != nil {
 			return nil, err
 		}
