@@ -83,7 +83,7 @@ component-pod-view{appName=demo,appNs=default,cluster=prod,clusterNs=default,nam
 
 #### describe
 
-Query the pods detail infomation
+Query the pods detail information
 
 #### parameter
 

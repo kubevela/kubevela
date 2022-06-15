@@ -15,7 +15,7 @@ This is a minor fix for release-1.0, please refer to release-1.1.x for the lates
 # v1.0.5
 
 1. Fix Terraform application status issue (#1611)
-2. applicaiton supports specifying different versions of Definition (#1597)
+2. application supports specifying different versions of Definition (#1597)
 3. Enable Dynamic Admission Control for Application (#1619)
 4. Update inner samples for "vela show xxx --web" (#1616)
 5. fix empty rolloutBatch will panic whole controller bug (#1646)
