@@ -666,7 +666,7 @@ func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wf
 				case "always":
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				case "":
-					return &wfTypes.PreCheckResult{Skip: dependsOnPhase != common.WorkflowStepPhaseSucceeded}, nil
+					return &wfTypes.PreCheckResult{Skip: isUnsuccessfulStep(dependsOnPhase)}, nil
 				default:
 					ifValue, err := custom.ValidateIfValue(e.wfCtx, step, e.stepStatus, options)
 					if err != nil {
@@ -841,7 +841,7 @@ func (e *engine) findDependPhase(taskRunners []wfTypes.TaskRunner, index int, da
 		return common.WorkflowStepPhaseSucceeded
 	}
 	for i := index - 1; i >= 0; i-- {
-		if e.stepStatus[taskRunners[i].Name()].Phase != common.WorkflowStepPhaseSucceeded {
+		if isUnsuccessfulStep(e.stepStatus[taskRunners[i].Name()].Phase) {
 			return e.stepStatus[taskRunners[i].Name()].Phase
 		}
 	}
@@ -853,11 +853,15 @@ func (e *engine) findDependsOnPhase(name string) common.WorkflowStepPhase {
 		if e.stepStatus[dependsOn].Phase != common.WorkflowStepPhaseSucceeded {
 			return e.stepStatus[dependsOn].Phase
 		}
-		if result := e.findDependsOnPhase(dependsOn); result != common.WorkflowStepPhaseSucceeded {
+		if result := e.findDependsOnPhase(dependsOn); isUnsuccessfulStep(result) {
 			return result
 		}
 	}
 	return common.WorkflowStepPhaseSucceeded
+}
+
+func isUnsuccessfulStep(phase common.WorkflowStepPhase) bool {
+	return phase != common.WorkflowStepPhaseSucceeded && phase != common.WorkflowStepPhaseSkipped
 }
 
 func isWaitSuspendStep(step common.StepStatus) bool {

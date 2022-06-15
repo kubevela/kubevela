@@ -323,7 +323,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		case subStepCounts[types.StatusReasonTerminate] > 0:
 			status.Reason = types.StatusReasonTerminate
 		}
-	case subStepCounts[string(common.WorkflowStepPhaseSkipped)] > 0:
+	case subStepCounts[string(common.WorkflowStepPhaseSkipped)] == len(tr.subTaskRunners):
 		status.Phase = common.WorkflowStepPhaseSkipped
 		status.Reason = types.StatusReasonSkip
 	default:
