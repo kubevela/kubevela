@@ -213,14 +213,6 @@ close({
 			}},
 		},
 		{
-			Name: "output",
-			Type: "ok",
-			Outputs: common.StepOutputs{{
-				Name:      "podIP",
-				ValueFrom: "myIP",
-			}},
-		},
-		{
 			Name: "output-var-conflict",
 			Type: "ok",
 			Outputs: common.StepOutputs{{
@@ -248,11 +240,14 @@ close({
 		r.NoError(err)
 		status, operation, err := run.Run(wfCtx, &types.TaskRunOptions{})
 		switch step.Name {
+		case "input-err":
+			r.Equal(operation.Waiting, false)
+			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		case "input":
 			r.Equal(err.Error(), "do preStartHook: get input from [podIP]: var(path=podIP) not exist")
-		case "output", "output-var-conflict":
+		case "output-var-conflict":
 			r.Equal(status.Reason, types.StatusReasonOutput)
-			r.Equal(operation.Waiting, true)
+			r.Equal(operation.Waiting, false)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		case "failed-after-retries":
 			wfContext.CleanupMemoryStore("app-v1", "default")

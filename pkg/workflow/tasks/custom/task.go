@@ -137,13 +137,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			var paramFile string
 
 			defer func() {
-				if exec.wfStatus.Phase != common.WorkflowStepPhaseSkipped {
-					if len(options.PostStopHooks) != 0 && taskv == nil {
+				if exec.wfStatus.Phase != common.WorkflowStepPhaseSkipped && len(wfStep.Outputs) > 0 {
+					if taskv == nil {
 						taskv, err = makeValue(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
+						if err != nil {
+							return
+						}
 					}
 					for _, hook := range options.PostStopHooks {
 						if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
-							exec.wfStatus.Message = fmt.Sprintf("output error: %s", err.Error())
+							exec.err(ctx, false, err, wfTypes.StatusReasonOutput)
 							stepStatus = exec.status()
 							operations = exec.operation()
 							return
@@ -186,7 +189,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 
 			if err := paramsValue.Error(); err != nil {
-				exec.err(ctx, err, wfTypes.StatusReasonParameter)
+				exec.err(ctx, false, err, wfTypes.StatusReasonParameter)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -201,7 +204,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			taskv, err = makeValue(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 			if err != nil {
-				exec.err(ctx, err, wfTypes.StatusReasonRendering)
+				exec.err(ctx, false, err, wfTypes.StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -219,7 +222,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 			if err := exec.doSteps(ctx, taskv); err != nil {
 				tracer.Error(err, "do steps")
-				exec.err(ctx, err, wfTypes.StatusReasonExecute)
+				exec.err(ctx, true, err, wfTypes.StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
 			}
 
@@ -241,7 +244,10 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	template := fmt.Sprintf("if: %s", step.If)
 	value, err := makeStatusValue(ctx, step, pd, template, stepStatus, pCtx)
 	if err != nil {
-		return false, err
+		if strings.Contains(err.Error(), "missing ',' in struct literal") {
+			return false, errors.WithMessage(err, "invalid if value, please use '_' instead of '-' in your if variable")
+		}
+		return false, errors.WithMessage(err, "invalid if value")
 	}
 	check, err := value.GetBool("if")
 	if err != nil {
@@ -292,7 +298,7 @@ func makeStatusValue(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packa
 		if err != nil {
 			continue
 		}
-		statusTemplate += fmt.Sprintf("%s: %s\n", name, status)
+		statusTemplate += fmt.Sprintf("%s: %s\n", strings.ReplaceAll(name, "-", "_"), status)
 	}
 	statusTemplate += contextTempl
 	statusTemplate += "\n" + inputsTempl
@@ -343,7 +349,7 @@ func getInputsTemplate(ctx wfContext.Context, step v1beta1.WorkflowStep) string 
 		if err != nil {
 			continue
 		}
-		inputsTempl += fmt.Sprintf("\ninputs: %s: %s", input.From, s)
+		inputsTempl += fmt.Sprintf("\ninputs: %s: %s", strings.ReplaceAll(input.From, "-", "_"), s)
 	}
 	return inputsTempl
 }
@@ -399,8 +405,8 @@ func (exec *executor) timeout(message string) {
 	exec.wfStatus.Message = message
 }
 
-func (exec *executor) err(ctx wfContext.Context, err error, reason string) {
-	exec.wait = true
+func (exec *executor) err(ctx wfContext.Context, wait bool, err error, reason string) {
+	exec.wait = wait
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
 	exec.wfStatus.Message = err.Error()
 	exec.wfStatus.Reason = reason
@@ -555,25 +561,6 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 			options.PCtx = pCtx
 		},
 		logLevel: logLevel,
-	}
-}
-
-// SkipOptions is the options of skip task runner
-type SkipOptions struct {
-	If             string
-	DependsOnPhase common.WorkflowStepPhase
-}
-
-// SkipTaskRunner will decide whether to skip task runner.
-func SkipTaskRunner(options *SkipOptions) bool {
-	switch options.If {
-	case "always":
-		return false
-	case "":
-		return options.DependsOnPhase != common.WorkflowStepPhaseSucceeded
-	default:
-		// TODO:(fog) support more if cases
-		return false
 	}
 }
 
