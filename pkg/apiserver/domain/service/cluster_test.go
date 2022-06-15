@@ -60,7 +60,10 @@ var _ = Describe("Test cluster service function", func() {
 		secret.Name = name
 		secret.Namespace = prismclusterv1alpha1.StorageNamespace
 		secret.SetAnnotations(map[string]string{prismclusterv1alpha1.AnnotationClusterAlias: alias})
-		secret.SetLabels(map[string]string{clustergatewaycommon.LabelKeyClusterCredentialType: string(clustergatewayv1alpha1.CredentialTypeX509Certificate)})
+		secret.SetLabels(map[string]string{
+			clustergatewaycommon.LabelKeyClusterEndpointType:   string(clustergatewayv1alpha1.ClusterEndpointTypeConst),
+			clustergatewaycommon.LabelKeyClusterCredentialType: string(clustergatewayv1alpha1.CredentialTypeX509Certificate),
+		})
 		time.Sleep(time.Second)
 		return k8sClient.Create(ctx, secret)
 	}
