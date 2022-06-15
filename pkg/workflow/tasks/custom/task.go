@@ -244,10 +244,7 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	template := fmt.Sprintf("if: %s", step.If)
 	value, err := makeStatusValue(ctx, step, pd, template, stepStatus, pCtx)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing ',' in struct literal") {
-			return false, errors.WithMessage(err, "invalid if value, please use '_' instead of '-' in your if variable")
-		}
-		return false, errors.WithMessage(err, "invalid if value")
+		return false, errors.WithMessage(err, "invalid if value, notice that you should use '_' instead of '-' in your if variable")
 	}
 	check, err := value.GetBool("if")
 	if err != nil {
@@ -342,7 +339,6 @@ func getInputsTemplate(ctx wfContext.Context, step v1beta1.WorkflowStep) string 
 	for _, input := range step.Inputs {
 		inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
 		if err != nil {
-			fmt.Println("get var error", err.Error())
 			continue
 		}
 		s, err := inputValue.String()

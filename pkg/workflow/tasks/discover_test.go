@@ -128,7 +128,7 @@ func TestSuspendStep(t *testing.T) {
 	r.Equal(operations.Terminated, true)
 
 	// test run
-	status, act, err := runner.Run(nil, nil)
+	status, act, err := runner.Run(nil, &types.TaskRunOptions{})
 	r.NoError(err)
 	r.Equal(act.Suspend, true)
 	r.Equal(status.ID, "124")

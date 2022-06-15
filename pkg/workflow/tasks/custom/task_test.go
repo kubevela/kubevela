@@ -550,7 +550,6 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestValidateIfValue(t *testing.T) {
-	r := require.New(t)
 	ctx := newWorkflowContextForTest(t)
 	pCtx := process.NewContext(process.ContextData{
 		AppName:         "app",
@@ -558,17 +557,94 @@ func TestValidateIfValue(t *testing.T) {
 		Namespace:       "default",
 		AppRevisionName: "app-v1",
 	})
-	v, err := ValidateIfValue(ctx, v1beta1.WorkflowStep{
-		If: "step1.timeout",
-	}, map[string]common.StepStatus{
-		"step1": {
-			Reason: "Timeout",
+
+	testCases := []struct {
+		name        string
+		step        v1beta1.WorkflowStep
+		status      map[string]common.StepStatus
+		expected    bool
+		expectedErr string
+	}{
+		{
+			name: "timeout true",
+			step: v1beta1.WorkflowStep{
+				If: "step1.timeout",
+			},
+			status: map[string]common.StepStatus{
+				"step1": {
+					Reason: "Timeout",
+				},
+			},
+			expected: true,
 		},
-	}, &types.PreCheckOptions{
-		ProcessContext: pCtx,
-	})
-	r.NoError(err)
-	r.Equal(v, true)
+		{
+			name: "context true",
+			step: v1beta1.WorkflowStep{
+				If: `context.name == "app"`,
+			},
+			expected: true,
+		},
+		{
+			name: "failed true",
+			step: v1beta1.WorkflowStep{
+				If: `step1.phase != "failed"`,
+			},
+			status: map[string]common.StepStatus{
+				"step1": {
+					Phase: common.WorkflowStepPhaseSucceeded,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "input true",
+			step: v1beta1.WorkflowStep{
+				If: `inputs.test == "yes"`,
+				Inputs: common.StepInputs{
+					{
+						From: "test",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "dash in if",
+			step: v1beta1.WorkflowStep{
+				If: "step1-test.timeout",
+			},
+			expectedErr: "invalid if value",
+			expected:    false,
+		},
+		{
+			name: "dash in status",
+			step: v1beta1.WorkflowStep{
+				If: "step1_test.timeout",
+			},
+			status: map[string]common.StepStatus{
+				"step1-test": {
+					Reason: "Timeout",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := ValidateIfValue(ctx, tc.step, tc.status, &types.PreCheckOptions{
+				ProcessContext: pCtx,
+			})
+			if tc.expectedErr != "" {
+				r.Contains(err.Error(), tc.expectedErr)
+				r.Equal(v, false)
+				return
+			}
+			r.NoError(err)
+			r.Equal(v, tc.expected)
+		})
+	}
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {
@@ -595,6 +671,8 @@ func newWorkflowContextForTest(t *testing.T) wfContext.Context {
 	r.NoError(err)
 	v, _ := value.NewValue(`name: "app"`, nil, "")
 	r.NoError(wfCtx.SetVar(v, types.ContextKeyMetadata))
+	v, _ = value.NewValue(`"yes"`, nil, "")
+	r.NoError(wfCtx.SetVar(v, "test"))
 	return wfCtx
 }
 

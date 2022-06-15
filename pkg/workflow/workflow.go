@@ -666,6 +666,11 @@ func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wf
 				case "always":
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				case "":
+					if e.parentRunner != "" {
+						if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseSkipped {
+							return &wfTypes.PreCheckResult{Skip: true}, nil
+						}
+					}
 					return &wfTypes.PreCheckResult{Skip: isUnsuccessfulStep(dependsOnPhase)}, nil
 				default:
 					ifValue, err := custom.ValidateIfValue(e.wfCtx, step, e.stepStatus, options)
@@ -829,11 +834,6 @@ func IsFailedAfterRetry(app *oamcore.Application) bool {
 }
 
 func (e *engine) findDependPhase(taskRunners []wfTypes.TaskRunner, index int, dag bool) common.WorkflowStepPhase {
-	if e.parentRunner != "" {
-		if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseSkipped {
-			return common.WorkflowStepPhaseSkipped
-		}
-	}
 	if dag {
 		return e.findDependsOnPhase(taskRunners[index].Name())
 	}
