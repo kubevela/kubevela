@@ -24,6 +24,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
@@ -107,11 +108,11 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			clusters, err := multicluster.ListVirtualClusters(context.Background(), client)
+			clusters, err := prismclusterv1alpha1.NewClusterClient(client).List(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
-			for _, cluster := range clusters {
+			for _, cluster := range clusters.Items {
 				var labels []string
 				for k, v := range cluster.Labels {
 					if !strings.HasPrefix(k, config.MetaApiGroupName) {
@@ -124,7 +125,7 @@ func NewClusterListCommand(c *common.Args) *cobra.Command {
 				}
 				for i, l := range labels {
 					if i == 0 {
-						table.AddRow(cluster.Name, cluster.Alias, cluster.Type, cluster.EndPoint, fmt.Sprintf("%v", cluster.Accepted), l)
+						table.AddRow(cluster.Name, cluster.Spec.Alias, cluster.Spec.CredentialType, cluster.Spec.Endpoint, fmt.Sprintf("%v", cluster.Spec.Accepted), l)
 					} else {
 						table.AddRow("", "", "", "", "", l)
 					}
