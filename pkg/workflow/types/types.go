@@ -113,6 +113,7 @@ type Action interface {
 	Suspend(message string)
 	Terminate(message string)
 	Wait(message string)
+	Fail(message string)
 }
 
 const (
@@ -167,6 +168,8 @@ const (
 	StatusReasonFailedAfterRetries = "FailedAfterRetries"
 	// StatusReasonTimeout is the reason of the workflow progress condition which is Timeout.
 	StatusReasonTimeout = "Timeout"
+	// StatusReasonAction is the reason of the workflow progress condition which is Action.
+	StatusReasonAction = "Action"
 )
 
 // IsStepFinish will decide whether step is finish.

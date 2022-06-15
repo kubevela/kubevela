@@ -150,7 +150,7 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 		if err != nil {
 			stepStatus.Phase = common.WorkflowStepPhaseSkipped
 			stepStatus.Reason = types.StatusReasonSkip
-			stepStatus.Message = fmt.Sprintf("do preCheckHook error: %s", err.Error())
+			stepStatus.Message = fmt.Sprintf("pre check error: %s", err.Error())
 			operations.Suspend = false
 			operations.Skip = true
 			continue
@@ -264,7 +264,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		if err != nil {
 			status.Phase = common.WorkflowStepPhaseSkipped
 			status.Reason = types.StatusReasonSkip
-			status.Message = fmt.Sprintf("do preCheckHook error: %s", err.Error())
+			status.Message = fmt.Sprintf("pre check error: %s", err.Error())
 			continue
 		}
 		if result.Skip {

@@ -162,7 +162,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				})
 				if err != nil {
 					tracer.Error(err, "do preCheckHook")
-					exec.Skip(fmt.Sprintf("do preCheckHook error: %s", err.Error()))
+					exec.Skip(fmt.Sprintf("pre check error: %s", err.Error()))
 					return exec.status(), exec.operation(), nil
 				}
 				if result.Skip {
@@ -244,7 +244,10 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	template := fmt.Sprintf("if: %s", step.If)
 	value, err := makeStatusValue(ctx, step, pd, template, stepStatus, pCtx)
 	if err != nil {
-		return false, errors.WithMessage(err, "invalid if value, notice that you should use '_' instead of '-' in your if variable")
+		if strings.Contains(step.If, "-") {
+			err = errors.WithMessage(err, `invalid if value, notice that you should use "_" instead of "-" in your if variable`)
+		}
+		return false, err
 	}
 	check, err := value.GetBool("if")
 	if err != nil {
@@ -384,6 +387,14 @@ func (exec *executor) Wait(message string) {
 	exec.wait = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
 	exec.wfStatus.Reason = wfTypes.StatusReasonWait
+	exec.wfStatus.Message = message
+}
+
+// Fail let workflow fail.
+func (exec *executor) Fail(message string) {
+	exec.terminated = true
+	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
+	exec.wfStatus.Reason = wfTypes.StatusReasonAction
 	exec.wfStatus.Message = message
 }
 

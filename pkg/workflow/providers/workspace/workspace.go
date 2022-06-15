@@ -161,6 +161,16 @@ func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action
 	return nil
 }
 
+// Fail let workflow fail.
+func (h *provider) Fail(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	var msg string
+	if v != nil {
+		msg, _ = v.GetString("message")
+	}
+	act.Fail(msg)
+	return nil
+}
+
 // Install register handler to provider discover.
 func Install(p providers.Providers) {
 	prd := &provider{}
@@ -169,6 +179,7 @@ func Install(p providers.Providers) {
 		"export": prd.Export,
 		"wait":   prd.Wait,
 		"break":  prd.Break,
+		"fail":   prd.Fail,
 		"var":    prd.DoVar,
 	})
 }

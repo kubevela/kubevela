@@ -39,3 +39,9 @@ func (act *Action) Wait(message string) {
 	act.Phase = "Wait"
 	act.Message = message
 }
+
+// Fail ...
+func (act *Action) Fail(message string) {
+	act.Phase = "Fail"
+	act.Message = message
+}
