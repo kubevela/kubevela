@@ -191,12 +191,9 @@ func createAddonFiles(addonPath, addonName, helmRepoURL, chartName, chartVersion
 	// However, this may change in the future, possibly with `argocd`.
 	metadataFilePath := path.Join(addonPath, MetadataFileName)
 	metadataTemplate := Meta{
-		Name:        addonName,
-		Version:     chartVersion,
-		Description: "Insert the description of your addon here.",
-		// Just use a dummy image with the addon name in it
-		Icon:         fmt.Sprintf("https://dummyimage.com/400x400/aaaaaa/333333&text=%s", addonName), // no need to escape url
-		URL:          "https://kubevela.io",
+		Name:         addonName,
+		Version:      chartVersion,
+		Description:  "An addon for KubeVela.",
 		Tags:         []string{chartVersion},
 		Dependencies: []*Dependency{{Name: "fluxcd"}},
 	}

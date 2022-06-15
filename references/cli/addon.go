@@ -370,10 +370,10 @@ func NewAddonCreateCommand() *cobra.Command {
 	var path string
 
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "bootstrap addon structure",
+		Use:   "init",
+		Short: "create an addon scaffold",
 		Long:  "Create an addon scaffold along with the common files based on a Helm Chart for quick starting.",
-		Example: `	vela addon create mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+		Example: `	vela addon init mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
 will create something like this:
 	mongodb/
 	├── definitions
@@ -385,7 +385,7 @@ will create something like this:
 	└── template.yaml
 
 If you want to store the scaffold in a different directory, you can use the -p/--path flag:
-	vela addon create mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+	vela addon init mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
