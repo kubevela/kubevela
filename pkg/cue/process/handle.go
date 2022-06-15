@@ -328,9 +328,6 @@ func (ctx *templateContext) GetCtx() context.Context {
 }
 
 func (ctx *templateContext) SetCtx(newContext context.Context) {
-	if ctx.ctx != nil {
-		return
-	}
 	ctx.ctx = newContext
 }
 
