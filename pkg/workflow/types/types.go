@@ -19,10 +19,14 @@ package types
 import (
 	"context"
 
+	"k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorCtx "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
@@ -67,14 +71,20 @@ type PreCheckResult struct {
 	Timeout bool
 }
 
+// PreCheckOptions is the options for pre check.
+type PreCheckOptions struct {
+	PackageDiscover *packages.PackageDiscover
+	ProcessContext  process.Context
+}
+
 // TaskPreCheckHook is the hook for pre check.
-type TaskPreCheckHook func(step v1beta1.WorkflowStep) (*PreCheckResult, error)
+type TaskPreCheckHook func(step v1beta1.WorkflowStep, options *PreCheckOptions) (*PreCheckResult, error)
 
 // TaskPreStartHook run before task execution.
 type TaskPreStartHook func(ctx wfContext.Context, paramValue *value.Value, step v1beta1.WorkflowStep) error
 
 // TaskPostStopHook  run after task execution.
-type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error
+type TaskPostStopHook func(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus) error
 
 // Operation is workflow operation object.
 type Operation struct {
@@ -90,10 +100,12 @@ type TaskGenerator func(wfStep v1beta1.WorkflowStep, options *GeneratorOptions) 
 
 // GeneratorOptions is the options for generate task.
 type GeneratorOptions struct {
-	ID             string
-	PrePhase       common.WorkflowStepPhase
-	StepConvertor  func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
-	SubTaskRunners []TaskRunner
+	ID              string
+	PrePhase        common.WorkflowStepPhase
+	StepConvertor   func(step v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error)
+	SubTaskRunners  []TaskRunner
+	PackageDiscover *packages.PackageDiscover
+	ProcessContext  process.Context
 }
 
 // Action is that workflow provider can do.
@@ -128,3 +140,48 @@ const (
 	// WorkflowStepTypeStepGroup type step-group
 	WorkflowStepTypeStepGroup = "step-group"
 )
+
+var (
+	// MaxWorkflowStepErrorRetryTimes is the max retry times of the failed workflow step.
+	MaxWorkflowStepErrorRetryTimes = 10
+)
+
+const (
+	// StatusReasonWait is the reason of the workflow progress condition which is Wait.
+	StatusReasonWait = "Wait"
+	// StatusReasonSkip is the reason of the workflow progress condition which is Skip.
+	StatusReasonSkip = "Skip"
+	// StatusReasonRendering is the reason of the workflow progress condition which is Rendering.
+	StatusReasonRendering = "Rendering"
+	// StatusReasonExecute is the reason of the workflow progress condition which is Execute.
+	StatusReasonExecute = "Execute"
+	// StatusReasonSuspend is the reason of the workflow progress condition which is Suspend.
+	StatusReasonSuspend = "Suspend"
+	// StatusReasonTerminate is the reason of the workflow progress condition which is Terminate.
+	StatusReasonTerminate = "Terminate"
+	// StatusReasonParameter is the reason of the workflow progress condition which is ProcessParameter.
+	StatusReasonParameter = "ProcessParameter"
+	// StatusReasonOutput is the reason of the workflow progress condition which is Output.
+	StatusReasonOutput = "Output"
+	// StatusReasonFailedAfterRetries is the reason of the workflow progress condition which is FailedAfterRetries.
+	StatusReasonFailedAfterRetries = "FailedAfterRetries"
+	// StatusReasonTimeout is the reason of the workflow progress condition which is Timeout.
+	StatusReasonTimeout = "Timeout"
+)
+
+// IsStepFinish will decide whether step is finish.
+func IsStepFinish(phase common.WorkflowStepPhase, reason string) bool {
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
+		return phase == common.WorkflowStepPhaseSucceeded
+	}
+	switch phase {
+	case common.WorkflowStepPhaseFailed:
+		return reason != "" && reason != StatusReasonExecute
+	case common.WorkflowStepPhaseSkipped:
+		return true
+	case common.WorkflowStepPhaseSucceeded:
+		return true
+	default:
+		return false
+	}
+}

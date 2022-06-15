@@ -131,24 +131,24 @@ myIP: value: "1.1.1.1"
 		r.NoError(err)
 		if step.Name == "wait" {
 			r.Equal(status.Phase, common.WorkflowStepPhaseRunning)
-			r.Equal(status.Reason, StatusReasonWait)
+			r.Equal(status.Reason, types.StatusReasonWait)
 			r.Equal(status.Message, "I am waiting")
 			continue
 		}
 		if step.Name == "terminate" {
 			r.Equal(action.Terminated, true)
-			r.Equal(status.Reason, StatusReasonTerminate)
+			r.Equal(status.Reason, types.StatusReasonTerminate)
 			r.Equal(status.Message, "I am terminated")
 			continue
 		}
 		if step.Name == "rendering" {
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-			r.Equal(status.Reason, StatusReasonRendering)
+			r.Equal(status.Reason, types.StatusReasonRendering)
 			continue
 		}
 		if step.Name == "execute" {
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-			r.Equal(status.Reason, StatusReasonExecute)
+			r.Equal(status.Reason, types.StatusReasonExecute)
 			continue
 		}
 		r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded)
@@ -251,13 +251,13 @@ close({
 		case "input":
 			r.Equal(err.Error(), "do preStartHook: get input from [podIP]: var(path=podIP) not exist")
 		case "output", "output-var-conflict":
-			r.Equal(status.Reason, StatusReasonOutput)
+			r.Equal(status.Reason, types.StatusReasonOutput)
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
 		case "failed-after-retries":
 			wfContext.CleanupMemoryStore("app-v1", "default")
 			newCtx := newWorkflowContextForTest(t)
-			for i := 0; i < MaxWorkflowStepErrorRetryTimes; i++ {
+			for i := 0; i < types.MaxWorkflowStepErrorRetryTimes; i++ {
 				status, operation, err = run.Run(newCtx, &types.TaskRunOptions{})
 				r.NoError(err)
 				r.Equal(operation.Waiting, true)
@@ -269,7 +269,7 @@ close({
 			r.Equal(operation.Waiting, false)
 			r.Equal(operation.FailedAfterRetries, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-			r.Equal(status.Reason, StatusReasonFailedAfterRetries)
+			r.Equal(status.Reason, types.StatusReasonFailedAfterRetries)
 		default:
 			r.Equal(operation.Waiting, true)
 			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
@@ -507,14 +507,14 @@ func TestSkip(t *testing.T) {
 	r.NoError(err)
 	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Skip: true}, nil
 			},
 		},
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
-	r.Equal(status.Reason, StatusReasonSkip)
+	r.Equal(status.Reason, types.StatusReasonSkip)
 	r.Equal(operations.Skip, true)
 }
 
@@ -544,14 +544,36 @@ func TestTimeout(t *testing.T) {
 	ctx := newWorkflowContextForTest(t)
 	status, _, err := runner.Run(ctx, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Timeout: true}, nil
 			},
 		},
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-	r.Equal(status.Reason, StatusReasonTimeout)
+	r.Equal(status.Reason, types.StatusReasonTimeout)
+}
+
+func TestValidateIfValue(t *testing.T) {
+	r := require.New(t)
+	ctx := newWorkflowContextForTest(t)
+	pCtx := process.NewContext(process.ContextData{
+		AppName:         "app",
+		CompName:        "app",
+		Namespace:       "default",
+		AppRevisionName: "app-v1",
+	})
+	v, err := ValidateIfValue(ctx, v1beta1.WorkflowStep{
+		If: "step1.timeout",
+	}, map[string]common.StepStatus{
+		"step1": {
+			Reason: "Timeout",
+		},
+	}, &types.PreCheckOptions{
+		ProcessContext: pCtx,
+	})
+	r.NoError(err)
+	r.Equal(v, true)
 }
 
 func newWorkflowContextForTest(t *testing.T) wfContext.Context {

@@ -306,6 +306,9 @@ func (val *Value) LookupValue(paths ...string) (*Value, error) {
 	if !v.Exists() {
 		return nil, errors.Errorf("var(path=%s) not exist", strings.Join(paths, "."))
 	}
+	if v.Err() != nil {
+		return nil, v.Err()
+	}
 	return &Value{
 		v:          v,
 		r:          val.r,

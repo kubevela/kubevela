@@ -60,7 +60,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/pkg/workflow/debug"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -1944,7 +1944,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first ten reconciles")
-		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
@@ -1958,7 +1958,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
-		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1990,7 +1990,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 
-		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes-1; i++ {
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes-1; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
@@ -2005,7 +2005,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
 		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
-		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 	})
 
 	It("application with step by step workflow failed after retries", func() {
@@ -2067,7 +2067,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
-		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
@@ -2081,7 +2081,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
-		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(custom.StatusReasonFailedAfterRetries))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -2276,7 +2276,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("verify the first ten reconciles")
-		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		}
 
@@ -2399,7 +2399,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("verify the first ten reconciles")
-		for i := 0; i < custom.MaxWorkflowStepErrorRetryTimes; i++ {
+		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		}
 
@@ -2531,9 +2531,9 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(custom.StatusReasonTimeout))
+		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(custom.StatusReasonSkip))
+		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 
@@ -2624,9 +2624,9 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
 
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(custom.StatusReasonTimeout))
+		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(custom.StatusReasonSkip))
+		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 
@@ -2763,9 +2763,9 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(custom.StatusReasonTimeout))
+		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
 		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(custom.StatusReasonSkip))
+		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 
@@ -2875,9 +2875,9 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
 
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(custom.StatusReasonTimeout))
-		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(Equal(custom.StatusReasonTimeout))
-		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(custom.StatusReasonSkip))
+		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
+		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
+		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
 
@@ -5377,7 +5377,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Add env on K8s pod for your workload which follows the pod spec in path 'spec.template'
   labels:
-    custom.definition.oam.dev/ui-hidden: "true"
+    wfTypes.definition.oam.dev/ui-hidden: "true"
   name: env
   namespace: vela-system
 spec:
@@ -5477,7 +5477,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Automatically scale the component based on CPU usage.
   labels:
-    custom.definition.oam.dev/ui-hidden: "true"
+    wfTypes.definition.oam.dev/ui-hidden: "true"
   name: hubcpuscaler
   namespace: vela-system
 spec:
@@ -5521,7 +5521,7 @@ metadata:
   annotations:
     definition.oam.dev/description: affinity specify affinity and tolerationon K8s pod for your workload which follows the pod spec in path 'spec.template'.
   labels:
-    custom.definition.oam.dev/ui-hidden: "true"
+    wfTypes.definition.oam.dev/ui-hidden: "true"
   name: affinity
   namespace: vela-system
 spec:

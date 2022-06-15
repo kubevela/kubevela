@@ -55,7 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/workflow"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -143,7 +143,7 @@ func main() {
 	flag.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
 	flag.IntVar(&workflow.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	flag.IntVar(&workflow.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
-	flag.IntVar(&custom.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
+	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	flag.Parse()

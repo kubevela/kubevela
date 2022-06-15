@@ -43,7 +43,6 @@ import (
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -282,14 +281,14 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2",
 						Type:   "running",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}, {
 					StepStatus: common.StepStatus{
 						Name:   "s3",
 						Type:   "success",
 						Phase:  common.WorkflowStepPhaseSkipped,
-						Reason: custom.StatusReasonSkip,
+						Reason: wfTypes.StatusReasonSkip,
 					},
 				},
 			},
@@ -345,14 +344,14 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2",
 						Type:   "suspend",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}, {
 					StepStatus: common.StepStatus{
 						Name:   "s3",
 						Type:   "success",
 						Phase:  common.WorkflowStepPhaseSkipped,
-						Reason: custom.StatusReasonSkip,
+						Reason: wfTypes.StatusReasonSkip,
 					},
 				},
 			},
@@ -422,7 +421,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "step-group",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonTimeout,
+					Reason: wfTypes.StatusReasonTimeout,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -435,14 +434,14 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2-sub2",
 						Type:   "running",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}, {
 					StepStatus: common.StepStatus{
 						Name:   "s2-suspend",
 						Type:   "suspend",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}},
 			}, {
@@ -450,7 +449,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s3",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -516,7 +515,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "step-group",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonTimeout,
+					Reason: wfTypes.StatusReasonTimeout,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -529,14 +528,14 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2-sub2",
 						Type:   "running",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}, {
 					StepStatus: common.StepStatus{
 						Name:   "s2-suspend",
 						Type:   "suspend",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonTimeout,
+						Reason: wfTypes.StatusReasonTimeout,
 					},
 				}},
 			}, {
@@ -544,7 +543,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s3",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -596,28 +595,28 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s1",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
 					Name:   "s2",
 					Type:   "step-group",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
 						Name:   "s2-sub1",
 						Type:   "success",
 						Phase:  common.WorkflowStepPhaseSkipped,
-						Reason: custom.StatusReasonSkip,
+						Reason: wfTypes.StatusReasonSkip,
 					},
 				}, {
 					StepStatus: common.StepStatus{
 						Name:   "s2-sub2",
 						Type:   "failed",
 						Phase:  common.WorkflowStepPhaseSkipped,
-						Reason: custom.StatusReasonSkip,
+						Reason: wfTypes.StatusReasonSkip,
 					},
 				}},
 			}, {
@@ -625,7 +624,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s3",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -680,14 +679,14 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s1",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
 					Name:   "s2",
 					Type:   "step-group",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -700,7 +699,7 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2-sub2",
 						Type:   "failed-after-retries",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonFailedAfterRetries,
+						Reason: wfTypes.StatusReasonFailedAfterRetries,
 					},
 				}},
 			}, {
@@ -708,7 +707,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s3",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -886,7 +885,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -935,7 +934,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -1003,7 +1002,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -1016,7 +1015,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s4",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -1089,7 +1088,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -1102,7 +1101,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s4",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}, {
 				StepStatus: common.StepStatus{
@@ -1115,7 +1114,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s6",
 					Type:   "success",
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				},
 			}},
 		})).Should(BeEquivalentTo(""))
@@ -1174,7 +1173,7 @@ var _ = Describe("Test Workflow", func() {
 					Name:   "s2",
 					Type:   "step-group",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				},
 				SubStepsStatus: []common.WorkflowSubStepStatus{{
 					StepStatus: common.StepStatus{
@@ -1187,7 +1186,7 @@ var _ = Describe("Test Workflow", func() {
 						Name:   "s2-sub2",
 						Type:   "failed-after-retries",
 						Phase:  common.WorkflowStepPhaseFailed,
-						Reason: custom.StatusReasonFailedAfterRetries,
+						Reason: wfTypes.StatusReasonFailedAfterRetries,
 					},
 				}},
 			}},
@@ -1886,7 +1885,7 @@ func makeRunner(step oamcore.WorkflowStep, subTaskRunners []wfTypes.TaskRunner) 
 					Name:   step.Name,
 					Type:   "failed-after-retries",
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonFailedAfterRetries,
+					Reason: wfTypes.StatusReasonFailedAfterRetries,
 				}, &wfTypes.Operation{
 					FailedAfterRetries: true,
 				}, nil
@@ -1976,7 +1975,9 @@ func (tr *testTaskRunner) Name() string {
 func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 	if tr.step.Type != "step-group" && options != nil {
 		for _, hook := range options.PreCheckHooks {
-			result, err := hook(tr.step)
+			result, err := hook(tr.step, &wfTypes.PreCheckOptions{
+				ProcessContext: options.PCtx,
+			})
 			if err != nil {
 				return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
 			}
@@ -1985,7 +1986,7 @@ func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOpt
 					Name:   tr.step.Name,
 					Type:   tr.step.Type,
 					Phase:  common.WorkflowStepPhaseSkipped,
-					Reason: custom.StatusReasonSkip,
+					Reason: wfTypes.StatusReasonSkip,
 				}, &wfTypes.Operation{Skip: true}, nil
 			}
 			if result.Timeout {
@@ -1993,7 +1994,7 @@ func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOpt
 					Name:   tr.step.Name,
 					Type:   tr.step.Type,
 					Phase:  common.WorkflowStepPhaseFailed,
-					Reason: custom.StatusReasonTimeout,
+					Reason: wfTypes.StatusReasonTimeout,
 				}, &wfTypes.Operation{Terminated: true}, nil
 			}
 		}

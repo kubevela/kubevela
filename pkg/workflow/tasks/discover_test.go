@@ -102,28 +102,28 @@ func TestSuspendStep(t *testing.T) {
 	// test skip
 	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Skip: true}, nil
 			},
 		},
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
-	r.Equal(status.Reason, custom.StatusReasonSkip)
+	r.Equal(status.Reason, types.StatusReasonSkip)
 	r.Equal(operations.Suspend, false)
 	r.Equal(operations.Skip, true)
 
 	// test timeout
 	status, operations, err = runner.Run(nil, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Timeout: true}, nil
 			},
 		},
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-	r.Equal(status.Reason, custom.StatusReasonTimeout)
+	r.Equal(status.Reason, types.StatusReasonTimeout)
 	r.Equal(operations.Suspend, false)
 	r.Equal(operations.Terminated, true)
 
@@ -188,7 +188,7 @@ func TestStepGroupStep(t *testing.T) {
 	// test skip
 	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Skip: true}, nil
 			},
 		},
@@ -200,13 +200,13 @@ func TestStepGroupStep(t *testing.T) {
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseSkipped)
-	r.Equal(status.Reason, custom.StatusReasonSkip)
+	r.Equal(status.Reason, types.StatusReasonSkip)
 	r.Equal(operations.Skip, true)
 
 	// test timeout
 	status, operations, err = runner.Run(nil, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
-			func(step v1beta1.WorkflowStep) (*types.PreCheckResult, error) {
+			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Timeout: true}, nil
 			},
 		},
@@ -218,7 +218,7 @@ func TestStepGroupStep(t *testing.T) {
 	})
 	r.NoError(err)
 	r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
-	r.Equal(status.Reason, custom.StatusReasonTimeout)
+	r.Equal(status.Reason, types.StatusReasonTimeout)
 	r.Equal(operations.Terminated, true)
 
 	// test run

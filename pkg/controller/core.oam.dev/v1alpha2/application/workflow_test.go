@@ -40,7 +40,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 var _ = Describe("Test Workflow", func() {
@@ -315,7 +315,7 @@ var _ = Describe("Test Workflow", func() {
 		appObj.Status.Workflow.Terminated = true
 		appObj.Status.Workflow.Suspend = false
 		appObj.Status.Workflow.Steps[0].Phase = common.WorkflowStepPhaseFailed
-		appObj.Status.Workflow.Steps[0].Reason = custom.StatusReasonTerminate
+		appObj.Status.Workflow.Steps[0].Reason = wfTypes.StatusReasonTerminate
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
 
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
