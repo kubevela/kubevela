@@ -31,7 +31,7 @@
 ## What's Changed
 
 * Fix: can't query data from the MongoDB by @barnettZQG in https://github.com/oam-dev/kubevela/pull/3095
-* Fix: use personel token of vela-bot instead of github token for homebrew update by @wonderflow in https://github.com/oam-dev/kubevela/pull/3096
+* Fix: use personal token of vela-bot instead of github token for homebrew update by @wonderflow in https://github.com/oam-dev/kubevela/pull/3096
 * Fix: acr image no version by @wangyikewxgm in https://github.com/oam-dev/kubevela/pull/3100
 * Fix: support generate cloud resource docs in Chinese by @zzxwill in https://github.com/oam-dev/kubevela/pull/3079
 * Fix: clear old data in mongodb unit test case by @barnettZQG in https://github.com/oam-dev/kubevela/pull/3103
