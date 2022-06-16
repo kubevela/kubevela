@@ -19,6 +19,8 @@ package event
 import (
 	"context"
 
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event/collect"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync"
@@ -36,7 +38,9 @@ func InitEvent(cfg config.Config) []interface{} {
 	workflow := &sync.WorkflowRecordSync{
 		Duration: cfg.LeaderConfig.Duration,
 	}
-	application := &sync.ApplicationSync{}
+	application := &sync.ApplicationSync{
+		Queue: workqueue.New(),
+	}
 	collect := &collect.InfoCalculateCronJob{}
 	workers = append(workers, workflow, application, collect)
 	return []interface{}{workflow, application, collect}

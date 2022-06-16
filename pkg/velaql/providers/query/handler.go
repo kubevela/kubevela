@@ -204,6 +204,9 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 		}
 		resource.ResourceTree = &root
 	}
+	if appResList == nil {
+		appResList = []*querytypes.AppliedResource{}
+	}
 	return fillQueryResult(v, appResList, "list")
 }
 

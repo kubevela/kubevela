@@ -76,15 +76,21 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 			return err
 		}
 		o.ForceDelete = force
-
+		userInput := NewUserInput()
 		if svcname == "" {
-			ioStreams.Infof(fmt.Sprintf("Deleting Application \"%s\"\n", o.AppName))
+			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
+			if !userConfirmation {
+				return fmt.Errorf("stopping Deleting")
+			}
 			if err = o.DeleteApp(ioStreams); err != nil {
 				return err
 			}
 			ioStreams.Info(green.Sprintf("app \"%s\" deleted from namespace \"%s\"", o.AppName, o.Namespace))
 		} else {
-			ioStreams.Infof(fmt.Sprintf("Deleting Service %s from Application \"%s\"\n", svcname, o.AppName))
+			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
+			if !userConfirmation {
+				return fmt.Errorf("stopping Deleting")
+			}
 			o.CompName = svcname
 			if err = o.DeleteComponent(ioStreams); err != nil {
 				return err
