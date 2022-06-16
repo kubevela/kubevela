@@ -5377,7 +5377,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Add env on K8s pod for your workload which follows the pod spec in path 'spec.template'
   labels:
-    wfTypes.definition.oam.dev/ui-hidden: "true"
+    custom.definition.oam.dev/ui-hidden: "true"
   name: env
   namespace: vela-system
 spec:
@@ -5477,7 +5477,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Automatically scale the component based on CPU usage.
   labels:
-    wfTypes.definition.oam.dev/ui-hidden: "true"
+    custom.definition.oam.dev/ui-hidden: "true"
   name: hubcpuscaler
   namespace: vela-system
 spec:
@@ -5521,7 +5521,7 @@ metadata:
   annotations:
     definition.oam.dev/description: affinity specify affinity and tolerationon K8s pod for your workload which follows the pod spec in path 'spec.template'.
   labels:
-    wfTypes.definition.oam.dev/ui-hidden: "true"
+    custom.definition.oam.dev/ui-hidden: "true"
   name: affinity
   namespace: vela-system
 spec:
