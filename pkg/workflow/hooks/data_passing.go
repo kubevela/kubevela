@@ -48,6 +48,9 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
 			if err != nil {
+				return err
+			}
+			if v.Error() != nil {
 				v, err = taskValue.MakeValue("null")
 				if err != nil {
 					return err
