@@ -320,6 +320,8 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 			status.Reason = types.StatusReasonFailedAfterRetries
 		case subStepCounts[types.StatusReasonTimeout] > 0:
 			status.Reason = types.StatusReasonTimeout
+		case subStepCounts[types.StatusReasonAction] > 0:
+			status.Reason = types.StatusReasonAction
 		case subStepCounts[types.StatusReasonTerminate] > 0:
 			status.Reason = types.StatusReasonTerminate
 		}
