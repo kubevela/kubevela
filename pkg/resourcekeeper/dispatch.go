@@ -59,6 +59,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
 		options = append(options, MetaOnlyOption{})
 	}
+	h.ClearNamespaceForClusterScopedResources(manifests)
 	// 0. check admission
 	if err = h.AdmissionCheck(ctx, manifests); err != nil {
 		return err
