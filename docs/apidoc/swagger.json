@@ -690,8 +690,8 @@
 				"tags": [
 					"application"
 				],
-				"summary": "compare application with env latest revision",
-				"operationId": "compareAppWithLatestRevision",
+				"summary": "compare application",
+				"operationId": "compareApp",
 				"parameters": [
 					{
 						"name": "body",
@@ -2796,6 +2796,40 @@
 				}
 			}
 		},
+		"/api/v1/cloudshell": {
+			"post": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cloudshell"
+				],
+				"summary": "prepare the user's cloud shell environment",
+				"operationId": "prepareCloudShell",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
 		"/api/v1/clusters": {
 			"get": {
 				"consumes": [
@@ -3649,9 +3683,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"trait",
 							"workflowstep",
-							"component",
-							"trait"
+							"component"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -5957,6 +5991,74 @@
 					}
 				}
 			}
+		},
+		"/view/cloudshell": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cloudshell"
+				],
+				"summary": "prepare the user's cloud shell environment",
+				"operationId": "proxy",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
+		},
+		"/view/cloudshell/{subpath}": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"cloudshell"
+				],
+				"summary": "prepare the user's cloud shell environment",
+				"operationId": "proxy",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.SimpleResponse"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					},
+					"500": {
+						"description": "Bummer, something went wrong"
+					}
+				}
+			}
 		}
 	},
 	"definitions": {
@@ -7797,12 +7899,15 @@
 			"type": "object"
 		},
 		"v1.AppCompareReq": {
-			"required": [
-				"env"
-			],
 			"properties": {
-				"env": {
-					"type": "string"
+				"compareLatestWithRunning": {
+					"$ref": "#/definitions/v1.CompareLatestWithRunningOption"
+				},
+				"compareRevisionWithLatest": {
+					"$ref": "#/definitions/v1.CompareRevisionWithLatestOption"
+				},
+				"compareRevisionWithRunning": {
+					"$ref": "#/definitions/v1.CompareRevisionWithRunningOption"
 				}
 			}
 		},
@@ -7810,20 +7915,20 @@
 			"required": [
 				"isDiff",
 				"diffReport",
-				"newAppYAML",
-				"oldAppYAML"
+				"baseAppYAML",
+				"targetAppYAML"
 			],
 			"properties": {
+				"baseAppYAML": {
+					"type": "string"
+				},
 				"diffReport": {
 					"type": "string"
 				},
 				"isDiff": {
 					"type": "boolean"
 				},
-				"newAppYAML": {
-					"type": "string"
-				},
-				"oldAppYAML": {
+				"targetAppYAML": {
 					"type": "string"
 				}
 			}
@@ -7833,6 +7938,7 @@
 				"appName",
 				"dryRunType",
 				"env",
+				"workflow",
 				"version"
 			],
 			"properties": {
@@ -7846,6 +7952,9 @@
 					"type": "string"
 				},
 				"version": {
+					"type": "string"
+				},
+				"workflow": {
 					"type": "string"
 				}
 			}
@@ -7946,11 +8055,11 @@
 		"v1.ApplicationDeployResponse": {
 			"required": [
 				"version",
-				"note",
+				"status",
+				"envName",
 				"triggerType",
 				"createTime",
-				"status",
-				"envName"
+				"note"
 			],
 			"properties": {
 				"codeInfo": {
@@ -8266,6 +8375,20 @@
 				}
 			}
 		},
+		"v1.CloudShellPrepareResponse": {
+			"required": [
+				"status",
+				"message"
+			],
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.ClusterBase": {
 			"required": [
 				"name",
@@ -8380,6 +8503,30 @@
 					"type": "string"
 				},
 				"namespace": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CompareLatestWithRunningOption": {
+			"required": [
+				"env"
+			],
+			"properties": {
+				"env": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CompareRevisionWithLatestOption": {
+			"properties": {
+				"revision": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.CompareRevisionWithRunningOption": {
+			"properties": {
+				"revision": {
 					"type": "string"
 				}
 			}
@@ -9047,6 +9194,9 @@
 				"alias": {
 					"type": "string"
 				},
+				"allowTargetConflict": {
+					"type": "boolean"
+				},
 				"description": {
 					"type": "string"
 				},
@@ -9102,12 +9252,21 @@
 		"v1.CreatePolicyRequest": {
 			"required": [
 				"name",
+				"alias",
+				"envName",
 				"description",
 				"type",
-				"properties"
+				"properties",
+				"workflowPolicyBind"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"name": {
@@ -9118,6 +9277,12 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"workflowPolicyBind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowPolicyBinding"
+					}
 				}
 			}
 		},
@@ -9252,7 +9417,8 @@
 				"description",
 				"icon",
 				"status",
-				"labels"
+				"labels",
+				"ownerAddon"
 			],
 			"properties": {
 				"alias": {
@@ -9274,6 +9440,9 @@
 					}
 				},
 				"name": {
+					"type": "string"
+				},
+				"ownerAddon": {
 					"type": "string"
 				},
 				"policy": {
@@ -9332,11 +9501,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"description",
-				"invisible",
-				"version",
-				"icon",
 				"name",
+				"version",
+				"invisible",
+				"description",
+				"icon",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9416,12 +9585,12 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"icon",
-				"alias",
-				"project",
 				"description",
 				"createTime",
 				"updateTime",
+				"icon",
+				"project",
+				"alias",
 				"name",
 				"policies",
 				"envBindings",
@@ -9479,20 +9648,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
 				"reason",
-				"dashboardURL",
-				"labels",
 				"apiServerURL",
-				"kubeConfig",
-				"kubeConfigSecret",
-				"name",
-				"alias",
+				"createTime",
+				"description",
 				"icon",
 				"status",
-				"description",
+				"name",
 				"provider",
+				"dashboardURL",
+				"kubeConfig",
+				"kubeConfigSecret",
+				"updateTime",
+				"alias",
+				"labels",
 				"resourceInfo"
 			],
 			"properties": {
@@ -9550,14 +9719,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"type",
-				"createTime",
-				"name",
-				"updateTime",
-				"alias",
-				"creator",
-				"main",
 				"appPrimaryKey",
+				"creator",
+				"name",
+				"alias",
+				"createTime",
+				"updateTime",
+				"type",
+				"main",
 				"definition"
 			],
 			"properties": {
@@ -9645,14 +9814,13 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"name",
+				"icon",
 				"status",
 				"labels",
-				"alias",
+				"ownerAddon",
 				"description",
-				"icon",
 				"alias",
-				"description",
+				"name",
 				"schema",
 				"uiSchema"
 			],
@@ -9676,6 +9844,9 @@
 					}
 				},
 				"name": {
+					"type": "string"
+				},
+				"ownerAddon": {
 					"type": "string"
 				},
 				"policy": {
@@ -9706,14 +9877,14 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
+				"createTime",
 				"updateTime",
 				"envName",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties",
-				"createTime"
+				"properties"
 			],
 			"properties": {
 				"createTime": {
@@ -9746,17 +9917,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"version",
+				"status",
 				"envName",
-				"createTime",
-				"appPrimaryKey",
 				"reason",
 				"deployUser",
 				"workflowName",
+				"appPrimaryKey",
+				"createTime",
 				"updateTime",
-				"triggerType",
-				"status",
-				"note"
+				"version",
+				"note",
+				"triggerType"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9810,10 +9981,10 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
-				"project",
 				"createTime",
+				"name",
 				"updateTime",
-				"name"
+				"project"
 			],
 			"properties": {
 				"alias": {
@@ -9853,11 +10024,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"createTime",
-				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
+				"createTime",
+				"lastLoginTime",
 				"projects",
 				"roles"
 			],
@@ -9898,12 +10069,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"namespace",
 				"workflowName",
 				"workflowAlias",
 				"applicationRevision",
 				"status",
 				"name",
+				"namespace",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -9955,14 +10126,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"createTime",
+				"alias",
 				"updateTime",
 				"name",
-				"description",
-				"envName",
-				"alias",
 				"enable",
-				"default"
+				"default",
+				"envName",
+				"createTime",
+				"description"
 			],
 			"properties": {
 				"alias": {
@@ -10667,11 +10838,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"lastLoginTime",
+				"name",
 				"email",
 				"disabled",
 				"createTime",
-				"lastLoginTime",
-				"name",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -11312,12 +11483,21 @@
 		},
 		"v1.UpdatePolicyRequest": {
 			"required": [
+				"alias",
+				"envName",
 				"description",
 				"type",
-				"properties"
+				"properties",
+				"workflowPolicyBind"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"properties": {
@@ -11325,6 +11505,12 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"workflowPolicyBind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowPolicyBinding"
+					}
 				}
 			}
 		},
@@ -11500,6 +11686,23 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.WorkflowPolicyBinding": {
+			"required": [
+				"name",
+				"steps"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
