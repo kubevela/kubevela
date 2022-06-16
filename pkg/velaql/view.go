@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
+	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -73,7 +75,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	outputsTemplate := fmt.Sprintf(OutputsTemplate, qv.Export, qv.Export)
 	queryKey := QueryParameterKey{}
 	if err := json.Unmarshal([]byte(outputsTemplate), &queryKey); err != nil {
-		return nil, err
+		return nil, errors.Errorf("unmarhsal query template: %v", err)
 	}
 
 	handler.viewTask = v1beta1.WorkflowStep{
@@ -84,7 +86,12 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	}
 
 	pCtx := process.NewContext(process.ContextData{})
-	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.cfg, handler.dispatch, handler.delete, handler.namespace, 3, pCtx)
+	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
+	if len(strings.Split(qv.View, "\n")) > 2 {
+		loader = &template.EchoLoader{}
+	}
+
+	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.cfg, handler.dispatch, handler.delete, handler.namespace, 3, pCtx, loader)
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, handler.viewTask.Type)
 	if err != nil {
 		return nil, err
@@ -97,14 +104,14 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 
 	viewCtx, err := NewViewContext()
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("new view context: %v", err)
 	}
 	status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("run query view: %v", err)
 	}
 	if string(status.Phase) != ViewTaskPhaseSucceeded {
-		return nil, errors.Errorf("failed to query the view %s", status.Message)
+		return nil, errors.Errorf("failed to query the view: %s", status.Message)
 	}
 	return viewCtx.GetVar(qv.Export)
 }

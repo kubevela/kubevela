@@ -119,3 +119,12 @@ func NewViewTemplateLoader(client client.Client, namespace string) Loader {
 		namespace: namespace,
 	}
 }
+
+// EchoLoader will load data from input as it is.
+type EchoLoader struct {
+}
+
+// LoadTaskTemplate gets the echo content exactly what it is .
+func (ll *EchoLoader) LoadTaskTemplate(_ context.Context, content string) (string, error) {
+	return content, nil
+}
