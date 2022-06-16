@@ -19,6 +19,8 @@ package addon
 import (
 	"testing"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,7 +54,7 @@ func TestListCachedUIData(t *testing.T) {
 	assert.Equal(t, u.listCachedUIData(name), addons)
 }
 
-func testListUIData(t *testing.T) {
+var _ = Describe("Test list addon helm repo UI data", func() {
 	vr := Registry{Name: "helm-repo", Helm: &HelmSource{URL: "http://127.0.0.1:18083/authReg", Username: "hello", Password: "hello"}}
 	uiData := UIData{Meta: Meta{
 		Name:        "fluxcd",
@@ -66,9 +68,9 @@ func testListUIData(t *testing.T) {
 	addons := []*UIData{&uiData}
 	u := NewCache(nil)
 	uiDatas, err := u.ListUIData(vr)
-	assert.NoError(t, err)
-	assert.Equal(t, uiDatas, addons)
-}
+	Expect(err).NotTo(HaveOccurred())
+	Expect(uiDatas).To(Equal(addons))
+})
 
 func TestListVersionRegistryCachedUIData(t *testing.T) {
 	name := "fluxcd"

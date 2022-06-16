@@ -3649,9 +3649,9 @@
 				"parameters": [
 					{
 						"enum": [
+							"workflowstep",
 							"component",
-							"trait",
-							"workflowstep"
+							"trait"
 						],
 						"type": "string",
 						"description": "query the definition type",
@@ -6032,6 +6032,9 @@
 		},
 		"addon.HelmSource": {
 			"properties": {
+				"insecureSkipTLS": {
+					"type": "boolean"
+				},
 				"password": {
 					"type": "string"
 				},
@@ -9648,6 +9651,8 @@
 				"alias",
 				"description",
 				"icon",
+				"alias",
+				"description",
 				"schema",
 				"uiSchema"
 			],

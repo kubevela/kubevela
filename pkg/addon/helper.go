@@ -326,7 +326,11 @@ func FindWholeAddonPackagesFromRegistry(ctx context.Context, k8sClient client.Cl
 	// Find matched addons in registries
 	for _, r := range registries {
 		if IsVersionRegistry(r) {
-			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
+			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+				Username:        r.Helm.Username,
+				Password:        r.Helm.Password,
+				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
+			})
 			for _, addonName := range addonNames {
 				wholePackage, err := vr.GetDetailedAddon(ctx, addonName, "")
 				if err != nil {

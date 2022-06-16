@@ -31,19 +31,20 @@ import (
 )
 
 const (
-	addonRegistryType = "type"
-	addonEndpoint     = "endpoint"
-	addonOssBucket    = "bucket"
-	addonPath         = "path"
-	addonGitToken     = "gitToken"
-	addonOssType      = "OSS"
-	addonGitType      = "git"
-	addonGiteeType    = "gitee"
-	addonGitlabType   = "gitlab"
-	addonHelmType     = "helm"
-	addonUsername     = "username"
-	addonPassword     = "password"
-	addonRepoName     = "repoName"
+	addonRegistryType        = "type"
+	addonEndpoint            = "endpoint"
+	addonOssBucket           = "bucket"
+	addonPath                = "path"
+	addonGitToken            = "gitToken"
+	addonOssType             = "OSS"
+	addonGitType             = "git"
+	addonGiteeType           = "gitee"
+	addonGitlabType          = "gitlab"
+	addonHelmType            = "helm"
+	addonUsername            = "username"
+	addonPassword            = "password"
+	addonRepoName            = "repoName"
+	addonHelmInsecureSkipTLS = "insecureSkipTLS"
 )
 
 // NewAddonRegistryCommand return an addon registry command
@@ -297,6 +298,8 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
 	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
 	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm addon registry password")
+	cmd.Flags().BoolP(addonHelmInsecureSkipTLS, "", false,
+		"specify the Helm addon registry skip tls verify")
 }
 
 func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry, error) {
@@ -386,6 +389,10 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 			return nil, err
 		}
 		r.Helm.Password, err = cmd.Flags().GetString(addonPassword)
+		if err != nil {
+			return nil, err
+		}
+		r.Helm.InsecureSkipTLS, err = cmd.Flags().GetBool(addonHelmInsecureSkipTLS)
 		if err != nil {
 			return nil, err
 		}

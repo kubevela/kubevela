@@ -1194,8 +1194,9 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 		}
 	} else {
 		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username: h.r.Helm.Username,
-			Password: h.r.Helm.Password,
+			Username:        h.r.Helm.Username,
+			Password:        h.r.Helm.Password,
+			InsecureSkipTLS: h.r.Helm.InsecureSkipTLS,
 		})
 		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
 		if err != nil {

@@ -888,7 +888,11 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 				continue
 			}
 		} else {
-			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
+			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+				Username:        r.Helm.Username,
+				Password:        r.Helm.Password,
+				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
+			})
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
 				continue

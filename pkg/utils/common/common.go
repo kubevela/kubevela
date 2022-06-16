@@ -80,6 +80,9 @@ import (
 var (
 	// Scheme defines the default KubeVela schema
 	Scheme = k8sruntime.NewScheme()
+	//nolint:gosec
+	// insecureHTTPClient insecure http client
+	insecureHTTPClient = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 )
 
 const (
@@ -117,11 +120,12 @@ func init() {
 
 // HTTPOption define the https options
 type HTTPOption struct {
-	Username string
-	Password string
-	CaFile   string
-	CertFile string
-	KeyFile  string
+	Username        string
+	Password        string
+	CaFile          string
+	CertFile        string
+	KeyFile         string
+	InsecureSkipTLS bool
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -167,6 +171,9 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
+	if opts != nil && opts.InsecureSkipTLS {
+		httpClient = insecureHTTPClient
+	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
 		// must set MinVersion of TLS, otherwise will report GoSec error G402
@@ -191,17 +198,6 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		httpClient = &http.Client{Transport: &tr}
 	}
 	return httpClient.Do(req)
-}
-
-// HTTPGetWithOption use HTTP option and default client to send get request
-func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
-	resp, err := HTTPGetResponse(ctx, url, opts)
-	if err != nil {
-		return nil, err
-	}
-	//nolint:errcheck
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
 }
 
 // HTTPGetKubernetesObjects use HTTP requests to load resources from remote url

@@ -100,7 +100,6 @@ func TestVersionRegistry(t *testing.T) {
 	assert.NotEmpty(t, addonWholePackage.DefSchemas)
 	assert.NotEmpty(t, addonWholePackage.RegistryName)
 
-	testListUIData(t)
 	mr := BuildVersionedRegistry("multiversion-helm-repo", "http://127.0.0.1:18083/multi", nil)
 	addons, err = mr.ListAddon()
 	assert.NoError(t, err)
