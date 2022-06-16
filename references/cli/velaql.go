@@ -45,22 +45,50 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 	var cueFile, querySts string
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "ql",
-		Short:   "Show result of executing velaQL.",
-		Long:    "Show result of executing velaQL.",
-		Example: `vela ql "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"`,
+		Use:   "ql",
+		Short: "Show result of executing velaQL.",
+		Long:  "Show result of executing velaQL.",
+		Example: `Users can query with a query statement:
+		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
+They can also query by a ql file:
+		vela ql --file=./ql.cue
+
+Example content of ql.cue:
+---
+import (
+	"vela/ql"
+)
+configmap: ql.#Read & {
+   value: {
+      kind: "ConfigMap"
+      apiVersion: "v1"
+      metadata: {
+        name: "mycm"
+      }
+   }
+}
+status: configmap.value.data.key
+
+export: "status"
+---
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cueFile == "" && querySts == "" {
+			if cueFile == "" && querySts == "" && len(args) == 0 {
 				return fmt.Errorf("please specify at least on VelaQL statement or velaql file path")
 			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			if querySts != "" {
-				return queryFromStatement(ctx, newClient, c, querySts, cmd)
+
+			if cueFile != "" {
+				return queryFromView(ctx, newClient, c, cueFile, cmd)
 			}
-			return queryFromView(ctx, newClient, c, cueFile, cmd)
+			if querySts == "" {
+				// for compatibility
+				querySts = args[0]
+			}
+			return queryFromStatement(ctx, newClient, c, querySts, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
