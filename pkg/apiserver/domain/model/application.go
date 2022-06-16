@@ -101,6 +101,8 @@ func (a *Application) IsSynced() bool {
 	return false
 }
 
+// IsReadOnly is readonly app
+// Only the source is inner, the app is readonly
 func (a *Application) IsReadOnly() bool {
 	if a.Labels == nil {
 		return false
