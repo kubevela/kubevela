@@ -49,6 +49,7 @@ func newDeleteConfig(options ...DeleteOption) *deleteConfig {
 
 // Delete delete resources
 func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.Unstructured, options ...DeleteOption) (err error) {
+	h.ClearNamespaceForClusterScopedResources(manifests)
 	if err = h.AdmissionCheck(ctx, manifests); err != nil {
 		return err
 	}
