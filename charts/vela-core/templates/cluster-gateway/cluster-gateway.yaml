@@ -106,7 +106,7 @@ metadata:
   name: v1alpha1.cluster.core.oam.dev
   annotations:
     {{- if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
-    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls"
+    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
     {{- end }}
   labels:
     api: cluster-extension-apiserver
