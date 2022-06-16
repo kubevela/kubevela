@@ -347,9 +347,11 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		envbinding, err := w.EnvBindingService.GetEnvBinding(ctx, &model.Application{Name: record.AppPrimaryKey}, workflow.EnvName)
 		if err != nil {
 			klog.ErrorS(err, "failed to get envbinding", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
-			continue
 		}
-		appName := envbinding.AppDeployName
+		var appName string
+		if envbinding != nil {
+			appName = envbinding.AppDeployName
+		}
 		if appName == "" {
 			appName = record.AppPrimaryKey
 		}
