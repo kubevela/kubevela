@@ -271,7 +271,7 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 }
 
 // NewViewTaskDiscover will create a client for load task generator.
-func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string, logLevel int, pCtx process.Context) types.TaskDiscover {
+func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *rest.Config, apply kube.Dispatcher, delete kube.Deleter, viewNs string, logLevel int, pCtx process.Context, loader template.Loader) types.TaskDiscover {
 	handlerProviders := providers.NewProviders()
 
 	// install builtin provider
@@ -281,10 +281,9 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 	http.Install(handlerProviders, cli, viewNs)
 	email.Install(handlerProviders)
 
-	templateLoader := template.NewViewTemplateLoader(cli, viewNs)
 	return &taskDiscover{
-		remoteTaskDiscover: custom.NewTaskLoader(templateLoader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
-		templateLoader:     templateLoader,
+		remoteTaskDiscover: custom.NewTaskLoader(loader.LoadTaskTemplate, pd, handlerProviders, logLevel, pCtx),
+		templateLoader:     loader,
 	}
 }
 

@@ -17,10 +17,14 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -38,6 +42,43 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
+
+var _ = Describe("Test velaQL from file", func() {
+	It("Test Query pod data", func() {
+		cm := &corev1.ConfigMap{Data: map[string]string{"key": "my-value"}}
+		cm.Name = "mycm"
+		cm.Namespace = "default"
+		Expect(k8sClient.Create(context.TODO(), cm)).Should(BeNil())
+		view := `import (
+	"vela/ql"
+)
+configmap: ql.#Read & {
+   value: {
+      kind: "ConfigMap"
+      apiVersion: "v1"
+      metadata: {
+        name: "mycm"
+      }
+   }
+}
+status: configmap.value.data.key
+
+export: "status"
+`
+		name := "vela-test-" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".cue"
+		Expect(os.WriteFile(name, []byte(view), 0644)).Should(BeNil())
+		defer os.Remove(name)
+
+		arg := common2.Args{}
+		arg.SetConfig(cfg)
+		arg.SetClient(k8sClient)
+		cmd := NewCommand()
+		var buff = bytes.NewBufferString("")
+		cmd.SetOut(buff)
+		Expect(queryFromView(context.TODO(), k8sClient, arg, name, cmd)).Should(BeNil())
+		Expect(buff.String()).Should(ContainSubstring(`my-value`))
+	})
+})
 
 var _ = Describe("Test velaQL", func() {
 	var appName = "test-velaql"
