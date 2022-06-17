@@ -381,7 +381,7 @@ func (w *workflow) allDone(taskRunners []wfTypes.TaskRunner) (bool, bool) {
 		for _, ss := range status.Steps {
 			if ss.Name == t.Name() {
 				done = wfTypes.IsStepFinish(ss.Phase, ss.Reason)
-				success = done && (ss.Phase == common.WorkflowStepPhaseSucceeded)
+				success = done && (ss.Phase == common.WorkflowStepPhaseSucceeded || ss.Phase == common.WorkflowStepPhaseSkipped)
 				break
 			}
 		}
@@ -662,15 +662,15 @@ func (e *engine) generateRunOptions(dependsOnPhase common.WorkflowStepPhase) *wf
 				if feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				}
+				if e.parentRunner != "" {
+					if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseSkipped {
+						return &wfTypes.PreCheckResult{Skip: true}, nil
+					}
+				}
 				switch step.If {
 				case "always":
 					return &wfTypes.PreCheckResult{Skip: false}, nil
 				case "":
-					if e.parentRunner != "" {
-						if status, ok := e.stepStatus[e.parentRunner]; ok && status.Phase == common.WorkflowStepPhaseSkipped {
-							return &wfTypes.PreCheckResult{Skip: true}, nil
-						}
-					}
 					return &wfTypes.PreCheckResult{Skip: isUnsuccessfulStep(dependsOnPhase)}, nil
 				default:
 					ifValue, err := custom.ValidateIfValue(e.wfCtx, step, e.stepStatus, options)
@@ -736,7 +736,7 @@ type engine struct {
 func (e *engine) finishStep(operation *wfTypes.Operation) {
 	if operation != nil {
 		e.status.Suspend = operation.Suspend
-		e.status.Terminated = e.status.Terminated || operation.Terminated || operation.Skip
+		e.status.Terminated = e.status.Terminated || operation.Terminated
 	}
 }
 

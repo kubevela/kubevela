@@ -281,18 +281,18 @@ func makeStatusValue(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packa
 			common.StepStatus  `json:",inline"`
 			Failed             bool `json:"failed"`
 			Succeeded          bool `json:"succeeded"`
+			Skipped            bool `json:"skipped"`
 			Timeout            bool `json:"timeout"`
 			FailedAfterRetries bool `json:"failedAfterRetries"`
 			Terminate          bool `json:"terminate"`
-			Skip               bool `json:"skip"`
 		}{
 			StepStatus:         ss,
 			Failed:             ss.Phase == common.WorkflowStepPhaseFailed,
 			Succeeded:          ss.Phase == common.WorkflowStepPhaseSucceeded,
+			Skipped:            ss.Phase == common.WorkflowStepPhaseSkipped,
 			Timeout:            ss.Reason == wfTypes.StatusReasonTimeout,
 			FailedAfterRetries: ss.Reason == wfTypes.StatusReasonFailedAfterRetries,
 			Terminate:          ss.Reason == wfTypes.StatusReasonTerminate,
-			Skip:               ss.Reason == wfTypes.StatusReasonSkip,
 		}
 		status, err := json.Marshal(abbrStatus)
 		if err != nil {

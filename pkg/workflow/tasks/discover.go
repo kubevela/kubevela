@@ -166,7 +166,6 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 			stepStatus.Phase = common.WorkflowStepPhaseFailed
 			stepStatus.Reason = types.StatusReasonTimeout
 			operations.Suspend = false
-			operations.Skip = true
 			operations.Terminated = true
 		default:
 			continue
@@ -367,11 +366,9 @@ func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (time.Duration, er
 
 func handleOutput(ctx wfContext.Context, stepStatus *common.StepStatus, operations *types.Operation, step v1beta1.WorkflowStep, postStopHooks []types.TaskPostStopHook, pd *packages.PackageDiscover, id string, pCtx process.Context) {
 	status := *stepStatus
-	fmt.Println("============handle output", step.Name, step.Outputs, status.Phase)
 	if status.Phase != common.WorkflowStepPhaseSkipped && len(step.Outputs) > 0 {
 		contextValue, err := custom.MakeContextValue(ctx, pd, id, pCtx)
 		if err != nil {
-			fmt.Println("=======make context value err", err.Error())
 			status.Phase = common.WorkflowStepPhaseFailed
 			if status.Reason == "" {
 				status.Reason = types.StatusReasonOutput
@@ -383,7 +380,6 @@ func handleOutput(ctx wfContext.Context, stepStatus *common.StepStatus, operatio
 
 		for _, hook := range postStopHooks {
 			if err := hook(ctx, contextValue, step, status); err != nil {
-				fmt.Println("=======hook err", err.Error())
 				status.Phase = common.WorkflowStepPhaseFailed
 				if status.Reason == "" {
 					status.Reason = types.StatusReasonOutput
