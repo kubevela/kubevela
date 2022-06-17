@@ -47,6 +47,7 @@ type TaskDiscover interface {
 type Engine interface {
 	Run(taskRunners []TaskRunner, dag bool) error
 	GetStepStatus(stepName string) common.WorkflowStepStatus
+	GetCommonStepStatus(stepName string) common.StepStatus
 	SetParentRunner(name string)
 	GetOperation() *Operation
 }

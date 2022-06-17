@@ -910,6 +910,13 @@ func (e *engine) GetStepStatus(stepName string) common.WorkflowStepStatus {
 	return common.WorkflowStepStatus{}
 }
 
+func (e *engine) GetCommonStepStatus(stepName string) common.StepStatus {
+	if status, ok := e.stepStatus[stepName]; ok {
+		return status
+	}
+	return common.StepStatus{}
+}
+
 func (e *engine) SetParentRunner(name string) {
 	e.parentRunner = name
 }

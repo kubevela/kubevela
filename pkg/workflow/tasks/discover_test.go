@@ -149,6 +149,10 @@ func (e *testEngine) GetStepStatus(stepName string) common.WorkflowStepStatus {
 	return e.stepStatus
 }
 
+func (e *testEngine) GetCommonStepStatus(stepName string) common.StepStatus {
+	return common.StepStatus{}
+}
+
 func (e *testEngine) SetParentRunner(name string) {
 }
 

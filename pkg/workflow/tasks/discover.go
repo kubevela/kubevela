@@ -194,7 +194,7 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 	if d != 0 {
 		e := options.Engine
 		firstExecuteTime := time.Now()
-		if ss := e.GetStepStatus(tr.step.Name); !ss.FirstExecuteTime.IsZero() {
+		if ss := e.GetCommonStepStatus(tr.step.Name); !ss.FirstExecuteTime.IsZero() {
 			firstExecuteTime = ss.FirstExecuteTime.Time
 		}
 		if time.Now().After(firstExecuteTime.Add(d)) {
