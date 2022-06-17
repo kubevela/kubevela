@@ -139,7 +139,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			defer func() {
 				if exec.wfStatus.Phase != common.WorkflowStepPhaseSkipped && len(wfStep.Outputs) > 0 {
 					if taskv == nil {
-						taskv, err = makeValue(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
+						taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 						if err != nil {
 							return
 						}
@@ -202,7 +202,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				paramFile = fmt.Sprintf(model.ParameterFieldName+": {%s}\n", ps)
 			}
 
-			taskv, err = makeValue(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
+			taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 			if err != nil {
 				exec.err(ctx, false, err, wfTypes.StatusReasonRendering)
 				return exec.status(), exec.operation(), nil
@@ -242,7 +242,7 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	}
 
 	template := fmt.Sprintf("if: %s", step.If)
-	value, err := makeStatusValue(ctx, step, pd, template, stepStatus, pCtx)
+	value, err := buildValueForStatus(ctx, step, pd, template, stepStatus, pCtx)
 	if err != nil {
 		if strings.Contains(step.If, "-") {
 			err = errors.WithMessage(err, `invalid if value, notice that you should use "_" instead of "-" in your if variable`)
@@ -272,7 +272,7 @@ func MakePropertiesParams(step v1beta1.WorkflowStep) (interface{}, error) {
 	return params, nil
 }
 
-func makeStatusValue(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packages.PackageDiscover, template string, stepStatus map[string]common.StepStatus, pCtx process.Context) (*value.Value, error) {
+func buildValueForStatus(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packages.PackageDiscover, template string, stepStatus map[string]common.StepStatus, pCtx process.Context) (*value.Value, error) {
 	contextTempl := getContextTemplate(ctx, "", pCtx)
 	inputsTempl := getInputsTemplate(ctx, step)
 	statusTemplate := "\n"
@@ -305,13 +305,13 @@ func makeStatusValue(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packa
 	return value.NewValue(template+"\n"+statusTemplate, pd, statusTemplate)
 }
 
-func makeValue(ctx wfContext.Context, pd *packages.PackageDiscover, templ, id string, pCtx process.Context) (*value.Value, error) {
+func convertTemplate(ctx wfContext.Context, pd *packages.PackageDiscover, templ, id string, pCtx process.Context) (*value.Value, error) {
 	contextTempl := getContextTemplate(ctx, id, pCtx)
 	return value.NewValue(templ+contextTempl, pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
 }
 
-// MakeContextValue makes context value
-func MakeContextValue(ctx wfContext.Context, pd *packages.PackageDiscover, id string, pCtx process.Context) (*value.Value, error) {
+// MakeValueForContext makes context value
+func MakeValueForContext(ctx wfContext.Context, pd *packages.PackageDiscover, id string, pCtx process.Context) (*value.Value, error) {
 	contextTempl := getContextTemplate(ctx, id, pCtx)
 	return value.NewValue(contextTempl, pd, contextTempl)
 }
@@ -390,7 +390,7 @@ func (exec *executor) Wait(message string) {
 	exec.wfStatus.Message = message
 }
 
-// Fail let workflow fail.
+// Fail let the step fail, its status is failed and reason is Action
 func (exec *executor) Fail(message string) {
 	exec.terminated = true
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed

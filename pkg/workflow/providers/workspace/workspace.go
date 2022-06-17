@@ -161,7 +161,7 @@ func (h *provider) Break(ctx wfContext.Context, v *value.Value, act types.Action
 	return nil
 }
 
-// Fail let workflow fail.
+// Fail let the step fail, its status is failed and reason is Action
 func (h *provider) Fail(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	var msg string
 	if v != nil {

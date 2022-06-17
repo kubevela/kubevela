@@ -1540,7 +1540,7 @@ var _ = Describe("Test Workflow", func() {
 		_, err = wf.ExecuteSteps(ctx, revision, runners)
 		Expect(err).ToNot(HaveOccurred())
 		interval = e.getBackoffWaitTime()
-		Expect(interval).Should(BeEquivalentTo(MaxWorkflowWaitBackoffTime))
+		Expect(interval).Should(BeEquivalentTo(wfTypes.MaxWorkflowWaitBackoffTime))
 
 		By("Test get backoff time after clean")
 		wfContext.CleanupMemoryStore(app.Name, app.Namespace)

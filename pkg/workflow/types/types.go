@@ -146,6 +146,10 @@ const (
 var (
 	// MaxWorkflowStepErrorRetryTimes is the max retry times of the failed workflow step.
 	MaxWorkflowStepErrorRetryTimes = 10
+	// MaxWorkflowWaitBackoffTime is the max time to wait before reconcile wait workflow again
+	MaxWorkflowWaitBackoffTime = 60
+	// MaxWorkflowFailedBackoffTime is the max time to wait before reconcile failed workflow again
+	MaxWorkflowFailedBackoffTime = 300
 )
 
 const (

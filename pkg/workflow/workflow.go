@@ -53,10 +53,6 @@ var (
 	DisableRecorder = false
 	// StepStatusCache cache the step status
 	StepStatusCache sync.Map
-	// MaxWorkflowWaitBackoffTime is the max time to wait before reconcile wait workflow again
-	MaxWorkflowWaitBackoffTime = 60
-	// MaxWorkflowFailedBackoffTime is the max time to wait before reconcile failed workflow again
-	MaxWorkflowFailedBackoffTime = 300
 )
 
 const (
@@ -480,10 +476,10 @@ func (e *engine) getBackoffWaitTime() int {
 func (e *engine) getMaxBackoffWaitTime() int {
 	for _, step := range e.status.Steps {
 		if step.Phase == common.WorkflowStepPhaseFailed {
-			return MaxWorkflowFailedBackoffTime
+			return wfTypes.MaxWorkflowFailedBackoffTime
 		}
 	}
-	return MaxWorkflowWaitBackoffTime
+	return wfTypes.MaxWorkflowWaitBackoffTime
 }
 
 func (e *engine) getNextTimeout() int64 {
