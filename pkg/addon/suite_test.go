@@ -17,6 +17,11 @@ package addon
 
 import (
 	"context"
+	"net/http"
+	"path/filepath"
+	"testing"
+	"time"
+
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,14 +35,11 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"testing"
-	"time"
 
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -52,6 +54,8 @@ var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var testns string
 var dc *discovery.DiscoveryClient
+var helmRepoHttpServer *http.Server
+var helmRepoHttpsServer *http.Server
 
 func TestAddon(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -112,4 +116,9 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	helmRepoHttpServer.Shutdown(ctx)
+	helmRepoHttpsServer.Shutdown(ctx)
 })
