@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -144,32 +143,13 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		return buff, errors.WithMessagef(err, "read application file: %s", cmdOption.ApplicationFile)
 	}
 
-	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, errors.WithMessage(err, "generate OAM objects")
 	}
 
-	var components = make(map[string]*unstructured.Unstructured)
-	for _, comp := range comps {
-		components[comp.Name] = comp.StandardWorkload
-	}
-	for _, c := range comps {
-		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Component(%s) \n---\n\n", app.Name, c.Name)))
-		result, err := yaml.Marshal(components[c.Name])
-		if err != nil {
-			return buff, errors.WithMessage(err, "marshal result for component "+c.Name+" object in yaml format")
-		}
-		buff.Write(result)
-		buff.Write([]byte("\n---\n"))
-		for _, t := range c.Traits {
-			result, err := yaml.Marshal(t)
-			if err != nil {
-				return buff, errors.WithMessage(err, "marshal result for component "+c.Name+" object in yaml format")
-			}
-			buff.Write(result)
-			buff.Write([]byte("\n---\n"))
-		}
-		buff.Write([]byte("\n"))
+	if err = dryRunOpt.PrintDryRun(&buff, app.Name, comps, policies); err != nil {
+		return buff, err
 	}
 	return buff, nil
 }
