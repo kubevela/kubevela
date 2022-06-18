@@ -17,7 +17,6 @@ package addon
 
 import (
 	"context"
-	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
@@ -54,8 +53,6 @@ var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var testns string
 var dc *discovery.DiscoveryClient
-var helmRepoHttpServer *http.Server
-var helmRepoHttpsServer *http.Server
 
 func TestAddon(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -116,9 +113,4 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	helmRepoHttpServer.Shutdown(ctx)
-	helmRepoHttpsServer.Shutdown(ctx)
 })
