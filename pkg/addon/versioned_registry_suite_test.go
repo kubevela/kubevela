@@ -16,7 +16,6 @@ package addon
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -26,20 +25,6 @@ import (
 )
 
 var _ = Describe("Test Versioned Registry", func() {
-	versionedRegistryHttpHandler := &http.ServeMux{}
-
-	versionedRegistryHttpHandler.HandleFunc("/", versionedHandler)
-	versionedRegistryHttpHandler.HandleFunc("/authReg", basicAuthVersionedHandler)
-	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%d", 18083), versionedRegistryHttpHandler)
-		Expect(err).ShouldNot(HaveOccurred())
-	}()
-	go func() {
-		err := http.ListenAndServeTLS(fmt.Sprintf(":%d", 18443),
-			"./testdata/tls/local-selfsign.crt", "./testdata/tls/local-selfsign.key", versionedRegistryHttpHandler)
-		Expect(err).ShouldNot(HaveOccurred())
-	}()
-
 	time.Sleep(3 * time.Second)
 
 	registries := []Registry{

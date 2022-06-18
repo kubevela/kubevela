@@ -17,6 +17,8 @@ package addon
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
@@ -55,6 +57,8 @@ var dm discoverymapper.DiscoveryMapper
 var pd *packages.PackageDiscover
 var testns string
 var dc *discovery.DiscoveryClient
+var helmRepoHttpServer *http.Server
+var helmRepoHttpsServer *http.Server
 
 func TestAddon(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -105,6 +109,27 @@ var _ = BeforeSuite(func(done Done) {
 			Name: testns,
 		}}))
 
+	handler := &http.ServeMux{}
+	handler.HandleFunc("/", versionedHandler)
+	handler.HandleFunc("/authReg", basicAuthVersionedHandler)
+
+	helmRepoHttpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", 18083),
+		Handler: handler,
+	}
+	helmRepoHttpsServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", 18443),
+		Handler: handler,
+	}
+
+	go func() {
+		err := helmRepoHttpsServer.ListenAndServeTLS("./testdata/tls/local-selfsign.crt", "./testdata/tls/local-selfsign.key")
+		Expect(err).ShouldNot(HaveOccurred())
+	}()
+	go func() {
+		helmRepoHttpServer.ListenAndServe()
+		Expect(err).ShouldNot(HaveOccurred())
+	}()
 	close(done)
 }, 120)
 
@@ -112,4 +137,9 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	helmRepoHttpServer.Shutdown(ctx)
+	helmRepoHttpsServer.Shutdown(ctx)
 })
