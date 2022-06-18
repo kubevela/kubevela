@@ -54,22 +54,25 @@ func TestListCachedUIData(t *testing.T) {
 	assert.Equal(t, u.listCachedUIData(name), addons)
 }
 
-var _ = Describe("Test list addon helm repo UI data", func() {
+var _ = Describe("Test addon cache", func() {
 	vr := Registry{Name: "helm-repo", Helm: &HelmSource{URL: "http://127.0.0.1:18083/authReg", Username: "hello", Password: "hello"}}
-	uiData := UIData{Meta: Meta{
-		Name:        "fluxcd",
-		Description: "Extended workload to do continuous and progressive delivery",
-		Icon:        "https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png",
-		Version:     "1.0.0",
-		Tags:        []string{"extended_workload", "gitops"},
-	},
-		AvailableVersions: []string{"1.0.0"},
-		RegistryName:      "helm-repo"}
-	addons := []*UIData{&uiData}
-	u := NewCache(nil)
-	uiDatas, err := u.ListUIData(vr)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(uiDatas).To(Equal(addons))
+
+	It("Test list addon helm repo UI data", func() {
+		uiData := UIData{Meta: Meta{
+			Name:        "fluxcd",
+			Description: "Extended workload to do continuous and progressive delivery",
+			Icon:        "https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png",
+			Version:     "1.0.0",
+			Tags:        []string{"extended_workload", "gitops"},
+		},
+			AvailableVersions: []string{"1.0.0"},
+			RegistryName:      "helm-repo"}
+		addons := []*UIData{&uiData}
+		u := NewCache(nil)
+		uiDatas, err := u.ListUIData(vr)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(uiDatas).To(Equal(addons))
+	})
 })
 
 func TestListVersionRegistryCachedUIData(t *testing.T) {

@@ -16,7 +16,10 @@ package addon
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
+
+	"github.com/pkg/errors"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -25,8 +28,6 @@ import (
 )
 
 var _ = Describe("Test Versioned Registry", func() {
-	time.Sleep(3 * time.Second)
-
 	registries := []Registry{
 		{
 			Name: "helm-repo",
@@ -148,3 +149,53 @@ var _ = Describe("Test Versioned Registry", func() {
 		})
 	}
 })
+
+func stepHelmHttpServer() error {
+	handler := &http.ServeMux{}
+	handler.HandleFunc("/", versionedHandler)
+	handler.HandleFunc("/authReg", basicAuthVersionedHandler)
+
+	helmRepoHttpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", 18083),
+		Handler: handler,
+	}
+	helmRepoHttpsServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", 18443),
+		Handler: handler,
+	}
+
+	go func() {
+		err := helmRepoHttpsServer.ListenAndServeTLS("./testdata/tls/local-selfsign.crt", "./testdata/tls/local-selfsign.key")
+		Expect(err).ShouldNot(HaveOccurred())
+	}()
+	go func() {
+		err := helmRepoHttpServer.ListenAndServe()
+		Expect(err).ShouldNot(HaveOccurred())
+	}()
+
+	err := checkHelmHttpServer("http://127.0.0.1:18083", 3, time.Second)
+	if err != nil {
+		return err
+	}
+	err = checkHelmHttpServer("http://127.0.0.1:18443", 3, time.Second)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkHelmHttpServer(url string, maxTryNum int, interval time.Duration) error {
+	client := http.Client{}
+	var err error
+	for cur := 0; cur < maxTryNum; cur++ {
+		_, err = client.Get(url)
+		if err != nil {
+			time.Sleep(interval)
+			continue
+		}
+	}
+	if err != nil {
+		return errors.Wrap(err, "exceeded maximum number of retries.")
+	}
+	return nil
+}
