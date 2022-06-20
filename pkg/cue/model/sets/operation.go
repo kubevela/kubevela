@@ -302,7 +302,7 @@ func strategyUnify(baseFile *ast.File, patchFile *ast.File, params *UnifyParams,
 
 	ret := baseInst.Value().Unify(patchInst.Value())
 
-	rv, err := toString(ret)
+	rv, err := toString(ret, removeTmpVar)
 	if err != nil {
 		return rv, errors.WithMessage(err, " format result toString")
 	}
