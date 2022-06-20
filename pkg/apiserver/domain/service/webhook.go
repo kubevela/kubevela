@@ -427,7 +427,11 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 		return nil, err
 	}
 	pathArray := strings.Split(jfrogReq.Data.Path,"/")
-	image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, strings.Join(pathArray[:len(pathArray)-2],"/"), jfrogReq.Data.Tag)
+        image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName, jfrogReq.Data.Tag)
+        pathArray := strings.Split(jfrogReq.Data.Path, "/")
+	if len(pathArray) > 2 {
+		image = fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, strings.Join(pathArray[:len(pathArray)-2], "/"), jfrogReq.Data.Tag)
+	}
 	if jfrogReq.Data.URL != "" {
 		image = fmt.Sprintf("%s/%s", jfrogReq.Data.URL, image)
 	}
