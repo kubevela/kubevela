@@ -2497,12 +2497,12 @@ var _ = Describe("Test Application Controller", func() {
 									ParameterKey: "",
 								},
 							},
-							If:         `suspend.timeout && inputs.suspend_output == "app-with-if-expressions"`,
+							If:         `status.suspend.timeout && inputs.suspend_output == "app-with-if-expressions"`,
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
 							Name:       "myweb2",
-							If:         "suspend.succeeded",
+							If:         "status.suspend.succeeded",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
@@ -2598,7 +2598,7 @@ var _ = Describe("Test Application Controller", func() {
 								{
 									Name:       "myweb1_sub1",
 									Type:       "apply-component",
-									If:         "myweb1_sub2.timeout",
+									If:         "status.myweb1_sub2.timeout",
 									DependsOn:  []string{"myweb1_sub2"},
 									Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 								},
@@ -2623,7 +2623,7 @@ var _ = Describe("Test Application Controller", func() {
 											ParameterKey: "",
 										},
 									},
-									If:         `myweb1_sub1.timeout || inputs.suspend_output == "app-with-if-expressions-workflow-sub-steps"`,
+									If:         `status.myweb1_sub1.timeout || inputs.suspend_output == "app-with-if-expressions-workflow-sub-steps"`,
 									Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1-sub"}`)},
 								},
 							},
@@ -2631,7 +2631,7 @@ var _ = Describe("Test Application Controller", func() {
 						{
 							Name:       "myweb2",
 							Type:       "apply-component",
-							If:         "myweb1.failed",
+							If:         "status.myweb1.failed",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 						{

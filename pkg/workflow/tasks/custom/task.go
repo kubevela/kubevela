@@ -106,9 +106,16 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			}
 		}
 
-		params, err := MakePropertiesParams(wfStep)
-		if err != nil {
-			return nil, err
+		params := map[string]interface{}{}
+
+		if wfStep.Properties != nil && len(wfStep.Properties.Raw) > 0 {
+			bt, err := common.RawExtensionPointer{RawExtension: wfStep.Properties}.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(bt, &params); err != nil {
+				return nil, err
+			}
 		}
 
 		tRunner := new(taskRunner)
@@ -256,26 +263,11 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	return check, nil
 }
 
-// MakePropertiesParams returns the properties params value for the given step.
-func MakePropertiesParams(step v1beta1.WorkflowStep) (interface{}, error) {
-	params := map[string]interface{}{}
-
-	if step.Properties != nil && len(step.Properties.Raw) > 0 {
-		bt, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(bt, &params); err != nil {
-			return nil, err
-		}
-	}
-	return params, nil
-}
-
 func buildValueForStatus(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *packages.PackageDiscover, template string, stepStatus map[string]common.StepStatus, pCtx process.Context) (*value.Value, error) {
 	contextTempl := getContextTemplate(ctx, "", pCtx)
 	inputsTempl := getInputsTemplate(ctx, step)
 	statusTemplate := "\n"
+	statusMap := make(map[string]interface{})
 	for name, ss := range stepStatus {
 		abbrStatus := struct {
 			common.StepStatus  `json:",inline"`
@@ -294,12 +286,13 @@ func buildValueForStatus(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *p
 			FailedAfterRetries: ss.Reason == wfTypes.StatusReasonFailedAfterRetries,
 			Terminate:          ss.Reason == wfTypes.StatusReasonTerminate,
 		}
-		status, err := json.Marshal(abbrStatus)
-		if err != nil {
-			continue
-		}
-		statusTemplate += fmt.Sprintf("%s: %s\n", strings.ReplaceAll(name, "-", "_"), status)
+		statusMap[name] = abbrStatus
 	}
+	status, err := json.Marshal(statusMap)
+	if err != nil {
+		return nil, err
+	}
+	statusTemplate += fmt.Sprintf("status: %s\n", status)
 	statusTemplate += contextTempl
 	statusTemplate += "\n" + inputsTempl
 	return value.NewValue(template+"\n"+statusTemplate, pd, statusTemplate)

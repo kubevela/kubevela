@@ -240,7 +240,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name:    "s2",
-				If:      "s1.succeeded",
+				If:      "status.s1.succeeded",
 				Type:    "running",
 				Timeout: "1s",
 			},
@@ -250,7 +250,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name: "s4",
-				If:   "s2.timeout",
+				If:   "status.s2.timeout",
 				Type: "success",
 			},
 		})
@@ -315,7 +315,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name:    "s2",
-				If:      "s1.timeout",
+				If:      "status.s1.timeout",
 				Type:    "suspend",
 				Timeout: "1s",
 			},
@@ -325,7 +325,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name:    "s4",
-				If:      "s1.succeeded",
+				If:      "status.s1.succeeded",
 				Type:    "suspend",
 				Timeout: "1s",
 			},
@@ -1165,12 +1165,12 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name: "s2",
-				If:   "s1.failed",
+				If:   "status.s1.failed",
 				Type: "success",
 			},
 			{
 				Name: "s3",
-				If:   "s1.succeeded",
+				If:   "status.s1.succeeded",
 				Type: "success",
 				Outputs: common.StepOutputs{
 					{
@@ -1245,13 +1245,13 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name: "s2",
-				If:   "s1.failed",
+				If:   "status.s1.failed",
 				Type: "success",
 			},
 			{
 				Name:      "s3",
 				DependsOn: []string{"s2"},
-				If:        "s1.succeeded",
+				If:        "status.s1.succeeded",
 				Type:      "success",
 				Outputs: common.StepOutputs{
 					{
@@ -1328,7 +1328,7 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name: "s2",
-				If:   "s1.timeout",
+				If:   "status.s1.timeout",
 				Type: "step-group",
 				SubSteps: []common.WorkflowSubStep{
 					{
@@ -1344,12 +1344,12 @@ var _ = Describe("Test Workflow", func() {
 			},
 			{
 				Name: "s3",
-				If:   "s1.succeeded",
+				If:   "status.s1.succeeded",
 				Type: "step-group",
 				SubSteps: []common.WorkflowSubStep{
 					{
 						Name: "s3_sub1",
-						If:   "s2_sub1.skipped",
+						If:   "status.s2_sub1.skipped",
 						Type: "success",
 					},
 					{

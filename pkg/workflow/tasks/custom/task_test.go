@@ -568,7 +568,7 @@ func TestValidateIfValue(t *testing.T) {
 		{
 			name: "timeout true",
 			step: v1beta1.WorkflowStep{
-				If: "step1.timeout",
+				If: "status.step1.timeout",
 			},
 			status: map[string]common.StepStatus{
 				"step1": {
@@ -587,7 +587,7 @@ func TestValidateIfValue(t *testing.T) {
 		{
 			name: "failed true",
 			step: v1beta1.WorkflowStep{
-				If: `step1.phase != "failed"`,
+				If: `status.step1.phase != "failed"`,
 			},
 			status: map[string]common.StepStatus{
 				"step1": {
@@ -611,7 +611,7 @@ func TestValidateIfValue(t *testing.T) {
 		{
 			name: "dash in if",
 			step: v1beta1.WorkflowStep{
-				If: "step1-test.timeout",
+				If: "status.step1-test.timeout",
 			},
 			expectedErr: "invalid if value",
 			expected:    false,
@@ -619,7 +619,7 @@ func TestValidateIfValue(t *testing.T) {
 		{
 			name: "dash in status",
 			step: v1beta1.WorkflowStep{
-				If: "step1_test.timeout",
+				If: "status.step1_test.timeout",
 			},
 			status: map[string]common.StepStatus{
 				"step1-test": {
