@@ -426,7 +426,6 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 	if err != nil {
 		return nil, err
 	}
-	pathArray := strings.Split(jfrogReq.Data.Path,"/")
         image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName, jfrogReq.Data.Tag)
         pathArray := strings.Split(jfrogReq.Data.Path, "/")
 	if len(pathArray) > 2 {
