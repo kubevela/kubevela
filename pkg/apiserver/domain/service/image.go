@@ -103,10 +103,10 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 	var selectSecretNames []string
 	// get info with specified secret
 	if secretName != "" {
-		for _, secret := range secrets.Items {
+		for i, secret := range secrets.Items {
 			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
 				if secretName == secret.Name {
-					selectSecret = append(selectSecret, &secret)
+					selectSecret = append(selectSecret, &secrets.Items[i])
 					selectSecretNames = append(selectSecretNames, secret.Name)
 					break
 				}
@@ -116,10 +116,10 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 
 	// get info with the secret which match the registry domain
 	if selectSecret == nil {
-		for _, secret := range secrets.Items {
+		for i, secret := range secrets.Items {
 			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
 				if secret.Labels[types.LabelConfigIdentifier] == registryDomain {
-					selectSecret = append(selectSecret, &secret)
+					selectSecret = append(selectSecret, &secrets.Items[i])
 					selectSecretNames = append(selectSecretNames, secret.Name)
 				}
 			}
@@ -149,7 +149,7 @@ func getAccountFromSecret(secret corev1.Secret, registryDomain string) (insecure
 		conf := secret.Data[".dockerconfigjson"]
 		if len(conf) > 0 {
 			var authConfig map[string]map[string]map[string]string
-			if err := json.Unmarshal([]byte(conf), &authConfig); err != nil {
+			if err := json.Unmarshal(conf, &authConfig); err != nil {
 				log.Logger.Warnf("fail to unmarshal the secret %s , %s", secret.Name, err.Error())
 				return
 			}
@@ -187,7 +187,8 @@ func getImageInfo(imageName string, insecure, useHTTP bool, username, password s
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
+			// #nosec G402
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure},
 		}))
 	}
 

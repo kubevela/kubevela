@@ -52,6 +52,9 @@ type DefinitionService interface {
 	UpdateDefinitionStatus(ctx context.Context, name string, status apisv1.UpdateDefinitionStatusRequest) (*apisv1.DetailDefinitionResponse, error)
 }
 
+// DefinitionHidden means the definition can not be used in VelaUX
+const DefinitionHidden = "true"
+
 type definitionServiceImpl struct {
 	KubeClient client.Client `inject:"kubeClient"`
 }
@@ -344,7 +347,7 @@ func (d *definitionServiceImpl) UpdateDefinitionStatus(ctx context.Context, name
 	}
 	if !exist && update.HiddenInUI {
 		labels := def.GetLabels()
-		labels[types.LabelDefinitionHidden] = "true"
+		labels[types.LabelDefinitionHidden] = DefinitionHidden
 		def.SetLabels(labels)
 		if err := d.KubeClient.Update(ctx, def); err != nil {
 			return nil, err
