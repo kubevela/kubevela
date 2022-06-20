@@ -790,6 +790,10 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 	if workflow == nil || workflow.EnvName == "" {
 		return nil, bcode.ErrWorkflowNotExist
 	}
+	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, workflow.EnvName)
+	if err != nil {
+		return nil, err
+	}
 	env, err := c.EnvService.GetEnv(ctx, workflow.EnvName)
 	if err != nil {
 		return nil, err
@@ -799,14 +803,20 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		labels[key] = value
 	}
 	labels[oam.AnnotationAppName] = appModel.Name
+	// To take over the application
+	labels[model.LabelSourceOfTruth] = model.FromUX
 
+	deployAppName := envbinding.AppDeployName
+	if deployAppName == "" {
+		deployAppName = appModel.Name
+	}
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appModel.Name,
+			Name:      deployAppName,
 			Namespace: env.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{

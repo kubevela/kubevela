@@ -133,7 +133,7 @@ var (
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
-				cli := fmt.Sprintf("vela delete %s", applicationName)
+				cli := fmt.Sprintf("vela delete %s -y", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("deleted from namespace"))

@@ -60,20 +60,24 @@ var _ = Describe("Test workflow service functions", func() {
 		rbacService := &rbacServiceImpl{Store: ds}
 		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
+		envBinding := &envBindingServiceImpl{
+			Store:           ds,
+			WorkflowService: workflowService,
+			EnvService:      envService,
+		}
 		workflowService = &workflowServiceImpl{
-			Store:      ds,
-			KubeClient: k8sClient,
-			Apply:      apply.NewAPIApplicator(k8sClient),
-			EnvService: envService}
+			Store:             ds,
+			KubeClient:        k8sClient,
+			Apply:             apply.NewAPIApplicator(k8sClient),
+			EnvService:        envService,
+			EnvBindingService: envBinding,
+		}
 		appService = &applicationServiceImpl{Store: ds, KubeClient: k8sClient,
-			Apply:          apply.NewAPIApplicator(k8sClient),
-			ProjectService: projectService,
-			EnvService:     envService,
-			EnvBindingService: &envBindingServiceImpl{
-				Store:           ds,
-				WorkflowService: workflowService,
-				EnvService:      envService,
-			}}
+			Apply:             apply.NewAPIApplicator(k8sClient),
+			ProjectService:    projectService,
+			EnvService:        envService,
+			EnvBindingService: envBinding,
+		}
 	})
 	It("Test CreateWorkflow function", func() {
 		_, err := projectService.CreateProject(context.TODO(), apisv1.CreateProjectRequest{Name: testProject})

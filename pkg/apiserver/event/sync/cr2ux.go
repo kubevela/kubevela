@@ -80,10 +80,11 @@ func (c *CR2UX) getApp(ctx context.Context, name, namespace string) (*model.Appl
 
 // CR2UX provides the Add/Update/Delete method
 type CR2UX struct {
-	ds             datastore.DataStore
-	cli            client.Client
-	cache          sync.Map
-	projectService service.ProjectService
+	ds                 datastore.DataStore
+	cli                client.Client
+	cache              sync.Map
+	projectService     service.ProjectService
+	applicationService service.ApplicationService
 }
 
 func formatAppComposedName(name, namespace string) string {
@@ -113,6 +114,11 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		return err
 	}
 
+	if err = StoreTargets(ctx, dsApp, ds); err != nil {
+		log.Logger.Errorf("Store targets to data store err %v", err)
+		return err
+	}
+
 	if err = StoreEnv(ctx, dsApp, ds); err != nil {
 		log.Logger.Errorf("Store Env Metadata to data store err %v", err)
 		return err
@@ -133,13 +139,6 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		log.Logger.Errorf("Store Workflow Metadata to data store err %v", err)
 		return err
 	}
-	/*
-		if err = StoreTargets(ctx, dsApp, ds); err != nil {
-			log.Logger.Errorf("Store targets to data store err %v", err)
-			return err
-		}
-
-	*/
 
 	if err = StoreAppMeta(ctx, dsApp, ds); err != nil {
 		log.Logger.Errorf("Store App Metadata to data store err %v", err)
@@ -153,38 +152,16 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 
 // DeleteApp will delete the application as the CR was deleted
 func (c *CR2UX) DeleteApp(ctx context.Context, targetApp *v1beta1.Application) error {
-	ds := c.ds
-
 	if !c.shouldSync(ctx, targetApp, true) {
 		return nil
 	}
-	appName := c.getAppMetaName(ctx, targetApp.Name, targetApp.Namespace)
-
-	_ = ds.Delete(ctx, &model.Application{Name: appName})
-
-	cmps, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: appName}, &datastore.ListOptions{})
+	app, appName, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
 	if err != nil {
 		return err
 	}
-	for _, entity := range cmps {
-		comp := entity.(*model.ApplicationComponent)
-		if comp.Creator == model.AutoGenComp {
-			_ = ds.Delete(ctx, comp)
-		}
+	// Only for the unit test scenario
+	if c.applicationService == nil {
+		return c.ds.Delete(ctx, &model.Application{Name: appName})
 	}
-
-	plcs, err := ds.List(ctx, &model.ApplicationPolicy{AppPrimaryKey: appName}, &datastore.ListOptions{})
-	if err != nil {
-		return err
-	}
-	for _, entity := range plcs {
-		comp := entity.(*model.ApplicationPolicy)
-		if comp.Creator == model.AutoGenPolicy {
-			_ = ds.Delete(ctx, comp)
-		}
-	}
-
-	_ = ds.Delete(ctx, &model.Workflow{Name: model.AutoGenWorkflowNamePrefix + appName})
-
-	return nil
+	return c.applicationService.DeleteApplication(ctx, app)
 }

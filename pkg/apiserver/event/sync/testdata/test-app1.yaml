@@ -22,13 +22,13 @@ spec:
     - name: topology-beijing-demo
       type: topology
       properties:
-        clusterLabelSelector:
-          region: beijing
-        namespace: demo
+        clusters: ["local"]
+        namespace: beijing-demo
     - name: topology-local
       type: topology
       properties:
-        targets: ["local/demo", "local/ackone-demo"]
+        clusters: ["local"]
+        namespace: demo
   workflow:
     steps:
       - type: deploy

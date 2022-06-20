@@ -111,7 +111,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		return nil, errors.Errorf("run query view: %v", err)
 	}
 	if string(status.Phase) != ViewTaskPhaseSucceeded {
-		return nil, errors.Errorf("failed to query the view: %s", status.Message)
+		return nil, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
 	}
 	return viewCtx.GetVar(qv.Export)
 }

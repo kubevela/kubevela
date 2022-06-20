@@ -50,7 +50,9 @@ const (
 	FromCR = "from-k8s-resource"
 	// FromUX means the data source of truth is from velaux data store
 	FromUX = "from-velaux"
-	// FromInner means the data source of truth is from KubeVela inner usage, such as addon or configuration that don't want to be synced
+	// FromInner means the data source of truth is from KubeVela inner usage
+	// the configuration that don't want to be synced
+	// the addon application should be synced, but set to readonly mode
 	FromInner = "from-inner-system"
 )
 

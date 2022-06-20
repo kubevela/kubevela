@@ -18,6 +18,7 @@ package convert
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -27,7 +28,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -105,46 +109,69 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 		steps = app.Spec.Workflow.Steps
 	}
 	for _, s := range steps {
-		if s.Properties == nil {
-			continue
+		ws := model.WorkflowStep{
+			Name:      s.Name,
+			Type:      s.Type,
+			Inputs:    s.Inputs,
+			Outputs:   s.Outputs,
+			DependsOn: s.DependsOn,
 		}
-		properties, err := model.NewJSONStruct(s.Properties)
-		if err != nil {
-			return dataWf, nil, err
+		if s.Properties != nil {
+			properties, err := model.NewJSONStruct(s.Properties)
+			if err != nil {
+				return dataWf, nil, err
+			}
+			ws.Properties = properties
 		}
-		dataWf.Steps = append(dataWf.Steps, model.WorkflowStep{
-			Name:       s.Name,
-			Type:       s.Type,
-			Inputs:     s.Inputs,
-			Outputs:    s.Outputs,
-			DependsOn:  s.DependsOn,
-			Properties: properties,
-		})
+		dataWf.Steps = append(dataWf.Steps, ws)
 	}
 	return dataWf, steps, nil
 }
 
 // FromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
-func FromCRTargets(targetApp *v1beta1.Application) []*model.Target {
+func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, existTargets []datastore.Entity, project string) ([]*model.Target, []string) {
+	existTarget := make(map[string]*model.Target)
+	for i := range existTargets {
+		t := existTargets[i].(*model.Target)
+		existTarget[fmt.Sprintf("%s-%s", t.Cluster.ClusterName, t.Cluster.Namespace)] = t
+	}
 	var targets []*model.Target
+	var targetNames []string
 	nc := make(map[string]struct{})
-	for _, v := range targetApp.Status.AppliedResources {
-		var cluster = v.Cluster
-		if cluster == "" {
-			cluster = multicluster.ClusterLocalName
+	// read the target from the topology policies
+	placements, err := policy.GetPlacementsFromTopologyPolicies(ctx, cli, targetApp.Namespace, targetApp.Spec.Policies, true)
+	if err != nil {
+		log.Logger.Errorf("fail to get placements from topology policies %s", err.Error())
+		return targets, targetNames
+	}
+	for _, placement := range placements {
+		if placement.Cluster == "" {
+			placement.Cluster = multicluster.ClusterLocalName
 		}
-		name := model.AutoGenTargetNamePrefix + cluster + "-" + v.Namespace
+		if placement.Namespace == "" {
+			placement.Namespace = targetApp.Namespace
+		}
+		if placement.Namespace == "" {
+			placement.Namespace = "default"
+		}
+		name := model.AutoGenTargetNamePrefix + placement.Cluster + "-" + placement.Namespace
 		if _, ok := nc[name]; ok {
 			continue
 		}
 		nc[name] = struct{}{}
-		targets = append(targets, &model.Target{
-			Name: name,
-			Cluster: &model.ClusterTarget{
-				ClusterName: cluster,
-				Namespace:   v.Namespace,
-			},
-		})
+		if target, ok := existTarget[fmt.Sprintf("%s-%s", placement.Cluster, placement.Namespace)]; ok {
+			targetNames = append(targetNames, target.Name)
+		} else {
+			targetNames = append(targetNames, name)
+			targets = append(targets, &model.Target{
+				Name:    name,
+				Project: project,
+				Cluster: &model.ClusterTarget{
+					ClusterName: placement.Cluster,
+					Namespace:   placement.Namespace,
+				},
+			})
+		}
 	}
-	return targets
+	return targets, targetNames
 }
