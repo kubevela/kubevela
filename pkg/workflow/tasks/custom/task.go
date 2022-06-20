@@ -251,10 +251,7 @@ func ValidateIfValue(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatu
 	template := fmt.Sprintf("if: %s", step.If)
 	value, err := buildValueForStatus(ctx, step, pd, template, stepStatus, pCtx)
 	if err != nil {
-		if strings.Contains(step.If, "-") {
-			err = errors.WithMessage(err, `invalid if value, notice that you should use "_" instead of "-" in your if variable`)
-		}
-		return false, err
+		return false, errors.WithMessage(err, "invalid if value")
 	}
 	check, err := value.GetBool("if")
 	if err != nil {

@@ -619,7 +619,7 @@ func TestValidateIfValue(t *testing.T) {
 		{
 			name: "dash in status",
 			step: v1beta1.WorkflowStep{
-				If: "status.step1_test.timeout",
+				If: `status["step1-test"].timeout`,
 			},
 			status: map[string]common.StepStatus{
 				"step1-test": {
