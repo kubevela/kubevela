@@ -358,3 +358,38 @@ func listOpen(expr ast.Node) {
 		}
 	}
 }
+
+func removeTmpVar(expr ast.Node) ast.Node {
+	switch v := expr.(type) {
+	case *ast.File:
+		for _, decl := range v.Decls {
+			removeTmpVar(decl)
+		}
+	case *ast.Field:
+		removeTmpVar(v.Value)
+	case *ast.StructLit:
+		var elts []ast.Decl
+		for _, elt := range v.Elts {
+			if field, isField := elt.(*ast.Field); isField {
+				if ident, isIdent := field.Label.(*ast.Ident); isIdent && strings.HasPrefix(ident.Name, "_") {
+					continue
+				}
+			}
+			removeTmpVar(elt)
+			elts = append(elts, elt)
+		}
+		v.Elts = elts
+	case *ast.BinaryExpr:
+		removeTmpVar(v.X)
+		removeTmpVar(v.Y)
+	case *ast.EmbedDecl:
+		removeTmpVar(v.Expr)
+	case *ast.Comprehension:
+		removeTmpVar(v.Value)
+	case *ast.ListLit:
+		for _, elt := range v.Elts {
+			removeTmpVar(elt)
+		}
+	}
+	return expr
+}
