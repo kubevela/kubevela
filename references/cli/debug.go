@@ -133,7 +133,7 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 			return err
 		}
 		dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{})
-		comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+		comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
 		if err != nil {
 			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
 			return nil

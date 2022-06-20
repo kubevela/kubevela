@@ -232,8 +232,9 @@ func (l *LiveDiffOption) diffManifest(base, comparor *manifest) *DiffEntry {
 
 // Diff does three phases, dry-run on input app, preparing manifest for diff, and
 // calculating diff on manifests.
+// TODO(wonderflow): vela live-diff don't diff for policies now.
 func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, appRevision *v1beta1.ApplicationRevision) (*DiffEntry, error) {
-	comps, err := l.ExecuteDryRun(ctx, app)
+	comps, _, err := l.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", app.Name)
 	}
@@ -254,8 +255,9 @@ func (l *LiveDiffOption) Diff(ctx context.Context, app *v1beta1.Application, app
 
 // DiffApps does three phases, dry-run on input app, preparing manifest for diff, and
 // calculating diff on manifests.
+// TODO(wonderflow): vela live-diff don't diff for policies now.
 func (l *LiveDiffOption) DiffApps(ctx context.Context, app *v1beta1.Application, oldApp *v1beta1.Application) (*DiffEntry, error) {
-	comps, err := l.ExecuteDryRun(ctx, app)
+	comps, _, err := l.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", app.Name)
 	}
@@ -265,7 +267,7 @@ func (l *LiveDiffOption) DiffApps(ctx context.Context, app *v1beta1.Application,
 		return nil, errors.WithMessagef(err, "cannot generate diff manifest for app %q", app.Name)
 	}
 
-	oldComps, err := l.ExecuteDryRun(ctx, oldApp)
+	oldComps, _, err := l.ExecuteDryRun(ctx, oldApp)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "cannot dry-run for app %q", oldApp.Name)
 	}
