@@ -17,8 +17,10 @@ limitations under the License.
 package dryrun
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -44,7 +46,7 @@ import (
 
 // DryRun executes dry-run on an application
 type DryRun interface {
-	ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, error)
+	ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error)
 }
 
 // NewDryRunOption creates a dry-run option
@@ -120,22 +122,65 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 
 // ExecuteDryRun simulates applying an application into cluster and returns rendered
 // resources but not persist them into cluster.
-func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, error) {
+func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	}
 	appFile, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
-		return nil, errors.WithMessage(err, "cannot generate appFile from application")
+		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
 	if appFile.Namespace == "" {
 		appFile.Namespace = corev1.NamespaceDefault
 	}
 	comps, err := appFile.GenerateComponentManifests()
 	if err != nil {
-		return nil, errors.WithMessage(err, "cannot generate AppConfig and Components")
+		return nil, nil, errors.WithMessage(err, "cannot generate manifests from components and traits")
 	}
+	objs, err := appFile.GeneratePolicyManifests(ctx)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "cannot generate manifests from policies")
+	}
+	return comps, objs, nil
+}
 
-	return comps, nil
+// PrintDryRun will print the result of dry-run
+func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.ComponentManifest, policies []*unstructured.Unstructured) error {
+	var components = make(map[string]*unstructured.Unstructured)
+	for _, comp := range comps {
+		components[comp.Name] = comp.StandardWorkload
+	}
+	for _, c := range comps {
+		if _, err := fmt.Fprintf(buff, "---\n# Application(%s) -- Component(%s) \n---\n\n", appName, c.Name); err != nil {
+			return errors.Wrap(err, "fail to write buff")
+		}
+		result, err := yaml.Marshal(components[c.Name])
+		if err != nil {
+			return errors.New("marshal result for component " + c.Name + " object in yaml format")
+		}
+		buff.Write(result)
+		buff.WriteString("\n---\n")
+		for _, t := range c.Traits {
+			result, err := yaml.Marshal(t)
+			if err != nil {
+				return errors.New("marshal result for Component " + c.Name + " trait " + t.GetName() + " object in yaml format")
+			}
+			buff.Write(result)
+			buff.WriteString("\n---\n")
+		}
+		buff.WriteString("\n")
+	}
+	for _, plc := range policies {
+		if _, err := fmt.Fprintf(buff, "---\n# Application(%s) -- Policy(%s) \n---\n\n", appName, plc.GetName()); err != nil {
+			return errors.Wrap(err, "fail to write buff")
+		}
+		result, err := yaml.Marshal(plc)
+		if err != nil {
+			return errors.New("marshal result for policy " + plc.GetName() + " object in yaml format")
+		}
+		buff.Write(result)
+		buff.WriteString("\n---\n")
+	}
+	return nil
 }
