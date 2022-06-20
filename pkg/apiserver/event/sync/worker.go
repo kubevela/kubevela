@@ -27,6 +27,7 @@ import (
 	dynamicInformer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,10 +39,12 @@ import (
 
 // ApplicationSync sync application from cluster to database
 type ApplicationSync struct {
-	KubeClient     client.Client          `inject:"kubeClient"`
-	KubeConfig     *rest.Config           `inject:"kubeConfig"`
-	Store          datastore.DataStore    `inject:"datastore"`
-	ProjectService service.ProjectService `inject:""`
+	KubeClient         client.Client              `inject:"kubeClient"`
+	KubeConfig         *rest.Config               `inject:"kubeConfig"`
+	Store              datastore.DataStore        `inject:"datastore"`
+	ProjectService     service.ProjectService     `inject:""`
+	ApplicationService service.ApplicationService `inject:""`
+	Queue              workqueue.Interface
 }
 
 // Start prepares watchers and run their controllers, then waits for process termination signals
@@ -64,31 +67,38 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		return app
 	}
 	cu := &CR2UX{
-		ds:             a.Store,
-		cli:            a.KubeClient,
-		cache:          sync.Map{},
-		projectService: a.ProjectService,
+		ds:                 a.Store,
+		cli:                a.KubeClient,
+		cache:              sync.Map{},
+		projectService:     a.ProjectService,
+		applicationService: a.ApplicationService,
 	}
 	if err = cu.initCache(ctx); err != nil {
 		errorChan <- err
 	}
 
+	go func() {
+		for {
+			app, down := a.Queue.Get()
+			if down {
+				break
+			}
+			if err := cu.AddOrUpdate(ctx, app.(*v1beta1.Application)); err != nil {
+				log.Logger.Errorf("fail to add or update application %s", err.Error())
+			}
+		}
+	}()
+
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			app := getApp(obj)
 			klog.Infof("watched add app event, namespace: %s, name: %s", app.Namespace, app.Name)
-			err = cu.AddOrUpdate(ctx, app)
-			if err != nil {
-				log.Logger.Errorf("Application %-30s Create Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
-			}
+			a.Queue.Add(app)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
 			app := getApp(obj)
 			klog.Infof("watched update app event, namespace: %s, name: %s", app.Namespace, app.Name)
-			err = cu.AddOrUpdate(ctx, app)
-			if err != nil {
-				log.Logger.Errorf("Application %-30s Update Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
-			}
+			a.Queue.Add(app)
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)

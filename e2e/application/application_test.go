@@ -190,7 +190,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 var ApplicationDeleteWithWaitOptions = func(context string, appName string) bool {
 	return ginkgo.Context(context, func() {
 		ginkgo.It("should print successful deletion information", func() {
-			cli := fmt.Sprintf("vela delete %s --wait", appName)
+			cli := fmt.Sprintf("vela delete %s --wait -y", appName)
 			output, err := e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))
@@ -218,7 +218,7 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 				return k8sClient.Update(ctx, app)
 			}, time.Second*3, time.Millisecond*300).Should(gomega.BeNil())
 
-			cli := fmt.Sprintf("vela delete %s --force", appName)
+			cli := fmt.Sprintf("vela delete %s --force -y", appName)
 			output, err := e2e.LongTimeExec(cli, 3*time.Minute)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("timed out"))
@@ -230,7 +230,7 @@ var ApplicationDeleteWithForceOptions = func(context string, appName string) boo
 				g.Expect(k8sClient.Update(ctx, app)).Should(gomega.Succeed())
 			}, time.Second*5, time.Millisecond*300).Should(gomega.Succeed())
 
-			cli = fmt.Sprintf("vela delete %s --force", appName)
+			cli = fmt.Sprintf("vela delete %s --force -y", appName)
 			output, err = e2e.ExecAndTerminate(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("deleted"))

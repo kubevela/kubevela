@@ -73,10 +73,11 @@ func NewWorkflowService() WorkflowService {
 }
 
 type workflowServiceImpl struct {
-	Store      datastore.DataStore `inject:"datastore"`
-	KubeClient client.Client       `inject:"kubeClient"`
-	Apply      apply.Applicator    `inject:"apply"`
-	EnvService EnvService          `inject:""`
+	Store             datastore.DataStore `inject:"datastore"`
+	KubeClient        client.Client       `inject:"kubeClient"`
+	Apply             apply.Applicator    `inject:"apply"`
+	EnvService        EnvService          `inject:""`
+	EnvBindingService EnvBindingService   `inject:""`
 }
 
 // DeleteWorkflow delete application workflow
@@ -343,7 +344,17 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			klog.ErrorS(err, "failed to get workflow", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
-		appName := record.AppPrimaryKey
+		envbinding, err := w.EnvBindingService.GetEnvBinding(ctx, &model.Application{Name: record.AppPrimaryKey}, workflow.EnvName)
+		if err != nil {
+			klog.ErrorS(err, "failed to get envbinding", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
+		}
+		var appName string
+		if envbinding != nil {
+			appName = envbinding.AppDeployName
+		}
+		if appName == "" {
+			appName = record.AppPrimaryKey
+		}
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{
 			Name:      appName,
 			Namespace: record.Namespace,

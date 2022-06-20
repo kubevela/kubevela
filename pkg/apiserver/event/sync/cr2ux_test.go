@@ -86,8 +86,8 @@ var _ = Describe("Test CR convert to ux", func() {
 		Expect(gotApp.Labels[model.LabelSourceOfTruth]).Should(BeEquivalentTo(model.FromCR))
 		Expect(err).Should(BeNil())
 		Expect(gotApp.IsSynced()).Should(BeEquivalentTo(true))
-
 	})
+
 	It("Test app updated and delete app", func() {
 		ctx := context.Background()
 		By("Preparing database")
@@ -107,7 +107,11 @@ var _ = Describe("Test CR convert to ux", func() {
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		cr2ux := CR2UX{ds: ds, cli: k8sClient, cache: sync.Map{}}
+		cr2ux := CR2UX{
+			ds:    ds,
+			cli:   k8sClient,
+			cache: sync.Map{},
+		}
 
 		By("create test app1 and check the syncing results")
 		app1 := &v1beta1.Application{}
@@ -124,12 +128,8 @@ var _ = Describe("Test CR convert to ux", func() {
 
 		appPlc1 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-beijing-demo"}
 		Expect(ds.Get(ctx, &appPlc1)).Should(BeNil())
-		Expect(appPlc1.Properties).Should(BeEquivalentTo(&model.JSONStruct{"namespace": "demo", "clusterLabelSelector": map[string]interface{}{"region": "beijing"}}))
-
 		appPlc2 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-local"}
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeNil())
-		Expect(appPlc2.Properties).Should(BeEquivalentTo(&model.JSONStruct{"targets": []interface{}{"local/demo", "local/ackone-demo"}}))
-
 		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: model.AutoGenWorkflowNamePrefix + app1.Name}
 		Expect(ds.Get(ctx, &appwf1)).Should(BeNil())
 		Expect(len(appwf1.Steps)).Should(BeEquivalentTo(1))
@@ -150,12 +150,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeEquivalentTo(datastore.ErrRecordNotExist), fmt.Sprintf("plc name %s, creator %s", appPlc2.Name, appPlc2.Creator))
 		appwf2 := &model.Workflow{AppPrimaryKey: apName1, Name: appwf1.Name}
 		Expect(ds.Get(ctx, appwf2)).Should(BeNil())
-
 		Expect(len(appwf2.Steps)).Should(BeEquivalentTo(0))
-
-		Expect(cr2ux.DeleteApp(ctx, app1)).Should(BeNil())
-		Expect(ds.Get(context.Background(), &comp3)).Should(BeEquivalentTo(datastore.ErrRecordNotExist))
-		Expect(ds.Get(context.Background(), &model.Application{Name: apName1})).Should(BeEquivalentTo(datastore.ErrRecordNotExist))
 	})
 
 })

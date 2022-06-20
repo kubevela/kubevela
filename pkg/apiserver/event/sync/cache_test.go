@@ -82,6 +82,11 @@ var _ = Describe("Test Cache", func() {
 		app3.Name = "app3"
 		app3.Namespace = "app3-ns"
 		app3.Generation = 3
+		app3.Labels = map[string]string{
+			model.LabelSyncGeneration: "1",
+			model.LabelSyncNamespace:  "app3-ns",
+			model.LabelSourceOfTruth:  model.FromUX,
+		}
 
 		Expect(cr2ux.shouldSync(ctx, app3, false)).Should(BeEquivalentTo(false))
 

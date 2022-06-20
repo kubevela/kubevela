@@ -68,10 +68,9 @@ func ConvertAppModelToBase(app *model.Application, projects []*apisv1.ProjectBas
 		Icon:        app.Icon,
 		Labels:      app.Labels,
 		Project:     &apisv1.ProjectBase{Name: app.Project},
+		ReadOnly:    app.IsReadOnly(),
 	}
-	if app.IsSynced() {
-		appBase.ReadOnly = true
-	}
+
 	for _, project := range projects {
 		if project.Name == app.Project {
 			appBase.Project = project
