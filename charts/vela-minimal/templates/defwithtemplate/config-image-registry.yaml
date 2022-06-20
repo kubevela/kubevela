@@ -20,6 +20,7 @@ spec:
         import (
         	"encoding/base64"
         	"encoding/json"
+        	"strconv"
         )
 
         output: {
@@ -42,21 +43,29 @@ spec:
         	if parameter.auth == _|_ {
         		type: "Opaque"
         	}
-        	if parameter.auth != _|_ {
-        		stringData: ".dockerconfigjson": json.Marshal({
-        			auths: "\(parameter.registry)": {
-        				username: parameter.auth.username
-        				password: parameter.auth.password
-        				if parameter.auth.email != _|_ {
-        					email: parameter.auth.email
+        	stringData: {
+        		if parameter.auth != _|_ && parameter.auth.username != _|_ {
+        			".dockerconfigjson": json.Marshal({
+        				auths: "\(parameter.registry)": {
+        					username: parameter.auth.username
+        					password: parameter.auth.password
+        					if parameter.auth.email != _|_ {
+        						email: parameter.auth.email
+        					}
+        					auth: base64.Encode(null, (parameter.auth.username + ":" + parameter.auth.password))
         				}
-        				auth: base64.Encode(null, (parameter.auth.username + ":" + parameter.auth.password))
-        			}
-        		})
+        			})
+        		}
+        		if parameter.insecure != _|_ {
+        			"insecure-skip-verify": strconv.FormatBool(parameter.insecure)
+        		}
+        		if parameter.useHTTP != _|_ {
+        			"protocol-use-http": strconv.FormatBool(parameter.useHTTP)
+        		}
         	}
         }
         parameter: {
-        	// +usage=Image registry FQDN
+        	// +usage=Image registry FQDN, such as: index.docker.io
         	registry: string
         	// +usage=Authenticate the image registry
         	auth?: {
@@ -67,6 +76,10 @@ spec:
         		// +usage=Private Image registry email
         		email?: string
         	}
+        	// +usage=For the registry server that uses the self-signed certificate
+        	insecure?: bool
+        	// +usage=For the registry server that uses the HTTP protocol
+        	useHTTP?: bool
         }
   workload:
     type: autodetects.core.oam.dev

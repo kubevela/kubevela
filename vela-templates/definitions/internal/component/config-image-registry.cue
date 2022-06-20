@@ -1,6 +1,7 @@
 import (
 	"encoding/base64"
 	"encoding/json"
+	"strconv"
 )
 
 "config-image-registry": {
@@ -39,8 +40,8 @@ template: {
 		if parameter.auth == _|_ {
 			type: "Opaque"
 		}
-		if parameter.auth != _|_ {
-			stringData: {
+		stringData: {
+			if parameter.auth != _|_ && parameter.auth.username != _|_ {
 				".dockerconfigjson": json.Marshal({
 					"auths": "\(parameter.registry)": {
 						"username": parameter.auth.username
@@ -52,11 +53,17 @@ template: {
 					}
 				})
 			}
+			if parameter.insecure != _|_ {
+				"insecure-skip-verify": strconv.FormatBool(parameter.insecure)
+			}
+			if parameter.useHTTP != _|_ {
+				"protocol-use-http": strconv.FormatBool(parameter.useHTTP)
+			}
 		}
 	}
 
 	parameter: {
-		// +usage=Image registry FQDN
+		// +usage=Image registry FQDN, such as: index.docker.io
 		registry: string
 		// +usage=Authenticate the image registry
 		auth?: {
@@ -67,5 +74,9 @@ template: {
 			// +usage=Private Image registry email
 			email?: string
 		}
+		// +usage=For the registry server that uses the self-signed certificate
+		insecure?: bool
+		// +usage=For the registry server that uses the HTTP protocol
+		useHTTP?: bool
 	}
 }

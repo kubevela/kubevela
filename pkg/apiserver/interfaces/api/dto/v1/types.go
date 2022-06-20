@@ -22,6 +22,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	registryv1 "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -1379,4 +1380,27 @@ type ChartRepoResponse struct {
 // ChartRepoResponseList the response body of list chart repo
 type ChartRepoResponseList struct {
 	ChartRepoResponse []*ChartRepoResponse `json:"repos"`
+}
+
+// ImageInfo the docker image info
+type ImageInfo struct {
+	Name        string                 `json:"name"`
+	SecretNames []string               `json:"secretNames"`
+	Registry    string                 `json:"registry"`
+	Message     string                 `json:"message,omitempty"`
+	Info        *registryv1.ConfigFile `json:"info,omitempty"`
+	Size        int64                  `json:"size"`
+	Manifest    *registryv1.Manifest   `json:"manifest"`
+}
+
+// ImageRegistry the image repository info
+type ImageRegistry struct {
+	Name       string `json:"name"`
+	SecretName string `json:"secretName"`
+	Domain     string `json:"domain"`
+}
+
+// ListImageRegistryResponse the response struct of listing the image registries
+type ListImageRegistryResponse struct {
+	Registries []ImageRegistry `json:"registries"`
 }
