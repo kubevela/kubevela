@@ -63,5 +63,5 @@ func TestGetImageInfo(t *testing.T) {
 	assert.DeepEqual(t, err.Error(), "incorrect username or password")
 
 	err = getImageInfo("text.registry/test-image", false, false, "", "", &cf)
-	assert.DeepEqual(t, err.Error(), "Get \"https://text.registry/v2/\": dial tcp: lookup text.registry: no such host")
+	assert.DeepEqual(t, err != nil, true)
 }
