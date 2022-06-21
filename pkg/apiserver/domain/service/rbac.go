@@ -202,7 +202,6 @@ var ResourceMaps = map[string]resourceMetadata{
 			},
 			"applicationTemplate": {},
 			"config":              {},
-			"image":               {},
 		},
 		pathName: "projectName",
 	},
