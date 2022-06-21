@@ -32,11 +32,12 @@ var _ = Describe("Test ResourceKeeper utilities", func() {
 
 	It("Test ClearNamespaceForClusterScopedResources", func() {
 		cli := testClient
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}},
+			app:        app,
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli),
+			cache:      newResourceCache(cli, app),
 		}
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "vela"}}
 		nsObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ns)

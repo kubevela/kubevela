@@ -426,6 +426,134 @@ func TestMustBeControlledByApp(t *testing.T) {
 	}
 }
 
+func TestSharedByApp(t *testing.T) {
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
+	ao := SharedByApp(app)
+	testCases := map[string]struct {
+		existing client.Object
+		desired  client.Object
+		output   client.Object
+		hasError bool
+	}{
+		"create new resource": {
+			existing: nil,
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+			}},
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "default/app"},
+				},
+			}},
+		},
+		"add sharer to existing resource": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+			}},
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "default/app"},
+				},
+			}},
+		},
+		"add sharer to existing sharing resource": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "example",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "x/y"},
+				},
+				"data": "x",
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"data": "y",
+			}},
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "example",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "x/y,default/app"},
+				},
+				"data": "x",
+			}},
+		},
+		"add sharer to existing sharing resource owned by self": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "app",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "default/app,x/y"},
+				},
+				"data": "x",
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "app",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "default/app"},
+				},
+				"data": "y",
+			}},
+			output: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "app",
+						oam.LabelAppNamespace: "default",
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: "default/app,x/y"},
+				},
+				"data": "y",
+			}},
+		},
+		"add sharer to existing non-sharing resource": {
+			existing: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      "example",
+						oam.LabelAppNamespace: "default",
+					},
+				},
+			}},
+			desired: &unstructured.Unstructured{Object: map[string]interface{}{
+				"kind": "ConfigMap",
+			}},
+			hasError: true,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			err := ao(&applyAction{}, tc.existing, tc.desired)
+			if tc.hasError {
+				r.Error(err)
+			} else {
+				r.NoError(err)
+				r.Equal(tc.output, tc.desired)
+			}
+		})
+	}
+}
+
 func TestFilterSpecialAnn(t *testing.T) {
 	var cm = &corev1.ConfigMap{}
 	var sc = &corev1.Secret{}

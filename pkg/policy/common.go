@@ -55,3 +55,12 @@ func ParseApplyOncePolicy(app *v1beta1.Application) (*v1alpha1.ApplyOncePolicySp
 	}
 	return nil, nil
 }
+
+// ParseSharedResourcePolicy parse shared-resource policy
+func ParseSharedResourcePolicy(app *v1beta1.Application) (*v1alpha1.SharedResourcePolicySpec, error) {
+	spec := &v1alpha1.SharedResourcePolicySpec{}
+	if exists, err := parsePolicy(app, v1alpha1.SharedResourcePolicyType, spec); exists {
+		return spec, err
+	}
+	return nil, nil
+}

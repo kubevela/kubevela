@@ -81,3 +81,29 @@ func TestParseApplyOncePolicy(t *testing.T) {
 	r.NoError(err)
 	r.Equal(policySpec, spec)
 }
+
+func TestParseSharedResourcePolicy(t *testing.T) {
+	r := require.New(t)
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
+		Policies: []v1beta1.AppPolicy{{Type: "example"}},
+	}}
+	spec, err := ParseSharedResourcePolicy(app)
+	r.NoError(err)
+	r.Nil(spec)
+	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+		Type:       "shared-resource",
+		Properties: &runtime.RawExtension{Raw: []byte("bad value")},
+	})
+	_, err = ParseSharedResourcePolicy(app)
+	r.Error(err)
+	policySpec := &v1alpha1.SharedResourcePolicySpec{
+		Rules: []v1alpha1.SharedResourcePolicyRule{{
+			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceNames: []string{"example"}},
+		}}}
+	bs, err := json.Marshal(policySpec)
+	r.NoError(err)
+	app.Spec.Policies[1].Properties.Raw = bs
+	spec, err = ParseSharedResourcePolicy(app)
+	r.NoError(err)
+	r.Equal(policySpec, spec)
+}

@@ -64,7 +64,11 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 					if err != nil {
 						return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
-					if err = h.applicator.Apply(applyCtx, manifest, apply.MustBeControlledByApp(h.app)); err != nil {
+					ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
+					if h.isShared(manifest) {
+						ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+					}
+					if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
 						return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 					}
 				}
