@@ -17,7 +17,6 @@ limitations under the License.
 package api
 
 import (
-	"context"
 	"strconv"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
@@ -29,16 +28,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
-type helmAPIInterface struct {
-	HelmService service.HelmService `inject:""`
+type repositoryAPIInterface struct {
+	HelmService  service.HelmService  `inject:""`
+	ImageService service.ImageService `inject:""`
+	RbacService  service.RBACService  `inject:""`
 }
 
-// NewHelmAPIInterface will return helm APIInterface
-func NewHelmAPIInterface() Interface {
-	return &helmAPIInterface{}
+// NewRepositoryAPIInterface will return the repository APIInterface
+func NewRepositoryAPIInterface() Interface {
+	return &repositoryAPIInterface{}
 }
 
-func (h helmAPIInterface) GetWebServiceRoute() *restful.WebService {
+func (h repositoryAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws := new(restful.WebService)
 	ws.Path(versionPrefix+"/repository").
 		Consumes(restful.MIME_XML, restful.MIME_JSON).
@@ -47,11 +48,12 @@ func (h helmAPIInterface) GetWebServiceRoute() *restful.WebService {
 
 	tags := []string{"repository", "helm"}
 
-	// List charts
+	// List chart repos
 	ws.Route(ws.GET("/chart_repos").To(h.listRepo).
 		Doc("list chart repo").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Param(ws.QueryParameter("project", "the config project").DataType("string")).
+		Param(ws.QueryParameter("project", "the config project").DataType("string").Required(true)).
+		Filter(h.RbacService.CheckPerm("project/config", "list")).
 		Returns(200, "OK", []string{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
@@ -86,11 +88,31 @@ func (h helmAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes([]string{}))
 
+	ws.Route(ws.GET("/image/repos").To(h.getImageRepos).
+		Doc("get the oci repos").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("project", "the config project").DataType("string").Required(true)).
+		Filter(h.RbacService.CheckPerm("project/config", "list")).
+		Returns(200, "OK", v1.ListImageRegistryResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]string{}))
+
+	ws.Route(ws.GET("/image/info").To(h.getImageInfo).
+		Doc("get the oci repos").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("project", "the config project").DataType("string").Required(true)).
+		Param(ws.QueryParameter("name", "the image name").DataType("string").Required(true)).
+		Param(ws.QueryParameter("secretName", "the secret name of the image repository").DataType("string")).
+		Filter(h.RbacService.CheckPerm("project/config", "list")).
+		Returns(200, "OK", v1.ImageInfo{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes([]string{}))
+
 	ws.Filter(authCheckFilter)
 	return ws
 }
 
-func (h helmAPIInterface) listCharts(req *restful.Request, res *restful.Response) {
+func (h repositoryAPIInterface) listCharts(req *restful.Request, res *restful.Response) {
 	url := utils.Sanitize(req.QueryParameter("repoUrl"))
 	secName := utils.Sanitize(req.QueryParameter("secretName"))
 	skipCache, err := isSkipCache(req)
@@ -98,7 +120,7 @@ func (h helmAPIInterface) listCharts(req *restful.Request, res *restful.Response
 		bcode.ReturnError(req, res, bcode.ErrSkipCacheParameter)
 		return
 	}
-	charts, err := h.HelmService.ListChartNames(context.Background(), url, secName, skipCache)
+	charts, err := h.HelmService.ListChartNames(req.Request.Context(), url, secName, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -110,7 +132,7 @@ func (h helmAPIInterface) listCharts(req *restful.Request, res *restful.Response
 	}
 }
 
-func (h helmAPIInterface) listVersions(req *restful.Request, res *restful.Response) {
+func (h repositoryAPIInterface) listVersions(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
 	chartName := req.PathParameter("chart")
 	secName := req.QueryParameter("secretName")
@@ -120,7 +142,7 @@ func (h helmAPIInterface) listVersions(req *restful.Request, res *restful.Respon
 		return
 	}
 
-	versions, err := h.HelmService.ListChartVersions(context.Background(), url, chartName, secName, skipCache)
+	versions, err := h.HelmService.ListChartVersions(req.Request.Context(), url, chartName, secName, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -132,7 +154,7 @@ func (h helmAPIInterface) listVersions(req *restful.Request, res *restful.Respon
 	}
 }
 
-func (h helmAPIInterface) chartValues(req *restful.Request, res *restful.Response) {
+func (h repositoryAPIInterface) chartValues(req *restful.Request, res *restful.Response) {
 	url := req.QueryParameter("repoUrl")
 	secName := req.QueryParameter("secretName")
 	chartName := req.PathParameter("chart")
@@ -143,7 +165,7 @@ func (h helmAPIInterface) chartValues(req *restful.Request, res *restful.Respons
 		return
 	}
 
-	versions, err := h.HelmService.GetChartValues(context.Background(), url, chartName, version, secName, skipCache)
+	versions, err := h.HelmService.GetChartValues(req.Request.Context(), url, chartName, version, secName, skipCache)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -155,14 +177,39 @@ func (h helmAPIInterface) chartValues(req *restful.Request, res *restful.Respons
 	}
 }
 
-func (h helmAPIInterface) listRepo(req *restful.Request, res *restful.Response) {
+func (h repositoryAPIInterface) listRepo(req *restful.Request, res *restful.Response) {
 	project := req.QueryParameter("project")
-	repos, err := h.HelmService.ListChartRepo(context.Background(), project)
+	repos, err := h.HelmService.ListChartRepo(req.Request.Context(), project)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
 	err = res.WriteEntity(repos)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (h repositoryAPIInterface) getImageRepos(req *restful.Request, res *restful.Response) {
+	project := req.QueryParameter("project")
+	repos, err := h.ImageService.ListImageRepos(req.Request.Context(), project)
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	err = res.WriteEntity(v1.ListImageRegistryResponse{Registries: repos})
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+
+}
+
+func (h repositoryAPIInterface) getImageInfo(req *restful.Request, res *restful.Response) {
+	project := req.QueryParameter("project")
+	imageInfo := h.ImageService.GetImageInfo(req.Request.Context(), project, req.QueryParameter("secretName"), req.QueryParameter("name"))
+	err := res.WriteEntity(imageInfo)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

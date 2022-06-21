@@ -507,14 +507,14 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 func (c *applicationServiceImpl) ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error) {
 	var record = model.WorkflowRecord{
 		AppPrimaryKey: appName,
-		Finished:      "false",
+		Finished:      model.UnFinished,
 	}
 	records, err := c.Store.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	if len(records) == 0 {
-		record.Finished = "true"
+		record.Finished = model.Finished
 		records, err = c.Store.List(ctx, &record, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
