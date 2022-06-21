@@ -29,6 +29,12 @@ func init() {
 	RegisterModel(&WorkflowRecord{})
 }
 
+// Finished means the workflow record is finished
+const Finished = "true"
+
+// UnFinished means the workflow record is not finished
+const UnFinished = "false"
+
 // Workflow application delivery database model
 type Workflow struct {
 	BaseModel

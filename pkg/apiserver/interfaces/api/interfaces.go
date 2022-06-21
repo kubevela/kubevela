@@ -76,7 +76,7 @@ func InitAPIBean() []interface{} {
 	RegisterAPIInterface(NewTargetAPIInterface())
 	RegisterAPIInterface(NewVelaQLAPIInterface())
 	RegisterAPIInterface(NewWebhookAPIInterface())
-	RegisterAPIInterface(NewHelmAPIInterface())
+	RegisterAPIInterface(NewRepositoryAPIInterface())
 
 	// Authentication
 	RegisterAPIInterface(NewAuthenticationAPIInterface())
