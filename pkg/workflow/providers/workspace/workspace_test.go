@@ -243,6 +243,25 @@ message: "terminate"
 	assert.Equal(t, act.msg, "terminate")
 }
 
+func TestProvider_Fail(t *testing.T) {
+	wfCtx := newWorkflowContextForTest(t)
+	p := &provider{}
+	act := &mockAction{}
+	err := p.Fail(wfCtx, nil, act)
+	assert.NilError(t, err)
+	assert.Equal(t, act.terminate, true)
+
+	act = &mockAction{}
+	v, err := value.NewValue(`
+message: "fail"
+`, nil, "")
+	assert.NilError(t, err)
+	err = p.Fail(wfCtx, v, act)
+	assert.NilError(t, err)
+	assert.Equal(t, act.terminate, true)
+	assert.Equal(t, act.msg, "fail")
+}
+
 type mockAction struct {
 	suspend   bool
 	terminate bool
@@ -259,8 +278,14 @@ func (act *mockAction) Terminate(msg string) {
 	act.terminate = true
 	act.msg = msg
 }
+
 func (act *mockAction) Wait(msg string) {
 	act.wait = true
+	act.msg = msg
+}
+
+func (act *mockAction) Fail(msg string) {
+	act.terminate = true
 	act.msg = msg
 }
 

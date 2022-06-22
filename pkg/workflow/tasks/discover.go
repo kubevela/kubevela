@@ -19,9 +19,12 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -74,6 +77,8 @@ func suspend(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Task
 	tr := &suspendTaskRunner{
 		id:   opt.ID,
 		step: step,
+		pd:   opt.PackageDiscover,
+		pCtx: opt.ProcessContext,
 	}
 
 	return tr, nil
@@ -86,6 +91,8 @@ func StepGroup(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Ta
 		name:           step.Name,
 		step:           step,
 		subTaskRunners: opt.SubTaskRunners,
+		pd:             opt.PackageDiscover,
+		pCtx:           opt.ProcessContext,
 	}, nil
 }
 
@@ -114,6 +121,8 @@ func NewTaskDiscoverFromRevision(ctx monitorContext.Context, providerHandlers pr
 type suspendTaskRunner struct {
 	id   string
 	step v1beta1.WorkflowStep
+	pd   *packages.PackageDiscover
+	pCtx process.Context
 }
 
 // Name return suspend step name.
@@ -122,47 +131,70 @@ func (tr *suspendTaskRunner) Name() string {
 }
 
 // Run make workflow suspend.
-func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
-	stepStatus := common.StepStatus{
+func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (stepStatus common.StepStatus, operations *types.Operation, rErr error) {
+	stepStatus = common.StepStatus{
 		ID:    tr.id,
 		Name:  tr.step.Name,
 		Type:  types.WorkflowStepTypeSuspend,
 		Phase: common.WorkflowStepPhaseRunning,
 	}
-	operations := &types.Operation{Suspend: true}
+	operations = &types.Operation{Suspend: true}
 
-	if options != nil {
-		for _, hook := range options.PreCheckHooks {
-			result, err := hook(tr.step)
-			if err != nil {
-				return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
-			}
-			switch {
-			case result.Skip:
-				stepStatus.Phase = common.WorkflowStepPhaseSkipped
-				stepStatus.Reason = custom.StatusReasonSkip
-				operations.Suspend = false
-				operations.Skip = true
-			case result.Timeout:
-				stepStatus.Phase = common.WorkflowStepPhaseFailed
-				stepStatus.Reason = custom.StatusReasonTimeout
-				operations.Suspend = false
-				operations.Terminated = true
-			default:
-				continue
-			}
-			return stepStatus, operations, nil
+	status := &stepStatus
+	defer handleOutput(ctx, status, operations, tr.step, options.PostStopHooks, tr.pd, tr.id, tr.pCtx)
+
+	for _, hook := range options.PreCheckHooks {
+		result, err := hook(tr.step, &types.PreCheckOptions{
+			PackageDiscover: tr.pd,
+			ProcessContext:  tr.pCtx,
+		})
+		if err != nil {
+			stepStatus.Phase = common.WorkflowStepPhaseSkipped
+			stepStatus.Reason = types.StatusReasonSkip
+			stepStatus.Message = fmt.Sprintf("pre check error: %s", err.Error())
+			operations.Suspend = false
+			operations.Skip = true
+			continue
 		}
+		switch {
+		case result.Skip:
+			stepStatus.Phase = common.WorkflowStepPhaseSkipped
+			stepStatus.Reason = types.StatusReasonSkip
+			operations.Suspend = false
+			operations.Skip = true
+		case result.Timeout:
+			stepStatus.Phase = common.WorkflowStepPhaseFailed
+			stepStatus.Reason = types.StatusReasonTimeout
+			operations.Suspend = false
+			operations.Terminated = true
+		default:
+			continue
+		}
+		return stepStatus, operations, nil
 	}
 
+	for _, input := range tr.step.Inputs {
+		if input.ParameterKey == "duration" {
+			inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
+			if err != nil {
+				return common.StepStatus{}, nil, errors.WithMessagef(err, "do preStartHook: get input from [%s]", input.From)
+			}
+			d, err := inputValue.String()
+			if err != nil {
+				return common.StepStatus{}, nil, errors.WithMessagef(err, "do preStartHook: input value from [%s] is not a valid string", input.From)
+			}
+			tr.step.Properties = &runtime.RawExtension{Raw: []byte(`{"duration":` + d + `}`)}
+		}
+	}
 	d, err := GetSuspendStepDurationWaiting(tr.step)
 	if err != nil {
-		return stepStatus, operations, err
+		stepStatus.Message = fmt.Sprintf("invalid suspend duration: %s", err.Error())
+		return stepStatus, operations, nil
 	}
 	if d != 0 {
 		e := options.Engine
 		firstExecuteTime := time.Now()
-		if ss := e.GetStepStatus(tr.step.Name); !ss.FirstExecuteTime.IsZero() {
+		if ss := e.GetCommonStepStatus(tr.step.Name); !ss.FirstExecuteTime.IsZero() {
 			firstExecuteTime = ss.FirstExecuteTime.Time
 		}
 		if time.Now().After(firstExecuteTime.Add(d)) {
@@ -183,6 +215,8 @@ type stepGroupTaskRunner struct {
 	name           string
 	step           v1beta1.WorkflowStep
 	subTaskRunners []types.TaskRunner
+	pd             *packages.PackageDiscover
+	pCtx           process.Context
 }
 
 // Name return suspend step name.
@@ -196,29 +230,40 @@ func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[str
 }
 
 // Run make workflow step group.
-func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (common.StepStatus, *types.Operation, error) {
-	status := common.StepStatus{
+func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (status common.StepStatus, operations *types.Operation, rErr error) {
+	status = common.StepStatus{
 		ID:   tr.id,
 		Name: tr.name,
 		Type: types.WorkflowStepTypeStepGroup,
 	}
+
+	pStatus := &status
+	defer handleOutput(ctx, pStatus, operations, tr.step, options.PostStopHooks, tr.pd, tr.id, tr.pCtx)
 	for _, hook := range options.PreCheckHooks {
-		result, err := hook(tr.step)
+		result, err := hook(tr.step, &types.PreCheckOptions{
+			PackageDiscover: tr.pd,
+			ProcessContext:  options.PCtx,
+		})
 		if err != nil {
-			return common.StepStatus{}, nil, errors.WithMessage(err, "do preCheckHook")
+			status.Phase = common.WorkflowStepPhaseSkipped
+			status.Reason = types.StatusReasonSkip
+			status.Message = fmt.Sprintf("pre check error: %s", err.Error())
+			continue
 		}
 		if result.Skip {
 			status.Phase = common.WorkflowStepPhaseSkipped
-			status.Reason = custom.StatusReasonSkip
+			status.Reason = types.StatusReasonSkip
 			options.StepStatus[tr.step.Name] = status
 			break
 		}
 		if result.Timeout {
 			status.Phase = common.WorkflowStepPhaseFailed
-			status.Reason = custom.StatusReasonTimeout
+			status.Reason = types.StatusReasonTimeout
 			options.StepStatus[tr.step.Name] = status
 		}
 	}
+	// step-group has no properties so there is no need to fill in the properties with the input values
+	// skip input handle here
 	e := options.Engine
 	if len(tr.subTaskRunners) > 0 {
 		e.SetParentRunner(tr.name)
@@ -233,8 +278,14 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 		}
 		e.SetParentRunner("")
 	}
-	stepStatus := e.GetStepStatus(tr.name)
 
+	stepStatus := e.GetStepStatus(tr.name)
+	status, operations = getStepGroupStatus(status, stepStatus, e.GetOperation(), len(tr.subTaskRunners))
+
+	return status, operations, nil
+}
+
+func getStepGroupStatus(status common.StepStatus, stepStatus common.WorkflowStepStatus, operation *types.Operation, subTaskRunners int) (common.StepStatus, *types.Operation) {
 	subStepCounts := make(map[string]int)
 	for _, subStepsStatus := range stepStatus.SubStepsStatus {
 		subStepCounts[string(subStepsStatus.Phase)]++
@@ -242,10 +293,10 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 	}
 	switch {
 	case status.Phase == common.WorkflowStepPhaseSkipped:
-		return status, &types.Operation{Skip: true}, nil
-	case status.Phase == common.WorkflowStepPhaseFailed && status.Reason == custom.StatusReasonTimeout:
-		return status, &types.Operation{Terminated: true}, nil
-	case len(stepStatus.SubStepsStatus) < len(tr.subTaskRunners):
+		return status, &types.Operation{Skip: true}
+	case status.Phase == common.WorkflowStepPhaseFailed && status.Reason == types.StatusReasonTimeout:
+		return status, &types.Operation{Terminated: true}
+	case len(stepStatus.SubStepsStatus) < subTaskRunners:
 		status.Phase = common.WorkflowStepPhaseRunning
 	case subStepCounts[string(common.WorkflowStepPhaseRunning)] > 0:
 		status.Phase = common.WorkflowStepPhaseRunning
@@ -254,20 +305,22 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 	case subStepCounts[string(common.WorkflowStepPhaseFailed)] > 0:
 		status.Phase = common.WorkflowStepPhaseFailed
 		switch {
-		case subStepCounts[custom.StatusReasonFailedAfterRetries] > 0:
-			status.Reason = custom.StatusReasonFailedAfterRetries
-		case subStepCounts[custom.StatusReasonTimeout] > 0:
-			status.Reason = custom.StatusReasonTimeout
-		case subStepCounts[custom.StatusReasonTerminate] > 0:
-			status.Reason = custom.StatusReasonTerminate
+		case subStepCounts[types.StatusReasonFailedAfterRetries] > 0:
+			status.Reason = types.StatusReasonFailedAfterRetries
+		case subStepCounts[types.StatusReasonTimeout] > 0:
+			status.Reason = types.StatusReasonTimeout
+		case subStepCounts[types.StatusReasonAction] > 0:
+			status.Reason = types.StatusReasonAction
+		case subStepCounts[types.StatusReasonTerminate] > 0:
+			status.Reason = types.StatusReasonTerminate
 		}
-	case subStepCounts[string(common.WorkflowStepPhaseSkipped)] > 0:
+	case subStepCounts[string(common.WorkflowStepPhaseSkipped)] > 0 && subStepCounts[string(common.WorkflowStepPhaseSkipped)] == subTaskRunners:
 		status.Phase = common.WorkflowStepPhaseSkipped
-		status.Reason = custom.StatusReasonSkip
+		status.Reason = types.StatusReasonSkip
 	default:
 		status.Phase = common.WorkflowStepPhaseSucceeded
 	}
-	return status, e.GetOperation(), nil
+	return status, operation
 }
 
 // NewViewTaskDiscover will create a client for load task generator.
@@ -309,4 +362,32 @@ func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (time.Duration, er
 	}
 
 	return 0, nil
+}
+
+func handleOutput(ctx wfContext.Context, stepStatus *common.StepStatus, operations *types.Operation, step v1beta1.WorkflowStep, postStopHooks []types.TaskPostStopHook, pd *packages.PackageDiscover, id string, pCtx process.Context) {
+	status := *stepStatus
+	if status.Phase != common.WorkflowStepPhaseSkipped && len(step.Outputs) > 0 {
+		contextValue, err := custom.MakeValueForContext(ctx, pd, id, pCtx)
+		if err != nil {
+			status.Phase = common.WorkflowStepPhaseFailed
+			if status.Reason == "" {
+				status.Reason = types.StatusReasonOutput
+			}
+			operations.Terminated = true
+			status.Message = fmt.Sprintf("make context value error: %s", err.Error())
+			return
+		}
+
+		for _, hook := range postStopHooks {
+			if err := hook(ctx, contextValue, step, status); err != nil {
+				status.Phase = common.WorkflowStepPhaseFailed
+				if status.Reason == "" {
+					status.Reason = types.StatusReasonOutput
+				}
+				operations.Terminated = true
+				status.Message = fmt.Sprintf("output error: %s", err.Error())
+				return
+			}
+		}
+	}
 }
