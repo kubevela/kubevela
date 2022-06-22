@@ -43,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
@@ -629,23 +628,23 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 	for i, step := range steps {
 		switch step.Phase {
 		case common.WorkflowStepPhaseFailed:
-			if step.Reason != custom.StatusReasonFailedAfterRetries && step.Reason != custom.StatusReasonTimeout {
-				steps[i].Reason = custom.StatusReasonTerminate
+			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
+				steps[i].Reason = wfTypes.StatusReasonTerminate
 			}
 		case common.WorkflowStepPhaseRunning:
 			steps[i].Phase = common.WorkflowStepPhaseFailed
-			steps[i].Reason = custom.StatusReasonTerminate
+			steps[i].Reason = wfTypes.StatusReasonTerminate
 		default:
 		}
 		for j, sub := range step.SubStepsStatus {
 			switch sub.Phase {
 			case common.WorkflowStepPhaseFailed:
-				if sub.Reason != custom.StatusReasonFailedAfterRetries && sub.Reason != custom.StatusReasonTimeout {
-					steps[i].SubStepsStatus[j].Phase = custom.StatusReasonTerminate
+				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
+					steps[i].SubStepsStatus[j].Phase = wfTypes.StatusReasonTerminate
 				}
 			case common.WorkflowStepPhaseRunning:
 				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = custom.StatusReasonTerminate
+				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 			default:
 			}
 		}

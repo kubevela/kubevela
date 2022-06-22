@@ -216,19 +216,19 @@ type WorkflowState string
 
 const (
 	// WorkflowStateInitializing means the workflow is in initial state
-	WorkflowStateInitializing WorkflowState = "initializing"
+	WorkflowStateInitializing WorkflowState = "Initializing"
 	// WorkflowStateTerminated means workflow is terminated manually, and it won't be started unless the spec changed.
-	WorkflowStateTerminated WorkflowState = "terminated"
+	WorkflowStateTerminated WorkflowState = "Terminated"
 	// WorkflowStateSuspended means workflow is suspended manually, and it can be resumed.
-	WorkflowStateSuspended WorkflowState = "suspended"
+	WorkflowStateSuspended WorkflowState = "Suspended"
 	// WorkflowStateSucceeded means workflow is running successfully, all steps finished.
 	WorkflowStateSucceeded WorkflowState = "Succeeded"
 	// WorkflowStateFinished means workflow is end.
-	WorkflowStateFinished WorkflowState = "finished"
+	WorkflowStateFinished WorkflowState = "Finished"
 	// WorkflowStateExecuting means workflow is still running or waiting some steps.
-	WorkflowStateExecuting WorkflowState = "executing"
+	WorkflowStateExecuting WorkflowState = "Executing"
 	// WorkflowStateSkipping means it will skip this reconcile and let next reconcile to handle it.
-	WorkflowStateSkipping WorkflowState = "skipping"
+	WorkflowStateSkipping WorkflowState = "Skipping"
 )
 
 // ApplicationComponentStatus record the health status of App component

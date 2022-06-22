@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 var workflowSpec = v1beta1.ApplicationSpec{
@@ -386,14 +386,13 @@ func TestWorkflowTerminate(t *testing.T) {
 			r.Equal(true, wf.Status.Workflow.Terminated)
 			for _, step := range wf.Status.Workflow.Steps {
 				if step.Phase != common.WorkflowStepPhaseSucceeded {
-					fmt.Println("======", step.Name)
 					r.Equal(step.Phase, common.WorkflowStepPhaseFailed)
-					r.Equal(step.Reason, custom.StatusReasonTerminate)
+					r.Equal(step.Reason, wfTypes.StatusReasonTerminate)
 				}
 				for _, sub := range step.SubStepsStatus {
 					if sub.Phase != common.WorkflowStepPhaseSucceeded {
 						r.Equal(sub.Phase, common.WorkflowStepPhaseFailed)
-						r.Equal(sub.Reason, custom.StatusReasonTerminate)
+						r.Equal(sub.Reason, wfTypes.StatusReasonTerminate)
 					}
 				}
 			}
