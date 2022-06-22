@@ -93,6 +93,7 @@ func StepGroup(step v1beta1.WorkflowStep, opt *types.GeneratorOptions) (types.Ta
 		subTaskRunners: opt.SubTaskRunners,
 		pd:             opt.PackageDiscover,
 		pCtx:           opt.ProcessContext,
+		mode:           opt.ExecuteMode,
 	}, nil
 }
 
@@ -217,6 +218,7 @@ type stepGroupTaskRunner struct {
 	subTaskRunners []types.TaskRunner
 	pd             *packages.PackageDiscover
 	pCtx           process.Context
+	mode           common.WorkflowMode
 }
 
 // Name return suspend step name.
@@ -267,8 +269,11 @@ func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRun
 	e := options.Engine
 	if len(tr.subTaskRunners) > 0 {
 		e.SetParentRunner(tr.name)
-		// set sub steps to dag mode for now
-		if err := e.Run(tr.subTaskRunners, true); err != nil {
+		dag := true
+		if tr.mode == common.WorkflowModeStep {
+			dag = false
+		}
+		if err := e.Run(tr.subTaskRunners, dag); err != nil {
 			return common.StepStatus{
 				ID:    tr.id,
 				Name:  tr.name,

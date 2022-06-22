@@ -342,6 +342,8 @@ type WorkflowStep struct {
 
 	Type string `json:"type"`
 
+	Meta *WorkflowStepMeta `json:"meta,omitempty"`
+
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
@@ -358,12 +360,19 @@ type WorkflowStep struct {
 	Outputs StepOutputs `json:"outputs,omitempty"`
 }
 
+// WorkflowStepMeta contains the meta data of a workflow step
+type WorkflowStepMeta struct {
+	Alias string `json:"alias,omitempty"`
+}
+
 // WorkflowSubStep defines how to execute a workflow subStep.
 type WorkflowSubStep struct {
 	// Name is the unique name of the workflow step.
 	Name string `json:"name"`
 
 	Type string `json:"type"`
+
+	Meta *WorkflowStepMeta `json:"meta,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`

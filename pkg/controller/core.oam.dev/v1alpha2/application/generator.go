@@ -129,6 +129,7 @@ func generateStep(ctx context.Context,
 				Outputs:    subStep.Outputs,
 				If:         subStep.If,
 				Timeout:    subStep.Timeout,
+				Meta:       subStep.Meta,
 			}
 			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, pd, pCtx, step.Name)
 			if err != nil {
@@ -137,6 +138,10 @@ func generateStep(ctx context.Context,
 			subTaskRunners = append(subTaskRunners, subTask)
 		}
 		options.SubTaskRunners = subTaskRunners
+		options.ExecuteMode = common.WorkflowModeDAG
+		if app.Spec.Workflow != nil && app.Spec.Workflow.Mode != nil {
+			options.ExecuteMode = app.Spec.Workflow.Mode.SubSteps
+		}
 	}
 
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
