@@ -44,28 +44,24 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Login Alibaba Cloud ACR
+      - name: Login kubevela private registry
         uses: docker/login-action@v1
         with:
-          registry: kubevela-registry.cn-hangzhou.cr.aliyuncs.com
-          username: ${{ secrets.ACR_USERNAME }}@aliyun-inner.com
+          registry: ${{ secrets.ACR_DOMAIN }}
+          username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
       - uses: docker/setup-qemu-action@v1
       - uses: docker/setup-buildx-action@v1
         with:
           driver-opts: image=moby/buildkit:master
-
-      - name: Build & Pushing vela-core for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }} .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
+      
       - uses: docker/build-push-action@v2
-        name: Build & Pushing vela-core for Dockerhub and GHCR
+        name: Build & Pushing vela-core
         with:
           context: .
           file: Dockerfile
           labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository_owner }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
@@ -75,19 +71,16 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/vela-core:${{ steps.get_version.outputs.VERSION }}
+            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
-      - name: Build & Pushing vela-apiserver for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }} -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }} -f Dockerfile.apiserver .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing vela-apiserver for Dockerhub and GHCR
+        name: Build & Pushing vela-apiserver
         with:
           context: .
           file: Dockerfile.apiserver
           labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository_owner }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
@@ -97,19 +90,16 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
+            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-apiserver:${{ steps.get_version.outputs.VERSION }}
 
-      - name: Build & Pushing vela runtime rollout for ACR
-        run: |
-          docker build --build-arg GOPROXY=https://proxy.golang.org --build-arg VERSION=${{ steps.get_version.outputs.VERSION }} --build-arg GITVERSION=git-${{ steps.vars.outputs.git_revision }}  -t kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }} .
-          docker push kubevela-registry.cn-hangzhou.cr.aliyuncs.com/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
       - uses: docker/build-push-action@v2
-        name: Build & Pushing runtime rollout for Dockerhub and GHCR
+        name: Build & Pushing runtime rollout
         with:
           context: .
           file: runtime/rollout/Dockerfile
           labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository_owner }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
@@ -119,7 +109,8 @@ jobs:
             GOPROXY=https://proxy.golang.org
           tags: |-
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+            ${{ secrets.ACR_DOMAIN }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:
