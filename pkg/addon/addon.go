@@ -1525,10 +1525,19 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 	if err := k8sClient.List(ctx, deployList, client.MatchingLabels{oam.LabelControllerName: oam.ApplicationControllerName}); err != nil {
 		return "", err
 	}
+	deploy := appsv1.Deployment{}
 	if len(deployList.Items) == 0 {
-		return "", errors.New("can't find a running KubeVela instance, please install it first")
+		// backward compatible logic old version which vela-core controller has no this label
+		if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: types.KubeVelaControllerDeployment}, &deploy); err != nil {
+			if apierrors.IsNotFound(err) {
+				return "", errors.New("can't find a running KubeVela instance, please install it first")
+			}
+			return "", err
+		}
+	} else {
+		deploy = deployList.Items[0]
 	}
-	deploy := deployList.Items[0]
+
 	var tag string
 	for _, c := range deploy.Spec.Template.Spec.Containers {
 		if c.Name == types.DefaultKubeVelaReleaseName {
