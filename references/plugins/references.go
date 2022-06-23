@@ -55,14 +55,6 @@ const (
 	KubeVelaIOTerraformPathZh = "../kubevela.io/i18n/zh/docusaurus-plugin-content-docs/current/end-user/components/cloud-services/terraform"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
-	// ComponentDefinitionTypePath is the URL path for component typed capability
-	ComponentDefinitionTypePath = "components"
-	// WorkloadTypePath is the URL path for workload typed capability
-	WorkloadTypePath = "workload-types"
-	// TraitPath is the URL path for trait typed capability
-	TraitPath = "traits"
-	// WorkflowStepPath is the URL path for workflow step typed capability
-	WorkflowStepPath = "workflowsteps"
 )
 
 // Int64Type is int64 type
@@ -656,18 +648,20 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			sample        string
 			specification string
 		)
-		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait {
+		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait &&
+			c.Type != types.TypeWorkflowStep && c.Type != types.TypePolicy {
 			return fmt.Errorf("the type of the capability is not right")
 		}
 
-		fileName := fmt.Sprintf("%s.md", c.Name)
-		if _, err := os.Stat(baseRefPath); err != nil && os.IsNotExist(err) {
-			if err := os.MkdirAll(baseRefPath, 0750); err != nil {
+		refPath := filepath.Join(baseRefPath, string(c.Type))
+		if _, err := os.Stat(refPath); err != nil && os.IsNotExist(err) {
+			if err := os.MkdirAll(refPath, 0750); err != nil {
 				return err
 			}
 		}
 
-		markdownFile := filepath.Join(baseRefPath, fileName)
+		fileName := fmt.Sprintf("%s.md", c.Name)
+		markdownFile := filepath.Join(refPath, fileName)
 		f, err := os.OpenFile(filepath.Clean(markdownFile), os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open file %s: %w", markdownFile, err)
@@ -869,11 +863,13 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		}
 		if arguments.Len() == 0 {
 			var param ReferenceParameter
-			param.Name = "-"
+			param.Name = "\\-"
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
 				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+			} else {
+				param.PrintableType = "{}"
 			}
 			params = append(params, param)
 		}
