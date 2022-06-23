@@ -54,14 +54,14 @@ func TestCheckAddonName(t *testing.T) {
 	}
 }
 
-func TestWriteHelmComponentTemplate(t *testing.T) {
-	resourceTmpl := HelmComponentTemplate{}
+func TestWriteHelmCUETemplate(t *testing.T) {
+	resourceTmpl := HelmCUETemplate{}
 	resourceTmpl.Output.Type = "helm"
 	resourceTmpl.Output.Properties.RepoType = "helm"
 	resourceTmpl.Output.Properties.URL = "https://charts.bitnami.com/bitnami"
 	resourceTmpl.Output.Properties.Chart = "bitnami/nginx"
 	resourceTmpl.Output.Properties.Version = "12.0.4"
-	err := writeHelmComponentTemplate(resourceTmpl, "test.cue")
+	err := writeHelmCUETemplate(resourceTmpl, "test.cue")
 	assert.NilError(t, err)
 	defer func() {
 		_ = os.Remove("test.cue")
@@ -108,7 +108,7 @@ func TestCreateAddonFromHelmChart(t *testing.T) {
 	}()
 
 	// Non-empty dir already exists
-	err = CreateAddonFromHelmChart("test-addon", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("test-addon", "test-addon", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "not empty")
 
 	// Name already taken
@@ -117,14 +117,55 @@ func TestCreateAddonFromHelmChart(t *testing.T) {
 	defer func() {
 		_ = os.Remove("already-taken")
 	}()
-	err = CreateAddonFromHelmChart("already-taken", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("already-taken", "already-taken", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "can't create")
 
 	// Invalid addon name
-	err = CreateAddonFromHelmChart("/", "", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("/", "./a", "https://charts.bitnami.com/bitnami", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "should only")
 
 	// Invalid URL
-	err = CreateAddonFromHelmChart("invalid-url", "", "invalid-url", "bitnami/nginx", "12.0.4")
+	err = CreateAddonFromHelmChart("invalid-url", "invalid-url", "invalid-url", "bitnami/nginx", "12.0.4")
 	assert.ErrorContains(t, err, "invalid helm repo url")
+}
+
+func TestCreateAddonSample(t *testing.T) {
+	checkFiles := func(base string) {
+		fileList := []string{
+			"definitions",
+			"resources",
+			"schemas",
+			MetadataFileName,
+			ReadmeFileName,
+			TemplateFileName,
+		}
+		for _, file := range fileList {
+			_, err := os.Stat(path.Join(base, file))
+			assert.NilError(t, err)
+		}
+	}
+
+	// Normal creation
+	err := CreateAddonSample("test-addon", "test-addon")
+	assert.NilError(t, err)
+	checkFiles("test-addon")
+
+	// Non-empty dir already exists
+	err = CreateAddonSample("test-addon", "test-addon")
+	assert.ErrorContains(t, err, "directory")
+
+	defer func() {
+		_ = os.RemoveAll("test-addon")
+	}()
+
+	err = CreateAddonSample("", "")
+	assert.ErrorContains(t, err, "empty")
+}
+
+func TestPreAddonCreation(t *testing.T) {
+	err := preAddonCreation("", "")
+	assert.ErrorContains(t, err, "empty")
+
+	err = preAddonCreation("=", "a")
+	assert.ErrorContains(t, err, "name")
 }

@@ -372,7 +372,7 @@ func NewAddonCreateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "create an addon scaffold",
-		Long:  "Create an addon scaffold along with the common files based on a Helm Chart for quick starting.",
+		Long:  "Create an addon scaffold for quick starting. A Helm Component is generated if you provide Chart-related parameters.",
 		Example: `	vela addon init mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
 will create something like this:
 	mongodb/
@@ -386,34 +386,39 @@ will create something like this:
 
 If you want to store the scaffold in a different directory, you can use the -p/--path flag:
 	vela addon init mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
-`,
+
+If you don't want the Helm component, just omit the three Chart-related parameters. We will create an empty scaffold for you.
+	vela addon init mongodb`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("an addon name is required")
 			}
 
-			return pkgaddon.CreateAddonFromHelmChart(args[0], path, helmRepoURL, chartName, chartVersion)
+			addonName := args[0]
+
+			// Scaffold will be created in ./addonName, unless the user specifies a path
+			// validity of addon names will be checked later
+			addonPath := addonName
+			if len(path) > 0 {
+				addonPath = path
+			}
+
+			if addonName == "" || addonPath == "" {
+				return fmt.Errorf("addon name or path should not be empty")
+			}
+
+			// If the user specified all Chart-related info, use the addon template with a Chart in it.
+			if helmRepoURL != "" && chartName != "" && chartVersion != "" {
+				return pkgaddon.CreateAddonFromHelmChart(args[0], addonPath, helmRepoURL, chartName, chartVersion)
+			}
+
+			return pkgaddon.CreateAddonSample(addonName, addonPath)
 		},
 	}
 
 	cmd.Flags().StringVar(&helmRepoURL, "helm-repo-url", "", "URL that points to a Helm repo")
-	err := cmd.MarkFlagRequired("helm-repo-url")
-	if err != nil {
-		return nil
-	}
-
 	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
-	err = cmd.MarkFlagRequired("chart")
-	if err != nil {
-		return nil
-	}
-
 	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
-	err = cmd.MarkFlagRequired("version")
-	if err != nil {
-		return nil
-	}
-
 	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
 
 	return cmd
