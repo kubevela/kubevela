@@ -228,3 +228,9 @@ func usingAppsInfo(apps []v1beta1.Application) string {
 func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil
 }
+
+type InstallOption func(installer *Installer)
+
+func SkipValidateVersion(installer *Installer) {
+	installer.skipVersionValidate = true
+}

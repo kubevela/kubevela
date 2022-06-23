@@ -1113,21 +1113,22 @@ func Convert2SecName(name string) string {
 
 // Installer helps addon enable, dependency-check, dispatch resources
 type Installer struct {
-	ctx          context.Context
-	config       *rest.Config
-	addon        *InstallPackage
-	cli          client.Client
-	apply        apply.Applicator
-	r            *Registry
-	registryMeta map[string]SourceMeta
-	args         map[string]interface{}
-	cache        *Cache
-	dc           *discovery.DiscoveryClient
+	ctx                 context.Context
+	config              *rest.Config
+	addon               *InstallPackage
+	cli                 client.Client
+	apply               apply.Applicator
+	r                   *Registry
+	registryMeta        map[string]SourceMeta
+	args                map[string]interface{}
+	cache               *Cache
+	dc                  *discovery.DiscoveryClient
+	skipVersionValidate bool
 }
 
 // NewAddonInstaller will create an installer for addon
-func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache) Installer {
-	return Installer{
+func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, opts ...InstallOption) Installer {
+	i := Installer{
 		ctx:    ctx,
 		config: config,
 		cli:    cli,
@@ -1137,14 +1138,21 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 		cache:  cache,
 		dc:     discoveryClient,
 	}
+	for _, opt := range opts {
+		opt(&i)
+	}
+	return i
 }
 
 func (h *Installer) enableAddon(addon *InstallPackage) error {
 	var err error
 	h.addon = addon
-	err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
-	if err != nil {
-		return VersionUnMatchError{addonName: addon.Name, err: err}
+
+	if !h.skipVersionValidate {
+		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
+		if err != nil {
+			return VersionUnMatchError{addonName: addon.Name, err: err}
+		}
 	}
 
 	if err = h.installDependency(addon); err != nil {
@@ -1513,10 +1521,14 @@ func checkSemVer(actual string, require string) (bool, error) {
 }
 
 func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string, error) {
-	deploy := &appsv1.Deployment{}
-	if err := k8sClient.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: types.KubeVelaControllerDeployment}, deploy); err != nil {
+	deployList := &appsv1.DeploymentList{}
+	if err := k8sClient.List(ctx, deployList, client.MatchingLabels{oam.LabelControllerName: oam.ApplicationControllerName}); err != nil {
 		return "", err
 	}
+	if len(deployList.Items) == 0 {
+		return "", errors.New("System hasn't install vela yet, please install first")
+	}
+	deploy := deployList.Items[0]
 	var tag string
 	for _, c := range deploy.Spec.Template.Spec.Containers {
 		if c.Name == types.DefaultKubeVelaReleaseName {
