@@ -1526,7 +1526,7 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 		return "", err
 	}
 	if len(deployList.Items) == 0 {
-		return "", errors.New("System hasn't install vela yet, please install first")
+		return "", errors.New("can't find a running KubeVela instance, please install it first")
 	}
 	deploy := deployList.Items[0]
 	var tag string
