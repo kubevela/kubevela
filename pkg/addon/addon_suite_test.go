@@ -409,7 +409,7 @@ metadata:
   name: kubevela-vela-core
   namespace: vela-system
   labels:
-     controller.oam.dev/name: application
+     controller.oam.dev/name: vela-core
 spec:
   progressDeadlineSeconds: 600
   replicas: 1
