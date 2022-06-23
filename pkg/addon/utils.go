@@ -229,8 +229,10 @@ func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil
 }
 
+// InstallOption define additional option for installation
 type InstallOption func(installer *Installer)
 
+// SkipValidateVersion means skip validating system version
 func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
 }
