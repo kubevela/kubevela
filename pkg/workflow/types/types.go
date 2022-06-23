@@ -107,6 +107,7 @@ type GeneratorOptions struct {
 	SubTaskRunners  []TaskRunner
 	PackageDiscover *packages.PackageDiscover
 	ProcessContext  process.Context
+	ExecuteMode     common.WorkflowMode
 }
 
 // Action is that workflow provider can do.
