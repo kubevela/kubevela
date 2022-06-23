@@ -649,7 +649,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			specification string
 		)
 		if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait &&
-			c.Type != types.TypeWorkflowStep {
+			c.Type != types.TypeWorkflowStep && c.Type != types.TypePolicy {
 			return fmt.Errorf("the type of the capability is not right")
 		}
 

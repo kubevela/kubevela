@@ -211,7 +211,7 @@ func launch(server *http.Server, errChan chan<- error) {
 
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
-	components, traits, workflowsteps := getDefinitions(capabilities)
+	components, traits, workflowSteps, policies := getDefinitions(capabilities)
 	f, err := os.Create(sideBar)
 	if err != nil {
 		return err
@@ -236,8 +236,17 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	if _, err := f.WriteString("- Workflow Steps\n"); err != nil {
 		return err
 	}
-	for _, t := range workflowsteps {
+	for _, t := range workflowSteps {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
+			return err
+		}
+	}
+
+	if _, err := f.WriteString("- Policies\n"); err != nil {
+		return err
+	}
+	for _, t := range policies {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypePolicy, t)); err != nil {
 			return err
 		}
 	}
@@ -312,7 +321,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 
-	workloads, traits, workflowsteps := getDefinitions(capabilities)
+	workloads, traits, workflowSteps, policies := getDefinitions(capabilities)
 
 	if _, err := f.WriteString("## Component Types\n"); err != nil {
 		return err
@@ -336,16 +345,26 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	if _, err := f.WriteString("## Workflow Steps\n"); err != nil {
 		return err
 	}
-	for _, t := range workflowsteps {
+	for _, t := range workflowSteps {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
 			return err
 		}
 	}
+
+	if _, err := f.WriteString("## Policies\n"); err != nil {
+		return err
+	}
+	for _, t := range policies {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypePolicy, t)); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func getDefinitions(capabilities []types.Capability) ([]string, []string, []string) {
-	var components, traits, workflowSteps []string
+func getDefinitions(capabilities []types.Capability) ([]string, []string, []string, []string) {
+	var components, traits, workflowSteps, policies []string
 	for _, c := range capabilities {
 		switch c.Type {
 		case types.TypeComponentDefinition:
@@ -354,12 +373,14 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 			traits = append(traits, c.Name)
 		case types.TypeWorkflowStep:
 			workflowSteps = append(workflowSteps, c.Name)
+		case types.TypePolicy:
+			policies = append(policies, c.Name)
 		case types.TypeScope:
 		case types.TypeWorkload:
 		default:
 		}
 	}
-	return components, traits, workflowSteps
+	return components, traits, workflowSteps, policies
 }
 
 // ShowReferenceConsole will show capability reference in console

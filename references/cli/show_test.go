@@ -146,10 +146,15 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	type want struct {
 		workloads []string
 		traits    []string
+		policies  []string
 	}
-	workloadName := "component1"
-	traitName := "trait1"
-	scopeName := "scope1"
+
+	var (
+		workloadName = "component1"
+		traitName    = "trait1"
+		scopeName    = "scope1"
+		policyName   = "policy1"
+	)
 
 	cases := map[string]struct {
 		reason       string
@@ -186,11 +191,22 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 				traits:    nil,
 			},
 		},
+		"PolicyTypeCapability": {
+			capabilities: []types.Capability{
+				{
+					Name: policyName,
+					Type: types.TypePolicy,
+				},
+			},
+			want: want{
+				policies: []string{policyName},
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			gotWorkloads, gotTraits, _ := getDefinitions(tc.capabilities)
-			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits})
+			gotWorkloads, gotTraits, _, gotPolicies := getDefinitions(tc.capabilities)
+			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits, policies: gotPolicies})
 		})
 	}
 }
