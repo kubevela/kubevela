@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: affinity specify affinity and tolerationon K8s pod for your workload which follows the pod spec in path 'spec.template'.
+    definition.oam.dev/description: Affinity specifies affinity and toleration K8s pod for your workload which follows the pod spec in path 'spec.template'.
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: affinity
