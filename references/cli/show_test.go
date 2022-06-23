@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const BaseDir = "testdata"
@@ -134,9 +133,9 @@ func TestGenerateREADME(t *testing.T) {
 			for _, c := range tc.capabilities {
 				switch c.Type {
 				case types.TypeComponentDefinition:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.ComponentDefinitionTypePath, c.Name))
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeComponentDefinition, c.Name))
 				case types.TypeTrait:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.TraitPath, c.Name))
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeTrait, c.Name))
 				}
 			}
 		})
@@ -147,10 +146,15 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	type want struct {
 		workloads []string
 		traits    []string
+		policies  []string
 	}
-	workloadName := "component1"
-	traitName := "trait1"
-	scopeName := "scope1"
+
+	var (
+		workloadName = "component1"
+		traitName    = "trait1"
+		scopeName    = "scope1"
+		policyName   = "policy1"
+	)
 
 	cases := map[string]struct {
 		reason       string
@@ -187,11 +191,22 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 				traits:    nil,
 			},
 		},
+		"PolicyTypeCapability": {
+			capabilities: []types.Capability{
+				{
+					Name: policyName,
+					Type: types.TypePolicy,
+				},
+			},
+			want: want{
+				policies: []string{policyName},
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			gotWorkloads, gotTraits, _ := getDefinitions(tc.capabilities)
-			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits})
+			gotWorkloads, gotTraits, _, gotPolicies := getDefinitions(tc.capabilities)
+			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits, policies: gotPolicies})
 		})
 	}
 }

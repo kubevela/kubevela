@@ -4,7 +4,7 @@
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "affinity specify affinity and tolerationon K8s pod for your workload which follows the pod spec in path 'spec.template'."
+	description: "Affinity specifies affinity and toleration K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		appliesToWorkloads: ["*"]
 		podDisruptive: true
