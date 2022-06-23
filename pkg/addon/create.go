@@ -18,11 +18,12 @@ package addon
 
 import (
 	"fmt"
-	"github.com/fatih/color"
 	"os"
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/fatih/color"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
@@ -63,7 +64,7 @@ func CreateAddonFromHelmChart(addonName, addonPath, helmRepoURL, chartName, char
 		return fmt.Errorf("cannot create addon files: %w", err)
 	}
 
-	postAddonCreation(addonName, addonPath)
+	postAddonCreation(addonPath)
 
 	return nil
 }
@@ -84,7 +85,7 @@ func CreateAddonSample(addonName, addonPath string) error {
 		return err
 	}
 
-	postAddonCreation(addonName, addonPath)
+	postAddonCreation(addonPath)
 
 	return nil
 }
@@ -113,7 +114,7 @@ func preAddonCreation(addonName, addonPath string) error {
 
 // postAddonCreation is after before creating an addon scaffold
 // It prints some instructions to get started.
-func postAddonCreation(addonName, addonPath string) {
+func postAddonCreation(addonPath string) {
 	fmt.Println("Scaffold created in directory " +
 		color.New(color.Bold).Sprint(addonPath) + ". What to do next:\n" +
 		"- Check out our guide on how to build your own addon: " +
