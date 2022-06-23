@@ -21,5 +21,5 @@ var (
 	SystemDefinitonNamespace string = "vela-system"
 
 	// ApplicationControllerName means the controller is application
-	ApplicationControllerName string = "application"
+	ApplicationControllerName string = "vela-core"
 )
