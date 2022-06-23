@@ -863,11 +863,13 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		}
 		if arguments.Len() == 0 {
 			var param ReferenceParameter
-			param.Name = "-"
+			param.Name = "\\-"
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
 				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+			} else {
+				param.PrintableType = "{}"
 			}
 			params = append(params, param)
 		}
