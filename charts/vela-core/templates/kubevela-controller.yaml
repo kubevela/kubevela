@@ -122,7 +122,7 @@ metadata:
   name: {{ include "kubevela.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    controller.oam.dev/name: application
+    controller.oam.dev/name: vela-core
   {{- include "kubevela.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
