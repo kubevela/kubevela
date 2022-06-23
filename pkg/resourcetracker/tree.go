@@ -85,10 +85,7 @@ func (options *ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.Res
 			if mr.Deleted {
 				continue
 			}
-			rows = append(rows, &resourceRow{
-				mr:     mr.DeepCopy(),
-				status: resourceRowStatusUpdated,
-			})
+			rows = append(rows, buildResourceRow(mr, resourceRowStatusUpdated))
 		}
 	}
 	for _, rt := range historyRT {
@@ -100,10 +97,7 @@ func (options *ResourceTreePrintOptions) loadResourceRows(currentRT *v1beta1.Res
 				}
 			}
 			if matchedRow == nil {
-				rows = append(rows, &resourceRow{
-					mr:     mr.DeepCopy(),
-					status: resourceRowStatusOutdated,
-				})
+				rows = append(rows, buildResourceRow(mr, resourceRowStatusOutdated))
 			}
 		}
 	}
@@ -409,4 +403,15 @@ func RetrieveKubeCtlGetMessageGenerator(cfg *rest.Config) (ResourceDetailRetriev
 		}
 		return nil
 	}, nil
+}
+
+func buildResourceRow(mr v1beta1.ManagedResource, resourceStatus string) *resourceRow {
+	rr := &resourceRow{
+		mr:     mr.DeepCopy(),
+		status: resourceStatus,
+	}
+	if rr.mr.Cluster == "" {
+		rr.mr.Cluster = multicluster.ClusterLocalName
+	}
+	return rr
 }
