@@ -42,10 +42,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
+
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

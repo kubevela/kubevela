@@ -37,6 +37,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// WfOperator is opratior handler for workflow's resume/rollback/restart
 type WfOperator interface {
 	Suspend(ctx context.Context, app *v1beta1.Application) error
 	Resume(ctx context.Context, app *v1beta1.Application) error
@@ -45,6 +46,7 @@ type WfOperator interface {
 	Terminate(ctx context.Context, app *v1beta1.Application) error
 }
 
+// NewWorkflowOperator get an workflow operator with k8sClient and ioWriter(optional, useful for cli)
 func NewWorkflowOperator(cli client.Client, w io.Writer) WfOperator {
 	return wfOperator{cli: cli, outputWriter: w}
 }
@@ -54,6 +56,7 @@ type wfOperator struct {
 	outputWriter io.Writer
 }
 
+// Suspend a running workflow
 func (wo wfOperator) Suspend(ctx context.Context, app *v1beta1.Application) error {
 	var err error
 	if err = rollout.SuspendRollout(context.Background(), wo.cli, app, wo.outputWriter); err != nil {
@@ -71,10 +74,10 @@ func (wo wfOperator) Suspend(ctx context.Context, app *v1beta1.Application) erro
 		return err
 	}
 
-	wo.writeOutputF("Successfully suspend workflow: %s\n", app.Name)
-	return nil
+	return wo.writeOutputF("Successfully suspend workflow: %s\n", app.Name)
 }
 
+// Resume a suspending workflow
 func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error {
 	if app.Status.Workflow == nil {
 		return fmt.Errorf("the workflow in application is not running")
@@ -101,6 +104,8 @@ func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error
 	return nil
 }
 
+// Rollback a running in middle state workflow.
+//nolint
 func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) error {
 	if oam.GetPublishVersion(app) == "" {
 		return fmt.Errorf("app without public version cannot rollback")
@@ -152,8 +157,10 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 	if matchRT.DeletionTimestamp != nil {
 		return errors.Errorf("previous revision %s is being recycled, unable to rollback", rev.Name)
 	}
-	wo.writeOutput("Find succeeded application revision %s (PublishVersion: %s) to rollback.\n")
-
+	err = wo.writeOutput("Find succeeded application revision %s (PublishVersion: %s) to rollback.\n")
+	if err != nil {
+		return err
+	}
 	appKey := client.ObjectKeyFromObject(app)
 	// rollback application spec and freeze
 	controllerRequirement, err := utils.FreezeApplication(ctx, wo.cli, app, func() {
@@ -163,8 +170,10 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 	if err != nil {
 		return errors.Wrapf(err, "failed to rollback application spec to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
 	}
-	wo.writeOutput("Application spec rollback successfully.\n")
-
+	err = wo.writeOutput("Application spec rollback successfully.\n")
+	if err != nil {
+		return err
+	}
 	// rollback application status
 	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if err = wo.cli.Get(ctx, appKey, app); err != nil {
@@ -186,8 +195,10 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 		return errors.Wrapf(err, "failed to rollback application status to revision %s (PublishVersion: %s)", rev.Name, publishVersion)
 	}
 
-	wo.writeOutput("Application status rollback successfully.\n")
-
+	err = wo.writeOutput("Application status rollback successfully.\n")
+	if err != nil {
+		return err
+	}
 	// update resource tracker generation
 	matchRTKey := client.ObjectKeyFromObject(matchRT)
 	if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
@@ -205,6 +216,18 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 		return errors.Wrapf(err, "failed to resume application to restart")
 	}
 
+	rollback, err := rollout.RollbackRollout(ctx, wo.cli, app, wo.outputWriter)
+	if err != nil {
+		return err
+	}
+
+	if rollback {
+		err = wo.writeOutput("Successfully rollback rollout")
+		if err != nil {
+			return err
+		}
+	}
+
 	// clean up outdated revisions
 	var errs errors3.ErrorList
 	for _, _rev := range outdatedRev {
@@ -216,10 +239,14 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 		return errors.Wrapf(errs, "failed to clean up outdated revisions")
 	}
 
-	wo.writeOutput("Application outdated revision cleaned up.\n")
+	err = wo.writeOutput("Application outdated revision cleaned up.\n")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
+// Restart a terminated or finished workflow.
 func (wo wfOperator) Restart(ctx context.Context, app *v1beta1.Application) error {
 	// reset the workflow status to restart the workflow
 	app.Status.Workflow = nil
@@ -228,8 +255,7 @@ func (wo wfOperator) Restart(ctx context.Context, app *v1beta1.Application) erro
 		return err
 	}
 
-	wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
-	return nil
+	return wo.writeOutputF("Successfully restart workflow: %s\n", app.Name)
 }
 
 func (wo wfOperator) Terminate(ctx context.Context, app *v1beta1.Application) error {
@@ -240,16 +266,18 @@ func (wo wfOperator) Terminate(ctx context.Context, app *v1beta1.Application) er
 	return nil
 }
 
-func (wo wfOperator) writeOutput(str string) {
+func (wo wfOperator) writeOutput(str string) error {
 	if wo.outputWriter == nil {
-		return
+		return nil
 	}
-	wo.outputWriter.Write([]byte(str))
+	_, err := wo.outputWriter.Write([]byte(str))
+	return err
 }
 
-func (wo wfOperator) writeOutputF(format string, a ...interface{}) {
+func (wo wfOperator) writeOutputF(format string, a ...interface{}) error {
 	if wo.outputWriter == nil {
-		return
+		return nil
 	}
-	wo.outputWriter.Write([]byte(fmt.Sprintf(format, a...)))
+	_, err := wo.outputWriter.Write([]byte(fmt.Sprintf(format, a...)))
+	return err
 }

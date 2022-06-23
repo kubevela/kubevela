@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"io"
 
-	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -131,10 +132,66 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 			}); err != nil {
 				return false, errors.Wrapf(err, "failed to resume rollout %s/%s in cluster %s", rollout.Namespace, rollout.Name, rollout.Cluster)
 			}
+			if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				if err = cli.Get(_ctx, rolloutKey, rollout.Rollout); err != nil {
+					return err
+				}
+				if rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused {
+					rollout.Status.CanaryStatus.CurrentStepState = kruisev1alpha1.CanaryStepStateReady
+					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
+						return err
+					}
+					resumed = true
+					return nil
+				}
+				return nil
+			}); err != nil {
+				return false, errors.Wrapf(err, "failed to resume rollout %s/%s in cluster %s", rollout.Namespace, rollout.Name, rollout.Cluster)
+			}
 			if resumed {
 				modified = true
 				if writer != nil {
 					_, _ = writer.Write([]byte(fmt.Sprintf("Rollout %s/%s in cluster %s resumed.\n", rollout.Namespace, rollout.Name, rollout.Cluster)))
+				}
+			}
+		}
+	}
+	return modified, nil
+}
+
+// RollbackRollout find all rollouts associated with the application (in the current RT) and disable pause field.
+func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer) (bool, error) {
+	rollouts, err := getAssociatedRollouts(ctx, cli, app, false)
+	if err != nil {
+		return false, err
+	}
+	modified := false
+	for i := range rollouts {
+		rollout := rollouts[i]
+		if rollout.Spec.Strategy.Paused || (rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused) {
+			_ctx := multicluster.ContextWithClusterName(ctx, rollout.Cluster)
+			rolloutKey := client.ObjectKeyFromObject(rollout.Rollout)
+			resumed := false
+			if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				if err = cli.Get(_ctx, rolloutKey, rollout.Rollout); err != nil {
+					return err
+				}
+				if rollout.Spec.Strategy.Paused {
+					rollout.Spec.Strategy.Paused = false
+					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+						return err
+					}
+					resumed = true
+					return nil
+				}
+				return nil
+			}); err != nil {
+				return false, errors.Wrapf(err, "failed to rollback rollout %s/%s in cluster %s", rollout.Namespace, rollout.Name, rollout.Cluster)
+			}
+			if resumed {
+				modified = true
+				if writer != nil {
+					_, _ = writer.Write([]byte(fmt.Sprintf("Rollout %s/%s in cluster %s rollback.\n", rollout.Namespace, rollout.Name, rollout.Cluster)))
 				}
 			}
 		}
