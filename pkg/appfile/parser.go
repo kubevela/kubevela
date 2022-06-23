@@ -424,8 +424,12 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	// parse workflow steps
 	af.WorkflowMode = common.WorkflowModeDAG
 	if wfSpec := af.app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
-		af.WorkflowMode = common.WorkflowModeStep
 		af.WorkflowSteps = wfSpec.Steps
+		if wfSpec.Mode != nil && wfSpec.Mode.Steps == common.WorkflowModeDAG {
+			af.WorkflowMode = common.WorkflowModeDAG
+		} else {
+			af.WorkflowMode = common.WorkflowModeStep
+		}
 	}
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
 		&step.RefWorkflowStepGenerator{Client: af.WorkflowClient(p.client), Context: ctx},

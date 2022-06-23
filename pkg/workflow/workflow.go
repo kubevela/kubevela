@@ -202,9 +202,13 @@ func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash st
 		status.Terminated = true
 		return common.WorkflowStateTerminated, nil
 	}
+	mode := common.WorkflowModeStep
+	if w.dagMode {
+		mode = common.WorkflowModeDAG
+	}
 	w.app.Status.Workflow = &common.WorkflowStatus{
 		AppRevision: revAndSpecHash,
-		Mode:        common.WorkflowModeStep,
+		Mode:        mode,
 		StartTime:   metav1.Now(),
 	}
 	w.app.Status.Workflow.Message = MessageInitializingWorkflow
