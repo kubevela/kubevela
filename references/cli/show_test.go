@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 const BaseDir = "testdata"
@@ -134,9 +133,9 @@ func TestGenerateREADME(t *testing.T) {
 			for _, c := range tc.capabilities {
 				switch c.Type {
 				case types.TypeComponentDefinition:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.ComponentDefinitionTypePath, c.Name))
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeComponentDefinition, c.Name))
 				case types.TypeTrait:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.TraitPath, c.Name))
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeTrait, c.Name))
 				}
 			}
 		})

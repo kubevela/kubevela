@@ -100,12 +100,6 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	}
 	referenceHome := filepath.Join(home, "reference")
 
-	definitionPath := filepath.Join(referenceHome, "capabilities")
-	if _, err := os.Stat(definitionPath); err != nil && os.IsNotExist(err) {
-		if err := os.MkdirAll(definitionPath, 0750); err != nil {
-			return err
-		}
-	}
 	docsPath := filepath.Join(referenceHome, "docs")
 	if _, err := os.Stat(docsPath); err != nil && os.IsNotExist(err) {
 		if err := os.MkdirAll(docsPath, 0750); err != nil {
@@ -171,22 +165,12 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return err
 	}
 
-	var capabilityPath string
-	switch capabilityType {
-	case types.TypeWorkload:
-		capabilityPath = plugins.WorkloadTypePath
-	case types.TypeTrait:
-		capabilityPath = plugins.TraitPath
-	case types.TypeScope:
-	case types.TypeComponentDefinition:
-		capabilityPath = plugins.ComponentDefinitionTypePath
-	case types.TypeWorkflowStep:
-		capabilityPath = plugins.WorkflowStepPath
-	default:
+	if capabilityType != types.TypeWorkload && capabilityType != types.TypeTrait && capabilityType != types.TypeScope &&
+		capabilityType != types.TypeComponentDefinition && capabilityType != types.TypeWorkflowStep {
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1%s/#/%s/%s", Port, capabilityPath, capabilityName)
+	url := fmt.Sprintf("http://127.0.0.1%s/#/%s/%s", Port, capabilityType, capabilityName)
 	server := &http.Server{
 		Addr:         Port,
 		Handler:      http.FileServer(http.Dir(docsPath)),
@@ -235,8 +219,9 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	if _, err := f.WriteString("- Components Types\n"); err != nil {
 		return err
 	}
+
 	for _, c := range components {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, plugins.ComponentDefinitionTypePath, c)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, types.TypeComponentDefinition, c)); err != nil {
 			return err
 		}
 	}
@@ -244,7 +229,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range traits {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.TraitPath, t)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeTrait, t)); err != nil {
 			return err
 		}
 	}
@@ -252,7 +237,7 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range workflowsteps {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.WorkflowStepPath, t)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
 			return err
 		}
 	}
@@ -334,7 +319,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, w := range workloads {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, plugins.ComponentDefinitionTypePath, w)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, types.TypeComponentDefinition, w)); err != nil {
 			return err
 		}
 	}
@@ -343,7 +328,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	}
 
 	for _, t := range traits {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.TraitPath, t)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeTrait, t)); err != nil {
 			return err
 		}
 	}
@@ -352,7 +337,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	for _, t := range workflowsteps {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.WorkflowStepPath, t)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, types.TypeWorkflowStep, t)); err != nil {
 			return err
 		}
 	}
