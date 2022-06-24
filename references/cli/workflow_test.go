@@ -225,6 +225,8 @@ func TestWorkflowResume(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowResumeCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -352,6 +354,8 @@ func TestWorkflowTerminate(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowTerminateCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -444,6 +448,8 @@ func TestWorkflowRestart(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRestartCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -567,6 +573,8 @@ func TestWorkflowRollback(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRollbackCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
