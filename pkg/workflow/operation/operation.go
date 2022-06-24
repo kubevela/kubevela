@@ -37,8 +37,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// WfOperator is opratior handler for workflow's resume/rollback/restart
-type WfOperator interface {
+// WorkflowOperator is opratior handler for workflow's resume/rollback/restart
+type WorkflowOperator interface {
 	Suspend(ctx context.Context, app *v1beta1.Application) error
 	Resume(ctx context.Context, app *v1beta1.Application) error
 	Rollback(ctx context.Context, app *v1beta1.Application) error
@@ -47,7 +47,7 @@ type WfOperator interface {
 }
 
 // NewWorkflowOperator get an workflow operator with k8sClient and ioWriter(optional, useful for cli)
-func NewWorkflowOperator(cli client.Client, w io.Writer) WfOperator {
+func NewWorkflowOperator(cli client.Client, w io.Writer) WorkflowOperator {
 	return wfOperator{cli: cli, outputWriter: w}
 }
 
@@ -58,6 +58,9 @@ type wfOperator struct {
 
 // Suspend a running workflow
 func (wo wfOperator) Suspend(ctx context.Context, app *v1beta1.Application) error {
+	if app.Status.Workflow == nil {
+		return fmt.Errorf("the workflow in application is not running")
+	}
 	var err error
 	if err = rollout.SuspendRollout(context.Background(), wo.cli, app, wo.outputWriter); err != nil {
 		return err
@@ -248,6 +251,9 @@ func (wo wfOperator) Rollback(ctx context.Context, app *v1beta1.Application) err
 
 // Restart a terminated or finished workflow.
 func (wo wfOperator) Restart(ctx context.Context, app *v1beta1.Application) error {
+	if app.Status.Workflow == nil {
+		return fmt.Errorf("the workflow in application is not running")
+	}
 	// reset the workflow status to restart the workflow
 	app.Status.Workflow = nil
 

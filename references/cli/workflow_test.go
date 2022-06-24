@@ -143,20 +143,6 @@ func TestWorkflowResume(t *testing.T) {
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
 		},
-		"workflow not suspended": {
-			app: &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "workflow-not-suspended",
-					Namespace: "default",
-				},
-				Spec: workflowSpec,
-				Status: common.AppStatus{
-					Workflow: &common.WorkflowStatus{
-						Suspend: false,
-					},
-				},
-			},
-		},
 		"workflow not running": {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{

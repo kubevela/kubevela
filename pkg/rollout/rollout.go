@@ -159,7 +159,7 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 	return modified, nil
 }
 
-// RollbackRollout find all rollouts associated with the application (in the current RT) and disable pause field.
+// RollbackRollout find all rollouts associated with the application (in the current RT) and disable the pause field.
 func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer) (bool, error) {
 	rollouts, err := getAssociatedRollouts(ctx, cli, app, false)
 	if err != nil {

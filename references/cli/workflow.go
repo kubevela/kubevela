@@ -21,9 +21,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/operation"
@@ -224,6 +227,27 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			cli, err := c.GetClient()
 			if err != nil {
 				return err
+			}
+			if app.Status.Workflow != nil && !app.Status.Workflow.Terminated && !app.Status.Workflow.Suspend && !app.Status.Workflow.Finished {
+				return fmt.Errorf("can not rollback a running workflow")
+			}
+			if oam.GetPublishVersion(app) == "" {
+				if app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == "" {
+					return fmt.Errorf("the latest revision is not set: %s", app.Name)
+				}
+				// get the last revision
+				revision := &v1beta1.ApplicationRevision{}
+				if err := cli.Get(context.TODO(), k8stypes.NamespacedName{Name: app.Status.LatestRevision.Name, Namespace: app.Namespace}, revision); err != nil {
+					return fmt.Errorf("failed to get the latest revision: %w", err)
+				}
+
+				app.Spec = revision.Spec.Application.Spec
+				if err := cli.Status().Update(context.TODO(), app); err != nil {
+					return err
+				}
+
+				fmt.Printf("Successfully rollback workflow to the latest revision: %s\n", app.Name)
+				return nil
 			}
 			wo := operation.NewWorkflowOperator(cli, cmd.OutOrStdout())
 			return wo.Rollback(context.Background(), app)
