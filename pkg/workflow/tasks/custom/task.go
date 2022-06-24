@@ -338,7 +338,7 @@ func getInputsTemplate(ctx wfContext.Context, step v1beta1.WorkflowStep) string 
 		if err != nil {
 			continue
 		}
-		inputsTempl += fmt.Sprintf("\ninputs: %s: %s", strings.ReplaceAll(input.From, "-", "_"), s)
+		inputsTempl += fmt.Sprintf("\ninputs: \"%s\": %s", input.From, s)
 	}
 	return inputsTempl
 }
