@@ -145,6 +145,18 @@ var _ = Describe("Test namespace service functions", func() {
 		Expect(policies[0].Description).ShouldNot(BeEmpty())
 		Expect(policies[0].Policy.ManageHealthCheck).Should(BeTrue())
 		Expect(policies[0].Alias).Should(Equal("test-alias"))
+
+		By("Filtering list by owner addon")
+		list, err := definitionService.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "trait", OwnerAddon: "non-existent-addon"})
+		Expect(err).Should(Succeed())
+		// All results should be filtered out
+		Expect(list).Should(HaveLen(0))
+
+		list, err = definitionService.ListDefinitions(context.TODO(), DefinitionQueryOption{Type: "trait", OwnerAddon: "fluxcd"})
+		Expect(err).Should(Succeed())
+		// We should see myingress being kept because fluxcd is its owner
+		Expect(len(list) >= 1).Should(Equal(true))
+		Expect(list[0].Name).Should(Equal("myingress"))
 	})
 
 	It("Test DetailDefinition function", func() {

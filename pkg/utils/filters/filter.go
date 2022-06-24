@@ -17,27 +17,48 @@ limitations under the License.
 package filters
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
+type Filter func(unstructured.Unstructured) bool
+
+// Apply applies all the provided filters to a given object.
+// Then returns if the object is filtered out or not.
+// Returns true if this object is kept, otherwise false.
+func Apply(obj unstructured.Unstructured, filters ...Filter) bool {
+	// Apply all filters
+	for _, filter := range filters {
+		// If filtered out by one of the filters
+		if !filter(obj) {
+			return false
+		}
+	}
+
+	// All filters have kept this item
+	return true
+}
+
 // KeepAll returns a filter that keeps everything
-func KeepAll() func(unstructured.Unstructured) bool {
+func KeepAll() Filter {
 	return func(unstructured.Unstructured) bool {
 		return true
 	}
 }
 
 // KeepNone returns a filter that filters out everything
-func KeepNone() func(unstructured.Unstructured) bool {
+func KeepNone() Filter {
 	return func(unstructured.Unstructured) bool {
 		return false
 	}
 }
 
-// ByOwnerAddon returns a filter that filters out what does not belong to the owner addon
-func ByOwnerAddon(addonName string) func(unstructured.Unstructured) bool {
+// ByOwnerAddon returns a filter that filters out what does not belong to the owner addon.
+// Empty addon name will keep everything.
+func ByOwnerAddon(addonName string) Filter {
 	if addonName == "" {
 		// Empty addon name, just keep everything, no further action needed
 		return KeepAll()
@@ -58,8 +79,9 @@ func ByOwnerAddon(addonName string) func(unstructured.Unstructured) bool {
 	}
 }
 
-// ByName returns a filter that matches the given name
-func ByName(name string) func(unstructured.Unstructured) bool {
+// ByName returns a filter that matches the given name.
+// Empty name will keep everything.
+func ByName(name string) Filter {
 	// Keep everything
 	if name == "" {
 		return KeepAll()
@@ -68,5 +90,31 @@ func ByName(name string) func(unstructured.Unstructured) bool {
 	// Filter by name
 	return func(obj unstructured.Unstructured) bool {
 		return obj.GetName() == name
+	}
+}
+
+// ByAppliedWorkload returns a filter that only keeps trait definitions that applies to the given workload.
+// Empty workload name will keep everything.
+func ByAppliedWorkload(workload string) Filter {
+	// Keep everything
+	if workload == "" {
+		return KeepAll()
+	}
+
+	return func(obj unstructured.Unstructured) bool {
+		traitDef := &v1beta1.TraitDefinition{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, traitDef); err != nil {
+			return false
+		}
+
+		// Search for provided workload
+		// If the trait definitions applies to the given workload, then it is kept.
+		for _, w := range traitDef.Spec.AppliesToWorkloads {
+			if w == workload || w == "*" {
+				return true
+			}
+		}
+
+		return false
 	}
 }

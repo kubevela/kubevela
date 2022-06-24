@@ -21,6 +21,7 @@ package definition
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -375,7 +376,7 @@ func ValidDefinitionTypes() []string {
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
-func SearchDefinition(c client.Client, definitionType, namespace string, filters ...func(unstructured.Unstructured) bool) ([]unstructured.Unstructured, error) {
+func SearchDefinition(c client.Client, definitionType, namespace string, additionalFilters ...filters.Filter) ([]unstructured.Unstructured, error) {
 	ctx := context.Background()
 	var kinds []string
 	if definitionType != "" {
@@ -404,13 +405,12 @@ func SearchDefinition(c client.Client, definitionType, namespace string, filters
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
-	itemLoop:
+
 		for _, obj := range objs.Items {
 			// Apply additional filters
-			for _, filter := range filters {
-				if !filter(obj) {
-					continue itemLoop
-				}
+			kept := filters.Apply(obj, additionalFilters...)
+			if !kept {
+				continue
 			}
 			definitions = append(definitions, obj)
 		}

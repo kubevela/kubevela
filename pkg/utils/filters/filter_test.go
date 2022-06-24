@@ -17,6 +17,8 @@ limitations under the License.
 package filters
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"testing"
 
 	"gotest.tools/assert"
@@ -79,4 +81,33 @@ func TestByName(t *testing.T) {
 	// Test with wrong name
 	u.SetName("name-2")
 	assert.Equal(t, false, f(u))
+}
+
+func TestByAppliedWorkload(t *testing.T) {
+	// Test with empty workload
+	f := ByAppliedWorkload("")
+	assert.Equal(t, true, f(unstructured.Unstructured{}))
+
+	f = ByAppliedWorkload("workload")
+
+	// Test with AppliesToWorkloads=*
+	trait := v1beta1.TraitDefinition{}
+	trait.Spec.AppliesToWorkloads = []string{"*"}
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
+	assert.NilError(t, err)
+	assert.Equal(t, true, f(unstructured.Unstructured{Object: u}))
+
+	// Test with AppliesToWorkloads=workload
+	trait = v1beta1.TraitDefinition{}
+	trait.Spec.AppliesToWorkloads = []string{"workload"}
+	u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
+	assert.NilError(t, err)
+	assert.Equal(t, true, f(unstructured.Unstructured{Object: u}))
+
+	// Test with AppliesToWorkloads=wrong
+	trait = v1beta1.TraitDefinition{}
+	trait.Spec.AppliesToWorkloads = []string{"wrong"}
+	u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
+	assert.NilError(t, err)
+	assert.Equal(t, false, f(unstructured.Unstructured{Object: u}))
 }

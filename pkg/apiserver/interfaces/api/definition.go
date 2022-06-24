@@ -95,6 +95,7 @@ func (d *definitionAPIInterface) listDefinitions(req *restful.Request, res *rest
 	definitions, err := d.DefinitionService.ListDefinitions(req.Request.Context(), service.DefinitionQueryOption{
 		Type:             req.QueryParameter("type"),
 		AppliedWorkloads: req.QueryParameter("appliedWorkload"),
+		OwnerAddon:       req.QueryParameter("ownerAddon"),
 		QueryAll:         queryAll,
 	})
 	if err != nil {

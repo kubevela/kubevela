@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -547,7 +548,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			showSourceAddon := false
 			for _, def := range definitions {
 				ownerRef := def.GetOwnerReferences()
-				if len(ownerRef) > 0 && strings.HasPrefix(ownerRef[0].Name, "addon-") {
+				if len(ownerRef) > 0 && strings.HasPrefix(ownerRef[0].Name, addonutil.AddonAppPrefix) {
 					showSourceAddon = true
 					break
 				}

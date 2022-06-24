@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"sort"
 	"time"
 
@@ -62,12 +63,13 @@ type definitionServiceImpl struct {
 type DefinitionQueryOption struct {
 	Type             string `json:"type"`
 	AppliedWorkloads string `json:"appliedWorkloads"`
+	OwnerAddon       string `json:"sourceAddon"`
 	QueryAll         bool   `json:"queryAll"`
 }
 
 // String return cache key string
 func (d DefinitionQueryOption) String() string {
-	return fmt.Sprintf("type:%s/appliedWorkloads:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.QueryAll)
+	return fmt.Sprintf("type:%s/appliedWorkloads:%s/ownerAddon:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.OwnerAddon, d.QueryAll)
 }
 
 const (
@@ -123,22 +125,17 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 	}
 	var defs []*apisv1.DefinitionBase
 	for _, def := range list.Items {
-		if ops.AppliedWorkloads != "" {
-			traitDef := &v1beta1.TraitDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
-				return nil, errors.Wrap(err, "invalid trait definition")
-			}
-			filter := false
-			for _, workload := range traitDef.Spec.AppliesToWorkloads {
-				if workload == ops.AppliedWorkloads || workload == "*" {
-					filter = true
-					break
-				}
-			}
-			if !filter {
-				continue
-			}
+		// Apply additional filters
+		kept := filters.Apply(def,
+			// Filter by applied workload
+			filters.ByAppliedWorkload(ops.AppliedWorkloads),
+			// Filter by which addon installed this definition
+			filters.ByOwnerAddon(ops.OwnerAddon),
+		)
+		if !kept {
+			continue
 		}
+
 		definition, err := convertDefinitionBase(def, kind)
 		if err != nil {
 			log.Logger.Errorf("convert definition to base failure %s", err.Error())

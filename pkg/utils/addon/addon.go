@@ -16,16 +16,16 @@ limitations under the License.
 
 package addon
 
-const addonSecPrefix = "addon-secret-"
+const AddonSecPrefix = "addon-secret-"
 
 // Convert2SecName returns the secret name that contains addon arguments
 func Convert2SecName(name string) string {
-	return addonSecPrefix + name
+	return AddonSecPrefix + name
 }
 
-const addonAppPrefix = "addon-"
+const AddonAppPrefix = "addon-"
 
 // Convert2AppName return the app name that represents the addon
 func Convert2AppName(name string) string {
-	return addonAppPrefix + name
+	return AddonAppPrefix + name
 }
