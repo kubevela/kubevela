@@ -135,7 +135,7 @@ var _ = Describe("Addon status or info", func() {
 
 	Context("when verbose is enabled", func() {
 		BeforeEach(func() {
-			verboseSatatus = true
+			verboseStatus = true
 		})
 
 		When("addon is not installed locally, also not in registry", func() {

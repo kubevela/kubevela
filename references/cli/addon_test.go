@@ -18,6 +18,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -414,4 +415,26 @@ func TestGenerateParameterString(t *testing.T) {
 		}
 
 	}
+}
+
+func TestNewAddonCreateCommand(t *testing.T) {
+	cmd := NewAddonCreateCommand()
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	assert.ErrorContains(t, err, "required")
+
+	cmd.SetArgs([]string{"--chart", "a", "--helm-repo-url", "https://some.com", "--version", "c"})
+	err = cmd.Execute()
+	assert.ErrorContains(t, err, "required")
+
+	cmd.SetArgs([]string{"test-addon", "--chart", "a", "--helm-repo-url", "https://some.com", "--version", "c"})
+	err = cmd.Execute()
+	assert.NilError(t, err)
+	_ = os.RemoveAll("test-addon")
+
+	cmd.SetArgs([]string{"test-addon"})
+	err = cmd.Execute()
+	assert.NilError(t, err)
+	_ = os.RemoveAll("test-addon")
+
 }
