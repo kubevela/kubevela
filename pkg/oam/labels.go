@@ -98,6 +98,9 @@ const (
 	LabelProject = "core.oam.dev/project"
 
 	LabelResourceRules = "rules.oam.dev/resources"
+
+	// LabelControllerName indicates the controller name
+	LabelControllerName = "controller.oam.dev/name"
 )
 
 const (
