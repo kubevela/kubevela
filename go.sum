@@ -1668,6 +1668,8 @@ github.com/opencontainers/selinux v1.10.0/go.mod h1:2i0OySw99QjzBBQByd1Gr9gSjvuh
 github.com/openkruise/kruise-api v1.0.0/go.mod h1:kxV/UA/vrf/hz3z+kL21c0NOawC6K1ZjaKcJFgiOwsE=
 github.com/openkruise/kruise-api v1.1.0 h1:ZRhV0FnxUp4XHc60YPkUqj2LJD4GRFB92qhtdgU6Zhc=
 github.com/openkruise/kruise-api v1.1.0/go.mod h1:kxV/UA/vrf/hz3z+kL21c0NOawC6K1ZjaKcJFgiOwsE=
+github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e h1:jUMEDsA0OOpp0262pK8MV8M2glac+jIjx+q5Aydn6G0=
+github.com/openkruise/rollouts v0.1.1-0.20220622054609-149e5a48da5e/go.mod h1:SORsT96ssCqMJYSVA90v6Z52utlV2jxPlyGh4czRfHA=
 github.com/openshift/api v0.0.0-20210915110300-3cd8091317c4/go.mod h1:RsQCVJu4qhUawxxDP7pGlwU3IA4F01wYm3qKEu29Su8=
 github.com/openshift/api v0.0.0-20211209135129-c58d9f695577/go.mod h1:DoslCwtqUpr3d/gsbq4ZlkaMEdYqKxuypsDjorcHhME=
 github.com/openshift/build-machinery-go v0.0.0-20210115170933-e575b44a7a94/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
@@ -2103,8 +2105,6 @@ github.com/zclconf/go-cty v1.8.0/go.mod h1:vVKLxnk3puL4qRAv72AO+W99LUD4da90g3uUA
 github.com/zclconf/go-cty-debug v0.0.0-20191215020915-b22d67c1ba0b/go.mod h1:ZRKQfBXbGkpdV6QMzT3rU1kSTAnfu1dO8dPKjYprgj8=
 github.com/ziutek/mymysql v1.5.4 h1:GB0qdRGsTwQSBVYuVShFBKaXSnSnYYC2d9knnE1LHFs=
 github.com/ziutek/mymysql v1.5.4/go.mod h1:LMSpPZ6DbqWFxNCHW77HeMg9I646SAhApZ/wKdgO/C0=
-github.com/zmberg/rollouts v0.0.0-20220412081748-c6fabf54ab85 h1:UJMJ0U10GRERz42F8XDBiEoTp/ShOTqmTklqdZzERXw=
-github.com/zmberg/rollouts v0.0.0-20220412081748-c6fabf54ab85/go.mod h1:SORsT96ssCqMJYSVA90v6Z52utlV2jxPlyGh4czRfHA=
 go.elastic.co/apm v1.5.0/go.mod h1:OdB9sPtM6Vt7oz3VXt7+KR96i9li74qrxBGHTQygFvk=
 go.elastic.co/apm/module/apmhttp v1.5.0/go.mod h1:1FbmNuyD3ddauwzgVwFB0fqY6KbZt3JkV187tGCYYhY=
 go.elastic.co/apm/module/apmot v1.5.0/go.mod h1:d2KYwhJParTpyw2WnTNy8geNlHKKFX+4oK3YLlsesWE=
