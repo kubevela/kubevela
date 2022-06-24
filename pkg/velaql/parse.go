@@ -17,11 +17,15 @@
 package velaql
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 // QueryView contains query data
@@ -40,6 +44,8 @@ const (
 	KeyWordView = "view"
 	// KeyWordParameter represent parameter keyword
 	KeyWordParameter = "parameter"
+	// KeyWordTemplate represents template keyword
+	KeyWordTemplate = "template"
 	// KeyWordExport represent export keyword
 	KeyWordExport = "export"
 	// DefaultExportValue is the default Export value
@@ -89,6 +95,36 @@ func ParseVelaQL(ql string) (QueryView, error) {
 		return qv, err
 	}
 	return qv, nil
+}
+
+// ParseVelaQLFromPath will parse a velaQL file path to QueryView
+func ParseVelaQLFromPath(velaQLViewPath string) (*QueryView, error) {
+	body, err := ioutil.ReadFile(filepath.Clean(velaQLViewPath))
+	if err != nil {
+		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
+	}
+
+	val, err := value.NewValue(string(body), nil, "")
+	if err != nil {
+		return nil, errors.Errorf("new value for view: %v", err)
+	}
+
+	var expStr string
+	exp, err := val.LookupValue(KeyWordExport)
+	if err == nil {
+		expStr, err = exp.String()
+		if err != nil {
+			expStr = DefaultExportValue
+		}
+	} else {
+		expStr = DefaultExportValue
+	}
+
+	return &QueryView{
+		View:      string(body),
+		Parameter: nil,
+		Export:    strings.Trim(strings.TrimSpace(expStr), `"`),
+	}, nil
 }
 
 // ParseParameter parse parameter to map[string]interface{}

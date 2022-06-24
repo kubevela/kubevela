@@ -37,8 +37,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
+	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
+	yamlv3 "gopkg.in/yaml.v3"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -102,6 +104,7 @@ func init() {
 	_ = ocmworkv1.Install(Scheme)
 	_ = clustergatewayapi.AddToScheme(Scheme)
 	_ = metricsV1beta1api.AddToScheme(Scheme)
+	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = prismclusterv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
@@ -144,8 +147,8 @@ func GetClient() (client.Client, error) {
 	return nil, errors.New("client not set, call SetGlobalClient first")
 }
 
-// HTTPGetWithOption use HTTP option and default client to send get request
-func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
+// HTTPGetResponse use HTTP option and default client to send request and get raw response
+func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -154,13 +157,41 @@ func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byt
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	return http.DefaultClient.Do(req)
+}
+
+// HTTPGetWithOption use HTTP option and default client to send get request
+func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
+	resp, err := HTTPGetResponse(ctx, url, opts)
 	if err != nil {
 		return nil, err
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)
+}
+
+// HTTPGetKubernetesObjects use HTTP requests to load resources from remote url
+func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.Unstructured, error) {
+	resp, err := HTTPGetResponse(ctx, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	//nolint:errcheck
+	defer resp.Body.Close()
+	decoder := yamlv3.NewDecoder(resp.Body)
+	var uns []*unstructured.Unstructured
+	for {
+		obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
+		if err := decoder.Decode(obj.Object); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("failed to decode object: %w", err)
+		}
+		uns = append(uns, obj)
+	}
+	return uns, nil
 }
 
 // GetCUEParameterValue converts definitions to cue format
@@ -563,4 +594,14 @@ func NewK8sClient() (client.Client, error) {
 		return nil, err
 	}
 	return k8sClient, nil
+}
+
+// FilterObjectsByCondition filter object slices by condition function
+func FilterObjectsByCondition(objs []*unstructured.Unstructured, filter func(unstructured2 *unstructured.Unstructured) bool) (outs []*unstructured.Unstructured) {
+	for _, obj := range objs {
+		if filter(obj) {
+			outs = append(outs, obj)
+		}
+	}
+	return
 }

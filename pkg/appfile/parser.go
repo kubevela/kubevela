@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -349,6 +350,16 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 			}
 			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
 		}
+		for _, url := range spec.URLs {
+			objs, err := utilscommon.HTTPGetKubernetesObjects(ctx, url)
+			if err != nil {
+				return fmt.Errorf("failed to load Kubernetes objects from url %s: %w", url, err)
+			}
+			for _, obj := range objs {
+				util.AddAnnotations(obj, map[string]string{oam.AnnotationResourceURL: url})
+			}
+			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
+		}
 	}
 	sort.Slice(af.ReferredObjects, func(i, j int) bool {
 		a, b := af.ReferredObjects[i], af.ReferredObjects[j]
@@ -368,6 +379,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
@@ -393,6 +405,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.DebugPolicyType:
@@ -424,8 +437,12 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	// parse workflow steps
 	af.WorkflowMode = common.WorkflowModeDAG
 	if wfSpec := af.app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
-		af.WorkflowMode = common.WorkflowModeStep
 		af.WorkflowSteps = wfSpec.Steps
+		if wfSpec.Mode != nil && wfSpec.Mode.Steps == common.WorkflowModeDAG {
+			af.WorkflowMode = common.WorkflowModeDAG
+		} else {
+			af.WorkflowMode = common.WorkflowModeStep
+		}
 	}
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
 		&step.RefWorkflowStepGenerator{Client: af.WorkflowClient(p.client), Context: ctx},

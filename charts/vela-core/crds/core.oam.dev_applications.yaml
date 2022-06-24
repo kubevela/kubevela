@@ -1009,6 +1009,17 @@ spec:
                   order, and each step: - will have a context in annotation. - should
                   mark "finish" phase in status.conditions.'
                 properties:
+                  mode:
+                    description: WorkflowExecuteMode defines the mode of workflow
+                      execution
+                    properties:
+                      steps:
+                        description: WorkflowMode describes the mode of workflow
+                        type: string
+                      subSteps:
+                        description: WorkflowMode describes the mode of workflow
+                        type: string
+                    type: object
                   ref:
                     type: string
                   steps:
@@ -1035,6 +1046,13 @@ spec:
                             - parameterKey
                             type: object
                           type: array
+                        meta:
+                          description: WorkflowStepMeta contains the meta data of
+                            a workflow step
+                          properties:
+                            alias:
+                              type: string
+                          type: object
                         name:
                           description: Name is the unique name of the workflow step.
                           type: string
@@ -1079,6 +1097,13 @@ spec:
                                   - parameterKey
                                   type: object
                                 type: array
+                              meta:
+                                description: WorkflowStepMeta contains the meta data
+                                  of a workflow step
+                                properties:
+                                  alias:
+                                    type: string
+                                type: object
                               name:
                                 description: Name is the unique name of the workflow
                                   step.
@@ -1100,6 +1125,8 @@ spec:
                               properties:
                                 type: object
                                 x-kubernetes-preserve-unknown-fields: true
+                              timeout:
+                                type: string
                               type:
                                 type: string
                             required:
@@ -1107,6 +1134,8 @@ spec:
                             - type
                             type: object
                           type: array
+                        timeout:
+                          type: string
                         type:
                           type: string
                       required:

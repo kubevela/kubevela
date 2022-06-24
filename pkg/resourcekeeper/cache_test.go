@@ -21,37 +21,39 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	v13 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestResourceCache(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	cache := newResourceCache(cli)
+	cache := newResourceCache(cli, nil)
 	r := require.New(t)
 	createMR := func(name string) v1beta1.ManagedResource {
 		return v1beta1.ManagedResource{
-			ClusterObjectReference: common2.ClusterObjectReference{
-				ObjectReference: v1.ObjectReference{
+			ClusterObjectReference: apicommon.ClusterObjectReference{
+				ObjectReference: corev1.ObjectReference{
 					Name:       name,
 					Kind:       "Deployment",
-					APIVersion: v13.SchemeGroupVersion.String(),
+					APIVersion: appsv1.SchemeGroupVersion.String(),
 				},
 			},
 		}
 	}
-	r.NoError(cli.Create(context.Background(), &v13.Deployment{ObjectMeta: v12.ObjectMeta{Name: "resource-1"}}))
-	r.NoError(cli.Create(context.Background(), &v13.Deployment{ObjectMeta: v12.ObjectMeta{Name: "resource-2"}}))
-	r.NoError(cli.Create(context.Background(), &v13.Deployment{ObjectMeta: v12.ObjectMeta{Name: "resource-3"}}))
-	r.NoError(cli.Create(context.Background(), &v13.Deployment{ObjectMeta: v12.ObjectMeta{Name: "resource-4"}}))
-	r.NoError(cli.Create(context.Background(), &v13.Deployment{ObjectMeta: v12.ObjectMeta{Name: "resource-6"}}))
-	ti := v12.Now()
+	r.NoError(cli.Create(context.Background(), &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "resource-1"}}))
+	r.NoError(cli.Create(context.Background(), &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "resource-2"}}))
+	r.NoError(cli.Create(context.Background(), &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "resource-3"}}))
+	r.NoError(cli.Create(context.Background(), &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "resource-4"}}))
+	r.NoError(cli.Create(context.Background(), &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "resource-6"}}))
+	ti := metav1.Now()
 	rt1 := &v1beta1.ResourceTracker{
 		Spec: v1beta1.ResourceTrackerSpec{
 			ManagedResources: []v1beta1.ManagedResource{
@@ -61,7 +63,7 @@ func TestResourceCache(t *testing.T) {
 		},
 	}
 	rt2 := &v1beta1.ResourceTracker{
-		ObjectMeta: v12.ObjectMeta{DeletionTimestamp: &ti},
+		ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &ti},
 		Spec: v1beta1.ResourceTrackerSpec{
 			ManagedResources: []v1beta1.ManagedResource{
 				createMR("resource-1"),
@@ -125,4 +127,24 @@ func TestResourceCache(t *testing.T) {
 		r.Equal(check.notFound, !entry.exists)
 		r.True(entry.loaded)
 	}
+}
+
+func TestResourceCacheExistenceCheck(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	cache := newResourceCache(cli, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+		Name:      "app",
+		Namespace: "test",
+	}})
+	r := require.New(t)
+	createResource := func(appName, appNs, sharedBy string) *unstructured.Unstructured {
+		return &unstructured.Unstructured{Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"labels":      map[string]interface{}{oam.LabelAppName: appName, oam.LabelAppNamespace: appNs},
+				"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: sharedBy},
+			},
+		}}
+	}
+	r.True(cache.exists(createResource("app", "test", "")))
+	r.False(cache.exists(createResource("app-no-shared-by", "test", "")))
+	r.True(cache.exists(createResource("app-shared-by", "ex", "x/y,test/app,ex/app-shared-by")))
 }

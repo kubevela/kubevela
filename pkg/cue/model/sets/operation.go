@@ -302,7 +302,7 @@ func strategyUnify(baseFile *ast.File, patchFile *ast.File, params *UnifyParams,
 
 	ret := baseInst.Value().Unify(patchInst.Value())
 
-	rv, err := toString(ret)
+	rv, err := toString(ret, removeTmpVar)
 	if err != nil {
 		return rv, errors.WithMessage(err, " format result toString")
 	}
@@ -358,7 +358,11 @@ func jsonMergePatch(base cue.Value, patch cue.Value) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to merge base value and patch value by JsonMergePatch")
 	}
-	return string(merged), nil
+	output, err := OpenBaiscLit(string(merged))
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
+	}
+	return output, nil
 }
 
 func jsonPatch(base cue.Value, patch cue.Value) (string, error) {
@@ -379,5 +383,9 @@ func jsonPatch(base cue.Value, patch cue.Value) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to apply json patch")
 	}
-	return string(merged), nil
+	output, err := OpenBaiscLit(string(merged))
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
+	}
+	return output, nil
 }

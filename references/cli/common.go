@@ -30,6 +30,8 @@ const (
 
 	// FlagDescription command flag to specify the description of the definition
 	FlagDescription = "desc"
+	// FlagAlias command flag to specify the alias of the definition
+	FlagAlias = "alias"
 	// FlagDryRun command flag to disable actual changes and only display intend changes
 	FlagDryRun = "dry-run"
 	// FlagTemplateYAML command flag to specify which existing template YAML file to use

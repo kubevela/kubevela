@@ -46,6 +46,8 @@ import (
 const (
 	// DescriptionKey the key for accessing definition description
 	DescriptionKey = "definition.oam.dev/description"
+	// AliasKey the key for accessing definition alias
+	AliasKey = "definition.oam.dev/alias"
 	// UserPrefix defines the prefix of user customized label or annotation
 	UserPrefix = "custom.definition.oam.dev/"
 )
@@ -107,6 +109,7 @@ func (def *Definition) ToCUE() (*cue.Value, string, error) {
 			annotations[strings.TrimPrefix(key, UserPrefix)] = val
 		}
 	}
+	alias := def.GetAnnotations()[AliasKey]
 	desc := def.GetAnnotations()[DescriptionKey]
 	labels := map[string]string{}
 	for key, val := range def.GetLabels() {
@@ -123,6 +126,7 @@ func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	obj := map[string]interface{}{
 		def.GetName(): map[string]interface{}{
 			"type":        def.GetType(),
+			"alias":       alias,
 			"description": desc,
 			"annotations": annotations,
 			"labels":      labels,
@@ -240,6 +244,12 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 				if err = def.SetType(_type); err != nil {
 					return err
 				}
+			case "alias":
+				alias, err := _value.String()
+				if err != nil {
+					return err
+				}
+				annotations[AliasKey] = alias
 			case "description":
 				desc, err := _value.String()
 				if err != nil {

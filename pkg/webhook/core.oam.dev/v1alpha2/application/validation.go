@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -31,8 +32,45 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// ValidateCreate validates the Application on creation
-func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+// ValidateWorkflow validates the Application workflow
+func (h *ValidatingHandler) ValidateWorkflow(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	var errs field.ErrorList
+	if app.Spec.Workflow != nil {
+		stepName := make(map[string]interface{})
+		for _, step := range app.Spec.Workflow.Steps {
+			if _, ok := stepName[step.Name]; ok {
+				errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps"), step.Name, "duplicated step name"))
+			}
+			stepName[step.Name] = nil
+			if step.Timeout != "" {
+				errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
+			}
+			for _, sub := range step.SubSteps {
+				if _, ok := stepName[sub.Name]; ok {
+					errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps", "subSteps"), sub.Name, "duplicated step name"))
+				}
+				stepName[sub.Name] = nil
+				if step.Timeout != "" {
+					errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
+				}
+			}
+		}
+	}
+	return errs
+}
+
+// ValidateTimeout validates the timeout of steps
+func (h *ValidatingHandler) ValidateTimeout(name, timeout string) field.ErrorList {
+	var errs field.ErrorList
+	_, err := time.ParseDuration(timeout)
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "workflow", "steps", "timeout"), name, "invalid timeout, please use the format of timeout like 1s, 1m, 1h or 1d"))
+	}
+	return errs
+}
+
+// ValidateComponents validates the Application components
+func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	var componentErrs field.ErrorList
 	// try to generate an app file
 	appParser := appfile.NewApplicationParser(h.Client, h.dm, h.pd)
@@ -56,12 +94,21 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 	return componentErrs
 }
 
+// ValidateCreate validates the Application on creation
+func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	var errs field.ErrorList
+
+	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
+	errs = append(errs, h.ValidateComponents(ctx, app)...)
+	return errs
+}
+
 // ValidateUpdate validates the Application on update
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application) field.ErrorList {
 	// check if the newApp is valid
-	componentErrs := h.ValidateCreate(ctx, newApp)
+	errs := h.ValidateCreate(ctx, newApp)
 	// TODO: add more validating
-	return componentErrs
+	return errs
 }
 
 func (h *ValidatingHandler) validateExternalRevisionName(ctx context.Context, app *v1beta1.Application) field.ErrorList {

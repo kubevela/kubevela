@@ -43,7 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utils2 "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // WorkflowService workflow manage api
@@ -72,10 +72,11 @@ func NewWorkflowService() WorkflowService {
 }
 
 type workflowServiceImpl struct {
-	Store      datastore.DataStore `inject:"datastore"`
-	KubeClient client.Client       `inject:"kubeClient"`
-	Apply      apply.Applicator    `inject:"apply"`
-	EnvService EnvService          `inject:""`
+	Store             datastore.DataStore `inject:"datastore"`
+	KubeClient        client.Client       `inject:"kubeClient"`
+	Apply             apply.Applicator    `inject:"apply"`
+	EnvService        EnvService          `inject:""`
+	EnvBindingService EnvBindingService   `inject:""`
 }
 
 // DeleteWorkflow delete application workflow
@@ -342,7 +343,17 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			klog.ErrorS(err, "failed to get workflow", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
 			continue
 		}
-		appName := record.AppPrimaryKey
+		envbinding, err := w.EnvBindingService.GetEnvBinding(ctx, &model.Application{Name: record.AppPrimaryKey}, workflow.EnvName)
+		if err != nil {
+			klog.ErrorS(err, "failed to get envbinding", "app name", record.AppPrimaryKey, "workflow name", record.WorkflowName, "record name", record.Name)
+		}
+		var appName string
+		if envbinding != nil {
+			appName = envbinding.AppDeployName
+		}
+		if appName == "" {
+			appName = record.AppPrimaryKey
+		}
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{
 			Name:      appName,
 			Namespace: record.Namespace,
@@ -561,8 +572,7 @@ func (w *workflowServiceImpl) ResumeRecord(ctx context.Context, appModel *model.
 		return err
 	}
 
-	oamApp.Status.Workflow.Suspend = false
-	if err := w.KubeClient.Status().Patch(ctx, oamApp, client.Merge); err != nil {
+	if err := ResumeWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
 	if err := w.syncWorkflowStatus(ctx, oamApp, recordName, oamApp.Name); err != nil {
@@ -588,31 +598,53 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 	return nil
 }
 
+// ResumeWorkflow resume workflow
+func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
+	app.Status.Workflow.Suspend = false
+	steps := app.Status.Workflow.Steps
+	for i, step := range steps {
+		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == common.WorkflowStepPhaseRunning {
+			steps[i].Phase = common.WorkflowStepPhaseSucceeded
+		}
+		for j, sub := range step.SubStepsStatus {
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == common.WorkflowStepPhaseRunning {
+				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseSucceeded
+			}
+		}
+	}
+	if err := kubecli.Status().Patch(ctx, app, client.Merge); err != nil {
+		return err
+	}
+	return nil
+}
+
 // TerminateWorkflow terminate workflow
 func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.Application) error {
 	// set the workflow terminated to true
 	app.Status.Workflow.Terminated = true
+	// set the workflow suspend to false
+	app.Status.Workflow.Suspend = false
 	steps := app.Status.Workflow.Steps
 	for i, step := range steps {
 		switch step.Phase {
 		case common.WorkflowStepPhaseFailed:
-			if step.Reason != custom.StatusReasonFailedAfterRetries {
-				steps[i].Reason = custom.StatusReasonTerminate
+			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
+				steps[i].Reason = wfTypes.StatusReasonTerminate
 			}
 		case common.WorkflowStepPhaseRunning:
 			steps[i].Phase = common.WorkflowStepPhaseFailed
-			steps[i].Reason = custom.StatusReasonTerminate
+			steps[i].Reason = wfTypes.StatusReasonTerminate
 		default:
 		}
 		for j, sub := range step.SubStepsStatus {
 			switch sub.Phase {
 			case common.WorkflowStepPhaseFailed:
-				if sub.Reason != custom.StatusReasonFailedAfterRetries {
-					steps[i].SubStepsStatus[j].Phase = custom.StatusReasonTerminate
+				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
+					steps[i].SubStepsStatus[j].Phase = wfTypes.StatusReasonTerminate
 				}
 			case common.WorkflowStepPhaseRunning:
 				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseFailed
-				steps[i].SubStepsStatus[j].Reason = custom.StatusReasonTerminate
+				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 			default:
 			}
 		}

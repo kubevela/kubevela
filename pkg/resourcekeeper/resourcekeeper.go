@@ -21,8 +21,8 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/apps/v1"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,8 +43,8 @@ type ResourceKeeper interface {
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
 
-	DispatchComponentRevision(context.Context, *v1.ControllerRevision) error
-	DeleteComponentRevision(context.Context, *v1.ControllerRevision) error
+	DispatchComponentRevision(context.Context, *appsv1.ControllerRevision) error
+	DeleteComponentRevision(context.Context, *appsv1.ControllerRevision) error
 }
 
 type resourceKeeper struct {
@@ -60,6 +60,7 @@ type resourceKeeper struct {
 
 	applyOncePolicy      *v1alpha1.ApplyOncePolicySpec
 	garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec
+	sharedResourcePolicy *v1alpha1.SharedResourcePolicySpec
 
 	cache *resourceCache
 }
@@ -95,11 +96,14 @@ func (h *resourceKeeper) parseApplicationResourcePolicy() (err error) {
 	if h.applyOncePolicy, err = policy.ParseApplyOncePolicy(h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse apply-once policy")
 	}
-	if h.applyOncePolicy == nil && v12.HasLabel(h.app.ObjectMeta, oam.LabelAddonName) {
+	if h.applyOncePolicy == nil && metav1.HasLabel(h.app.ObjectMeta, oam.LabelAddonName) {
 		h.applyOncePolicy = &v1alpha1.ApplyOncePolicySpec{Enable: true}
 	}
 	if h.garbageCollectPolicy, err = policy.ParseGarbageCollectPolicy(h.app); err != nil {
 		return errors.Wrapf(err, "failed to parse garbage-collect policy")
+	}
+	if h.sharedResourcePolicy, err = policy.ParseSharedResourcePolicy(h.app); err != nil {
+		return errors.Wrapf(err, "failed to parse shared-resource policy")
 	}
 	return nil
 }
@@ -115,7 +119,7 @@ func NewResourceKeeper(ctx context.Context, cli client.Client, app *v1beta1.Appl
 		Client:     cli,
 		app:        app,
 		applicator: apply.NewAPIApplicator(cli),
-		cache:      newResourceCache(cli),
+		cache:      newResourceCache(cli, app),
 	}
 	if err = h.loadResourceTrackers(ctx); err != nil {
 		return nil, errors.Wrapf(err, "failed to load resourcetrackers")

@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -61,11 +62,11 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		By("Start syncing")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-
 		appSync := &ApplicationSync{
 			KubeClient: k8sClient,
 			KubeConfig: cfg,
 			Store:      ds,
+			Queue:      workqueue.New(),
 		}
 		go appSync.Start(ctx, make(chan error))
 
@@ -88,14 +89,14 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		Expect(ds.Get(ctx, &comp2)).Should(BeNil())
 		Expect(comp2.Properties).Should(BeEquivalentTo(&model.JSONStruct{"image": "nginx2"}))
 
+		env := model.Env{Project: appNS1, Name: model.AutoGenEnvNamePrefix + appNS1}
+		Expect(ds.Get(ctx, &env)).Should(BeNil())
+		Expect(len(env.Targets)).Should(Equal(2))
+
 		appPlc1 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-beijing-demo"}
 		Expect(ds.Get(ctx, &appPlc1)).Should(BeNil())
-		Expect(appPlc1.Properties).Should(BeEquivalentTo(&model.JSONStruct{"namespace": "demo", "clusterLabelSelector": map[string]interface{}{"region": "beijing"}}))
-
 		appPlc2 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-local"}
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeNil())
-		Expect(appPlc2.Properties).Should(BeEquivalentTo(&model.JSONStruct{"targets": []interface{}{"local/demo", "local/ackone-demo"}}))
-
 		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: model.AutoGenWorkflowNamePrefix + app1.Name}
 		Expect(ds.Get(ctx, &appwf1)).Should(BeNil())
 

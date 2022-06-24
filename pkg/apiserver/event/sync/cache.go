@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 type cached struct {
@@ -66,18 +67,21 @@ func (c *CR2UX) initCache(ctx context.Context) error {
 }
 
 func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, del bool) bool {
-
-	if targetApp != nil && targetApp.Labels != nil && targetApp.Labels[model.LabelSourceOfTruth] == model.FromInner {
-		return false
+	if targetApp != nil && targetApp.Labels != nil {
+		// the source is inner and is not the addon application, ignore it.
+		if targetApp.Labels[model.LabelSourceOfTruth] == model.FromInner && targetApp.Labels[oam.LabelAddonName] == "" {
+			return false
+		}
+		// the source is UX, ignore it
+		if targetApp.Labels[model.LabelSourceOfTruth] == model.FromUX {
+			return false
+		}
 	}
 
 	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
 	cachedData, ok := c.cache.Load(key)
 	if ok {
 		cd := cachedData.(*cached)
-
-		// TODO(wonderflow): we should check targets if we sync that, it can avoid missing the status changed for targets updated in multi-cluster deploy, e.g. resumed suspend case.
-
 		// if app meta not exist, we should ignore the cache
 		_, _, err := c.getApp(ctx, targetApp.Name, targetApp.Namespace)
 		if del || err != nil {
@@ -88,18 +92,6 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		}
 	}
 
-	// This is a double check to make sure the app not be converted and un-deployed
-	sot := c.CheckSoTFromAppMeta(ctx, targetApp.Name, targetApp.Namespace, CheckSoTFromCR(targetApp))
-	switch sot {
-	case model.FromUX:
-		// we don't sync if the application is not created from CR
-		return false
-	case model.FromInner:
-		// we don't sync if the application is not created from CR
-		return false
-	case model.FromCR:
-	default:
-	}
 	return true
 }
 

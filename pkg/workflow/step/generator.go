@@ -156,7 +156,23 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 			}),
 		})
 	}
-	return
+	if len(topologies) == 0 {
+		containsRefObjects := false
+		for _, comp := range app.Spec.Components {
+			if comp.Type == v1alpha1.RefObjectsComponentType {
+				containsRefObjects = true
+				break
+			}
+		}
+		if containsRefObjects {
+			steps = append(steps, v1beta1.WorkflowStep{
+				Name:       "deploy",
+				Type:       "deploy",
+				Properties: util.Object2RawExtension(map[string]interface{}{"policies": append([]string{}, overrides...)}),
+			})
+		}
+	}
+	return steps, nil
 }
 
 // DeployPreApproveWorkflowStepGenerator generate suspend workflow steps before all deploy steps

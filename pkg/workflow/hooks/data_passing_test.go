@@ -74,7 +74,9 @@ output: score: 99
 			ValueFrom: "output.score",
 			Name:      "myscore",
 		}},
-	}, common.WorkflowStepPhaseSucceeded)
+	}, common.StepStatus{
+		Phase: common.WorkflowStepPhaseSucceeded,
+	})
 	r.NoError(err)
 	result, err := wfCtx.GetVar("myscore")
 	r.NoError(err)

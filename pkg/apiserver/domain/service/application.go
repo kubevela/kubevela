@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
@@ -507,14 +506,14 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 func (c *applicationServiceImpl) ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error) {
 	var record = model.WorkflowRecord{
 		AppPrimaryKey: appName,
-		Finished:      "false",
+		Finished:      model.UnFinished,
 	}
 	records, err := c.Store.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 	if len(records) == 0 {
-		record.Finished = "true"
+		record.Finished = model.Finished
 		records, err = c.Store.List(ctx, &record, &datastore.ListOptions{
 			Page:     1,
 			PageSize: 1,
@@ -790,6 +789,10 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 	if workflow == nil || workflow.EnvName == "" {
 		return nil, bcode.ErrWorkflowNotExist
 	}
+	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, workflow.EnvName)
+	if err != nil {
+		return nil, err
+	}
 	env, err := c.EnvService.GetEnv(ctx, workflow.EnvName)
 	if err != nil {
 		return nil, err
@@ -799,14 +802,20 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		labels[key] = value
 	}
 	labels[oam.AnnotationAppName] = appModel.Name
+	// To take over the application
+	labels[model.LabelSourceOfTruth] = model.FromUX
 
+	deployAppName := envbinding.AppDeployName
+	if deployAppName == "" {
+		deployAppName = appModel.Name
+	}
 	var app = &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appModel.Name,
+			Name:      deployAppName,
 			Namespace: env.Namespace,
 			Labels:    labels,
 			Annotations: map[string]string{
@@ -1574,38 +1583,21 @@ func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Applica
 		return buff, err
 	}
 	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects)
-	comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
 		return buff, fmt.Errorf("generate OAM objects %w", err)
 	}
-	var components = make(map[string]*unstructured.Unstructured)
-	for _, comp := range comps {
-		components[comp.Name] = comp.StandardWorkload
+	if _, err = fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
+		return buff, fmt.Errorf("fail to write to buff %w", err)
 	}
-	buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) \n---\n\n", app.Name)))
 	result, err := yaml.Marshal(app)
 	if err != nil {
-		return buff, errors.New("marshal app error")
+		return buff, fmt.Errorf("marshal app: %w", err)
 	}
 	buff.Write(result)
-	buff.Write([]byte("\n---\n"))
-	for _, c := range comps {
-		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Component(%s) \n---\n\n", app.Name, c.Name)))
-		result, err := yaml.Marshal(components[c.Name])
-		if err != nil {
-			return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
-		}
-		buff.Write(result)
-		buff.Write([]byte("\n---\n"))
-		for _, t := range c.Traits {
-			result, err := yaml.Marshal(t)
-			if err != nil {
-				return buff, errors.New("marshal result for component " + c.Name + " object in yaml format")
-			}
-			buff.Write(result)
-			buff.Write([]byte("\n---\n"))
-		}
-		buff.Write([]byte("\n"))
+	buff.WriteString("\n---\n")
+	if err = dryRunOpt.PrintDryRun(&buff, app.Name, comps, policies); err != nil {
+		return buff, err
 	}
 	return buff, nil
 }

@@ -23,6 +23,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
 	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWalk(t *testing.T) {
@@ -127,4 +128,34 @@ func TestWalk(t *testing.T) {
 		}).walk(f)
 	}
 
+}
+
+func TestRemoveTmpVar(t *testing.T) {
+	src := `spec: {
+    _tmp: "x"
+	list: [{
+		_tmp: "x"
+		retain: "y"
+	}, {
+		_tmp: "x"
+		retain: "z"
+	}]
+	retain: "y"
+}
+`
+	r := require.New(t)
+	var runtime cue.Runtime
+	inst, err := runtime.Compile("-", src)
+	r.NoError(err)
+	s, err := toString(inst.Value(), removeTmpVar)
+	r.NoError(err)
+	r.Equal(`spec: {
+	list: [{
+		retain: "y"
+	}, {
+		retain: "z"
+	}]
+	retain: "y"
+}
+`, s)
 }

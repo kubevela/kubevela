@@ -59,6 +59,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
 		options = append(options, MetaOnlyOption{})
 	}
+	h.ClearNamespaceForClusterScopedResources(manifests)
 	// 0. check admission
 	if err = h.AdmissionCheck(ctx, manifests); err != nil {
 		return err
@@ -128,7 +129,11 @@ func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured
 	errs := parallel.Run(func(manifest *unstructured.Unstructured) error {
 		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
 		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-		return h.applicator.Apply(applyCtx, manifest, applyOpts...)
+		ao := applyOpts
+		if h.isShared(manifest) {
+			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+		}
+		return h.applicator.Apply(applyCtx, manifest, ao...)
 	}, manifests, MaxDispatchConcurrent)
 	return velaerrors.AggregateErrors(errs.([]error))
 }

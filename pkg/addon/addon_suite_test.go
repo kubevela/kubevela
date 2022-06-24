@@ -197,7 +197,7 @@ var _ = Describe("Addon func test", func() {
 	It("fetchVelaCoreImageTag func test", func() {
 		deploy = appsv1.Deployment{}
 		tag, err := fetchVelaCoreImageTag(ctx, k8sClient)
-		Expect(err).Should(util.NotFoundMatcher{})
+		Expect(err).ShouldNot(BeNil())
 		Expect(tag).Should(BeEquivalentTo(""))
 
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
@@ -218,7 +218,7 @@ var _ = Describe("Addon func test", func() {
 
 	It("checkAddonVersionMeetRequired func test", func() {
 		deploy = appsv1.Deployment{}
-		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).ShouldNot(BeNil())
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
 		deploy.SetNamespace(types.DefaultKubeVelaNS)
 		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
@@ -379,6 +379,23 @@ var _ = Describe("test enable addon in local dir", func() {
 	})
 })
 
+var _ = Describe("test enable addon which applies the views independently", func() {
+	BeforeEach(func() {
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-test-view"}}
+		Expect(k8sClient.Delete(ctx, &app)).Should(SatisfyAny(BeNil(), util.NotFoundMatcher{}))
+	})
+
+	It("test enable addon which applies the views independently", func() {
+		ctx := context.Background()
+		err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		Expect(err).Should(BeNil())
+		app := v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-view"}, &app)).Should(BeNil())
+		configMap := v1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "pod-view"}, &configMap)).Should(BeNil())
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -409,6 +426,8 @@ kind: Deployment
 metadata:
   name: kubevela-vela-core
   namespace: vela-system
+  labels:
+     controller.oam.dev/name: vela-core
 spec:
   progressDeadlineSeconds: 600
   replicas: 1

@@ -53,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -186,6 +187,10 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagType)
 			}
+			alias, err := cmd.Flags().GetString(FlagAlias)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagAlias)
+			}
 			desc, err := cmd.Flags().GetString(FlagDescription)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagDescription)
@@ -259,6 +264,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 				def.SetName(name)
 				def.SetAnnotations(map[string]string{
 					pkgdef.DescriptionKey: desc,
+					pkgdef.AliasKey:       alias,
 				})
 				def.SetLabels(map[string]string{})
 				def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
@@ -285,6 +291,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify the type of the new definition. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(FlagDescription, "d", "", "Specify the description of the new definition.")
+	cmd.Flags().StringP(FlagAlias, "a", "", "Specify the alias of the new definition.")
 	cmd.Flags().StringP(FlagTemplateYAML, "f", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")

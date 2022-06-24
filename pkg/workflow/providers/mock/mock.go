@@ -22,20 +22,26 @@ type Action struct {
 	Message string
 }
 
-// Suspend ...
+// Suspend makes the step suspend
 func (act *Action) Suspend(message string) {
 	act.Phase = "Suspend"
 	act.Message = message
 }
 
-// Terminate ...
+// Terminate makes the step terminate
 func (act *Action) Terminate(message string) {
 	act.Phase = "Terminate"
 	act.Message = message
 }
 
-// Wait ...
+// Wait makes the step wait
 func (act *Action) Wait(message string) {
 	act.Phase = "Wait"
+	act.Message = message
+}
+
+// Fail makes the step fail
+func (act *Action) Fail(message string) {
+	act.Phase = "Fail"
 	act.Message = message
 }

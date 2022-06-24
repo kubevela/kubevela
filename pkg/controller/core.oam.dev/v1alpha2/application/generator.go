@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -84,7 +85,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {
-		task, err := generateStep(ctx, app, step, taskDiscover, "")
+		task, err := generateStep(ctx, app, step, taskDiscover, h.r.pd, pCtx, "")
 		if err != nil {
 			return nil, err
 		}
@@ -97,9 +98,13 @@ func generateStep(ctx context.Context,
 	app *v1beta1.Application,
 	step v1beta1.WorkflowStep,
 	taskDiscover wfTypes.TaskDiscover,
+	pd *packages.PackageDiscover,
+	pCtx process.Context,
 	parentStepName string) (wfTypes.TaskRunner, error) {
 	options := &wfTypes.GeneratorOptions{
-		ID: generateStepID(step.Name, app.Status.Workflow, parentStepName),
+		ID:              generateStepID(step.Name, app.Status.Workflow, parentStepName),
+		PackageDiscover: pd,
+		ProcessContext:  pCtx,
 	}
 	generatorName := step.Type
 	switch {
@@ -123,14 +128,20 @@ func generateStep(ctx context.Context,
 				Inputs:     subStep.Inputs,
 				Outputs:    subStep.Outputs,
 				If:         subStep.If,
+				Timeout:    subStep.Timeout,
+				Meta:       subStep.Meta,
 			}
-			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, step.Name)
+			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, pd, pCtx, step.Name)
 			if err != nil {
 				return nil, err
 			}
 			subTaskRunners = append(subTaskRunners, subTask)
 		}
 		options.SubTaskRunners = subTaskRunners
+		options.ExecuteMode = common.WorkflowModeDAG
+		if app.Spec.Workflow != nil && app.Spec.Workflow.Mode != nil {
+			options.ExecuteMode = app.Spec.Workflow.Mode.SubSteps
+		}
 	}
 
 	genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)

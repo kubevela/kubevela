@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
+	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -54,8 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/workflow"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -141,9 +141,9 @@ func main() {
 	standardcontroller.AddOptimizeFlags()
 	standardcontroller.AddAdmissionFlags()
 	flag.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
-	flag.IntVar(&workflow.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
-	flag.IntVar(&workflow.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
-	flag.IntVar(&custom.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
+	flag.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
+	flag.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
+	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	flag.Parse()
@@ -322,6 +322,12 @@ func main() {
 		}
 	}
 	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
+
+	klog.Info("Start the vela application monitor")
+	if err := watcher.StartApplicationMetricsWatcher(restConfig); err != nil {
+		klog.ErrorS(err, "Unable to start application metrics watcher")
+		os.Exit(1)
+	}
 
 	klog.Info("Start the vela controller manager")
 

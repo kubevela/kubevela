@@ -40,6 +40,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 var _ = Describe("Test Workflow", func() {
@@ -255,10 +256,11 @@ var _ = Describe("Test Workflow", func() {
 
 		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
-		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSucceeded))
+		Expect(appObj.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
 		Expect(appObj.Status.Workflow.Steps[0].ID).ShouldNot(BeEquivalentTo(""))
 		// resume
 		appObj.Status.Workflow.Suspend = false
+		appObj.Status.Workflow.Steps[0].Phase = common.WorkflowStepPhaseSucceeded
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Name:      suspendApp.Name,
@@ -311,6 +313,9 @@ var _ = Describe("Test Workflow", func() {
 
 		// terminate
 		appObj.Status.Workflow.Terminated = true
+		appObj.Status.Workflow.Suspend = false
+		appObj.Status.Workflow.Steps[0].Phase = common.WorkflowStepPhaseFailed
+		appObj.Status.Workflow.Steps[0].Reason = wfTypes.StatusReasonTerminate
 		Expect(k8sClient.Status().Patch(ctx, appObj, client.Merge)).Should(BeNil())
 
 		tryReconcile(reconciler, suspendApp.Name, suspendApp.Namespace)
@@ -322,7 +327,7 @@ var _ = Describe("Test Workflow", func() {
 			Namespace: suspendApp.Namespace,
 		}, appObj)).Should(BeNil())
 
-		Expect(appObj.Status.Workflow.Suspend).Should(BeTrue())
+		Expect(appObj.Status.Workflow.Suspend).Should(BeFalse())
 		Expect(appObj.Status.Workflow.Terminated).Should(BeTrue())
 		Expect(appObj.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})

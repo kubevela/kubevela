@@ -14,10 +14,3 @@ Edit a yaml file as `example.yaml`, then execute it with `vela up` command.
 
 When executing the `step-group` step, the subSteps in the step group are executed in dag mode. The step group will only complete when all subSteps have been executed to completion.
 SubStep has the same execution behavior as a normal step.
-
-
-
-
-
-
-

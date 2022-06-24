@@ -25,6 +25,8 @@ const (
 type RefObjectsComponentSpec struct {
 	// Objects the referrers to the Kubernetes objects
 	Objects []ObjectReferrer `json:"objects,omitempty"`
+	// URLs are the links that stores the referred objects
+	URLs []string `json:"urls,omitempty"`
 }
 
 // ObjectReferrer selects Kubernetes objects

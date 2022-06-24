@@ -17,7 +17,6 @@ limitations under the License.
 package hooks
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -26,6 +25,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // Input set data to parameter.
@@ -43,25 +43,18 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 }
 
 // Output get data from task value.
-func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, phase common.WorkflowStepPhase) error {
-	if phase == common.WorkflowStepPhaseSucceeded {
-		if step.Properties != nil {
-			o := struct {
-				Name string `json:"name"`
-			}{}
-			js, err := common.RawExtensionPointer{RawExtension: step.Properties}.MarshalJSON()
-			if err != nil {
-				return err
-			}
-			if err := json.Unmarshal(js, &o); err != nil {
-				return err
-			}
-		}
-
+func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus) error {
+	if wfTypes.IsStepFinish(status.Phase, status.Reason) {
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
 			if err != nil {
 				return err
+			}
+			if v.Error() != nil {
+				v, err = taskValue.MakeValue("null")
+				if err != nil {
+					return err
+				}
 			}
 			if err := ctx.SetVar(v, output.Name); err != nil {
 				return err

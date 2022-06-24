@@ -501,5 +501,82 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(kerrors.IsNotFound(err)).Should(BeTrue())
 			}, 2*time.Minute).Should(Succeed())
 		})
+
+		It("Test applications sharing resources", func() {
+			createApp := func(name string) *v1beta1.Application {
+				return &v1beta1.Application{
+					ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{{
+							Name:       "shared-resource-" + name,
+							Type:       "k8s-objects",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"shared"},"data":{"key":"value"}}]}`)},
+						}, {
+							Name:       "no-shared-resource-" + name,
+							Type:       "k8s-objects",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"non-shared-` + name + `"},"data":{"key":"value"}}]}`)},
+						}},
+						Policies: []v1beta1.AppPolicy{{
+							Type:       "shared-resource",
+							Name:       "shared-resource",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"rules":[{"selector":{"componentNames":["shared-resource-` + name + `"]}}]}`)},
+						}},
+					},
+				}
+			}
+			app1 := createApp("app1")
+			Expect(k8sClient.Create(hubCtx, app1)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app1), app1)).Should(Succeed())
+				g.Expect(app1.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 10*time.Second).Should(Succeed())
+			app2 := createApp("app2")
+			Expect(k8sClient.Create(hubCtx, app2)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app2), app2)).Should(Succeed())
+				g.Expect(app2.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 10*time.Second).Should(Succeed())
+			app3 := createApp("app3")
+			Expect(k8sClient.Create(hubCtx, app3)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app3), app3)).Should(Succeed())
+				g.Expect(app3.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 10*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "shared"}, cm)).Should(Succeed())
+				g.Expect(cm.GetAnnotations()[oam.AnnotationAppSharedBy]).Should(SatisfyAll(ContainSubstring("app1"), ContainSubstring("app2"), ContainSubstring("app3")))
+				g.Expect(cm.GetLabels()[oam.LabelAppName]).Should(SatisfyAny(Equal("app1"), Equal("app2"), Equal("app3")))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app1"}, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app2"}, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app3"}, &corev1.ConfigMap{})).Should(Succeed())
+			}, 45*time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app2)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "shared"}, cm)).Should(Succeed())
+				g.Expect(cm.GetAnnotations()[oam.AnnotationAppSharedBy]).Should(SatisfyAll(ContainSubstring("app1"), ContainSubstring("app3")))
+				g.Expect(cm.GetAnnotations()[oam.AnnotationAppSharedBy]).ShouldNot(SatisfyAny(ContainSubstring("app2")))
+				g.Expect(cm.GetLabels()[oam.LabelAppName]).Should(SatisfyAny(Equal("app1"), Equal("app3")))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app1"}, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app2"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app3"}, &corev1.ConfigMap{})).Should(Succeed())
+			}, 10*time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app1)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				cm := &corev1.ConfigMap{}
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "shared"}, cm)).Should(Succeed())
+				g.Expect(cm.GetAnnotations()[oam.AnnotationAppSharedBy]).Should(SatisfyAll(ContainSubstring("app3")))
+				g.Expect(cm.GetAnnotations()[oam.AnnotationAppSharedBy]).ShouldNot(SatisfyAny(ContainSubstring("app1"), ContainSubstring("app2")))
+				g.Expect(cm.GetLabels()[oam.LabelAppName]).Should(Equal("app3"))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app1"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app3"}, &corev1.ConfigMap{})).Should(Succeed())
+			}, 10*time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(hubCtx, app3)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "shared"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app3"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
+			}, 10*time.Second).Should(Succeed())
+		})
 	})
 })

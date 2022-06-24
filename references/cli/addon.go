@@ -75,7 +75,9 @@ var addonVersion string
 
 var addonClusters string
 
-var verboseSatatus bool
+var verboseStatus bool
+
+var skipValidate bool
 
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -96,6 +98,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
+		NewAddonCreateCommand(),
 	)
 	return cmd
 }
@@ -194,13 +197,14 @@ Enable addon for specific clusters, (local means control plane):
 
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
+	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	return cmd
 }
 
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
 	fmt.Printf("Please access %s from the following endpoints:\n", name)
-	err := printAppEndpoints(ctx, addonutil.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c)
+	err := printAppEndpoints(ctx, addonutil.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
@@ -294,6 +298,7 @@ Upgrade addon for specific clusters, (local means control plane):
 		},
 	}
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
+	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	return cmd
 }
 
@@ -358,7 +363,69 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&verboseSatatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	cmd.Flags().BoolVarP(&verboseStatus, "verbose", "v", false, "show addon descriptions and parameters in addition to status")
+	return cmd
+}
+
+// NewAddonCreateCommand creates an addon scaffold
+func NewAddonCreateCommand() *cobra.Command {
+	var helmRepoURL string
+	var chartName string
+	var chartVersion string
+	var path string
+
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "create an addon scaffold",
+		Long:  "Create an addon scaffold for quick starting. A Helm Component is generated if you provide Chart-related parameters.",
+		Example: `	vela addon init mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+will create something like this:
+	mongodb/
+	├── definitions
+	├── metadata.yaml
+	├── readme.md
+	├── resources
+	│   └── mongodb.cue
+	├── schemas
+	└── template.yaml
+
+If you want to store the scaffold in a different directory, you can use the -p/--path flag:
+	vela addon init mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+
+If you don't want the Helm component, just omit the three Chart-related parameters. We will create an empty scaffold for you.
+	vela addon init mongodb`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("an addon name is required")
+			}
+
+			addonName := args[0]
+
+			// Scaffold will be created in ./addonName, unless the user specifies a path
+			// validity of addon names will be checked later
+			addonPath := addonName
+			if len(path) > 0 {
+				addonPath = path
+			}
+
+			if addonName == "" || addonPath == "" {
+				return fmt.Errorf("addon name or path should not be empty")
+			}
+
+			// If the user specified all Chart-related info, use the addon template with a Chart in it.
+			if helmRepoURL != "" && chartName != "" && chartVersion != "" {
+				return pkgaddon.CreateAddonFromHelmChart(args[0], addonPath, helmRepoURL, chartName, chartVersion)
+			}
+
+			return pkgaddon.CreateAddonSample(addonName, addonPath)
+		},
+	}
+
+	cmd.Flags().StringVar(&helmRepoURL, "helm-repo-url", "", "URL that points to a Helm repo")
+	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
+	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
+	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+
 	return cmd
 }
 
@@ -371,7 +438,11 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 	}
 
 	for _, registry := range registries {
-		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+		var opts []pkgaddon.InstallOption
+		if skipValidate {
+			opts = append(opts, pkgaddon.SkipValidateVersion)
+		}
+		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
@@ -391,7 +462,11 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 
 // enableAddonByLocal enable addon in local dir and return the addon name
 func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) error {
-	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args); err != nil {
+	var opts []pkgaddon.InstallOption
+	if skipValidate {
+		opts = append(opts, pkgaddon.SkipValidateVersion)
+	}
+	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...); err != nil {
 		return err
 	}
 	if err := waitApplicationRunning(k8sClient, name); err != nil {
@@ -441,7 +516,7 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 	var addonPackage *pkgaddon.WholeAddonPackage
 
 	// Get addon install package
-	if verboseSatatus {
+	if verboseStatus {
 		// We need the metadata to get descriptions about parameters
 		addonPackages, err := pkgaddon.FindWholeAddonPackagesFromRegistry(context.Background(), c, []string{name}, nil)
 		// Not found error can be ignored, because the user can define their own addon. Others can't.
@@ -477,7 +552,7 @@ func generateAddonInfo(c client.Client, name string) (string, pkgaddon.Status, e
 		// 3. verbose is on (when off, it is not possible to know whether the addon is in registry or not),
 		// means the addon does not exist at all.
 		// So, no need to go further, we return error message saying that we can't find it.
-		if addonPackage == nil && verboseSatatus {
+		if addonPackage == nil && verboseStatus {
 			return res, pkgaddon.Status{}, fmt.Errorf("addon %s is not found in registries nor locally installed", name)
 		}
 	default:

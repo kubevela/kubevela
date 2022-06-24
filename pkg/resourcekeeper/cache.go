@@ -27,6 +27,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 type resourceCacheEntry struct {
@@ -41,12 +43,14 @@ type resourceCacheEntry struct {
 }
 
 type resourceCache struct {
+	app *v1beta1.Application
 	cli client.Client
 	m   map[string]*resourceCacheEntry
 }
 
-func newResourceCache(cli client.Client) *resourceCache {
+func newResourceCache(cli client.Client, app *v1beta1.Application) *resourceCache {
 	return &resourceCache{
+		app: app,
 		cli: cli,
 		m:   map[string]*resourceCacheEntry{},
 	}
@@ -97,9 +101,24 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 				entry.err = errors.Wrapf(err, "failed to get resource %s", key)
 			}
 		} else {
-			entry.exists = true
+			entry.exists = cache.exists(entry.obj)
 		}
 		entry.loaded = true
 	}
 	return entry
+}
+
+func (cache *resourceCache) exists(manifest *unstructured.Unstructured) bool {
+	if cache.app == nil {
+		return true
+	}
+	appKey, controlledBy := apply.GetAppKey(cache.app), apply.GetControlledBy(manifest)
+	if appKey == controlledBy {
+		return true
+	}
+	annotations := manifest.GetAnnotations()
+	if annotations == nil || annotations[oam.AnnotationAppSharedBy] == "" {
+		return false
+	}
+	return apply.ContainsSharer(annotations[oam.AnnotationAppSharedBy], cache.app)
 }

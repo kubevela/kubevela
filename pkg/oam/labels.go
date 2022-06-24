@@ -98,6 +98,9 @@ const (
 	LabelProject = "core.oam.dev/project"
 
 	LabelResourceRules = "rules.oam.dev/resources"
+
+	// LabelControllerName indicates the controller name
+	LabelControllerName = "controller.oam.dev/name"
 )
 
 const (
@@ -210,4 +213,10 @@ const (
 
 	// AnnotationApplicationGroup indicates the group of the Application to use to apply resources
 	AnnotationApplicationGroup = "app.oam.dev/group"
+
+	// AnnotationAppSharedBy records who share the application
+	AnnotationAppSharedBy = "app.oam.dev/shared-by"
+
+	// AnnotationResourceURL records the source url of the Kubernetes object
+	AnnotationResourceURL = "app.oam.dev/resource-url"
 )

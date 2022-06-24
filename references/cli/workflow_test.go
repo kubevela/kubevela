@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 var workflowSpec = v1beta1.ApplicationSpec{
@@ -192,6 +193,27 @@ func TestWorkflowResume(t *testing.T) {
 				Status: common.AppStatus{
 					Workflow: &common.WorkflowStatus{
 						Suspend: true,
+						Steps: []common.WorkflowStepStatus{
+							{
+								StepStatus: common.StepStatus{
+									Type:  "suspend",
+									Phase: "running",
+								},
+							},
+							{
+								StepStatus: common.StepStatus{
+									Type: "step-group",
+								},
+								SubStepsStatus: []common.WorkflowSubStepStatus{
+									{
+										StepStatus: common.StepStatus{
+											Type:  "suspend",
+											Phase: "running",
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -203,6 +225,8 @@ func TestWorkflowResume(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowResumeCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -235,6 +259,16 @@ func TestWorkflowResume(t *testing.T) {
 			}, wf)
 			r.NoError(err)
 			r.Equal(false, wf.Status.Workflow.Suspend)
+			for _, step := range wf.Status.Workflow.Steps {
+				if step.Type == "suspend" {
+					r.Equal(step.Phase, common.WorkflowStepPhaseSucceeded)
+				}
+				for _, sub := range step.SubStepsStatus {
+					if sub.Type == "suspend" {
+						r.Equal(sub.Phase, common.WorkflowStepPhaseSucceeded)
+					}
+				}
+			}
 		})
 	}
 }
@@ -272,6 +306,43 @@ func TestWorkflowTerminate(t *testing.T) {
 				Status: common.AppStatus{
 					Workflow: &common.WorkflowStatus{
 						Terminated: false,
+						Steps: []common.WorkflowStepStatus{
+							{
+								StepStatus: common.StepStatus{
+									Name:  "1",
+									Type:  "suspend",
+									Phase: "succeeded",
+								},
+							},
+							{
+								StepStatus: common.StepStatus{
+									Name:  "2",
+									Type:  "suspend",
+									Phase: "running",
+								},
+							},
+							{
+								StepStatus: common.StepStatus{
+									Name:  "3",
+									Type:  "step-group",
+									Phase: "running",
+								},
+								SubStepsStatus: []common.WorkflowSubStepStatus{
+									{
+										StepStatus: common.StepStatus{
+											Type:  "suspend",
+											Phase: "running",
+										},
+									},
+									{
+										StepStatus: common.StepStatus{
+											Type:  "suspend",
+											Phase: "succeeded",
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -283,6 +354,8 @@ func TestWorkflowTerminate(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowTerminateCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -315,6 +388,18 @@ func TestWorkflowTerminate(t *testing.T) {
 			}, wf)
 			r.NoError(err)
 			r.Equal(true, wf.Status.Workflow.Terminated)
+			for _, step := range wf.Status.Workflow.Steps {
+				if step.Phase != common.WorkflowStepPhaseSucceeded {
+					r.Equal(step.Phase, common.WorkflowStepPhaseFailed)
+					r.Equal(step.Reason, wfTypes.StatusReasonTerminate)
+				}
+				for _, sub := range step.SubStepsStatus {
+					if sub.Phase != common.WorkflowStepPhaseSucceeded {
+						r.Equal(sub.Phase, common.WorkflowStepPhaseFailed)
+						r.Equal(sub.Reason, wfTypes.StatusReasonTerminate)
+					}
+				}
+			}
 		})
 	}
 }
@@ -363,6 +448,8 @@ func TestWorkflowRestart(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRestartCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -486,6 +573,8 @@ func TestWorkflowRollback(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRollbackCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {

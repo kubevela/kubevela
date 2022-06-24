@@ -101,6 +101,16 @@ func (a *Application) IsSynced() bool {
 	return false
 }
 
+// IsReadOnly is readonly app
+// Only the source is inner, the app is readonly
+func (a *Application) IsReadOnly() bool {
+	if a.Labels == nil {
+		return false
+	}
+	sot := a.Labels[LabelSourceOfTruth]
+	return sot == FromInner
+}
+
 // ClusterSelector cluster selector
 type ClusterSelector struct {
 	Name string `json:"name"`

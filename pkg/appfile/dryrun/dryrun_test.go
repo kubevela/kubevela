@@ -42,7 +42,7 @@ var _ = Describe("Test DryRun", func() {
 		Expect(err).Should(BeNil())
 
 		By("Execute DryRun")
-		comps, err := dryrunOpt.ExecuteDryRun(context.Background(), app)
+		comps, _, err := dryrunOpt.ExecuteDryRun(context.Background(), app)
 		Expect(err).Should(BeNil())
 
 		expectCompYAML := readDataFromFile("./testdata/dryrun-exp-comp.yaml")

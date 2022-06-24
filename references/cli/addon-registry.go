@@ -38,9 +38,12 @@ const (
 	addonGitToken     = "gitToken"
 	addonOssType      = "OSS"
 	addonGitType      = "git"
+	addonGiteeType    = "gitee"
+	addonGitlabType   = "gitlab"
 	addonHelmType     = "helm"
 	addonUsername     = "username"
 	addonPassword     = "password"
+	addonRepoName     = "repoName"
 )
 
 // NewAddonRegistryCommand return an addon registry command
@@ -344,6 +347,37 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 			return nil, err
 		}
 		r.Git.Token = token
+	case addonGiteeType:
+		r.Gitee = &pkgaddon.GiteeAddonSource{}
+		r.Gitee.URL = endpoint
+		path, err := cmd.Flags().GetString(addonPath)
+		if err != nil {
+			return nil, err
+		}
+		r.Gitee.Path = path
+		token, err := cmd.Flags().GetString(addonGitToken)
+		if err != nil {
+			return nil, err
+		}
+		r.Gitee.Token = token
+	case addonGitlabType:
+		r.Gitlab = &pkgaddon.GitlabAddonSource{}
+		r.Gitlab.URL = endpoint
+		path, err := cmd.Flags().GetString(addonPath)
+		if err != nil {
+			return nil, err
+		}
+		r.Gitlab.Path = path
+		token, err := cmd.Flags().GetString(addonGitToken)
+		if err != nil {
+			return nil, err
+		}
+		r.Gitlab.Token = token
+		gitLabRepoName, err := cmd.Flags().GetString(addonRepoName)
+		if err != nil {
+			return nil, err
+		}
+		r.Gitlab.Repo = gitLabRepoName
 	case addonHelmType:
 		r.Helm = &pkgaddon.HelmSource{}
 		r.Helm.URL = endpoint

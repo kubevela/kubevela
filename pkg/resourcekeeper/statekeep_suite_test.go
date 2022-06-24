@@ -24,8 +24,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
-	v13 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,66 +40,92 @@ import (
 
 var _ = Describe("Test ResourceKeeper StateKeep", func() {
 
+	createConfigMapClusterObjectReference := func(name string) common.ClusterObjectReference {
+		return common.ClusterObjectReference{
+			ObjectReference: corev1.ObjectReference{
+				Kind:       "ConfigMap",
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Name:       name,
+				Namespace:  "default",
+			},
+		}
+	}
+
+	createConfigMapWithSharedBy := func(name string, ns string, appName string, sharedBy string, value string) *unstructured.Unstructured {
+		o := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name":      name,
+					"namespace": ns,
+					"labels": map[string]interface{}{
+						oam.LabelAppName:      appName,
+						oam.LabelAppNamespace: ns,
+					},
+					"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: sharedBy},
+				},
+				"data": map[string]interface{}{
+					"key": value,
+				},
+			},
+		}
+		o.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		return o
+	}
+
+	createConfigMap := func(name string, value string) *unstructured.Unstructured {
+		return createConfigMapWithSharedBy(name, "default", "", "", value)
+	}
+
 	It("Test StateKeep for various scene", func() {
 		cli := testClient
-		createConfigMap := func(name string, value string) *unstructured.Unstructured {
-			o := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"name":      name,
-						"namespace": "default",
-					},
-					"data": map[string]interface{}{
-						"key": value,
-					},
-				},
+
+		setOwner := func(obj *unstructured.Unstructured) {
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
 			}
-			o.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
-			return o
+			labels[oam.LabelAppName] = "app"
+			labels[oam.LabelAppNamespace] = "default"
+			obj.SetLabels(labels)
 		}
 
 		// state-keep add this resource
 		cm1 := createConfigMap("cm1", "value")
+		setOwner(cm1)
 		cmRaw1, err := json.Marshal(cm1)
 		Expect(err).Should(Succeed())
 
 		// state-keep skip this resource
 		cm2 := createConfigMap("cm2", "value")
+		setOwner(cm2)
 		Expect(cli.Create(context.Background(), cm2)).Should(Succeed())
 
 		// state-keep delete this resource
 		cm3 := createConfigMap("cm3", "value")
+		setOwner(cm3)
 		Expect(cli.Create(context.Background(), cm3)).Should(Succeed())
 
 		// state-keep delete this resource
 		cm4 := createConfigMap("cm4", "value")
+		setOwner(cm4)
 		cmRaw4, err := json.Marshal(cm4)
 		Expect(err).Should(Succeed())
 		Expect(cli.Create(context.Background(), cm4)).Should(Succeed())
 
 		// state-keep update this resource
 		cm5 := createConfigMap("cm5", "value")
+		setOwner(cm5)
 		cmRaw5, err := json.Marshal(cm5)
 		Expect(err).Should(Succeed())
 		cm5.Object["data"].(map[string]interface{})["key"] = "changed"
 		Expect(cli.Create(context.Background(), cm5)).Should(Succeed())
 
-		createConfigMapClusterObjectReference := func(name string) common.ClusterObjectReference {
-			return common.ClusterObjectReference{
-				ObjectReference: v1.ObjectReference{
-					Kind:       "ConfigMap",
-					APIVersion: v1.SchemeGroupVersion.String(),
-					Name:       name,
-					Namespace:  "default",
-				},
-			}
-		}
-
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        &v1beta1.Application{ObjectMeta: v13.ObjectMeta{Name: "app", Namespace: "default"}},
+			app:        app,
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli),
+			cache:      newResourceCache(cli, app),
 		}
 
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -125,7 +151,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 
 		Expect(h.StateKeep(context.Background())).Should(Succeed())
 		cms := &unstructured.UnstructuredList{}
-		cms.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+		cms.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
 		Expect(cli.List(context.Background(), cms, client.InNamespace("default"))).Should(Succeed())
 		Expect(len(cms.Items)).Should(Equal(3))
 		Expect(cms.Items[0].GetName()).Should(Equal("cm1"))
@@ -143,6 +169,49 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("failed to re-apply"))
 	})
+
+	It("Test StateKeep for shared resources", func() {
+		cli := testClient
+		ctx := context.Background()
+		Expect(cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-shared"}})).Should(Succeed())
+		cm1 := createConfigMapWithSharedBy("cm1", "test-shared", "app", "test-shared/app", "x")
+		cmRaw1, err := json.Marshal(cm1)
+		Expect(err).Should(Succeed())
+		cm2 := createConfigMapWithSharedBy("cm2", "test-shared", "app", "", "y")
+		cmRaw2, err := json.Marshal(cm2)
+		Expect(err).Should(Succeed())
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test-shared"}}
+		h := &resourceKeeper{
+			Client:     cli,
+			app:        app,
+			applicator: apply.NewAPIApplicator(cli),
+			cache:      newResourceCache(cli, app),
+		}
+		h.sharedResourcePolicy = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
+			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceTypes: []string{"ConfigMap"}},
+		}}}
+		h._currentRT = &v1beta1.ResourceTracker{
+			Spec: v1beta1.ResourceTrackerSpec{
+				ManagedResources: []v1beta1.ManagedResource{{
+					ClusterObjectReference: createConfigMapClusterObjectReference("cm1"),
+					Data:                   &runtime.RawExtension{Raw: cmRaw1},
+				}, {
+					ClusterObjectReference: createConfigMapClusterObjectReference("cm2"),
+					Data:                   &runtime.RawExtension{Raw: cmRaw2},
+				}},
+			},
+		}
+		cm1 = createConfigMapWithSharedBy("cm1", "test-shared", "app", "test-shared/app,test-shared/another", "z")
+		Expect(cli.Create(ctx, cm1)).Should(Succeed())
+		cm2 = createConfigMapWithSharedBy("cm2", "test-shared", "another", "test-shared/another,test-shared/app", "z")
+		Expect(cli.Create(ctx, cm2)).Should(Succeed())
+		Expect(h.StateKeep(ctx)).Should(Succeed())
+		Expect(cli.Get(ctx, client.ObjectKeyFromObject(cm1), cm1)).Should(Succeed())
+		Expect(cm1.Object["data"].(map[string]interface{})["key"]).Should(Equal("x"))
+		Expect(cli.Get(ctx, client.ObjectKeyFromObject(cm2), cm2)).Should(Succeed())
+		Expect(cm2.Object["data"].(map[string]interface{})["key"]).Should(Equal("z"))
+	})
+
 	It("Test StateKeep for apply-once policy", func() {
 
 		clusterManifest := &unstructured.Unstructured{}
@@ -213,7 +282,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 					},
 				},
 			}
-			o.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("Deployment"))
+			o.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Deployment"))
 			return o
 		}
 
@@ -225,36 +294,37 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 
 		createDeploymentClusterObjectReference := func(name string) common.ClusterObjectReference {
 			return common.ClusterObjectReference{
-				ObjectReference: v1.ObjectReference{
+				ObjectReference: corev1.ObjectReference{
 					Kind:       "Deployment",
-					APIVersion: v1.SchemeGroupVersion.String(),
+					APIVersion: corev1.SchemeGroupVersion.String(),
 					Name:       name,
 					Namespace:  "default",
 				},
 			}
 		}
 
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "fourierapp03-comp-01",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name:       "apply-once-01",
+						Type:       "apply-once",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"enable": true,"rules": [{"selector": { "componentNames": ["fourierapp03-comp-01"], "resourceTypes": ["Deployment" ], "strategy": {"path": ["spec.replicas"] } }}]}`)},
+					},
+				},
+			}}
 		h := &resourceKeeper{
-			Client: cli,
-			app: &v1beta1.Application{ObjectMeta: v13.ObjectMeta{Name: "app", Namespace: "default"},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{
-						{
-							Name:       "fourierapp03-comp-01",
-							Type:       "worker",
-							Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
-						},
-					},
-					Policies: []v1beta1.AppPolicy{
-						{
-							Name:       "apply-once-01",
-							Type:       "apply-once",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"enable": true,"rules": [{"selector": { "componentNames": ["fourierapp03-comp-01"], "resourceTypes": ["Deployment" ], "strategy": {"path": ["spec.replicas"] } }}]}`)},
-						},
-					},
-				}},
+			Client:     cli,
+			app:        app,
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli),
+			cache:      newResourceCache(cli, app),
 			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
 				Enable: true,
 				Rules: []v1alpha1.ApplyOncePolicyRule{{
