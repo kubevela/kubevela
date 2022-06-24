@@ -508,3 +508,15 @@ func TestRemoveEmptyString(t *testing.T) {
 		assert.NotEmpty(t, s)
 	}
 }
+
+func TestHTTPGetKubernetesObjects(t *testing.T) {
+	_, err := HTTPGetKubernetesObjects(context.Background(), "invalid-url")
+	assert.NotNil(t, err)
+	uns, err := HTTPGetKubernetesObjects(context.Background(), "https://gist.githubusercontent.com/Somefive/b189219a9222eaa70b8908cf4379402b/raw/920e83b1a2d56b584f9d8c7a97810a505a0bbaad/example-busybox-resources.yaml")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(uns))
+	assert.Equal(t, "busybox", uns[0].GetName())
+	assert.Equal(t, "Deployment", uns[0].GetKind())
+	assert.Equal(t, "busybox", uns[1].GetName())
+	assert.Equal(t, "ConfigMap", uns[1].GetKind())
+}
