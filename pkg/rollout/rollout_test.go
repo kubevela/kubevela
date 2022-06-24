@@ -135,7 +135,6 @@ var rollout = kruisev1alpha1.Rollout{
 	},
 	Spec: kruisev1alpha1.RolloutSpec{
 		ObjectRef: kruisev1alpha1.ObjectRef{
-			Type: kruisev1alpha1.WorkloadRefType,
 			WorkloadRef: &kruisev1alpha1.WorkloadRef{
 				APIVersion: "appsv1",
 				Kind:       "Deployment",

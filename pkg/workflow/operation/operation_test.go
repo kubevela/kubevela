@@ -46,7 +46,9 @@ var _ = Describe("Kruise rollout test", func() {
 		checkApp.Status.Workflow = &common.WorkflowStatus{Suspend: false, StartTime: metav1.Now()}
 		Expect(k8sClient.Status().Update(ctx, &checkApp)).Should(BeNil())
 		operator := NewWorkflowOperator(k8sClient, nil)
-		Expect(operator.Suspend(ctx, app.DeepCopy())).Should(BeNil())
+		checkApp = v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
+		Expect(operator.Suspend(ctx, checkApp.DeepCopy())).Should(BeNil())
 		checkApp = v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Suspend).Should(BeEquivalentTo(true))
@@ -193,7 +195,6 @@ var myRollout = kruisev1alpha1.Rollout{
 	},
 	Spec: kruisev1alpha1.RolloutSpec{
 		ObjectRef: kruisev1alpha1.ObjectRef{
-			Type: kruisev1alpha1.WorkloadRefType,
 			WorkloadRef: &kruisev1alpha1.WorkloadRef{
 				APIVersion: "appsv1",
 				Kind:       "Deployment",
