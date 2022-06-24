@@ -694,6 +694,14 @@
 				"operationId": "compareAppWithLatestRevision",
 				"parameters": [
 					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.AppCompareReq"
+						}
+					},
+					{
 						"type": "string",
 						"description": "identifier of the application ",
 						"name": "appName",
@@ -705,7 +713,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/v1.ApplicationBase"
+							"$ref": "#/definitions/v1.AppCompareResponse"
 						}
 					},
 					"400": {
@@ -1193,6 +1201,14 @@
 				"summary": "dry-run application to latest revision",
 				"operationId": "dryRunAppOrRevision",
 				"parameters": [
+					{
+						"name": "body",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/v1.AppDryRunReq"
+						}
+					},
 					{
 						"type": "string",
 						"description": "identifier of the application ",
@@ -3655,6 +3671,12 @@
 						"description": "if specified, query the trait definition applied to the workload",
 						"name": "appliedWorkload",
 						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "query by which addon created the definition",
+						"name": "ownerAddon",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -4790,55 +4812,6 @@
 				}
 			}
 		},
-		"/api/v1/projects/{projectName}/validate_image": {
-			"get": {
-				"consumes": [
-					"application/xml",
-					"application/json"
-				],
-				"produces": [
-					"application/json",
-					"application/xml"
-				],
-				"tags": [
-					"project"
-				],
-				"summary": "validate an image in a project",
-				"operationId": "validateImage",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "image name",
-						"name": "image",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "identifier of the project",
-						"name": "projectName",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/*v1.ImageResponse"
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/bcode.Bcode"
-						}
-					}
-				}
-			}
-		},
 		"/api/v1/query": {
 			"get": {
 				"consumes": [
@@ -4899,7 +4872,8 @@
 						"type": "string",
 						"description": "the config project",
 						"name": "project",
-						"in": "query"
+						"in": "query",
+						"required": true
 					}
 				],
 				"responses": {
@@ -5051,6 +5025,101 @@
 						"description": "OK",
 						"schema": {
 							"$ref": "#/definitions/map[string]interface%20%7B%7D"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/repository/image/info": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"repository",
+					"helm"
+				],
+				"summary": "get the oci repos",
+				"operationId": "getImageInfo",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the config project",
+						"name": "project",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the image name",
+						"name": "name",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "the secret name of the image repository",
+						"name": "secretName",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ImageInfo"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/bcode.Bcode"
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/repository/image/repos": {
+			"get": {
+				"consumes": [
+					"application/xml",
+					"application/json"
+				],
+				"produces": [
+					"application/json",
+					"application/xml"
+				],
+				"tags": [
+					"repository",
+					"helm"
+				],
+				"summary": "get the oci repos",
+				"operationId": "getImageRepos",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "the config project",
+						"name": "project",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/v1.ListImageRegistryResponse"
 						}
 					},
 					"400": {
@@ -5894,7 +5963,6 @@
 		"*v1.ApplicationTriggerBase": {},
 		"*v1.Config": {},
 		"*v1.EmptyResponse": {},
-		"*v1.ImageResponse": {},
 		"addon.Dependency": {
 			"properties": {
 				"name": {
@@ -6720,6 +6788,13 @@
 				}
 			}
 		},
+		"common.WorkflowStepMeta": {
+			"properties": {
+				"alias": {
+					"type": "string"
+				}
+			}
+		},
 		"common.WorkflowStepStatus": {
 			"required": [
 				"id"
@@ -6769,11 +6844,17 @@
 						"type": "string"
 					}
 				},
+				"if": {
+					"type": "string"
+				},
 				"inputs": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/common.inputItem"
 					}
+				},
+				"meta": {
+					"$ref": "#/definitions/common.WorkflowStepMeta"
 				},
 				"name": {
 					"type": "string"
@@ -6785,6 +6866,9 @@
 					}
 				},
 				"properties": {
+					"type": "string"
+				},
+				"timeout": {
 					"type": "string"
 				},
 				"type": {
@@ -7117,8 +7201,8 @@
 		},
 		"model.Cluster": {
 			"required": [
-				"updateTime",
 				"createTime",
+				"updateTime",
 				"name",
 				"alias",
 				"description",
@@ -7669,8 +7753,8 @@
 		},
 		"v1.AddonStatusResponse": {
 			"required": [
-				"phase",
 				"name",
+				"phase",
 				"args"
 			],
 			"properties": {
@@ -7709,6 +7793,16 @@
 		"v1.AddonStatusResponse.clusters": {
 			"type": "object"
 		},
+		"v1.AppCompareReq": {
+			"required": [
+				"env"
+			],
+			"properties": {
+				"env": {
+					"type": "string"
+				}
+			}
+		},
 		"v1.AppCompareResponse": {
 			"required": [
 				"isDiff",
@@ -7727,6 +7821,28 @@
 					"type": "string"
 				},
 				"oldAppYAML": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.AppDryRunReq": {
+			"required": [
+				"appName",
+				"dryRunType",
+				"env",
+				"version"
+			],
+			"properties": {
+				"appName": {
+					"type": "string"
+				},
+				"dryRunType": {
+					"type": "string"
+				},
+				"env": {
+					"type": "string"
+				},
+				"version": {
 					"type": "string"
 				}
 			}
@@ -7826,11 +7942,11 @@
 		},
 		"v1.ApplicationDeployResponse": {
 			"required": [
-				"status",
+				"version",
 				"note",
 				"triggerType",
 				"createTime",
-				"version",
+				"status",
 				"envName"
 			],
 			"properties": {
@@ -8365,6 +8481,154 @@
 					"items": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"v1.Config": {
+			"properties": {
+				"ArgsEscaped": {
+					"type": "boolean"
+				},
+				"AttachStderr": {
+					"type": "boolean"
+				},
+				"AttachStdin": {
+					"type": "boolean"
+				},
+				"AttachStdout": {
+					"type": "boolean"
+				},
+				"Cmd": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"Domainname": {
+					"type": "string"
+				},
+				"Entrypoint": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"Env": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"ExposedPorts": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/v1.Config.ExposedPorts"
+					}
+				},
+				"Healthcheck": {
+					"$ref": "#/definitions/v1.HealthConfig"
+				},
+				"Hostname": {
+					"type": "string"
+				},
+				"Image": {
+					"type": "string"
+				},
+				"Labels": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"MacAddress": {
+					"type": "string"
+				},
+				"NetworkDisabled": {
+					"type": "boolean"
+				},
+				"OnBuild": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"OpenStdin": {
+					"type": "boolean"
+				},
+				"Shell": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"StdinOnce": {
+					"type": "boolean"
+				},
+				"StopSignal": {
+					"type": "string"
+				},
+				"Tty": {
+					"type": "boolean"
+				},
+				"User": {
+					"type": "string"
+				},
+				"Volumes": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/v1.Config.Volumes"
+					}
+				},
+				"WorkingDir": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.Config.ExposedPorts": {},
+		"v1.Config.Volumes": {},
+		"v1.ConfigFile": {
+			"required": [
+				"architecture",
+				"os",
+				"rootfs",
+				"config"
+			],
+			"properties": {
+				"architecture": {
+					"type": "string"
+				},
+				"author": {
+					"type": "string"
+				},
+				"config": {
+					"$ref": "#/definitions/v1.Config"
+				},
+				"container": {
+					"type": "string"
+				},
+				"created": {
+					"type": "string"
+				},
+				"docker_version": {
+					"type": "string"
+				},
+				"history": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.History"
+					}
+				},
+				"os": {
+					"type": "string"
+				},
+				"os.version": {
+					"type": "string"
+				},
+				"rootfs": {
+					"$ref": "#/definitions/v1.RootFS"
+				},
+				"variant": {
+					"type": "string"
 				}
 			}
 		},
@@ -9026,13 +9290,50 @@
 				}
 			}
 		},
+		"v1.Descriptor": {
+			"required": [
+				"mediaType",
+				"size",
+				"digest"
+			],
+			"properties": {
+				"annotations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"data": {
+					"type": "string"
+				},
+				"digest": {
+					"type": "string"
+				},
+				"mediaType": {
+					"type": "string"
+				},
+				"platform": {
+					"$ref": "#/definitions/v1.Platform"
+				},
+				"size": {
+					"type": "integer",
+					"format": "int64"
+				},
+				"urls": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"invisible",
-				"name",
 				"description",
+				"invisible",
 				"version",
 				"icon",
+				"name",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9112,13 +9413,13 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"project",
-				"description",
 				"icon",
 				"alias",
+				"project",
+				"description",
 				"createTime",
 				"updateTime",
+				"name",
 				"policies",
 				"envBindings",
 				"resourceInfo"
@@ -9175,20 +9476,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"description",
 				"createTime",
-				"icon",
-				"status",
-				"reason",
-				"provider",
-				"apiServerURL",
-				"alias",
-				"dashboardURL",
 				"updateTime",
+				"reason",
+				"dashboardURL",
 				"labels",
+				"apiServerURL",
 				"kubeConfig",
 				"kubeConfigSecret",
+				"name",
+				"alias",
+				"icon",
+				"status",
+				"description",
+				"provider",
 				"resourceInfo"
 			],
 			"properties": {
@@ -9246,14 +9547,14 @@
 		},
 		"v1.DetailComponentResponse": {
 			"required": [
-				"creator",
-				"appPrimaryKey",
-				"alias",
 				"type",
-				"main",
 				"createTime",
-				"updateTime",
 				"name",
+				"updateTime",
+				"alias",
+				"creator",
+				"main",
+				"appPrimaryKey",
 				"definition"
 			],
 			"properties": {
@@ -9341,11 +9642,11 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"alias",
-				"description",
+				"name",
 				"status",
 				"labels",
-				"name",
+				"alias",
+				"description",
 				"icon",
 				"schema",
 				"uiSchema"
@@ -9400,14 +9701,14 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"createTime",
 				"updateTime",
 				"envName",
 				"name",
 				"type",
 				"description",
 				"creator",
-				"properties"
+				"properties",
+				"createTime"
 			],
 			"properties": {
 				"createTime": {
@@ -9440,17 +9741,17 @@
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"createTime",
-				"updateTime",
-				"reason",
-				"appPrimaryKey",
 				"version",
-				"status",
 				"envName",
+				"createTime",
+				"appPrimaryKey",
+				"reason",
 				"deployUser",
-				"note",
+				"workflowName",
+				"updateTime",
 				"triggerType",
-				"workflowName"
+				"status",
+				"note"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -9504,9 +9805,9 @@
 		},
 		"v1.DetailTargetResponse": {
 			"required": [
+				"project",
 				"createTime",
 				"updateTime",
-				"project",
 				"name"
 			],
 			"properties": {
@@ -9547,11 +9848,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects",
 				"roles"
 			],
@@ -9592,12 +9893,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"applicationRevision",
-				"status",
-				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
+				"applicationRevision",
+				"status",
+				"name",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -9649,14 +9950,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
+				"createTime",
+				"updateTime",
+				"name",
+				"description",
+				"envName",
 				"alias",
 				"enable",
-				"createTime",
-				"name",
-				"default",
-				"envName",
-				"updateTime",
-				"description"
+				"default"
 			],
 			"properties": {
 				"alias": {
@@ -9851,8 +10152,8 @@
 		},
 		"v1.EnvBindingTarget": {
 			"required": [
-				"alias",
-				"name"
+				"name",
+				"alias"
 			],
 			"properties": {
 				"alias": {
@@ -9886,6 +10187,119 @@
 					"additionalProperties": {
 						"$ref": "#/definitions/model.JSONStruct"
 					}
+				}
+			}
+		},
+		"v1.Hash": {
+			"required": [
+				"Algorithm",
+				"Hex"
+			],
+			"properties": {
+				"Algorithm": {
+					"type": "string"
+				},
+				"Hex": {
+					"type": "string"
+				}
+			}
+		},
+		"v1.HealthConfig": {
+			"properties": {
+				"Interval": {
+					"type": "integer",
+					"format": "integer"
+				},
+				"Retries": {
+					"type": "integer",
+					"format": "int32"
+				},
+				"StartPeriod": {
+					"type": "integer",
+					"format": "integer"
+				},
+				"Test": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"Timeout": {
+					"type": "integer",
+					"format": "integer"
+				}
+			}
+		},
+		"v1.History": {
+			"properties": {
+				"author": {
+					"type": "string"
+				},
+				"comment": {
+					"type": "string"
+				},
+				"created": {
+					"type": "string"
+				},
+				"created_by": {
+					"type": "string"
+				},
+				"empty_layer": {
+					"type": "boolean"
+				}
+			}
+		},
+		"v1.ImageInfo": {
+			"required": [
+				"name",
+				"secretNames",
+				"registry",
+				"size",
+				"manifest"
+			],
+			"properties": {
+				"info": {
+					"$ref": "#/definitions/v1.ConfigFile"
+				},
+				"manifest": {
+					"$ref": "#/definitions/v1.Manifest"
+				},
+				"message": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"registry": {
+					"type": "string"
+				},
+				"secretNames": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"size": {
+					"type": "integer",
+					"format": "int64"
+				}
+			}
+		},
+		"v1.ImageRegistry": {
+			"required": [
+				"name",
+				"secretName",
+				"domain"
+			],
+			"properties": {
+				"domain": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"secretName": {
+					"type": "string"
 				}
 			}
 		},
@@ -10063,6 +10477,19 @@
 				}
 			}
 		},
+		"v1.ListImageRegistryResponse": {
+			"required": [
+				"registries"
+			],
+			"properties": {
+				"registries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.ImageRegistry"
+					}
+				}
+			}
+		},
 		"v1.ListProjectResponse": {
 			"required": [
 				"projects",
@@ -10235,11 +10662,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
+				"email",
+				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
-				"email",
-				"disabled",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -10285,6 +10712,37 @@
 					"items": {
 						"$ref": "#/definitions/v1.ProjectBase"
 					}
+				}
+			}
+		},
+		"v1.Manifest": {
+			"required": [
+				"schemaVersion",
+				"config",
+				"layers"
+			],
+			"properties": {
+				"annotations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"config": {
+					"$ref": "#/definitions/v1.Descriptor"
+				},
+				"layers": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Descriptor"
+					}
+				},
+				"mediaType": {
+					"type": "string"
+				},
+				"schemaVersion": {
+					"type": "integer",
+					"format": "int64"
 				}
 			}
 		},
@@ -10374,6 +10832,38 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.Platform": {
+			"required": [
+				"architecture",
+				"os"
+			],
+			"properties": {
+				"architecture": {
+					"type": "string"
+				},
+				"features": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"os": {
+					"type": "string"
+				},
+				"os.features": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"os.version": {
+					"type": "string"
+				},
+				"variant": {
+					"type": "string"
 				}
 			}
 		},
@@ -10517,6 +11007,23 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.RootFS": {
+			"required": [
+				"type",
+				"diff_ids"
+			],
+			"properties": {
+				"diff_ids": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.Hash"
+					}
+				},
+				"type": {
+					"type": "string"
 				}
 			}
 		},
@@ -11203,6 +11710,9 @@
 		},
 		"v1beta1.Workflow": {
 			"properties": {
+				"mode": {
+					"$ref": "#/definitions/v1beta1.WorkflowExecuteMode"
+				},
 				"ref": {
 					"type": "string"
 				},
@@ -11211,6 +11721,16 @@
 					"items": {
 						"$ref": "#/definitions/v1beta1.WorkflowStep"
 					}
+				}
+			}
+		},
+		"v1beta1.WorkflowExecuteMode": {
+			"properties": {
+				"steps": {
+					"type": "string"
+				},
+				"subSteps": {
+					"type": "string"
 				}
 			}
 		},
@@ -11226,11 +11746,17 @@
 						"type": "string"
 					}
 				},
+				"if": {
+					"type": "string"
+				},
 				"inputs": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/common.inputItem"
 					}
+				},
+				"meta": {
+					"$ref": "#/definitions/common.WorkflowStepMeta"
 				},
 				"name": {
 					"type": "string"
@@ -11249,6 +11775,9 @@
 					"items": {
 						"$ref": "#/definitions/common.WorkflowSubStep"
 					}
+				},
+				"timeout": {
+					"type": "string"
 				},
 				"type": {
 					"type": "string"
