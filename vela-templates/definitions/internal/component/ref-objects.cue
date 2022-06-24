@@ -64,7 +64,12 @@ template: {
 		...
 	}
 
-	output: parameter.objects[0]
+	output: {
+		if len(parameter.objects) > 0 {
+			parameter.objects[0]
+		}
+		...
+	}
 
 	outputs: {
 		for i, v in parameter.objects {

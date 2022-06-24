@@ -166,6 +166,22 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["example-override-policy-1","example-override-policy-2","example-topology-policy-2"]}`)},
 			}},
 		},
+		"deploy-with-ref-without-po-workflow": {
+			input: []v1beta1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "example-comp",
+						Type: "ref-objects",
+					}},
+				},
+			},
+			output: []v1beta1.WorkflowStep{{
+				Name:       "deploy",
+				Type:       "deploy",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":[]}`)},
+			}},
+		},
 		"pre-approve-workflow": {
 			input: []v1beta1.WorkflowStep{{
 				Name:       "deploy-example-topology-policy-1",

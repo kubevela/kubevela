@@ -213,4 +213,7 @@ const (
 
 	// AnnotationAppSharedBy records who share the application
 	AnnotationAppSharedBy = "app.oam.dev/shared-by"
+
+	// AnnotationResourceURL records the source url of the Kubernetes object
+	AnnotationResourceURL = "app.oam.dev/resource-url"
 )
