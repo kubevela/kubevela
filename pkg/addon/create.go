@@ -50,7 +50,7 @@ func CreateAddonFromHelmChart(addonName, addonPath, helmRepoURL, chartName, char
 	// Make sure url is valid
 	isValidURL := utils.IsValidURL(helmRepoURL)
 	if !isValidURL {
-		return fmt.Errorf("invalid helm repo url")
+		return fmt.Errorf("invalid helm repo url %s", helmRepoURL)
 	}
 
 	err := preAddonCreation(addonName, addonPath)
