@@ -210,4 +210,7 @@ const (
 
 	// AnnotationApplicationGroup indicates the group of the Application to use to apply resources
 	AnnotationApplicationGroup = "app.oam.dev/group"
+
+	// AnnotationAppSharedBy records who share the application
+	AnnotationAppSharedBy = "app.oam.dev/shared-by"
 )

@@ -18,6 +18,7 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -50,6 +51,7 @@ type Applicator interface {
 }
 
 type applyAction struct {
+	isShared         bool
 	skipUpdate       bool
 	updateAnnotation bool
 }
@@ -239,7 +241,7 @@ func executeApplyOptions(act *applyAction, existing, desired client.Object, aos 
 // NotUpdateRenderHashEqual if the render hash of new object equal to the old hash, should not apply.
 func NotUpdateRenderHashEqual() ApplyOption {
 	return func(act *applyAction, existing, desired client.Object) error {
-		if existing == nil || desired == nil {
+		if existing == nil || desired == nil || act.isShared {
 			return nil
 		}
 		newSt, ok := desired.(*unstructured.Unstructured)
@@ -279,26 +281,39 @@ func MustBeControllableBy(u types.UID) ApplyOption {
 
 // MustBeControlledByApp requires that the new object is controllable by versioned resourcetracker
 func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
-	return func(_ *applyAction, existing, _ client.Object) error {
-		if existing == nil {
+	return func(act *applyAction, existing, _ client.Object) error {
+		if existing == nil || act.isShared {
 			return nil
 		}
-		labels := existing.GetLabels()
-		if labels == nil {
-			return nil
-		}
-		if appName, exists := labels[oam.LabelAppName]; exists && appName != app.Name {
-			return fmt.Errorf("existing object is managed by other application %s", appName)
-		}
-		ns := app.Namespace
-		if ns == "" {
-			ns = metav1.NamespaceDefault
-		}
-		if appNs, exists := labels[oam.LabelAppNamespace]; exists && appNs != ns {
-			return fmt.Errorf("existing object is managed by other application %s/%s", appNs, labels[oam.LabelAppName])
+		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
+		if controlledBy != "" && controlledBy != appKey {
+			return fmt.Errorf("existing object is managed by other application %s", controlledBy)
 		}
 		return nil
 	}
+}
+
+// GetControlledBy extract the application that controls the current resource
+func GetControlledBy(existing client.Object) string {
+	labels := existing.GetLabels()
+	if labels == nil {
+		return ""
+	}
+	appName := labels[oam.LabelAppName]
+	appNs := labels[oam.LabelAppNamespace]
+	if appName == "" || appNs == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s", appNs, appName)
+}
+
+// GetAppKey construct the key for identifying the application
+func GetAppKey(app *v1beta1.Application) string {
+	ns := app.Namespace
+	if ns == "" {
+		ns = metav1.NamespaceDefault
+	}
+	return fmt.Sprintf("%s/%s", ns, app.GetName())
 }
 
 // MakeCustomApplyOption let user can generate applyOption that restrict change apply action.
@@ -312,6 +327,46 @@ func MakeCustomApplyOption(f func(existing, desired client.Object) error) ApplyO
 func DisableUpdateAnnotation() ApplyOption {
 	return func(a *applyAction, existing, _ client.Object) error {
 		a.updateAnnotation = false
+		return nil
+	}
+}
+
+// SharedByApp let the resource be sharable
+func SharedByApp(app *v1beta1.Application) ApplyOption {
+	return func(act *applyAction, existing, desired client.Object) error {
+		// calculate the shared-by annotation
+		// if resource exists, add the current application into the resource shared-by field
+		var sharedBy string
+		if existing != nil && existing.GetAnnotations() != nil {
+			sharedBy = existing.GetAnnotations()[oam.AnnotationAppSharedBy]
+		}
+		sharedBy = AddSharer(sharedBy, app)
+		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+		if existing == nil {
+			return nil
+		}
+
+		// resource exists and controlled by current application
+		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
+		if controlledBy == "" || appKey == controlledBy {
+			return nil
+		}
+
+		// resource exists but not controlled by current application
+		if existing.GetAnnotations() == nil || existing.GetAnnotations()[oam.AnnotationAppSharedBy] == "" {
+			// if the application that controls the resource does not allow sharing, return error
+			return fmt.Errorf("application is controlled by %s but is not sharable", controlledBy)
+		}
+		// the application that controls the resource allows sharing, then only mutate the shared-by annotation
+		act.isShared = true
+		bs, err := json.Marshal(existing)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(bs, desired); err != nil {
+			return err
+		}
+		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
 		return nil
 	}
 }

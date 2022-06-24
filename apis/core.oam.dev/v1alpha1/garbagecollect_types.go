@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -66,6 +67,29 @@ type ResourcePolicyRuleSelector struct {
 	OAMResourceTypes []string `json:"oamTypes"`
 	TraitTypes       []string `json:"traitTypes"`
 	ResourceTypes    []string `json:"resourceTypes"`
+	ResourceNames    []string `json:"resourceNames"`
+}
+
+// Match check if current rule selector match the target resource
+func (in *ResourcePolicyRuleSelector) Match(manifest *unstructured.Unstructured) bool {
+	var compName, compType, oamType, traitType, resourceType, resourceName string
+	if labels := manifest.GetLabels(); labels != nil {
+		compName = labels[oam.LabelAppComponent]
+		compType = labels[oam.WorkloadTypeLabel]
+		oamType = labels[oam.LabelOAMResourceType]
+		traitType = labels[oam.TraitTypeLabel]
+	}
+	resourceType = manifest.GetKind()
+	resourceName = manifest.GetName()
+	match := func(src []string, val string) (found bool) {
+		return val != "" && slices.Contains(src, val)
+	}
+	return match(in.CompNames, compName) ||
+		match(in.CompTypes, compType) ||
+		match(in.OAMResourceTypes, oamType) ||
+		match(in.TraitTypes, traitType) ||
+		match(in.ResourceTypes, resourceType) ||
+		match(in.ResourceNames, resourceName)
 }
 
 // GarbageCollectStrategy the strategy for target resource to recycle
@@ -84,23 +108,7 @@ const (
 // FindStrategy find gc strategy for target resource
 func (in GarbageCollectPolicySpec) FindStrategy(manifest *unstructured.Unstructured) *GarbageCollectStrategy {
 	for _, rule := range in.Rules {
-		var compName, compType, oamType, traitType string
-		if labels := manifest.GetLabels(); labels != nil {
-			compName = labels[oam.LabelAppComponent]
-			compType = labels[oam.WorkloadTypeLabel]
-			oamType = labels[oam.LabelOAMResourceType]
-			traitType = labels[oam.TraitTypeLabel]
-		}
-		match := func(src []string, val string) (found bool) {
-			for _, _val := range src {
-				found = found || _val == val
-			}
-			return val != "" && found
-		}
-		if match(rule.Selector.CompNames, compName) ||
-			match(rule.Selector.CompTypes, compType) ||
-			match(rule.Selector.OAMResourceTypes, oamType) ||
-			match(rule.Selector.TraitTypes, traitType) {
+		if rule.Selector.Match(manifest) {
 			return &rule.Strategy
 		}
 	}

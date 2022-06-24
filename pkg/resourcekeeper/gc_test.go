@@ -22,9 +22,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	v13 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,10 +46,10 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 
 	rtMaps := map[int64]*v1beta1.ResourceTracker{}
 	cmMaps := map[int]*unstructured.Unstructured{}
-	crMaps := map[int]*v13.ControllerRevision{}
+	crMaps := map[int]*appsv1.ControllerRevision{}
 
 	crRT := &v1beta1.ResourceTracker{
-		ObjectMeta: v12.ObjectMeta{Name: "app-comp-rev", Labels: map[string]string{
+		ObjectMeta: metav1.ObjectMeta{Name: "app-comp-rev", Labels: map[string]string{
 			oam.LabelAppName:      "app",
 			oam.LabelAppNamespace: "default",
 			oam.LabelAppUID:       "uid",
@@ -62,7 +62,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 
 	createRT := func(gen int64) {
 		_rt := &v1beta1.ResourceTracker{
-			ObjectMeta: v12.ObjectMeta{Name: fmt.Sprintf("app-v%d", gen), Labels: map[string]string{
+			ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("app-v%d", gen), Labels: map[string]string{
 				oam.LabelAppName:      "app",
 				oam.LabelAppNamespace: "default",
 				oam.LabelAppUID:       "uid",
@@ -82,15 +82,17 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 			cm := &unstructured.Unstructured{}
 			cm.SetName(fmt.Sprintf("cm-%d", i))
 			cm.SetNamespace("default")
-			cm.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+			cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
 			cm.SetLabels(map[string]string{
 				oam.LabelAppComponent: fmt.Sprintf("comp-%d", compID),
+				oam.LabelAppNamespace: "default",
+				oam.LabelAppName:      "app",
 			})
 			r.NoError(cli.Create(ctx, cm))
 			cmMaps[i] = cm
 		}
 		if _, exists := crMaps[compID]; !exists {
-			cr := &v13.ControllerRevision{Data: runtime.RawExtension{Raw: []byte(`{}`)}}
+			cr := &appsv1.ControllerRevision{Data: runtime.RawExtension{Raw: []byte(`{}`)}}
 			cr.SetName(fmt.Sprintf("cr-comp-%d", compID))
 			cr.SetNamespace("default")
 			cr.SetLabels(map[string]string{
@@ -111,7 +113,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 		n := 0
 		for _, v := range cmMaps {
 			o := &unstructured.Unstructured{}
-			o.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+			o.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
 			err := cli.Get(ctx, client.ObjectKeyFromObject(v), o)
 			if err == nil {
 				n += 1
@@ -121,14 +123,14 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 		_rts := &v1beta1.ResourceTrackerList{}
 		r.NoError(cli.List(ctx, _rts))
 		r.Equal(rtCount, len(_rts.Items))
-		_crs := &v13.ControllerRevisionList{}
+		_crs := &appsv1.ControllerRevisionList{}
 		r.NoError(cli.List(ctx, _crs))
 		r.Equal(crCount, len(_crs.Items))
 	}
 
 	createRK := func(gen int64, keepLegacy bool, order v1alpha1.GarbageCollectOrder, components ...apicommon.ApplicationComponent) *resourceKeeper {
 		_rk, err := NewResourceKeeper(ctx, cli, &v1beta1.Application{
-			ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: gen},
+			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: gen},
 			Spec:       v1beta1.ApplicationSpec{Components: components},
 		})
 		r.NoError(err)
@@ -163,7 +165,7 @@ func TestResourceKeeperGarbageCollect(t *testing.T) {
 	checkCount(7, 5, 6)
 
 	// delete rt2, trigger gc for cm3
-	dt := v12.Now()
+	dt := metav1.Now()
 	rtMaps[2].SetDeletionTimestamp(&dt)
 	r.NoError(cli.Update(ctx, rtMaps[2]))
 	rk = createRK(4, true, "")

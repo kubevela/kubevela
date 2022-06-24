@@ -368,6 +368,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.OverridePolicyType:
@@ -393,6 +394,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
+		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
 		case v1alpha1.DebugPolicyType:

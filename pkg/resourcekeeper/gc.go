@@ -40,8 +40,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -309,6 +311,22 @@ func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.M
 	return nil
 }
 
+func (h *gcHandler) deleteSharedManagedResource(ctx context.Context, manifest *unstructured.Unstructured, sharedBy string) error {
+	parts := strings.Split(apply.FirstSharer(sharedBy), "/")
+	appName, appNs := "", metav1.NamespaceDefault
+	if len(parts) == 1 {
+		appName = parts[0]
+	} else if len(parts) == 2 {
+		appName, appNs = parts[1], parts[0]
+	}
+	util.AddAnnotations(manifest, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+	util.AddLabels(manifest, map[string]string{
+		oam.LabelAppName:      appName,
+		oam.LabelAppNamespace: appNs,
+	})
+	return h.Client.Update(ctx, manifest)
+}
+
 func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
 	entry := h.cache.get(ctx, mr)
 	if entry.gcExecutorRT != rt {
@@ -318,7 +336,17 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 		return entry.err
 	}
 	if entry.exists {
-		if err := h.Client.Delete(multicluster.ContextWithClusterName(ctx, mr.Cluster), entry.obj); err != nil && !kerrors.IsNotFound(err) {
+		_ctx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+		if annotations := entry.obj.GetAnnotations(); annotations != nil && annotations[oam.AnnotationAppSharedBy] != "" {
+			sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], h.app)
+			if sharedBy != "" {
+				if err := h.deleteSharedManagedResource(_ctx, entry.obj, sharedBy); err != nil {
+					return errors.Wrapf(err, "failed to remove sharer from resource %s", mr.ResourceKey())
+				}
+				return nil
+			}
+		}
+		if err := h.Client.Delete(_ctx, entry.obj); err != nil && !kerrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 		}
 	}
