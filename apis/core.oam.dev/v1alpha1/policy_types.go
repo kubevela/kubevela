@@ -16,6 +16,8 @@ limitations under the License.
 
 package v1alpha1
 
+import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 const (
 	// TopologyPolicyType refers to the type of topology policy
 	TopologyPolicyType = "topology"
@@ -23,6 +25,8 @@ const (
 	OverridePolicyType = "override"
 	// DebugPolicyType refers to the type of debug policy
 	DebugPolicyType = "debug"
+	// SharedResourcePolicyType refers to the type of shared resource policy
+	SharedResourcePolicyType = "shared-resource"
 )
 
 // TopologyPolicySpec defines the spec of topology policy
@@ -52,4 +56,24 @@ type Placement struct {
 type OverridePolicySpec struct {
 	Components []EnvComponentPatch `json:"components,omitempty"`
 	Selector   []string            `json:"selector,omitempty"`
+}
+
+// SharedResourcePolicySpec defines the spec of shared-resource policy
+type SharedResourcePolicySpec struct {
+	Rules []SharedResourcePolicyRule `json:"rules"`
+}
+
+// SharedResourcePolicyRule defines the rule for sharing resources
+type SharedResourcePolicyRule struct {
+	Selector ResourcePolicyRuleSelector `json:"selector"`
+}
+
+// FindStrategy return if the target resource should be shared
+func (in SharedResourcePolicySpec) FindStrategy(manifest *unstructured.Unstructured) bool {
+	for _, rule := range in.Rules {
+		if rule.Selector.Match(manifest) {
+			return true
+		}
+	}
+	return false
 }

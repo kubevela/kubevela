@@ -33,3 +33,10 @@ func (h *resourceKeeper) ClearNamespaceForClusterScopedResources(manifests []*un
 		}
 	}
 }
+
+func (h *resourceKeeper) isShared(manifest *unstructured.Unstructured) bool {
+	if h.sharedResourcePolicy == nil {
+		return false
+	}
+	return h.sharedResourcePolicy.FindStrategy(manifest)
+}
