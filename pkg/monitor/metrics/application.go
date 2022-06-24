@@ -100,6 +100,32 @@ var (
 		Buckets:     histogramBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})
+
+	// WorkflowFinishedTimeHistogram report the time for finished workflow
+	WorkflowFinishedTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "workflow_finished_time_seconds",
+		Help:        "workflow finished time distributions.",
+		Buckets:     histogramBuckets,
+		ConstLabels: prometheus.Labels{},
+	}, []string{"phase"})
+
+	// WorkflowInitializedCounter report the workflow initialize execute number.
+	WorkflowInitializedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "workflow_initialized_num",
+		Help: "workflow initialize times",
+	}, []string{})
+
+	// ApplicationPhaseCounter report the number of application phase
+	ApplicationPhaseCounter = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "application_phase_number",
+		Help: "application phase number",
+	}, []string{"phase"})
+
+	// WorkflowStepPhaseGauge report the number of workflow step state
+	WorkflowStepPhaseGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "workflow_step_phase_number",
+		Help: "workflow step phase number",
+	}, []string{"step_type", "phase"})
 )
 
 var (

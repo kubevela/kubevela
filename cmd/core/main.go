@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
+	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -321,6 +322,12 @@ func main() {
 		}
 	}
 	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
+
+	klog.Info("Start the vela application monitor")
+	if err := watcher.StartApplicationMetricsWatcher(restConfig); err != nil {
+		klog.ErrorS(err, "Unable to start application metrics watcher")
+		os.Exit(1)
+	}
 
 	klog.Info("Start the vela controller manager")
 

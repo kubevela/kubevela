@@ -213,6 +213,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.Services = handler.services
 	switch workflowState {
 	case common.WorkflowStateInitializing:
+		metrics.WorkflowInitializedCounter.WithLabelValues().Inc()
 		logCtx.Info("Workflow return state=Initializing")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, false, app.Status.Workflow)
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false, false)
@@ -229,7 +230,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case common.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
-		if err := r.doWorkflowFinish(app, wf); err != nil {
+		if err := r.doWorkflowFinish(app, wf, workflowState); err != nil {
 			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, true)
@@ -240,7 +241,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	case common.WorkflowStateSucceeded:
 		logCtx.Info("Workflow return state=Succeeded")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, true, app.Status.Workflow)
-		if err := r.doWorkflowFinish(app, wf); err != nil {
+		if err := r.doWorkflowFinish(app, wf, workflowState); err != nil {
 			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
 		}
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
@@ -432,11 +433,13 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	return nil
 }
 
-func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow) error {
+func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow, state common.WorkflowState) error {
 	app.Status.Workflow.Finished = true
 	if err := wf.Trace(); err != nil {
 		return errors.WithMessage(err, "record workflow state")
 	}
+	t := time.Since(app.Status.Workflow.StartTime.Time).Seconds()
+	metrics.WorkflowFinishedTimeHistogram.WithLabelValues(string(state)).Observe(t)
 	return nil
 }
 
