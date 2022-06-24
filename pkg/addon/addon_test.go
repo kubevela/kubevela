@@ -33,6 +33,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -789,6 +791,33 @@ func TestCheckSemVer(t *testing.T) {
 func TestCheckAddonVersionMeetRequired(t *testing.T) {
 	k8sClient := &test.MockClient{
 		MockGet: test.NewMockGetFn(nil, func(obj client.Object) error {
+			return nil
+		}),
+		MockList: test.NewMockListFn(nil, func(obj client.ObjectList) error {
+			robj := obj.(*appsv1.DeploymentList)
+			list := &appsv1.DeploymentList{
+				Items: []appsv1.Deployment{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								oam.LabelControllerName: oam.ApplicationControllerName,
+							},
+						},
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{
+											Image: "vela-core:v1.2.5",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			list.DeepCopyInto(robj)
 			return nil
 		}),
 	}

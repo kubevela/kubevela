@@ -196,7 +196,7 @@ var _ = Describe("Addon func test", func() {
 	It("fetchVelaCoreImageTag func test", func() {
 		deploy = appsv1.Deployment{}
 		tag, err := fetchVelaCoreImageTag(ctx, k8sClient)
-		Expect(err).Should(util.NotFoundMatcher{})
+		Expect(err).ShouldNot(BeNil())
 		Expect(tag).Should(BeEquivalentTo(""))
 
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
@@ -217,7 +217,7 @@ var _ = Describe("Addon func test", func() {
 
 	It("checkAddonVersionMeetRequired func test", func() {
 		deploy = appsv1.Deployment{}
-		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).Should(util.NotFoundMatcher{})
+		Expect(checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=v1.2.1"}, k8sClient, dc)).ShouldNot(BeNil())
 		Expect(yaml.Unmarshal([]byte(deployYaml), &deploy)).Should(BeNil())
 		deploy.SetNamespace(types.DefaultKubeVelaNS)
 		Expect(k8sClient.Create(ctx, &deploy)).Should(BeNil())
@@ -408,6 +408,8 @@ kind: Deployment
 metadata:
   name: kubevela-vela-core
   namespace: vela-system
+  labels:
+     controller.oam.dev/name: vela-core
 spec:
   progressDeadlineSeconds: 600
   replicas: 1
