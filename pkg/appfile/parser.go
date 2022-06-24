@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -346,6 +347,16 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 			objs, err := component.SelectRefObjectsForDispatch(ctx, p.client, af.app.GetNamespace(), comp.Name, selector)
 			if err != nil {
 				return err
+			}
+			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
+		}
+		for _, url := range spec.URLs {
+			objs, err := utilscommon.HTTPGetKubernetesObjects(ctx, url)
+			if err != nil {
+				return fmt.Errorf("failed to load Kubernetes objects from url %s: %w", url, err)
+			}
+			for _, obj := range objs {
+				util.AddAnnotations(obj, map[string]string{oam.AnnotationResourceURL: url})
 			}
 			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
 		}

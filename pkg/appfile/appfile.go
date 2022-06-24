@@ -51,6 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // constant error information
@@ -929,6 +930,13 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to select objects from referred objects in revision storage")
 		}
+		uns = component.AppendUnstructuredObjects(uns, objs...)
+	}
+	// nolint
+	for _, url := range spec.URLs {
+		objs := utilscommon.FilterObjectsByCondition(af.ReferredObjects, func(obj *unstructured.Unstructured) bool {
+			return obj.GetAnnotations() != nil && obj.GetAnnotations()[oam.AnnotationResourceURL] == url
+		})
 		uns = component.AppendUnstructuredObjects(uns, objs...)
 	}
 	refObjs, err := component.ConvertUnstructuredsToReferredObjects(uns)

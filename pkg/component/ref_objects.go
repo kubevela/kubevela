@@ -37,6 +37,8 @@ import (
 	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -168,6 +170,9 @@ func SelectRefObjectsForDispatch(ctx context.Context, cli client.Client, appNs s
 
 // ReferredObjectsDelegatingClient delegate client get/list function by retrieving ref-objects from existing objects
 func ReferredObjectsDelegatingClient(cli client.Client, objs []*unstructured.Unstructured) client.Client {
+	objs = utilscommon.FilterObjectsByCondition(objs, func(obj *unstructured.Unstructured) bool {
+		return obj.GetAnnotations() == nil || obj.GetAnnotations()[oam.AnnotationResourceURL] == ""
+	})
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {

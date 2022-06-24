@@ -322,4 +322,35 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			g.Expect(errors.IsNotFound(err)).Should(BeTrue())
 		}, time.Minute).Should(Succeed())
 	})
+
+	It("Test ref-objects with url", func() {
+		newApp := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "app"},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []oamcomm.ApplicationComponent{{
+					Name:       "example",
+					Type:       "ref-objects",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"urls":["https://gist.githubusercontent.com/Somefive/b189219a9222eaa70b8908cf4379402b/raw/920e83b1a2d56b584f9d8c7a97810a505a0bbaad/example-busybox-resources.yaml"]}`)},
+				}},
+			},
+		}
+
+		By("Create application")
+		Expect(k8sClient.Create(hubCtx, newApp)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(newApp), newApp)).Should(Succeed())
+			g.Expect(newApp.Status.Phase).Should(Equal(oamcomm.ApplicationRunning))
+		}, 15*time.Second).Should(Succeed())
+		key := types.NamespacedName{Namespace: namespace, Name: "busybox"}
+		Expect(k8sClient.Get(hubCtx, key, &v1.Deployment{})).Should(Succeed())
+		Expect(k8sClient.Get(hubCtx, key, &corev1.ConfigMap{})).Should(Succeed())
+
+		By("Delete application")
+		Expect(k8sClient.Delete(hubCtx, newApp)).Should(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(newApp), newApp)).Should(Satisfy(errors.IsNotFound))
+		}, 15*time.Second).Should(Succeed())
+		Expect(k8sClient.Get(hubCtx, key, &v1.Deployment{})).Should(Satisfy(errors.IsNotFound))
+		Expect(k8sClient.Get(hubCtx, key, &corev1.ConfigMap{})).Should(Satisfy(errors.IsNotFound))
+	})
 })
