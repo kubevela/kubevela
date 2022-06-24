@@ -143,6 +143,20 @@ func TestWorkflowResume(t *testing.T) {
 		"no app name specified": {
 			expectedErr: fmt.Errorf("must specify application name"),
 		},
+		"workflow not suspended": {
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "workflow-not-suspended",
+					Namespace: "default",
+				},
+				Spec: workflowSpec,
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						Suspend: false,
+					},
+				},
+			},
+		},
 		"workflow not running": {
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
@@ -211,6 +225,8 @@ func TestWorkflowResume(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowResumeCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -338,6 +354,8 @@ func TestWorkflowTerminate(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowTerminateCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -430,6 +448,8 @@ func TestWorkflowRestart(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRestartCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
@@ -553,6 +573,8 @@ func TestWorkflowRollback(t *testing.T) {
 			r := require.New(t)
 			cmd := NewWorkflowRollbackCommand(c, ioStream)
 			initCommand(cmd)
+			// clean up the arguments before start
+			cmd.SetArgs([]string{})
 			client, err := c.GetClient()
 			r.NoError(err)
 			if tc.app != nil {
