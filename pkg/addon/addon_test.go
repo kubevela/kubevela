@@ -48,8 +48,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 

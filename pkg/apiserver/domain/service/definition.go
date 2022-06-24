@@ -20,8 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"sort"
+
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"

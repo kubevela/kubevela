@@ -21,8 +21,9 @@ package definition
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"

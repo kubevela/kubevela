@@ -17,13 +17,15 @@ limitations under the License.
 package filters
 
 import (
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
+// Filter is used to filter Unstructured objects. It is basically a func(unstructured.Unstructured) bool.
 type Filter func(unstructured.Unstructured) bool
 
 // Apply applies all the provided filters to a given object.

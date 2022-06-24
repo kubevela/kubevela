@@ -17,9 +17,11 @@ limitations under the License.
 package filters
 
 import (
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"gotest.tools/assert"
 

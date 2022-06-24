@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -30,6 +29,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
@@ -53,7 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
