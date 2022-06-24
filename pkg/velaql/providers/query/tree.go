@@ -89,7 +89,8 @@ func init() {
 			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"}:        nil,
 			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"}: nil,
 		},
-		DefaultGenListOptionFunc: helmRelease2AnyListOption,
+		DefaultGenListOptionFunc:      helmRelease2AnyListOption,
+		DisableFilterByOwnerReference: true,
 	}
 }
 
@@ -117,6 +118,8 @@ type ChildrenResourcesRule struct {
 	CareResource map[ResourceType]genListOptionFunc
 	// if specified genListOptionFunc is nil will use use default genListOptionFunc to generate listOption.
 	DefaultGenListOptionFunc genListOptionFunc
+	// DisableFilterByOwnerReference means don't use parent resource's UID filter the result.
+	DisableFilterByOwnerReference bool
 }
 
 type genListOptionFunc func(unstructured.Unstructured) (client.ListOptions, error)
@@ -618,7 +621,7 @@ func fetchObjectWithResourceTreeNode(ctx context.Context, cluster string, k8sCli
 }
 
 func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resource ResourceType,
-	parentObject unstructured.Unstructured, specifiedFunc genListOptionFunc, defaultFunc genListOptionFunc) ([]unstructured.Unstructured, error) {
+	parentObject unstructured.Unstructured, specifiedFunc genListOptionFunc, defaultFunc genListOptionFunc, disableFilterByOwner bool) ([]unstructured.Unstructured, error) {
 
 	itemList := unstructured.UnstructuredList{}
 	itemList.SetAPIVersion(resource.APIVersion)
@@ -657,6 +660,20 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 	if err != nil {
 		return nil, err
 	}
+	if !disableFilterByOwner {
+		var res []unstructured.Unstructured
+		for _, item := range itemList.Items {
+			if len(item.GetOwnerReferences()) == 0 {
+				res = append(res, item)
+			}
+			for _, reference := range item.GetOwnerReferences() {
+				if reference.UID == parentObject.GetUID() {
+					res = append(res, item)
+				}
+			}
+		}
+		return res, nil
+	}
 	return itemList.Items, nil
 }
 
@@ -676,7 +693,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 		var resList []*types.ResourceTreeNode
 		for resource, specifiedFunc := range rules.CareResource {
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
-			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc)
+			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc, rules.DisableFilterByOwnerReference)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
 					log.Logger.Errorf("error to list subresources: %s err: %v", resource.Kind, err)

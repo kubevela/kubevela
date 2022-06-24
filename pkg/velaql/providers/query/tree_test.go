@@ -1266,14 +1266,14 @@ var _ = Describe("unit-test to e2e test", func() {
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy1.DeepCopy())
 		Expect(err).Should(BeNil())
 		items, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u},
-			deploy2RsLabelListOption, nil)
+			deploy2RsLabelListOption, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(items)).Should(BeEquivalentTo(2))
 
 		u2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy2.DeepCopy())
 		Expect(err).Should(BeNil())
 		items2, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u2},
-			nil, deploy2RsLabelListOption)
+			nil, deploy2RsLabelListOption, true)
 		Expect(len(items2)).Should(BeEquivalentTo(1))
 
 		// test use ownerReference UId to filter
@@ -1285,7 +1285,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: u3.GetNamespace(), Name: u3.GetName()}, &u3))
 		Expect(err).Should(BeNil())
 		items3, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "v1", Kind: "Pod"}, u3,
-			nil, nil)
+			nil, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(items3)).Should(BeEquivalentTo(1))
 	})
