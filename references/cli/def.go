@@ -542,14 +542,42 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 				cmd.Println("No definition found.")
 				return nil
 			}
+			// Determine if there is a definition in the list from some addons
+			// This is used to tell if we want the SOURCE-ADDON column
+			showSourceAddon := false
+			for _, def := range definitions {
+				ownerRef := def.GetOwnerReferences()
+				if len(ownerRef) > 0 && strings.HasPrefix(ownerRef[0].Name, "addon-") {
+					showSourceAddon = true
+					break
+				}
+			}
 			table := newUITable()
-			table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
+
+			// We only include SOURCE-ADDON if there is at least one definition from an addon
+			if showSourceAddon {
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "DESCRIPTION")
+			} else {
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
+			}
+
 			for _, definition := range definitions {
 				desc := ""
 				if annotations := definition.GetAnnotations(); annotations != nil {
 					desc = annotations[pkgdef.DescriptionKey]
 				}
-				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
+
+				// Do not show SOURCE-ADDON column
+				if !showSourceAddon {
+					table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
+					continue
+				}
+
+				sourceAddon := ""
+				if len(definition.GetOwnerReferences()) > 0 {
+					sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+				}
+				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), sourceAddon, desc)
 			}
 			cmd.Println(table)
 			return nil
