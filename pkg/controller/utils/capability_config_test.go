@@ -17,24 +17,16 @@
 package utils
 
 import (
-	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	. "github.com/agiledragon/gomonkey/v2"
-
-	"github.com/pkg/errors"
-	"gopkg.in/src-d/go-git.v4"
 	"gotest.tools/assert"
 )
 
 func TestGetTerraformConfigurationFromRemote(t *testing.T) {
-	// If you hit a panic on macOS as below, please fix it by referencing https://github.com/eisenxp/macos-golink-wrapper.
-	// panic: permission denied [recovered]
-	//    panic: permission denied
 	type want struct {
 		config string
 		errMsg string
@@ -46,8 +38,6 @@ func TestGetTerraformConfigurationFromRemote(t *testing.T) {
 		path         string
 		data         []byte
 		variableFile string
-		// mockWorkingPath will create `/tmp/terraform`
-		mockWorkingPath bool
 	}
 	cases := map[string]struct {
 		args args
@@ -57,7 +47,7 @@ func TestGetTerraformConfigurationFromRemote(t *testing.T) {
 			args: args{
 				name: "valid",
 				url:  "https://github.com/kubevela-contrib/terraform-modules.git",
-				path: "",
+				path: "unittest/",
 				data: []byte(`
 variable "aaa" {
 	type = list(object({
@@ -85,7 +75,7 @@ variable "aaa" {
 			args: args{
 				name: "aws-subnet",
 				url:  "https://github.com/kubevela-contrib/terraform-modules.git",
-				path: "aws/subnet",
+				path: "unittest/aws/subnet",
 				data: []byte(`
 variable "aaa" {
 	type = list(object({
@@ -109,47 +99,20 @@ variable "aaa" {
 }`,
 			},
 		},
-		"working path exists": {
-			args: args{
-				variableFile:    "main.tf",
-				mockWorkingPath: true,
-			},
-			want: want{
-				errMsg: "failed to remove the directory",
-			},
-		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			if tc.args.mockWorkingPath {
-				err := os.MkdirAll("./tmp/terraform", 0755)
-				assert.NilError(t, err)
-				defer os.RemoveAll("./tmp/terraform")
-				patch1 := ApplyFunc(os.Remove, func(_ string) error {
-					return errors.New("failed")
-				})
-				defer patch1.Reset()
-				patch2 := ApplyFunc(os.Open, func(_ string) (*os.File, error) {
-					return nil, errors.New("failed")
-				})
-				defer patch2.Reset()
-			}
-
-			patch := ApplyFunc(git.PlainCloneContext, func(ctx context.Context, path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
-				var tmpPath string
-				if tc.args.path != "" {
-					tmpPath = filepath.Join("./tmp/terraform", tc.args.name, tc.args.path)
-				} else {
-					tmpPath = filepath.Join("./tmp/terraform", tc.args.name)
-				}
+			home, _ := os.UserHomeDir()
+			path := filepath.Join(home, ".vela", "terraform")
+			tmpPath := filepath.Join(path, tc.args.name, tc.args.path)
+			if len(tc.args.data) > 0 {
 				err := os.MkdirAll(tmpPath, os.ModePerm)
 				assert.NilError(t, err)
 				err = ioutil.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
 				assert.NilError(t, err)
-				return nil, nil
-			})
-			defer patch.Reset()
+			}
+			defer os.RemoveAll(tmpPath)
 
 			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path)
 			if tc.want.errMsg != "" {

@@ -166,9 +166,8 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				return nil, err
 			}
 			for _, p := range parameters {
-				if p.Name == providerNameParam {
-					p.Default = providerType + "-default"
-				}
+				// TODO(wonderflow): make the provider default name to be unique but keep the compatiblility as some Application didn't specify the name,
+				// now it's “default” for every one, the name will conflict if we have more than one cloud provider.
 				cmd.Flags().String(p.Name, fmt.Sprint(p.Default), p.Usage)
 			}
 			cmd.RunE = func(cmd *cobra.Command, args []string) error {

@@ -188,7 +188,7 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 }
 
 func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []string) (string, bool) {
-	// does not depends on other components
+	// does not depend on other components
 	if dependsOnComponentNames == nil {
 		return "", true
 	}
