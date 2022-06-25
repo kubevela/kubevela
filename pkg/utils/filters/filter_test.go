@@ -31,6 +31,20 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
+func TestApply(t *testing.T) {
+	// Any of the filters rejected
+	assert.Equal(t, false, Apply(unstructured.Unstructured{},
+		KeepAll(),
+		KeepNone(),
+	))
+
+	// All filters kept
+	assert.Equal(t, true, Apply(unstructured.Unstructured{},
+		KeepAll(),
+		KeepAll(),
+	))
+}
+
 func TestKeepAll(t *testing.T) {
 	f := KeepAll()
 	assert.Equal(t, true, f(unstructured.Unstructured{}))
@@ -112,4 +126,7 @@ func TestByAppliedWorkload(t *testing.T) {
 	u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&trait)
 	assert.NilError(t, err)
 	assert.Equal(t, false, f(unstructured.Unstructured{Object: u}))
+
+	// Test not a definition
+	assert.Equal(t, false, f(unstructured.Unstructured{}))
 }
