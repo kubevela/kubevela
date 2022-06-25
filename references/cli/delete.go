@@ -75,21 +75,29 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		if err != nil {
 			return err
 		}
-		o.ForceDelete = force
+		yes, err := cmd.Flags().GetBool("yes")
+		if err != nil {
+			return err
+		}
+		o.ForceDelete = force || yes
 		userInput := NewUserInput()
 		if svcname == "" {
-			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
-			if !userConfirmation {
-				return fmt.Errorf("stopping Deleting")
+			if !force {
+				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
+				if !userConfirmation {
+					return fmt.Errorf("stopping Deleting")
+				}
 			}
 			if err = o.DeleteApp(ioStreams); err != nil {
 				return err
 			}
 			ioStreams.Info(green.Sprintf("app \"%s\" deleted from namespace \"%s\"", o.AppName, o.Namespace))
 		} else {
-			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
-			if !userConfirmation {
-				return fmt.Errorf("stopping Deleting")
+			if !force {
+				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
+				if !userConfirmation {
+					return fmt.Errorf("stopping Deleting")
+				}
 			}
 			o.CompName = svcname
 			if err = o.DeleteComponent(ioStreams); err != nil {
