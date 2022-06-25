@@ -35,7 +35,6 @@ import (
 )
 
 const (
-	errAuthenticateProvider   = "failed to authenticate Terraform cloud provider %s for %s"
 	errProviderExists         = "terraform provider %s for %s already exists"
 	errDeleteProvider         = "failed to delete Terraform Provider %s err: %w"
 	errCouldNotDeleteProvider = "the Terraform Provider %s could not be disabled because it was created by enabling a Terraform provider or was manually created"
@@ -54,7 +53,7 @@ func CreateApplication(ctx context.Context, k8sClient client.Client, name, compo
 	if strings.HasPrefix(componentType, types.TerraformComponentPrefix) {
 		existed, err := IsTerraformProviderExisted(ctx, k8sClient, name)
 		if err != nil {
-			return errors.Wrapf(err, errAuthenticateProvider, name, componentType)
+			return errors.Wrapf(err, errCheckProviderExistence, name)
 		}
 		if existed {
 			return fmt.Errorf(errProviderExists, name, componentType)

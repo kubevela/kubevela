@@ -166,9 +166,13 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				return nil, err
 			}
 			for _, p := range parameters {
+				if p.Name == providerNameParam {
+					p.Default = providerType + "-default"
+				}
 				cmd.Flags().String(p.Name, fmt.Sprint(p.Default), p.Usage)
 			}
 			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				newContext := context.Background()
 				name, err := cmd.Flags().GetString(providerNameParam)
 				if err != nil || name == "" {
 					return fmt.Errorf("must specify a name for the Terraform Cloud Provider %s", providerType)
@@ -188,8 +192,7 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				if err != nil {
 					return fmt.Errorf(errAuthenticateProvider, providerType, err)
 				}
-
-				if err := config.CreateApplication(ctx, k8sClient, name, providerType, string(data), config.UIParam{}); err != nil {
+				if err := config.CreateApplication(newContext, k8sClient, name, providerType, string(data), config.UIParam{}); err != nil {
 					return fmt.Errorf(errAuthenticateProvider, providerType, err)
 				}
 				ioStreams.Infof("Successfully authenticate provider %s for %s\n", name, providerType)
