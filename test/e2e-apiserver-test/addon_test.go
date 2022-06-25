@@ -35,7 +35,7 @@ var _ = Describe("Test addon rest api", func() {
 			defer resp.Body.Close()
 			var addonRegistry apisv1.ListAddonRegistryResponse
 			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
-			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(1))
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(2))
 		})
 
 		It("add addon registry", func() {
@@ -55,7 +55,7 @@ var _ = Describe("Test addon rest api", func() {
 			resp := get("/addon_registries")
 			var addonRegistry apisv1.ListAddonRegistryResponse
 			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
-			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(2))
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(3))
 		})
 
 		It("update an addon registry", func() {
@@ -74,8 +74,8 @@ var _ = Describe("Test addon rest api", func() {
 			resp := get("/addon_registries")
 			var addonRegistry apisv1.ListAddonRegistryResponse
 			Expect(decodeResponseBody(resp, &addonRegistry)).Should(Succeed())
-			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(2))
-			Expect(addonRegistry.Registries[1].Git.URL).Should(BeEquivalentTo("github.com/another-path"))
+			Expect(len(addonRegistry.Registries)).Should(BeEquivalentTo(3))
+			Expect(addonRegistry.Registries[2].Git.URL).Should(BeEquivalentTo("github.com/another-path"))
 		})
 
 		It("delete an addon registry", func() {

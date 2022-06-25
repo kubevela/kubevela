@@ -520,7 +520,21 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		}
 		if err != nil {
 			if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
-				return fmt.Errorf("%w\nyou can try another version by command: \"vela addon enable %s --version <version> \" ", err, name)
+				if !strings.Contains(err.Error(), "the latest version that suits current version requirements") {
+					return fmt.Errorf("%w\ncan't find a version suit current version requirements", err)
+				}
+
+				availableVersion, err2 := pkgaddon.GetAvailableVersionTip(err)
+				if err2 != nil {
+					return fmt.Errorf("%w\nyou can try another version by command: \"vela addon enable %s --version <version> \" ", err2, name)
+				}
+
+				input := NewUserInput()
+				if input.AskBool(err.Error(), &UserInputOptions{AssumeYes: false}) {
+					err2 = pkgaddon.EnableAddon(ctx, name, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+					return err2
+				}
+				return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
 			}
 			return err
 		}

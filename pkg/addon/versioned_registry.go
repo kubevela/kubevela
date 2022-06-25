@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 
 	"sort"
 
@@ -40,6 +41,7 @@ type VersionedRegistry interface {
 	GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error)
 	GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error)
 	GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error)
+	GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error)
 }
 
 // BuildVersionedRegistry is build versioned addon registry
@@ -97,6 +99,10 @@ func (i *versionedRegistry) GetDetailedAddon(ctx context.Context, addonName, ver
 		return nil, err
 	}
 	return wholePackage, nil
+}
+
+func (i versionedRegistry) GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error) {
+	return i.loadAddonVersions(addonName)
 }
 
 func (i *versionedRegistry) resolveAddonListFromIndex(repoName string, index *repo.IndexFile) []*UIData {
@@ -157,9 +163,23 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		}
 		addonPkg.AvailableVersions = availableVersions
 		addonPkg.RegistryName = i.name
+		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations["system"])
 		return addonPkg, nil
 	}
 	return nil, fmt.Errorf("cannot fetch addon package")
+}
+
+// loadAddonVersions Load all available versions of the addon
+func (i versionedRegistry) loadAddonVersions(addonName string) ([]*repo.ChartVersion, error) {
+	versions, err := i.h.ListVersions(i.url, addonName, false, i.Opts)
+	if err != nil {
+		return nil, err
+	}
+	if len(versions) == 0 {
+		return nil, ErrNotExist
+	}
+	sort.Sort(sort.Reverse(versions))
+	return versions, nil
 }
 
 func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAddonPackage, error) {
@@ -211,4 +231,23 @@ func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*rep
 		}
 	}
 	return addonVersion, availableVersions
+}
+
+// LoadSystemRequirements load the system version requirements from the addon's meta file
+func LoadSystemRequirements(requirements string) *SystemRequirements {
+	if len(requirements) == 0 {
+		return nil
+	}
+	patternReq := `vela(.*\d+\.\d+\.\d+);\s?kubernetes(.*\d+\.\d+\.\d+)`
+	regexReq := regexp.MustCompile(patternReq)
+	matched := regexReq.FindStringSubmatch(requirements)
+	if len(matched) < 2 {
+		return nil
+	}
+	velaReq, k8sReq := matched[1], matched[2]
+	req := &SystemRequirements{
+		VelaVersion:       velaReq,
+		KubernetesVersion: k8sReq,
+	}
+	return req
 }

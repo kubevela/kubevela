@@ -18,6 +18,7 @@ package addon
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
@@ -55,8 +56,29 @@ func WrapErrRateLimit(err error) error {
 type VersionUnMatchError struct {
 	err       error
 	addonName string
+	// userSelectedAddonVersion is the version of the addon which is selected to install by user
+	userSelectedAddonVersion string
+	// availableVersion is the newest available addon's version which suits system requirements
+	availableVersion string
 }
 
 func (v VersionUnMatchError) Error() string {
-	return fmt.Sprintf("addon %s system requirement miss match: %v", v.addonName, v.err)
+	var err string
+	if v.availableVersion != "" {
+		err = fmt.Sprintf("fail to install %s version of %s, because %s.\nInstall %s(v%s) which is the latest version that suits current version requirements", v.userSelectedAddonVersion, v.addonName, v.err, v.addonName, v.availableVersion)
+	} else {
+		err = fmt.Sprintf("fail to install %s version of %s, because %s", v.userSelectedAddonVersion, v.addonName, v.err)
+	}
+	return err
+}
+
+// GetAvailableVersionTip will return the available version from the error
+func GetAvailableVersionTip(err error) (string, error) {
+	compileRegex := regexp.MustCompile(`fail to install.*\sInstall.*v(\d+\.\d+\.\d+).*`)
+	matchRes := compileRegex.FindStringSubmatch(err.Error())
+	if len(matchRes) > 2 {
+		return matchRes[2], nil
+	}
+	return "", errors.New("fail to load available version data")
+
 }

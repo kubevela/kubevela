@@ -24,6 +24,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/Netflix/go-expect"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -110,6 +111,28 @@ var _ = Describe("Addon Test", func() {
 				g.Expect(apierrors.IsNotFound(k8sClient.Get(context.Background(), types.NamespacedName{Name: "addon-test-addon", Namespace: "test-vela"}, &v1beta1.Application{}))).Should(BeTrue())
 			}, 60*time.Second).Should(Succeed())
 		})
+
+		It("Enable fluxcd-test-version whose version can't suit system requirements", func() {
+			output, err := e2e.InteractiveExec("vela addon enable fluxcd-test-version", func(c *expect.Console) {
+				_, err = c.SendLine("y")
+				Expect(err).NotTo(HaveOccurred())
+			})
+			Expect(output).To(ContainSubstring("enabled successfully"))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("Disable addon fluxcd-test-version", func() {
+			output, err := e2e.LongTimeExec("vela addon disable fluxcd-test-version", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully disable addon"))
+		})
+
+		It("Delete addon registry Test-Helm", func() {
+			output, err := e2e.LongTimeExec("vela addon registry delete Test-Helm", 600*time.Second)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("Successfully delete an addon registry Test-Helm"))
+		})
+
 	})
 
 	Context("Addon registry test", func() {

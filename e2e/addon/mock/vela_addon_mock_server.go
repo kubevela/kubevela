@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"path"
@@ -46,6 +47,7 @@ func main() {
 		log.Fatal("Apply mock server config to ConfigMap fail")
 	}
 	http.HandleFunc("/", ossHandler)
+	http.HandleFunc("/helm/", helmHandler)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", utils.Port), nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
@@ -100,6 +102,29 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 			t, _ := template.New("").Parse(nf)
 			t.Execute(rw, nf)
 		}
+	}
+}
+
+var helmHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
+	switch {
+	case strings.Contains(req.URL.Path, "index.yaml"):
+		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/index.yaml")
+		if err != nil {
+			_, _ = rw.Write([]byte(err.Error()))
+		}
+		rw.Write(file)
+	case strings.Contains(req.URL.Path, "fluxcd-test-version-1.0.0.tgz"):
+		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-1.0.0.tgz")
+		if err != nil {
+			_, _ = rw.Write([]byte(err.Error()))
+		}
+		rw.Write(file)
+	case strings.Contains(req.URL.Path, "fluxcd-test-version-2.0.0.tgz"):
+		file, err := ioutil.ReadFile("./e2e/addon/mock/testrepo/helm-repo/fluxcd-test-version-2.0.0.tgz")
+		if err != nil {
+			_, _ = rw.Write([]byte(err.Error()))
+		}
+		rw.Write(file)
 	}
 }
 
