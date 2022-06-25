@@ -417,14 +417,10 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
 
-		for _, obj := range objs.Items {
-			// Apply additional filters
-			kept := filters.Apply(obj, additionalFilters...)
-			if !kept {
-				continue
-			}
-			definitions = append(definitions, obj)
-		}
+		// Apply filters to the object list
+		filteredList := filters.ApplyToList(objs, additionalFilters...)
+
+		definitions = append(definitions, filteredList.Items...)
 	}
 	return definitions, nil
 }

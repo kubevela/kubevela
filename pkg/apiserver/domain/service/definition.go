@@ -122,19 +122,17 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 	}); err != nil {
 		return nil, err
 	}
-	var defs []*apisv1.DefinitionBase
-	for _, def := range list.Items {
-		// Apply additional filters
-		kept := filters.Apply(def,
-			// Filter by applied workload
-			filters.ByAppliedWorkload(ops.AppliedWorkloads),
-			// Filter by which addon installed this definition
-			filters.ByOwnerAddon(ops.OwnerAddon),
-		)
-		if !kept {
-			continue
-		}
 
+	// Apply filters to list
+	filteredList := filters.ApplyToList(*list,
+		// Filter by applied workload
+		filters.ByAppliedWorkload(ops.AppliedWorkloads),
+		// Filter by which addon installed this definition
+		filters.ByOwnerAddon(ops.OwnerAddon),
+	)
+
+	var defs []*apisv1.DefinitionBase
+	for _, def := range filteredList.Items {
 		definition, err := convertDefinitionBase(def, kind)
 		if err != nil {
 			log.Logger.Errorf("convert definition to base failure %s", err.Error())

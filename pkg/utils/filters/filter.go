@@ -44,6 +44,25 @@ func Apply(obj unstructured.Unstructured, filters ...Filter) bool {
 	return true
 }
 
+// ApplyToList applies all the provided filters to a UnstructuredList.
+// It only keeps items that pass all the filters.
+func ApplyToList(list unstructured.UnstructuredList, filters ...Filter) unstructured.UnstructuredList {
+	filteredList := unstructured.UnstructuredList{Object: list.Object}
+
+	// Apply filters to each item in the list
+	for _, u := range list.Items {
+		kept := Apply(u, filters...)
+		if !kept {
+			continue
+		}
+
+		// Item that passed filters
+		filteredList.Items = append(filteredList.Items, u)
+	}
+
+	return filteredList
+}
+
 // KeepAll returns a filter that keeps everything
 func KeepAll() Filter {
 	return func(unstructured.Unstructured) bool {

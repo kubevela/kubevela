@@ -45,6 +45,18 @@ func TestApply(t *testing.T) {
 	))
 }
 
+func TestApplyToList(t *testing.T) {
+	list := unstructured.UnstructuredList{Items: []unstructured.Unstructured{
+		unstructured.Unstructured{},
+		unstructured.Unstructured{},
+	}}
+
+	list.Items[0].SetName("name")
+
+	filtered := ApplyToList(list, KeepAll(), ByName("name"))
+	assert.Equal(t, len(filtered.Items), 1)
+}
+
 func TestKeepAll(t *testing.T) {
 	f := KeepAll()
 	assert.Equal(t, true, f(unstructured.Unstructured{}))
