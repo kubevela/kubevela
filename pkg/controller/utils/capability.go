@@ -223,6 +223,7 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 	// Check if the directory exists. If yes, remove it.
 	entities, err := os.ReadDir(cachePath)
 	if err != nil || len(entities) == 0 {
+		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
 		if _, err = git.PlainClone(cachePath, false, &git.CloneOptions{
 			URL:      remoteURL,
 			Progress: os.Stdout,

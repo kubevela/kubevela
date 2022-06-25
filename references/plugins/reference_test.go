@@ -430,7 +430,8 @@ variable "acl" {
 		"configuration is in git remote": {
 			args: args{
 				cap: types.Capability{
-					TerraformConfiguration: "https://github.com/zzxwill/terraform-alibaba-eip.git",
+					Name:                   "ecs",
+					TerraformConfiguration: "https://github.com/wonderflow/terraform-alicloud-ecs-instance.git",
 					ConfigurationType:      "remote",
 				},
 			},
