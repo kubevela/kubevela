@@ -159,7 +159,6 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	if err := printWorkflowStatus(c, ioStreams, appName, namespace); err != nil {
 		return err
 	}
-	cmd.Printf("Services:\n\n")
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
@@ -236,6 +235,9 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	remoteApp, err := loadRemoteApplication(c, namespace, appName)
 	if err != nil {
 		return err
+	}
+	if len(remoteApp.Status.Services) > 0 {
+		ioStreams.Infof("Services:\n\n")
 	}
 	for _, comp := range remoteApp.Status.Services {
 		compName := comp.Name
