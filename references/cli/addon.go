@@ -98,6 +98,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
 		NewAddonCreateCommand(),
+		NewAddonPushCommand(c),
 	)
 	return cmd
 }
@@ -424,6 +425,51 @@ If you don't want the Helm component, just omit the three Chart-related paramete
 	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
 	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
 	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+
+	return cmd
+}
+
+// NewAddonPushCommand pushes an addon dir/package to a ChartMuseum
+func NewAddonPushCommand(c common.Args) *cobra.Command {
+	p := &pkgaddon.PushCmd{}
+	cmd := &cobra.Command{
+		Use:     "push",
+		Short:   "uploads an addon package to ChartMuseum",
+		Long:    "TBD",
+		Example: `TBD`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
+			}
+			c, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			p.Client = c
+			p.Out = cmd.OutOrStdout()
+			p.ChartName = args[0]
+			p.RepoName = args[1]
+			p.SetFieldsFromEnv()
+
+			return p.Push(context.Background())
+		},
+	}
+
+	f := cmd.Flags()
+	f.StringVarP(&p.ChartVersion, "version", "v", "", "Override chart version pre-push")
+	f.StringVarP(&p.AppVersion, "app-version", "a", "", "Override app version pre-push")
+	f.StringVarP(&p.Username, "username", "u", "", "Override HTTP basic auth username [$HELM_REPO_USERNAME]")
+	f.StringVarP(&p.Password, "password", "p", "", "Override HTTP basic auth password [$HELM_REPO_PASSWORD]")
+	f.StringVarP(&p.AccessToken, "access-token", "", "", "Send token in Authorization header [$HELM_REPO_ACCESS_TOKEN]")
+	f.StringVarP(&p.AuthHeader, "auth-header", "", "", "Alternative header to use for token auth [$HELM_REPO_AUTH_HEADER]")
+	f.StringVarP(&p.ContextPath, "context-path", "", "", "ChartMuseum context path [$HELM_REPO_CONTEXT_PATH]")
+	f.StringVarP(&p.CaFile, "ca-file", "", "", "Verify certificates of HTTPS-enabled servers using this CA bundle [$HELM_REPO_CA_FILE]")
+	f.StringVarP(&p.CertFile, "cert-file", "", "", "Identify HTTPS client using this SSL certificate file [$HELM_REPO_CERT_FILE]")
+	f.StringVarP(&p.KeyFile, "key-file", "", "", "Identify HTTPS client using this SSL key file [$HELM_REPO_KEY_FILE]")
+	f.BoolVarP(&p.InsecureSkipVerify, "insecure", "", false, "Connect to server with an insecure way by skipping certificate verification [$HELM_REPO_INSECURE]")
+	f.BoolVarP(&p.ForceUpload, "force", "f", false, "Force upload even if chart version exists")
+	f.BoolVarP(&p.UseHTTP, "use-http", "", false, "Use HTTP")
+	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) Helm will wait to get response from chartmuseum")
 
 	return cmd
 }

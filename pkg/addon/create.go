@@ -117,7 +117,7 @@ func preAddonCreation(addonName, addonPath string) error {
 func postAddonCreation(addonPath string) {
 	fmt.Println("Scaffold created in directory " +
 		color.New(color.Bold).Sprint(addonPath) + ". What to do next:\n" +
-		"- Check out our guide on how to build your own addon: " +
+		"- Check Out our guide on how to build your own addon: " +
 		color.BlueString("https://kubevela.io/docs/platform-engineers/addon/intro") + "\n" +
 		"- Review and edit what we have generated in " + color.New(color.Bold).Sprint(addonPath) + "\n" +
 		"- To enable the addon, run: " +

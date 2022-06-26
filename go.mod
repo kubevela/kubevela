@@ -117,6 +117,8 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 )
 
+require github.com/chartmuseum/helm-push v0.10.2
+
 require (
 	cloud.google.com/go/compute v1.6.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -305,6 +307,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
 	istio.io/gogo-genproto v0.0.0-20190930162913-45029607206a // indirect
+	k8s.io/helm v2.17.0+incompatible // indirect
 	oras.land/oras-go v0.4.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.30 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect

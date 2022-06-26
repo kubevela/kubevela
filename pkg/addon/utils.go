@@ -19,6 +19,12 @@ package addon
 import (
 	"context"
 	"fmt"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sigs.k8s.io/yaml"
 	"strings"
 
 	errors "github.com/pkg/errors"
@@ -235,4 +241,120 @@ type InstallOption func(installer *Installer)
 // SkipValidateVersion means skip validating system version
 func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
+}
+
+// IsAddonDir validates an addon directory
+// It checks required files like metadata.yaml and template.yaml
+func IsAddonDir(dirName string) (bool, error) {
+	if fi, err := os.Stat(dirName); err != nil {
+		return false, err
+	} else if !fi.IsDir() {
+		return false, errors.Errorf("%q is not a directory", dirName)
+	}
+
+	// Load metadata.yaml
+	metadataYaml := filepath.Join(dirName, MetadataFileName)
+	if _, err := os.Stat(metadataYaml); os.IsNotExist(err) {
+		return false, errors.Errorf("no %s exists in directory %q", MetadataFileName, dirName)
+	}
+	metadataYamlContent, err := ioutil.ReadFile(metadataYaml)
+	if err != nil {
+		return false, errors.Errorf("cannot read %s in directory %q", MetadataFileName, dirName)
+	}
+
+	// Check metadata.yaml contents
+	metadataContent := new(Meta)
+	if err := yaml.Unmarshal(metadataYamlContent, &metadataContent); err != nil {
+		return false, err
+	}
+	if metadataContent == nil {
+		return false, errors.Errorf("chart metadata (%s) missing", MetadataFileName)
+	}
+
+	// Load template.yaml
+	templateYaml := filepath.Join(dirName, TemplateFileName)
+	if _, err := os.Stat(templateYaml); os.IsNotExist(err) {
+		return false, errors.Errorf("no %s exists in directory %q", TemplateFileName, dirName)
+	}
+	templateYamlContent, err := ioutil.ReadFile(templateYaml)
+	if err != nil {
+		return false, errors.Errorf("cannot read %s in directory %q", TemplateFileName, dirName)
+	}
+
+	// Check template.yaml contents
+	templateContent := new(v1beta1.Application)
+	if err := yaml.Unmarshal(templateYamlContent, &templateContent); err != nil {
+		return false, err
+	}
+	if templateContent == nil {
+		return false, errors.Errorf("chart metadata (%s) missing", TemplateFileName)
+	}
+
+	return true, nil
+}
+
+// MakeChart makes an addon directory compatible with Helm Charts.
+// It essentially creates a Chart.yaml file in it (if it doesn't already have one).
+func MakeChart(addonDir string) error {
+	// Check if it is an addon dir
+	isAddonDir, err := IsAddonDir(addonDir)
+	if !isAddonDir {
+		return fmt.Errorf("%s is not an addon dir: %w", addonDir, err)
+	}
+
+	// Check if the addon dir has valid Chart.yaml in it.
+	// No need to handle error here.
+	// If it doesn't contain a valid Chart.yaml (thus errors), we will create it later.
+	isChartDir, _ := chartutil.IsChartDir(addonDir)
+
+	// If it is already a Helm Chart, do nothing.
+	if isChartDir {
+		return nil
+	}
+
+	// This addon dir is not a Helm Chart, make it one by creating Chart.yaml.
+	chartMeta, err := generateChartMetadata(addonDir)
+	if err != nil {
+		return err
+	}
+
+	err = chartutil.SaveChartfile(filepath.Join(addonDir, chartutil.ChartfileName), chartMeta)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// generateChartMetadata generates a Chart.yaml file (chart.Metadata) from an addon metadata file (metadata.yaml).
+// It is mostly used to package an addon into a Helm Chart.
+func generateChartMetadata(addonDirPath string) (*chart.Metadata, error) {
+	// Load addon metadata.yaml
+	meta := &Meta{}
+	metaData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(addonDirPath, MetadataFileName)))
+	if err != nil {
+		return nil, err
+	}
+
+	err = yaml.Unmarshal(metaData, meta)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate Chart.yaml from metadata.yaml
+	chartMeta := &chart.Metadata{
+		Name:        meta.Name,
+		Description: meta.Description,
+		// Define Vela addon's type to be library in order to prevent installation of a common chart.
+		// Please refer to https://helm.sh/docs/topics/library_charts/
+		Type:       "library",
+		Version:    meta.Version,
+		AppVersion: meta.Version,
+		APIVersion: chart.APIVersionV2,
+		Icon:       meta.Icon,
+		Home:       meta.URL,
+		Keywords:   meta.Tags,
+	}
+
+	return chartMeta, nil
 }

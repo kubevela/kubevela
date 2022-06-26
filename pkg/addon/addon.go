@@ -39,7 +39,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
-	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1554,32 +1553,8 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 
 // PackageAddon package vela addon directory into a helm chart compatible archive and return its absolute path
 func PackageAddon(addonDictPath string) (string, error) {
-	meta := &Meta{}
-	metaData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(addonDictPath, MetadataFileName)))
-	if err != nil {
-		return "", err
-	}
-
-	err = yaml.Unmarshal(metaData, meta)
-	if err != nil {
-		return "", err
-	}
-
-	chartFile := &chart.Metadata{
-		Name:        meta.Name,
-		Description: meta.Description,
-		// define Vela addon's type to be library in order to prevent installation of a common chart. Please refer to https://helm.sh/docs/topics/library_charts/
-		Type:       "library",
-		Version:    meta.Version,
-		AppVersion: meta.Version,
-		APIVersion: chart.APIVersionV2,
-		Icon:       meta.Icon,
-		Home:       meta.URL,
-		Keywords:   meta.Tags,
-	}
-
 	// save the Chart.yaml file in order to be compatible with helm chart
-	err = chartutil.SaveChartfile(filepath.Join(addonDictPath, chartutil.ChartfileName), chartFile)
+	err := MakeChart(addonDictPath)
 	if err != nil {
 		return "", err
 	}
