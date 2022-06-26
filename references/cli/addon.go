@@ -438,7 +438,7 @@ func NewAddonPushCommand(c common.Args) *cobra.Command {
 		Long:    "TBD",
 		Example: `TBD`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 2 {
+			if len(args) != 2 {
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
 			}
 			c, err := c.GetClient()

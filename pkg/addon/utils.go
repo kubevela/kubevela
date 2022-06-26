@@ -243,7 +243,7 @@ func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
 }
 
-// IsAddonDir validates an addon directory
+// IsAddonDir validates an addon directory.
 // It checks required files like metadata.yaml and template.yaml
 func IsAddonDir(dirName string) (bool, error) {
 	if fi, err := os.Stat(dirName); err != nil {
@@ -269,6 +269,12 @@ func IsAddonDir(dirName string) (bool, error) {
 	}
 	if metadataContent == nil {
 		return false, errors.Errorf("chart metadata (%s) missing", MetadataFileName)
+	}
+	if metadataContent.Name == "" {
+		return false, errors.Errorf("addon name is empty")
+	}
+	if metadataContent.Version == "" {
+		return false, errors.Errorf("addon version is empty")
 	}
 
 	// Load template.yaml
