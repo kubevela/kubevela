@@ -401,6 +401,7 @@ var _ = Describe("Addon push command", func() {
 					URL: ts.URL,
 				},
 			})
+			Expect(err).To(Succeed())
 
 			_ = os.Setenv("HELM_REPO_USERNAME", "myuser")
 			_ = os.Setenv("HELM_REPO_PASSWORD", "mypass")
@@ -511,6 +512,7 @@ var _ = Describe("Addon push command", func() {
 					URL: ts.URL,
 				},
 			})
+			Expect(err).To(Succeed())
 
 			_ = os.Setenv("HELM_REPO_USERNAME", "myuser")
 			_ = os.Setenv("HELM_REPO_PASSWORD", "mypass")
