@@ -75,14 +75,15 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		if err != nil {
 			return err
 		}
+		o.ForceDelete = force
 		yes, err := cmd.Flags().GetBool("yes")
 		if err != nil {
 			return err
 		}
-		o.ForceDelete = force || yes
+		o.Yes = yes
 		userInput := NewUserInput()
 		if svcname == "" {
-			if !force {
+			if !(force || yes) {
 				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
 				if !userConfirmation {
 					return fmt.Errorf("stopping Deleting")
@@ -93,7 +94,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 			}
 			ioStreams.Info(green.Sprintf("app \"%s\" deleted from namespace \"%s\"", o.AppName, o.Namespace))
 		} else {
-			if !force {
+			if !(force || yes) {
 				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
 				if !userConfirmation {
 					return fmt.Errorf("stopping Deleting")
@@ -111,6 +112,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 	cmd.PersistentFlags().StringP(Service, "", "", "delete only the specified service in this app")
 	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is deleted completely")
 	cmd.PersistentFlags().BoolVarP(&o.ForceDelete, "force", "f", false, "force to delete the application")
+	cmd.PersistentFlags().BoolVarP(&o.Yes, "yes", "y", false, "assume yes for all user prompts")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
