@@ -20,13 +20,14 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"io/ioutil"
-	"k8s.io/helm/pkg/tlsutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"k8s.io/helm/pkg/tlsutil"
 )
 
 var _ = Describe("Addon push command", func() {
