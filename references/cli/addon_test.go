@@ -340,6 +340,9 @@ func TestPackageValidAddon(t *testing.T) {
 	cmd.SetArgs([]string{"./test-data/addon/sample"})
 	err := cmd.Execute()
 	assert.NilError(t, err)
+	defer func() {
+		_ = os.RemoveAll("sample-1.0.1.tgz")
+	}()
 }
 
 func TestGenerateParameterString(t *testing.T) {
