@@ -226,7 +226,7 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Use:   "upgrade",
 		Short: "upgrade an addon",
 		Long:  "upgrade an addon in cluster.",
-		Example: `\
+		Example: `
 Upgrade addon by:
 	vela addon upgrade <addon-name>
 Upgrade addon with specify version:

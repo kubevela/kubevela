@@ -362,13 +362,13 @@ var _ = Describe("Addon status or info", func() {
 var _ = Describe("Addon push command", func() {
 	var c common.Args
 	var (
-		testTarballPath    = "test-data/charts/sample-1.0.1.tgz"
-		testServerCertPath = "test-data/tls/server.crt"
-		testServerKeyPath  = "test-data/tls/server.key"
-		testServerCAPath   = "test-data/tls/server_ca.crt"
-		testClientCAPath   = "test-data/tls/client_ca.crt"
-		testClientCertPath = "test-data/tls/client.crt"
-		testClientKeyPath  = "test-data/tls/client.key"
+		testTarballPath    = "../../pkg/addon/testdata/charts/sample-1.0.1.tgz"
+		testServerCertPath = "../../pkg/addon/testdata/tls/server.crt"
+		testServerKeyPath  = "../../pkg/addon/testdata/tls/server.key"
+		testServerCAPath   = "../../pkg/addon/testdata/tls/server_ca.crt"
+		testClientCAPath   = "../../pkg/addon/testdata/tls/client_ca.crt"
+		testClientCertPath = "../../pkg/addon/testdata/tls/client.crt"
+		testClientKeyPath  = "../../pkg/addon/testdata/tls/client.key"
 	)
 	var (
 		statusCode int
@@ -377,6 +377,13 @@ var _ = Describe("Addon push command", func() {
 	)
 	var ts *httptest.Server
 	var err error
+
+	AfterEach(func() {
+		ts.Close()
+		_ = os.RemoveAll(tmp)
+		err = deleteAddonRegistry(context.TODO(), c, "helm-push-test")
+		Expect(err).To(Succeed())
+	})
 
 	Context("plain old HTTP Server", func() {
 		BeforeEach(func() {
@@ -406,13 +413,6 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Setenv("HELM_REPO_USERNAME", "myuser")
 			_ = os.Setenv("HELM_REPO_PASSWORD", "mypass")
 			_ = os.Setenv("HELM_REPO_CONTEXT_PATH", "/x/y/z")
-		})
-
-		AfterEach(func() {
-			ts.Close()
-			_ = os.RemoveAll(tmp)
-			err = deleteAddonRegistry(context.TODO(), c, "helm-push-test")
-			Expect(err).To(Succeed())
 		})
 
 		It("Not enough args", func() {
@@ -517,13 +517,6 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Setenv("HELM_REPO_USERNAME", "myuser")
 			_ = os.Setenv("HELM_REPO_PASSWORD", "mypass")
 			_ = os.Setenv("HELM_REPO_CONTEXT_PATH", "/x/y/z")
-		})
-
-		AfterEach(func() {
-			ts.Close()
-			_ = os.RemoveAll(tmp)
-			err = deleteAddonRegistry(context.TODO(), c, "helm-push-test")
-			Expect(err).To(Succeed())
 		})
 
 		It("no cert provided", func() {
