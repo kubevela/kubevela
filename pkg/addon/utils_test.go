@@ -18,8 +18,12 @@ package addon
 
 import (
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/stretchr/testify/assert"
 
@@ -152,6 +156,119 @@ func TestUsingAddonInfo(t *testing.T) {
 	}
 	res := usingAppsInfo(apps)
 	assert.Equal(t, true, strings.Contains(res, "Please delete them before disabling the addon"))
+}
+
+func TestIsAddonDir(t *testing.T) {
+	var isAddonDir bool
+	var err error
+	var meta *Meta
+	var metaYaml []byte
+
+	// Non-existent dir
+	isAddonDir, err = IsAddonDir("non-existent-dir")
+	assert.Equal(t, isAddonDir, false)
+	assert.Error(t, err)
+
+	// Not a directory (a file)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "local", "metadata.yaml"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "not a directory")
+
+	// No metadata.yaml
+	isAddonDir, err = IsAddonDir(".")
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "exists in directory")
+
+	// Empty metadata.yaml
+	err = os.MkdirAll(filepath.Join("testdata", "testaddon"), 0700)
+	assert.NoError(t, err)
+	defer func() {
+		os.RemoveAll(filepath.Join("testdata", "testaddon"))
+	}()
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", MetadataFileName), []byte{}, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "missing")
+
+	// Empty addon name
+	meta = &Meta{}
+	metaYaml, err = yaml.Marshal(meta)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", MetadataFileName), metaYaml, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "addon name is empty")
+
+	// Empty addon version
+	meta = &Meta{
+		Name: "name",
+	}
+	metaYaml, err = yaml.Marshal(meta)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", MetadataFileName), metaYaml, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "addon version is empty")
+
+	// No template.yaml
+	meta = &Meta{
+		Name:    "name",
+		Version: "1.0.0",
+	}
+	metaYaml, err = yaml.Marshal(meta)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", MetadataFileName), metaYaml, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "exists in directory")
+
+	// Empty template.yaml
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", TemplateFileName), []byte{}, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "missing")
+
+	// Pass all checks
+	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon2"))
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(filepath.Join("testdata", "testaddon2"))
+	}()
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon2"))
+	assert.Equal(t, isAddonDir, true)
+	assert.NoError(t, err)
+}
+
+func TestMakeChart(t *testing.T) {
+	var err error
+
+	// Not a addon dir
+	err = MakeChart(".")
+	assert.Contains(t, err.Error(), "not an addon dir")
+
+	// Valid addon dir
+	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon"))
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(filepath.Join("testdata", "testaddon"))
+	}()
+	err = MakeChart(filepath.Join("testdata", "testaddon"))
+	assert.NoError(t, err)
+	isChartDir, err := chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
+	assert.NoError(t, err)
+	assert.Equal(t, isChartDir, true)
+
+	// Already a chart dir
+	err = MakeChart(filepath.Join("testdata", "testaddon"))
+	assert.NoError(t, err)
+	isChartDir, err = chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
+	assert.NoError(t, err)
+	assert.Equal(t, isChartDir, true)
 }
 
 const (

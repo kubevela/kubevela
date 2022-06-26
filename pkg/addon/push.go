@@ -20,19 +20,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cm "github.com/chartmuseum/helm-push/pkg/chartmuseum"
-	cmhelm "github.com/chartmuseum/helm-push/pkg/helm"
-	"github.com/fatih/color"
-	helmrepo "helm.sh/helm/v3/pkg/repo"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"strings"
+
+	cm "github.com/chartmuseum/helm-push/pkg/chartmuseum"
+	cmhelm "github.com/chartmuseum/helm-push/pkg/helm"
+	"github.com/fatih/color"
+	helmrepo "helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // PushCmd is the command object to initiate a push command to ChartMuseum
@@ -264,14 +265,14 @@ func (p *PushCmd) SetFieldsFromEnv() {
 // handlePushResponse checks response from ChartMuseum
 func handlePushResponse(resp *http.Response) error {
 	if resp.StatusCode != 201 && resp.StatusCode != 202 {
-		_, _ = fmt.Fprintf(os.Stderr, color.RedString("Failed"))
+		_, _ = fmt.Fprintf(os.Stderr, "%s\n", color.RedString("Failed"))
 		b, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 		return getChartMuseumError(b, resp.StatusCode)
 	}
-	_, _ = fmt.Fprintf(os.Stderr, color.GreenString("Done"))
+	_, _ = fmt.Fprintf(os.Stderr, "%s\n", color.GreenString("Done"))
 	return nil
 }
 

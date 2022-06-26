@@ -132,8 +132,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Use:   "enable",
 		Short: "enable an addon",
 		Long:  "enable an addon in cluster.",
-		Example: `\
-Enable addon by:
+		Example: `Enable addon by:
 	vela addon enable <addon-name>
 Enable addon with specify version:
 	vela addon enable <addon-name> --version <addon-version>
@@ -449,10 +448,10 @@ The second argument <name/URL of ChartMuseum> can be:
 		Example: `# Push the addon in directory <your-addon> to a ChartMuseum registry named <localcm>
 $ vela addon push your-addon localcm
 
-# Push packaged addon mongo-1-1.0.0.tgz to a ChartMuseum registry at http://localhost:8080
-$ vela addon push mongo-1-1.0.0.tgz http://localhost:8080
+# Push packaged addon mongo-1.0.0.tgz to a ChartMuseum registry at http://localhost:8080
+$ vela addon push mongo-1.0.0.tgz http://localhost:8080
 
-# Force push, overwrite existing ones
+# Force push, overwriting existing ones
 $ vela addon push your-addon localcm -f`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
@@ -488,7 +487,7 @@ $ vela addon push your-addon localcm -f`,
 	f.BoolVarP(&p.InsecureSkipVerify, "insecure", "", false, "Connect to server with an insecure way by skipping certificate verification [$HELM_REPO_INSECURE]")
 	f.BoolVarP(&p.ForceUpload, "force", "f", false, "Force upload even if chart version exists")
 	f.BoolVarP(&p.UseHTTP, "use-http", "", false, "Use HTTP")
-	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) Helm will wait to get response from chartmuseum")
+	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) vela cli will wait to get response from ChartMuseum")
 
 	return cmd
 }

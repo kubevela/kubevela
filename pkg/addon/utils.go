@@ -19,13 +19,14 @@ package addon
 import (
 	"context"
 	"fmt"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/yaml"
 	"strings"
+
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 
 	errors "github.com/pkg/errors"
 
@@ -257,7 +258,7 @@ func IsAddonDir(dirName string) (bool, error) {
 	if _, err := os.Stat(metadataYaml); os.IsNotExist(err) {
 		return false, errors.Errorf("no %s exists in directory %q", MetadataFileName, dirName)
 	}
-	metadataYamlContent, err := ioutil.ReadFile(metadataYaml)
+	metadataYamlContent, err := ioutil.ReadFile(filepath.Clean(metadataYaml))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", MetadataFileName, dirName)
 	}
@@ -268,7 +269,7 @@ func IsAddonDir(dirName string) (bool, error) {
 		return false, err
 	}
 	if metadataContent == nil {
-		return false, errors.Errorf("chart metadata (%s) missing", MetadataFileName)
+		return false, errors.Errorf("metadata (%s) missing", MetadataFileName)
 	}
 	if metadataContent.Name == "" {
 		return false, errors.Errorf("addon name is empty")
@@ -282,7 +283,7 @@ func IsAddonDir(dirName string) (bool, error) {
 	if _, err := os.Stat(templateYaml); os.IsNotExist(err) {
 		return false, errors.Errorf("no %s exists in directory %q", TemplateFileName, dirName)
 	}
-	templateYamlContent, err := ioutil.ReadFile(templateYaml)
+	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYaml))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", TemplateFileName, dirName)
 	}
