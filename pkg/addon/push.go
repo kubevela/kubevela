@@ -159,7 +159,7 @@ func (p *PushCmd) Push(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Printf("Pushing %s to %s... ",
+	_, _ = fmt.Fprintf(os.Stderr, "Pushing %s to %s... ",
 		color.New(color.Bold).Sprintf(filepath.Base(chartPackagePath)),
 		formatRepoNameAndURL(p.RepoName, repo.Config.URL),
 	)
@@ -218,7 +218,7 @@ func GetHelmRepo(ctx context.Context, c client.Client, repoName string) (*cmhelm
 	}
 
 	if matchedEntry == nil {
-		return nil, fmt.Errorf("we cannot fing repository %s. Make sure you hava added it using `vela addon registry add`", repoName)
+		return nil, fmt.Errorf("we cannot find Helm repository %s. Make sure you hava added it using `vela addon registry add` and it is a Helm repository", repoName)
 	}
 
 	// Use the repo found locally.
@@ -264,14 +264,14 @@ func (p *PushCmd) SetFieldsFromEnv() {
 // handlePushResponse checks response from ChartMuseum
 func handlePushResponse(resp *http.Response) error {
 	if resp.StatusCode != 201 && resp.StatusCode != 202 {
-		fmt.Println(color.RedString("Failed"))
+		_, _ = fmt.Fprintf(os.Stderr, color.RedString("Failed"))
 		b, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 		return getChartMuseumError(b, resp.StatusCode)
 	}
-	fmt.Println(color.GreenString("Done"))
+	_, _ = fmt.Fprintf(os.Stderr, color.GreenString("Done"))
 	return nil
 }
 
