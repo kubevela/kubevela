@@ -609,6 +609,19 @@ func TestValidateIfValue(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "input false with dash",
+			step: v1beta1.WorkflowStep{
+				If: `inputs["test-input"] == "yes"`,
+				Inputs: common.StepInputs{
+					{
+						From: "test-input",
+					},
+				},
+			},
+			expectedErr: "not found",
+			expected:    false,
+		},
+		{
 			name: "dash in if",
 			step: v1beta1.WorkflowStep{
 				If: "status.step1-test.timeout",
