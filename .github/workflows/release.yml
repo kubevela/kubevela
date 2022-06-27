@@ -123,6 +123,11 @@ jobs:
       - name: sync the latest version file
         if: ${{ !contains(env.VELA_VERSION,'alpha') && !contains(env.VELA_VERSION,'beta') }}
         run: |
+          LATEST_VERSION=$(curl -fsSl https://static.kubevela.net/binary/vela/latest_version)
+          verlte() {
+            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
+          }
+          verlte ${{ env.VELA_VERSION }} $LATEST_VERSION && echo "${{ env.VELA_VERSION }} <= $LATEST_VERSION, skip update" && exit 0
           echo ${{ env.VELA_VERSION }} > ./latest_version
           ./ossutil --config-file .ossutilconfig cp -u ./latest_version oss://$BUCKET/binary/vela/latest_version
 
