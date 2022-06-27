@@ -123,7 +123,7 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
 			return CheckPending(ctx, wfStep, stepStatus)
 		}
-		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (stepStatus common.StepStatus, operations *wfTypes.Operation, rErr error) {
+		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
 			if options.GetTracer == nil {
 				options.GetTracer = func(id string, step v1beta1.WorkflowStep) monitorContext.Context {
 					return monitorContext.NewTraceContext(context.Background(), "")
@@ -143,25 +143,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			var err error
 			var paramFile string
 
-			defer func() {
-				if exec.wfStatus.Phase != common.WorkflowStepPhaseSkipped && len(wfStep.Outputs) > 0 {
-					if taskv == nil {
-						taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
-						if err != nil {
-							return
-						}
-					}
-					for _, hook := range options.PostStopHooks {
-						if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
-							exec.err(ctx, false, err, wfTypes.StatusReasonOutput)
-							stepStatus = exec.status()
-							operations = exec.operation()
-							return
-						}
-					}
-				}
-			}()
-
 			for _, hook := range options.PreCheckHooks {
 				result, err := hook(wfStep, &wfTypes.PreCheckOptions{
 					PackageDiscover: t.pd,
@@ -178,7 +159,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				}
 				if result.Timeout {
 					exec.timeout("")
-					return exec.status(), exec.operation(), nil
 				}
 			}
 
@@ -231,6 +211,12 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				tracer.Error(err, "do steps")
 				exec.err(ctx, true, err, wfTypes.StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
+			}
+			for _, hook := range options.PostStopHooks {
+				if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
+					exec.err(ctx, false, err, wfTypes.StatusReasonOutput)
+					return exec.status(), exec.operation(), nil
+				}
 			}
 
 			return exec.status(), exec.operation(), nil
@@ -375,9 +361,11 @@ func (exec *executor) Terminate(message string) {
 // Wait let workflow wait.
 func (exec *executor) Wait(message string) {
 	exec.wait = true
-	exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
-	exec.wfStatus.Reason = wfTypes.StatusReasonWait
-	exec.wfStatus.Message = message
+	if exec.wfStatus.Phase != common.WorkflowStepPhaseFailed {
+		exec.wfStatus.Phase = common.WorkflowStepPhaseRunning
+		exec.wfStatus.Reason = wfTypes.StatusReasonWait
+		exec.wfStatus.Message = message
+	}
 }
 
 // Fail let the step fail, its status is failed and reason is Action
@@ -406,7 +394,9 @@ func (exec *executor) err(ctx wfContext.Context, wait bool, err error, reason st
 	exec.wait = wait
 	exec.wfStatus.Phase = common.WorkflowStepPhaseFailed
 	exec.wfStatus.Message = err.Error()
-	exec.wfStatus.Reason = reason
+	if exec.wfStatus.Reason == "" {
+		exec.wfStatus.Reason = reason
+	}
 	exec.checkErrorTimes(ctx)
 }
 

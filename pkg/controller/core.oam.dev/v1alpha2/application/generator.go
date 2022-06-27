@@ -293,14 +293,11 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 			return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
 		}
 
-		if !isHealth {
-			return nil, nil, false, nil
-		}
 		if DisableResourceApplyDoubleCheck {
-			return readyWorkload, readyTraits, true, nil
+			return readyWorkload, readyTraits, isHealth, nil
 		}
 		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.r.Client)
-		return workload, traits, true, err
+		return workload, traits, isHealth, err
 	}
 }
 

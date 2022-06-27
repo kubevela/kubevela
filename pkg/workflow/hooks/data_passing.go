@@ -47,10 +47,10 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 	if wfTypes.IsStepFinish(status.Phase, status.Reason) {
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
-			if err != nil {
+			if err != nil && !strings.Contains(err.Error(), "not found") {
 				return err
 			}
-			if v.Error() != nil {
+			if err != nil || v.Error() != nil {
 				v, err = taskValue.MakeValue("null")
 				if err != nil {
 					return err

@@ -418,14 +418,13 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 		if err != nil {
 			return errors.WithMessagef(err, "step %s", field.Name)
 		}
-		if stop {
-			return nil
-		}
-
 		if !isDef(field.Name) {
 			if err := val.FillObject(field.Value, field.Name); err != nil {
 				return err
 			}
+		}
+		if stop {
+			return nil
 		}
 
 		if end {
