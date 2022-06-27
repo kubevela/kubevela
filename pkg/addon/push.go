@@ -66,11 +66,6 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	var repo *cmhelm.Repo
 	var err error
 
-	// Prevent pushing to default repo
-	if p.RepoName == "KubeVela" || p.RepoName == "experimental" {
-		return fmt.Errorf("pushing to default registries is not supported")
-	}
-
 	// Get the user specified Helm repo
 	repo, err = GetHelmRepo(ctx, p.Client, p.RepoName)
 	if err != nil {
@@ -215,6 +210,7 @@ func GetHelmRepo(ctx context.Context, c client.Client, repoName string) (*cmhelm
 				Username: reg.Helm.Username,
 				Password: reg.Helm.Password,
 			}
+			break
 		}
 	}
 
