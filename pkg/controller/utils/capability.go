@@ -30,7 +30,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
-	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -215,25 +215,26 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
 func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (string, error) {
-	tmpPath := filepath.Join("./tmp/terraform", name)
-	// Check if the directory exists. If yes, remove it.
-	if _, err := os.Stat(tmpPath); err == nil {
-		err := os.RemoveAll(tmpPath)
-		if err != nil {
-			return "", errors.Wrap(err, "failed to remove the directory")
-		}
-	}
-	_, err := git.PlainClone(tmpPath, false, &git.CloneOptions{
-		URL:      remoteURL,
-		Progress: nil,
-	})
+	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
+	cachePath := filepath.Join(userHome, ".vela", "terraform", name)
+	// Check if the directory exists. If yes, remove it.
+	entities, err := os.ReadDir(cachePath)
+	if err != nil || len(entities) == 0 {
+		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
+		if _, err = git.PlainClone(cachePath, false, &git.CloneOptions{
+			URL:      remoteURL,
+			Progress: os.Stdout,
+		}); err != nil {
+			return "", err
+		}
+	}
 
-	tfPath := filepath.Join(tmpPath, remotePath, "variables.tf")
+	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
 	if _, err := os.Stat(tfPath); err != nil {
-		tfPath = filepath.Join(tmpPath, remotePath, "main.tf")
+		tfPath = filepath.Join(cachePath, remotePath, "main.tf")
 		if _, err := os.Stat(tfPath); err != nil {
 			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
 		}
@@ -242,10 +243,6 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string) (st
 	if err != nil {
 		return "", errors.Wrap(err, "failed to read Terraform configuration")
 	}
-	if err := os.RemoveAll(tmpPath); err != nil {
-		return "", err
-	}
-
 	return string(conf), nil
 }
 
