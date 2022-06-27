@@ -76,7 +76,7 @@ export: "status"
 		var buff = bytes.NewBufferString("")
 		cmd.SetOut(buff)
 		Expect(queryFromView(context.TODO(), k8sClient, arg, name, cmd)).Should(BeNil())
-		Expect(buff.String()).Should(ContainSubstring(`my-value`))
+		Expect(strings.TrimSpace(buff.String())).Should(BeEquivalentTo("my-value"))
 	})
 })
 

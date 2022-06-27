@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +48,10 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 	cmd := &cobra.Command{
 		Use:   "ql",
 		Short: "Show result of executing velaQL.",
-		Long:  "Show result of executing velaQL.",
+		Long: `Show result of executing velaQL, use it like:
+		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
+		vela ql --file=./ql.cue
+`,
 		Example: `Users can query with a query statement:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
 They can also query by a ql file:
@@ -133,11 +137,11 @@ func print(queryValue *value.Value, cmd *cobra.Command) error {
 		return err
 	}
 	var out bytes.Buffer
-	err = json.Indent(&out, response, "", "    ")
+	err = json.Indent(&out, response, "", "  ")
 	if err != nil {
 		return err
 	}
-	cmd.Printf("%s\n", out.String())
+	cmd.Println(strings.Trim(strings.TrimSpace(out.String()), "\""))
 	return nil
 }
 
