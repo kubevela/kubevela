@@ -30,12 +30,6 @@ import (
 	"strings"
 	"time"
 
-	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
-
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
-
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -54,9 +48,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-
+	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 

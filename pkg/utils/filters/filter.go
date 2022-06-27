@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 

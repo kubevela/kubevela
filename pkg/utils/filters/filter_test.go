@@ -19,15 +19,12 @@ package filters
 import (
 	"testing"
 
+	"gotest.tools/assert"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
-	"gotest.tools/assert"
-
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
