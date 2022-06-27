@@ -308,12 +308,12 @@ func setStatus(status *common.ApplicationComponentStatus, observedGeneration, ge
 		}
 		return true
 	}
+	status.Message = message
 	if !isLatest() || state != terraformtypes.Available {
 		status.Healthy = false
 		return false
 	}
 	status.Healthy = true
-	status.Message = message
 	return true
 }
 
