@@ -454,9 +454,9 @@ $ vela addon push mongo-1.0.0.tgz http://localhost:8080
 # Force push, overwriting existing ones
 $ vela addon push your-addon localcm -f
 
-# If you already written you own Chart.yaml and don't want us to generate it for you
-# Note: when using .tgz packages, we will always keep the original Chart.yaml
-$ vela addon push your-addon localcm --keep-chartmeta`,
+# If you already written your own Chart.yaml and don't want us to generate it for you:
+$ vela addon push your-addon localcm --keep-chartmeta
+# Note: when using .tgz packages, we will always keep the original Chart.yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
