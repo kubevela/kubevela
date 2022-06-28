@@ -28,23 +28,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
+	"github.com/gosuri/uitable"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"k8s.io/helm/pkg/tlsutil"
-
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/fatih/color"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
-
-	"github.com/gosuri/uitable"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Output of listing addons tests", func() {
