@@ -58,8 +58,11 @@ var _ = Describe("Test VelaQL View", func() {
 		velaQL := fmt.Sprintf("%s{%s}.%s", readView.Name, Map2URLParameter(parameter), "appStatus")
 		query, err := ParseVelaQL(velaQL)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = viewHandler.QueryView(context.Background(), query)
-		Expect(err).Should(HaveOccurred())
+		v, err := viewHandler.QueryView(context.Background(), query)
+		Expect(err).ShouldNot(HaveOccurred())
+		s, err := v.String()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(s).Should(Equal("null\n"))
 
 		By("query an non-existent view")
 		velaQL = fmt.Sprintf("%s{%s}.%s", "view-resource", Map2URLParameter(parameter), "objStatus")
