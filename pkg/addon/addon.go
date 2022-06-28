@@ -1554,7 +1554,7 @@ func fetchVelaCoreImageTag(ctx context.Context, k8sClient client.Client) (string
 // PackageAddon package vela addon directory into a helm chart compatible archive and return its absolute path
 func PackageAddon(addonDictPath string) (string, error) {
 	// save the Chart.yaml file in order to be compatible with helm chart
-	err := MakeChart(addonDictPath)
+	err := MakeChartCompatible(addonDictPath, true)
 	if err != nil {
 		return "", err
 	}

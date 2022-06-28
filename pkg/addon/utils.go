@@ -300,9 +300,10 @@ func IsAddonDir(dirName string) (bool, error) {
 	return true, nil
 }
 
-// MakeChart makes an addon directory compatible with Helm Charts.
+// MakeChartCompatible makes an addon directory compatible with Helm Charts.
 // It essentially creates a Chart.yaml file in it (if it doesn't already have one).
-func MakeChart(addonDir string) error {
+// If overwrite is true, a Chart.yaml will always be created.
+func MakeChartCompatible(addonDir string, overwrite bool) error {
 	// Check if it is an addon dir
 	isAddonDir, err := IsAddonDir(addonDir)
 	if !isAddonDir {
@@ -314,12 +315,13 @@ func MakeChart(addonDir string) error {
 	// If it doesn't contain a valid Chart.yaml (thus errors), we will create it later.
 	isChartDir, _ := chartutil.IsChartDir(addonDir)
 
-	// If it is already a Helm Chart, do nothing.
-	if isChartDir {
+	// Only when it is already a Helm Chart, and we don't want to overwrite Chart.yaml,
+	// we do nothing.
+	if isChartDir && !overwrite {
 		return nil
 	}
 
-	// This addon dir is not a Helm Chart, make it one by creating Chart.yaml.
+	// Creating Chart.yaml.
 	chartMeta, err := generateChartMetadata(addonDir)
 	if err != nil {
 		return err

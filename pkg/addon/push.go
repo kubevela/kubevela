@@ -55,6 +55,7 @@ type PushCmd struct {
 	InsecureSkipVerify bool
 	Out                io.Writer
 	Timeout            int64
+	KeepChartMetadata  bool
 	// We need it to search in addon registries.
 	// If you use URL, instead of registry names, then it is not needed.
 	Client client.Client
@@ -72,8 +73,10 @@ func (p *PushCmd) Push(ctx context.Context) error {
 		return err
 	}
 
-	// Make the addon dir a Helm Chart (if not already)
-	err = MakeChart(p.ChartName)
+	// Make the addon dir a Helm Chart
+	// The user can decide if they want Chart.yaml be in sync with addon metadata.yaml
+	// By default, it will recreate Chart.yaml according to addon metadata.yaml
+	err = MakeChartCompatible(p.ChartName, !p.KeepChartMetadata)
 	// `Not a directory` errors are ignored, that's fine,
 	// since .tgz files are also supported.
 	if err != nil && !strings.Contains(err.Error(), "is not a directory") {

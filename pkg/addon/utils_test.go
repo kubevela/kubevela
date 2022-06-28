@@ -248,7 +248,7 @@ func TestMakeChart(t *testing.T) {
 	var err error
 
 	// Not a addon dir
-	err = MakeChart(".")
+	err = MakeChartCompatible(".", true)
 	assert.Contains(t, err.Error(), "not an addon dir")
 
 	// Valid addon dir
@@ -257,14 +257,14 @@ func TestMakeChart(t *testing.T) {
 	defer func() {
 		_ = os.RemoveAll(filepath.Join("testdata", "testaddon"))
 	}()
-	err = MakeChart(filepath.Join("testdata", "testaddon"))
+	err = MakeChartCompatible(filepath.Join("testdata", "testaddon"), true)
 	assert.NoError(t, err)
 	isChartDir, err := chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
 	assert.NoError(t, err)
 	assert.Equal(t, isChartDir, true)
 
 	// Already a chart dir
-	err = MakeChart(filepath.Join("testdata", "testaddon"))
+	err = MakeChartCompatible(filepath.Join("testdata", "testaddon"), false)
 	assert.NoError(t, err)
 	isChartDir, err = chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
 	assert.NoError(t, err)
