@@ -83,7 +83,7 @@ func createNamespacedTrait(c common2.Args, name string, ns string, ownerAddon st
 				pkgdef.DescriptionKey: "My test-trait " + traitName,
 			},
 			OwnerReferences: []v1.OwnerReference{{
-				Name: addonutil.Convert2AppName(ownerAddon),
+				Name: addonutil.Addon2AppName(ownerAddon),
 			}},
 		},
 		Spec: v1beta1.TraitDefinitionSpec{

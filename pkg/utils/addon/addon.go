@@ -16,18 +16,25 @@ limitations under the License.
 
 package addon
 
+import "strings"
+
 // AddonSecPrefix is the prefix for secret of addons
 const AddonSecPrefix = "addon-secret-"
 
-// Convert2SecName returns the secret name that contains addon arguments
-func Convert2SecName(name string) string {
-	return AddonSecPrefix + name
+// Addon2SecName returns the secret name that contains addon arguments
+func Addon2SecName(addonName string) string {
+	return AddonSecPrefix + addonName
 }
 
 // AddonAppPrefix is the prefix for corresponding Application of an addon
 const AddonAppPrefix = "addon-"
 
-// Convert2AppName return the app name that represents the addon
-func Convert2AppName(name string) string {
-	return AddonAppPrefix + name
+// Addon2AppName return the app name that represents the addon
+func Addon2AppName(addonName string) string {
+	return AddonAppPrefix + addonName
+}
+
+// AppName2Addon converts an addon app name to the actual addon name
+func AppName2Addon(appName string) string {
+	return strings.TrimPrefix(appName, AddonAppPrefix)
 }

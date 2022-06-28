@@ -48,7 +48,7 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	def.SetName("test-trait")
 	def.SetGVK("TraitDefinition")
 	def.SetOwnerReferences([]v1.OwnerReference{{
-		Name: addonutils.Convert2AppName("test-addon"),
+		Name: addonutils.Addon2AppName("test-addon"),
 	}})
 	if _type := def.GetType(); _type != "trait" {
 		t.Fatalf("set gvk invalid, expected trait got %s", _type)

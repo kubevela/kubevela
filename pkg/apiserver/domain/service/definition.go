@@ -21,7 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -175,6 +177,14 @@ func convertDefinitionBase(def unstructured.Unstructured, kind string) (*apisv1.
 			}
 			return "enable"
 		}(),
+	}
+	// Set OwnerAddon field
+	for _, ownerRef := range def.GetOwnerReferences() {
+		if strings.HasPrefix(ownerRef.Name, addon.AddonAppPrefix) {
+			definition.OwnerAddon = addon.AppName2Addon(ownerRef.Name)
+			// We are only interested in one owner addon
+			break
+		}
 	}
 	if kind == kindComponentDefinition {
 		compDef := &v1beta1.ComponentDefinition{}

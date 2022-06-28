@@ -838,7 +838,9 @@ type DefinitionBase struct {
 	Labels      map[string]string `json:"labels"`
 	// WorkloadType the component workload type
 	// Deprecated: it same as component.workload.type
-	WorkloadType string                              `json:"workloadType,omitempty"`
+	WorkloadType string `json:"workloadType,omitempty"`
+	// OwnerAddon indicates which addon created this definition
+	OwnerAddon   string                              `json:"ownerAddon"`
 	Trait        *v1beta1.TraitDefinitionSpec        `json:"trait,omitempty"`
 	Component    *v1beta1.ComponentDefinitionSpec    `json:"component,omitempty"`
 	Policy       *v1beta1.PolicyDefinitionSpec       `json:"policy,omitempty"`

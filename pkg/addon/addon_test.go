@@ -418,7 +418,7 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 
 	addonSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      addonutil.Convert2SecName(ObservabilityAddon),
+			Name:      addonutil.Addon2SecName(ObservabilityAddon),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 		Data: map[string][]byte{},

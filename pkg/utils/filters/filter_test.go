@@ -77,7 +77,7 @@ func TestByOwnerAddon(t *testing.T) {
 
 	// Test with right owner refs
 	u.SetOwnerReferences([]v1.OwnerReference{{
-		Name: addonutil.Convert2AppName("addon-name"),
+		Name: addonutil.Addon2AppName("addon-name"),
 	}})
 	assert.Equal(t, true, f(u))
 

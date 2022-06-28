@@ -634,7 +634,7 @@ func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
 	if app.Spec.Components == nil {
 		app.Spec.Components = []common2.ApplicationComponent{}
 	}
-	app.Name = addonutil.Convert2AppName(addon.Name)
+	app.Name = addonutil.Addon2AppName(addon.Name)
 	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
 	app.SetNamespace(types.DefaultKubeVelaNS)
 	if app.Labels == nil {
@@ -1065,7 +1065,7 @@ func RenderArgsSecret(addon *InstallPackage, args map[string]interface{}) *unstr
 	sec := v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      addonutil.Convert2SecName(addon.Name),
+			Name:      addonutil.Addon2SecName(addon.Name),
 			Namespace: types.DefaultKubeVelaNS,
 		},
 		Data: map[string][]byte{
@@ -1210,7 +1210,7 @@ func (h *Installer) installDependency(addon *InstallPackage) error {
 	for _, dep := range addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
-			Name:      addonutil.Convert2AppName(dep.Name),
+			Name:      addonutil.Addon2AppName(dep.Name),
 		}, &app)
 		if err == nil {
 			continue
@@ -1239,7 +1239,7 @@ func (h *Installer) checkDependency(addon *InstallPackage) ([]string, error) {
 	for _, dep := range addon.Dependencies {
 		err := h.cli.Get(h.ctx, client.ObjectKey{
 			Namespace: types.DefaultKubeVelaNS,
-			Name:      addonutil.Convert2AppName(dep.Name),
+			Name:      addonutil.Addon2AppName(dep.Name),
 		}, &app)
 		if err == nil {
 			continue
@@ -1394,7 +1394,7 @@ func determineAddonAppName(ctx context.Context, cli client.Client, addonName str
 			return "", err
 		}
 		// if the app still not exist, use addon-{addonName}
-		return addonutil.Convert2AppName(addonName), nil
+		return addonutil.Addon2AppName(addonName), nil
 	}
 	return app.Name, nil
 }
@@ -1403,7 +1403,7 @@ func determineAddonAppName(ctx context.Context, cli client.Client, addonName str
 // if not find will try to get 1.1 legacy addon related app by using NamespacedName(vela-system, `addonName`)
 func FetchAddonRelatedApp(ctx context.Context, cli client.Client, addonName string) (*v1beta1.Application, error) {
 	app := &v1beta1.Application{}
-	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Convert2AppName(addonName)}, app); err != nil {
+	if err := cli.Get(ctx, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2AppName(addonName)}, app); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}

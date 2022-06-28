@@ -90,7 +90,7 @@ func ByOwnerAddon(addonName string) Filter {
 		ownerRefs := obj.GetOwnerReferences()
 		isOwnedBy := false
 		for _, ownerRef := range ownerRefs {
-			if ownerRef.Name == addon.Convert2AppName(addonName) {
+			if ownerRef.Name == addon.Addon2AppName(addonName) {
 				isOwnedBy = true
 				break
 			}

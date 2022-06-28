@@ -163,7 +163,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 
 	// Get addon parameters
 	var sec v1.Secret
-	err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Convert2SecName(name)}, &sec)
+	err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(name)}, &sec)
 	if err != nil {
 		// Not found error can be ignored. Others can't.
 		if !apierrors.IsNotFound(err) {
@@ -187,7 +187,7 @@ func GetAddonStatus(ctx context.Context, cli client.Client, name string) (Status
 				sec    v1.Secret
 				domain string
 			)
-			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Convert2SecName(name)}, &sec); err != nil {
+			if err = cli.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(name)}, &sec); err != nil {
 				klog.ErrorS(err, "failed to get observability secret")
 				addonStatus.AddonPhase = enabling
 				addonStatus.InstalledVersion = ""
