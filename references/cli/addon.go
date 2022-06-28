@@ -456,7 +456,10 @@ $ vela addon push your-addon localcm -f
 
 # If you already written your own Chart.yaml and don't want us to generate it for you:
 $ vela addon push your-addon localcm --keep-chartmeta
-# Note: when using .tgz packages, we will always keep the original Chart.yaml`,
+# Note: when using .tgz packages, we will always keep the original Chart.yaml
+
+# In addition to cli flags, you can also use environment variables
+$ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tgz http://localhost:8080`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
