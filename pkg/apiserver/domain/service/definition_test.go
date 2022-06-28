@@ -88,6 +88,8 @@ var _ = Describe("Test namespace service functions", func() {
 		// there is already a scaler trait definition in the test env
 		Expect(cmp.Diff(len(traits), 2)).Should(BeEmpty())
 		Expect(cmp.Diff(traits[0].Name, "myingress")).Should(BeEmpty())
+		// The OwnAddon field of myingress should not be fluxcd
+		Expect(traits[0].OwnerAddon).Should(Equal("fluxcd"))
 		Expect(traits[0].Description).ShouldNot(BeEmpty())
 		Expect(traits[0].Trait).ShouldNot(BeNil())
 		Expect(traits[0].Alias).Should(Equal("test-alias"))
