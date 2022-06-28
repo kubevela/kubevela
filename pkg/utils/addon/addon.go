@@ -23,6 +23,10 @@ const AddonSecPrefix = "addon-secret-"
 
 // Addon2SecName returns the secret name that contains addon arguments
 func Addon2SecName(addonName string) string {
+	if addonName == "" {
+		return ""
+	}
+
 	return AddonSecPrefix + addonName
 }
 
@@ -31,10 +35,19 @@ const AddonAppPrefix = "addon-"
 
 // Addon2AppName return the app name that represents the addon
 func Addon2AppName(addonName string) string {
+	if addonName == "" {
+		return ""
+	}
+
 	return AddonAppPrefix + addonName
 }
 
 // AppName2Addon converts an addon app name to the actual addon name
+// If it is not a addon app name, empty string is returned.
 func AppName2Addon(appName string) string {
-	return strings.TrimPrefix(appName, AddonAppPrefix)
+	if !strings.HasPrefix(appName, AddonAppPrefix) {
+		return ""
+	}
+
+	return appName[len(AddonAppPrefix):]
 }
