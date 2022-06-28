@@ -16,6 +16,7 @@ require (
 	github.com/barnettZQG/inject v0.0.1
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
+	github.com/chartmuseum/helm-push v0.10.2
 	github.com/containerd/containerd v1.5.13
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/prometheus-operator v0.41.1
@@ -91,6 +92,7 @@ require (
 	k8s.io/cli-runtime v0.23.6
 	k8s.io/client-go v0.23.6
 	k8s.io/component-base v0.23.6
+	k8s.io/helm v2.17.0+incompatible
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kube-aggregator v0.23.0

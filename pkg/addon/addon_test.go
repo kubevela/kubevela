@@ -1187,6 +1187,10 @@ func TestPackageAddon(t *testing.T) {
 	archiver, err := PackageAddon(validAddonDict)
 	assert.NoError(t, err)
 	assert.Equal(t, filepath.Join(pwd, "example-1.0.1.tgz"), archiver)
+	// Remove generated package after tests
+	defer func() {
+		_ = os.RemoveAll(filepath.Join(pwd, "example-1.0.1.tgz"))
+	}()
 
 	invalidAddonDict := "./testdata"
 	archiver, err = PackageAddon(invalidAddonDict)
