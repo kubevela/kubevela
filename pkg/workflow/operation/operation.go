@@ -104,7 +104,7 @@ func (wo wfOperator) Resume(ctx context.Context, app *v1beta1.Application) error
 			return err
 		}
 	}
-	return nil
+	return wo.writeOutputF("Successfully resume workflow: %s\n", app.Name)
 }
 
 // Rollback a running in middle state workflow.
@@ -269,7 +269,7 @@ func (wo wfOperator) Terminate(ctx context.Context, app *v1beta1.Application) er
 		return err
 	}
 
-	return nil
+	return wo.writeOutputF("Successfully terminate workflow: %s\n", app.Name)
 }
 
 func (wo wfOperator) writeOutput(str string) error {
