@@ -452,7 +452,11 @@ $ vela addon push your-addon localcm
 $ vela addon push mongo-1.0.0.tgz http://localhost:8080
 
 # Force push, overwriting existing ones
-$ vela addon push your-addon localcm -f`,
+$ vela addon push your-addon localcm -f
+
+# If you already written you own Chart.yaml and don't want us to generate it for you
+# Note: when using .tgz packages, we will always keep the original Chart.yaml
+$ vela addon push your-addon localcm --keep-chartmeta`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
@@ -487,7 +491,7 @@ $ vela addon push your-addon localcm -f`,
 	f.BoolVarP(&p.InsecureSkipVerify, "insecure", "", false, "connect to server with an insecure way by skipping certificate verification [$HELM_REPO_INSECURE]")
 	f.BoolVarP(&p.ForceUpload, "force", "f", false, "force upload even if chart version exists")
 	f.BoolVarP(&p.UseHTTP, "use-http", "", false, "use HTTP")
-	f.BoolVarP(&p.KeepChartMetadata, "keep-chartmeta", "", false, "do not update Chart.yaml automatically according to addon metadata")
+	f.BoolVarP(&p.KeepChartMetadata, "keep-chartmeta", "", false, "do not update Chart.yaml automatically according to addon metadata (only when addon dir provided)")
 	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) vela cli will wait to get response from ChartMuseum")
 
 	return cmd
