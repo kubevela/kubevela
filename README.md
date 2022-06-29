@@ -75,23 +75,17 @@ Every two weeks we host a community call to showcase new features, review upcomi
 
 - Bi-weekly Community Call:
   - [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs).
-  - [Video Records](https://kubevela.io/videos/meetings/en/meetings).
+  - [Video Records](https://www.youtube.com/channel/UCSCTHhGI5XJ0SEhDHVakPAA/videos).
 - Bi-weekly Chinese Community Call:
-  - [Video Records](https://kubevela.io/videos/meetings/cn/v1.3).
+  - [Video Records](https://space.bilibili.com/180074935/channel/seriesdetail?sid=1842207).
 
 ## Talks and Conferences
 
-| Engagement | Link        |
-|:-----------|:------------|
-| 🎤  Talks | - [KubeVela - The Modern App Delivery System in Alibaba](https://docs.google.com/presentation/d/1CWCLcsKpDQB3bBDTfdv2BZ8ilGGJv2E8L-iOA5HMrV0/edit?usp=sharing) |
-| 🌎 KubeCon | - [ [NA 2020] Standardizing Cloud Native Application Delivery Across Different Clouds](https://www.youtube.com/watch?v=0yhVuBIbHcI) <br> - [ [EU 2021] Zero Pain Microservice Development and Deployment with Dapr and KubeVela](https://sched.co/iE4S) |
-| 📺 Conferences | - [Dapr, Rudr, OAM: Mark Russinovich presents next gen app development & deployment](https://www.youtube.com/watch?v=eJCu6a-x9uo) <br> - [Mark Russinovich presents "The Future of Cloud Native Applications with OAM and Dapr"](https://myignite.techcommunity.microsoft.com/sessions/82059)|
-
-For more talks, please checkout [KubeVela Talks](https://kubevela.io/videos/talks/en/standardizing-app).
+Check out [KubeVela videos](https://kubevela.io/videos/talks/en/oam-dapr) for these talks and conferences.
 
 ## Contributing
 
-Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
+Check out [CONTRIBUTING](https://kubevela.io/docs/contributor/overview) to see how to develop with KubeVela.
 
 ## Report Vulnerability
 
