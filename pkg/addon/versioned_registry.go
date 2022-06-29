@@ -33,6 +33,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
+const (
+	// patternSystemRequirement is the regex pattern of loading system requirements of the addon
+	patternSystemRequirement = `vela(.*\d+\.\d+\.\d+);\s?kubernetes(.*\d+\.\d+\.\d+)`
+)
+
 // VersionedRegistry is the interface of support version registry
 type VersionedRegistry interface {
 	ListAddon() ([]*UIData, error)
@@ -237,10 +242,9 @@ func LoadSystemRequirements(requirements string) *SystemRequirements {
 	if len(requirements) == 0 {
 		return nil
 	}
-	patternReq := `vela(.*\d+\.\d+\.\d+);\s?kubernetes(.*\d+\.\d+\.\d+)`
-	regexReq := regexp.MustCompile(patternReq)
+	regexReq := regexp.MustCompile(patternSystemRequirement)
 	matched := regexReq.FindStringSubmatch(requirements)
-	if len(matched) < 2 {
+	if len(matched) < 3 {
 		return nil
 	}
 	velaReq, k8sReq := matched[1], matched[2]
