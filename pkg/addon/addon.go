@@ -49,12 +49,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -649,24 +652,26 @@ func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[
 	if len(deployClusters) == 0 || k8sClient == nil {
 		return nil, nil
 	}
-	vcs, err := multicluster.ListVirtualClusters(ctx, k8sClient)
+
+	clusters, err := prismclusterv1alpha1.NewClusterClient(k8sClient).List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "fail to get registered cluster")
 	}
+
+	clusterNames := sets.String{}
+	if len(clusters.Items) != 0 {
+		for _, cluster := range clusters.Items {
+			clusterNames.Insert(cluster.Name)
+		}
+	}
+
 	var res []string
 	for _, c := range deployClusters {
 		c = strings.TrimSpace(c)
 		if c == "" {
 			continue
 		}
-		var found bool
-		for _, vc := range vcs {
-			if c == vc.Name {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !clusterNames.Has(c) {
 			return nil, errors.Errorf("cluster %s not exist", c)
 		}
 		res = append(res, c)
