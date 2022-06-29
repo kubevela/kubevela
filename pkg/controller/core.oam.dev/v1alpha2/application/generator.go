@@ -334,7 +334,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	if err := af.SetOAMContract(manifest); err != nil {
 		return nil, nil, errors.WithMessage(err, "SetOAMContract")
 	}
-	if err := h.HandleComponentsRevision(ctx, []*types.ComponentManifest{manifest}); err != nil {
+	if err := h.HandleComponentsRevision(contextWithComponent(ctx, &comp), []*types.ComponentManifest{manifest}); err != nil {
 		return nil, nil, errors.WithMessage(err, "HandleComponentsRevision")
 	}
 

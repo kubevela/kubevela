@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -69,7 +71,34 @@ const (
 	ManifestKeyScopes = "Scopes"
 	// ComponentRevisionNamespaceContextKey is the key in context that defines the override namespace of component revision
 	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
+	// ComponentContextKey is the key in context that records the component
+	ComponentContextKey = contextKey("component")
 )
+
+const rolloutTraitName = "rollout"
+
+// contextWithComponent records ApplicationComponent in context
+func contextWithComponent(ctx context.Context, component *common.ApplicationComponent) context.Context {
+	return context.WithValue(ctx, ComponentContextKey, component)
+}
+
+// componentInContext extract ApplicationComponent from context
+func componentInContext(ctx context.Context) *common.ApplicationComponent {
+	comp, _ := ctx.Value(ComponentContextKey).(*common.ApplicationComponent)
+	return comp
+}
+
+func _containsRolloutTrait(ctx context.Context) bool {
+	comp := componentInContext(ctx)
+	if comp != nil {
+		for _, trait := range comp.Traits {
+			if trait.Type == rolloutTraitName {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 var (
 	// DisableAllComponentRevision disable component revision creation
@@ -709,6 +738,9 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 		Data:     *util.Object2RawExtension(comp),
 	}
 	common.NewOAMObjectReferenceFromObject(cm.StandardWorkload).AddLabelsToObject(cr)
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyComponentRevision) && !_containsRolloutTrait(ctx) {
+		return nil
+	}
 	return h.resourceKeeper.DispatchComponentRevision(ctx, cr)
 }
 

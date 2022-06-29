@@ -217,6 +217,7 @@ spec:
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
+            - "--feature-gates=LegacyComponentRevision={{- .Values.featureGates.enableLegacyComponentRevision | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"
