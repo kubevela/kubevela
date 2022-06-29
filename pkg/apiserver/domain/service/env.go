@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -25,12 +26,15 @@ import (
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -89,6 +93,11 @@ func (p *envServiceImpl) DeleteEnv(ctx context.Context, envName string) error {
 		}
 		return err
 	}
+
+	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, env, true); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -245,6 +254,10 @@ func (p *envServiceImpl) UpdateEnv(ctx context.Context, name string, req apisv1.
 		}
 	}
 
+	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, env, false); err != nil {
+		return nil, err
+	}
+
 	resp := convertEnvModel2Base(env, targets)
 	return resp, nil
 }
@@ -283,6 +296,10 @@ func (p *envServiceImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 
 	err = repository.CreateEnv(ctx, p.KubeClient, p.Store, newEnv)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := managePrivilegesForEnvironment(ctx, p.KubeClient, newEnv, false); err != nil {
 		return nil, err
 	}
 
@@ -335,4 +352,20 @@ func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {
 		}
 	}
 	return &data
+}
+
+// managePrivilegesForEnvironment grant or revoke privileges for environment
+func managePrivilegesForEnvironment(ctx context.Context, cli client.Client, env *model.Env, revoke bool) error {
+	p := &auth.ScopedPrivilege{Cluster: types.ClusterLocalName, Namespace: env.Namespace, AppOnly: true}
+	identity := &auth.Identity{Groups: []string{utils.KubeVelaProjectGroupPrefix + env.Project}}
+	writer := &bytes.Buffer{}
+	f, msg := auth.GrantPrivileges, "GrantPrivileges"
+	if revoke {
+		f, msg = auth.RevokePrivileges, "RevokePrivileges"
+	}
+	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
+		return err
+	}
+	log.Logger.Debugf("%s: %s", msg, writer.String())
+	return nil
 }

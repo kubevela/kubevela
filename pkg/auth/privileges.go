@@ -249,6 +249,10 @@ const (
 	KubeVelaReaderRoleName = "kubevela:reader"
 	// KubeVelaWriterRoleName a role that can read/write any resources
 	KubeVelaWriterRoleName = "kubevela:writer"
+	// KubeVelaWriterAppRoleName a role that can read/write any application
+	KubeVelaWriterAppRoleName = "kubevela:writer:application"
+	// KubeVelaReaderAppRoleName a role that can read any application
+	KubeVelaReaderAppRoleName = "kubevela:reader:application"
 )
 
 // ScopedPrivilege includes all resource privileges in the destination
@@ -257,6 +261,8 @@ type ScopedPrivilege struct {
 	Cluster   string
 	Namespace string
 	ReadOnly  bool
+	// AppOnly means only granting the permissions about the Application
+	AppOnly bool
 }
 
 // GetCluster the cluster of the privilege
@@ -266,6 +272,27 @@ func (p *ScopedPrivilege) GetCluster() string {
 
 // GetRoles the underlying Roles/ClusterRoles for the privilege
 func (p *ScopedPrivilege) GetRoles() []client.Object {
+	if p.AppOnly {
+		verbs := []string{"get", "list", "watch", "create", "update", "patch", "delete"}
+		name := p.Prefix + KubeVelaWriterAppRoleName
+		if p.ReadOnly {
+			verbs = []string{"get", "list", "watch"}
+			name = p.Prefix + KubeVelaReaderAppRoleName
+		}
+
+		return []client.Object{
+			&rbacv1.ClusterRole{
+				ObjectMeta: metav1.ObjectMeta{Name: name},
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"core.oam.dev"},
+						Resources: []string{"applications", "policies", "workflows"},
+						Verbs:     verbs,
+					},
+				},
+			},
+		}
+	}
 	if p.ReadOnly {
 		return []client.Object{&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{Name: p.Prefix + KubeVelaReaderRoleName},
@@ -288,9 +315,14 @@ func (p *ScopedPrivilege) GetRoles() []client.Object {
 func (p *ScopedPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
 	var binding client.Object
 	var roleName string
-	if p.ReadOnly {
+	switch {
+	case p.AppOnly && p.ReadOnly:
+		roleName = KubeVelaReaderAppRoleName
+	case p.AppOnly && !p.ReadOnly:
+		roleName = KubeVelaWriterAppRoleName
+	case p.ReadOnly:
 		roleName = KubeVelaReaderRoleName
-	} else {
+	case !p.ReadOnly:
 		roleName = KubeVelaWriterRoleName
 	}
 	if p.Namespace == "" {

@@ -107,7 +107,9 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
 				if secretName == secret.Name {
 					selectSecret = append(selectSecret, &secrets.Items[i])
-					selectSecretNames = append(selectSecretNames, secret.Name)
+					if secret.Type == corev1.SecretTypeDockerConfigJson {
+						selectSecretNames = append(selectSecretNames, secret.Name)
+					}
 					break
 				}
 			}
@@ -120,7 +122,9 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 			if secret.Labels[types.LabelConfigProject] == "" || secret.Labels[types.LabelConfigProject] == project {
 				if secret.Labels[types.LabelConfigIdentifier] == registryDomain {
 					selectSecret = append(selectSecret, &secrets.Items[i])
-					selectSecretNames = append(selectSecretNames, secret.Name)
+					if secret.Type == corev1.SecretTypeDockerConfigJson {
+						selectSecretNames = append(selectSecretNames, secret.Name)
+					}
 				}
 			}
 		}

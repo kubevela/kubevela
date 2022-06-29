@@ -222,6 +222,7 @@ func (s *restServer) RegisterAPIRoute() restfulSpec.Config {
 
 	// Add container filter to respond to OPTIONS
 	s.webContainer.Filter(s.webContainer.OPTIONSFilter)
+	s.webContainer.Filter(s.OPTIONSFilter)
 
 	// Add request log
 	s.webContainer.Filter(s.requestLog)
@@ -240,6 +241,10 @@ func (s *restServer) RegisterAPIRoute() restfulSpec.Config {
 }
 
 func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
+	if req.HeaderParameter("Upgrade") == "websocket" && req.HeaderParameter("Connection") == "Upgrade" {
+		chain.ProcessFilter(req, resp)
+		return
+	}
 	start := time.Now()
 	c := utils.NewResponseCapture(resp.ResponseWriter)
 	resp.ResponseWriter = c
@@ -253,6 +258,14 @@ func (s *restServer) requestLog(req *restful.Request, resp *restful.Response, ch
 		"time", takeTime.String(),
 		"responseSize", len(c.Bytes()),
 	).Infof("request log")
+}
+
+func (s *restServer) OPTIONSFilter(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
+	if req.Request.Method != "OPTIONS" {
+		chain.ProcessFilter(req, resp)
+		return
+	}
+	resp.AddHeader(restful.HEADER_AccessControlAllowCredentials, "true")
 }
 
 func enrichSwaggerObject(swo *spec.Swagger) {

@@ -74,6 +74,9 @@ func (dt *targetServiceImpl) Init(ctx context.Context) error {
 		if err := dt.Store.Put(ctx, t); err != nil {
 			return err
 		}
+		if err := managePrivilegesForTarget(ctx, dt.K8sClient, t, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -161,6 +164,10 @@ func (dt *targetServiceImpl) CreateTarget(ctx context.Context, req apisv1.Create
 func (dt *targetServiceImpl) UpdateTarget(ctx context.Context, target *model.Target, req apisv1.UpdateTargetRequest) (*apisv1.DetailTargetResponse, error) {
 	targetModel := convertUpdateReqToTargetModel(target, req)
 	if err := dt.Store.Put(ctx, targetModel); err != nil {
+		return nil, err
+	}
+	// Compatible with historical data, if the existing Target has not been authorized, perform an update action.
+	if err := managePrivilegesForTarget(ctx, dt.K8sClient, targetModel, false); err != nil {
 		return nil, err
 	}
 	return dt.DetailTarget(ctx, targetModel)

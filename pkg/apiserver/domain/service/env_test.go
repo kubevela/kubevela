@@ -24,12 +24,14 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -74,23 +76,28 @@ var _ = Describe("Test env service functions", func() {
 		req3 := apisv1.CreateEnvRequest{
 			Name:        "test-env-2",
 			Description: "this is a env description",
-			Namespace:   "default",
+			Namespace:   "test-env-22",
 			Project:     "env-project",
 			Targets:     []string{"env-test"},
 		}
 		base, err = envService.CreateEnv(context.TODO(), req3)
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(base.Namespace, "default")).Should(BeEmpty())
+		Expect(cmp.Diff(base.Namespace, req3.Namespace)).Should(BeEmpty())
 		var namespace corev1.Namespace
 		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: base.Namespace}, &namespace)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(namespace.Labels[oam.LabelNamespaceOfEnvName], req3.Name)).Should(BeEmpty())
 
+		var roleBinding rbacv1.RoleBinding
+		err = k8sClient.Get(context.TODO(), types.NamespacedName{Name: auth.KubeVelaWriterAppRoleName + ":binding", Namespace: base.Namespace}, &roleBinding)
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(roleBinding.RoleRef.Name, auth.KubeVelaWriterAppRoleName)).Should(BeEmpty())
+
 		// test env target conflict
 		req4 := apisv1.CreateEnvRequest{
 			Name:        "test-env-3",
 			Description: "this is a env description",
-			Namespace:   "default",
+			Namespace:   "test-env-22",
 			Project:     "env-project",
 			Targets:     []string{"env-test"},
 		}

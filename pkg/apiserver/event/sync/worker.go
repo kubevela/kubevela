@@ -44,6 +44,8 @@ type ApplicationSync struct {
 	Store              datastore.DataStore        `inject:"datastore"`
 	ProjectService     service.ProjectService     `inject:""`
 	ApplicationService service.ApplicationService `inject:""`
+	TargetService      service.TargetService      `inject:""`
+	EnvService         service.EnvService         `inject:""`
 	Queue              workqueue.Interface
 }
 
@@ -72,6 +74,8 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		cache:              sync.Map{},
 		projectService:     a.ProjectService,
 		applicationService: a.ApplicationService,
+		targetService:      a.TargetService,
+		envService:         a.EnvService,
 	}
 	if err = cu.initCache(ctx); err != nil {
 		errorChan <- err

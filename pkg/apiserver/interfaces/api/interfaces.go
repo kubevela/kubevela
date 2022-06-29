@@ -27,6 +27,9 @@ import (
 // versionPrefix API version prefix.
 var versionPrefix = "/api/v1"
 
+// viewPrefix the path prefix for view page
+var viewPrefix = "/view"
+
 // Interface the API should define the http route
 type Interface interface {
 	GetWebServiceRoute() *restful.WebService
@@ -77,11 +80,13 @@ func InitAPIBean() []interface{} {
 	RegisterAPIInterface(NewVelaQLAPIInterface())
 	RegisterAPIInterface(NewWebhookAPIInterface())
 	RegisterAPIInterface(NewRepositoryAPIInterface())
+	RegisterAPIInterface(NewCloudShellAPIInterface())
 
 	// Authentication
 	RegisterAPIInterface(NewAuthenticationAPIInterface())
 	RegisterAPIInterface(NewUserAPIInterface())
 	RegisterAPIInterface(NewSystemInfoAPIInterface())
+	RegisterAPIInterface(NewCloudShellView())
 
 	// RBAC
 	RegisterAPIInterface(NewRBACAPIInterface())

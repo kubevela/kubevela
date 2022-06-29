@@ -93,12 +93,12 @@ var _ = Describe("Test rbac service", func() {
 	})
 
 	It("Test init and list platform permissions", func() {
-		rbacService := rbacServiceImpl{Store: ds}
+		rbacService := rbacServiceImpl{Store: ds, KubeClient: k8sClient}
 		err := rbacService.Init(context.TODO())
 		Expect(err).Should(BeNil())
 		policies, err := rbacService.ListPermissions(context.TODO(), "")
 		Expect(err).Should(BeNil())
-		Expect(len(policies)).Should(BeEquivalentTo(int64(8)))
+		Expect(len(policies)).Should(BeEquivalentTo(int64(10)))
 	})
 
 	It("Test checkPerm by admin user", func() {
@@ -194,7 +194,7 @@ var _ = Describe("Test rbac service", func() {
 
 		roles, err := rbacService.ListRole(context.TODO(), "init-test", 0, 0)
 		Expect(err).Should(BeNil())
-		Expect(roles.Total).Should(BeEquivalentTo(int64(2)))
+		Expect(roles.Total).Should(BeEquivalentTo(int64(3)))
 
 		policies, err := rbacService.ListPermissions(context.TODO(), "init-test")
 		Expect(err).Should(BeNil())

@@ -31,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -153,17 +154,33 @@ func GenerateKubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clie
 	return nil, errors.New("either x509 or serviceaccount must be set for creating KubeConfig")
 }
 
-func genKubeConfig(cfg *clientcmdapi.Config, authInfo *clientcmdapi.AuthInfo, caData []byte) *clientcmdapi.Config {
+func genKubeConfig(cfg *clientcmdapi.Config, authInfo *clientcmdapi.AuthInfo, caData []byte) (*clientcmdapi.Config, error) {
+	if len(cfg.Clusters) == 0 {
+		return nil, fmt.Errorf("there is no clusters in the cluster config")
+	}
 	exportCfg := cfg.DeepCopy()
-	exportContext := cfg.Contexts[cfg.CurrentContext].DeepCopy()
-	exportCfg.Contexts = map[string]*clientcmdapi.Context{cfg.CurrentContext: exportContext}
+	var exportContext *clientcmdapi.Context
+	if len(cfg.Contexts) > 0 {
+		exportContext = cfg.Contexts[cfg.CurrentContext].DeepCopy()
+		exportCfg.Contexts = map[string]*clientcmdapi.Context{cfg.CurrentContext: exportContext}
+	} else {
+		exportCfg.Contexts = map[string]*clientcmdapi.Context{}
+		for name := range cfg.Clusters {
+			exportContext = &clientcmdapi.Context{
+				Cluster:  name,
+				AuthInfo: authInfo.Username,
+			}
+			exportCfg.Contexts["local"] = exportContext
+		}
+		exportCfg.CurrentContext = "local"
+	}
 	exportCluster := cfg.Clusters[exportContext.Cluster].DeepCopy()
 	if caData != nil {
 		exportCluster.CertificateAuthorityData = caData
 	}
 	exportCfg.Clusters = map[string]*clientcmdapi.Cluster{exportContext.Cluster: exportCluster}
 	exportCfg.AuthInfos = map[string]*clientcmdapi.AuthInfo{exportContext.AuthInfo: authInfo}
-	return exportCfg
+	return exportCfg, nil
 }
 
 func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
@@ -196,24 +213,39 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	csr.Spec.Usages = []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
 	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
+	var needApprove = true
 	if csr, err = cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
-		return nil, err
+		if apierrors.IsAlreadyExists(err) {
+			csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			for _, con := range csr.Status.Conditions {
+				if con.Type == certificatesv1.CertificateApproved && con.Status == corev1.ConditionTrue {
+					needApprove = false
+				}
+			}
+		} else {
+			return nil, err
+		}
 	}
 	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", opts.User)
 	defer func() {
 		_ = cli.CertificatesV1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
-	csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-		Type:           certificatesv1.CertificateApproved,
-		Status:         corev1.ConditionTrue,
-		Reason:         "Self-generated and auto-approved by KubeVela",
-		Message:        "This CSR was approved by KubeVela",
-		LastUpdateTime: metav1.Now(),
-	})
-	if csr, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
-		return nil, err
+	if needApprove {
+		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
+			Type:           certificatesv1.CertificateApproved,
+			Status:         corev1.ConditionTrue,
+			Reason:         "Self-generated and auto-approved by KubeVela",
+			Message:        "This CSR was approved by KubeVela",
+			LastUpdateTime: metav1.Now(),
+		})
+		if csr, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
+			return nil, err
+		}
+		_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
 	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
 		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
 			return false, err
@@ -230,7 +262,7 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	return genKubeConfig(cfg, &clientcmdapi.AuthInfo{
 		ClientKeyData:         keyBytes,
 		ClientCertificateData: csr.Status.Certificate,
-	}, nil), nil
+	}, nil)
 }
 
 func generateServiceAccountKubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateServiceAccountOptions) (*clientcmdapi.Config, error) {
@@ -257,7 +289,7 @@ func generateServiceAccountKubeConfig(ctx context.Context, cli kubernetes.Interf
 	_, _ = fmt.Fprintf(writer, "ServiceAccount token found.\n")
 	return genKubeConfig(cfg, &clientcmdapi.AuthInfo{
 		Token: string(secret.Data["token"]),
-	}, secret.Data["ca.crt"]), nil
+	}, secret.Data["ca.crt"])
 }
 
 // ReadIdentityFromKubeConfig extract identity from kubeconfig

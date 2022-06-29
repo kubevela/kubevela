@@ -170,6 +170,7 @@ func (u *userServiceImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO: validate the roles, they must be platform roles
 	user := &model.User{
 		Name:      req.Name,
