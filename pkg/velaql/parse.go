@@ -17,8 +17,6 @@
 package velaql
 
 import (
-	"io/ioutil"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -26,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/references/common"
 )
 
 // QueryView contains query data
@@ -99,7 +98,7 @@ func ParseVelaQL(ql string) (QueryView, error) {
 
 // ParseVelaQLFromPath will parse a velaQL file path to QueryView
 func ParseVelaQLFromPath(velaQLViewPath string) (*QueryView, error) {
-	body, err := ioutil.ReadFile(filepath.Clean(velaQLViewPath))
+	body, err := common.ReadRemoteOrLocalPath(velaQLViewPath)
 	if err != nil {
 		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
 	}
