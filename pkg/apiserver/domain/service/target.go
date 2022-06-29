@@ -262,3 +262,8 @@ func managePrivilegesForTarget(ctx context.Context, cli client.Client, target *m
 	log.Logger.Debugf("%s: %s", msg, writer.String())
 	return nil
 }
+
+// NewTestTargetService create the target service instance for testing
+func NewTestTargetService(ds datastore.DataStore, c client.Client) TargetService {
+	return &targetServiceImpl{Store: ds, K8sClient: c}
+}

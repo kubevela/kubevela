@@ -56,20 +56,11 @@ var _ = Describe("Test project service functions", func() {
 		ns.Name = defaultNamespace
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		targetImpl = &targetServiceImpl{K8sClient: k8sClient, Store: ds}
-		envImpl = &envServiceImpl{KubeClient: k8sClient, Store: ds}
-		rbacService := &rbacServiceImpl{Store: ds}
-		userService := &userServiceImpl{Store: ds, RbacService: rbacService, SysService: systemInfoServiceImpl{Store: ds}}
-		projectService = &projectServiceImpl{
-			K8sClient:     k8sClient,
-			Store:         ds,
-			RbacService:   rbacService,
-			TargetService: targetImpl,
-			UserService:   userService,
-			EnvService:    envImpl,
-		}
-		userService.ProjectService = projectService
-		envImpl.ProjectService = projectService
+		projectService = NewTestProjectService(ds, k8sClient).(*projectServiceImpl)
+		envImpl = projectService.EnvService.(*envServiceImpl)
+		userService = projectService.UserService.(*userServiceImpl)
+		targetImpl = projectService.TargetService.(*targetServiceImpl)
+
 		pp, err := projectService.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
 		// reset all projects

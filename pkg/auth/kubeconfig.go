@@ -30,10 +30,12 @@ import (
 
 	"github.com/pkg/errors"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -147,7 +149,11 @@ const (
 func GenerateKubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, options ...KubeConfigGenerateOption) (*clientcmdapi.Config, error) {
 	opts := newKubeConfigGenerateOptions(options...)
 	if opts.X509 != nil {
-		return generateX509KubeConfig(ctx, cli, cfg, writer, opts.X509)
+		info, _ := cli.Discovery().ServerVersion()
+		if info == nil || version.MustParseGeneric(info.String()).AtLeast(version.MustParseSemantic("v1.19.0")) {
+			return generateX509KubeConfig(ctx, cli, cfg, writer, opts.X509)
+		}
+		return generateX509KubeConfigBeta(ctx, cli, cfg, writer, opts.X509)
 	} else if opts.ServiceAccount != nil {
 		return generateServiceAccountKubeConfig(ctx, cli, cfg, writer, opts.ServiceAccount)
 	}
@@ -248,6 +254,89 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	}
 	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
 		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
+			return false, err
+		}
+		if csr.Status.Certificate == nil {
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+	_, _ = fmt.Fprintf(writer, "Signed certificate retrieved.\n")
+
+	return genKubeConfig(cfg, &clientcmdapi.AuthInfo{
+		ClientKeyData:         keyBytes,
+		ClientCertificateData: csr.Status.Certificate,
+	}, nil)
+}
+
+func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+	// generate private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, opts.PrivateKeyBits)
+	if err != nil {
+		return nil, err
+	}
+	keyBytes := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+	_, _ = fmt.Fprintf(writer, "Private key generated.\n")
+
+	template := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   opts.User,
+			Organization: opts.Groups,
+		},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
+	if err != nil {
+		return nil, err
+	}
+	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
+	_, _ = fmt.Fprintf(writer, "Certificate request generated.\n")
+
+	csr := &certificatesv1beta1.CertificateSigningRequest{}
+	csr.Name = opts.User
+	var name = certificatesv1beta1.KubeAPIServerClientSignerName
+	csr.Spec.SignerName = &name
+	csr.Spec.Usages = []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth}
+	csr.Spec.Request = csrPemBytes
+	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
+	var needApprove = true
+	if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			for _, con := range csr.Status.Conditions {
+				if con.Type == certificatesv1beta1.CertificateApproved && con.Status == corev1.ConditionTrue {
+					needApprove = false
+				}
+			}
+		} else {
+			return nil, err
+		}
+	}
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", opts.User)
+	defer func() {
+		_ = cli.CertificatesV1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
+	}()
+	if needApprove {
+		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1beta1.CertificateSigningRequestCondition{
+			Type:           certificatesv1beta1.CertificateApproved,
+			Status:         corev1.ConditionTrue,
+			Reason:         "Self-generated and auto-approved by KubeVela",
+			Message:        "This CSR was approved by KubeVela",
+			LastUpdateTime: metav1.Now(),
+		})
+		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, csr, metav1.UpdateOptions{}); err != nil {
+			return nil, err
+		}
+		_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
+	}
+	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
+		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
 		if csr.Status.Certificate == nil {

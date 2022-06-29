@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -59,7 +60,7 @@ var _ = Describe("Test CR convert to ux", func() {
 
 		By("no app created, test the name")
 
-		cr2ux := CR2UX{ds: ds, cli: k8sClient, cache: sync.Map{}}
+		cr2ux := newCR2UX(ds)
 		gotApp, gotAppName, err := cr2ux.getApp(context.Background(), apName1, appNS1)
 		Expect(gotAppName).Should(BeEquivalentTo(apName1))
 		Expect(gotApp).Should(BeNil())
@@ -107,11 +108,7 @@ var _ = Describe("Test CR convert to ux", func() {
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		cr2ux := CR2UX{
-			ds:    ds,
-			cli:   k8sClient,
-			cache: sync.Map{},
-		}
+		cr2ux := newCR2UX(ds)
 
 		By("create test app1 and check the syncing results")
 		app1 := &v1beta1.Application{}
@@ -154,3 +151,22 @@ var _ = Describe("Test CR convert to ux", func() {
 	})
 
 })
+
+func newCR2UX(ds datastore.DataStore) *CR2UX {
+	projectService := service.NewTestProjectService(ds, k8sClient)
+	applicationService := service.NewTestApplicationService(ds, k8sClient, cfg)
+	targetService := service.NewTestTargetService(ds, k8sClient)
+	envService := service.NewTestEnvService(ds, k8sClient)
+	userService := service.NewTestUserService(ds, k8sClient)
+	err := userService.Init(context.TODO())
+	Expect(err).Should(BeNil())
+	return &CR2UX{
+		ds:                 ds,
+		cli:                k8sClient,
+		cache:              sync.Map{},
+		projectService:     projectService,
+		targetService:      targetService,
+		envService:         envService,
+		applicationService: applicationService,
+	}
+}

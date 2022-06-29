@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"time"
@@ -32,11 +33,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 
@@ -62,34 +65,6 @@ func prepare(userName string) {
 	Expect(err).Should(BeNil())
 	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 
-	csr := &certificatesv1.CertificateSigningRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: userName,
-		},
-		Spec: certificatesv1.CertificateSigningRequestSpec{
-			SignerName: certificatesv1.KubeAPIServerClientSignerName,
-			Usages:     []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth},
-			Request:    csrPemBytes,
-		},
-	}
-	Expect(k8sClient.Create(context.TODO(), csr)).Should(BeNil())
-	cli, err := kubernetes.NewForConfig(cfg)
-	Expect(err).Should(BeNil())
-	csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-	Expect(err).Should(BeNil())
-	csr.Status = certificatesv1.CertificateSigningRequestStatus{
-		Conditions: []certificatesv1.CertificateSigningRequestCondition{
-			{
-				Type:   certificatesv1.CertificateApproved,
-				Status: corev1.ConditionTrue,
-			},
-		},
-	}
-	_, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr.Name, csr, metav1.UpdateOptions{})
-	Expect(err).Should(BeNil())
-	csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-	Expect(err).Should(BeNil())
-
 	tpl := x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "169.264.169.254"},
@@ -107,9 +82,74 @@ func prepare(userName string) {
 		Bytes: derCert,
 	})
 	Expect(err).Should(BeNil())
-	csr.Status.Certificate = buf.Bytes()
-	err = k8sClient.Status().Update(context.TODO(), csr)
+
+	cli, err := kubernetes.NewForConfig(cfg)
 	Expect(err).Should(BeNil())
+	info, err := cli.ServerVersion()
+	kubeVersion := version.MustParseGeneric(info.String())
+	if kubeVersion.AtLeast(version.MustParseSemantic("v1.19.0")) {
+		fmt.Println(info.String())
+		csr := &certificatesv1.CertificateSigningRequest{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: userName,
+			},
+			Spec: certificatesv1.CertificateSigningRequestSpec{
+				SignerName: certificatesv1.KubeAPIServerClientSignerName,
+				Usages:     []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth},
+				Request:    csrPemBytes,
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), csr)).Should(BeNil())
+		Expect(err).Should(BeNil())
+		csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
+		Expect(err).Should(BeNil())
+		csr.Status = certificatesv1.CertificateSigningRequestStatus{
+			Conditions: []certificatesv1.CertificateSigningRequestCondition{
+				{
+					Type:   certificatesv1.CertificateApproved,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		}
+		_, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr.Name, csr, metav1.UpdateOptions{})
+		Expect(err).Should(BeNil())
+		csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
+		Expect(err).Should(BeNil())
+		csr.Status.Certificate = buf.Bytes()
+		err = k8sClient.Status().Update(context.TODO(), csr)
+		Expect(err).Should(BeNil())
+	} else {
+		var name = certificatesv1beta1.KubeAPIServerClientSignerName
+		csr := &certificatesv1beta1.CertificateSigningRequest{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: userName,
+			},
+			Spec: certificatesv1beta1.CertificateSigningRequestSpec{
+				SignerName: &name,
+				Usages:     []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth},
+				Request:    csrPemBytes,
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), csr)).Should(BeNil())
+		Expect(err).Should(BeNil())
+		csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
+		Expect(err).Should(BeNil())
+		csr.Status = certificatesv1beta1.CertificateSigningRequestStatus{
+			Conditions: []certificatesv1beta1.CertificateSigningRequestCondition{
+				{
+					Type:   certificatesv1beta1.CertificateApproved,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		}
+		_, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr, metav1.UpdateOptions{})
+		Expect(err).Should(BeNil())
+		csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
+		Expect(err).Should(BeNil())
+		csr.Status.Certificate = buf.Bytes()
+		err = k8sClient.Status().Update(context.TODO(), csr)
+		Expect(err).Should(BeNil())
+	}
 }
 
 var _ = Describe("Test cloudshell service function", func() {

@@ -623,3 +623,22 @@ func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv
 		Description:       a.Annotations[types.AnnotationConfigDescription],
 	}
 }
+
+// NewTestProjectService create the project service instance for testing
+func NewTestProjectService(ds datastore.DataStore, c client.Client) ProjectService {
+	targetImpl := &targetServiceImpl{K8sClient: c, Store: ds}
+	envImpl := &envServiceImpl{KubeClient: c, Store: ds}
+	rbacService := &rbacServiceImpl{Store: ds}
+	userService := &userServiceImpl{Store: ds, RbacService: rbacService, SysService: systemInfoServiceImpl{Store: ds}}
+	projectService := &projectServiceImpl{
+		K8sClient:     c,
+		Store:         ds,
+		RbacService:   rbacService,
+		TargetService: targetImpl,
+		UserService:   userService,
+		EnvService:    envImpl,
+	}
+	userService.ProjectService = projectService
+	envImpl.ProjectService = projectService
+	return projectService
+}

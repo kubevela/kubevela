@@ -369,3 +369,8 @@ func managePrivilegesForEnvironment(ctx context.Context, cli client.Client, env 
 	log.Logger.Debugf("%s: %s", msg, writer.String())
 	return nil
 }
+
+// NewTestEnvService create the env service instance for testing
+func NewTestEnvService(ds datastore.DataStore, c client.Client) EnvService {
+	return &envServiceImpl{Store: ds, KubeClient: c, ProjectService: NewTestProjectService(ds, c)}
+}

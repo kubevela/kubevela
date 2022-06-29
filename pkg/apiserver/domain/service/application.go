@@ -1651,3 +1651,55 @@ func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, o
 	reportDiffOpt.PrintDiffReport(diffResult)
 	return diffResult, buff, nil
 }
+
+// NewTestApplicationService create the application service instance for testing
+func NewTestApplicationService(ds datastore.DataStore, c client.Client, cfg *rest.Config) ApplicationService {
+	targetImpl := &targetServiceImpl{K8sClient: c, Store: ds}
+	envImpl := &envServiceImpl{KubeClient: c, Store: ds}
+	rbacService := &rbacServiceImpl{Store: ds}
+	userService := &userServiceImpl{Store: ds, RbacService: rbacService, SysService: systemInfoServiceImpl{Store: ds}}
+	projectService := &projectServiceImpl{
+		K8sClient:     c,
+		Store:         ds,
+		RbacService:   rbacService,
+		TargetService: targetImpl,
+		UserService:   userService,
+		EnvService:    envImpl,
+	}
+	userService.ProjectService = projectService
+	envImpl.ProjectService = projectService
+	workflowService := &workflowServiceImpl{
+		Store:      ds,
+		KubeClient: c,
+		Apply:      apply.NewAPIApplicator(c),
+		EnvService: envImpl,
+	}
+	def := &definitionServiceImpl{KubeClient: c}
+	envbinding := &envBindingServiceImpl{
+		Store:             ds,
+		WorkflowService:   workflowService,
+		EnvService:        envImpl,
+		DefinitionService: def,
+		KubeClient:        c,
+	}
+	workflowService.EnvBindingService = envbinding
+	return &applicationServiceImpl{
+		Store:      ds,
+		KubeClient: c,
+		KubeConfig: cfg,
+		Apply:      apply.NewAPIApplicator(c),
+		WorkflowService: &workflowServiceImpl{
+			Store:             ds,
+			KubeClient:        c,
+			Apply:             apply.NewAPIApplicator(c),
+			EnvService:        envImpl,
+			EnvBindingService: envbinding,
+		},
+		EnvService:        envImpl,
+		EnvBindingService: envbinding,
+		TargetService:     targetImpl,
+		DefinitionService: def,
+		ProjectService:    projectService,
+		UserService:       userService,
+	}
+}
