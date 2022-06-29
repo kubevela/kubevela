@@ -26,25 +26,21 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"k8s.io/client-go/discovery"
-
-	"helm.sh/helm/v3/pkg/strvals"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"k8s.io/client-go/rest"
-
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/strvals"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -518,10 +514,21 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
-		if err != nil {
-			if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
-				return fmt.Errorf("%w\nyou can try another version by command: \"vela addon enable %s --version <version> \" ", err, name)
+		if unMatchErr := new(pkgaddon.VersionUnMatchError); errors.As(err, unMatchErr) {
+			// Get available version of the addon
+			availableVersion, err := unMatchErr.GetAvailableVersion()
+			if err != nil {
+				return err
 			}
+			input := NewUserInput()
+			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
+				err = pkgaddon.EnableAddon(ctx, name, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+				return err
+			}
+			// The user does not agree to use the version provided by us
+			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
+		}
+		if err != nil {
 			return err
 		}
 		if err = waitApplicationRunning(k8sClient, name); err != nil {

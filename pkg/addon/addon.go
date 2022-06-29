@@ -1138,7 +1138,8 @@ func (h *Installer) enableAddon(addon *InstallPackage) error {
 	if !h.skipVersionValidate {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {
-			return VersionUnMatchError{addonName: addon.Name, err: err}
+			version := h.getAddonVersionMeetSystemRequirement(addon.Name)
+			return VersionUnMatchError{addonName: addon.Name, err: err, userSelectedAddonVersion: addon.Version, availableVersion: version}
 		}
 	}
 
@@ -1378,6 +1379,27 @@ func (h *Installer) continueOrRestartWorkflow() error {
 		})
 	}
 	return nil
+}
+
+// getAddonVersionMeetSystemRequirement return the addon's latest version which meet the system requirements
+func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) string {
+	if h.r != nil && IsVersionRegistry(*h.r) {
+		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
+			Username: h.r.Helm.Username,
+			Password: h.r.Helm.Password,
+		})
+		versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
+		if err != nil {
+			return ""
+		}
+		for _, version := range versions {
+			req := LoadSystemRequirements(version.Annotations["system"])
+			if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
+				return version.Version
+			}
+		}
+	}
+	return ""
 }
 
 func addOwner(child *unstructured.Unstructured, app *v1beta1.Application) {

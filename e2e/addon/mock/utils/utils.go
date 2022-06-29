@@ -39,7 +39,7 @@ var (
 apiVersion: v1
 data:
   registries: '{ "KubeVela":{ "name": "KubeVela", "oss": { "end_point": "http://REGISTRY_ADDR",
-    "bucket": "" } } }'
+    "bucket": "" } }, "Test-Helm":{ "name": "Test-Helm", "helm": { "name":"", "password":"", "url": "http://HELM_ADDR"} } }'
 kind: ConfigMap
 metadata:
   name: vela-addon-registry
@@ -59,6 +59,7 @@ func ApplyMockServerConfig() error {
 	cm := v1.ConfigMap{}
 
 	registryCmStr := strings.ReplaceAll(velaRegistry, "REGISTRY_ADDR", fmt.Sprintf("127.0.0.1:%d", Port))
+	registryCmStr = strings.ReplaceAll(registryCmStr, "HELM_ADDR", fmt.Sprintf("127.0.0.1:%d/helm", Port))
 
 	err = yaml.Unmarshal([]byte(registryCmStr), &cm)
 	if err != nil {
