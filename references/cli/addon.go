@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -203,7 +204,7 @@ Enable addon for specific clusters, (local means control plane):
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
 	fmt.Printf("Please access %s from the following endpoints:\n", name)
-	err := printAppEndpoints(ctx, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
+	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
 		return
@@ -567,8 +568,8 @@ func statusAddon(name string, ioStreams cmdutil.IOStreams, cmd *cobra.Command, c
 	fmt.Print(statusString)
 
 	if status.AddonPhase != statusEnabled && status.AddonPhase != statusDisabled {
-		fmt.Printf("diagnose addon info from application %s", pkgaddon.Convert2AppName(name))
-		err := printAppStatus(context.Background(), k8sClient, ioStreams, pkgaddon.Convert2AppName(name), types.DefaultKubeVelaNS, cmd, c)
+		fmt.Printf("diagnose addon info from application %s", addonutil.Addon2AppName(name))
+		err := printAppStatus(context.Background(), k8sClient, ioStreams, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, cmd, c)
 		if err != nil {
 			return err
 		}
@@ -869,7 +870,7 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 	defer spinner.Stop()
 
 	for {
-		err := k8sClient.Get(ctx, types2.NamespacedName{Name: pkgaddon.Convert2AppName(addonName), Namespace: types.DefaultKubeVelaNS}, &app)
+		err := k8sClient.Get(ctx, types2.NamespacedName{Name: addonutil.Addon2AppName(addonName), Namespace: types.DefaultKubeVelaNS}, &app)
 		if err != nil {
 			return client.IgnoreNotFound(err)
 		}
@@ -881,7 +882,7 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
 			phase, timeConsumed, int(timeout.Seconds())))
 		if timeConsumed > int(timeout.Seconds()) {
-			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", pkgaddon.Convert2AppName(addonName))
+			return errors.Errorf("Enabling timeout, please run \"vela status %s -n vela-system\" to check the status of the addon", addonutil.Addon2AppName(addonName))
 		}
 		time.Sleep(trackInterval)
 	}

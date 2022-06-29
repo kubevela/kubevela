@@ -6,6 +6,13 @@ metadata:
     definition.oam.dev/alias: test-alias
   name: myingress
   namespace: vela-system
+  ownerReferences:
+    - apiVersion: core.oam.dev/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Application
+      name: addon-fluxcd
+      uid: ed7ca39b-2420-44a1-b395-ee1820cc74c7
 spec:
   appliesToWorkloads:
     - "*"

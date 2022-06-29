@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -385,7 +387,7 @@ func ValidDefinitionTypes() []string {
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
-func SearchDefinition(definitionName string, c client.Client, definitionType string, namespace string) ([]unstructured.Unstructured, error) {
+func SearchDefinition(c client.Client, definitionType, namespace string, additionalFilters ...filters.Filter) ([]unstructured.Unstructured, error) {
 	ctx := context.Background()
 	var kinds []string
 	if definitionType != "" {
@@ -414,11 +416,11 @@ func SearchDefinition(definitionName string, c client.Client, definitionType str
 		if err := c.List(ctx, &objs, listOptions...); err != nil {
 			return nil, errors.Wrapf(err, "failed to get %s", kind)
 		}
-		for _, obj := range objs.Items {
-			if definitionName == "*" || obj.GetName() == definitionName {
-				definitions = append(definitions, obj)
-			}
-		}
+
+		// Apply filters to the object list
+		filteredList := filters.ApplyToList(objs, additionalFilters...)
+
+		definitions = append(definitions, filteredList.Items...)
 	}
 	return definitions, nil
 }

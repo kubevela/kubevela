@@ -50,7 +50,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -384,7 +386,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 }
 
 func getSingleDefinition(cmd *cobra.Command, definitionName string, client client.Client, definitionType string, namespace string) (*pkgdef.Definition, error) {
-	definitions, err := pkgdef.SearchDefinition(definitionName, client, definitionType, namespace)
+	definitions, err := pkgdef.SearchDefinition(client, definitionType, namespace, filters.ByName(definitionName))
 	if err != nil {
 		return nil, err
 	}
@@ -526,11 +528,18 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
+			addonName, err := cmd.Flags().GetString("from")
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", "from")
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition("*", k8sClient, definitionType, namespace)
+			definitions, err := pkgdef.SearchDefinition(k8sClient,
+				definitionType,
+				namespace,
+				filters.ByOwnerAddon(addonName))
 			if err != nil {
 				return err
 			}
@@ -538,14 +547,42 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 				cmd.Println("No definition found.")
 				return nil
 			}
+			// Determine if there is a definition in the list from some addons
+			// This is used to tell if we want the SOURCE-ADDON column
+			showSourceAddon := false
+			for _, def := range definitions {
+				ownerRef := def.GetOwnerReferences()
+				if len(ownerRef) > 0 && strings.HasPrefix(ownerRef[0].Name, addonutil.AddonAppPrefix) {
+					showSourceAddon = true
+					break
+				}
+			}
 			table := newUITable()
-			table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
+
+			// We only include SOURCE-ADDON if there is at least one definition from an addon
+			if showSourceAddon {
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "DESCRIPTION")
+			} else {
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
+			}
+
 			for _, definition := range definitions {
 				desc := ""
 				if annotations := definition.GetAnnotations(); annotations != nil {
 					desc = annotations[pkgdef.DescriptionKey]
 				}
-				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
+
+				// Do not show SOURCE-ADDON column
+				if !showSourceAddon {
+					table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
+					continue
+				}
+
+				sourceAddon := ""
+				if len(definition.GetOwnerReferences()) > 0 {
+					sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+				}
+				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), sourceAddon, desc)
 			}
 			cmd.Println(table)
 			return nil
@@ -553,6 +590,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
+	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
 	return cmd
 }
 

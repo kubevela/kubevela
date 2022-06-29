@@ -21,6 +21,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/utils/addon"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
@@ -63,12 +67,13 @@ type definitionServiceImpl struct {
 type DefinitionQueryOption struct {
 	Type             string `json:"type"`
 	AppliedWorkloads string `json:"appliedWorkloads"`
+	OwnerAddon       string `json:"sourceAddon"`
 	QueryAll         bool   `json:"queryAll"`
 }
 
 // String return cache key string
 func (d DefinitionQueryOption) String() string {
-	return fmt.Sprintf("type:%s/appliedWorkloads:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.QueryAll)
+	return fmt.Sprintf("type:%s/appliedWorkloads:%s/ownerAddon:%s/queryAll:%v", d.Type, d.AppliedWorkloads, d.OwnerAddon, d.QueryAll)
 }
 
 const (
@@ -119,24 +124,17 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 	}); err != nil {
 		return nil, err
 	}
+
+	// Apply filters to list
+	filteredList := filters.ApplyToList(*list,
+		// Filter by applied workload
+		filters.ByAppliedWorkload(ops.AppliedWorkloads),
+		// Filter by which addon installed this definition
+		filters.ByOwnerAddon(ops.OwnerAddon),
+	)
+
 	var defs []*apisv1.DefinitionBase
-	for _, def := range list.Items {
-		if ops.AppliedWorkloads != "" {
-			traitDef := &v1beta1.TraitDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
-				return nil, errors.Wrap(err, "invalid trait definition")
-			}
-			filter := false
-			for _, workload := range traitDef.Spec.AppliesToWorkloads {
-				if workload == ops.AppliedWorkloads || workload == "*" {
-					filter = true
-					break
-				}
-			}
-			if !filter {
-				continue
-			}
-		}
+	for _, def := range filteredList.Items {
 		definition, err := convertDefinitionBase(def, kind)
 		if err != nil {
 			log.Logger.Errorf("convert definition to base failure %s", err.Error())
@@ -179,6 +177,14 @@ func convertDefinitionBase(def unstructured.Unstructured, kind string) (*apisv1.
 			}
 			return "enable"
 		}(),
+	}
+	// Set OwnerAddon field
+	for _, ownerRef := range def.GetOwnerReferences() {
+		if strings.HasPrefix(ownerRef.Name, addon.AddonAppPrefix) {
+			definition.OwnerAddon = addon.AppName2Addon(ownerRef.Name)
+			// We are only interested in one owner addon
+			break
+		}
 	}
 	if kind == kindComponentDefinition {
 		compDef := &v1beta1.ComponentDefinition{}

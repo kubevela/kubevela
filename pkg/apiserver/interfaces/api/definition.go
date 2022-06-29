@@ -50,6 +50,7 @@ func (d *definitionAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Param(ws.QueryParameter("type", "query the definition type").DataType("string").Required(true).AllowableValues(map[string]string{"component": "", "trait": "", "workflowstep": ""})).
 		Param(ws.QueryParameter("queryAll", "query all definitions include hidden in UI").DataType("boolean").DefaultValue("false")).
 		Param(ws.QueryParameter("appliedWorkload", "if specified, query the trait definition applied to the workload").DataType("string")).
+		Param(ws.QueryParameter("ownerAddon", "query by which addon created the definition").DataType("string")).
 		Returns(200, "OK", apis.ListDefinitionResponse{}).
 		Writes(apis.ListDefinitionResponse{}).Do(returns200, returns500))
 
@@ -95,6 +96,7 @@ func (d *definitionAPIInterface) listDefinitions(req *restful.Request, res *rest
 	definitions, err := d.DefinitionService.ListDefinitions(req.Request.Context(), service.DefinitionQueryOption{
 		Type:             req.QueryParameter("type"),
 		AppliedWorkloads: req.QueryParameter("appliedWorkload"),
+		OwnerAddon:       req.QueryParameter("ownerAddon"),
 		QueryAll:         queryAll,
 	})
 	if err != nil {
