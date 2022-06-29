@@ -50,12 +50,12 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 		Short: "Show result of executing velaQL.",
 		Long: `Show result of executing velaQL, use it like:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
-		vela ql --file=./ql.cue
+		vela ql --file ./ql.cue
 `,
 		Example: `Users can query with a query statement:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
 They can also query by a ql file:
-		vela ql --file=./ql.cue
+		vela ql --file ./ql.cue
 
 Example content of ql.cue:
 ---
@@ -99,7 +99,7 @@ export: "status"
 			types.TagCommandType:  types.TypeApp,
 		},
 	}
-	cmd.Flags().StringVarP(&cueFile, "file", "f", "", "The CUE file path for VelaQL.")
+	cmd.Flags().StringVarP(&cueFile, "file", "f", "", "The CUE file path for VelaQL, it could be a remote url.")
 	cmd.Flags().StringVarP(&querySts, "query", "q", "", "The query statement for VelaQL.")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
