@@ -17,7 +17,6 @@ limitations under the License.
 package addon
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -31,19 +30,14 @@ func TestError(t *testing.T) {
 	assert.Contains(t, err.Error(), "which is the latest version that suits current version requirements")
 }
 
-func TestGetAvailableVersionTip(t *testing.T) {
-	err := errors.New("fail to install velaux version of v1.2.4, because .\nInstall velaux(v1.2.1) which is the latest version that suits current version requirements")
-	version, err := GetAvailableVersionTip(err)
-	assert.NoError(t, err)
-	assert.Equal(t, version, "1.2.1")
+func TestGetAvailableVersion(t *testing.T) {
+	unMatchErr := &VersionUnMatchError{availableVersion: "1.0.0"}
+	version, err := unMatchErr.GetAvailableVersion()
+	assert.Empty(t, err)
+	assert.Equal(t, version, "1.0.0")
 
-	err = errors.New("fail to install velaux version of v1.2.4, because ")
-	version, err = GetAvailableVersionTip(err)
-	assert.Error(t, err)
-	assert.Equal(t, version, "")
-
-	err = errors.New("sssss")
-	version, err = GetAvailableVersionTip(err)
-	assert.Error(t, err)
+	unMatchErr = &VersionUnMatchError{}
+	version, err = unMatchErr.GetAvailableVersion()
+	assert.NotEmpty(t, err)
 	assert.Equal(t, version, "")
 }

@@ -23,18 +23,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/utils/helm"
-
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/repo"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
 func TestVersionRegistry(t *testing.T) {
@@ -104,9 +104,7 @@ func TestVersionRegistry(t *testing.T) {
 	mr := BuildVersionedRegistry("multiversion-helm-repo", "http://127.0.0.1:18083/multi", nil)
 	addons, err = mr.ListAddon()
 	assert.NoError(t, err)
-	assert.Equal(t, len(addons), 1)
-	assert.Equal(t, addons[0].Name, "fluxcd")
-	assert.Equal(t, len(addons[0].AvailableVersions), 2)
+	assert.Equal(t, len(addons), 2)
 
 	addonUIData, err = mr.GetAddonUIData(context.Background(), "fluxcd", "2.0.0")
 	assert.NoError(t, err)
@@ -249,16 +247,11 @@ func TestLoadSystemRequirements(t *testing.T) {
 }
 
 func TestLoadAddonVersions(t *testing.T) {
-	go func() {
-		http.HandleFunc("/multi/", multiVersionHandler)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", 18083), nil)
-		if err != nil {
-			log.Fatal("Setup server error:", err)
-		}
-	}()
+	server := httptest.NewServer(multiVersionHandler)
+	defer server.Close()
 	mr := &versionedRegistry{
 		name: "multiversion-helm-repo",
-		url:  "http://127.0.0.1:18083/multi",
+		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
 		Opts: nil,
 	}
@@ -269,7 +262,7 @@ func TestLoadAddonVersions(t *testing.T) {
 
 	mr = &versionedRegistry{
 		name: "multiversion-helm-repo",
-		url:  "http://127.0.0.1:18083/fail",
+		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
 		Opts: nil,
 	}

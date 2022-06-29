@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -499,17 +498,12 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 }
 
 func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {
-	go func() {
-		http.HandleFunc("/helm/", helmHandler)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", 18084), nil)
-		if err != nil {
-			log.Fatal("Setup server error:", err)
-		}
-	}()
+	server := httptest.NewServer(helmHandler)
+	defer server.Close()
 	i := &Installer{
 		r: &Registry{
 			Helm: &HelmSource{
-				URL: "http://127.0.0.1:18084/helm",
+				URL: server.URL,
 			},
 		},
 	}

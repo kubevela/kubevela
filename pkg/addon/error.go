@@ -18,7 +18,6 @@ package addon
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
@@ -58,27 +57,22 @@ type VersionUnMatchError struct {
 	addonName string
 	// userSelectedAddonVersion is the version of the addon which is selected to install by user
 	userSelectedAddonVersion string
-	// availableVersion is the newest available addon's version which suits system requirements
+	// availableVersion is the latest available addon's version which suits system requirements
 	availableVersion string
 }
 
-func (v VersionUnMatchError) Error() string {
-	var err string
-	if v.availableVersion != "" {
-		err = fmt.Sprintf("fail to install %s version of %s, because %s.\nInstall %s(v%s) which is the latest version that suits current version requirements", v.userSelectedAddonVersion, v.addonName, v.err, v.addonName, v.availableVersion)
-	} else {
-		err = fmt.Sprintf("fail to install %s version of %s, because %s", v.userSelectedAddonVersion, v.addonName, v.err)
+// GetAvailableVersion load addon's available version from the err
+func (v VersionUnMatchError) GetAvailableVersion() (string, error) {
+	if v.availableVersion == "" {
+		return "", fmt.Errorf("%s don't exist available version meet system requirement", v.addonName)
 	}
-	return err
+	return v.availableVersion, nil
 }
 
-// GetAvailableVersionTip will return the available version from the error
-func GetAvailableVersionTip(err error) (string, error) {
-	compileRegex := regexp.MustCompile(`fail to install.*\sInstall.*v(\d+\.\d+\.\d+).*`)
-	matchRes := compileRegex.FindStringSubmatch(err.Error())
-	if len(matchRes) > 2 {
-		return matchRes[2], nil
+func (v VersionUnMatchError) Error() string {
+	if v.availableVersion != "" {
+		return fmt.Sprintf("fail to install %s version of %s, because %s.\nInstall %s(v%s) which is the latest version that suits current version requirements", v.userSelectedAddonVersion, v.addonName, v.err, v.addonName, v.availableVersion)
 	}
-	return "", errors.New("fail to load available version data")
+	return fmt.Sprintf("fail to install %s version of %s, because %s", v.userSelectedAddonVersion, v.addonName, v.err)
 
 }

@@ -21,18 +21,16 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-
 	"sort"
 
 	"github.com/Masterminds/semver/v3"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
-
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/repo"
 )
 
 // VersionedRegistry is the interface of support version registry
@@ -101,6 +99,7 @@ func (i *versionedRegistry) GetDetailedAddon(ctx context.Context, addonName, ver
 	return wholePackage, nil
 }
 
+// GetAddonAvailableVersion will return all available versions of the addon which is loaded from the registry, and the version are sorted from last to first
 func (i versionedRegistry) GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error) {
 	return i.loadAddonVersions(addonName)
 }

@@ -22,11 +22,10 @@ import (
 	"strings"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/Netflix/go-expect"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -127,12 +126,14 @@ var _ = Describe("Addon Test", func() {
 			Expect(output).To(ContainSubstring("Successfully disable addon"))
 		})
 
-		It("Delete addon registry Test-Helm", func() {
-			output, err := e2e.LongTimeExec("vela addon registry delete Test-Helm", 600*time.Second)
+		It("Enable fluxcd-test-version whose version can't suit system requirements with 'n' input", func() {
+			output, err := e2e.InteractiveExec("vela addon enable fluxcd-test-version", func(c *expect.Console) {
+				_, err = c.SendLine("n")
+				Expect(err).NotTo(HaveOccurred())
+			})
+			Expect(output).To(ContainSubstring("you can try another version by command"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Successfully delete an addon registry Test-Helm"))
 		})
-
 	})
 
 	Context("Addon registry test", func() {

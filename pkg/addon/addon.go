@@ -1381,6 +1381,7 @@ func (h *Installer) continueOrRestartWorkflow() error {
 	return nil
 }
 
+// getAddonVersionMeetSystemRequirement return the addon's latest version which meet the system requirements
 func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) string {
 	if h.r != nil && IsVersionRegistry(*h.r) {
 		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
