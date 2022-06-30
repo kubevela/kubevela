@@ -19,9 +19,9 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,9 +65,6 @@ const (
 	StatusCompleted = "Completed"
 )
 
-// ErrAddonNotEnabled means the CRD is not installed
-var ErrAddonNotEnabled = errors.New("please enable the CloudShell addon first")
-
 // CloudShellService provide the cloud shell feature
 type CloudShellService interface {
 	Prepare(ctx context.Context) (*apisv1.CloudShellPrepareResponse, error)
@@ -110,7 +107,7 @@ func (c *cloudShellServiceImpl) Prepare(ctx context.Context) (*apisv1.CloudShell
 			shouldCreate = true
 		} else {
 			if meta.IsNoMatchError(err) {
-				err = ErrAddonNotEnabled
+				return nil, bcode.ErrCloudShellAddonNotEnabled
 			}
 			return res, err
 		}
@@ -125,7 +122,7 @@ func (c *cloudShellServiceImpl) Prepare(ctx context.Context) (*apisv1.CloudShell
 		}
 		if err := c.KubeClient.Create(ctx, new); err != nil {
 			if meta.IsNoMatchError(err) {
-				err = ErrAddonNotEnabled
+				return nil, bcode.ErrCloudShellAddonNotEnabled
 			}
 			return res, err
 		}
@@ -162,7 +159,10 @@ func (c *cloudShellServiceImpl) GetCloudShellEndpoint(ctx context.Context) (stri
 	var cloudShell v1alpha1.CloudShell
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: makeUserCloudShellName(userName)}, &cloudShell); err != nil {
 		if meta.IsNoMatchError(err) {
-			err = ErrAddonNotEnabled
+			return "", bcode.ErrCloudShellAddonNotEnabled
+		}
+		if apierrors.IsNotFound(err) {
+			return "", bcode.ErrCloudShellNotInit
 		}
 		return "", err
 	}
@@ -308,7 +308,8 @@ func (c *cloudShellServiceImpl) newCloudShell(ctx context.Context) (*v1alpha1.Cl
 	cs.Spec.ConfigmapName = makeUserConfigName(userName)
 	cs.Spec.RunAsUser = userName
 	// only one client and exit on disconnection
-	cs.Spec.Once = true
+	once, _ := strconv.ParseBool(os.Getenv("CLOUDSHELL_ONCE"))
+	cs.Spec.Once = once
 	cs.Spec.Cleanup = true
 	cs.Spec.CommandAction = DefaultCloudShellCommand
 	cs.Spec.ExposeMode = v1alpha1.ExposureServiceClusterIP

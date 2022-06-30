@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/auth"
 )
 
@@ -290,7 +291,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		ctx := context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "test")
 		_, err := cloudShellService.Prepare(ctx)
 		Expect(err).ShouldNot(BeNil())
-		Expect(err.Error()).Should(Equal("please enable the CloudShell addon first"))
+		Expect(err.Error()).Should(Equal(bcode.ErrCloudShellAddonNotEnabled.Error()))
 
 		cloudshellCRDBytes, err := ioutil.ReadFile("./testdata/cloudshell-crd.yaml")
 		Expect(err).Should(BeNil())
