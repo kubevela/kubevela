@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -716,40 +717,95 @@ func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.Whol
 		return ret
 	}
 
+	ret = printSchema(addonPackage.APISchema, status.Parameters, 0)
+
+	return ret
+}
+
+// printSchema prints the parameters in an addon recursively to a string
+// Deeper the parameter is nested, more the indentations.
+func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, indent int) string {
+	ret := ""
+
+	if ref == nil {
+		return ret
+	}
+
+	addIndent := func(n int) string {
+		r := ""
+		for i := 0; i < n; i++ {
+			r += "\t"
+		}
+		return r
+	}
+
 	// Required parameters
 	required := make(map[string]bool)
-	for _, k := range addonPackage.APISchema.Required {
+	for _, k := range ref.Required {
 		required[k] = true
 	}
 
-	for propKey, propValue := range addonPackage.APISchema.Properties {
+	for propKey, propValue := range ref.Properties {
 		desc := propValue.Value.Description
 		defaultValue := propValue.Value.Default
 		if defaultValue == nil {
 			defaultValue = ""
 		}
 		required := required[propKey]
-		currentValue := status.Parameters[propKey]
-		if currentValue == nil {
-			currentValue = ""
+
+		var currentValue string
+		thisParam, hasParam := currentParams[propKey]
+		if hasParam {
+			// Only show default parameter when it is a string, int, float, or bool
+			// We don't care about object's default values (they have no defaults anyway).
+			currentValue = fmt.Sprint(thisParam)
+			switch thisParam.(type) {
+			case int:
+			case int64:
+			case int32:
+			case float32:
+			case float64:
+			case string:
+			case bool:
+			default:
+				currentValue = ""
+			}
 		}
 
+		// Extra indentation on nested objects
+		addedIndent := addIndent(indent)
+
 		// Header: addon: description
+		ret += addedIndent
 		ret += color.New(color.FgCyan).Sprintf("-> ")
 		ret += color.New(color.Bold).Sprint(propKey) + ": "
 		ret += fmt.Sprintf("%s\n", desc)
-		// Current value
+
+		// Show current value
 		if currentValue != "" {
+			ret += addIndent(indent)
 			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
 		}
-		// Default value
+		// Show default value
 		if defaultValue != "" {
+			ret += addedIndent
 			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
 		}
-		// Required or not
+		// Show required or not
 		if required {
+			ret += addedIndent
 			ret += "\trequired: "
 			ret += color.GreenString("✔\n")
+		}
+
+		// Object type param, we will get inside the object.
+		// To show what's inside nested objects.
+		if propValue.Value.Type == "object" {
+			nestedParam := make(map[string]interface{})
+			if hasParam {
+				nestedParam = currentParams[propKey].(map[string]interface{})
+			}
+			ret += printSchema(propValue.Value, nestedParam, indent+1)
 		}
 	}
 
