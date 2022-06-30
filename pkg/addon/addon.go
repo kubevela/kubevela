@@ -1393,7 +1393,7 @@ func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) strin
 			return ""
 		}
 		for _, version := range versions {
-			req := LoadSystemRequirements(version.Annotations["system"])
+			req := LoadSystemRequirements(version.Annotations)
 			if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
 				return version.Version
 			}

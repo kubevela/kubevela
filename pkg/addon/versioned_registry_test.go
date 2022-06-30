@@ -232,18 +232,18 @@ var multiVersionHandler http.HandlerFunc = func(writer http.ResponseWriter, requ
 }
 
 func TestLoadSystemRequirements(t *testing.T) {
-	req := LoadSystemRequirements("vela>=1.3.0; kubernetes>=1.10.0")
+	req := LoadSystemRequirements(map[string]string{velaSystemRequirement: ">=1.3.0", kubernetesSystemRequirement: ">=1.10.0"})
 	assert.Equal(t, req.VelaVersion, ">=1.3.0")
 	assert.Equal(t, req.KubernetesVersion, ">=1.10.0")
 
-	req = LoadSystemRequirements("")
+	req = LoadSystemRequirements(nil)
 	assert.Empty(t, req)
 
-	req = LoadSystemRequirements("&&&%%")
-	assert.Empty(t, req)
+	req = LoadSystemRequirements(map[string]string{kubernetesSystemRequirement: ">=1.10.0"})
+	assert.Equal(t, req.KubernetesVersion, ">=1.10.0")
 
-	req = LoadSystemRequirements("vela>=; kubernetes>=1.10.0")
-	assert.Empty(t, req)
+	req = LoadSystemRequirements(map[string]string{velaSystemRequirement: ">=1.4.0"})
+	assert.Equal(t, req.VelaVersion, ">=1.4.0")
 }
 
 func TestLoadAddonVersions(t *testing.T) {
