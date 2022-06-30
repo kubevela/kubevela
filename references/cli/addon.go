@@ -743,8 +743,8 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		required := required[propKey]
 
 		var currentValue string
-		thisParam, ok := currentParams[propKey]
-		if ok {
+		thisParam, hasParam := currentParams[propKey]
+		if hasParam {
 			// Only show default parameter when it is a string, int, float, or bool
 			// We don't care about object's default values
 			currentValue = fmt.Sprint(thisParam)
@@ -789,8 +789,11 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 
 		// Object type param, we will get inside the object.
 		// To show what's inside nested objects.
-		if nestedParam, hasNestedParam := currentParams[propKey].(map[string]interface{}); propValue.Value.Type == "object" && ok && hasNestedParam {
-
+		if propValue.Value.Type == "object" {
+			nestedParam := make(map[string]interface{})
+			if hasParam {
+				nestedParam = currentParams[propKey].(map[string]interface{})
+			}
 			ret += printSchema(propValue.Value, nestedParam, indent+1)
 		}
 	}
