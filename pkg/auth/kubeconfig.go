@@ -28,6 +28,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
@@ -144,7 +145,7 @@ const (
 	// KubeVelaClientGroup the default group to be added to the generated X509 KubeConfig
 	KubeVelaClientGroup = "kubevela:client"
 	// CSRNamePrefix the prefix of the CSR name
-	CSRNamePrefix = "kubevela:csr:"
+	CSRNamePrefix = "kubevela-csr-"
 )
 
 // GenerateKubeConfig generate KubeConfig for users with given options.
@@ -214,7 +215,11 @@ func makeCertAndKey(writer io.Writer, opts *KubeConfigGenerateX509Options) ([]by
 	}
 	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	_, _ = fmt.Fprintf(writer, "Certificate request generated.\n")
-	return keyBytes, csrPemBytes, nil
+	return csrPemBytes, keyBytes, nil
+}
+
+func makeCSRName(user string) string {
+	return fmt.Sprintf("%s-%s-%s", CSRNamePrefix, user, uuid.NewString()[:8])
 }
 
 func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
@@ -223,7 +228,7 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 		return nil, err
 	}
 	csr := &certificatesv1.CertificateSigningRequest{}
-	csr.Name = CSRNamePrefix + opts.User
+	csr.Name = makeCSRName(opts.User)
 	csr.Spec.SignerName = certificatesv1.KubeAPIServerClientSignerName
 	csr.Spec.Usages = []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes

@@ -349,9 +349,9 @@ func (a *ApplicationPrivilege) GetRoles() []client.Object {
 // GetRoleBinding the underlying RoleBinding/ClusterRoleBinding for the privilege
 func (a *ApplicationPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
 	var binding client.Object
-	var roleName = KubeVelaWriterRoleName
+	var roleName = KubeVelaWriterAppRoleName
 	if a.ReadOnly {
-		roleName = KubeVelaReaderRoleName
+		roleName = KubeVelaReaderAppRoleName
 	}
 	if a.Namespace == "" {
 		binding = &rbacv1.ClusterRoleBinding{
