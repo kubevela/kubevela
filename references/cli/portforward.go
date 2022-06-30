@@ -219,6 +219,7 @@ func getSvcNameAndPortFromHelmRelease(ctx context.Context, cli client.Client, o 
 }
 
 // Complete will complete the config of port-forward
+// nolint:gocyclo
 func (o *VelaPortForwardOptions) Complete() error {
 	client, err := o.VelaC.GetClient()
 	if err != nil {
