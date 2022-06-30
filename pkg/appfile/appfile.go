@@ -258,7 +258,7 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 	compManifests := make([]*types.ComponentManifest, len(af.Workloads))
 	af.Artifacts = make([]*types.ComponentManifest, len(af.Workloads))
 	for i, wl := range af.Workloads {
-		cm, err := af.GenerateComponentManifest(wl)
+		cm, err := af.GenerateComponentManifest(wl, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -273,13 +273,16 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 }
 
 // GenerateComponentManifest generate only one ComponentManifest
-func (af *Appfile) GenerateComponentManifest(wl *Workload) (*types.ComponentManifest, error) {
+func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*process.ContextData)) (*types.ComponentManifest, error) {
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
 	ctxData := GenerateContextDataFromAppFile(af, wl.Name)
+	if mutate != nil {
+		mutate(&ctxData)
+	}
 	// generate context here to avoid nil pointer panic
-	wl.Ctx = NewBasicContext(GenerateContextDataFromAppFile(af, wl.Name), wl.Params)
+	wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	switch wl.CapabilityCategory {
 	case types.HelmCategory:
 		return generateComponentFromHelmModule(wl, ctxData)
