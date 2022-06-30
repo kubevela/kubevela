@@ -342,7 +342,7 @@ func (c *cloudShellServiceImpl) managePrivilegesForUser(ctx context.Context, pro
 		log.Logger.Infof("failed to list the envs by the project name %s :%s", projectName, err.Error())
 	}
 	for _, e := range envs.Envs {
-		authPDs = append(authPDs, &auth.ScopedPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: e.Namespace, AppOnly: true, ReadOnly: readOnly})
+		authPDs = append(authPDs, &auth.ApplicationPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: e.Namespace, ReadOnly: readOnly})
 	}
 
 	identity := &auth.Identity{User: userName}

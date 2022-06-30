@@ -143,6 +143,8 @@ func newKubeConfigGenerateOptions(options ...KubeConfigGenerateOption) *KubeConf
 const (
 	// KubeVelaClientGroup the default group to be added to the generated X509 KubeConfig
 	KubeVelaClientGroup = "kubevela:client"
+	// CSRNamePrefix the prefix of the CSR name
+	CSRNamePrefix = "kubevela:csr:"
 )
 
 // GenerateKubeConfig generate KubeConfig for users with given options.
@@ -189,11 +191,11 @@ func genKubeConfig(cfg *clientcmdapi.Config, authInfo *clientcmdapi.AuthInfo, ca
 	return exportCfg, nil
 }
 
-func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+func makeCertAndKey(writer io.Writer, opts *KubeConfigGenerateX509Options) ([]byte, []byte, error) {
 	// generate private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, opts.PrivateKeyBits)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	keyBytes := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
 	_, _ = fmt.Fprintf(writer, "Private key generated.\n")
@@ -208,19 +210,26 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
 	_, _ = fmt.Fprintf(writer, "Certificate request generated.\n")
+	return keyBytes, csrPemBytes, nil
+}
 
+func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+	csrPemBytes, keyBytes, err := makeCertAndKey(writer, opts)
+	if err != nil {
+		return nil, err
+	}
 	csr := &certificatesv1.CertificateSigningRequest{}
-	csr.Name = opts.User
+	csr.Name = CSRNamePrefix + opts.User
 	csr.Spec.SignerName = certificatesv1.KubeAPIServerClientSignerName
 	csr.Spec.Usages = []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
 	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
 	var needApprove = true
-	if csr, err = cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
+	if _, err := cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
 			if err != nil {
@@ -252,7 +261,7 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 		}
 		_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
 	}
-	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
+	if err := wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
 		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
@@ -272,38 +281,19 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 }
 
 func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
-	// generate private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, opts.PrivateKeyBits)
+	csrPemBytes, keyBytes, err := makeCertAndKey(writer, opts)
 	if err != nil {
 		return nil, err
 	}
-	keyBytes := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
-	_, _ = fmt.Fprintf(writer, "Private key generated.\n")
-
-	template := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:   opts.User,
-			Organization: opts.Groups,
-		},
-		SignatureAlgorithm: x509.SHA256WithRSA,
-	}
-
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
-	if err != nil {
-		return nil, err
-	}
-	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-	_, _ = fmt.Fprintf(writer, "Certificate request generated.\n")
-
 	csr := &certificatesv1beta1.CertificateSigningRequest{}
-	csr.Name = opts.User
+	csr.Name = CSRNamePrefix + opts.User
 	var name = certificatesv1beta1.KubeAPIServerClientSignerName
 	csr.Spec.SignerName = &name
 	csr.Spec.Usages = []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
 	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
 	var needApprove = true
-	if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
+	if _, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
 			if err != nil {
@@ -320,7 +310,7 @@ func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, c
 	}
 	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", opts.User)
 	defer func() {
-		_ = cli.CertificatesV1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
+		_ = cli.CertificatesV1beta1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
 	if needApprove {
 		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1beta1.CertificateSigningRequestCondition{

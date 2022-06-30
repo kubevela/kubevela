@@ -261,8 +261,6 @@ type ScopedPrivilege struct {
 	Cluster   string
 	Namespace string
 	ReadOnly  bool
-	// AppOnly means only granting the permissions about the Application
-	AppOnly bool
 }
 
 // GetCluster the cluster of the privilege
@@ -272,27 +270,6 @@ func (p *ScopedPrivilege) GetCluster() string {
 
 // GetRoles the underlying Roles/ClusterRoles for the privilege
 func (p *ScopedPrivilege) GetRoles() []client.Object {
-	if p.AppOnly {
-		verbs := []string{"get", "list", "watch", "create", "update", "patch", "delete"}
-		name := p.Prefix + KubeVelaWriterAppRoleName
-		if p.ReadOnly {
-			verbs = []string{"get", "list", "watch"}
-			name = p.Prefix + KubeVelaReaderAppRoleName
-		}
-
-		return []client.Object{
-			&rbacv1.ClusterRole{
-				ObjectMeta: metav1.ObjectMeta{Name: name},
-				Rules: []rbacv1.PolicyRule{
-					{
-						APIGroups: []string{"core.oam.dev"},
-						Resources: []string{"applications", "policies", "workflows"},
-						Verbs:     verbs,
-					},
-				},
-			},
-		}
-	}
 	if p.ReadOnly {
 		return []client.Object{&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{Name: p.Prefix + KubeVelaReaderRoleName},
@@ -314,16 +291,9 @@ func (p *ScopedPrivilege) GetRoles() []client.Object {
 // GetRoleBinding the underlying RoleBinding/ClusterRoleBinding for the privilege
 func (p *ScopedPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
 	var binding client.Object
-	var roleName string
-	switch {
-	case p.AppOnly && p.ReadOnly:
-		roleName = KubeVelaReaderAppRoleName
-	case p.AppOnly && !p.ReadOnly:
-		roleName = KubeVelaWriterAppRoleName
-	case p.ReadOnly:
+	var roleName = KubeVelaWriterRoleName
+	if p.ReadOnly {
 		roleName = KubeVelaReaderRoleName
-	case !p.ReadOnly:
-		roleName = KubeVelaWriterRoleName
 	}
 	if p.Namespace == "" {
 		binding = &rbacv1.ClusterRoleBinding{
@@ -338,6 +308,64 @@ func (p *ScopedPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
 		binding.SetNamespace(p.Namespace)
 	}
 	binding.SetName(p.Prefix + roleName + ":binding")
+	return binding
+}
+
+// ApplicationPrivilege includes the application privileges in the destination
+type ApplicationPrivilege struct {
+	Prefix    string
+	Cluster   string
+	Namespace string
+	ReadOnly  bool
+}
+
+// GetCluster the cluster of the privilege
+func (a *ApplicationPrivilege) GetCluster() string {
+	return a.Cluster
+}
+
+// GetRoles the underlying Roles/ClusterRoles for the privilege
+func (a *ApplicationPrivilege) GetRoles() []client.Object {
+	verbs := []string{"get", "list", "watch", "create", "update", "patch", "delete"}
+	name := a.Prefix + KubeVelaWriterAppRoleName
+	if a.ReadOnly {
+		verbs = []string{"get", "list", "watch"}
+		name = a.Prefix + KubeVelaReaderAppRoleName
+	}
+	return []client.Object{
+		&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"core.oam.dev"},
+					Resources: []string{"applications", "policies", "workflows"},
+					Verbs:     verbs,
+				},
+			},
+		},
+	}
+}
+
+// GetRoleBinding the underlying RoleBinding/ClusterRoleBinding for the privilege
+func (a *ApplicationPrivilege) GetRoleBinding(subs []rbacv1.Subject) client.Object {
+	var binding client.Object
+	var roleName = KubeVelaWriterRoleName
+	if a.ReadOnly {
+		roleName = KubeVelaReaderRoleName
+	}
+	if a.Namespace == "" {
+		binding = &rbacv1.ClusterRoleBinding{
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: roleName},
+			Subjects: subs,
+		}
+	} else {
+		binding = &rbacv1.RoleBinding{
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", APIGroup: rbacv1.GroupName, Name: roleName},
+			Subjects: subs,
+		}
+		binding.SetNamespace(a.Namespace)
+	}
+	binding.SetName(a.Prefix + roleName + ":binding")
 	return binding
 }
 

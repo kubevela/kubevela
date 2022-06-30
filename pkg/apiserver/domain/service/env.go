@@ -356,7 +356,7 @@ func convertEnvModel2Base(env *model.Env, targets []*model.Target) *apisv1.Env {
 
 // managePrivilegesForEnvironment grant or revoke privileges for environment
 func managePrivilegesForEnvironment(ctx context.Context, cli client.Client, env *model.Env, revoke bool) error {
-	p := &auth.ScopedPrivilege{Cluster: types.ClusterLocalName, Namespace: env.Namespace, AppOnly: true}
+	p := &auth.ApplicationPrivilege{Cluster: types.ClusterLocalName, Namespace: env.Namespace}
 	identity := &auth.Identity{Groups: []string{utils.KubeVelaProjectGroupPrefix + env.Project}}
 	writer := &bytes.Buffer{}
 	f, msg := auth.GrantPrivileges, "GrantPrivileges"
