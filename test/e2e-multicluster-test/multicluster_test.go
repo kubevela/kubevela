@@ -255,10 +255,6 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(prodNamespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(2))
-				// check component revision
-				compRevs := &appsv1.ControllerRevisionList{}
-				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
-				g.Expect(len(compRevs.Items)).Should(Equal(2))
 			}, time.Minute).Should(Succeed())
 			Expect(hubDeployName).Should(Equal("data-worker"))
 			// delete application
@@ -273,10 +269,6 @@ var _ = Describe("Test multicluster scenario", func() {
 				deploys = &appsv1.DeploymentList{}
 				g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 				g.Expect(len(deploys.Items)).Should(Equal(0))
-				// check component revision
-				compRevs := &appsv1.ControllerRevisionList{}
-				g.Expect(k8sClient.List(workerCtx, compRevs, client.InNamespace(prodNamespace))).Should(Succeed())
-				g.Expect(len(compRevs.Items)).Should(Equal(0))
 			}, time.Minute).Should(Succeed())
 		})
 

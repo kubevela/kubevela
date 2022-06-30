@@ -109,6 +109,10 @@ optimize:
   disableResourceApplyDoubleCheck: false
   enableResourceTrackerDeleteOnlyTrigger: true
 
+##@param featureGates.enableLegacyComponentRevision if disabled, only component with rollout trait will create component revisions
+featureGates:
+  enableLegacyComponentRevision: false
+
 ## @section MultiCluster parameters
 
 ## @param multicluster.enabled Whether to enable multi-cluster
