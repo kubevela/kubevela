@@ -26,25 +26,22 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"k8s.io/client-go/discovery"
-
-	"helm.sh/helm/v3/pkg/strvals"
-
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	"k8s.io/client-go/rest"
-
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/strvals"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -709,40 +706,92 @@ func generateParameterString(status pkgaddon.Status, addonPackage *pkgaddon.Whol
 		return ret
 	}
 
+	ret = printSchema(addonPackage.APISchema, status.Parameters, 0)
+
+	return ret
+}
+
+// printSchema prints the parameters in an addon recursively to a string
+// Deeper the parameter is nested, more the indentations.
+func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, indent int) string {
+	ret := ""
+
+	if ref == nil {
+		return ret
+	}
+
+	addIndent := func(n int) string {
+		r := ""
+		for i := 0; i < n; i++ {
+			r += "\t"
+		}
+		return r
+	}
+
 	// Required parameters
 	required := make(map[string]bool)
-	for _, k := range addonPackage.APISchema.Required {
+	for _, k := range ref.Required {
 		required[k] = true
 	}
 
-	for propKey, propValue := range addonPackage.APISchema.Properties {
+	for propKey, propValue := range ref.Properties {
 		desc := propValue.Value.Description
 		defaultValue := propValue.Value.Default
 		if defaultValue == nil {
 			defaultValue = ""
 		}
 		required := required[propKey]
-		currentValue := status.Parameters[propKey]
-		if currentValue == nil {
-			currentValue = ""
+
+		var currentValue string
+		thisParam, ok := currentParams[propKey]
+		if ok {
+			// Only show default parameter when it is a string, int, float, or bool
+			// We don't care about object's default values
+			currentValue = fmt.Sprint(thisParam)
+			switch thisParam.(type) {
+			case int:
+			case int64:
+			case int32:
+			case float32:
+			case float64:
+			case string:
+			case bool:
+			default:
+				currentValue = ""
+			}
 		}
 
+		// Extra indentation on nested objects
+		addedIndent := addIndent(indent)
+
 		// Header: addon: description
+		ret += addedIndent
 		ret += color.New(color.FgCyan).Sprintf("-> ")
 		ret += color.New(color.Bold).Sprint(propKey) + ": "
 		ret += fmt.Sprintf("%s\n", desc)
-		// Current value
+
+		// Show current value
 		if currentValue != "" {
+			ret += addIndent(indent)
 			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
 		}
-		// Default value
+		// Show default value
 		if defaultValue != "" {
+			ret += addedIndent
 			ret += "\tdefault: " + fmt.Sprintf("%#v\n", defaultValue)
 		}
-		// Required or not
+		// Show required or not
 		if required {
+			ret += addedIndent
 			ret += "\trequired: "
 			ret += color.GreenString("✔\n")
+		}
+
+		// Object type param, we will get inside the object.
+		// To show what's inside nested objects.
+		if nestedParam, hasNestedParam := currentParams[propKey].(map[string]interface{}); propValue.Value.Type == "object" && ok && hasNestedParam {
+
+			ret += printSchema(propValue.Value, nestedParam, indent+1)
 		}
 	}
 
