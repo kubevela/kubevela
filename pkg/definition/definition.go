@@ -23,16 +23,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"cuelang.org/go/tools/fix"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,6 +66,24 @@ var (
 		"workload":      v1beta1.WorkloadDefinitionKind,
 		"scope":         v1beta1.ScopeDefinitionKind,
 		"workflow-step": v1beta1.WorkflowStepDefinitionKind,
+	}
+	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
+	StringToDefinitionType = map[string]common.DefinitionType{
+		// component
+		"component": common.ComponentType,
+		// trait
+		"trait": common.TraitType,
+		// policy
+		"policy": common.PolicyType,
+		// workflow-step
+		"workflow-step": common.WorkflowStepType,
+	}
+	// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
+	DefinitionKindToNameLabel = map[common.DefinitionType]string{
+		common.ComponentType:    oam.LabelComponentDefinitionName,
+		common.TraitType:        oam.LabelTraitDefinitionName,
+		common.PolicyType:       oam.LabelPolicyDefinitionName,
+		common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
 	}
 )
 
@@ -423,6 +443,94 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 		definitions = append(definitions, filteredList.Items...)
 	}
 	return definitions, nil
+}
+
+func SearchDefinitionRevisions(ctx context.Context, c client.Client, namespace string,
+	defName string, defType common.DefinitionType, rev int64) ([]v1beta1.DefinitionRevision, error) {
+
+	var nameLabels []string
+	// Since different definitions have different labels for its name, we need to
+	// find the corresponding label for definition names, to match names later.
+	// Empty defType will give all possible name labels of DefinitionRevisions,
+	// so that we can search for DefinitionRevisions of all Definition types.
+	for k, v := range DefinitionKindToNameLabel {
+		if defType != "" && defType != k {
+			continue
+		}
+
+		nameLabels = append(nameLabels, v)
+	}
+
+	var defRev []v1beta1.DefinitionRevision
+
+	// Search DefinitionRevisions using each possible label
+labelLoop:
+	for _, l := range nameLabels {
+		var listOptions []client.ListOption
+		if namespace != "" {
+			listOptions = append(listOptions, client.InNamespace(namespace))
+		}
+		if defName != "" {
+			listOptions = append(listOptions, client.MatchingLabels{
+				l: defName,
+			})
+		}
+
+		objs := v1beta1.DefinitionRevisionList{}
+		objs.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    v1beta1.DefinitionRevisionKind,
+		})
+
+		// Search for DefinitionRevisions
+		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			return nil, errors.Wrapf(err, "failed to list DefinitionRevisions of %s", defName)
+		}
+
+		// rev 0, all items are kept
+		if rev == 0 {
+			defRev = append(defRev, objs.Items...)
+			continue
+		}
+
+		// rev not 0, only give the revision that the user wants
+		for _, obj := range objs.Items {
+			if obj.Spec.Revision == rev {
+				defRev = append(defRev, obj)
+				continue labelLoop
+			}
+		}
+	}
+
+	return defRev, nil
+}
+
+func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Definition, error) {
+	var def *Definition
+	var u map[string]interface{}
+	var err error
+
+	switch rev.Spec.DefinitionType {
+	case common.ComponentType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.ComponentDefinition)
+	case common.TraitType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.TraitDefinition)
+	case common.PolicyType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.PolicyDefinition)
+	case common.WorkflowStepType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.WorkflowStepDefinition)
+	default:
+		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	def = &Definition{Unstructured: unstructured.Unstructured{Object: u}}
+
+	return def, nil
 }
 
 // GetDefinitionDefaultSpec returns the default spec of Definition with given kind. This may be implemented with cue in the future.

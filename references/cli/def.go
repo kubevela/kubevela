@@ -26,7 +26,9 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -409,8 +411,36 @@ func getSingleDefinition(cmd *cobra.Command, definitionName string, client clien
 	return &pkgdef.Definition{Unstructured: definitions[0]}, nil
 }
 
+func getDefRevs(ctx context.Context, client client.Client, ns, defTypeStr, defName string, rev int64) ([]v1beta1.DefinitionRevision, error) {
+	defType, ok := pkgdef.StringToDefinitionType[defTypeStr]
+	// Empty definition type is intentionally allowed, to allow the user to match all definition types
+	if defTypeStr != "" && !ok {
+		return nil, fmt.Errorf("%s is not a valid type. Valid types are %v", defTypeStr, reflect.ValueOf(pkgdef.StringToDefinitionType).MapKeys())
+	}
+
+	return pkgdef.SearchDefinitionRevisions(ctx, client, ns, defName, defType, rev)
+}
+
+func printDefRevs(ctx context.Context, cmd *cobra.Command, client client.Client, ns, defTypeStr, defName string) error {
+	revs, err := getDefRevs(ctx, client, ns, defTypeStr, defName, 0)
+	if err != nil {
+		return err
+	}
+
+	table := newUITable()
+	table.AddRow("NAME", "REVISION", "TYPE", "HASH")
+	for _, rev := range revs {
+		table.AddRow(defName, rev.Spec.Revision, rev.Spec.DefinitionType, rev.Spec.RevisionHash)
+	}
+	cmd.Println(table)
+
+	return nil
+}
+
 // NewDefinitionGetCommand create the `vela def get` command to get definition from k8s
 func NewDefinitionGetCommand(c common.Args) *cobra.Command {
+	var listVersions bool
+	var targetVersion string
 	cmd := &cobra.Command{
 		Use:   "get NAME",
 		Short: "Get definition",
@@ -433,10 +463,40 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			def, err := getSingleDefinition(cmd, args[0], k8sClient, definitionType, namespace)
-			if err != nil {
-				return err
+
+			if listVersions {
+				return printDefRevs(context.Background(), cmd, k8sClient, namespace, definitionType, args[0])
 			}
+
+			var def *pkgdef.Definition
+
+			// Get history Definition from DefinitionRevisions
+			if targetVersion != "" {
+				// v1, 1, both need to work
+				targetVersion = strings.TrimPrefix(targetVersion, "v")
+				ver, err := strconv.Atoi(targetVersion)
+				if err != nil {
+					return fmt.Errorf("invalid version: %w", err)
+				}
+
+				revs, err := getDefRevs(context.Background(), k8sClient, namespace, definitionType, args[0], int64(ver))
+				if err != nil {
+					return err
+				}
+				if len(revs) == 0 {
+					return fmt.Errorf("no %s with revision %s found in namespace %s", args[0], targetVersion, namespace)
+				}
+				def, err = pkgdef.GetDefinitionFromDefinitionRevision(&revs[0])
+				if err != nil {
+					return err
+				}
+			} else {
+				def, err = getSingleDefinition(cmd, args[0], k8sClient, definitionType, namespace)
+				if err != nil {
+					return err
+				}
+			}
+
 			cueString, err := def.ToCUEString()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get cue format definition")
@@ -449,6 +509,8 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
+	cmd.Flags().BoolVarP(&listVersions, "versions", "", false, "List revisions of the specified definition.")
+	cmd.Flags().StringVarP(&targetVersion, "version", "v", "", "Get the specified version of a definition.")
 	return cmd
 }
 

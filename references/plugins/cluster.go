@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/definition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/pkg/errors"
@@ -451,6 +452,58 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		return nil, fmt.Errorf("could not find %s in namespace %s", capabilityName, ns)
 	}
 	return nil, fmt.Errorf("could not find %s in namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
+}
+
+func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd *packages.PackageDiscover, ns, defName string, r int64) (*types.Capability, error) {
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, ns, defName, "", r)
+	if err != nil {
+		return nil, err
+	}
+	// `ns` somehow defaults to `default` in `vela show`, if user doesn't specify anything,
+	// which often is not the desired behavior (as with other commands, like vela def get).
+	// So we need to search again in the vela-system namespace, if no revisions found.
+	// This behavior is consistent with the code above in GetCapabilityByName(), which also does double-search.
+	if len(revs) == 0 {
+		revs, err = definition.SearchDefinitionRevisions(ctx, k8sClient, types.DefaultKubeVelaNS, defName, "", r)
+	}
+	if len(revs) == 0 {
+		return nil, fmt.Errorf("no %s with revision %d found in namespace %s or %s", defName, r, ns, types.DefaultKubeVelaNS)
+	}
+
+	rev := revs[0]
+
+	switch rev.Spec.DefinitionType {
+	case commontypes.ComponentType:
+		var refName string
+		componentDef := rev.Spec.ComponentDefinition
+		// if workload type of ComponentDefinition is unclear,
+		// set the DefinitionReference's Name to AutoDetectWorkloadDefinition
+		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
+			refName = types.AutoDetectWorkloadDefinition
+		} else {
+			dm, err := c.GetDiscoveryMapper()
+			if err != nil {
+				return nil, err
+			}
+			ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
+			if err != nil {
+				return nil, err
+			}
+			refName = ref.Name
+		}
+		return GetCapabilityByComponentDefinitionObject(componentDef, refName)
+	case commontypes.TraitType:
+		return GetCapabilityByTraitDefinitionObject(rev.Spec.TraitDefinition)
+	case commontypes.WorkflowStepType:
+		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition, pd)
+	default:
+		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
+	}
 }
 
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
