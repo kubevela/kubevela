@@ -93,6 +93,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.enableInMemoryWorkflowContext`          | Optimize workflow by use in-memory context.                                                                                                       | `false` |
 | `optimize.disableResourceApplyDoubleCheck`        | Optimize workflow by ignoring resource double check after apply.                                                                                  | `false` |
 | `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                               | `true`  |
+| `featureGates.enableLegacyComponentRevision`      | if disabled, only component with rollout trait will create component revisions                                                                    | `false` |
 
 
 ### MultiCluster parameters

@@ -22,6 +22,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -110,6 +111,29 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 		if !found {
 			rw.Write([]byte("not found"))
 		}
+	}
+}
+
+var helmHandler http.HandlerFunc = func(writer http.ResponseWriter, request *http.Request) {
+	switch {
+	case strings.Contains(request.URL.Path, "index.yaml"):
+		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
+		if err != nil {
+			_, _ = writer.Write([]byte(err.Error()))
+		}
+		writer.Write(files)
+	case strings.Contains(request.URL.Path, "fluxcd-1.0.0.tgz"):
+		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-1.0.0.tgz")
+		if err != nil {
+			_, _ = writer.Write([]byte(err.Error()))
+		}
+		writer.Write(files)
+	case strings.Contains(request.URL.Path, "fluxcd-2.0.0.tgz"):
+		files, err := ioutil.ReadFile("./testdata/multiversion-helm-repo/fluxcd-2.0.0.tgz")
+		if err != nil {
+			_, _ = writer.Write([]byte(err.Error()))
+		}
+		writer.Write(files)
 	}
 }
 
@@ -471,6 +495,22 @@ func TestGetAddonStatus4Observability(t *testing.T) {
 	addonStatus, err = GetAddonStatus(context.Background(), k8sClient, ObservabilityAddon)
 	assert.NoError(t, err)
 	assert.Equal(t, addonStatus.AddonPhase, enabled)
+}
+
+func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {
+	server := httptest.NewServer(helmHandler)
+	defer server.Close()
+	i := &Installer{
+		r: &Registry{
+			Helm: &HelmSource{
+				URL: server.URL,
+			},
+		},
+	}
+	version := i.getAddonVersionMeetSystemRequirement("fluxcd-no-requirements")
+	assert.Equal(t, version, "1.0.0")
+	version = i.getAddonVersionMeetSystemRequirement("not-exist")
+	assert.Equal(t, version, "")
 }
 
 var baseAddon = InstallPackage{

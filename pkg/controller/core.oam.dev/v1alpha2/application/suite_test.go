@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -52,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -165,6 +167,7 @@ var _ = BeforeSuite(func(done Done) {
 		Expect(err).NotTo(HaveOccurred())
 	}()
 	close(done)
+	Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.LegacyComponentRevision))).Should(Succeed())
 }, 120)
 
 var _ = AfterSuite(func() {

@@ -35,6 +35,8 @@ const (
 	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
 	// EnableSuspendOnFailure enable suspend on workflow failure
 	EnableSuspendOnFailure featuregate.Feature = "EnableSuspendOnFailure"
+	// LegacyComponentRevision if enabled, create component revision even no rollout trait attached
+	LegacyComponentRevision featuregate.Feature = "LegacyComponentRevision"
 
 	// Edge Features
 
@@ -48,6 +50,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
 	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
+	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 

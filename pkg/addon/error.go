@@ -55,8 +55,24 @@ func WrapErrRateLimit(err error) error {
 type VersionUnMatchError struct {
 	err       error
 	addonName string
+	// userSelectedAddonVersion is the version of the addon which is selected to install by user
+	userSelectedAddonVersion string
+	// availableVersion is the latest available addon's version which suits system requirements
+	availableVersion string
+}
+
+// GetAvailableVersion load addon's available version from the err
+func (v VersionUnMatchError) GetAvailableVersion() (string, error) {
+	if v.availableVersion == "" {
+		return "", fmt.Errorf("%s don't exist available version meet system requirement", v.addonName)
+	}
+	return v.availableVersion, nil
 }
 
 func (v VersionUnMatchError) Error() string {
-	return fmt.Sprintf("addon %s system requirement miss match: %v", v.addonName, v.err)
+	if v.availableVersion != "" {
+		return fmt.Sprintf("fail to install %s version of %s, because %s.\nInstall %s(v%s) which is the latest version that suits current version requirements", v.userSelectedAddonVersion, v.addonName, v.err, v.addonName, v.availableVersion)
+	}
+	return fmt.Sprintf("fail to install %s version of %s, because %s", v.userSelectedAddonVersion, v.addonName, v.err)
+
 }

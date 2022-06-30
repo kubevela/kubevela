@@ -47,6 +47,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-a",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
+				clustercommon.LabelKeyClusterEndpointType:   string(clusterv1alpha1.ClusterEndpointTypeConst),
 				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "value",
 			},
@@ -56,6 +57,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-b",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
+				clustercommon.LabelKeyClusterEndpointType:   string(clusterv1alpha1.ClusterEndpointTypeConst),
 				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "value",
 			},
@@ -65,6 +67,7 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Name:      "cluster-c",
 			Namespace: multicluster.ClusterGatewaySecretNamespace,
 			Labels: map[string]string{
+				clustercommon.LabelKeyClusterEndpointType:   string(clusterv1alpha1.ClusterEndpointTypeConst),
 				clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeX509Certificate),
 				"key": "none",
 			},

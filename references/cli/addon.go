@@ -515,10 +515,21 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
-		if err != nil {
-			if errors.As(err, &pkgaddon.VersionUnMatchError{}) {
-				return fmt.Errorf("%w\nyou can try another version by command: \"vela addon enable %s --version <version> \" ", err, name)
+		if unMatchErr := new(pkgaddon.VersionUnMatchError); errors.As(err, unMatchErr) {
+			// Get available version of the addon
+			availableVersion, err := unMatchErr.GetAvailableVersion()
+			if err != nil {
+				return err
 			}
+			input := NewUserInput()
+			if input.AskBool(unMatchErr.Error(), &UserInputOptions{AssumeYes: false}) {
+				err = pkgaddon.EnableAddon(ctx, name, availableVersion, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil)
+				return err
+			}
+			// The user does not agree to use the version provided by us
+			return fmt.Errorf("you can try another version by command: \"vela addon enable %s --version <version> \" ", name)
+		}
+		if err != nil {
 			return err
 		}
 		if err = waitApplicationRunning(k8sClient, name); err != nil {
@@ -746,7 +757,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		thisParam, hasParam := currentParams[propKey]
 		if hasParam {
 			// Only show default parameter when it is a string, int, float, or bool
-			// We don't care about object's default values
+			// We don't care about object's default values (they have no defaults anyway).
 			currentValue = fmt.Sprint(thisParam)
 			switch thisParam.(type) {
 			case int:

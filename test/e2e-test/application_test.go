@@ -208,23 +208,6 @@ var _ = Describe("Application Normal tests", func() {
 			time.Second*60, time.Millisecond*500).Should(BeNil())
 	}
 
-	verifyComponentRevision := func(compName string, revisionNum int64) {
-		By("Verify Component revision")
-		expectCompRevName := fmt.Sprintf("%s-v%d", compName, revisionNum)
-		Eventually(
-			func() error {
-				gotCR := &v1.ControllerRevision{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: expectCompRevName}, gotCR); err != nil {
-					return err
-				}
-				if gotCR.Revision != revisionNum {
-					return fmt.Errorf("expect revision %d != real %d", revisionNum, gotCR.Revision)
-				}
-				return nil
-			},
-			time.Second*10, time.Millisecond*500).Should(BeNil())
-	}
-
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
 		namespaceName = "app-normal-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
@@ -243,25 +226,21 @@ var _ = Describe("Application Normal tests", func() {
 		applyApp("app1.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
-		verifyComponentRevision("myweb", 1)
 
 		By("Update app with trait")
 		updateApp("app2.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 2, "stefanprodan/podinfo:4.0.3")
-		verifyComponentRevision("myweb", 2)
 
 		By("Update app with trait updated")
 		updateApp("app3.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 3, "stefanprodan/podinfo:4.0.3")
-		verifyComponentRevision("myweb", 3)
 
 		By("Update app with trait and workload image updated")
 		updateApp("app4.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
-		verifyComponentRevision("myweb", 4)
 	})
 
 	It("Test app have component with multiple same type traits", func() {
@@ -402,7 +381,6 @@ var _ = Describe("Application Normal tests", func() {
 
 		By("Checking an application status")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
-		verifyComponentRevision("myweb", 1)
 
 		Expect(k8sClient.Delete(ctx, &newApp)).Should(Succeed())
 		Eventually(func(g Gomega) {

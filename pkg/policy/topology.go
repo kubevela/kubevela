@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +48,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 	placementMap := map[string]struct{}{}
 	addCluster := func(cluster string, ns string, validateCluster bool) error {
 		if validateCluster {
-			if _, e := multicluster.GetVirtualCluster(ctx, cli, cluster); e != nil {
+			if _, e := prismclusterv1alpha1.NewClusterClient(cli).Get(ctx, cluster); e != nil {
 				return errors.Wrapf(e, "failed to get cluster %s", cluster)
 			}
 		}
@@ -79,14 +80,14 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 					}
 				}
 			case clusterLabelSelector != nil:
-				clusters, err := multicluster.FindVirtualClustersByLabels(context.Background(), cli, clusterLabelSelector)
+				clusterList, err := prismclusterv1alpha1.NewClusterClient(cli).List(ctx, client.MatchingLabels(clusterLabelSelector))
 				if err != nil {
 					return nil, errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
 				}
-				if len(clusters) == 0 {
+				if len(clusterList.Items) == 0 {
 					return nil, errors.New("failed to find any cluster matches given labels")
 				}
-				for _, cluster := range clusters {
+				for _, cluster := range clusterList.Items {
 					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
 						return nil, err
 					}
