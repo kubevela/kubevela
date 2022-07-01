@@ -22,8 +22,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/definition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/pkg/definition"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -454,6 +455,7 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 	return nil, fmt.Errorf("could not find %s in namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
 }
 
+// GetCapabilityFromDefinitionRevision gets capabilities from the underlying Definition in DefinitionRevisions
 func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd *packages.PackageDiscover, ns, defName string, r int64) (*types.Capability, error) {
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -468,8 +470,11 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 	// which often is not the desired behavior.
 	// So we need to search again in the vela-system namespace, if no revisions found.
 	// This behavior is consistent with the code above in GetCapabilityByName(), which also does double-search.
-	if len(revs) == 0 {
+	if len(revs) == 0 && ns == "default" {
 		revs, err = definition.SearchDefinitionRevisions(ctx, k8sClient, types.DefaultKubeVelaNS, defName, "", r)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(revs) == 0 {
 		return nil, fmt.Errorf("no %s with revision %d found in namespace %s or %s", defName, r, ns, types.DefaultKubeVelaNS)

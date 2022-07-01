@@ -6,7 +6,7 @@ metadata:
     custom.definition.oam.dev/ui-hidden: 'true'
     trait.oam.dev/name: affinity
   name: affinity-v1
-  namespace: custom-ns
+  namespace: rev-test-custom-ns
 spec:
   componentDefinition:
     metadata: {}
@@ -34,7 +34,7 @@ spec:
           affinity specify affinity and tolerationon K8s pod for your workload
           which follows the pod spec in path 'spec.template'.
       name: affinity
-      namespace: custom-ns
+      namespace: rev-test-custom-ns
     spec:
       appliesToWorkloads:
         - '*'

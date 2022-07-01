@@ -417,7 +417,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	}
 
 	// Load test DefinitionRevisions files into client
-	dir := filepath.Join("..", "..", "pkg", "definition")
+	dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
 	testFiles, err := ioutil.ReadDir(dir)
 	assert.NoError(t, err, "read testdata failed")
 	for _, file := range testFiles {
@@ -438,7 +438,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	// test get revision list
 	cmd = NewDefinitionGetCommand(c)
 	initCommand(cmd)
-	cmd.SetArgs([]string{"webservice", "--revisions", "-n=rev-test-ns"})
+	cmd.SetArgs([]string{"webservice", "--revisions", "--namespace=rev-test-ns"})
 	err = cmd.Execute()
 	assert.NoError(t, err)
 

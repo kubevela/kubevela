@@ -24,10 +24,11 @@ import (
 	"strings"
 	"testing"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
+
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -178,7 +179,7 @@ func TestDefinitionRevisionSearch(t *testing.T) {
 	assert.Equal(t, true, len(defrevs) >= 4)
 
 	// Restrict namespace
-	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "custom-ns", "", "", 0)
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "rev-test-custom-ns", "", "", 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(defrevs))
 
