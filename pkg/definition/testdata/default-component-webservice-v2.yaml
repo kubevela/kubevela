@@ -1,0 +1,54 @@
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionRevision
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    componentdefinition.oam.dev/name: webservice
+  name: webservice-v2
+  namespace: rev-test-ns
+spec:
+  componentDefinition:
+    apiVersion: core.oam.dev/v1beta1
+    kind: ComponentDefinition
+    metadata:
+      annotations:
+        definition.oam.dev/description: >-
+          Describes long-running, scalable, containerized services that have a
+          stable network endpoint to receive external network traffic from
+          customers.
+      name: webservice
+      namespace: rev-test-ns
+    spec:
+      schematic:
+        cue:
+          template: ""
+      status:
+        customStatus: ""
+        healthPolicy: ""
+      workload:
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+        type: deployments.apps
+    status: {}
+  definitionType: Component
+  policyDefinition:
+    metadata: {}
+    spec:
+      definitionRef:
+        name: ''
+    status: {}
+  revision: 2
+  revisionHash: c0a0c0591d0bc6
+  traitDefinition:
+    metadata: {}
+    spec:
+      definitionRef:
+        name: ''
+    status: {}
+  workflowStepDefinition:
+    metadata: {}
+    spec:
+      definitionRef:
+        name: ''
+    status: {}

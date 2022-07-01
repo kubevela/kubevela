@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -413,6 +415,46 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expect found no trait error, but not found")
 	}
+
+	// Load test DefinitionRevisions files into client
+	dir := filepath.Join("..", "..", "pkg", "definition")
+	testFiles, err := ioutil.ReadDir(dir)
+	assert.NoError(t, err, "read testdata failed")
+	for _, file := range testFiles {
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		content, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+		assert.NoError(t, err)
+		def := &v1beta1.DefinitionRevision{}
+		err = yaml.Unmarshal(content, def)
+		assert.NoError(t, err)
+		client, err := c.GetClient()
+		assert.NoError(t, err)
+		err = client.Create(context.TODO(), def)
+		assert.NoError(t, err, "cannot create "+file.Name())
+	}
+
+	// test get revision list
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revisions", "-n=rev-test-ns"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+
+	// test get a non-existent revision
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revision=3"})
+	err = cmd.Execute()
+	assert.NotNil(t, err, "should have not found error")
+
+	// test get a revision
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revision=1", "--namespace=rev-test-ns"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
 }
 
 func TestNewDefinitionGenDocCommand(t *testing.T) {

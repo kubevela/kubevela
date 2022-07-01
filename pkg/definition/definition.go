@@ -445,31 +445,42 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 	return definitions, nil
 }
 
+// SearchDefinitionRevisions finds DefinitionRevisions.
+// Use defName to filter DefinitionRevisions using the name of the underlying Definition.
+// Empty defName will keep everything.
+// Use defType to only keep DefinitionRevisions of the specified DefinitionType.
+// Empty defType will search every possible type.
+// Use rev to only keep the revision you want. rev=0 will keep every revision.
 func SearchDefinitionRevisions(ctx context.Context, c client.Client, namespace string,
 	defName string, defType common.DefinitionType, rev int64) ([]v1beta1.DefinitionRevision, error) {
-
 	var nameLabels []string
-	// Since different definitions have different labels for its name, we need to
-	// find the corresponding label for definition names, to match names later.
-	// Empty defType will give all possible name labels of DefinitionRevisions,
-	// so that we can search for DefinitionRevisions of all Definition types.
-	for k, v := range DefinitionKindToNameLabel {
-		if defType != "" && defType != k {
-			continue
-		}
 
-		nameLabels = append(nameLabels, v)
+	if defName == "" {
+		// defName="" means we don't care about the underlying definition names.
+		// So, no need to add name labels, just use anything to let the loop run once.
+		nameLabels = append(nameLabels, "")
+	} else {
+		// Since different definitions have different labels for its name, we need to
+		// find the corresponding label for definition names, to match names later.
+		// Empty defType will give all possible name labels of DefinitionRevisions,
+		// so that we can search for DefinitionRevisions of all Definition types.
+		for k, v := range DefinitionKindToNameLabel {
+			if defType != "" && defType != k {
+				continue
+			}
+			nameLabels = append(nameLabels, v)
+		}
 	}
 
 	var defRev []v1beta1.DefinitionRevision
 
 	// Search DefinitionRevisions using each possible label
-labelLoop:
 	for _, l := range nameLabels {
 		var listOptions []client.ListOption
 		if namespace != "" {
 			listOptions = append(listOptions, client.InNamespace(namespace))
 		}
+		// Using name label to find DefinitionRevisions with specified name.
 		if defName != "" {
 			listOptions = append(listOptions, client.MatchingLabels{
 				l: defName,
@@ -488,24 +499,23 @@ labelLoop:
 			return nil, errors.Wrapf(err, "failed to list DefinitionRevisions of %s", defName)
 		}
 
-		// rev 0, all items are kept
-		if rev == 0 {
-			defRev = append(defRev, objs.Items...)
-			continue
-		}
-
-		// rev not 0, only give the revision that the user wants
-		for _, obj := range objs.Items {
-			if obj.Spec.Revision == rev {
-				defRev = append(defRev, obj)
-				continue labelLoop
+		for _, dr := range objs.Items {
+			// Keep only the specified type
+			if defType != "" && defType != dr.Spec.DefinitionType {
+				continue
 			}
+			// Only give the revision that the user wants
+			if rev != 0 && rev != dr.Spec.Revision {
+				continue
+			}
+			defRev = append(defRev, dr)
 		}
 	}
 
 	return defRev, nil
 }
 
+// GetDefinitionFromDefinitionRevision will extract the underlying Definition from a DefinitionRevision.
 func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Definition, error) {
 	var def *Definition
 	var u map[string]interface{}
@@ -521,7 +531,7 @@ func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Defi
 	case common.WorkflowStepType:
 		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.WorkflowStepDefinition)
 	default:
-		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
+		return nil, fmt.Errorf("unsupported definition type: %s", rev.Spec.DefinitionType)
 	}
 
 	if err != nil {

@@ -464,8 +464,8 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, pd 
 	if err != nil {
 		return nil, err
 	}
-	// `ns` somehow defaults to `default` in `vela show`, if user doesn't specify anything,
-	// which often is not the desired behavior (as with other commands, like vela def get).
+	// `ns` defaults to `default` in `vela show`, if user doesn't specify anything,
+	// which often is not the desired behavior.
 	// So we need to search again in the vela-system namespace, if no revisions found.
 	// This behavior is consistent with the code above in GetCapabilityByName(), which also does double-search.
 	if len(revs) == 0 {

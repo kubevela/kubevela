@@ -63,7 +63,7 @@ var webSite bool
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var version string
+	var revision string
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a component, trait or workflow.",
@@ -80,7 +80,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 				return err
 			}
 
-			if version == "" {
+			if revision == "" {
 				if webSite {
 					return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 				}
@@ -88,10 +88,10 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			}
 
 			// v1, 1, both need to work
-			version := strings.TrimPrefix(version, "v")
+			version := strings.TrimPrefix(revision, "v")
 			ver, err := strconv.Atoi(version)
 			if err != nil {
-				return fmt.Errorf("invalid version: %w", err)
+				return fmt.Errorf("invalid revision: %w", err)
 			}
 			if webSite {
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
@@ -104,7 +104,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	}
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
-	cmd.Flags().StringVarP(&version, "version", "v", "", "Get the specified version of a definition.")
+	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions.")
 
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
