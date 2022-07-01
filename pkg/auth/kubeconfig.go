@@ -33,7 +33,6 @@ import (
 	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -233,41 +232,27 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	csr.Spec.Usages = []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
 	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
-	var needApprove = true
 	if _, err := cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, con := range csr.Status.Conditions {
-				if con.Type == certificatesv1.CertificateApproved && con.Status == corev1.ConditionTrue {
-					needApprove = false
-				}
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", opts.User)
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", makeCSRName(opts.User))
 	defer func() {
 		_ = cli.CertificatesV1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
-	if needApprove {
-		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
-			Type:           certificatesv1.CertificateApproved,
-			Status:         corev1.ConditionTrue,
-			Reason:         "Self-generated and auto-approved by KubeVela",
-			Message:        "This CSR was approved by KubeVela",
-			LastUpdateTime: metav1.Now(),
-		})
-		if csr, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
-			return nil, err
-		}
-		_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
+	csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1.CertificateSigningRequestCondition{
+		Type:           certificatesv1.CertificateApproved,
+		Status:         corev1.ConditionTrue,
+		Reason:         "Self-generated and auto-approved by KubeVela",
+		Message:        "This CSR was approved by KubeVela",
+		LastUpdateTime: metav1.Now(),
+	})
+	if csr, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
+		return nil, err
 	}
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", makeCSRName(opts.User))
+
 	if err := wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
-		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
+		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, makeCSRName(opts.User), metav1.GetOptions{}); err != nil {
 			return false, err
 		}
 		if csr.Status.Certificate == nil {
@@ -291,47 +276,37 @@ func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, c
 		return nil, err
 	}
 	csr := &certificatesv1beta1.CertificateSigningRequest{}
-	csr.Name = CSRNamePrefix + opts.User
+	csr.Name = makeCSRName(opts.User)
 	var name = certificatesv1beta1.KubeAPIServerClientSignerName
 	csr.Spec.SignerName = &name
 	csr.Spec.Usages = []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth}
 	csr.Spec.Request = csrPemBytes
 	csr.Spec.ExpirationSeconds = pointer.Int32(int32(opts.ExpireTime.Seconds()))
-	var needApprove = true
+	// create
 	if _, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, con := range csr.Status.Conditions {
-				if con.Type == certificatesv1beta1.CertificateApproved && con.Status == corev1.ConditionTrue {
-					needApprove = false
-				}
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", opts.User)
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", makeCSRName(opts.User))
 	defer func() {
 		_ = cli.CertificatesV1beta1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
-	if needApprove {
-		csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1beta1.CertificateSigningRequestCondition{
-			Type:           certificatesv1beta1.CertificateApproved,
-			Status:         corev1.ConditionTrue,
-			Reason:         "Self-generated and auto-approved by KubeVela",
-			Message:        "This CSR was approved by KubeVela",
-			LastUpdateTime: metav1.Now(),
-		})
-		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, csr, metav1.UpdateOptions{}); err != nil {
-			return nil, err
-		}
-		_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", opts.User)
+
+	// approval
+	csr.Status.Conditions = append(csr.Status.Conditions, certificatesv1beta1.CertificateSigningRequestCondition{
+		Type:           certificatesv1beta1.CertificateApproved,
+		Status:         corev1.ConditionTrue,
+		Reason:         "Self-generated and auto-approved by KubeVela",
+		Message:        "This CSR was approved by KubeVela",
+		LastUpdateTime: metav1.Now(),
+	})
+	if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, csr, metav1.UpdateOptions{}); err != nil {
+		return nil, err
 	}
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", makeCSRName(opts.User))
+
+	// waiting and get the status
 	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
-		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, opts.User, metav1.GetOptions{}); err != nil {
+		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, makeCSRName(opts.User), metav1.GetOptions{}); err != nil {
 			return false, err
 		}
 		if csr.Status.Certificate == nil {
