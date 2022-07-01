@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/emicklei/go-restful/v3"
@@ -426,6 +427,11 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 		return nil, err
 	}
 	image := fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, jfrogReq.Data.ImageName, jfrogReq.Data.Tag)
+	pathArray := strings.Split(jfrogReq.Data.Path, "/")
+	if len(pathArray) > 2 {
+		image = fmt.Sprintf("%s/%s:%s", jfrogReq.Data.RepoKey, strings.Join(pathArray[:len(pathArray)-2], "/"), jfrogReq.Data.Tag)
+	}
+
 	if jfrogReq.Data.URL != "" {
 		image = fmt.Sprintf("%s/%s", jfrogReq.Data.URL, image)
 	}
@@ -441,7 +447,7 @@ func (j *jfrogHandlerImpl) handle(ctx context.Context, webhookTrigger *model.App
 		TriggerType:  apisv1.TriggerTypeWebhook,
 		Force:        true,
 		ImageInfo: &model.ImageInfo{
-			Type: model.PayloadTypeHarbor,
+			Type: model.PayloadTypeJFrog,
 			Resource: &model.ImageResource{
 				Digest: jfrogReq.Data.Digest,
 				Tag:    jfrogReq.Data.Tag,
