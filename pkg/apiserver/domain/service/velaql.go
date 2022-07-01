@@ -18,6 +18,8 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"strings"
 
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,6 +80,10 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 	if err != nil {
 		log.Logger.Errorf("decode the velaQL response to json failure %s", err.Error())
 		return nil, bcode.ErrParseQuery2Json
+	}
+	if strings.Contains(velaQL, "collect-logs") {
+		enc, _ := base64.StdEncoding.DecodeString(resp["logs"].(string))
+		resp["logs"] = string(enc)
 	}
 	return &resp, err
 }
