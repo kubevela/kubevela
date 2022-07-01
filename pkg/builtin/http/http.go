@@ -35,10 +35,16 @@ func init() {
 }
 
 // HTTPCmd provides methods for http task
-type HTTPCmd struct{}
+type HTTPCmd struct {
+	client *http.Client
+}
 
 func newHTTPCmd(_ cue.Value) (registry.Runner, error) {
-	return &HTTPCmd{}, nil
+	return &HTTPCmd{
+		client: &http.Client{
+			Transport: &http.Transport{},
+			Timeout:   time.Second * 3,
+		}}, nil
 }
 
 // Run exec the actual http logic, and res represent the result of http task
@@ -48,13 +54,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		method = meta.String("method")
 		u      = meta.String("url")
 	)
-	var (
-		r      io.Reader
-		client = &http.Client{
-			Transport: &http.Transport{},
-			Timeout:   time.Second * 3,
-		}
-	)
+	var r io.Reader
 	if obj := meta.Obj.Lookup("request"); obj.Exists() {
 		if v := obj.Lookup("body"); v.Exists() {
 			r, err = v.Reader()
@@ -117,9 +117,9 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 			tr.TLSClientConfig.Certificates = []tls.Certificate{cliCrt}
 		}
 
-		client.Transport = tr
+		c.client.Transport = tr
 	}
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
