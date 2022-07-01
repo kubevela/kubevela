@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
-	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
@@ -58,9 +57,12 @@ type ProjectService interface {
 }
 
 type projectServiceImpl struct {
-	Store       datastore.DataStore `inject:"datastore"`
-	K8sClient   client.Client       `inject:"kubeClient"`
-	RbacService RBACService         `inject:""`
+	Store         datastore.DataStore `inject:"datastore"`
+	K8sClient     client.Client       `inject:"kubeClient"`
+	RbacService   RBACService         `inject:""`
+	TargetService TargetService       `inject:""`
+	UserService   UserService         `inject:""`
+	EnvService    EnvService          `inject:""`
 }
 
 // NewProjectService new project service
@@ -111,26 +113,35 @@ func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 	}
 	log.Logger.Info("no default project found, adding a default project with default env and target")
 
-	if err := repository.CreateTargetNamespace(ctx, p.K8sClient, multicluster.ClusterLocalName, defaultNamespace, model.DefaultInitName); err != nil {
-		return fmt.Errorf("initialize default target namespace failed %w", err)
+	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
+		Name:        model.DefaultInitName,
+		Alias:       "Default",
+		Description: model.DefaultProjectDescription,
+		Owner:       model.DefaultAdminUserName,
+	})
+	if err != nil {
+		return fmt.Errorf("initialize project failed %w", err)
 	}
+
 	// initialize default target first
-	err = repository.CreateTarget(ctx, p.Store, &model.Target{
+	_, err = p.TargetService.CreateTarget(ctx, apisv1.CreateTargetRequest{
 		Name:        model.DefaultInitName,
 		Alias:       "Default",
 		Description: model.DefaultTargetDescription,
-		Cluster: &model.ClusterTarget{
+		Project:     model.DefaultInitName,
+		Cluster: &apisv1.ClusterTarget{
 			ClusterName: multicluster.ClusterLocalName,
 			Namespace:   defaultNamespace,
 		},
 	})
+
 	// for idempotence, ignore default target already exist error
 	if err != nil && errors.Is(err, bcode.ErrTargetExist) {
 		return fmt.Errorf("initialize default target failed %w", err)
 	}
 
 	// initialize default target first
-	err = repository.CreateEnv(ctx, p.K8sClient, p.Store, &model.Env{
+	_, err = p.EnvService.CreateEnv(ctx, apisv1.CreateEnvRequest{
 		Name:        model.DefaultInitName,
 		Alias:       "Default",
 		Description: model.DefaultEnvDescription,
@@ -141,16 +152,6 @@ func (p *projectServiceImpl) InitDefaultProjectEnvTarget(ctx context.Context, de
 	// for idempotence, ignore default env already exist error
 	if err != nil && errors.Is(err, bcode.ErrEnvAlreadyExists) {
 		return fmt.Errorf("initialize default environment failed %w", err)
-	}
-
-	_, err = p.CreateProject(ctx, apisv1.CreateProjectRequest{
-		Name:        model.DefaultInitName,
-		Alias:       "Default",
-		Description: model.DefaultProjectDescription,
-		Owner:       model.DefaultAdminUserName,
-	})
-	if err != nil {
-		return fmt.Errorf("initialize project failed %w", err)
 	}
 	return nil
 }
@@ -399,6 +400,10 @@ func (p *projectServiceImpl) AddProjectUser(ctx context.Context, projectName str
 	if err != nil {
 		return nil, err
 	}
+	_, err = p.UserService.GetUser(ctx, req.UserName)
+	if err != nil {
+		return nil, err
+	}
 	// check user roles
 	for _, role := range req.UserRoles {
 		var projectUser = model.Role{
@@ -617,4 +622,23 @@ func retrieveConfigFromApplication(a v1beta1.Application, project string) *apisv
 		Alias:             a.Annotations[types.AnnotationConfigAlias],
 		Description:       a.Annotations[types.AnnotationConfigDescription],
 	}
+}
+
+// NewTestProjectService create the project service instance for testing
+func NewTestProjectService(ds datastore.DataStore, c client.Client) ProjectService {
+	targetImpl := &targetServiceImpl{K8sClient: c, Store: ds}
+	envImpl := &envServiceImpl{KubeClient: c, Store: ds}
+	rbacService := &rbacServiceImpl{Store: ds}
+	userService := &userServiceImpl{Store: ds, RbacService: rbacService, SysService: systemInfoServiceImpl{Store: ds}}
+	projectService := &projectServiceImpl{
+		K8sClient:     c,
+		Store:         ds,
+		RbacService:   rbacService,
+		TargetService: targetImpl,
+		UserService:   userService,
+		EnvService:    envImpl,
+	}
+	userService.ProjectService = projectService
+	envImpl.ProjectService = projectService
+	return projectService
 }

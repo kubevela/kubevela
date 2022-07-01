@@ -32,6 +32,9 @@ import (
 // KubeVelaProjectGroupPrefix the prefix kubevela project
 const KubeVelaProjectGroupPrefix = "kubevela:project:"
 
+// KubeVelaAdminGroupPrefix the prefix kubevela admin
+const KubeVelaAdminGroupPrefix = "kubevela:admin:"
+
 // ContextWithUserInfo extract user from context (parse username and project) for impersonation
 func ContextWithUserInfo(ctx context.Context) context.Context {
 	if !features.APIServerFeatureGate.Enabled(features.APIServerEnableImpersonation) {

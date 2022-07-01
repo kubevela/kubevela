@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -25,7 +26,9 @@ import (
 	"sync"
 
 	"github.com/emicklei/go-restful/v3"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -34,6 +37,7 @@ import (
 	apiserverutils "github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
@@ -44,12 +48,20 @@ var reg = regexp.MustCompile(`(?U)\{.*\}`)
 
 var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 	{
-		Name:      "project-read",
-		Alias:     "Project Read",
-		Resources: []string{"project:{projectName}"},
-		Actions:   []string{"detail"},
-		Effect:    "Allow",
-		Scope:     "project",
+		Name:  "project-view",
+		Alias: "Project View",
+		Resources: []string{
+			"project:{projectName}",
+			"project:{projectName}/config:*",
+			"project:{projectName}/role:*",
+			"project:{projectName}/projectUser:*",
+			"project:{projectName}/permission:*",
+			"project:{projectName}/environment:*",
+			"project:{projectName}/application:*/*",
+		},
+		Actions: []string{"detail", "list"},
+		Effect:  "Allow",
+		Scope:   "project",
 	},
 	{
 		Name:      "app-management",
@@ -87,6 +99,14 @@ var defaultProjectPermissionTemplate = []*model.PermissionTemplate{
 
 var defaultPlatformPermission = []*model.PermissionTemplate{
 	{
+		Name:      "disable-cloudshell",
+		Alias:     "Disable CloudShell",
+		Resources: []string{"cloudshell"},
+		Actions:   []string{"*"},
+		Effect:    "Deny",
+		Scope:     "platform",
+	},
+	{
 		Name:      "cluster-management",
 		Alias:     "Cluster Management",
 		Resources: []string{"cluster:*/*"},
@@ -99,6 +119,14 @@ var defaultPlatformPermission = []*model.PermissionTemplate{
 		Alias:     "Project Management",
 		Resources: []string{"project:*"},
 		Actions:   []string{"*"},
+		Effect:    "Allow",
+		Scope:     "platform",
+	},
+	{
+		Name:      "project-list",
+		Alias:     "Project List",
+		Resources: []string{"project:*"},
+		Actions:   []string{"list"},
 		Effect:    "Allow",
 		Scope:     "platform",
 	},
@@ -239,6 +267,7 @@ var ResourceMaps = map[string]resourceMetadata{
 			},
 		},
 	},
+	"cloudshell": {},
 }
 
 var existResourcePaths = convert(ResourceMaps)
@@ -332,7 +361,8 @@ func registerResourceAction(resource string, actions ...string) {
 }
 
 type rbacServiceImpl struct {
-	Store datastore.DataStore `inject:"datastore"`
+	Store      datastore.DataStore `inject:"datastore"`
+	KubeClient client.Client       `inject:"kubeClient"`
 }
 
 // RBACService implement RBAC-related business logic.
@@ -365,26 +395,29 @@ func (p *rbacServiceImpl) Init(ctx context.Context) error {
 			},
 		},
 	})
-	if count > 0 {
-		return nil
-	}
-	var batchData []datastore.Entity
-	for _, policy := range defaultPlatformPermission {
-		batchData = append(batchData, &model.Permission{
-			Name:      policy.Name,
-			Alias:     policy.Alias,
-			Resources: policy.Resources,
-			Actions:   policy.Actions,
-			Effect:    policy.Effect,
+	if count == 0 {
+		var batchData []datastore.Entity
+		for _, policy := range defaultPlatformPermission {
+			batchData = append(batchData, &model.Permission{
+				Name:      policy.Name,
+				Alias:     policy.Alias,
+				Resources: policy.Resources,
+				Actions:   policy.Actions,
+				Effect:    policy.Effect,
+			})
+		}
+		batchData = append(batchData, &model.Role{
+			Name:        "admin",
+			Alias:       "Admin",
+			Permissions: []string{"admin"},
 		})
+		if err := p.Store.BatchAdd(ctx, batchData); err != nil {
+			return fmt.Errorf("init the platform perm policies failure %w", err)
+		}
 	}
-	batchData = append(batchData, &model.Role{
-		Name:        "admin",
-		Alias:       "Admin",
-		Permissions: []string{"admin"},
-	})
-	if err := p.Store.BatchAdd(ctx, batchData); err != nil {
-		return fmt.Errorf("init the platform perm policies failure %w", err)
+
+	if err := managePrivilegesForAdminUser(ctx, p.KubeClient, "admin", false); err != nil {
+		return fmt.Errorf("failed to init the RBAC in cluster for the admin role %w", err)
 	}
 	return nil
 }
@@ -447,6 +480,13 @@ func (p *rbacServiceImpl) GetUserPermissions(ctx context.Context, user *model.Us
 			perms = append(perms, projectPerms...)
 		}
 	}
+	// with the default permissions
+	perms = append(perms, &model.Permission{
+		Name:      "cloudshell",
+		Resources: []string{"cloudshell"},
+		Actions:   []string{"create"},
+		Effect:    "Allow",
+	})
 	return perms, nil
 }
 
@@ -822,6 +862,11 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 		Alias:       "Project Admin",
 		Permissions: []string{"project-read", "app-management", "env-management", "role-management", "configuration-read"},
 		Project:     project.Name,
+	}, &model.Role{
+		Name:        "project-viewer",
+		Alias:       "Project Viewer",
+		Permissions: []string{"project-view"},
+		Project:     project.Name,
 	})
 	if project.Owner != "" {
 		var projectUser = &model.ProjectUser{
@@ -963,4 +1008,20 @@ func (r *RequestResourceAction) Match(policies []*model.Permission) bool {
 		}
 	}
 	return false
+}
+
+// managePrivilegesForAdminUser grant or revoke privileges for admin user
+func managePrivilegesForAdminUser(ctx context.Context, cli client.Client, roleName string, revoke bool) error {
+	p := &auth.ScopedPrivilege{Cluster: types.ClusterLocalName}
+	identity := &auth.Identity{Groups: []string{apiserverutils.KubeVelaAdminGroupPrefix + roleName}}
+	writer := &bytes.Buffer{}
+	f, msg := auth.GrantPrivileges, "GrantPrivileges"
+	if revoke {
+		f, msg = auth.RevokePrivileges, "RevokePrivileges"
+	}
+	if err := f(ctx, cli, []auth.PrivilegeDescription{p}, identity, writer); err != nil {
+		return err
+	}
+	log.Logger.Debugf("%s: %s", msg, writer.String())
+	return nil
 }

@@ -286,7 +286,6 @@ func (s *enabledAddonAPIInterface) GetWebServiceRoute() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.list).
 		Doc("list all enabled addons").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
-		Filter(s.RbacService.CheckPerm("addon", "list")).
 		Param(ws.QueryParameter("registry", "filter addons from given registry").DataType("string")).
 		Param(ws.QueryParameter("query", "Fuzzy search based on name and description.").DataType("string")).
 		Returns(200, "OK", apis.ListEnabledAddonResponse{}).

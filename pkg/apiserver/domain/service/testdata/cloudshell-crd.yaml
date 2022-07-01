@@ -1,0 +1,162 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: cloudshells.cloudshell.cloudtty.io
+spec:
+  group: cloudshell.cloudtty.io
+  names:
+    kind: CloudShell
+    listKind: CloudShellList
+    plural: cloudshells
+    singular: cloudshell
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: User
+      jsonPath: .spec.runAsUser
+      name: User
+      type: string
+    - description: Command
+      jsonPath: .spec.commandAction
+      name: Command
+      type: string
+    - description: Expose mode
+      jsonPath: .spec.exposureMode
+      name: Type
+      type: string
+    - description: Access Url
+      jsonPath: .status.accessUrl
+      name: URL
+      type: string
+    - description: Phase
+      jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudShell is the Schema for the cloudshells API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudShellSpec defines the desired state of CloudShell
+            properties:
+              cleanup:
+                description: Cleanup specified whether to delete cloudshell resources
+                  when corresponding job status is completed.
+                type: boolean
+              commandAction:
+                type: string
+              configmapName:
+                description: Configmap of the target kube-config, will replace by
+                  SA
+                type: string
+              exposureMode:
+                description: ExposeMode describes how to access ttyd service, either
+                  ClusterIP, NodePort, Ingress or VirtualService.
+                enum:
+                - ClusterIP
+                - NodePort
+                - Ingress
+                - VirtualService
+                type: string
+              ingressConfig:
+                description: Specifies a port number range 30000-32767 when using
+                  nodeport mode, if not specified, kubernetes default random rule
+                  is used. NodePort int32 `json:"NodePort,omitempty"` IngressConfig
+                  specifies necessary parameters to create ingress.
+                properties:
+                  ingressClassName:
+                    description: IngressClassName specifies a ingress controller to
+                      ingress, it must be fill when the cluster have multiple ingress
+                      controller service.
+                    type: string
+                  ingressName:
+                    description: IngressName specifies a name to ingress, if it's
+                      empty, default "cloudshell-ingress".
+                    type: string
+                  namespace:
+                    description: Namespace specifies a namespace that the virtualService
+                      will be created in it. if it's empty, default the cloudshell
+                      namespace.
+                    type: string
+                type: object
+              once:
+                description: accept only one client and exit on disconnection
+                type: boolean
+              pathPrefix:
+                description: PathPrefix specified a path prefix to access url, if
+                  not, the default path is used.
+                type: string
+              runAsUser:
+                type: string
+              ttl:
+                format: int32
+                type: integer
+              virtualServiceConfig:
+                description: VirtualServiceConfig specifies some of the parameters
+                  necessary to create the virtaulService.
+                properties:
+                  export_to:
+                    description: The value "." is reserved and defines an export to
+                      the same namespace that the virtual service is declared in.
+                      Similarly the value "*" is reserved and defines an export to
+                      all namespaces.
+                    type: string
+                  gateway:
+                    description: Gateway must be specified and the gateway already
+                      exists in the cluster.
+                    type: string
+                  namespace:
+                    description: Namespace specifies a namespace that the virtualService
+                      will be created in it. if it's empty, default the cloudshell
+                      namespace.
+                    type: string
+                  virtualServiceName:
+                    description: VirtualServiceName specifies a name to virtualService,
+                      if it's empty, default "cloudshell-VirtualService"
+                    type: string
+                type: object
+            type: object
+          status:
+            description: CloudShellStatus defines the observed state of CloudShell
+            properties:
+              accessUrl:
+                type: string
+              phase:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                type: string
+            required:
+            - accessUrl
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

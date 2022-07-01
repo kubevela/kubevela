@@ -62,11 +62,16 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 		By("Start syncing")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		crux := newCR2UX(ds)
 		appSync := &ApplicationSync{
-			KubeClient: k8sClient,
-			KubeConfig: cfg,
-			Store:      ds,
-			Queue:      workqueue.New(),
+			KubeClient:         k8sClient,
+			KubeConfig:         cfg,
+			Store:              ds,
+			Queue:              workqueue.New(),
+			ProjectService:     crux.projectService,
+			ApplicationService: crux.applicationService,
+			TargetService:      crux.targetService,
+			EnvService:         crux.envService,
 		}
 		go appSync.Start(ctx, make(chan error))
 

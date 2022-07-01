@@ -34,7 +34,7 @@ var _ = Describe("Test multicluster Auth commands", func() {
 		It("Test vela create kubeconfig for given user", func() {
 			outputs, err := execCommand("auth", "gen-kubeconfig", "--user", "kubevela", "--group", "kubevela:dev", "--group", "kubevela:test")
 			Expect(err).Should(Succeed())
-			Expect(outputs).Should(ContainSubstring("Certificate signing request kubevela approved"))
+			Expect(outputs).Should(ContainSubstring("Certificate signing request kubevela-csr-kubevela approved"))
 		})
 
 		It("Test vela create kubeconfig for serviceaccount", func() {

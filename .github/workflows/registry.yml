@@ -170,6 +170,25 @@ jobs:
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ${{ secrets.ACR_DOMAIN }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
+      
+      - uses: docker/build-push-action@v2
+        name: Build & Pushing CloudShell for Dockerhub, GHCR and ACR
+        with:
+          context: .
+          file: Dockerfile.cloudshell
+          labels: |-
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
+            VERSION=${{ steps.get_version.outputs.VERSION }}
+            GOPROXY=https://proxy.golang.org
+          tags: |-
+            docker.io/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
+            ${{ secrets.ACR_DOMAIN }}/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
     env:

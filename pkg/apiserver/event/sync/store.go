@@ -25,6 +25,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -66,7 +67,7 @@ func StoreAppMeta(ctx context.Context, app *model.DataStoreApp, ds datastore.Dat
 }
 
 // StoreEnv will sync application namespace from CR to datastore env, one namespace belongs to one env
-func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore, envService service.EnvService) error {
 	curEnv := &model.Env{Name: app.Env.Name}
 	err := ds.Get(ctx, curEnv)
 	if err == nil {
@@ -80,7 +81,18 @@ func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataSto
 		// other database error, return it
 		return err
 	}
-	return ds.Add(ctx, app.Env)
+	_, err = envService.CreateEnv(ctx, v1.CreateEnvRequest{
+		Name:        app.Env.Name,
+		Alias:       app.Env.Alias,
+		Description: app.Env.Description,
+		Project:     app.Env.Project,
+		Namespace:   app.Env.Namespace,
+		Targets:     app.Env.Targets,
+	})
+	if err != nil && !errors.Is(err, bcode.ErrEnvAlreadyExists) {
+		return err
+	}
+	return nil
 }
 
 // StoreEnvBinding will add envbinding for application CR one application one envbinding
@@ -221,7 +233,7 @@ func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.
 }
 
 // StoreTargets will sync targets from application CR to datastore
-func StoreTargets(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+func StoreTargets(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore, targetService service.TargetService) error {
 	for _, t := range dsApp.Targets {
 		err := ds.Get(ctx, t)
 		if err == nil {
@@ -231,7 +243,15 @@ func StoreTargets(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.D
 			// other database error, return it
 			return err
 		}
-		if err = ds.Add(ctx, t); err != nil {
+		_, err = targetService.CreateTarget(ctx, v1.CreateTargetRequest{
+			Name:        t.Name,
+			Alias:       t.Alias,
+			Project:     t.Project,
+			Description: t.Description,
+			Cluster:     (*v1.ClusterTarget)(t.Cluster),
+			Variable:    t.Variable,
+		})
+		if err != nil && !errors.Is(err, bcode.ErrTargetExist) {
 			return err
 		}
 	}

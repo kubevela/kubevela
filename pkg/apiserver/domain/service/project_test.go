@@ -56,16 +56,17 @@ var _ = Describe("Test project service functions", func() {
 		ns.Name = defaultNamespace
 		err = k8sClient.Create(context.TODO(), &ns)
 		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		projectService = NewTestProjectService(ds, k8sClient).(*projectServiceImpl)
+		envImpl = projectService.EnvService.(*envServiceImpl)
+		userService = projectService.UserService.(*userServiceImpl)
+		targetImpl = projectService.TargetService.(*targetServiceImpl)
 
-		projectService = &projectServiceImpl{K8sClient: k8sClient, Store: ds, RbacService: &rbacServiceImpl{Store: ds}}
 		pp, err := projectService.ListProjects(context.TODO(), 0, 0)
 		Expect(err).Should(BeNil())
 		// reset all projects
 		for _, p := range pp.Projects {
 			_ = projectService.DeleteProject(context.TODO(), p.Name)
 		}
-
-		envImpl = &envServiceImpl{KubeClient: k8sClient, Store: ds, ProjectService: projectService}
 		ctx := context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "admin")
 		envs, err := envImpl.ListEnvs(ctx, 0, 0, apisv1.ListEnvOptions{})
 		Expect(err).Should(BeNil())
@@ -73,7 +74,6 @@ var _ = Describe("Test project service functions", func() {
 		for _, e := range envs.Envs {
 			_ = envImpl.DeleteEnv(context.TODO(), e.Name)
 		}
-		targetImpl = &targetServiceImpl{K8sClient: k8sClient, Store: ds}
 		targets, err := targetImpl.ListTargets(context.TODO(), 0, 0, "")
 		Expect(err).Should(BeNil())
 		// reset all projects

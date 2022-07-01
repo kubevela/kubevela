@@ -67,6 +67,12 @@ var (
 
 	// ErrAddonInvalidVersion means add version is invalid
 	ErrAddonInvalidVersion = NewBcode(400, 50019, "")
+
+	// ErrCloudShellAddonNotEnabled means the cloudshell CRD is not installed
+	ErrCloudShellAddonNotEnabled = NewBcode(200, 50020, "Please enable the CloudShell addon first")
+
+	// ErrCloudShellNotInit means the cloudshell CR not created
+	ErrCloudShellNotInit = NewBcode(400, 50021, "Closing the console window and retry")
 )
 
 // isGithubRateLimit check if error is github rate limit

@@ -87,18 +87,27 @@ func (c *authenticationAPIInterface) GetWebServiceRoute() *restful.WebService {
 }
 
 func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
+	// support getting the token from the cookie
+	var tokenValue string
 	tokenHeader := req.HeaderParameter("Authorization")
-	if tokenHeader == "" {
-		bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
-		return
+	if tokenHeader != "" {
+		splitted := strings.Split(tokenHeader, " ")
+		if len(splitted) != 2 {
+			bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
+			return
+		}
+		tokenValue = splitted[1]
 	}
-	splitted := strings.Split(tokenHeader, " ")
-	if len(splitted) != 2 {
-		bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
-		return
+	if tokenValue == "" {
+		if strings.HasPrefix(req.Request.URL.Path, "/view") {
+			tokenValue = req.QueryParameter("token")
+		}
+		if tokenValue == "" {
+			bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
+		}
 	}
 
-	token, err := service.ParseToken(splitted[1])
+	token, err := service.ParseToken(tokenValue)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -108,6 +117,7 @@ func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful
 		return
 	}
 	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyUser, token.Username))
+	req.Request = req.Request.WithContext(context.WithValue(req.Request.Context(), &apis.CtxKeyToken, tokenValue))
 
 	chain.ProcessFilter(req, res)
 }

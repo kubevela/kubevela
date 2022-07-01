@@ -85,6 +85,8 @@ type CR2UX struct {
 	cache              sync.Map
 	projectService     service.ProjectService
 	applicationService service.ApplicationService
+	targetService      service.TargetService
+	envService         service.EnvService
 }
 
 func formatAppComposedName(name, namespace string) string {
@@ -114,12 +116,12 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		return err
 	}
 
-	if err = StoreTargets(ctx, dsApp, ds); err != nil {
+	if err = StoreTargets(ctx, dsApp, ds, c.targetService); err != nil {
 		log.Logger.Errorf("Store targets to data store err %v", err)
 		return err
 	}
 
-	if err = StoreEnv(ctx, dsApp, ds); err != nil {
+	if err = StoreEnv(ctx, dsApp, ds, c.envService); err != nil {
 		log.Logger.Errorf("Store Env Metadata to data store err %v", err)
 		return err
 	}

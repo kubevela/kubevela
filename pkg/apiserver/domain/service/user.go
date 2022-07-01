@@ -170,6 +170,7 @@ func (u *userServiceImpl) CreateUser(ctx context.Context, req apisv1.CreateUserR
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO: validate the roles, they must be platform roles
 	user := &model.User{
 		Name:      req.Name,
@@ -414,4 +415,14 @@ func compareHashWithPassword(hash, password string) error {
 		return bcode.ErrUserInconsistentPassword
 	}
 	return err
+}
+
+// NewTestUserService create the user service instance for testing
+func NewTestUserService(ds datastore.DataStore, c client.Client) UserService {
+	return &userServiceImpl{
+		Store: ds, K8sClient: c,
+		ProjectService: NewTestProjectService(ds, c),
+		RbacService:    &rbacServiceImpl{Store: ds},
+		SysService:     &systemInfoServiceImpl{Store: ds, KubeClient: c},
+	}
 }

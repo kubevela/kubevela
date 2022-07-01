@@ -46,6 +46,8 @@ var (
 	CtxKeyApplicationComponent = "component"
 	// CtxKeyUser request context key of user
 	CtxKeyUser = "user"
+	// CtxKeyToken request context key of request token
+	CtxKeyToken = "token"
 )
 
 // AddonPhase defines the phase of an addon
@@ -1405,4 +1407,10 @@ type ImageRegistry struct {
 // ListImageRegistryResponse the response struct of listing the image registries
 type ListImageRegistryResponse struct {
 	Registries []ImageRegistry `json:"registries"`
+}
+
+// CloudShellPrepareResponse the response for the cloud shell environment creation
+type CloudShellPrepareResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }

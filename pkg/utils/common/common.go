@@ -34,6 +34,7 @@ import (
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
+	cloudshellv1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -106,6 +107,7 @@ func init() {
 	_ = metricsV1beta1api.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = prismclusterv1alpha1.AddToScheme(Scheme)
+	_ = cloudshellv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
