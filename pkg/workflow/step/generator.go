@@ -80,26 +80,6 @@ func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSt
 	return ConvertSteps(wf.Steps), nil
 }
 
-// ApplyComponentWorkflowStepGenerator generate apply-component workflow steps for all components in the application
-type ApplyComponentWorkflowStepGenerator struct{}
-
-// Generate generate workflow steps
-func (g *ApplyComponentWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSteps []v1beta1.WorkflowStep) (steps []v1beta1.WorkflowStep, err error) {
-	if len(existingSteps) > 0 {
-		return existingSteps, nil
-	}
-	for _, comp := range app.Spec.Components {
-		steps = append(steps, v1beta1.WorkflowStep{
-			Name: comp.Name,
-			Type: wftypes.WorkflowStepTypeApplyComponent,
-			Properties: util.Object2RawExtension(map[string]string{
-				"component": comp.Name,
-			}),
-		})
-	}
-	return
-}
-
 // Deploy2EnvWorkflowStepGenerator generate deploy2env workflow steps for all envs in the application
 type Deploy2EnvWorkflowStepGenerator struct{}
 
@@ -157,20 +137,11 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 		})
 	}
 	if len(topologies) == 0 {
-		containsRefObjects := false
-		for _, comp := range app.Spec.Components {
-			if comp.Type == v1alpha1.RefObjectsComponentType {
-				containsRefObjects = true
-				break
-			}
-		}
-		if containsRefObjects {
-			steps = append(steps, v1beta1.WorkflowStep{
-				Name:       "deploy",
-				Type:       "deploy",
-				Properties: util.Object2RawExtension(map[string]interface{}{"policies": append([]string{}, overrides...)}),
-			})
-		}
+		steps = append(steps, v1beta1.WorkflowStep{
+			Name:       "deploy",
+			Type:       "deploy",
+			Properties: util.Object2RawExtension(map[string]interface{}{"policies": append([]string{}, overrides...)}),
+		})
 	}
 	return steps, nil
 }

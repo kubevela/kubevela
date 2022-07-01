@@ -446,9 +446,8 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	}
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
 		&step.RefWorkflowStepGenerator{Client: af.WorkflowClient(p.client), Context: ctx},
-		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
-		&step.ApplyComponentWorkflowStepGenerator{},
+		&step.DeployWorkflowStepGenerator{},
 		&step.DeployPreApproveWorkflowStepGenerator{},
 	).Generate(af.app, af.WorkflowSteps)
 	return err

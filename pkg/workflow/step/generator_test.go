@@ -73,7 +73,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-1"}`)},
 			}},
 		},
-		"apply-component-with-no-steps": {
+		"apply-component-with-no-policies": {
 			input: []v1beta1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
@@ -85,13 +85,9 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				},
 			},
 			output: []v1beta1.WorkflowStep{{
-				Name:       "example-comp-1",
-				Type:       "apply-component",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-1"}`)},
-			}, {
-				Name:       "example-comp-2",
-				Type:       "apply-component",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-2"}`)},
+				Name:       "deploy",
+				Type:       "deploy",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":[]}`)},
 			}},
 		},
 		"env-binding-bad": {
@@ -182,6 +178,23 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":[]}`)},
 			}},
 		},
+		"deploy-with-override-without-topology": {
+			input: []v1beta1.WorkflowStep{},
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{Name: "example-comp"}},
+					Policies: []v1beta1.AppPolicy{{
+						Name: "override",
+						Type: "override",
+					}},
+				},
+			},
+			output: []v1beta1.WorkflowStep{{
+				Name:       "deploy",
+				Type:       "deploy",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["override"]}`)},
+			}},
+		},
 		"pre-approve-workflow": {
 			input: []v1beta1.WorkflowStep{{
 				Name:       "deploy-example-topology-policy-1",
@@ -270,9 +283,8 @@ func TestWorkflowStepGenerator(t *testing.T) {
 	}
 	generator := NewChainWorkflowStepGenerator(
 		&RefWorkflowStepGenerator{Context: context.Background(), Client: cli},
-		&DeployWorkflowStepGenerator{},
 		&Deploy2EnvWorkflowStepGenerator{},
-		&ApplyComponentWorkflowStepGenerator{},
+		&DeployWorkflowStepGenerator{},
 		&DeployPreApproveWorkflowStepGenerator{},
 	)
 	for name, testCase := range testCases {
