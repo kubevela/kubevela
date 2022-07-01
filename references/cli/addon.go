@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -753,12 +754,13 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		}
 		required := required[propKey]
 
+		// Extra indentation on nested objects
+		addedIndent := addIndent(indent)
+
 		var currentValue string
 		thisParam, hasParam := currentParams[propKey]
 		if hasParam {
-			// Only show default parameter when it is a string, int, float, or bool
-			// We don't care about object's default values (they have no defaults anyway).
-			currentValue = fmt.Sprint(thisParam)
+			currentValue = fmt.Sprintf("%v", thisParam)
 			switch thisParam.(type) {
 			case int:
 			case int64:
@@ -768,12 +770,10 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			case string:
 			case bool:
 			default:
-				currentValue = ""
+				js, _ := json.MarshalIndent(thisParam, "", "    ")
+				currentValue = strings.ReplaceAll("\n"+string(js), "\n", "\n\t"+addedIndent)
 			}
 		}
-
-		// Extra indentation on nested objects
-		addedIndent := addIndent(indent)
 
 		// Header: addon: description
 		ret += addedIndent
@@ -784,7 +784,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		// Show current value
 		if currentValue != "" {
 			ret += addIndent(indent)
-			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
+			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
 		}
 		// Show default value
 		if defaultValue != "" {
