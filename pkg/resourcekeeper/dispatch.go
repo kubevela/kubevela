@@ -105,6 +105,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	}
 
 	cfg := newDispatchConfig(options...)
+	ctx = auth.ContextClearUserInfo(ctx)
 	if len(rootManifests) != 0 {
 		rt, err := h.getRootRT(ctx)
 		if err != nil {
