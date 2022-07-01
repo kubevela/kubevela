@@ -760,7 +760,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		var currentValue string
 		thisParam, hasParam := currentParams[propKey]
 		if hasParam {
-			currentValue = fmt.Sprintf("%v", thisParam)
+			currentValue = fmt.Sprintf("%#v", thisParam)
 			switch thisParam.(type) {
 			case int:
 			case int64:
@@ -770,19 +770,20 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			case string:
 			case bool:
 			default:
-				js, _ := json.MarshalIndent(thisParam, "", "    ")
-				currentValue = strings.ReplaceAll("\n"+string(js), "\n", "\n\t"+addedIndent)
+				js, _ := json.MarshalIndent(thisParam, "", "  ")
+				currentValue = strings.ReplaceAll(string(js), "\n", "\n\t         "+addedIndent)
 			}
 		}
 
 		// Header: addon: description
+		ret += addedIndent
 		ret += color.New(color.FgCyan).Sprintf("-> ")
 		ret += color.New(color.Bold).Sprint(propKey) + ": "
 		ret += fmt.Sprintf("%s\n", desc)
 
 		// Show current value
 		if currentValue != "" {
-			ret += addIndent(indent)
+			ret += addedIndent
 			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
 		}
 		// Show default value
