@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
 
 	"github.com/Masterminds/semver/v3"
@@ -34,8 +33,10 @@ import (
 )
 
 const (
-	// patternSystemRequirement is the regex pattern of loading system requirements of the addon
-	patternSystemRequirement = `vela(.*\d+\.\d+\.\d+);\s?kubernetes(.*\d+\.\d+\.\d+)`
+	// velaSystemRequirement is the vela version requirement annotation key
+	velaSystemRequirement = `system.vela`
+	// kubernetesSystemRequirement is the kubernetes requirement annotation key
+	kubernetesSystemRequirement = `system.kubernetes`
 )
 
 // VersionedRegistry is the interface of support version registry
@@ -167,7 +168,7 @@ func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) 
 		}
 		addonPkg.AvailableVersions = availableVersions
 		addonPkg.RegistryName = i.name
-		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations["system"])
+		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations)
 		return addonPkg, nil
 	}
 	return nil, fmt.Errorf("cannot fetch addon package")
@@ -238,19 +239,16 @@ func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*rep
 }
 
 // LoadSystemRequirements load the system version requirements from the addon's meta file
-func LoadSystemRequirements(requirements string) *SystemRequirements {
-	if len(requirements) == 0 {
+func LoadSystemRequirements(anno map[string]string) *SystemRequirements {
+	if len(anno) == 0 {
 		return nil
 	}
-	regexReq := regexp.MustCompile(patternSystemRequirement)
-	matched := regexReq.FindStringSubmatch(requirements)
-	if len(matched) < 3 {
-		return nil
+	req := &SystemRequirements{}
+	if _, ok := anno[velaSystemRequirement]; ok {
+		req.VelaVersion = anno[velaSystemRequirement]
 	}
-	velaReq, k8sReq := matched[1], matched[2]
-	req := &SystemRequirements{
-		VelaVersion:       velaReq,
-		KubernetesVersion: k8sReq,
+	if _, ok := anno[kubernetesSystemRequirement]; ok {
+		req.KubernetesVersion = anno[kubernetesSystemRequirement]
 	}
 	return req
 }
