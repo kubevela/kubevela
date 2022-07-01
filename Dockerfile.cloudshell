@@ -26,6 +26,6 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o vela ./references/cmd/cli/main.go
 
 FROM ghcr.io/cloudtty/cloudshell:v0.2.0
-RUN apt-get update && apt-get install vim
+RUN apt-get install -y vim
 ENV API_TOKEN_PATH=/usr/local/kubeconfig/token
 COPY --from=builder /workspace/vela  /usr/local/bin/vela

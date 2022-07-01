@@ -28,7 +28,6 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
@@ -144,18 +143,14 @@ const (
 	// KubeVelaClientGroup the default group to be added to the generated X509 KubeConfig
 	KubeVelaClientGroup = "kubevela:client"
 	// CSRNamePrefix the prefix of the CSR name
-	CSRNamePrefix = "kubevela-csr-"
+	CSRNamePrefix = "kubevela-csr"
 )
 
 // GenerateKubeConfig generate KubeConfig for users with given options.
 func GenerateKubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, options ...KubeConfigGenerateOption) (*clientcmdapi.Config, error) {
 	opts := newKubeConfigGenerateOptions(options...)
 	if opts.X509 != nil {
-		info, _ := cli.Discovery().ServerVersion()
-		if info == nil || version.MustParseGeneric(info.String()).AtLeast(version.MustParseSemantic("v1.19.0")) {
-			return generateX509KubeConfig(ctx, cli, cfg, writer, opts.X509)
-		}
-		return generateX509KubeConfigBeta(ctx, cli, cfg, writer, opts.X509)
+		return generateX509KubeConfig(ctx, cli, cfg, writer, opts.X509)
 	} else if opts.ServiceAccount != nil {
 		return generateServiceAccountKubeConfig(ctx, cli, cfg, writer, opts.ServiceAccount)
 	}
@@ -218,10 +213,19 @@ func makeCertAndKey(writer io.Writer, opts *KubeConfigGenerateX509Options) ([]by
 }
 
 func makeCSRName(user string) string {
-	return fmt.Sprintf("%s-%s-%s", CSRNamePrefix, user, uuid.NewString()[:8])
+	return fmt.Sprintf("%s-%s", CSRNamePrefix, user)
 }
 
-func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, options *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+	info, _ := cli.Discovery().ServerVersion()
+	if info == nil || version.MustParseGeneric(info.String()).AtLeast(version.MustParseSemantic("v1.19.0")) {
+
+		return generateX509KubeConfigV1(ctx, cli, cfg, writer, options)
+	}
+	return generateX509KubeConfigV1Beta(ctx, cli, cfg, writer, options)
+}
+
+func generateX509KubeConfigV1(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
 	csrPemBytes, keyBytes, err := makeCertAndKey(writer, opts)
 	if err != nil {
 		return nil, err
@@ -235,7 +239,7 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	if _, err := cli.CertificatesV1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", makeCSRName(opts.User))
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", csr.Name)
 	defer func() {
 		_ = cli.CertificatesV1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
@@ -249,10 +253,10 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	if csr, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{}); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", makeCSRName(opts.User))
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", csr.Name)
 
 	if err := wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
-		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, makeCSRName(opts.User), metav1.GetOptions{}); err != nil {
+		if csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(ctx, csr.Name, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
 		if csr.Status.Certificate == nil {
@@ -270,7 +274,7 @@ func generateX509KubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *
 	}, nil)
 }
 
-func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
+func generateX509KubeConfigV1Beta(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateX509Options) (*clientcmdapi.Config, error) {
 	csrPemBytes, keyBytes, err := makeCertAndKey(writer, opts)
 	if err != nil {
 		return nil, err
@@ -286,7 +290,7 @@ func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, c
 	if _, err = cli.CertificatesV1beta1().CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{}); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", makeCSRName(opts.User))
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s generated.\n", csr.Name)
 	defer func() {
 		_ = cli.CertificatesV1beta1().CertificateSigningRequests().Delete(ctx, csr.Name, metav1.DeleteOptions{})
 	}()
@@ -302,11 +306,11 @@ func generateX509KubeConfigBeta(ctx context.Context, cli kubernetes.Interface, c
 	if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, csr, metav1.UpdateOptions{}); err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", makeCSRName(opts.User))
+	_, _ = fmt.Fprintf(writer, "Certificate signing request %s approved.\n", csr.Name)
 
 	// waiting and get the status
 	if err = wait.Poll(time.Second, time.Minute, func() (done bool, err error) {
-		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, makeCSRName(opts.User), metav1.GetOptions{}); err != nil {
+		if csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, csr.Name, metav1.GetOptions{}); err != nil {
 			return false, err
 		}
 		if csr.Status.Certificate == nil {

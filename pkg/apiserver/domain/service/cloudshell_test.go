@@ -17,30 +17,20 @@ limitations under the License.
 package service
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"fmt"
+	"io"
 	"io/ioutil"
-	"math/big"
 	"time"
 
 	v1alpha1 "github.com/cloudtty/cloudtty/pkg/apis/cloudshell/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	certificatesv1 "k8s.io/api/certificates/v1"
-	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/yaml"
 
 	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
@@ -51,107 +41,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/auth"
 )
-
-func prepare(userName string) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	Expect(err).Should(BeNil())
-	template := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:   userName,
-			Organization: []string{},
-		},
-		SignatureAlgorithm: x509.SHA256WithRSA,
-	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
-	Expect(err).Should(BeNil())
-	csrPemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-
-	tpl := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "169.264.169.254"},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(2, 0, 0),
-		BasicConstraintsValid: true,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-	}
-	derCert, err := x509.CreateCertificate(rand.Reader, &tpl, &tpl, &privateKey.PublicKey, privateKey)
-	Expect(err).Should(BeNil())
-	buf := &bytes.Buffer{}
-	err = pem.Encode(buf, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: derCert,
-	})
-	Expect(err).Should(BeNil())
-
-	cli, err := kubernetes.NewForConfig(cfg)
-	Expect(err).Should(BeNil())
-	info, err := cli.ServerVersion()
-	kubeVersion := version.MustParseGeneric(info.String())
-	if kubeVersion.AtLeast(version.MustParseSemantic("v1.19.0")) {
-		fmt.Println(info.String())
-		csr := &certificatesv1.CertificateSigningRequest{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: userName,
-			},
-			Spec: certificatesv1.CertificateSigningRequestSpec{
-				SignerName: certificatesv1.KubeAPIServerClientSignerName,
-				Usages:     []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth},
-				Request:    csrPemBytes,
-			},
-		}
-		Expect(k8sClient.Create(context.TODO(), csr)).Should(BeNil())
-		Expect(err).Should(BeNil())
-		csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-		Expect(err).Should(BeNil())
-		csr.Status = certificatesv1.CertificateSigningRequestStatus{
-			Conditions: []certificatesv1.CertificateSigningRequestCondition{
-				{
-					Type:   certificatesv1.CertificateApproved,
-					Status: corev1.ConditionTrue,
-				},
-			},
-		}
-		_, err = cli.CertificatesV1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr.Name, csr, metav1.UpdateOptions{})
-		Expect(err).Should(BeNil())
-		csr, err = cli.CertificatesV1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-		Expect(err).Should(BeNil())
-		csr.Status.Certificate = buf.Bytes()
-		err = k8sClient.Status().Update(context.TODO(), csr)
-		Expect(err).Should(BeNil())
-	} else {
-		var name = certificatesv1beta1.KubeAPIServerClientSignerName
-		csr := &certificatesv1beta1.CertificateSigningRequest{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: userName,
-			},
-			Spec: certificatesv1beta1.CertificateSigningRequestSpec{
-				SignerName: &name,
-				Usages:     []certificatesv1beta1.KeyUsage{certificatesv1beta1.UsageClientAuth},
-				Request:    csrPemBytes,
-			},
-		}
-		Expect(k8sClient.Create(context.TODO(), csr)).Should(BeNil())
-		Expect(err).Should(BeNil())
-		csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-		Expect(err).Should(BeNil())
-		csr.Status = certificatesv1beta1.CertificateSigningRequestStatus{
-			Conditions: []certificatesv1beta1.CertificateSigningRequestCondition{
-				{
-					Type:   certificatesv1beta1.CertificateApproved,
-					Status: corev1.ConditionTrue,
-				},
-			},
-		}
-		_, err = cli.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr, metav1.UpdateOptions{})
-		Expect(err).Should(BeNil())
-		csr, err = cli.CertificatesV1beta1().CertificateSigningRequests().Get(context.TODO(), csr.Name, metav1.GetOptions{})
-		Expect(err).Should(BeNil())
-		csr.Status.Certificate = buf.Bytes()
-		err = k8sClient.Status().Update(context.TODO(), csr)
-		Expect(err).Should(BeNil())
-	}
-}
 
 var _ = Describe("Test cloudshell service function", func() {
 	var (
@@ -203,6 +92,9 @@ var _ = Describe("Test cloudshell service function", func() {
 			EnvService:  envService,
 			UserService: userService,
 			RBACService: projectService.RbacService,
+			GenerateKubeConfig: func(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, options ...auth.KubeConfigGenerateOption) (*clientcmdapi.Config, error) {
+				return &clientcmdapi.Config{}, nil
+			},
 		}
 	})
 
@@ -228,7 +120,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(checkReadOnly("default", permissions)).Should(BeFalse())
 
 		ctx := context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "test-dev")
-		prepare("test-dev")
+
 		err = cloudShellService.prepareKubeConfig(ctx)
 		Expect(err).Should(BeNil())
 
@@ -254,7 +146,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(checkReadOnly("default", permissions)).Should(BeTrue())
 
 		ctx = context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "test-viewer")
-		prepare("test-viewer")
+
 		err = cloudShellService.prepareKubeConfig(ctx)
 		Expect(err).Should(BeNil())
 
@@ -271,7 +163,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		_, err = userService.CreateUser(context.TODO(), apisv1.CreateUserRequest{Name: "admin-test", Password: "test", Roles: []string{"admin"}})
 		Expect(err).Should(BeNil())
 		ctx = context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "admin-test")
-		prepare("admin-test")
+
 		err = cloudShellService.prepareKubeConfig(ctx)
 		Expect(err).Should(BeNil())
 		var cm corev1.ConfigMap
@@ -300,7 +192,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(yaml.Unmarshal(cloudshellCRDBytes, &crd)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), &crd)).Should(BeNil())
 
-		prepare("test")
+		time.Sleep(2 * time.Second)
 		re, err := cloudShellService.Prepare(ctx)
 		Expect(err).Should(BeNil())
 		Expect(re.Status).Should(Equal(StatusPreparing))

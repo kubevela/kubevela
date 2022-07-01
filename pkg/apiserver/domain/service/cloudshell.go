@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -37,14 +38,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/auth"
-
-	kubevelatypes "github.com/oam-dev/kubevela/apis/types"
 )
 
 const (
@@ -71,19 +71,25 @@ type CloudShellService interface {
 	GetCloudShellEndpoint(ctx context.Context) (string, error)
 }
 
+// GenerateKubeConfig generate the kubeconfig for the cloudshell
+type GenerateKubeConfig func(ctx context.Context, cli kubernetes.Interface, cfg *api.Config, writer io.Writer, options ...auth.KubeConfigGenerateOption) (*api.Config, error)
+
 type cloudShellServiceImpl struct {
-	KubeClient     client.Client  `inject:"kubeClient"`
-	KubeConfig     *rest.Config   `inject:"kubeConfig"`
-	UserService    UserService    `inject:""`
-	ProjectService ProjectService `inject:""`
-	RBACService    RBACService    `inject:""`
-	TargetService  TargetService  `inject:""`
-	EnvService     EnvService     `inject:""`
+	KubeClient         client.Client  `inject:"kubeClient"`
+	KubeConfig         *rest.Config   `inject:"kubeConfig"`
+	UserService        UserService    `inject:""`
+	ProjectService     ProjectService `inject:""`
+	RBACService        RBACService    `inject:""`
+	TargetService      TargetService  `inject:""`
+	EnvService         EnvService     `inject:""`
+	GenerateKubeConfig GenerateKubeConfig
 }
 
 // NewCloudShellService create the instance of the cloud shell service
 func NewCloudShellService() CloudShellService {
-	return &cloudShellServiceImpl{}
+	return &cloudShellServiceImpl{
+		GenerateKubeConfig: auth.GenerateKubeConfig,
+	}
 }
 
 // Prepare prepare the cloud shell environment for the user
@@ -236,7 +242,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		cfg.Clusters[k].Server = "https://kubernetes.default:443"
 	}
 	buffer := bytes.NewBuffer(nil)
-	cfg, err = auth.GenerateKubeConfig(ctx, cli, cfg, buffer, auth.KubeConfigWithIdentityGenerateOption(auth.Identity{
+	cfg, err = c.GenerateKubeConfig(ctx, cli, cfg, buffer, auth.KubeConfigWithIdentityGenerateOption(auth.Identity{
 		User:   userName,
 		Groups: groups,
 	}))
