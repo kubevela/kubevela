@@ -83,7 +83,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		o.Yes = yes
 		userInput := NewUserInput()
 		if svcname == "" {
-			if !(force || yes) {
+			if !yes {
 				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
 				if !userConfirmation {
 					return fmt.Errorf("stopping Deleting")
@@ -94,7 +94,7 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 			}
 			ioStreams.Info(green.Sprintf("app \"%s\" deleted from namespace \"%s\"", o.AppName, o.Namespace))
 		} else {
-			if !(force || yes) {
+			if !yes {
 				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
 				if !userConfirmation {
 					return fmt.Errorf("stopping Deleting")
