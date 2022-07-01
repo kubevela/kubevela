@@ -18,12 +18,12 @@ package query
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -400,14 +400,6 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	return fillQueryResult(v, serviceEndpoints, "list")
 }
 
-var (
-	terminatedContainerNotFoundRegex = regexp.MustCompile("previous terminated container .+ in pod .+ not found")
-)
-
-func isTerminatedContainerNotFound(err error) bool {
-	return err != nil && terminatedContainerNotFoundRegex.MatchString(err.Error())
-}
-
 func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	cluster, err := v.GetString("cluster")
 	if err != nil {
@@ -432,27 +424,29 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 	cliCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create kubernetes clientset")
+		return errors.Wrapf(err, "failed to create kubernetes client")
 	}
+	var defaultOutputs = make(map[string]interface{})
+	var errMsg string
 	podInst, err := clientSet.CoreV1().Pods(namespace).Get(cliCtx, pod, v1.GetOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "failed to get pod")
+		errMsg = fmt.Sprintf("failed to get pod:%s", err.Error())
 	}
 	req := clientSet.CoreV1().Pods(namespace).GetLogs(pod, opts)
 	readCloser, err := req.Stream(cliCtx)
-	if err != nil && !isTerminatedContainerNotFound(err) {
-		return errors.Wrapf(err, "failed to get stream logs")
+	if err != nil {
+		errMsg = fmt.Sprintf("failed to get stream logs %s", err.Error())
 	}
-	r := bufio.NewReader(readCloser)
-	var b strings.Builder
-	var readErr error
-	if err == nil {
+	if readCloser != nil && podInst != nil {
+		r := bufio.NewReader(readCloser)
+		buffer := bytes.NewBuffer(nil)
+		var readErr error
 		defer func() {
 			_ = readCloser.Close()
 		}()
 		for {
 			s, err := r.ReadString('\n')
-			b.WriteString(s)
+			buffer.WriteString(s)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
 					readErr = err
@@ -460,30 +454,34 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 				break
 			}
 		}
-	} else {
-		readErr = err
+		toDate := v1.Now()
+		var fromDate v1.Time
+		// nolint
+		if opts.SinceTime != nil {
+			fromDate = *opts.SinceTime
+		} else if opts.SinceSeconds != nil {
+			fromDate = v1.NewTime(toDate.Add(time.Duration(-(*opts.SinceSeconds) * int64(time.Second))))
+		} else {
+			fromDate = podInst.CreationTimestamp
+		}
+		// the cue string can not support the special characters
+		logs := base64.StdEncoding.EncodeToString(buffer.Bytes())
+		defaultOutputs = map[string]interface{}{
+			"logs": logs,
+			"info": map[string]interface{}{
+				"fromDate": fromDate,
+				"toDate":   toDate,
+			},
+		}
+		if readErr != nil {
+			errMsg = readErr.Error()
+		}
 	}
-	toDate := v1.Now()
-	var fromDate v1.Time
-	// nolint
-	if opts.SinceTime != nil {
-		fromDate = *opts.SinceTime
-	} else if opts.SinceSeconds != nil {
-		fromDate = v1.NewTime(toDate.Add(time.Duration(-(*opts.SinceSeconds) * int64(time.Second))))
-	} else {
-		fromDate = podInst.CreationTimestamp
+	if errMsg != "" {
+		klog.Warningf(errMsg)
+		defaultOutputs["err"] = errMsg
 	}
-	o := map[string]interface{}{
-		"logs": b.String(),
-		"info": map[string]interface{}{
-			"fromDate": fromDate,
-			"toDate":   toDate,
-		},
-	}
-	if readErr != nil {
-		o["err"] = readErr.Error()
-	}
-	return v.FillObject(o, "outputs")
+	return v.FillObject(defaultOutputs, "outputs")
 }
 
 // Install register handlers to provider discover.
