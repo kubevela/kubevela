@@ -21,10 +21,23 @@ spec:
     spec:
       schematic:
         cue:
-          template: ""
-      status:
-        customStatus: ""
-        healthPolicy: ""
+          template: |
+            webservice: {
+            	alias: ""
+            	annotations: {}
+            	attributes: workload: definition: {
+            		apiVersion: "apps/v1"
+            		kind:       "Deployment"
+            	}
+            	description: "desc"
+            	labels: {}
+            	type: "component"
+            }
+
+            template: {
+            	output: {}
+            	parameter: {}
+            }
       workload:
         definition:
           apiVersion: apps/v1

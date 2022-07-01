@@ -347,6 +347,7 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 
 	})
 })
+
 var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 	var (
 		ctx context.Context
@@ -357,6 +358,10 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 		c = common.Args{}
 		c.SetClient(k8sClient)
 		ctx = context.Background()
+
+		By("create namespace")
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-custom-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		// Load test DefinitionRevisions files into client
 		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")

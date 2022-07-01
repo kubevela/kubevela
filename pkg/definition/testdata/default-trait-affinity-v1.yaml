@@ -48,7 +48,23 @@ spec:
       podDisruptive: true
       schematic:
         cue:
-          template: ""
+          template: |
+            affinity: {
+            	alias: ""
+            	annotations: {}
+            	attributes: workload: definition: {
+            		apiVersion: "apps/v1"
+            		kind:       "Deployment"
+            	}
+            	description: "desc"
+            	labels: {}
+            	type: "trait"
+            }
+
+            template: {
+            	output: {}
+            	parameter: {}
+            }
     status: {}
   workflowStepDefinition:
     metadata: {}
