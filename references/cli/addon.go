@@ -770,8 +770,9 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			case string:
 			case bool:
 			default:
-				js, _ := json.MarshalIndent(thisParam, "", "  ")
-				currentValue = strings.ReplaceAll(string(js), "\n", "\n\t         "+addedIndent)
+				if js, err := json.MarshalIndent(thisParam, "", "  "); err == nil {
+					currentValue = strings.ReplaceAll(string(js), "\n", "\n\t         "+addedIndent)
+				}
 			}
 		}
 
