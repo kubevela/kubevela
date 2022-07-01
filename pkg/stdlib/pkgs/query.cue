@@ -86,9 +86,9 @@
 		limitBytes:   *null | int
 	}
 	outputs?: {
-		logs: string
-		err?: string
-		info: {
+		logs?: string
+		err?:  string
+		info?: {
 			fromDate: string
 			toDate:   string
 		}
