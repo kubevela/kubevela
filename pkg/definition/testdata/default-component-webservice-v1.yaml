@@ -22,27 +22,22 @@ spec:
       schematic:
         cue:
           template: |
-            webservice: {
-            	alias: ""
-            	annotations: {}
-            	attributes: workload: definition: {
-            		apiVersion: "apps/v1"
-            		kind:       "Deployment"
+            output: parameter.objects[0]
+            outputs: {
+            	for i, v in parameter.objects {
+            		if i > 0 {
+            			"objects-\(i)": v
+            		}
             	}
-            	description: "desc"
-            	labels: {}
-            	type: "component"
             }
-
-            template: {
-            	output: {}
-            	parameter: {}
+            parameter: {
+            	objects: [...{}]
             }
       workload:
         definition:
-          apiVersion: apps/v1
-          kind: Deployment
-        type: deployments.apps
+          apiVersion: ""
+          kind: ""
+        type: autodetects.core.oam.dev
     status: {}
   definitionType: Component
   policyDefinition:

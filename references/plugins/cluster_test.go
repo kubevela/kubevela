@@ -388,12 +388,12 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 		Expect(err).ShouldNot(Succeed())
 	})
 
-	It("component type", func() {
+	FIt("component type", func() {
 		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-ns", "webservice", 0)
 		Expect(err).Should(Succeed())
 	})
 
-	It("trait type", func() {
+	FIt("trait type", func() {
 		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "affinity", 0)
 		Expect(err).Should(Succeed())
 	})
