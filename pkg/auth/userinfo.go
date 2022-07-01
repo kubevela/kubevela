@@ -47,6 +47,11 @@ func ContextWithUserInfo(ctx context.Context, app *v1beta1.Application) context.
 	return request.WithUser(ctx, GetUserInfoInAnnotation(&app.ObjectMeta))
 }
 
+// ContextClearUserInfo clear user info in context
+func ContextClearUserInfo(ctx context.Context) context.Context {
+	return request.WithUser(ctx, nil)
+}
+
 // SetUserInfoInAnnotation set username and group from userInfo into annotations
 // it will clear the existing service account annotation in avoid of permission leak
 func SetUserInfoInAnnotation(obj *metav1.ObjectMeta, userInfo authv1.UserInfo) {

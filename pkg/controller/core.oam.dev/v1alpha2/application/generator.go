@@ -226,7 +226,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
-		ctx = contextWithComponentRevisionNamespace(ctx, overrideNamespace)
+		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -259,7 +259,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
 
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
-		ctx = contextWithComponentRevisionNamespace(ctx, overrideNamespace)
+		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
@@ -327,7 +327,11 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
 	wl.Patch = patcher
-	manifest, err := af.GenerateComponentManifest(wl)
+	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *process.ContextData) {
+		if ns := componentNamespaceFromContext(ctx); ns != "" {
+			ctxData.Namespace = ns
+		}
+	})
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
 	}

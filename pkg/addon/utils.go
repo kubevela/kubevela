@@ -364,6 +364,23 @@ func generateChartMetadata(addonDirPath string) (*chart.Metadata, error) {
 		Home:       meta.URL,
 		Keywords:   meta.Tags,
 	}
-
+	annotation := generateAnnotation(meta)
+	if len(annotation) != 0 {
+		chartMeta.Annotations = annotation
+	}
 	return chartMeta, nil
+}
+
+// generateAnnotation generate addon annotation info for chart.yaml, will recorded in index.yaml in helm repo
+func generateAnnotation(meta *Meta) map[string]string {
+	res := map[string]string{}
+	if meta.SystemRequirements != nil {
+		if len(meta.SystemRequirements.VelaVersion) != 0 {
+			res[velaSystemRequirement] = meta.SystemRequirements.VelaVersion
+		}
+		if len(meta.SystemRequirements.KubernetesVersion) != 0 {
+			res[kubernetesSystemRequirement] = meta.SystemRequirements.KubernetesVersion
+		}
+	}
+	return res
 }

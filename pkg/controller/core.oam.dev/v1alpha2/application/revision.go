@@ -69,8 +69,8 @@ const (
 	ManifestKeyTraits = "Traits"
 	// ManifestKeyScopes is the key in Component Manifest for containing scope cr reference.
 	ManifestKeyScopes = "Scopes"
-	// ComponentRevisionNamespaceContextKey is the key in context that defines the override namespace of component revision
-	ComponentRevisionNamespaceContextKey = contextKey("component-revision-namespace")
+	// ComponentNamespaceContextKey is the key in context that defines the override namespace of component
+	ComponentNamespaceContextKey = contextKey("component-namespace")
 	// ComponentContextKey is the key in context that records the component
 	ComponentContextKey = contextKey("component")
 )
@@ -107,12 +107,17 @@ var (
 	DisableAllApplicationRevision = false
 )
 
-func contextWithComponentRevisionNamespace(ctx context.Context, ns string) context.Context {
-	return context.WithValue(ctx, ComponentRevisionNamespaceContextKey, ns)
+func contextWithComponentNamespace(ctx context.Context, ns string) context.Context {
+	return context.WithValue(ctx, ComponentNamespaceContextKey, ns)
+}
+
+func componentNamespaceFromContext(ctx context.Context) string {
+	ns, _ := ctx.Value(ComponentNamespaceContextKey).(string)
+	return ns
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
-	if ns, ok := ctx.Value(ComponentRevisionNamespaceContextKey).(string); ok && ns != "" {
+	if ns, ok := ctx.Value(ComponentNamespaceContextKey).(string); ok && ns != "" {
 		return ns
 	}
 	return h.app.Namespace

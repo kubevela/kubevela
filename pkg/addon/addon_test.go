@@ -1244,3 +1244,19 @@ func TestPackageAddon(t *testing.T) {
 	assert.Equal(t, "", archiver)
 
 }
+
+func TestGenerateAnnotation(t *testing.T) {
+	meta := Meta{SystemRequirements: &SystemRequirements{
+		VelaVersion:       ">1.4.0",
+		KubernetesVersion: ">1.20.0",
+	}}
+	res := generateAnnotation(&meta)
+	assert.Equal(t, res[velaSystemRequirement], ">1.4.0")
+	assert.Equal(t, res[kubernetesSystemRequirement], ">1.20.0")
+
+	meta = Meta{}
+	meta.SystemRequirements = &SystemRequirements{KubernetesVersion: ">=1.20.1"}
+	res = generateAnnotation(&meta)
+	assert.Equal(t, res[velaSystemRequirement], "")
+	assert.Equal(t, res[kubernetesSystemRequirement], ">=1.20.1")
+}

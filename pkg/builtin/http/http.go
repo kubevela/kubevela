@@ -51,7 +51,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	var (
 		r      io.Reader
 		client = &http.Client{
-			Transport: &http.Transport{},
+			Transport: http.DefaultTransport,
 			Timeout:   time.Second * 3,
 		}
 	)
