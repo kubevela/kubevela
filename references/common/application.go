@@ -91,7 +91,6 @@ type DeleteOptions struct {
 
 	Wait        bool
 	ForceDelete bool
-	Yes         bool
 }
 
 // DeleteApp will delete app including server side
