@@ -62,40 +62,51 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		AppMeta: appMeta,
 	}
 
-	// 1. convert the target
-
-	existTarget := &model.Target{Project: project}
+	// 2. convert the target
+	existTarget := &model.Target{}
 	existTargets, err := c.ds.List(ctx, existTarget, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fail to list the targets, %w", err)
 	}
-	var envTargetNames []string
+	var envTargetNames map[string]string
 	dsApp.Targets, envTargetNames = convert.FromCRTargets(ctx, c.cli, targetApp, existTargets, project)
 
-	// 2. convert the environment
-	existEnv := &model.Env{Namespace: targetApp.Namespace, Project: project}
+	// 3. convert the environment
+	existEnv := &model.Env{Namespace: targetApp.Namespace}
 	existEnvs, err := c.ds.List(ctx, existEnv, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fail to list the env, %w", err)
 	}
 	if len(existEnvs) > 0 {
 		env := existEnvs[0].(*model.Env)
-		for _, name := range envTargetNames {
-			if !utils.StringsContain(env.Targets, name) {
+		dsApp.AppMeta.Project = env.Project
+		for name, project := range envTargetNames {
+			if !utils.StringsContain(env.Targets, name) && project == env.Project {
 				env.Targets = append(env.Targets, name)
 			}
 		}
 		dsApp.Env = env
 	}
 	if dsApp.Env == nil {
+		var newProject string
+		var targetNames []string
+		for name, project := range envTargetNames {
+			if newProject == "" {
+				newProject = project
+			}
+			if newProject == project {
+				targetNames = append(targetNames, name)
+			}
+		}
 		dsApp.Env = &model.Env{
 			Name:        model.AutoGenEnvNamePrefix + targetApp.Namespace,
 			Namespace:   targetApp.Namespace,
 			Description: model.AutoGenDesc,
-			Project:     project,
+			Project:     newProject,
 			Alias:       model.AutoGenEnvNamePrefix + targetApp.Namespace,
-			Targets:     envTargetNames,
+			Targets:     targetNames,
 		}
+		dsApp.AppMeta.Project = newProject
 	}
 	dsApp.Eb = &model.EnvBinding{
 		AppPrimaryKey: appMeta.PrimaryKey(),
@@ -103,7 +114,11 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		AppDeployName: appMeta.GetAppNameForSynced(),
 	}
 
-	// 3. convert component and trait
+	for i := range dsApp.Targets {
+		dsApp.Targets[i].Project = dsApp.AppMeta.Project
+	}
+
+	// 4. convert component and trait
 	for _, cmp := range targetApp.Spec.Components {
 		compModel, err := convert.FromCRComponent(appMeta.PrimaryKey(), cmp)
 		if err != nil {
@@ -112,7 +127,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		dsApp.Comps = append(dsApp.Comps, &compModel)
 	}
 
-	// 4. convert workflow
+	// 5. convert workflow
 	wf, steps, err := convert.FromCRWorkflow(ctx, cli, appMeta.PrimaryKey(), targetApp)
 	if err != nil {
 		return nil, err
@@ -120,7 +135,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	wf.EnvName = dsApp.Env.Name
 	dsApp.Workflow = &wf
 
-	// 5. convert policy, some policies are references in workflow step, we need to sync all the outside policy to make that work
+	// 6. convert policy, some policies are references in workflow step, we need to sync all the outside policy to make that work
 	var innerPlc = make(map[string]struct{})
 	for _, plc := range targetApp.Spec.Policies {
 		innerPlc[plc.Name] = struct{}{}

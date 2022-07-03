@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: example-exist-env
+spec:
+  components:
+    - name: example-exist-env
+      type: webservice
+      properties:
+        image: wordpress
+      traits:
+        - type: gateway
+          properties:
+            domain: testsvc.example.com
+            http:
+              "/": 8000

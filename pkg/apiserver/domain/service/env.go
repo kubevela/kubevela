@@ -273,9 +273,11 @@ func (p *envServiceImpl) CreateEnv(ctx context.Context, req apisv1.CreateEnvRequ
 		Targets:     req.Targets,
 	}
 
-	pass, err := p.checkEnvTarget(ctx, req.Project, req.Name, req.Targets)
-	if err != nil || !pass {
-		return nil, bcode.ErrEnvTargetConflict
+	if !req.AllowTargetConflict {
+		pass, err := p.checkEnvTarget(ctx, req.Project, req.Name, req.Targets)
+		if err != nil || !pass {
+			return nil, bcode.ErrEnvTargetConflict
+		}
 	}
 
 	targets, err := repository.ListTarget(ctx, p.Store, "", nil)
@@ -312,7 +314,7 @@ func (p *envServiceImpl) checkEnvTarget(ctx context.Context, project string, env
 	if len(targets) == 0 {
 		return true, nil
 	}
-	entitys, err := p.Store.List(ctx, &model.Env{Project: project}, &datastore.ListOptions{})
+	entities, err := p.Store.List(ctx, &model.Env{Project: project}, &datastore.ListOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -320,7 +322,7 @@ func (p *envServiceImpl) checkEnvTarget(ctx context.Context, project string, env
 	for _, new := range targets {
 		newMap[new] = true
 	}
-	for _, entity := range entitys {
+	for _, entity := range entities {
 		env := entity.(*model.Env)
 		for _, existTarget := range env.Targets {
 			if ok := newMap[existTarget]; ok && env.Name != envName {

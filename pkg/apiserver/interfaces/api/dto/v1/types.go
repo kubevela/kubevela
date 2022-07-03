@@ -794,6 +794,9 @@ type CreateEnvRequest struct {
 	// Targets defines the name of delivery target that belongs to this env
 	// In one project, a delivery target can only belong to one env.
 	Targets []string `json:"targets,omitempty"  optional:"true"`
+
+	// AllowTargetConflict means allow binding the targets that belong to other envs
+	AllowTargetConflict bool `json:"allowTargetConflict,omitempty"  optional:"true"`
 }
 
 // UpdateEnvRequest defines the data of Env for update

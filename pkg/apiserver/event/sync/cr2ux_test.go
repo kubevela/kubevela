@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -148,6 +149,68 @@ var _ = Describe("Test CR convert to ux", func() {
 		appwf2 := &model.Workflow{AppPrimaryKey: apName1, Name: appwf1.Name}
 		Expect(ds.Get(ctx, appwf2)).Should(BeNil())
 		Expect(len(appwf2.Steps)).Should(BeEquivalentTo(0))
+	})
+
+	It("Test exist env", func() {
+		dbNamespace := "update-app-db-ns1-test"
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: dbNamespace})
+		Expect(err).Should(BeNil())
+
+		cr2ux := newCR2UX(ds)
+
+		projectName := "project-e"
+
+		_, err = cr2ux.projectService.CreateProject(context.TODO(), v1.CreateProjectRequest{
+			Name:  projectName,
+			Owner: "admin",
+		})
+		Expect(err).Should(BeNil())
+
+		_, err = cr2ux.targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{
+			Name:    "target-test",
+			Project: projectName,
+			Cluster: &v1.ClusterTarget{
+				ClusterName: "local",
+				Namespace:   "target-test",
+			},
+		})
+		Expect(err).Should(BeNil())
+		_, err = cr2ux.envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{
+			Name:      "env-test",
+			Project:   projectName,
+			Namespace: "env-test",
+			Targets:   []string{"target-test"},
+		})
+		Expect(err).Should(BeNil())
+
+		app4 := &v1beta1.Application{}
+		Expect(common2.ReadYamlToObject("testdata/test-app4.yaml", app4)).Should(BeNil())
+		app4.Namespace = "target-test"
+		Expect(cr2ux.AddOrUpdate(context.Background(), app4)).Should(BeNil())
+
+		count, err := cr2ux.envService.ListEnvCount(context.TODO(), v1.ListEnvOptions{Project: projectName})
+		Expect(err).Should(BeNil())
+		Expect(count).Should(Equal(int64(2)))
+
+		resultApp := &model.Application{Name: app4.Name, Project: "project-e"}
+		err = ds.Get(context.TODO(), resultApp)
+		Expect(err).Should(BeNil())
+		Expect(resultApp.Labels[model.LabelSyncNamespace]).Should(Equal("target-test"))
+
+		app5 := &v1beta1.Application{}
+		Expect(common2.ReadYamlToObject("testdata/test-app4.yaml", app5)).Should(BeNil())
+		app5.Namespace = "env-test"
+		Expect(cr2ux.AddOrUpdate(context.Background(), app5)).Should(BeNil())
+
+		resultApp = &model.Application{Name: formatAppComposedName(app5.Name, app5.Namespace), Project: "project-e"}
+		err = ds.Get(context.TODO(), resultApp)
+		Expect(err).Should(BeNil())
+		Expect(resultApp.Labels[model.LabelSyncNamespace]).Should(Equal("env-test"))
+
+		// should not create new env
+		count, err = cr2ux.envService.ListEnvCount(context.TODO(), v1.ListEnvOptions{Project: projectName})
+		Expect(err).Should(BeNil())
+		Expect(count).Should(Equal(int64(2)))
 	})
 
 })
