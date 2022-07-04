@@ -90,7 +90,6 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
@@ -128,7 +127,6 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
 
@@ -140,7 +138,6 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
 
@@ -152,7 +149,6 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		}, 10*time.Second).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
-			g.Expect(app.Status.ObservedGeneration).Should(Equal(app.Generation))
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		}, 30*time.Second).Should(Succeed())
 

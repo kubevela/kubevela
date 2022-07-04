@@ -560,10 +560,6 @@ spec:
                 - name
                 - revision
                 type: object
-              observedGeneration:
-                description: The generation observed by the application controller.
-                format: int64
-                type: integer
               policy:
                 description: PolicyStatus records the status of policy
                 items:
@@ -1309,10 +1305,6 @@ spec:
                 - name
                 - revision
                 type: object
-              observedGeneration:
-                description: The generation observed by the application controller.
-                format: int64
-                type: integer
               policy:
                 description: PolicyStatus records the status of policy
                 items:

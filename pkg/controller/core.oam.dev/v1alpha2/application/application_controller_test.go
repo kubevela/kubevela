@@ -911,13 +911,11 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(BeZero())
 
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		appRevision := &v1beta1.ApplicationRevision{}
@@ -990,7 +988,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Check App updated successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		Expect(k8sClient.Get(ctx, client.ObjectKey{

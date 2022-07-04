@@ -301,10 +301,6 @@ type AppStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	condition.ConditionedStatus `json:",inline"`
 
-	// The generation observed by the application controller.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
 	Phase ApplicationPhase `json:"status,omitempty"`
 
 	// Components record the related Components created by Application Controller

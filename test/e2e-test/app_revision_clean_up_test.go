@@ -102,7 +102,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			Eventually(func() error {
 				checkApp = new(v1beta1.Application)
 				Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-				if checkApp.Status.ObservedGeneration == checkApp.Generation && checkApp.Status.Phase == common.ApplicationRunning {
+				if checkApp.Status.Phase == common.ApplicationRunning {
 					return nil
 				}
 				return fmt.Errorf("application is not observed or status %s is not running", checkApp.Status.Phase)

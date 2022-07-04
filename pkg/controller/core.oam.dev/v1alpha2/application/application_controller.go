@@ -405,7 +405,6 @@ func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.
 
 func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
-	updateObservedGeneration(app)
 	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
 		// set to -1 to re-run workflow if status is failed to patch
 		workflow.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
@@ -416,7 +415,6 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 
 func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	app.Status.Phase = phase
-	updateObservedGeneration(app)
 
 	if !r.disableStatusUpdate {
 		return r.Status().Update(ctx, app)
@@ -553,12 +551,6 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
-}
-
-func updateObservedGeneration(app *v1beta1.Application) {
-	if app.Status.ObservedGeneration != app.Generation {
-		app.Status.ObservedGeneration = app.Generation
-	}
 }
 
 // filterManagedFieldChangesUpdate filter resourceTracker update event by ignoring managedFields changes

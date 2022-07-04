@@ -385,7 +385,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("error to create application %v", err)
 			}
-			if app.Status.Phase != common.ApplicationRunning || app.Status.ObservedGeneration != app.Generation {
+			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
 			depolys := new(appsv1.DeploymentList)
@@ -499,7 +499,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
 				return fmt.Errorf("error to get application %v", err)
 			}
-			if app.Status.Phase != common.ApplicationRunning || app.Status.ObservedGeneration != app.Generation {
+			if app.Status.Phase != common.ApplicationRunning {
 				return fmt.Errorf("application status not running")
 			}
 			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name, 1), resourceTracker)
