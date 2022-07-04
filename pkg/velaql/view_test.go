@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +32,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("Test VelaQL View", func() {
