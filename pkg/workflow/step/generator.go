@@ -164,7 +164,7 @@ func (g *DeployWorkflowStepGenerator) Generate(app *v1beta1.Application, existin
 				break
 			}
 		}
-		if containsRefObjects {
+		if containsRefObjects || len(overrides) > 0 {
 			steps = append(steps, v1beta1.WorkflowStep{
 				Name:       "deploy",
 				Type:       "deploy",
