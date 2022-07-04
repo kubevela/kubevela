@@ -55,11 +55,11 @@
 }
 template: {
 	#K8sObject: {
-		resource?: string
-		group?: string
-		name?: string
+		resource?:  string
+		group?:     string
+		name?:      string
 		namespace?: string
-		cluster?: string
+		cluster?:   string
 		labelSelector?: [string]: string
 		...
 	}
