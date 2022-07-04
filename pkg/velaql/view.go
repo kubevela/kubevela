@@ -23,12 +23,17 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -40,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+	common2 "github.com/oam-dev/kubevela/references/common"
 )
 
 const (
@@ -129,6 +135,96 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner 
 
 func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
+}
+
+// ValidateView makes sure the cue provided can use as view.
+//
+// For now, we only check 1. cue is valid 2. `status` field exists
+func ValidateView(viewStr string) error {
+	val, err := value.NewValue(viewStr, nil, "")
+	if err != nil {
+		return errors.Errorf("error when parsing view: %v", err)
+	}
+
+	// Make sure `status` field exists
+	v, err := val.LookupValue(DefaultExportValue)
+	if err != nil {
+		return errors.Errorf("no `status` field found in view: %v", err)
+	}
+	if _, err := v.String(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ParseViewIntoConfigMap parses a CUE string (representing a view) into a ConfigMap
+// ready to be stored into etcd.
+func ParseViewIntoConfigMap(viewStr, name string) (*v1.ConfigMap, error) {
+	err := ValidateView(viewStr)
+	if err != nil {
+		return nil, err
+	}
+
+	cm := &v1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: types.DefaultKubeVelaNS,
+			// TODO(charlie0129): add a label to ConfigMap to identify itself as a view
+			// It is useful when searching for views through all other ConfigMaps (when listing views).
+		},
+		Data: map[string]string{
+			types.VelaQLConfigmapKey: viewStr,
+		},
+	}
+
+	return cm, nil
+}
+
+// StoreViewFromFile reads a view from the specified CUE file, and stores into a ConfigMap in vela-system namespace.
+// So the user can use the view in VelaQL later.
+//
+// By saying file, it can actually be a file, URL, or stdin (-).
+func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName string) error {
+	content, err := common2.ReadRemoteOrLocalPath(path)
+	if err != nil {
+		return errors.Errorf("cannot load cue file: %v", err)
+	}
+
+	cm, err := ParseViewIntoConfigMap(string(content), viewName)
+	if err != nil {
+		return err
+	}
+
+	// Create or Update ConfigMap
+	oldCm := cm.DeepCopy()
+	err = c.Get(ctx, types2.NamespacedName{
+		Namespace: oldCm.GetNamespace(),
+		Name:      oldCm.GetName(),
+	}, oldCm)
+
+	if err != nil {
+		// No previous ConfigMap found, create one.
+		if errors2.IsNotFound(err) {
+			err = c.Create(ctx, cm)
+			if err != nil {
+				return errors.Errorf("cannot create ConfigMap %s: %v", viewName, err)
+			}
+			return nil
+		}
+		return err
+	}
+
+	// Previous ConfigMap found, update it.
+	if err = c.Update(ctx, cm); err != nil {
+		return errors.Errorf("cannot update ConfigMap %s: %v", viewName, err)
+	}
+
+	return nil
 }
 
 // QueryParameterKey query parameter key

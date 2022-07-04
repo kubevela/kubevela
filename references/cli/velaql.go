@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	common2 "github.com/oam-dev/kubevela/references/common"
 )
 
 // Filter filter options
@@ -50,12 +52,13 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 		Short: "Show result of executing velaQL.",
 		Long: `Show result of executing velaQL, use it like:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
-		vela ql --file ./ql.cue
-`,
+		vela ql --file ./ql.cue`,
 		Example: `Users can query with a query statement:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
+
 They can also query by a ql file:
 		vela ql --file ./ql.cue
+		cat ./ql.cue | vela ql --file -
 
 Example content of ql.cue:
 ---
@@ -78,7 +81,7 @@ export: "status"
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cueFile == "" && querySts == "" && len(args) == 0 {
-				return fmt.Errorf("please specify at least on VelaQL statement or velaql file path")
+				return fmt.Errorf("please specify at least one VelaQL statement or VelaQL file path")
 			}
 			newClient, err := c.GetClient()
 			if err != nil {
@@ -102,6 +105,91 @@ export: "status"
 	cmd.Flags().StringVarP(&cueFile, "file", "f", "", "The CUE file path for VelaQL, it could be a remote url.")
 	cmd.Flags().StringVarP(&querySts, "query", "q", "", "The query statement for VelaQL.")
 	cmd.SetOut(ioStreams.Out)
+
+	// Add subcommands like `create`, to `vela ql`
+	cmd.AddCommand(NewQLCreateCommand(c))
+	// TODO(charlie0129): add `vela ql delete` command to delete created views (ConfigMaps)
+	// TODO(charlie0129): add `vela ql list` command to list user-created views (and views installed from addons, if that's feasible)
+
+	return cmd
+}
+
+// NewQLCreateCommand creates a VelaQL view
+func NewQLCreateCommand(c common.Args) *cobra.Command {
+	var (
+		viewFile string
+	)
+	cmd := &cobra.Command{
+		Use:   "create [view-name]",
+		Short: "Create and store a VelaQL view",
+		Long: `Create and store a VelaQL view to reuse it later.
+
+You can specify your view file from:
+	- a file (-f my-view.cue)
+	- a URL (-f https://example.com/view.cue)
+	- stdin (-f -)
+
+View name can be automatically inferred from file/URL.
+If we cannot infer a name from it, you must explicitly specify the view name (see examples).
+
+If a view with the same name already exists, it will be updated.`,
+		Example: `Assume your VelaQL view is stored in <my-view.cue>.
+
+View name will be implicitly inferred from file name or URL (my-view):
+	vela ql create -f my-view.cue
+
+You can also explicitly specify view name (custom-name):
+	vela ql create custom-name -f my-view.cue
+
+If view name cannot be inferred, or you are reading from stdin (-f -), you must explicitly specify view name:
+	cat my-view.cue | vela ql create custom-name -f -`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var viewName string
+
+			if viewFile == "" {
+				return fmt.Errorf("no cue file provided")
+			}
+
+			// If a view name is provided by the user,
+			// we will use it instead of inferring from file name.
+			if len(args) == 1 {
+				viewName = args[0]
+			} else if viewFile != "-" {
+				// If the user doesn't provide a name, but a file/URL is provided,
+				// try to get the file name of .cue file/URL provided.
+				n, err := common2.GetFilenameFromLocalOrRemote(viewFile)
+				if err != nil {
+					return fmt.Errorf("cannot get filename from %s: %w", viewFile, err)
+				}
+				viewName = n
+			}
+
+			// In case we can't infer a view name from file/URL,
+			// and the user didn't provide a view name,
+			// we can't continue.
+			if viewName == "" {
+				return fmt.Errorf("no view name provided or cannot inferr view name from file")
+			}
+
+			// Just do some name checks, following a typical convention.
+			// In case the inferred/user-provided name have some problems.
+			re := regexp.MustCompile(`^[a-z\d]+(-[a-z\d]+)*$`)
+			if !re.MatchString(viewName) {
+				return fmt.Errorf("view name should only cocntain lowercase letters, dashes, and numbers, but received: %s", viewName)
+			}
+
+			k8sClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+
+			return velaql.StoreViewFromFile(context.Background(), k8sClient, viewFile, viewName)
+		},
+	}
+
+	flag := cmd.Flags()
+	flag.StringVarP(&viewFile, "file", "f", "", "CUE file that stores the view, can be local path, URL, or stdin (-)")
+
 	return cmd
 }
 

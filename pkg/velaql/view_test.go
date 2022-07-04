@@ -19,10 +19,19 @@ package velaql
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"testing"
+	"time"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -96,3 +105,117 @@ func Map2URLParameter(parameter map[string]string) string {
 	}
 	return res
 }
+
+func TestParseViewIntoConfigMap(t *testing.T) {
+	cases := []struct {
+		cueStr  string
+		succeed bool
+	}{
+		{
+			cueStr:  `{`,
+			succeed: false,
+		},
+		{
+			cueStr:  `{}`,
+			succeed: false,
+		},
+		{
+			cueStr: `{}
+status: something`,
+			succeed: false,
+		},
+		{
+			cueStr: `something: {}
+status: something`,
+			succeed: true,
+		},
+	}
+	for _, c := range cases {
+		cm, err := ParseViewIntoConfigMap(c.cueStr, "name")
+		assert.Equal(t, c.succeed, err == nil, err)
+		if err == nil {
+			assert.Equal(t, c.cueStr, cm.Data["template"])
+		}
+	}
+}
+
+func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: types.DefaultKubeVelaNS,
+		},
+	}
+
+	err := k8sClient.Get(context.TODO(), types2.NamespacedName{
+		Namespace: cm.GetNamespace(),
+		Name:      cm.GetName(),
+	}, cm)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cm, nil
+}
+
+var _ = Describe("test StoreViewFromFile", func() {
+	Describe("normal creation", func() {
+		It("from local file", func() {
+			cueStr := "something: {}\nstatus: something"
+			filename := "norm-create.cue"
+			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			Expect(err).Should(Succeed())
+			defer os.RemoveAll(filename)
+			viewName := "test-view-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+			err = StoreViewFromFile(context.TODO(), k8sClient, filename, viewName)
+			Expect(err).Should(Succeed())
+			// We should be able to get it.
+			_, err = getViewConfigMap(viewName)
+			Expect(err).Should(Succeed())
+		})
+
+		It("update a previously updated view", func() {
+			cueStr := "something: {}\nstatus: something"
+			filename := "norm-create.cue"
+			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			Expect(err).Should(Succeed())
+			defer os.RemoveAll(filename)
+			viewName := "test-view-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+			err = StoreViewFromFile(context.TODO(), k8sClient, filename, viewName)
+			Expect(err).Should(Succeed())
+			// Update it
+			newCueStr := "something: {a: \"123\"}\nstatus: something"
+			err = ioutil.WriteFile(filename, []byte(newCueStr), 0600)
+			Expect(err).Should(Succeed())
+			err = StoreViewFromFile(context.TODO(), k8sClient, filename, viewName)
+			Expect(err).Should(Succeed())
+			// It should be updates
+			cm, err := getViewConfigMap(viewName)
+			Expect(err).Should(Succeed())
+			Expect(cm.Data["template"]).Should(Equal(newCueStr))
+		})
+	})
+
+	Describe("failed creation", func() {
+		It("from local file", func() {
+			filename := "failed-create-non-existent.cue"
+			err := StoreViewFromFile(context.TODO(), k8sClient, filename, "1234")
+			Expect(err).ShouldNot(Succeed())
+		})
+
+		It("invalid cue", func() {
+			cueStr := "status: what-is-this"
+			filename := "failed-create-invalid.cue"
+			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			Expect(err).Should(Succeed())
+			defer os.RemoveAll(filename)
+			err = StoreViewFromFile(context.TODO(), k8sClient, filename, "5678")
+			Expect(err).ShouldNot(Succeed())
+		})
+	})
+})
