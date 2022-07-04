@@ -55,12 +55,12 @@
 }
 template: {
 	#K8sObject: {
-		apiVersion: string
-		kind:       string
-		metadata: {
-			name: string
-			...
-		}
+		resource?: string
+		group?: string
+		name?: string
+		namespace?: string
+		cluster?: string
+		labelSelector?: [string]: string
 		...
 	}
 
