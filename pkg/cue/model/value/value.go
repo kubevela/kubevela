@@ -426,12 +426,7 @@ func (val *Value) StepByFields(handle func(name string, in *Value) (bool, error)
 		if stop {
 			return nil
 		}
-
-		if end {
-			break
-		}
 	}
-	return nil
 }
 
 func (val *Value) fieldIndex(index int) (*field, bool, error) {
