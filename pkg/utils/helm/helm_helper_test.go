@@ -129,18 +129,28 @@ var _ = Describe("Test helm associated func", func() {
 		aSec = v1.Secret{}
 		Expect(yaml.Unmarshal([]byte(authSecret), &aSec)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &aSec)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
+
+		bSec := v1.Secret{}
+		Expect(yaml.Unmarshal([]byte(caFileSecret), &bSec)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &bSec)).Should(SatisfyAny(BeNil(), util2.AlreadyExistMatcher{}))
 	})
 
 	It("Test auth info secret func", func() {
-		opts, err := SetBasicAuthInfo(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret"})
+		opts, err := SetHTTPOption(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret"})
 		Expect(err).Should(BeNil())
 		Expect(opts.Username).Should(BeEquivalentTo("admin"))
 		Expect(opts.Password).Should(BeEquivalentTo("admin"))
 	})
 
 	It("Test auth info secret func", func() {
-		_, err := SetBasicAuthInfo(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret-1"})
+		_, err := SetHTTPOption(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "auth-secret-1"})
 		Expect(err).ShouldNot(BeNil())
+	})
+
+	It("Test ac secret func", func() {
+		opts, err := SetHTTPOption(context.Background(), k8sClient, types.NamespacedName{Namespace: types2.DefaultKubeVelaNS, Name: "ca-secret"})
+		Expect(err).Should(BeNil())
+		Expect(opts.CaFile).Should(BeEquivalentTo("testfile"))
 	})
 })
 
@@ -158,6 +168,20 @@ stringData:
   url: https://kedacore.github.io/charts
   username: admin
   password: admin
+type: Opaque
+`
+	caFileSecret = `
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ca-secret
+  namespace: vela-system
+  labels:
+    config.oam.dev/type: config-helm-repository
+    config.oam.dev/project: my-project-1
+stringData:
+  url: https://kedacore.github.io/charts
+  caFile: testfile
 type: Opaque
 `
 )

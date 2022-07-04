@@ -65,7 +65,7 @@ func (d defaultHelmImpl) ListChartNames(ctx context.Context, repoURL string, sec
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
-		opts, err = helm.SetBasicAuthInfo(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		opts, err = helm.SetHTTPOption(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
 			return nil, bcode.ErrRepoBasicAuth
 		}
@@ -85,7 +85,7 @@ func (d defaultHelmImpl) ListChartVersions(ctx context.Context, repoURL string, 
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
-		opts, err = helm.SetBasicAuthInfo(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		opts, err = helm.SetHTTPOption(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
 			return nil, bcode.ErrRepoBasicAuth
 		}
@@ -109,7 +109,7 @@ func (d defaultHelmImpl) GetChartValues(ctx context.Context, repoURL string, cha
 	var opts *common.HTTPOption
 	var err error
 	if len(secretName) != 0 {
-		opts, err = helm.SetBasicAuthInfo(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
+		opts, err = helm.SetHTTPOption(ctx, d.K8sClient, types2.NamespacedName{Namespace: types.DefaultKubeVelaNS, Name: secretName})
 		if err != nil {
 			return nil, bcode.ErrRepoBasicAuth
 		}
