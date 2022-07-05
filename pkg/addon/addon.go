@@ -57,6 +57,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/pkg/velaql"
+
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -1001,12 +1003,11 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 }
 
 func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
-	cm := v1.ConfigMap{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: strings.Split(elem.Name, ".")[0]},
-		Data: map[string]string{
-			types.VelaQLConfigmapKey: elem.Data,
-		}}
+	cm, err := velaql.ParseViewIntoConfigMap(elem.Data, elem.Name)
+	if err != nil {
+		return nil, err
+	}
+
 	return util.Object2Unstructured(cm)
 }
 
