@@ -48,6 +48,8 @@ const (
 	userNameSecKey     = "username"
 	userPasswordSecKey = "password"
 	caFileSecKey       = "caFile"
+	keyFileKey         = "keyFile"
+	certFileKey        = "certFile"
 )
 
 var (
@@ -293,6 +295,12 @@ func SetHTTPOption(ctx context.Context, k8sClient client.Client, secretRef types
 	}
 	if len(sec.Data[caFileSecKey]) != 0 {
 		opts.CaFile = string(sec.Data[caFileSecKey])
+	}
+	if len(sec.Data[certFileKey]) != 0 {
+		opts.CertFile = string(sec.Data[certFileKey])
+	}
+	if len(sec.Data[keyFileKey]) != 0 {
+		opts.KeyFile = string(sec.Data[keyFileKey])
 	}
 	return opts, nil
 }
