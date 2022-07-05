@@ -63,6 +63,12 @@ const (
 
 	// StatusCompleted means the environment is ready.
 	StatusCompleted = "Completed"
+
+	// CAFilePathInCluster the CA file path when the server running in cluster.
+	CAFilePathInCluster = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+	// ServerAddressInCluster the kubernetes server address in cluster.
+	ServerAddressInCluster = "https://kubernetes.default:443"
 )
 
 // CloudShellService provide the cloud shell feature
@@ -226,7 +232,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		return err
 	}
 	if len(cfg.Clusters) == 0 {
-		caFromServiceAccount, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+		caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
 		if err != nil {
 			log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
 			return err
@@ -234,12 +240,12 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		cfg.Clusters = map[string]*api.Cluster{
 			"local": {
 				CertificateAuthorityData: caFromServiceAccount,
-				Server:                   "https://kubernetes.default:443",
+				Server:                   ServerAddressInCluster,
 			},
 		}
 	}
 	for k := range cfg.Clusters {
-		cfg.Clusters[k].Server = "https://kubernetes.default:443"
+		cfg.Clusters[k].Server = ServerAddressInCluster
 	}
 	buffer := bytes.NewBuffer(nil)
 	cfg, err = c.GenerateKubeConfig(ctx, cli, cfg, buffer, auth.KubeConfigWithIdentityGenerateOption(auth.Identity{
@@ -317,6 +323,8 @@ func (c *cloudShellServiceImpl) newCloudShell(ctx context.Context) (*v1alpha1.Cl
 	once, _ := strconv.ParseBool(os.Getenv("CLOUDSHELL_ONCE"))
 	cs.Spec.Once = once
 	cs.Spec.Cleanup = true
+	// A cloudshell instance can live for a maximum of 60 minutes.
+	cs.Spec.Ttl = 60 * 60
 	cs.Spec.CommandAction = DefaultCloudShellCommand
 	cs.Spec.ExposeMode = v1alpha1.ExposureServiceClusterIP
 	cs.Spec.PathPrefix = DefaultCloudShellPathPrefix
@@ -325,10 +333,10 @@ func (c *cloudShellServiceImpl) newCloudShell(ctx context.Context) (*v1alpha1.Cl
 
 func checkReadOnly(projectName string, permissions []*model.Permission) bool {
 	ra := &RequestResourceAction{}
-	ra.SetResourceWithName("project:{projectName}/application", func(name string) string {
+	ra.SetResourceWithName("project:{projectName}/application:*", func(name string) string {
 		return projectName
 	})
-	ra.SetActions([]string{"create"})
+	ra.SetActions([]string{"deploy"})
 	return !ra.Match(permissions)
 }
 
