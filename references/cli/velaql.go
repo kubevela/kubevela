@@ -43,6 +43,11 @@ type Filter struct {
 	ClusterNamespace string
 }
 
+const (
+	// ViewNamingRegex is a regex for names of view, essentially allowing something like `some-name-123`
+	ViewNamingRegex = `^[a-z\d]+(-[a-z\d]+)*$`
+)
+
 // NewQlCommand creates `ql` command for executing velaQL
 func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
 	var cueFile, querySts string
@@ -107,20 +112,20 @@ export: "status"
 	cmd.SetOut(ioStreams.Out)
 
 	// Add subcommands like `create`, to `vela ql`
-	cmd.AddCommand(NewQLCreateCommand(c))
+	cmd.AddCommand(NewQLApplyCommand(c))
 	// TODO(charlie0129): add `vela ql delete` command to delete created views (ConfigMaps)
 	// TODO(charlie0129): add `vela ql list` command to list user-created views (and views installed from addons, if that's feasible)
 
 	return cmd
 }
 
-// NewQLCreateCommand creates a VelaQL view
-func NewQLCreateCommand(c common.Args) *cobra.Command {
+// NewQLApplyCommand creates a VelaQL view
+func NewQLApplyCommand(c common.Args) *cobra.Command {
 	var (
 		viewFile string
 	)
 	cmd := &cobra.Command{
-		Use:   "create [view-name]",
+		Use:   "apply [view-name]",
 		Short: "Create and store a VelaQL view",
 		Long: `Create and store a VelaQL view to reuse it later.
 
@@ -173,7 +178,7 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 
 			// Just do some name checks, following a typical convention.
 			// In case the inferred/user-provided name have some problems.
-			re := regexp.MustCompile(`^[a-z\d]+(-[a-z\d]+)*$`)
+			re := regexp.MustCompile(ViewNamingRegex)
 			if !re.MatchString(viewName) {
 				return fmt.Errorf("view name should only cocntain lowercase letters, dashes, and numbers, but received: %s", viewName)
 			}

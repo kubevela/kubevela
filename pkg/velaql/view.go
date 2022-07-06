@@ -146,13 +146,20 @@ func ValidateView(viewStr string) error {
 		return errors.Errorf("error when parsing view: %v", err)
 	}
 
-	// Make sure `status` field exists
-	v, err := val.LookupValue(DefaultExportValue)
-	if err != nil {
-		return errors.Errorf("no `status` field found in view: %v", err)
+	// Make sure `status` or `export` field exists
+	vStatus, errStatus := val.LookupValue(DefaultExportValue)
+	vExport, errExport := val.LookupValue(KeyWordExport)
+	if errStatus != nil && errExport != nil {
+		return errors.Errorf("no `status` or `export` field found in view: %v, %v", errStatus, errExport)
 	}
-	if _, err := v.String(); err != nil {
-		return err
+	if errStatus == nil {
+		_, errStatus = vStatus.String()
+	}
+	if errExport == nil {
+		_, errExport = vExport.String()
+	}
+	if errStatus != nil && errExport != nil {
+		return errors.Errorf("connot get string from` status` or `export`: %v, %v", errStatus, errExport)
 	}
 
 	return nil

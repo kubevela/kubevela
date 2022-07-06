@@ -472,14 +472,14 @@ func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-var _ = Describe("test NewQLCreateCommand", func() {
+var _ = Describe("test NewQLApplyCommand", func() {
 	var c common2.Args
 	var cmd *cobra.Command
 
 	BeforeEach(func() {
 		c.SetClient(k8sClient)
 		c.SetConfig(cfg)
-		cmd = NewQLCreateCommand(c)
+		cmd = NewQLApplyCommand(c)
 	})
 
 	It("no parameter provided", func() {
