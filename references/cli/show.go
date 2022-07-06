@@ -26,6 +26,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,6 +63,7 @@ var webSite bool
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var revision string
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a component, trait or workflow.",
@@ -76,10 +79,24 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			if err != nil {
 				return err
 			}
+
+			if revision == "" {
+				if webSite {
+					return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
+				}
+				return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, 0)
+			}
+
+			// v1, 1, both need to work
+			version := strings.TrimPrefix(revision, "v")
+			ver, err := strconv.Atoi(version)
+			if err != nil {
+				return fmt.Errorf("invalid revision: %w", err)
+			}
 			if webSite {
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace)
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, int64(ver))
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -87,6 +104,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	}
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
+	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions.")
 
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
@@ -384,7 +402,7 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 }
 
 // ShowReferenceConsole will show capability reference in console
-func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
+func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string, rev int64) error {
 	config, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -393,9 +411,19 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	if err != nil {
 		return err
 	}
-	capability, err := plugins.GetCapabilityByName(ctx, c, capabilityName, ns, pd)
-	if err != nil {
-		return err
+
+	var capability *types.Capability
+
+	if rev == 0 {
+		capability, err = plugins.GetCapabilityByName(ctx, c, capabilityName, ns, pd)
+		if err != nil {
+			return err
+		}
+	} else {
+		capability, err = plugins.GetCapabilityFromDefinitionRevision(ctx, c, pd, ns, capabilityName, rev)
+		if err != nil {
+			return err
+		}
 	}
 
 	cli, err := c.GetClient()

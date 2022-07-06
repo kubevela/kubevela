@@ -19,19 +19,22 @@ package definition
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
-
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	addonutils "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
 
 func TestDefinitionBasicFunctions(t *testing.T) {
@@ -142,4 +145,76 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if len(res) >= 1 {
 		t.Fatalf("failed to search definition with addon filter applied: %s", "too many results returned")
 	}
+}
+
+func TestDefinitionRevisionSearch(t *testing.T) {
+	c := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+
+	var err error
+
+	// Load test DefinitionRevisions files into client
+	testFiles, err := ioutil.ReadDir("testdata")
+	assert.NoError(t, err, "read testdata failed")
+	for _, file := range testFiles {
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		content, err := ioutil.ReadFile(filepath.Join("testdata", file.Name()))
+		assert.NoError(t, err)
+		def := &v1beta1.DefinitionRevision{}
+		err = yaml.Unmarshal(content, def)
+		assert.NoError(t, err)
+		err = c.Create(context.TODO(), def)
+		assert.NoError(t, err, "cannot create "+file.Name())
+	}
+
+	var defrevs []v1beta1.DefinitionRevision
+
+	// Read with no conditions, should at least have 4 defrevs
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "", "", "", 0)
+	assert.NoError(t, err)
+	assert.Equal(t, true, len(defrevs) >= 4)
+
+	// Restrict namespace
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "rev-test-custom-ns", "", "", 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(defrevs))
+
+	// Restrict type
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "rev-test-ns", "", common2.ComponentType, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(defrevs))
+
+	// Restrict revision
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "rev-test-ns", "", "", 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(defrevs))
+
+	// Restrict name
+	defrevs, err = SearchDefinitionRevisions(context.TODO(), c, "rev-test-ns", "webservice", "", 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(defrevs))
+
+	// Test GetDefinitionFromDefinitionRevision
+	defrev := defrevs[0]
+
+	// Simulate ComponentDefinition
+	defrev.Spec.DefinitionType = common2.ComponentType
+	_, err = GetDefinitionFromDefinitionRevision(&defrev)
+	assert.NoError(t, err)
+
+	// Simulate TraitDefinition
+	defrev.Spec.DefinitionType = common2.TraitType
+	_, err = GetDefinitionFromDefinitionRevision(&defrev)
+	assert.NoError(t, err)
+
+	// Simulate PolicyDefinition
+	defrev.Spec.DefinitionType = common2.PolicyType
+	_, err = GetDefinitionFromDefinitionRevision(&defrev)
+	assert.NoError(t, err)
+
+	// Simulate WorkflowStepDefinition
+	defrev.Spec.DefinitionType = common2.WorkflowStepType
+	_, err = GetDefinitionFromDefinitionRevision(&defrev)
+	assert.NoError(t, err)
 }

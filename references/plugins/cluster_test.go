@@ -19,7 +19,10 @@ package plugins
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
@@ -342,5 +345,56 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 			Expect(err).Should(BeNil())
 		})
 
+	})
+})
+
+var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
+	var (
+		ctx context.Context
+		c   common.Args
+	)
+
+	BeforeEach(func() {
+		c = common.Args{}
+		c.SetClient(k8sClient)
+		ctx = context.Background()
+
+		By("create namespace")
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-custom-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// Load test DefinitionRevisions files into client
+		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
+		testFiles, err := ioutil.ReadDir(dir)
+		Expect(err).Should(Succeed())
+		for _, file := range testFiles {
+			if !strings.HasSuffix(file.Name(), ".yaml") {
+				continue
+			}
+			content, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+			Expect(err).Should(Succeed())
+			def := &corev1beta1.DefinitionRevision{}
+			err = yaml.Unmarshal(content, def)
+			Expect(err).Should(Succeed())
+			client, err := c.GetClient()
+			Expect(err).Should(Succeed())
+			err = client.Create(context.TODO(), def)
+			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		}
+	})
+
+	It("non-existent defrev", func() {
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "not-a-name", 0)
+		Expect(err).ShouldNot(Succeed())
+	})
+
+	It("component type", func() {
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-ns", "webservice", 0)
+		Expect(err).Should(Succeed())
+	})
+
+	It("trait type", func() {
+		_, err := GetCapabilityFromDefinitionRevision(ctx, c, nil, "rev-test-custom-ns", "affinity", 0)
+		Expect(err).Should(Succeed())
 	})
 })
