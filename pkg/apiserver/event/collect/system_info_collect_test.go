@@ -211,8 +211,28 @@ func TestGenClusterCountInfo(t *testing.T) {
 			res:   "<50",
 		},
 		{
-			count: 100,
-			res:   ">=50",
+			count: 90,
+			res:   "<100",
+		},
+		{
+			count: 137,
+			res:   "<150",
+		},
+		{
+			count: 170,
+			res:   "<200",
+		},
+		{
+			count: 270,
+			res:   "<300",
+		},
+		{
+			count: 400,
+			res:   "<500",
+		},
+		{
+			count: 520,
+			res:   ">=500",
 		},
 	}
 	for _, testcase := range testcases {
