@@ -93,7 +93,7 @@ type ApplicationService interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
-	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
+	CompareApp(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
@@ -293,6 +293,23 @@ func (c *applicationServiceImpl) GetApplicationStatus(ctx context.Context, appmo
 		app.Status.Phase = "deleting"
 	}
 	return &app.Status, nil
+}
+
+// GetApplicationStatus get application CR from controller cluster
+func (c *applicationServiceImpl) GetApplicationCRInEnv(ctx context.Context, appmodel *model.Application, envName string) (*v1beta1.Application, error) {
+	var app v1beta1.Application
+	env, err := c.EnvService.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &app, nil
 }
 
 // GetApplicationCR get application CR in cluster
@@ -629,7 +646,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	// TODO: rollback to handle all the error case
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
-	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
+	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, "", version)
 	if err != nil {
 		return nil, err
 	}
@@ -770,7 +787,7 @@ func (c *applicationServiceImpl) syncConfigs4Application(ctx context.Context, ap
 	return nil
 }
 
-func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
+func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, envName, version string) (*v1beta1.Application, error) {
 	// Priority 1 uses the requested workflow as release .
 	// Priority 2 uses the default workflow as release .
 	var workflow *model.Workflow
@@ -786,14 +803,15 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 			return nil, err
 		}
 	}
-	if workflow == nil || workflow.EnvName == "" {
-		return nil, bcode.ErrWorkflowNotExist
+	if workflow != nil {
+		envName = workflow.EnvName
 	}
-	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, workflow.EnvName)
+
+	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, envName)
 	if err != nil {
 		return nil, err
 	}
-	env, err := c.EnvService.GetEnv(ctx, workflow.EnvName)
+	env, err := c.EnvService.GetEnv(ctx, envName)
 	if err != nil {
 		return nil, err
 	}
@@ -896,25 +914,25 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		}
 		app.Spec.Policies = append(app.Spec.Policies, appPolicy)
 	}
-
-	app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
-	var steps []v1beta1.WorkflowStep
-	for _, step := range workflow.Steps {
-		var workflowStep = v1beta1.WorkflowStep{
-			Name:    step.Name,
-			Type:    step.Type,
-			Inputs:  step.Inputs,
-			Outputs: step.Outputs,
+	if workflow != nil {
+		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
+		var steps []v1beta1.WorkflowStep
+		for _, step := range workflow.Steps {
+			var workflowStep = v1beta1.WorkflowStep{
+				Name:    step.Name,
+				Type:    step.Type,
+				Inputs:  step.Inputs,
+				Outputs: step.Outputs,
+			}
+			if step.Properties != nil {
+				workflowStep.Properties = step.Properties.RawExtension()
+			}
+			steps = append(steps, workflowStep)
 		}
-		if step.Properties != nil {
-			workflowStep.Properties = step.Properties.RawExtension()
+		app.Spec.Workflow = &v1beta1.Workflow{
+			Steps: steps,
 		}
-		steps = append(steps, workflowStep)
 	}
-	app.Spec.Workflow = &v1beta1.Workflow{
-		Steps: steps,
-	}
-
 	return app, nil
 }
 
@@ -1378,50 +1396,101 @@ func (c *applicationServiceImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-// CompareAppWithLatestRevision compare application with last revision
-func (c *applicationServiceImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
-	var reqWorkflowName string
-	if compareReq.Env != "" {
-		reqWorkflowName = repository.ConvertWorkflowName(compareReq.Env)
-	}
-	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
-	if err != nil {
-		return nil, err
-	}
-	ignoreSomeParams(newApp)
-	newAppBytes, err := yaml.Marshal(newApp)
-	if err != nil {
-		return nil, err
+// CompareApp compare application
+func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
+	var base, compareTarget *v1beta1.Application
+	var err error
+	var envNameByRevision string
+	switch {
+	case compareReq.CompareCurrentWithCluster != nil:
+		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareCurrentWithCluster.Env, "")
+		if err != nil {
+			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			break
+		}
+	case compareReq.CompareRevisionWithCluster != nil || compareReq.CompareRevisionWithCurrent != nil:
+		var revision = ""
+		if compareReq.CompareRevisionWithCluster != nil {
+			revision = compareReq.CompareRevisionWithCluster.Revision
+		}
+		if compareReq.CompareRevisionWithCurrent != nil {
+			revision = compareReq.CompareRevisionWithCurrent.Revision
+		}
+		base, envNameByRevision, err = c.getAppModelFromRevision(ctx, appModel.Name, revision)
+		if err != nil {
+			log.Logger.Errorf("failed to get the app model from the revision %s", err.Error())
+			break
+		}
 	}
 
-	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, compareReq.Env, "")
-	if err != nil {
-		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
-			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
+	switch {
+	case compareReq.CompareCurrentWithCluster != nil || compareReq.CompareRevisionWithCluster != nil:
+		var envName string
+		if compareReq.CompareCurrentWithCluster != nil {
+			envName = compareReq.CompareCurrentWithCluster.Env
 		}
-		return nil, err
+		if compareReq.CompareRevisionWithCluster != nil {
+			envName = envNameByRevision
+		}
+		if envName == "" {
+			break
+		}
+		compareTarget, err = c.GetApplicationCRInEnv(ctx, appModel, envName)
+		if err != nil {
+			log.Logger.Errorf("failed to query the application CR %s", err.Error())
+			break
+		}
+	case compareReq.CompareRevisionWithCurrent != nil:
+		compareTarget, err = c.renderOAMApplication(ctx, appModel, "", envNameByRevision, "")
+		if err != nil {
+			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			break
+		}
 	}
-	ignoreSomeParams(oldApp)
-	oldAppBytes, err := yaml.Marshal(oldApp)
-	if err != nil {
-		return nil, err
+
+	var baseAppBytes, targetAppBytes []byte
+
+	if base != nil {
+		ignoreSomeParams(base)
+		baseAppBytes, err = yaml.Marshal(base)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	if compareTarget != nil {
+		ignoreSomeParams(compareTarget)
+		targetAppBytes, err = yaml.Marshal(compareTarget)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	compareResponse := &apisv1.AppCompareResponse{IsDiff: true, BaseAppYAML: string(baseAppBytes), TargetAppYAML: string(targetAppBytes)}
+
+	if base == nil || compareTarget == nil {
+		return compareResponse, nil
+	}
+
 	args := common2.Args{
 		Schema: common2.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
-	diffResult, buff, err := compare(ctx, args, newApp, oldApp)
+	diffResult, buff, err := compare(ctx, args, compareTarget, base)
 	if err != nil {
 		log.Logger.Errorf("fail to compare the app %s", err.Error())
-		return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, err
+		compareResponse.IsDiff = false
+		return compareResponse, nil
 	}
-	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
+	compareResponse.IsDiff = diffResult.DiffType != ""
+	compareResponse.DiffReport = buff.String()
+	return compareResponse, nil
 }
 
 // ResetAppToLatestRevision reset app's component to last revision
 func (c *applicationServiceImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
-	targetApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
+	targetApp, _, err := c.getAppModelFromRevision(ctx, appName, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1433,16 +1502,12 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 	var app *v1beta1.Application
 	var err error
 	if dryRunReq.DryRunType == "APP" {
-		var reqWorkflowName string
-		if dryRunReq.Env != "" {
-			reqWorkflowName = repository.ConvertWorkflowName(dryRunReq.Env)
-		}
-		app, err = c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
+		app, err = c.renderOAMApplication(ctx, appModel, dryRunReq.Workflow, dryRunReq.Env, "")
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		app, err = c.getAppFromLatestRevision(ctx, dryRunReq.AppName, dryRunReq.Env, dryRunReq.Version)
+		app, _, err = c.getAppModelFromRevision(ctx, dryRunReq.AppName, dryRunReq.Version)
 		if err != nil {
 			return nil, err
 		}
@@ -1470,33 +1535,16 @@ func genWebhookToken() string {
 	return string(b)
 }
 
-func (c *applicationServiceImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
-
-	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
-	if envName != "" {
-		ar.EnvName = envName
-	}
-	if version != "" {
-		ar.Version = version
-	}
-	revisions, err := c.Store.List(ctx, ar, &datastore.ListOptions{
-		Page:     1,
-		PageSize: 1,
-		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
-	})
-	if err != nil || len(revisions) == 0 {
-		return nil, bcode.ErrApplicationRevisionNotExist
-	}
-	latestRevisionRaw := revisions[0]
-	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
-	if !ok {
-		return nil, errors.New("convert application revision error")
+func (c *applicationServiceImpl) getAppModelFromRevision(ctx context.Context, appName string, version string) (*v1beta1.Application, string, error) {
+	latestRevision, err := repository.GetApplicationRevision(ctx, c.Store, appName, version)
+	if err != nil {
+		return nil, "", err
 	}
 	oldApp := &v1beta1.Application{}
 	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), oldApp); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return oldApp, nil
+	return oldApp, latestRevision.EnvName, nil
 }
 
 func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
@@ -1605,21 +1653,23 @@ func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Applica
 // ignoreSomeParams ignore some parameters before comparing the app changes.
 // ignore the workflow spec
 func ignoreSomeParams(o *v1beta1.Application) {
-	// set default
-	o.ResourceVersion = ""
-	o.Spec.Workflow = nil
-	newAnnotations := map[string]string{}
-	annotations := o.GetAnnotations()
-	for k, v := range annotations {
-		if k == oam.AnnotationDeployVersion || k == oam.AnnotationPublishVersion || k == "kubectl.kubernetes.io/last-applied-configuration" {
-			continue
-		}
-		newAnnotations[k] = v
-	}
-	o.SetAnnotations(newAnnotations)
+	var defaultApplication = v1beta1.Application{}
+	// only compare the spec without the workflow
+	defaultApplication.Spec = o.Spec
+	defaultApplication.Spec.Workflow = nil
+	defaultApplication.Name = o.Name
+	defaultApplication.Namespace = o.Namespace
+
+	sort.Slice(defaultApplication.Spec.Policies, func(i, j int) bool {
+		return defaultApplication.Spec.Policies[i].Name < defaultApplication.Spec.Policies[j].Name
+	})
+	sort.Slice(defaultApplication.Spec.Components, func(i, j int) bool {
+		return defaultApplication.Spec.Components[i].Name < defaultApplication.Spec.Components[j].Name
+	})
+	*o = defaultApplication
 }
 
-func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
+func compare(ctx context.Context, c common2.Args, targetApp *v1beta1.Application, baseApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
 	_, err := c.GetClient()
 	if err != nil {
@@ -1643,7 +1693,7 @@ func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, o
 		return nil, buff, err
 	}
 	liveDiffOption := dryrun.NewLiveDiffOption(client, config, dm, pd, objs)
-	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
+	diffResult, err := liveDiffOption.DiffApps(ctx, baseApp, targetApp)
 	if err != nil {
 		return nil, buff, err
 	}

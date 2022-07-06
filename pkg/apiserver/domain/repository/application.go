@@ -22,6 +22,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
@@ -94,4 +95,27 @@ func DeleteApplicationEnvPolicies(ctx context.Context, store datastore.DataStore
 		}
 	}
 	return nil
+}
+
+// GetApplicationRevision get the application revision
+// If the version is empty, will query the latest revision of the application
+func GetApplicationRevision(ctx context.Context, store datastore.DataStore, appName, version string) (*model.ApplicationRevision, error) {
+	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
+	if version != "" {
+		ar.Version = version
+	}
+	revisions, err := store.List(ctx, ar, &datastore.ListOptions{
+		Page:     1,
+		PageSize: 1,
+		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
+	})
+	if err != nil || len(revisions) == 0 {
+		return nil, bcode.ErrApplicationRevisionNotExist
+	}
+	latestRevisionRaw := revisions[0]
+	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
+	if !ok {
+		return nil, errors.New("convert application revision error")
+	}
+	return latestRevision, nil
 }

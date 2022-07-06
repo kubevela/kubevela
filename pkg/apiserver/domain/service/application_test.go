@@ -478,8 +478,12 @@ var _ = Describe("Test application service function", func() {
 		Expect(resp.Total).Should(Equal(int64(3)))
 	})
 
-	It("Test CompareAppWithLatestRevision function", func() {
-
+	It("Test CompareApp function", func() {
+		check := func(compareResponse *v1.AppCompareResponse, isDiff bool) {
+			Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
+			Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).ShouldNot(BeEmpty())
+			Expect(cmp.Diff(compareResponse.IsDiff, isDiff)).Should(BeEmpty())
+		}
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		_, err = appService.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: repository.ConvertWorkflowName("app-dev")})
@@ -488,23 +492,40 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 
 		By("compare when app not change, should return false")
-		compareResponse, err := appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err := appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCluster: &v1.CompareRevisionWithClusterOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		check(compareResponse, false)
 
-		By("compare when app not change and env not empty, should return false")
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{Env: "app-dev"})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCurrent: &v1.CompareRevisionWithCurrentOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		check(compareResponse, false)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, false)
 
 		By("compare when app add env, not change, should return false")
 		_, err = envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-prod", Namespace: "envnsprod", Targets: []string{defaultTarget}, Project: "app-prod"})
 		Expect(err).Should(BeNil())
 		_, err = envBindingService.CreateEnvBinding(context.TODO(), appModel, v1.CreateApplicationEnvbindingRequest{EnvBinding: v1.EnvBinding{Name: "app-prod"}})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-prod",
+			},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
 
 		By("compare when app's env add target, should return true")
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
@@ -515,9 +536,13 @@ var _ = Describe("Test application service function", func() {
 				Targets:     []string{defaultTarget, "dev-target1"},
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-dev",
+			},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		check(compareResponse, true)
 
 		By("compare when update app's trait, should return true")
 		// reset app config
@@ -529,11 +554,21 @@ var _ = Describe("Test application service function", func() {
 			Description: "description",
 		})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCurrent: &v1.CompareRevisionWithCurrentOption{},
+		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
 
-		By("compare when update component's target after app deployed ,should return ture")
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+
+		By("compare when update component's target after app deployed ,should return true")
 		// reset app config
 		_, err = appService.ResetAppToLatestRevision(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
@@ -545,9 +580,49 @@ var _ = Describe("Test application service function", func() {
 				Properties: &newProperties,
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCurrent: &v1.CompareRevisionWithCurrentOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCluster: &v1.CompareRevisionWithClusterOption{},
+		})
+
+		Expect(err).Should(BeNil())
+		check(compareResponse, false)
+
+		By("compare when changed the application CR, should return true")
+
+		appCR, err := appService.GetApplicationCRInEnv(context.TODO(), appModel, "app-dev")
+		Expect(err).Should(BeNil())
+		appCR.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte("{\"exposeType\":\"NodePort\",\"image\":\"nginx:222\",\"imagePullPolicy\":\"Always\"}")}
+		err = k8sClient.Update(context.TODO(), appCR)
+		Expect(err).Should(BeNil())
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithCluster: &v1.CompareRevisionWithClusterOption{},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareCurrentWithCluster: &v1.CompareCurrentWithClusterOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
 		err = envBindingService.ApplicationEnvRecycle(context.TODO(), &model.Application{Name: testApp}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
 	})
