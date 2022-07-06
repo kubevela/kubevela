@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -558,8 +559,10 @@ func TestFilterSpecialAnn(t *testing.T) {
 	var cm = &corev1.ConfigMap{}
 	var sc = &corev1.Secret{}
 	var dp = &appsv1.Deployment{}
+	var crd = &v1.CustomResourceDefinition{}
 	assert.Equal(t, false, filterRecordForSpecial(cm))
 	assert.Equal(t, false, filterRecordForSpecial(sc))
+	assert.Equal(t, false, filterRecordForSpecial(crd))
 	assert.Equal(t, true, filterRecordForSpecial(dp))
 
 	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "-"}
