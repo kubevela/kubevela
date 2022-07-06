@@ -23,6 +23,7 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -118,13 +119,16 @@ func filterRecordForSpecial(desired client.Object) bool {
 	gp, kd := gvk.Group, gvk.Kind
 	if gp == "" {
 		// group is empty means it's Kubernetes core API, we won't record annotation for Secret and Configmap
-		if kd == "Secret" || kd == "ConfigMap" {
+		if kd == "Secret" || kd == "ConfigMap" || kd == "CustomResourceDefinition" {
 			return false
 		}
 		if _, ok := desired.(*corev1.ConfigMap); ok {
 			return false
 		}
 		if _, ok := desired.(*corev1.Secret); ok {
+			return false
+		}
+		if _, ok := desired.(*v1.CustomResourceDefinition); ok {
 			return false
 		}
 	}
