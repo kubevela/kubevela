@@ -324,12 +324,12 @@ func genClusterCountInfo(num int) string {
 		return "<50"
 	case num < 100:
 		return "<100"
-	case num < 125:
-		return "<125"
 	case num < 150:
 		return "<150"
 	case num < 200:
 		return "<200"
+	case num < 300:
+		return "<300"
 	case num < 500:
 		return "<500"
 	default:
