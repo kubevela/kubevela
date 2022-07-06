@@ -1006,7 +1006,7 @@ func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 
-	return util.Object2Unstructured(cm)
+	return util.Object2Unstructured(*cm)
 }
 
 // renderCUETemplate will return a component from cue template
