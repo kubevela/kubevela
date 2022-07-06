@@ -211,6 +211,7 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 			readOnly = checkReadOnly(p.Name, permissions)
 		}
 		if readOnly {
+			// TODO:(@barnettZQG) there needs a method to revoke the privileges
 			if err := c.managePrivilegesForUser(ctx, p.Name, true, userName, false); err != nil {
 				log.Logger.Errorf("failed to privileges the user %s", err.Error())
 			}
@@ -342,7 +343,6 @@ func checkReadOnly(projectName string, permissions []*model.Permission) bool {
 
 // managePrivilegesForUser grant or revoke privileges for a user
 func (c *cloudShellServiceImpl) managePrivilegesForUser(ctx context.Context, projectName string, readOnly bool, userName string, revoke bool) error {
-
 	targets, err := c.TargetService.ListTargets(ctx, 0, 0, projectName)
 	if err != nil {
 		log.Logger.Infof("failed to list the targets by the project name %s :%s", projectName, err.Error())

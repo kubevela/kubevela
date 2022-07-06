@@ -82,12 +82,13 @@ func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataSto
 		return err
 	}
 	_, err = envService.CreateEnv(ctx, v1.CreateEnvRequest{
-		Name:        app.Env.Name,
-		Alias:       app.Env.Alias,
-		Description: app.Env.Description,
-		Project:     app.Env.Project,
-		Namespace:   app.Env.Namespace,
-		Targets:     app.Env.Targets,
+		Name:                app.Env.Name,
+		Alias:               app.Env.Alias,
+		Description:         app.Env.Description,
+		Project:             app.Env.Project,
+		Namespace:           app.Env.Namespace,
+		Targets:             app.Env.Targets,
+		AllowTargetConflict: true,
 	})
 	if err != nil && !errors.Is(err, bcode.ErrEnvAlreadyExists) {
 		return err

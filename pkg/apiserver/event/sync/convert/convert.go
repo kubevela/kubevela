@@ -129,14 +129,14 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 }
 
 // FromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
-func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, existTargets []datastore.Entity, project string) ([]*model.Target, []string) {
+func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, existTargets []datastore.Entity, project string) ([]*model.Target, map[string]string) {
 	existTarget := make(map[string]*model.Target)
 	for i := range existTargets {
 		t := existTargets[i].(*model.Target)
 		existTarget[fmt.Sprintf("%s-%s", t.Cluster.ClusterName, t.Cluster.Namespace)] = t
 	}
 	var targets []*model.Target
-	var targetNames []string
+	var targetNames = map[string]string{}
 	nc := make(map[string]struct{})
 	// read the target from the topology policies
 	placements, err := policy.GetPlacementsFromTopologyPolicies(ctx, cli, targetApp.Namespace, targetApp.Spec.Policies, true)
@@ -160,9 +160,9 @@ func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Ap
 		}
 		nc[name] = struct{}{}
 		if target, ok := existTarget[fmt.Sprintf("%s-%s", placement.Cluster, placement.Namespace)]; ok {
-			targetNames = append(targetNames, target.Name)
+			targetNames[target.Name] = target.Project
 		} else {
-			targetNames = append(targetNames, name)
+			targetNames[name] = project
 			targets = append(targets, &model.Target{
 				Name:    name,
 				Project: project,
