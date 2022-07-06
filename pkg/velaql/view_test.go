@@ -130,6 +130,11 @@ status: something`,
 status: something`,
 			succeed: true,
 		},
+		{
+			cueStr: `something: {}
+export: something`,
+			succeed: true,
+		},
 	}
 	for _, c := range cases {
 		cm, err := ParseViewIntoConfigMap(c.cueStr, "name")
