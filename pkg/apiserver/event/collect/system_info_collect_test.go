@@ -215,16 +215,16 @@ func TestGenClusterCountInfo(t *testing.T) {
 			res:   "<100",
 		},
 		{
-			count: 110,
-			res:   "<125",
-		},
-		{
 			count: 137,
 			res:   "<150",
 		},
 		{
 			count: 170,
 			res:   "<200",
+		},
+		{
+			count: 270,
+			res:   "<300",
 		},
 		{
 			count: 400,
