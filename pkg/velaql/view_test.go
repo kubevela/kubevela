@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types2 "k8s.io/apimachinery/pkg/types"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -157,7 +157,7 @@ func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
 		},
 	}
 
-	err := k8sClient.Get(context.TODO(), types2.NamespacedName{
+	err := k8sClient.Get(context.TODO(), pkgtypes.NamespacedName{
 		Namespace: cm.GetNamespace(),
 		Name:      cm.GetName(),
 	}, cm)

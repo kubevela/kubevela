@@ -32,7 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types2 "k8s.io/apimachinery/pkg/types"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -460,7 +460,7 @@ func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
 		},
 	}
 
-	err := k8sClient.Get(context.TODO(), types2.NamespacedName{
+	err := k8sClient.Get(context.TODO(), pkgtypes.NamespacedName{
 		Namespace: cm.GetNamespace(),
 		Name:      cm.GetName(),
 	}, cm)

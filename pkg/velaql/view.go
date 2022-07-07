@@ -139,7 +139,7 @@ func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner co
 
 // ValidateView makes sure the cue provided can use as view.
 //
-// For now, we only check 1. cue is valid 2. `status` field exists
+// For now, we only check 1. cue is valid 2. `status` or `view` field exists
 func ValidateView(viewStr string) error {
 	val, err := value.NewValue(viewStr, nil, "")
 	if err != nil {
