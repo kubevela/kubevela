@@ -1004,7 +1004,7 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 
 // UpdateApplicationRevisionStatus update application revision status
 func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, succeed bool, wfStatus *common.WorkflowStatus) {
-	if appRev == nil {
+	if appRev == nil || DisableAllApplicationRevision {
 		return
 	}
 	appRev.Status.Succeeded = succeed
