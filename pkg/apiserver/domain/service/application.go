@@ -1402,19 +1402,19 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	var err error
 	var envNameByRevision string
 	switch {
-	case compareReq.CompareCurrentWithCluster != nil:
-		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareCurrentWithCluster.Env, "")
+	case compareReq.CompareLatestWithRunning != nil:
+		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareLatestWithRunning.Env, "")
 		if err != nil {
 			log.Logger.Errorf("failed to build the latest application %s", err.Error())
 			break
 		}
-	case compareReq.CompareRevisionWithCluster != nil || compareReq.CompareRevisionWithCurrent != nil:
+	case compareReq.CompareRevisionWithRunning != nil || compareReq.CompareRevisionWithLatest != nil:
 		var revision = ""
-		if compareReq.CompareRevisionWithCluster != nil {
-			revision = compareReq.CompareRevisionWithCluster.Revision
+		if compareReq.CompareRevisionWithRunning != nil {
+			revision = compareReq.CompareRevisionWithRunning.Revision
 		}
-		if compareReq.CompareRevisionWithCurrent != nil {
-			revision = compareReq.CompareRevisionWithCurrent.Revision
+		if compareReq.CompareRevisionWithLatest != nil {
+			revision = compareReq.CompareRevisionWithLatest.Revision
 		}
 		base, envNameByRevision, err = c.getAppModelFromRevision(ctx, appModel.Name, revision)
 		if err != nil {
@@ -1424,12 +1424,12 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 	}
 
 	switch {
-	case compareReq.CompareCurrentWithCluster != nil || compareReq.CompareRevisionWithCluster != nil:
+	case compareReq.CompareLatestWithRunning != nil || compareReq.CompareRevisionWithRunning != nil:
 		var envName string
-		if compareReq.CompareCurrentWithCluster != nil {
-			envName = compareReq.CompareCurrentWithCluster.Env
+		if compareReq.CompareLatestWithRunning != nil {
+			envName = compareReq.CompareLatestWithRunning.Env
 		}
-		if compareReq.CompareRevisionWithCluster != nil {
+		if compareReq.CompareRevisionWithRunning != nil {
 			envName = envNameByRevision
 		}
 		if envName == "" {
@@ -1440,7 +1440,7 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 			log.Logger.Errorf("failed to query the application CR %s", err.Error())
 			break
 		}
-	case compareReq.CompareRevisionWithCurrent != nil:
+	case compareReq.CompareRevisionWithLatest != nil:
 		compareTarget, err = c.renderOAMApplication(ctx, appModel, "", envNameByRevision, "")
 		if err != nil {
 			log.Logger.Errorf("failed to build the latest application %s", err.Error())

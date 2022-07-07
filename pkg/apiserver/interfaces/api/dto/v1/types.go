@@ -375,25 +375,25 @@ type AppResetResponse struct {
 
 // AppCompareReq  application compare req
 type AppCompareReq struct {
-	CompareRevisionWithCluster *CompareRevisionWithClusterOption `json:"compareRevisionWithCluster,omitempty"`
-	CompareRevisionWithCurrent *CompareRevisionWithCurrentOption `json:"compareRevisionWithCurrent,omitempty"`
-	CompareCurrentWithCluster  *CompareCurrentWithClusterOption  `json:"compareCurrentWithCluster,omitempty"`
+	CompareRevisionWithRunning *CompareRevisionWithRunningOption `json:"compareRevisionWithRunning,omitempty"`
+	CompareRevisionWithLatest  *CompareRevisionWithLatestOption  `json:"compareRevisionWithLatest,omitempty"`
+	CompareLatestWithRunning   *CompareLatestWithRunningOption   `json:"compareLatestWithRunning,omitempty"`
 }
 
-// CompareRevisionWithClusterOption means compare the specified version with the application in cluster.
-type CompareRevisionWithClusterOption struct {
+// CompareRevisionWithRunningOption means compare the specified version with the application in cluster.
+type CompareRevisionWithRunningOption struct {
 	// Revision, If not specified, means use the latest revision.
 	Revision string `json:"revision" optional:"true"`
 }
 
-// CompareRevisionWithCurrentOption means compare the the specified version with the latest application configuration
-type CompareRevisionWithCurrentOption struct {
+// CompareRevisionWithLatestOption means compare the the specified version with the latest application configuration
+type CompareRevisionWithLatestOption struct {
 	// Revision, If not specified, means use the latest revision.
 	Revision string `json:"revision" optional:"true"`
 }
 
-// CompareCurrentWithClusterOption means compare the latest configuration with the app in cluster.
-type CompareCurrentWithClusterOption struct {
+// CompareLatestWithRunningOption means compare the latest configuration with the app in cluster.
+type CompareLatestWithRunningOption struct {
 	Env string `json:"env" validate:"required"`
 }
 
