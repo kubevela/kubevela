@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,4 +103,23 @@ func IsEmptyDir(path string) (bool, error) {
 	}
 
 	return false, err
+}
+
+// GetFilenameFromLocalOrRemote returns the filename of a local path or a URL.
+// It doesn't guarantee that the file or URL actually exists.
+func GetFilenameFromLocalOrRemote(path string) (string, error) {
+	if !IsValidURL(path) {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)), nil
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSuffix(filepath.Base(u.Path), filepath.Ext(u.Path)), nil
 }

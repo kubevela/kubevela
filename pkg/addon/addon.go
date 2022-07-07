@@ -36,6 +36,7 @@ import (
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 	"golang.org/x/oauth2"
@@ -57,8 +58,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -75,6 +74,7 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/velaql"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -1001,13 +1001,17 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 }
 
 func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
-	cm := v1.ConfigMap{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-		ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: strings.Split(elem.Name, ".")[0]},
-		Data: map[string]string{
-			types.VelaQLConfigmapKey: elem.Data,
-		}}
-	return util.Object2Unstructured(cm)
+	name, err := utils.GetFilenameFromLocalOrRemote(elem.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	cm, err := velaql.ParseViewIntoConfigMap(elem.Data, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return util.Object2Unstructured(*cm)
 }
 
 // renderCUETemplate will return a component from cue template

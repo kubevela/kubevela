@@ -45,3 +45,40 @@ func TestIsEmptyDir(t *testing.T) {
 	assert.Equal(t, isEmptyDir, false)
 	assert.NilError(t, err)
 }
+
+func TestGetFilenameFromLocalOrRemote(t *testing.T) {
+	cases := []struct {
+		path     string
+		filename string
+	}{
+		{
+			path:     "./name",
+			filename: "name",
+		},
+		{
+			path:     "name",
+			filename: "name",
+		},
+		{
+			path:     "../name.js",
+			filename: "name",
+		},
+		{
+			path:     "../name.tar.zst",
+			filename: "name.tar",
+		},
+		{
+			path:     "https://some.com/file.js",
+			filename: "file",
+		},
+		{
+			path:     "https://some.com/file",
+			filename: "file",
+		},
+	}
+
+	for _, c := range cases {
+		n, _ := GetFilenameFromLocalOrRemote(c.path)
+		assert.Equal(t, c.filename, n)
+	}
+}
