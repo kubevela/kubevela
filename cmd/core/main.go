@@ -36,6 +36,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
@@ -324,10 +325,11 @@ func main() {
 	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
 	klog.Info("Start the vela application monitor")
-	if err := watcher.StartApplicationMetricsWatcher(restConfig); err != nil {
-		klog.ErrorS(err, "Unable to start application metrics watcher")
-		os.Exit(1)
+	informer, err := mgr.GetCache().GetInformer(context.Background(), &v1beta1.Application{})
+	if err != nil {
+		klog.ErrorS(err, "Unable to get informer for application")
 	}
+	watcher.StartApplicationMetricsWatcher(informer)
 
 	klog.Info("Start the vela controller manager")
 
