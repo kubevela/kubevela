@@ -19,6 +19,8 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,6 +117,9 @@ func init() {
 type HTTPOption struct {
 	Username string
 	Password string
+	CaFile   string
+	CertFile string
+	KeyFile  string
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -156,10 +161,34 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err != nil {
 		return nil, err
 	}
+	httpClient := http.DefaultClient
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
-	return http.DefaultClient.Do(req)
+	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
+	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
+		// must set MinVersion of TLS, otherwise will report GoSec error G402
+		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		tr := http.Transport{}
+		if len(opts.CaFile) != 0 {
+			c := x509.NewCertPool()
+			if !(c.AppendCertsFromPEM([]byte(opts.CaFile))) {
+				return nil, fmt.Errorf("failed to append certificates")
+			}
+			tlsConfig.RootCAs = c
+		}
+		if len(opts.CertFile) != 0 && len(opts.KeyFile) != 0 {
+			cert, err := tls.X509KeyPair([]byte(opts.CertFile), []byte(opts.KeyFile))
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+		}
+		tr.TLSClientConfig = tlsConfig
+		defer tr.CloseIdleConnections()
+		httpClient = &http.Client{Transport: &tr}
+	}
+	return httpClient.Do(req)
 }
 
 // HTTPGetWithOption use HTTP option and default client to send get request

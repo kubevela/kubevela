@@ -43,7 +43,14 @@ import (
 )
 
 // VelaDebugLog defines an ENV to set vela helm install log to be debug
-const VelaDebugLog = "VELA_DEBUG"
+const (
+	VelaDebugLog       = "VELA_DEBUG"
+	userNameSecKey     = "username"
+	userPasswordSecKey = "password"
+	caFileSecKey       = "caFile"
+	keyFileKey         = "keyFile"
+	certFileKey        = "certFile"
+)
 
 var (
 	settings = cli.New()
@@ -274,12 +281,26 @@ func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
 	return Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, c.Values)
 }
 
-// SetBasicAuthInfo will read username and password from secret return a httpOption that contain these info.
-func SetBasicAuthInfo(ctx context.Context, k8sClient client.Client, secretRef types2.NamespacedName) (*common.HTTPOption, error) {
+// SetHTTPOption will read username and password from secret return a httpOption that contain these info.
+func SetHTTPOption(ctx context.Context, k8sClient client.Client, secretRef types2.NamespacedName) (*common.HTTPOption, error) {
 	sec := v1.Secret{}
 	err := k8sClient.Get(ctx, secretRef, &sec)
 	if err != nil {
 		return nil, err
 	}
-	return &common.HTTPOption{Username: string(sec.Data["username"]), Password: string(sec.Data["password"])}, nil
+	opts := &common.HTTPOption{}
+	if len(sec.Data[userNameSecKey]) != 0 && len(sec.Data[userPasswordSecKey]) != 0 {
+		opts.Username = string(sec.Data[userNameSecKey])
+		opts.Password = string(sec.Data[userPasswordSecKey])
+	}
+	if len(sec.Data[caFileSecKey]) != 0 {
+		opts.CaFile = string(sec.Data[caFileSecKey])
+	}
+	if len(sec.Data[certFileKey]) != 0 {
+		opts.CertFile = string(sec.Data[certFileKey])
+	}
+	if len(sec.Data[keyFileKey]) != 0 {
+		opts.KeyFile = string(sec.Data[keyFileKey])
+	}
+	return opts, nil
 }
