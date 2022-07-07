@@ -58,8 +58,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	common3 "github.com/oam-dev/kubevela/references/common"
-
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -1003,7 +1001,7 @@ func renderSchemaConfigmap(elem ElementFile) (*unstructured.Unstructured, error)
 }
 
 func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
-	name, err := common3.GetFilenameFromLocalOrRemote(elem.Name)
+	name, err := utils.GetFilenameFromLocalOrRemote(elem.Name)
 	if err != nil {
 		return nil, err
 	}

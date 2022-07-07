@@ -18,13 +18,9 @@ package common
 
 import (
 	"context"
-	"net/url"
-	"path/filepath"
-	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
@@ -38,23 +34,4 @@ func BuildRun(ctx context.Context, app *api.Application, client client.Client, n
 	}
 
 	return appfile.Run(ctx, client, o, nil)
-}
-
-// GetFilenameFromLocalOrRemote returns the filename of a local path or a URL.
-// It doesn't guarantee that the file or URL actually exists.
-func GetFilenameFromLocalOrRemote(path string) (string, error) {
-	if !utils.IsValidURL(path) {
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)), nil
-	}
-
-	u, err := url.Parse(path)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSuffix(filepath.Base(u.Path), filepath.Ext(u.Path)), nil
 }

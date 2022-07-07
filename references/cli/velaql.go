@@ -27,13 +27,14 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	common2 "github.com/oam-dev/kubevela/references/common"
 )
 
 // Filter filter options
@@ -162,7 +163,7 @@ If view name cannot be inferred, or you are reading from stdin (-f -), you must 
 			} else if viewFile != "-" {
 				// If the user doesn't provide a name, but a file/URL is provided,
 				// try to get the file name of .cue file/URL provided.
-				n, err := common2.GetFilenameFromLocalOrRemote(viewFile)
+				n, err := utils.GetFilenameFromLocalOrRemote(viewFile)
 				if err != nil {
 					return fmt.Errorf("cannot get filename from %s: %w", viewFile, err)
 				}

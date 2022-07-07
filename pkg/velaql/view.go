@@ -24,10 +24,10 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	types2 "k8s.io/apimachinery/pkg/types"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -45,7 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-	common2 "github.com/oam-dev/kubevela/references/common"
+	refcommon "github.com/oam-dev/kubevela/references/common"
 )
 
 const (
@@ -197,7 +197,7 @@ func ParseViewIntoConfigMap(viewStr, name string) (*v1.ConfigMap, error) {
 //
 // By saying file, it can actually be a file, URL, or stdin (-).
 func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName string) error {
-	content, err := common2.ReadRemoteOrLocalPath(path)
+	content, err := refcommon.ReadRemoteOrLocalPath(path)
 	if err != nil {
 		return errors.Errorf("cannot load cue file: %v", err)
 	}
@@ -209,14 +209,14 @@ func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName stri
 
 	// Create or Update ConfigMap
 	oldCm := cm.DeepCopy()
-	err = c.Get(ctx, types2.NamespacedName{
+	err = c.Get(ctx, pkgtypes.NamespacedName{
 		Namespace: oldCm.GetNamespace(),
 		Name:      oldCm.GetName(),
 	}, oldCm)
 
 	if err != nil {
 		// No previous ConfigMap found, create one.
-		if errors2.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			err = c.Create(ctx, cm)
 			if err != nil {
 				return errors.Errorf("cannot create ConfigMap %s: %v", viewName, err)
