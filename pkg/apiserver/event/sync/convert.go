@@ -23,6 +23,9 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/event/sync/convert"
@@ -98,8 +101,17 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 				targetNames = append(targetNames, name)
 			}
 		}
+		var namespace corev1.Namespace
+		envName := model.AutoGenEnvNamePrefix + targetApp.Namespace
+		// Get the env name from the label of namespace
+		// If the namespace created by `vela env init`
+		if c.cli.Get(ctx, types.NamespacedName{Name: targetApp.Namespace}, &namespace) == nil {
+			if env, ok := namespace.Labels[oam.LabelNamespaceOfEnvName]; ok {
+				envName = env
+			}
+		}
 		dsApp.Env = &model.Env{
-			Name:        model.AutoGenEnvNamePrefix + targetApp.Namespace,
+			Name:        envName,
 			Namespace:   targetApp.Namespace,
 			Description: model.AutoGenDesc,
 			Project:     newProject,

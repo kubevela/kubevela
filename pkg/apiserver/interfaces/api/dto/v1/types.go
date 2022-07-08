@@ -362,10 +362,10 @@ type ApplicationBase struct {
 
 // AppCompareResponse application compare result
 type AppCompareResponse struct {
-	IsDiff     bool   `json:"isDiff"`
-	DiffReport string `json:"diffReport"`
-	NewAppYAML string `json:"newAppYAML"`
-	OldAppYAML string `json:"oldAppYAML"`
+	IsDiff        bool   `json:"isDiff"`
+	DiffReport    string `json:"diffReport"`
+	BaseAppYAML   string `json:"baseAppYAML"`
+	TargetAppYAML string `json:"targetAppYAML"`
 }
 
 // AppResetResponse application reset result
@@ -375,7 +375,26 @@ type AppResetResponse struct {
 
 // AppCompareReq  application compare req
 type AppCompareReq struct {
-	Env string `json:"env"`
+	CompareRevisionWithRunning *CompareRevisionWithRunningOption `json:"compareRevisionWithRunning,omitempty"`
+	CompareRevisionWithLatest  *CompareRevisionWithLatestOption  `json:"compareRevisionWithLatest,omitempty"`
+	CompareLatestWithRunning   *CompareLatestWithRunningOption   `json:"compareLatestWithRunning,omitempty"`
+}
+
+// CompareRevisionWithRunningOption means compare the specified version with the application in cluster.
+type CompareRevisionWithRunningOption struct {
+	// Revision, If not specified, means use the latest revision.
+	Revision string `json:"revision" optional:"true"`
+}
+
+// CompareRevisionWithLatestOption means compare the the specified version with the latest application configuration
+type CompareRevisionWithLatestOption struct {
+	// Revision, If not specified, means use the latest revision.
+	Revision string `json:"revision" optional:"true"`
+}
+
+// CompareLatestWithRunningOption means compare the latest configuration with the app in cluster.
+type CompareLatestWithRunningOption struct {
+	Env string `json:"env" validate:"required"`
 }
 
 // AppDryRunReq application dry-run req
@@ -383,6 +402,7 @@ type AppDryRunReq struct {
 	AppName    string `json:"appName"`
 	DryRunType string `json:"dryRunType"`
 	Env        string `json:"env"`
+	Workflow   string `json:"workflow"`
 	Version    string `json:"version"`
 }
 

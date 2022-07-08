@@ -549,8 +549,8 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
-	ws.Route(ws.POST("/{appName}/compare").To(c.compareAppWithLatestRevision).
-		Doc("compare application with env latest revision").
+	ws.Route(ws.POST("/{appName}/compare").To(c.compareApp).
+		Doc("compare application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("application", "compare")).
 		Filter(c.appCheckFilter).
@@ -1184,7 +1184,7 @@ func (c *applicationAPIInterface) listApplicationRecords(req *restful.Request, r
 	}
 }
 
-func (c *applicationAPIInterface) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
+func (c *applicationAPIInterface) compareApp(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var compareReq apis.AppCompareReq
@@ -1197,7 +1197,7 @@ func (c *applicationAPIInterface) compareAppWithLatestRevision(req *restful.Requ
 		return
 	}
 
-	base, err := c.ApplicationService.CompareAppWithLatestRevision(req.Request.Context(), app, compareReq)
+	base, err := c.ApplicationService.CompareApp(req.Request.Context(), app, compareReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
