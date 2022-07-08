@@ -59,7 +59,7 @@ template: {
 							resources: p.resources
 						}
 						if p.resourceNames != _|_ {
-							resources: p.resourceNames
+							resourceNames: p.resourceNames
 						}
 						if p.nonResourceURLs != _|_ {
 							nonResourceURLs: p.nonResourceURLs
@@ -96,7 +96,7 @@ template: {
 							resources: p.resources
 						}
 						if p.resourceNames != _|_ {
-							resources: p.resourceNames
+							resourceNames: p.resourceNames
 						}
 						if p.nonResourceURLs != _|_ {
 							nonResourceURLs: p.nonResourceURLs
