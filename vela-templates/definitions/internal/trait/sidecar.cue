@@ -77,6 +77,11 @@ template: {
 					// +usage=The key of the config map to select from. Must be a valid secret key
 					key: string
 				}
+				// +usage=Specify the field reference for env
+				fieldRef?: {
+					// +usage=Specify the field path for env
+					fieldPath: string
+				}
 			}
 		}]
 
