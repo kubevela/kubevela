@@ -20,6 +20,7 @@ import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 // ContainsResources check if resources all exist
 func (h *resourceKeeper) ContainsResources(resources []*unstructured.Unstructured) bool {
+	h.ClearNamespaceForClusterScopedResources(resources)
 	for _, rsc := range resources {
 		if rsc == nil {
 			continue

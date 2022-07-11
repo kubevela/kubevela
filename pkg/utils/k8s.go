@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -182,4 +183,9 @@ func CreateOrUpdate(ctx context.Context, cli client.Client, obj client.Object) (
 		obj.SetManagedFields(managedFields)
 		return nil
 	})
+}
+
+// EscapeResourceNameToLabelValue parse characters in resource name to label valid name
+func EscapeResourceNameToLabelValue(resourceName string) string {
+	return strings.ReplaceAll(resourceName, ":", "_")
 }

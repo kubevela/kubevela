@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	pkgutil "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
@@ -189,7 +190,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj client
 				},
 			},
 			Labels: map[string]string{
-				ControllerRevisionComponentLabel: comp.Name,
+				ControllerRevisionComponentLabel: pkgutil.EscapeResourceNameToLabelValue(comp.Name),
 			},
 		},
 		Revision: nextRevision,
@@ -250,7 +251,7 @@ func sortedControllerRevision(appConfigs []v1alpha2.ApplicationConfiguration, re
 func (c *ComponentHandler) cleanupControllerRevision(curComp *v1alpha2.Component) error {
 	labels := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			ControllerRevisionComponentLabel: curComp.Name,
+			ControllerRevisionComponentLabel: pkgutil.EscapeResourceNameToLabelValue(curComp.Name),
 		},
 	}
 	selector, err := metav1.LabelSelectorAsSelector(labels)
