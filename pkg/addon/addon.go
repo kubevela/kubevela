@@ -612,6 +612,9 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 
 	for _, tmpl := range addon.CUETemplates {
 		comp, err := renderCUETemplate(tmpl, addon.Parameters, args, addon.Meta)
+		if err != nil && strings.Contains(err.Error(), "var(path=output) not exist") {
+			continue
+		}
 		if err != nil {
 			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
 		}
