@@ -94,7 +94,7 @@ template: {
 		initMountPath: string
 
 		// +usage=Specify the extra volume mounts for the init container
-		extraVolumeMounts: [{
+		extraVolumeMounts: [...{
 			// +usage=The name of the volume to be mounted
 			name: string
 			// +usage=The mountPath for mount in the init container
