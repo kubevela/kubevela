@@ -863,6 +863,15 @@ type CreatePolicyRequest struct {
 
 	// Properties json data
 	Properties string `json:"properties"`
+
+	// Bind this policy to workflow
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
+}
+
+// WorkflowPolicyBinding define the relation binding relationShip between policy and workflowStep
+type WorkflowPolicyBinding struct {
+	Name  string   `json:"name"`
+	Steps []string `json:"steps"`
 }
 
 // UpdatePolicyRequest update policy
@@ -871,6 +880,9 @@ type UpdatePolicyRequest struct {
 	Type        string `json:"type" validate:"checkname"`
 	// Properties json data
 	Properties string `json:"properties"`
+
+	// Bind this policy to workflow
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
 }
 
 // PolicyBase application policy base info
