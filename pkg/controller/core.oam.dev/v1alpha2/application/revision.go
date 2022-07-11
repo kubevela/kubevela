@@ -54,6 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 type contextKey string
@@ -625,7 +626,7 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 
 	crList := &appsv1.ControllerRevisionList{}
 	listOpts := []client.ListOption{client.MatchingLabels{
-		oam.LabelControllerRevisionComponent: comp.Name,
+		oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(comp.Name),
 	}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 	if err := h.r.List(auth.ContextWithUserInfo(ctx, h.app), crList, listOpts...); err != nil {
 		return err
@@ -732,10 +733,10 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 			Name:      cm.RevisionName,
 			Namespace: h.getComponentRevisionNamespace(ctx),
 			Labels: map[string]string{
-				oam.LabelAppComponent:                cm.Name,
+				oam.LabelAppComponent:                pkgutils.EscapeResourceNameToLabelValue(cm.Name),
 				oam.LabelAppCluster:                  multicluster.ClusterNameInContext(ctx),
 				oam.LabelAppEnv:                      envbinding.EnvNameInContext(ctx),
-				oam.LabelControllerRevisionComponent: cm.Name,
+				oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(cm.Name),
 				oam.LabelComponentRevisionHash:       cm.RevisionHash,
 			},
 		},
@@ -962,7 +963,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	for _, curComp := range h.app.Status.AppliedResources {
 		crList := &appsv1.ControllerRevisionList{}
 		listOpts := []client.ListOption{client.MatchingLabels{
-			oam.LabelControllerRevisionComponent: curComp.Name,
+			oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(curComp.Name),
 		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
 		if err := h.r.List(_ctx, crList, listOpts...); err != nil {
