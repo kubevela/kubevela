@@ -718,10 +718,10 @@ func TestImports(t *testing.T) {
 context: stepSessionID: "3w9qkdgn5w"`
 	v, err := NewValue(`
 import (
-	"vela/op"
+	"vela/custom"
 )
 
-id: op.context.stepSessionID 
+id: custom.context.stepSessionID 
 
 `+cont, nil, cont)
 	assert.NilError(t, err)
