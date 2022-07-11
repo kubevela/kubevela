@@ -265,7 +265,7 @@ func (t *TaskLoader) makeValue(ctx wfContext.Context, templ string, id string, p
 	}
 	contextTempl += "\n" + pCtx.ExtendedContextFile()
 
-	return value.NewValue(templ+contextTempl, t.pd, contextTempl, value.ProcessScript, value.TagFieldOrder)
+	return value.NewValue(templ+contextTempl, t.pd, "", value.ProcessScript, value.TagFieldOrder)
 }
 
 type executor struct {
