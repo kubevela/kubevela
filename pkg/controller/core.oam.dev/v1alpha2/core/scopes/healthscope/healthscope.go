@@ -44,6 +44,7 @@ import (
 	af "github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -478,7 +479,8 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 				okToCheckTrait = true
 				return
 			}
-			isHealthy, err := wl.EvalHealth(pCtx, c, ns)
+			accessor := util.NewApplicationResourceNamespaceAccessor(ns, "")
+			isHealthy, err := wl.EvalHealth(pCtx, c, accessor)
 			if err != nil {
 				wlHealth.HealthStatus = StatusUnhealthy
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
@@ -490,7 +492,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 				wlHealth.HealthStatus = StatusUnhealthy
 			}
-			wlHealth.CustomStatusMsg, err = wl.EvalStatus(pCtx, c, ns)
+			wlHealth.CustomStatusMsg, err = wl.EvalStatus(pCtx, c, accessor)
 			if err != nil {
 				wlHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 			}
@@ -522,7 +524,8 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 			traits[i] = tHealth
 			continue
 		}
-		isHealthy, err := tr.EvalHealth(pCtx, c, ns)
+		accessor := util.NewApplicationResourceNamespaceAccessor("", ns)
+		isHealthy, err := tr.EvalHealth(pCtx, c, accessor)
 		if err != nil {
 			tHealth.HealthStatus = StatusUnhealthy
 			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
@@ -535,7 +538,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
 			tHealth.HealthStatus = StatusUnhealthy
 		}
-		tHealth.CustomStatusMsg, err = tr.EvalStatus(pCtx, c, ns)
+		tHealth.CustomStatusMsg, err = tr.EvalStatus(pCtx, c, accessor)
 		if err != nil {
 			tHealth.Diagnosis = errors.Wrap(err, errHealthCheck).Error()
 		}
