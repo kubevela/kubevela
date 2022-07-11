@@ -27,10 +27,9 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/utils"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/pkg/velaql"
@@ -59,11 +58,14 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 		Long: `Show result of executing velaQL, use it like:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
 		vela ql --file ./ql.cue`,
-		Example: `Users can query with a query statement:
+		Example: `  Users can query with a query statement:
 		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
 
-They can also query by a ql file:
+  Query by a ql file:
 		vela ql --file ./ql.cue
+  Query by a ql file from remote url:
+		vela ql --file https://<my-host-to-cue>/ql.cue
+  Query by a ql file from stdin:
 		cat ./ql.cue | vela ql --file -
 
 Example content of ql.cue:
@@ -209,7 +211,7 @@ func queryFromStatement(ctx context.Context, client client.Client, velaC common.
 	if err != nil {
 		return err
 	}
-	return print(queryValue, cmd)
+	return printValue(queryValue, cmd)
 }
 
 // queryFromView print velaQL result from query view
@@ -222,10 +224,10 @@ func queryFromView(ctx context.Context, client client.Client, velaC common.Args,
 	if err != nil {
 		return err
 	}
-	return print(queryValue, cmd)
+	return printValue(queryValue, cmd)
 }
 
-func print(queryValue *value.Value, cmd *cobra.Command) error {
+func printValue(queryValue *value.Value, cmd *cobra.Command) error {
 	response, err := queryValue.CueValue().MarshalJSON()
 	if err != nil {
 		return err

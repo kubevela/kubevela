@@ -131,12 +131,16 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Use:   "enable",
 		Short: "enable an addon",
 		Long:  "enable an addon in cluster.",
-		Example: `Enable addon by:
+		Example: `  Enable addon by:
 	vela addon enable <addon-name>
-Enable addon with specify version:
+  Enable addon with specify version:
 	vela addon enable <addon-name> --version <addon-version>
-Enable addon for specific clusters, (local means control plane):
+  Enable addon for specific clusters, (local means control plane):
 	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
+  Enable addon locally:
+	vela addon enable <your-local-addon-path>
+  Enable addon with specified args (the args should be defined in addon's parameters):
+	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -229,12 +233,16 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Short: "upgrade an addon",
 		Long:  "upgrade an addon in cluster.",
 		Example: `
-Upgrade addon by:
+  Upgrade addon by:
 	vela addon upgrade <addon-name>
-Upgrade addon with specify version:
+  Upgrade addon with specify version:
 	vela addon upgrade <addon-name> --version <addon-version>
-Upgrade addon for specific clusters, (local means control plane):
+  Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
+  Upgrade addon locally:
+	vela addon enable <your-local-addon-path>
+  Upgrade addon with specified args (the args should be defined in addon's parameters):
+	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

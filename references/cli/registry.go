@@ -30,6 +30,8 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
@@ -40,13 +42,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apis"
 	"github.com/oam-dev/kubevela/references/plugins"
-
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewRegistryCommand Manage Capability Center

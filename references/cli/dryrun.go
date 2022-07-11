@@ -37,6 +37,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	clicom "github.com/oam-dev/kubevela/references/common"
 )
 
 // DryRunCmdOptions contains dry-run cmd options
@@ -54,8 +55,13 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
 		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
-		Long:                  "Dry-run application locally, render the Kubernetes resources as result to stdout.",
-		Example:               "vela dry-run",
+		Long: `Dry-run application locally, render the Kubernetes resources as result to stdout.
+	vela dry-run -d <definition file or directory> -f /path/to/app.yaml
+
+You can also specify a remote url for app:
+	vela dry-run -d <definition file or directory> -f https://<remote-host>/app.yaml
+`,
+		Example: "vela dry-run",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
@@ -194,8 +200,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 }
 
 func readApplicationFromFile(filename string) (*corev1beta1.Application, error) {
-
-	fileContent, err := os.ReadFile(filepath.Clean(filename))
+	fileContent, err := clicom.ReadRemoteOrLocalPath(filename)
 	if err != nil {
 		return nil, err
 	}

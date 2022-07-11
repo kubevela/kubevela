@@ -55,6 +55,7 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
+	clicom "github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -112,15 +113,8 @@ func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, pro
 	}
 }
 
-func loadYAMLBytesFromFileOrHTTP(pathOrURL string) ([]byte, error) {
-	if strings.HasPrefix(pathOrURL, "http://") || strings.HasPrefix(pathOrURL, "https://") {
-		return common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
-	}
-	return os.ReadFile(path.Clean(pathOrURL))
-}
-
 func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
-	templateYAMLBytes, err := loadYAMLBytesFromFileOrHTTP(templateYAML)
+	templateYAMLBytes, err := clicom.ReadRemoteOrLocalPath(templateYAML)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get template YAML file %s", templateYAML)
 	}
@@ -787,7 +781,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			}
 
 			render := func(inputFilename, outputFilename string) error {
-				cueBytes, err := loadYAMLBytesFromFileOrHTTP(inputFilename)
+				cueBytes, err := clicom.ReadRemoteOrLocalPath(inputFilename)
 				if err != nil {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
@@ -881,7 +875,11 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			"# Command below will apply the ./defs/my-trait.cue file to kubernetes default namespace\n" +
 			"> vela def apply ./defs/my-trait.cue --namespace default" +
 			"# Command below will convert the ./defs/my-trait.cue file to kubernetes CRD object and print it without applying it to kubernetes\n" +
-			"> vela def apply ./defs/my-trait.cue --dry-run",
+			"> vela def apply ./defs/my-trait.cue --dry-run" +
+			"# Apply a CUE from URL \n" +
+			"> vela def apply https://<my-host-to-def>/my-trait.cue --dry-run" +
+			"# Apply a CUE from stdin \n" +
+			"> vela def apply -",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dryRun, err := cmd.Flags().GetBool(FlagDryRun)
@@ -900,8 +898,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-
-			cueBytes, err := loadYAMLBytesFromFileOrHTTP(args[0])
+			cueBytes, err := clicom.ReadRemoteOrLocalPath(args[0])
 			if err != nil {
 				return errors.Wrapf(err, "failed to get %s", args[0])
 			}
