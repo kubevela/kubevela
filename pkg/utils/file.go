@@ -43,6 +43,14 @@ type FileData struct {
 // If path is a file, fetch the data from the file
 // If path is a dir, fetch the data from all the files inside the dir that passes the pathFilter
 func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) bool) ([]FileData, error) {
+	if path == "-" {
+		bs, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get data from stdin: %w", err)
+		}
+		return []FileData{{Path: path, Data: bs}}, nil
+	}
+
 	if IsValidURL(path) {
 		bs, err := common.HTTPGetWithOption(ctx, path, nil)
 		if err != nil {

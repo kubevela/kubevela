@@ -127,7 +127,6 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewHelpCommand(),
 
 		// hide
-		NewTemplateCommand(ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 

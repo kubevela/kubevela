@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/gosuri/uitable"
-
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
