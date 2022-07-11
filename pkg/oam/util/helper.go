@@ -953,3 +953,38 @@ func AsController(r *corev1.ObjectReference) metav1.OwnerReference {
 	ref.Controller = &c
 	return ref
 }
+
+// NamespaceAccessor namespace accessor for resource
+type NamespaceAccessor interface {
+	For(obj client.Object) string
+	Namespace() string
+}
+
+type applicationResourceNamespaceAccessor struct {
+	applicationNamespace string
+	overrideNamespace    string
+}
+
+// For access namespace for resource
+func (accessor *applicationResourceNamespaceAccessor) For(obj client.Object) string {
+	if accessor.overrideNamespace != "" {
+		return accessor.overrideNamespace
+	}
+	if originalNamespace := obj.GetNamespace(); originalNamespace != "" {
+		return originalNamespace
+	}
+	return accessor.applicationNamespace
+}
+
+// Namespace the namespace by default
+func (accessor *applicationResourceNamespaceAccessor) Namespace() string {
+	if accessor.overrideNamespace != "" {
+		return accessor.overrideNamespace
+	}
+	return accessor.applicationNamespace
+}
+
+// NewApplicationResourceNamespaceAccessor create namespace accessor for resource in application
+func NewApplicationResourceNamespaceAccessor(appNs, overrideNs string) NamespaceAccessor {
+	return &applicationResourceNamespaceAccessor{applicationNamespace: appNs, overrideNamespace: overrideNs}
+}
