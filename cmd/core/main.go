@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -156,11 +156,6 @@ func main() {
 	if pprofAddr != "" {
 		// Start pprof server if enabled
 		mux := http.NewServeMux()
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 		pprofServer := http.Server{
 			Addr:    pprofAddr,
 			Handler: mux,
