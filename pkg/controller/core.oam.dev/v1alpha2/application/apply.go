@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
@@ -215,17 +216,14 @@ func (h *AppHandler) ProduceArtifacts(ctx context.Context, comps []*types.Compon
 
 // nolint
 func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Workload, appRev *v1beta1.ApplicationRevision, overrideNamespace string) (*common.ApplicationComponentStatus, bool, error) {
-	namespace := h.app.Namespace
-	if overrideNamespace != "" {
-		namespace = overrideNamespace
-	}
+	accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, overrideNamespace)
 
 	var (
 		status = common.ApplicationComponentStatus{
 			Name:               wl.Name,
 			WorkloadDefinition: wl.FullTemplate.Reference.Definition,
 			Healthy:            true,
-			Namespace:          namespace,
+			Namespace:          accessor.Namespace(),
 			Cluster:            multicluster.ClusterNameInContext(ctx),
 		}
 		appName  = appRev.Spec.Application.Name
@@ -235,10 +233,10 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 
 	if wl.CapabilityCategory == types.TerraformCategory {
 		var configuration terraforv1beta2.Configuration
-		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &configuration); err != nil {
+		if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: accessor.Namespace()}, &configuration); err != nil {
 			if kerrors.IsNotFound(err) {
 				var legacyConfiguration terraforv1beta1.Configuration
-				if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: namespace}, &legacyConfiguration); err != nil {
+				if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: accessor.Namespace()}, &legacyConfiguration); err != nil {
 					return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appName, wl.Name)
 				}
 				isHealth = setStatus(&status, legacyConfiguration.Status.ObservedGeneration, legacyConfiguration.Generation,
@@ -251,12 +249,12 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 				appRev.Name, configuration.Status.Apply.State, configuration.Status.Apply.Message)
 		}
 	} else {
-		if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, namespace); !ok || err != nil {
+		if ok, err := wl.EvalHealth(wl.Ctx, h.r.Client, accessor); !ok || err != nil {
 			isHealth = false
 			status.Healthy = false
 		}
 
-		status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, namespace)
+		status.Message, err = wl.EvalStatus(wl.Ctx, h.r.Client, accessor)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, wl.Name)
 		}
@@ -264,24 +262,25 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 
 	var traitStatusList []common.ApplicationTraitStatus
 	for _, tr := range wl.Traits {
+		traitOverrideNamespace := overrideNamespace
 		if tr.FullTemplate.TraitDefinition.Spec.ControlPlaneOnly {
-			namespace = appRev.GetNamespace()
+			traitOverrideNamespace = appRev.GetNamespace()
 			wl.Ctx.SetCtx(context.WithValue(wl.Ctx.GetCtx(), multicluster.ClusterContextKey, multicluster.ClusterLocalName))
 		}
+		_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 		var traitStatus = common.ApplicationTraitStatus{
 			Type:    tr.Name,
 			Healthy: true,
 		}
-		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, namespace); !ok || err != nil {
+		if ok, err := tr.EvalHealth(wl.Ctx, h.r.Client, _accessor); !ok || err != nil {
 			isHealth = false
 			traitStatus.Healthy = false
 		}
-		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, namespace)
+		traitStatus.Message, err = tr.EvalStatus(wl.Ctx, h.r.Client, _accessor)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, wl.Name, tr.Name)
 		}
 		traitStatusList = append(traitStatusList, traitStatus)
-		namespace = appRev.GetNamespace()
 		wl.Ctx.SetCtx(context.WithValue(wl.Ctx.GetCtx(), multicluster.ClusterContextKey, status.Cluster))
 	}
 

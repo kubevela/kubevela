@@ -62,8 +62,8 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
-	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error)
+	HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error)
+	Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error)
 }
 
 type def struct {
@@ -151,7 +151,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	return nil
 }
 
-func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 
 	var root = initRoot(ctx.BaseContextLabels())
 	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
@@ -162,7 +162,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		return nil, err
 	}
 	// workload main resource will have a unique label("app.oam.dev/resourceType"="WORKLOAD") in per component/app level
-	object, err := getResourceFromObj(ctx.GetCtx(), componentWorkload, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+	object, err := getResourceFromObj(ctx.GetCtx(), componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
 		oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
 	}, commonLabels), "")
 	if err != nil {
@@ -182,7 +182,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 			return nil, err
 		}
 		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: AuxiliaryWorkload,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -197,11 +197,11 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 }
 
 // HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
+func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
 	if healthPolicyTemplate == "" {
 		return true, nil
 	}
-	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}
@@ -228,11 +228,11 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 }
 
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
+func (wd *workloadDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
 	if customStatusTemplate == "" {
 		return "", nil
 	}
-	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
@@ -417,7 +417,7 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 	return root
 }
 
-func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	var root = initRoot(ctx.BaseContextLabels())
 	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
@@ -431,7 +431,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 		if err != nil {
 			return nil, err
 		}
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: assist.Type,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -446,11 +446,11 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
+func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
 	if customStatusTemplate == "" {
 		return "", nil
 	}
-	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
@@ -458,11 +458,11 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, cu
 }
 
 // HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
+func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
 	if healthPolicyTemplate == "" {
 		return true, nil
 	}
-	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}
