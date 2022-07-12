@@ -1183,6 +1183,13 @@ func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Ap
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
+	used, err := c.checkPolicyUsedByWorkflow(ctx, app, policyName)
+	if err != nil {
+		return err
+	}
+	if used {
+		return bcode.ErrApplicationPolicyIsBeingUsed
+	}
 	if err := c.Store.Delete(ctx, &policy); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
 			return bcode.ErrApplicationPolicyNotExist
@@ -1725,8 +1732,9 @@ func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Con
 	if err != nil {
 		return err
 	}
+	needUpdate := false
 	for _, w := range workflows {
-		for _, step := range w.Steps {
+		for i, step := range w.Steps {
 			p := step.Properties
 			policies, properties, err := extractPolicyListAndProperty(p)
 			if err != nil {
@@ -1736,31 +1744,60 @@ func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Con
 				policies = []string{}
 				properties = map[string]interface{}{}
 			}
+			var added, deleted bool
 			if ok := bindings[fmt.Sprintf(pattern, w.Name, step.Name)]; ok {
-				policies = guaranteePolicyExist(policies, policyName)
+				policies, added = guaranteePolicyExist(policies, policyName)
 			} else {
-				policies = guaranteePolicyNotExist(policies, policyName)
+				policies, deleted = guaranteePolicyNotExist(policies, policyName)
 			}
-			properties["policies"] = policies
-			pStr, err := json.Marshal(properties)
+			if added || deleted {
+				properties["policies"] = policies
+				pStr, err := json.Marshal(properties)
+				if err != nil {
+					return err
+				}
+				w.Steps[i].Properties = string(pStr)
+				needUpdate = true
+			}
+		}
+		if needUpdate {
+			_, err := c.WorkflowService.UpdateWorkflow(ctx,
+				&model.Workflow{
+					BaseModel:     model.BaseModel{CreateTime: w.CreateTime, UpdateTime: time.Now()},
+					Description:   w.Description,
+					Name:          w.Name,
+					Alias:         w.Alias,
+					Default:       &w.Default,
+					AppPrimaryKey: app.Name,
+					EnvName:       w.EnvName,
+				}, apisv1.UpdateWorkflowRequest{Steps: w.Steps, Description: w.Description})
 			if err != nil {
 				return err
 			}
-			step.Properties = string(pStr)
-		}
-		_, err := c.WorkflowService.UpdateWorkflow(ctx,
-			&model.Workflow{
-				BaseModel:     model.BaseModel{CreateTime: w.CreateTime, UpdateTime: time.Now()},
-				Description:   w.Description,
-				Name:          w.Name,
-				Alias:         w.Alias,
-				Default:       &w.Default,
-				AppPrimaryKey: app.Name,
-				EnvName:       w.EnvName,
-			}, apisv1.UpdateWorkflowRequest{Steps: w.Steps, Description: w.Description})
-		if err != nil {
-			return err
 		}
 	}
 	return nil
+}
+
+// checkPolicyUsedByWorkflow check a policy whether used by any workflow step
+func (c *applicationServiceImpl) checkPolicyUsedByWorkflow(ctx context.Context, app *model.Application, policyName string) (bool, error) {
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return false, err
+	}
+	for _, w := range workflows {
+		for _, step := range w.Steps {
+			p := step.Properties
+			policies, _, err := extractPolicyListAndProperty(p)
+			if err != nil {
+				return false, err
+			}
+			for _, policy := range policies {
+				if policy == policyName {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }

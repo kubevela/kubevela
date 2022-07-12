@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,17 +23,19 @@ import (
 )
 
 // guaranteePolicyExist check the slice whether contain the target policy, if not put it in.
-func guaranteePolicyExist(c []string, policy string) []string {
+// and tell invoker whether should update the policy
+func guaranteePolicyExist(c []string, policy string) ([]string, bool) {
 	for _, p := range c {
 		if policy == p {
-			return c
+			return c, false
 		}
 	}
-	return append(c, policy)
+	return append(c, policy), true
 }
 
 // guaranteePolicyNotExist check the slice whether caontain the target policy, if yes delete
-func guaranteePolicyNotExist(c []string, policy string) []string {
+// and tell invoker whether should update the policy
+func guaranteePolicyNotExist(c []string, policy string) ([]string, bool) {
 	res := make([]string, len(c))
 	i := 0
 	for _, p := range c {
@@ -43,7 +45,7 @@ func guaranteePolicyNotExist(c []string, policy string) []string {
 		}
 	}
 	// the target policy isn't exist yet, put it in.
-	return res[:i]
+	return res[:i], len(c) != i
 }
 
 // extractPolicyListAndProperty can extract policy from  string-format properties, and return

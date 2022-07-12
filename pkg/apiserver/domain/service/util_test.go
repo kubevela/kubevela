@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,10 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 			list []string
 			p    string
 		}
-		res []string
+		res struct {
+			res        []string
+			needUpdate bool
+		}
 	}{
 		{
 			name: "containOne",
@@ -37,7 +40,13 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 				list []string
 				p    string
 			}{list: []string{"policy1", "policy2"}, p: "policy2"},
-			res: []string{"policy1"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{
+				res:        []string{"policy1"},
+				needUpdate: true,
+			},
 		},
 		{
 			name: "containMulti",
@@ -45,7 +54,10 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 				list []string
 				p    string
 			}{list: []string{"policy1", "policy2", "policy3", "policy2"}, p: "policy2"},
-			res: []string{"policy1", "policy3"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy1", "policy3"}, needUpdate: true},
 		},
 		{
 			name: "not-contain",
@@ -53,7 +65,10 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 				list []string
 				p    string
 			}{list: []string{"policy1", "policy3"}, p: "policy2"},
-			res: []string{"policy1", "policy3"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy1", "policy3"}, needUpdate: false},
 		},
 		{
 			name: "first-element",
@@ -61,7 +76,10 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 				list []string
 				p    string
 			}{list: []string{"policy1", "policy3"}, p: "policy1"},
-			res: []string{"policy3"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy3"}, needUpdate: true},
 		},
 		{
 			name: "only-one",
@@ -69,13 +87,17 @@ func TestGuaranteePolicyNotExist(t *testing.T) {
 				list []string
 				p    string
 			}{list: []string{"policy1"}, p: "policy1"},
-			res: []string{},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{}, needUpdate: true},
 		},
 	}
 	for _, s := range testCases {
 		t.Run(s.name, func(t *testing.T) {
-			res := guaranteePolicyNotExist(s.input.list, s.input.p)
-			assert.DeepEqual(t, res, s.res)
+			res, needUpdate := guaranteePolicyNotExist(s.input.list, s.input.p)
+			assert.DeepEqual(t, res, s.res.res)
+			assert.Equal(t, needUpdate, s.res.needUpdate)
 		})
 	}
 }
@@ -87,7 +109,10 @@ func TestGuaranteePolicyExist(t *testing.T) {
 			list   []string
 			policy string
 		}
-		res []string
+		res struct {
+			res        []string
+			needUpdate bool
+		}
 	}{
 		{
 			name: "not-contain",
@@ -95,7 +120,10 @@ func TestGuaranteePolicyExist(t *testing.T) {
 				list   []string
 				policy string
 			}{list: []string{"policy1", "policy2"}, policy: "policy3"},
-			res: []string{"policy1", "policy2", "policy3"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy1", "policy2", "policy3"}, needUpdate: true},
 		},
 		{
 			name: "contain-already",
@@ -103,7 +131,10 @@ func TestGuaranteePolicyExist(t *testing.T) {
 				list   []string
 				policy string
 			}{list: []string{"policy1", "policy2"}, policy: "policy2"},
-			res: []string{"policy1", "policy2"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy1", "policy2"}, needUpdate: false},
 		},
 		{
 			name: "empty",
@@ -111,7 +142,10 @@ func TestGuaranteePolicyExist(t *testing.T) {
 				list   []string
 				policy string
 			}{list: []string{}, policy: "policy2"},
-			res: []string{"policy2"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy2"}, needUpdate: true},
 		},
 		{
 			name: "nil slice",
@@ -119,14 +153,18 @@ func TestGuaranteePolicyExist(t *testing.T) {
 				list   []string
 				policy string
 			}{list: nil, policy: "policy2"},
-			res: []string{"policy2"},
+			res: struct {
+				res        []string
+				needUpdate bool
+			}{res: []string{"policy2"}, needUpdate: true},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			res := guaranteePolicyExist(testCase.input.list, testCase.input.policy)
-			assert.DeepEqual(t, res, testCase.res)
+			res, needUpdate := guaranteePolicyExist(testCase.input.list, testCase.input.policy)
+			assert.DeepEqual(t, res, testCase.res.res)
+			assert.Equal(t, needUpdate, testCase.res.needUpdate)
 		})
 	}
 }
