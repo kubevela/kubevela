@@ -1,0 +1,89 @@
+name: Publish Chart
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: { }
+
+env:
+  BUCKET: ${{ secrets.OSS_BUCKET }}
+  ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
+  ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
+  ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+  ARTIFACT_HUB_REPOSITORY_ID: ${{ secrets.ARTIFACT_HUB_REPOSITORY_ID }}
+
+jobs:  
+  publish-charts:
+    env:
+      HELM_CHARTS_DIR: charts
+      HELM_CHART: charts/vela-core
+      MINIMAL_HELM_CHART: charts/vela-minimal
+      LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
+      VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
+      LOCAL_OSS_DIRECTORY: .oss/
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@master
+      - name: Get git revision
+        id: vars
+        shell: bash
+        run: |
+          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
+      - name: Install Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.4.0
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Generate helm doc
+        run: |
+          make helm-doc-gen
+      - name: Prepare legacy chart
+        run: |
+          rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
+          rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
+      - name: Prepare vela chart
+        run: |
+          rsync -r $VELA_ROLLOUT_HELM_CHART $HELM_CHARTS_DIR
+      - name: Get the version
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo ::set-output name=VERSION::${VERSION}
+      - name: Tag helm chart image
+        run: |
+          image_tag=${{ steps.get_version.outputs.VERSION }}
+          chart_version=${{ steps.get_version.outputs.VERSION }}
+          sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
+          sed -i "s/latest/${image_tag}/g" $MINIMAL_HELM_CHART/values.yaml
+          sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
+          sed -i "s/latest/${image_tag}/g" $VELA_ROLLOUT_HELM_CHART/values.yaml
+          chart_smever=${chart_version#"v"}
+          sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_smever/g" $MINIMAL_HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_smever/g" $VELA_ROLLOUT_HELM_CHART/Chart.yaml
+      - name: Install ossutil
+        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
+      - name: Configure Alibaba Cloud OSSUTIL
+        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
+      - name: sync cloud to local
+        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
+      - name: add artifacthub stuff to the repo
+        run: |
+          rsync $HELM_CHART/README.md $LEGACY_HELM_CHART/README.md
+          rsync $HELM_CHART/README.md $VELA_ROLLOUT_HELM_CHART/README.md
+          sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
+          rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
+      - name: Package helm charts
+        run: |
+          helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm package $MINIMAL_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm package $VELA_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
+      - name: sync local to cloud
+        run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
