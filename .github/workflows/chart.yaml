@@ -55,18 +55,8 @@ jobs:
           echo ::set-output name=VERSION::${VERSION}
       - name: Tag helm chart image
         run: |
-          latest_repo_tag=${{ steps.get_version.outputs.VERSION }}
-          sub="."
-          major="$(cut -d"$sub" -f1 <<<"$latest_repo_tag")"
-          minor="$(cut -d"$sub" -f2 <<<"$latest_repo_tag")"
-          patch="0"
-          current_repo_tag="$major.$minor.$patch"
-          image_tag=${GITHUB_REF#refs/tags/}
-          chart_version=$latest_repo_tag
-          if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
-            image_tag=latest
-            chart_version=${current_repo_tag}-nightly-build
-          fi
+          image_tag=${{ steps.get_version.outputs.VERSION }}
+          chart_version=${{ steps.get_version.outputs.VERSION }}
           sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $MINIMAL_HELM_CHART/values.yaml
           sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
