@@ -18,6 +18,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -739,19 +740,33 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 	return nil, nil
 }
 
-// mergeCustomRules merge the customize
+// mergeCustomRules merge user defined resource topology rules with the system ones
 func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 	rulesList := v12.ConfigMapList{}
 	if err := k8sClient.List(ctx, &rulesList, client.InNamespace(velatypes.DefaultKubeVelaNS), client.HasLabels{oam.LabelResourceRules}); err != nil {
-		return err
+		return client.IgnoreNotFound(err)
 	}
 	for _, item := range rulesList.Items {
 		ruleStr := item.Data[relationshipKey]
-		var customRules []*customRule
-		err := yaml.Unmarshal([]byte(ruleStr), &customRules)
+
+		var (
+			customRules []*customRule
+			format      string
+			err         error
+		)
+		if item.Annotations != nil {
+			format = item.Annotations[oam.LabelResourceRuleFormat]
+		}
+		switch format {
+		case oam.ResourceTopologyFormatJSON:
+			err = json.Unmarshal([]byte(ruleStr), &customRules)
+		case oam.ResourceTopologyFormatYAML, "":
+			err = yaml.Unmarshal([]byte(ruleStr), &customRules)
+		}
 		if err != nil {
 			// don't let one miss-config configmap brake whole process
 			log.Logger.Errorf("relationship rule configamp %s miss config %v", item.Name, err)
+			continue
 		}
 		for _, rule := range customRules {
 			if cResource, ok := globalRule[*rule.ParentResourceType]; ok {

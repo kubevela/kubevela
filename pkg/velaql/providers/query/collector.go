@@ -129,6 +129,58 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*ty
 			}
 		}
 	}
+	// merge user defined customize rule before every request.
+	err = mergeCustomRules(ctx, c.k8sClient)
+	if err != nil {
+		return managedResources, err
+	}
+
+	// error from leaf nodes won't block the results
+	for _, resource := range managedResources {
+		root := types.ResourceTreeNode{
+			Cluster:    resource.Cluster,
+			APIVersion: resource.APIVersion,
+			Kind:       resource.Kind,
+			Namespace:  resource.Namespace,
+			Name:       resource.Name,
+			UID:        resource.UID,
+		}
+		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1)
+		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			klog.Errorf("query leaf node resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		rootObject, err := fetchObjectWithResourceTreeNode(ctx, resource.Cluster, c.k8sClient, root)
+		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			klog.Errorf("fetch object for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		rootStatus, err := checkResourceStatus(*rootObject)
+		if err != nil {
+			klog.Errorf("check status for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		root.HealthStatus = *rootStatus
+		addInfo, err := additionalInfo(*rootObject)
+		if err != nil {
+			klog.Errorf("check additionalInfo for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		root.AdditionalInfo = addInfo
+		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
+		if !rootObject.GetDeletionTimestamp().IsZero() {
+			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		}
+		resource.ResourceTree = &root
+	}
 	return managedResources, nil
 }
 

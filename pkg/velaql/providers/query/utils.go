@@ -34,5 +34,9 @@ func fillQueryResult(v *value.Value, res interface{}, paths ...string) error {
 	if err != nil {
 		return v.FillObject(err, "err")
 	}
-	return v.FillObject(expr, paths...)
+	err = v.FillObject(expr, paths...)
+	if err != nil {
+		return err
+	}
+	return v.Error()
 }

@@ -141,17 +141,19 @@ var _ = Describe("Test velaQL", func() {
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						Kind:      "Service",
-						Namespace: "default",
-						Name:      "nodeport",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "nodeport",
+						APIVersion: "v1",
 					},
 				},
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						Kind:      "Service",
-						Namespace: "default",
-						Name:      "loadbalancer",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "loadbalancer",
+						APIVersion: "v1",
 					},
 				},
 				{

@@ -97,7 +97,11 @@ const (
 	// LabelProject recorde the project the resource belong to
 	LabelProject = "core.oam.dev/project"
 
+	// LabelResourceRules defines the configmap is representing the resource topology rules
 	LabelResourceRules = "rules.oam.dev/resources"
+
+	// LabelResourceRuleFormat defines the resource format of the resource topology rules
+	LabelResourceRuleFormat = "rules.oam.dev/resource-format"
 
 	// LabelControllerName indicates the controller name
 	LabelControllerName = "controller.oam.dev/name"
@@ -219,4 +223,11 @@ const (
 
 	// AnnotationResourceURL records the source url of the Kubernetes object
 	AnnotationResourceURL = "app.oam.dev/resource-url"
+)
+
+const (
+	// ResourceTopologyFormatYAML mark the format of resource topology is yaml, by default, it's yaml.
+	ResourceTopologyFormatYAML = "yaml"
+	// ResourceTopologyFormatJSON mark the format of resource topology is json.
+	ResourceTopologyFormatJSON = "json"
 )

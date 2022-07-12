@@ -400,7 +400,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return err
 			}
 			if len(status.Resources) != 1 {
-				return fmt.Errorf("applied resource velaql error")
+				return fmt.Errorf("applied resource velaql error, expect to be 1 but %d", len(status.Resources))
 			}
 			return nil
 		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
