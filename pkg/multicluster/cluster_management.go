@@ -508,12 +508,9 @@ func AliasCluster(ctx context.Context, cli client.Client, clusterName string, al
 
 // ensureClusterNotExists will check the cluster is not existed in control plane
 func ensureClusterNotExists(ctx context.Context, c client.Client, clusterName string) error {
-	_, err := GetVirtualCluster(ctx, c, clusterName)
+	_, err := prismclusterv1alpha1.NewClusterClient(c).Get(ctx, clusterName)
 	if err != nil {
-		if IsClusterNotExists(err) {
-			return nil
-		}
-		return err
+		return client.IgnoreNotFound(err)
 	}
 	return ErrClusterExists
 }
