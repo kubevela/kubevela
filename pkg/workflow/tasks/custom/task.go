@@ -63,7 +63,7 @@ func (t *TaskLoader) GetTaskGenerator(ctx context.Context, name string) (wfTypes
 type taskRunner struct {
 	name         string
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus)
 }
 
 // Name return step name.
@@ -77,7 +77,7 @@ func (tr *taskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOptions
 }
 
 // Pending check task should be executed or not.
-func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
+func (tr *taskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
 	return tr.checkPending(ctx, stepStatus)
 }
 
@@ -120,10 +120,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 		tRunner := new(taskRunner)
 		tRunner.name = wfStep.Name
-		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
-			return CheckPending(ctx, wfStep, stepStatus)
+		tRunner.checkPending = func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
+			return CheckPending(ctx, wfStep, exec.wfStatus.ID, stepStatus)
 		}
-		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error) {
+		tRunner.run = func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (stepStatus common.StepStatus, operations *wfTypes.Operation, rErr error) {
 			if options.GetTracer == nil {
 				options.GetTracer = func(id string, step v1beta1.WorkflowStep) monitorContext.Context {
 					return monitorContext.NewTraceContext(context.Background(), "")
@@ -139,9 +139,29 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				t.runOptionsProcess(options)
 			}
 
+			exec.wfStatus.Message = ""
 			var taskv *value.Value
 			var err error
 			var paramFile string
+
+			defer func() {
+				if len(wfStep.Outputs) > 0 {
+					if taskv == nil {
+						taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
+						if err != nil {
+							return
+						}
+					}
+					for _, hook := range options.PostStopHooks {
+						if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
+							exec.wfStatus.Message = err.Error()
+							stepStatus = exec.status()
+							operations = exec.operation()
+							return
+						}
+					}
+				}
+			}()
 
 			for _, hook := range options.PreCheckHooks {
 				result, err := hook(wfStep, &wfTypes.PreCheckOptions{
@@ -211,12 +231,6 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 				tracer.Error(err, "do steps")
 				exec.err(ctx, true, err, wfTypes.StatusReasonExecute)
 				return exec.status(), exec.operation(), nil
-			}
-			for _, hook := range options.PostStopHooks {
-				if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
-					exec.err(ctx, false, err, wfTypes.StatusReasonOutput)
-					return exec.status(), exec.operation(), nil
-				}
 			}
 
 			return exec.status(), exec.operation(), nil
@@ -552,20 +566,28 @@ func NewTaskLoader(lt LoadTaskTemplate, pkgDiscover *packages.PackageDiscover, h
 }
 
 // CheckPending checks whether to pending task run
-func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, stepStatus map[string]common.StepStatus) bool {
+func CheckPending(ctx wfContext.Context, step v1beta1.WorkflowStep, id string, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
+	pStatus := common.StepStatus{
+		Phase: common.WorkflowStepPhasePending,
+		Type:  step.Type,
+		ID:    id,
+		Name:  step.Name,
+	}
 	for _, depend := range step.DependsOn {
+		pStatus.Message = fmt.Sprintf("Pending on DependsOn: %s", depend)
 		if status, ok := stepStatus[depend]; ok {
 			if !wfTypes.IsStepFinish(status.Phase, status.Reason) {
-				return true
+				return true, pStatus
 			}
 		} else {
-			return true
+			return true, pStatus
 		}
 	}
 	for _, input := range step.Inputs {
+		pStatus.Message = fmt.Sprintf("Pending on Input: %s", input.From)
 		if _, err := ctx.GetVar(strings.Split(input.From, ".")...); err != nil {
-			return true
+			return true, pStatus
 		}
 	}
-	return false
+	return false, common.StepStatus{}
 }

@@ -34,7 +34,7 @@ import (
 // TaskRunner is a task runner.
 type TaskRunner interface {
 	Name() string
-	Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
+	Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus)
 	Run(ctx wfContext.Context, options *TaskRunOptions) (common.StepStatus, *Operation, error)
 }
 

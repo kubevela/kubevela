@@ -17,6 +17,7 @@ limitations under the License.
 package hooks
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -44,23 +45,26 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 
 // Output get data from task value.
 func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus) error {
+	errMsg := ""
 	if wfTypes.IsStepFinish(status.Phase, status.Reason) {
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
-			if err != nil && !strings.Contains(err.Error(), "not found") {
-				return err
+			// if the error is not nil and the step is not skipped, return the error
+			if err != nil && status.Phase != common.WorkflowStepPhaseSkipped {
+				errMsg += fmt.Sprintf("failed to get output from %s: %s\n", output.ValueFrom, err.Error())
 			}
+			// if the error is not nil, set the value to null
 			if err != nil || v.Error() != nil {
-				v, err = taskValue.MakeValue("null")
-				if err != nil {
-					return err
-				}
+				v, _ = taskValue.MakeValue("null")
 			}
 			if err := ctx.SetVar(v, output.Name); err != nil {
-				return err
+				errMsg += fmt.Sprintf("failed to set output %s: %s\n", output.Name, err.Error())
 			}
 		}
 	}
 
+	if errMsg != "" {
+		return errors.New(errMsg)
+	}
 	return nil
 }

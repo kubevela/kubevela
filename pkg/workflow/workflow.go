@@ -529,7 +529,7 @@ func (e *engine) setNextExecuteTime() {
 	e.wfCtx.SetValueInMemory(next, wfTypes.ContextKeyNextExecuteTime)
 }
 
-func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
+func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner, pendingRunners bool) error {
 	var (
 		todoTasks    []wfTypes.TaskRunner
 		pendingTasks []wfTypes.TaskRunner
@@ -545,9 +545,15 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 		}
 		if !finish {
 			done = false
-			if tRunner.Pending(wfCtx, e.stepStatus) {
+			if pending, status := tRunner.Pending(wfCtx, e.stepStatus); pending {
+				if !pendingRunners {
+					wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+					e.updateStepStatus(status)
+				}
 				pendingTasks = append(pendingTasks, tRunner)
 				continue
+			} else if status.Phase == common.WorkflowStepPhasePending {
+				wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, stepID)
 			}
 			todoTasks = append(todoTasks, tRunner)
 		} else {
@@ -569,7 +575,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 		}
 
 		if len(pendingTasks) > 0 {
-			return e.runAsDAG(pendingTasks)
+			return e.runAsDAG(pendingTasks, true)
 		}
 	}
 	return nil
@@ -579,7 +585,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 	var err error
 	if dag {
-		err = e.runAsDAG(taskRunners)
+		err = e.runAsDAG(taskRunners, false)
 	} else {
 		err = e.steps(taskRunners, dag)
 	}
@@ -610,6 +616,14 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 			if wfTypes.IsStepFinish(status.Phase, status.Reason) {
 				continue
 			}
+		}
+		if pending, status := runner.Pending(wfCtx, e.stepStatus); pending {
+			wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			e.updateStepStatus(status)
+			if dag {
+				continue
+			}
+			return nil
 		}
 		options := e.generateRunOptions(e.findDependPhase(taskRunners, index, dag))
 

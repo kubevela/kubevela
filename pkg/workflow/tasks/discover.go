@@ -134,10 +134,11 @@ func (tr *suspendTaskRunner) Name() string {
 // Run make workflow suspend.
 func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (stepStatus common.StepStatus, operations *types.Operation, rErr error) {
 	stepStatus = common.StepStatus{
-		ID:    tr.id,
-		Name:  tr.step.Name,
-		Type:  types.WorkflowStepTypeSuspend,
-		Phase: common.WorkflowStepPhaseRunning,
+		ID:      tr.id,
+		Name:    tr.step.Name,
+		Type:    types.WorkflowStepTypeSuspend,
+		Phase:   common.WorkflowStepPhaseRunning,
+		Message: "",
 	}
 	operations = &types.Operation{Suspend: true}
 
@@ -173,7 +174,6 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 		}
 		return stepStatus, operations, nil
 	}
-
 	for _, input := range tr.step.Inputs {
 		if input.ParameterKey == "duration" {
 			inputValue, err := ctx.GetVar(strings.Split(input.From, ".")...)
@@ -207,8 +207,8 @@ func (tr *suspendTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOp
 }
 
 // Pending check task should be executed or not.
-func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
-	return custom.CheckPending(ctx, tr.step, stepStatus)
+func (tr *suspendTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
+	return custom.CheckPending(ctx, tr.step, tr.id, stepStatus)
 }
 
 type stepGroupTaskRunner struct {
@@ -227,16 +227,17 @@ func (tr *stepGroupTaskRunner) Name() string {
 }
 
 // Pending check task should be executed or not.
-func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
-	return custom.CheckPending(ctx, tr.step, stepStatus)
+func (tr *stepGroupTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
+	return custom.CheckPending(ctx, tr.step, tr.id, stepStatus)
 }
 
 // Run make workflow step group.
 func (tr *stepGroupTaskRunner) Run(ctx wfContext.Context, options *types.TaskRunOptions) (status common.StepStatus, operations *types.Operation, rErr error) {
 	status = common.StepStatus{
-		ID:   tr.id,
-		Name: tr.name,
-		Type: types.WorkflowStepTypeStepGroup,
+		ID:      tr.id,
+		Name:    tr.name,
+		Type:    types.WorkflowStepTypeStepGroup,
+		Message: "",
 	}
 
 	pStatus := &status
@@ -307,6 +308,8 @@ func getStepGroupStatus(status common.StepStatus, stepStatus common.WorkflowStep
 		status.Phase = common.WorkflowStepPhaseRunning
 	case subStepCounts[string(common.WorkflowStepPhaseStopped)] > 0:
 		status.Phase = common.WorkflowStepPhaseStopped
+	case subStepCounts[string(common.WorkflowStepPhasePending)] > 0:
+		status.Phase = common.WorkflowStepPhasePending
 	case subStepCounts[string(common.WorkflowStepPhaseFailed)] > 0:
 		status.Phase = common.WorkflowStepPhaseFailed
 		switch {
@@ -371,7 +374,7 @@ func GetSuspendStepDurationWaiting(step v1beta1.WorkflowStep) (time.Duration, er
 
 func handleOutput(ctx wfContext.Context, stepStatus *common.StepStatus, operations *types.Operation, step v1beta1.WorkflowStep, postStopHooks []types.TaskPostStopHook, pd *packages.PackageDiscover, id string, pCtx process.Context) {
 	status := *stepStatus
-	if status.Phase != common.WorkflowStepPhaseSkipped && len(step.Outputs) > 0 {
+	if len(step.Outputs) > 0 {
 		contextValue, err := custom.MakeValueForContext(ctx, pd, id, pCtx)
 		if err != nil {
 			status.Phase = common.WorkflowStepPhaseFailed

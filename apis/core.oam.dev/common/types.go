@@ -420,6 +420,8 @@ const (
 	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
 	// WorkflowStepPhaseRunning will make the controller continue the workflow.
 	WorkflowStepPhaseRunning WorkflowStepPhase = "running"
+	// WorkflowStepPhasePending will make the controller wait for the step to run.
+	WorkflowStepPhasePending WorkflowStepPhase = "pending"
 )
 
 // DefinitionType describes the type of DefinitionRevision.
