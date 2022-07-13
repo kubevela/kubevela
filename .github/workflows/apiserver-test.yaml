@@ -1,4 +1,4 @@
-name: APIServer Unit Test & E2E Test
+name: VelaUX APIServer Test
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Detect No-op Changes
         id: noop
-        uses: fkirc/skip-duplicate-actions@v3.3.0
+        uses: fkirc/skip-duplicate-actions@v4.0.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
@@ -53,8 +53,58 @@ jobs:
             echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
           fi
 
-
   apiserver-unit-tests:
+    runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Cache Go Dependencies
+        uses: actions/cache@v2
+        with:
+          path: .work/pkg
+          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Install ginkgo
+        run: |
+          sudo apt-get install -y golang-ginkgo-dev
+
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.7.0
+        with:
+          mongodb-version: '5.0'
+
+      - name: install Kubebuilder
+        uses: RyanSiu1995/kubebuilder-action@v1.2
+        with:
+          version: 3.1.0
+          kubebuilderOnly: false
+          kubernetesVersion: v1.21.2
+
+      - name: Run api server unit test
+        run: make unit-test-apiserver
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.txt
+          flags: apiserver-unittests
+          name: codecov-umbrella
+
+  apiserver-e2e-tests:
     runs-on: aliyun
     needs: [ detect-noop,set-k8s-matrix ]
     if: needs.detect-noop.outputs.noop != 'true'
@@ -99,9 +149,6 @@ jobs:
           kind create cluster --image kindest/node:${{ matrix.k8s-version }}
           kubectl version
           kubectl cluster-info
-      
-      - name: Run api server unit test
-        run: make unit-test-apiserver
 
       - name: Load Image to kind cluster
         run: make kind-load
@@ -131,8 +178,8 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.txt,/tmp/e2e_apiserver_test.out
-          flags: apiserver-unittests
+          files: /tmp/e2e_apiserver_test.out
+          flags: apiserver-e2etests
           name: codecov-umbrella
 
       - name: Clean e2e profile
