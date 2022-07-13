@@ -366,8 +366,9 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 	return querytypes.HTTP, 80
 }
 
-func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1alpha2.HTTPRoute, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
+func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1alpha2.HTTPRoute, cluster, component string) []querytypes.ServiceEndpoint {
 	existPath := make(map[string]bool)
+	var serviceEndpoints []querytypes.ServiceEndpoint
 	for _, rule := range route.Spec.Rules {
 		for _, host := range route.Spec.Hostnames {
 			appProtocol, appPort := getGatewayPortAndProtocol(ctx, cli, route.Namespace, cluster, route.Spec.ParentRefs)
@@ -401,7 +402,7 @@ func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewa
 			}
 		}
 	}
-	return
+	return serviceEndpoints
 }
 
 func selectorNodeIP(ctx context.Context, clusterName string, client client.Client) string {
