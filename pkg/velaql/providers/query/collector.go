@@ -96,7 +96,6 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*ty
 	if err != nil {
 		return nil, err
 	}
-
 	var managedResources []*types.AppliedResource
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
@@ -129,6 +128,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*ty
 			}
 		}
 	}
+
 	// merge user defined customize rule before every request.
 	err = mergeCustomRules(ctx, c.k8sClient)
 	if err != nil {

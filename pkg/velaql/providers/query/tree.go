@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/duration"
+	"k8s.io/klog"
 	"k8s.io/kubectl/pkg/util/podutils"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -697,7 +698,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc, rules.DisableFilterByOwnerReference)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
-					log.Logger.Errorf("error to list subresources: %s err: %v", resource.Kind, err)
+					klog.Errorf("error to list sub-resources: %s err: %v", resource.Kind, err)
 					continue
 				}
 				return nil, err
@@ -748,7 +749,6 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 	}
 	for _, item := range rulesList.Items {
 		ruleStr := item.Data[relationshipKey]
-
 		var (
 			customRules []*customRule
 			format      string
@@ -765,7 +765,7 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 		}
 		if err != nil {
 			// don't let one miss-config configmap brake whole process
-			log.Logger.Errorf("relationship rule configamp %s miss config %v", item.Name, err)
+			klog.Errorf("relationship rule configmap %s miss config %v", item.Name, err)
 			continue
 		}
 		for _, rule := range customRules {

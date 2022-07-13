@@ -68,7 +68,6 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	if err != nil {
 		return err
 	}
-
 	for i, resource := range resources {
 		cluster := resources[i].Cluster
 		cachedSelectorNodeIP := func() string {
