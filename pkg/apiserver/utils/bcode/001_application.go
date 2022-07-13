@@ -94,4 +94,5 @@ var ErrApplicationTriggerNotExist = NewBcode(404, 10024, "application trigger is
 // ErrApplicationComponentNotAllowDelete means the component is main in one application, and it must be deleted before delete app.
 var ErrApplicationComponentNotAllowDelete = NewBcode(400, 10025, "main component in application can not be deleted")
 
+// ErrApplicationPolicyIsBeingUsed means this policy is been used, cannot  deleted.
 var ErrApplicationPolicyIsBeingUsed = NewBcode(400, 10026, "the policy  is being used by workflow, cannot be deleted")

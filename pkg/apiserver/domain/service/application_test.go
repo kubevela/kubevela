@@ -835,6 +835,7 @@ var _ = Describe("Test apiserver policy rest api", func() {
 			},
 		}
 		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+		Expect(err).Should(BeNil())
 
 		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
 		Expect(err).Should(BeNil())
@@ -874,6 +875,7 @@ var _ = Describe("Test apiserver policy rest api", func() {
 			WorkflowPolicyBindings: nil,
 		}
 		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+		Expect(err).Should(BeNil())
 
 		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
 		Expect(err).Should(BeNil())
