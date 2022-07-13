@@ -122,7 +122,12 @@ type ResourceTreeNode struct {
 	AdditionalInfo    map[string]interface{} `json:"additionalInfo,omitempty"`
 }
 
-// GroupVersionKind returns the stored group, version, and kind of an object
+// GroupVersionKind returns the stored group, version, and kind from AppliedResource
 func (obj *AppliedResource) GroupVersionKind() schema.GroupVersionKind {
 	return schema.FromAPIVersionAndKind(obj.APIVersion, obj.Kind)
+}
+
+// GroupVersionKind returns the stored group, version, and kind from ResourceTreeNode
+func (rtn *ResourceTreeNode) GroupVersionKind() schema.GroupVersionKind {
+	return schema.FromAPIVersionAndKind(rtn.APIVersion, rtn.Kind)
 }

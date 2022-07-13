@@ -23,16 +23,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	networkv1beta1 "k8s.io/api/networking/v1beta1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -40,11 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	apis "github.com/oam-dev/kubevela/apis/types"
-	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -124,12 +117,12 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	}
 	opt := Option{}
 	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
+		return v.FillObject(err.Error(), "err")
 	}
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err := h.cli.Get(context.Background(), appKey, app); err != nil {
+	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	appResList, err := collector.ListApplicationResources(app)
@@ -146,63 +139,21 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
-		return err
+		return v.FillObject(err.Error(), "err")
 	}
 	opt := Option{}
 	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
+		return v.FillObject(err.Error(), "err")
 	}
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err := h.cli.Get(context.Background(), appKey, app); err != nil {
+	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
 	appResList, err := collector.ListApplicationResources(app)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
-	}
-	// merge user defined customize rule before every request.
-	err = mergeCustomRules(context.Background(), h.cli)
-	if err != nil {
-		return err
-	}
-	for _, resource := range appResList {
-		root := querytypes.ResourceTreeNode{
-			APIVersion: resource.APIVersion,
-			Kind:       resource.Kind,
-			Cluster:    resource.Cluster,
-			Namespace:  resource.Namespace,
-			Name:       resource.Name,
-			UID:        resource.UID,
-		}
-		root.LeafNodes, err = iteratorChildResources(context.Background(), resource.Cluster, h.cli, root, 1)
-		if err != nil {
-			// if the resource has been deleted, continue access next appliedResource don't break the whole request
-			if kerrors.IsNotFound(err) {
-				continue
-			}
-			return v.FillObject(err.Error(), "err")
-		}
-		rootObject, err := fetchObjectWithResourceTreeNode(context.Background(), resource.Cluster, h.cli, root)
-		if err != nil {
-			return v.FillObject(err.Error(), "err")
-		}
-		rootStatus, err := checkResourceStatus(*rootObject)
-		if err != nil {
-			return v.FillObject(err.Error(), "err")
-		}
-		root.HealthStatus = *rootStatus
-		addInfo, err := additionalInfo(*rootObject)
-		if err != nil {
-			return err
-		}
-		root.AdditionalInfo = addInfo
-		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
-		if !rootObject.GetDeletionTimestamp().IsZero() {
-			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
-		}
-		resource.ResourceTree = &root
 	}
 	if appResList == nil {
 		appResList = []*querytypes.AppliedResource{}
@@ -268,136 +219,6 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 		return v.FillObject(err.Error(), "err")
 	}
 	return fillQueryResult(v, eventList.Items, "list")
-}
-
-// GeneratorServiceEndpoints generator service endpoints is available for common component type,
-// such as webservice or helm
-// it can not support the cloud service component currently
-func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.Value, act types.Action) error {
-	ctx := context.Background()
-	findResource := func(obj client.Object, name, namespace, cluster string) error {
-		obj.SetNamespace(namespace)
-		obj.SetName(name)
-		gctx, cancel := context.WithTimeout(ctx, time.Second*10)
-		defer cancel()
-		if err := h.cli.Get(multicluster.ContextWithClusterName(gctx, cluster),
-			client.ObjectKeyFromObject(obj), obj); err != nil {
-			if kerrors.IsNotFound(err) {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-	val, err := v.LookupValue("app")
-	if err != nil {
-		return err
-	}
-	opt := Option{}
-	if err = val.UnmarshalTo(&opt); err != nil {
-		return err
-	}
-	app := new(v1beta1.Application)
-	err = findResource(app, opt.Name, opt.Namespace, "")
-	if err != nil {
-		return fmt.Errorf("query app failure %w", err)
-	}
-	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
-	var clusterGatewayNodeIP = make(map[string]string)
-	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app)
-	if err != nil {
-		return err
-	}
-
-	for i, resource := range resources {
-		cluster := resources[i].Cluster
-		selectorNodeIP := func() string {
-			if ip, exist := clusterGatewayNodeIP[cluster]; exist {
-				return ip
-			}
-			ip := selectorNodeIP(ctx, cluster, h.cli)
-			if ip != "" {
-				clusterGatewayNodeIP[cluster] = ip
-			}
-			return ip
-		}
-		switch resource.Kind {
-		case "Ingress":
-			if resource.GroupVersionKind().Group == networkv1beta1.GroupName && (resource.GroupVersionKind().Version == "v1beta1" || resource.GroupVersionKind().Version == "v1") {
-				var ingress networkv1beta1.Ingress
-				ingress.SetGroupVersionKind(resource.GroupVersionKind())
-				if err := findResource(&ingress, resource.Name, resource.Namespace, resource.Cluster); err != nil {
-					klog.Error(err, fmt.Sprintf("find v1 Ingress %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
-					continue
-				}
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, resource.Component)...)
-			} else {
-				klog.Warning("not support ingress version", "version", resource.GroupVersionKind())
-			}
-		case "Service":
-			var service corev1.Service
-			service.SetGroupVersionKind(resource.GroupVersionKind())
-			if err := findResource(&service, resource.Name, resource.Namespace, resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
-				continue
-			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
-		case helmapi.HelmReleaseGVK.Kind:
-			obj := new(unstructured.Unstructured)
-			obj.SetNamespace(resource.Namespace)
-			obj.SetName(resource.Name)
-			hc := NewHelmReleaseCollector(h.cli, obj)
-			services, err := hc.CollectServices(ctx, resource.Cluster)
-			if err != nil {
-				klog.Error(err, "collect service by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
-			}
-			for _, service := range services {
-				serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, "")...)
-			}
-			ingress, err := hc.CollectIngress(ctx, resource.Cluster)
-			if err != nil {
-				klog.Error(err, "collect ingres by helm release failure", "helmRelease", resource.Name, "namespace", resource.Namespace, "cluster", resource.Cluster)
-			}
-			for _, uns := range ingress {
-				var ingress networkv1beta1.Ingress
-				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uns.UnstructuredContent(), &ingress); err != nil {
-					klog.Errorf("fail to convert unstructured to ingress %s", err.Error())
-					continue
-				}
-				serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, resource.Component)...)
-			}
-		case "SeldonDeployment":
-			obj := new(unstructured.Unstructured)
-			obj.SetGroupVersionKind(schema.GroupVersionKind{
-				Group:   "machinelearning.seldon.io",
-				Version: "v1",
-				Kind:    "SeldonDeployment",
-			})
-			if err := findResource(obj, resource.Name, resource.Namespace, resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1 Seldon Deployment %s/%s from cluster %s failure", resource.Name, resource.Namespace, resource.Cluster))
-				continue
-			}
-			anno := obj.GetAnnotations()
-			serviceName := "ambassador"
-			serviceNS := "vela-system"
-			if anno != nil {
-				if anno[annoAmbassadorServiceName] != "" {
-					serviceName = anno[annoAmbassadorServiceName]
-				}
-				if anno[annoAmbassadorServiceNamespace] != "" {
-					serviceNS = anno[annoAmbassadorServiceNamespace]
-				}
-			}
-			var service corev1.Service
-			if err := findResource(&service, serviceName, serviceNS, resource.Cluster); err != nil {
-				klog.Error(err, fmt.Sprintf("find v1 Service %s/%s from cluster %s failure", serviceName, serviceNS, resource.Cluster))
-				continue
-			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, selectorNodeIP, cluster, resource.Component, fmt.Sprintf("/seldon/%s/%s", resource.Namespace, resource.Name))...)
-		}
-	}
-	return fillQueryResult(v, serviceEndpoints, "list")
 }
 
 func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -500,198 +321,4 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 		"collectServiceEndpoints": prd.GeneratorServiceEndpoints,
 		"getApplicationTree":      prd.GetApplicationResourceTree,
 	})
-}
-
-func generatorFromService(service corev1.Service, selectorNodeIP func() string, cluster, component, path string) []querytypes.ServiceEndpoint {
-	var serviceEndpoints []querytypes.ServiceEndpoint
-	switch service.Spec.Type {
-	case corev1.ServiceTypeLoadBalancer:
-		for _, port := range service.Spec.Ports {
-			judgeAppProtocol := judgeAppProtocol(port.Port)
-			for _, ingress := range service.Status.LoadBalancer.Ingress {
-				if ingress.Hostname != "" {
-					serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-						Endpoint: querytypes.Endpoint{
-							Protocol:    port.Protocol,
-							AppProtocol: &judgeAppProtocol,
-							Host:        ingress.Hostname,
-							Port:        int(port.Port),
-							Path:        path,
-						},
-						Ref: corev1.ObjectReference{
-							Kind:            "Service",
-							Namespace:       service.ObjectMeta.Namespace,
-							Name:            service.ObjectMeta.Name,
-							UID:             service.UID,
-							APIVersion:      service.APIVersion,
-							ResourceVersion: service.ResourceVersion,
-						},
-						Cluster:   cluster,
-						Component: component,
-					})
-				}
-				if ingress.IP != "" {
-					serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-						Endpoint: querytypes.Endpoint{
-							Protocol:    port.Protocol,
-							AppProtocol: &judgeAppProtocol,
-							Host:        ingress.IP,
-							Port:        int(port.Port),
-							Path:        path,
-						},
-						Ref: corev1.ObjectReference{
-							Kind:            "Service",
-							Namespace:       service.ObjectMeta.Namespace,
-							Name:            service.ObjectMeta.Name,
-							UID:             service.UID,
-							APIVersion:      service.APIVersion,
-							ResourceVersion: service.ResourceVersion,
-						},
-						Cluster:   cluster,
-						Component: component,
-					})
-				}
-			}
-		}
-	case corev1.ServiceTypeNodePort:
-		for _, port := range service.Spec.Ports {
-			judgeAppProtocol := judgeAppProtocol(port.Port)
-			serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-				Endpoint: querytypes.Endpoint{
-					Protocol:    port.Protocol,
-					Port:        int(port.NodePort),
-					AppProtocol: &judgeAppProtocol,
-					Host:        selectorNodeIP(),
-					Path:        path,
-				},
-				Ref: corev1.ObjectReference{
-					Kind:            "Service",
-					Namespace:       service.ObjectMeta.Namespace,
-					Name:            service.ObjectMeta.Name,
-					UID:             service.UID,
-					APIVersion:      service.APIVersion,
-					ResourceVersion: service.ResourceVersion,
-				},
-				Cluster:   cluster,
-				Component: component,
-			})
-		}
-	case corev1.ServiceTypeClusterIP, corev1.ServiceTypeExternalName:
-	}
-	return serviceEndpoints
-}
-
-func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component string) (serviceEndpoints []querytypes.ServiceEndpoint) {
-	getAppProtocol := func(host string) string {
-		if len(ingress.Spec.TLS) > 0 {
-			for _, tls := range ingress.Spec.TLS {
-				if len(tls.Hosts) > 0 && utils.StringsContain(tls.Hosts, host) {
-					return querytypes.HTTPS
-				}
-				if len(tls.Hosts) == 0 {
-					return querytypes.HTTPS
-				}
-			}
-		}
-		return "http"
-	}
-	// It depends on the Ingress Controller
-	getEndpointPort := func(appProtocol string) int {
-		if appProtocol == querytypes.HTTPS {
-			if port, err := strconv.Atoi(ingress.Annotations[apis.AnnoIngressControllerHTTPSPort]); port > 0 && err == nil {
-				return port
-			}
-			return 443
-		}
-		if port, err := strconv.Atoi(ingress.Annotations[apis.AnnoIngressControllerHTTPPort]); port > 0 && err == nil {
-			return port
-		}
-		return 80
-	}
-	for _, rule := range ingress.Spec.Rules {
-		var appProtocol = getAppProtocol(rule.Host)
-		var appPort = getEndpointPort(appProtocol)
-		if rule.HTTP != nil {
-			for _, path := range rule.HTTP.Paths {
-				serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
-					Endpoint: querytypes.Endpoint{
-						Protocol:    corev1.ProtocolTCP,
-						AppProtocol: &appProtocol,
-						Host:        rule.Host,
-						Path:        path.Path,
-						Port:        appPort,
-					},
-					Ref: corev1.ObjectReference{
-						Kind:            "Ingress",
-						Namespace:       ingress.ObjectMeta.Namespace,
-						Name:            ingress.ObjectMeta.Name,
-						UID:             ingress.UID,
-						APIVersion:      ingress.APIVersion,
-						ResourceVersion: ingress.ResourceVersion,
-					},
-					Cluster:   cluster,
-					Component: component,
-				})
-			}
-		}
-	}
-	return serviceEndpoints
-}
-
-func selectorNodeIP(ctx context.Context, clusterName string, client client.Client) string {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	var nodes corev1.NodeList
-	if err := client.List(multicluster.ContextWithClusterName(ctx, clusterName), &nodes); err != nil {
-		return ""
-	}
-	if len(nodes.Items) == 0 {
-		return ""
-	}
-	var gatewayNode *corev1.Node
-	var workerNodes []corev1.Node
-	for i, node := range nodes.Items {
-		if _, exist := node.Labels[apis.LabelNodeRoleGateway]; exist {
-			gatewayNode = &nodes.Items[i]
-			break
-		} else if _, exist := node.Labels[apis.LabelNodeRoleWorker]; exist {
-			workerNodes = append(workerNodes, nodes.Items[i])
-		}
-	}
-	if gatewayNode == nil && len(workerNodes) > 0 {
-		gatewayNode = &workerNodes[0]
-	}
-	if gatewayNode == nil {
-		gatewayNode = &nodes.Items[0]
-	}
-	if gatewayNode != nil {
-		var addressMap = make(map[corev1.NodeAddressType]string)
-		for _, address := range gatewayNode.Status.Addresses {
-			addressMap[address.Type] = address.Address
-		}
-		// first get external ip
-		if ip, exist := addressMap[corev1.NodeExternalIP]; exist {
-			return ip
-		}
-		if ip, exist := addressMap[corev1.NodeInternalIP]; exist {
-			return ip
-		}
-	}
-	return ""
-}
-
-// judgeAppProtocol  RFC-6335 and http://www.iana.org/assignments/service-names).
-func judgeAppProtocol(port int32) string {
-	switch port {
-	case 80, 8080:
-		return querytypes.HTTP
-	case 443:
-		return querytypes.HTTPS
-	case 3306:
-		return querytypes.Mysql
-	case 6379:
-		return querytypes.Redis
-	default:
-		return ""
-	}
 }

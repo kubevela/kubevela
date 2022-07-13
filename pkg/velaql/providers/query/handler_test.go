@@ -569,6 +569,73 @@ options: {
 	})
 
 	It("Test generator service endpoints", func() {
+		appsts := common.AppStatus{
+			AppliedResources: []common.ClusterObjectReference{
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-http",
+						APIVersion: "networking.k8s.io/v1beta1",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-https",
+						APIVersion: "networking.k8s.io/v1beta1",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						Kind:       "Ingress",
+						Namespace:  "default",
+						Name:       "ingress-paths",
+						APIVersion: "networking.k8s.io/v1beta1",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "v1",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "nodeport",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "v1",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "loadbalancer",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "helm.toolkit.fluxcd.io/v2beta1",
+						Kind:       helmapi.HelmReleaseGVK.Kind,
+						Namespace:  "default",
+						Name:       "helmRelease",
+					},
+				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "machinelearning.seldon.io/v1",
+						Kind:       "SeldonDeployment",
+						Namespace:  "default",
+						Name:       "sdep",
+					},
+				},
+			},
+		}
 		testApp := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "endpoints-app",
@@ -582,77 +649,22 @@ options: {
 					},
 				},
 			},
-			Status: common.AppStatus{
-				AppliedResources: []common.ClusterObjectReference{
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-http",
-							APIVersion: "networking.k8s.io/v1beta1",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-https",
-							APIVersion: "networking.k8s.io/v1",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:       "Ingress",
-							Namespace:  "default",
-							Name:       "ingress-paths",
-							APIVersion: "networking.k8s.io/v1",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      "Service",
-							Namespace: "default",
-							Name:      "nodeport",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      "Service",
-							Namespace: "default",
-							Name:      "loadbalancer",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      helmapi.HelmReleaseGVK.Kind,
-							Namespace: "default",
-							Name:      "helmRelease",
-						},
-					},
-					{
-						Cluster: "",
-						ObjectReference: corev1.ObjectReference{
-							Kind:      "SeldonDeployment",
-							Namespace: "default",
-							Name:      "sdep",
-						},
-					},
-				},
-			},
+			Status: appsts,
 		}
 		err := k8sClient.Create(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
+
+		var gtapp v1beta1.Application
+		Expect(k8sClient.Get(context.TODO(), client.ObjectKey{Name: "endpoints-app", Namespace: "default"}, &gtapp)).Should(BeNil())
+		gtapp.Status = appsts
+		Expect(k8sClient.Status().Update(ctx, &gtapp)).Should(BeNil())
 		var mr []v1beta1.ManagedResource
-		for i := range testApp.Status.AppliedResources {
-			mr = append(mr, v1beta1.ManagedResource{
-				ClusterObjectReference: testApp.Status.AppliedResources[i],
-			})
+		for _, ar := range appsts.AppliedResources {
+			smr := v1beta1.ManagedResource{
+				ClusterObjectReference: ar,
+			}
+			smr.Component = "endpoints-test"
+			mr = append(mr, smr)
 		}
 		rt := &v1beta1.ResourceTracker{
 			ObjectMeta: metav1.ObjectMeta{
@@ -962,19 +974,18 @@ options: {
 			"http://text.example.com",
 			"10.10.10.10:81",
 			"text.example.com:81",
-			// helmRelease
-			fmt.Sprintf("http://%s:30002", gatewayIP),
-			"http://ingress.domain.helm",
-			"1.1.1.1:80/seldon/test",
+			"http://1.1.1.1/seldon/default/sdep",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())
 		var endpoints []querytypes.ServiceEndpoint
 		err = endValue.Decode(&endpoints)
 		Expect(err).Should(BeNil())
-		for i, endpoint := range endpoints {
-			Expect(endpoint.String()).Should(BeEquivalentTo(urls[i]))
+		var edps []string
+		for _, e := range endpoints {
+			edps = append(edps, e.String())
 		}
+		Expect(edps).Should(BeEquivalentTo(urls))
 	})
 })
 

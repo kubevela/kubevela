@@ -50,6 +50,9 @@
 		deployVersion?:   string
 		revision?:        string
 		latest?:          bool
+		resourceTree?: {
+			...
+		}
 	}]
 	...
 }
