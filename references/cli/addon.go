@@ -96,7 +96,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
-		NewAddonCreateCommand(),
+		NewAddonInitCommand(),
 		NewAddonPushCommand(c),
 	)
 	return cmd
@@ -368,33 +368,35 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	return cmd
 }
 
-// NewAddonCreateCommand creates an addon scaffold
-func NewAddonCreateCommand() *cobra.Command {
-	var helmRepoURL string
-	var chartName string
-	var chartVersion string
-	var path string
+// NewAddonInitCommand creates an addon scaffold
+func NewAddonInitCommand() *cobra.Command {
+	var (
+		helmRepoURL  string
+		chartName    string
+		chartVersion string
+		urls         []string
+		path         string
+		noSample     bool
+		overwrite    bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "create an addon scaffold",
-		Long:  "Create an addon scaffold for quick starting. A Helm Component is generated if you provide Chart-related parameters.",
-		Example: `	vela addon init mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
-will create something like this:
-	mongodb/
-	├── definitions
-	├── metadata.yaml
-	├── readme.md
-	├── resources
-	│   └── mongodb.cue
-	├── schemas
-	└── template.yaml
+		Long:  "Create an addon scaffold for quick starting.",
+		Example: `  Store the scaffold in a different directory:
+	vela addon init mongodb -p path/to/addon
 
-If you want to store the scaffold in a different directory, you can use the -p/--path flag:
-	vela addon init mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+  Add a Helm component:
+	vela addon init mongodb --helm-repo https://marketplace.azurecr.io/helm/v1/repo --chart mongodb --chart-version 12.1.16
 
-If you don't want the Helm component, just omit the three Chart-related parameters. We will create an empty scaffold for you.
-	vela addon init mongodb`,
+  Add resources from URL using ref-objects component
+	vela addon init my-addon --url https://domain.com/resource.yaml
+
+  Use --no-samples options to skip creating sample files
+	vela addon init my-addon --no-sample
+
+  You can combine all the options together.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("an addon name is required")
@@ -413,19 +415,29 @@ If you don't want the Helm component, just omit the three Chart-related paramete
 				return fmt.Errorf("addon name or path should not be empty")
 			}
 
-			// If the user specified all Chart-related info, use the addon template with a Chart in it.
-			if helmRepoURL != "" && chartName != "" && chartVersion != "" {
-				return pkgaddon.CreateAddonFromHelmChart(args[0], addonPath, helmRepoURL, chartName, chartVersion)
+			initCmd := pkgaddon.InitCmd{
+				AddonName:        addonName,
+				HelmChartName:    chartName,
+				HelmChartVersion: chartVersion,
+				HelmRepoURL:      helmRepoURL,
+				Path:             addonPath,
+				RefObjURLs:       urls,
+				NoSamples:        noSample,
+				Overwrite:        overwrite,
 			}
 
-			return pkgaddon.CreateAddonSample(addonName, addonPath)
+			return initCmd.CreateScaffold()
 		},
 	}
 
-	cmd.Flags().StringVar(&helmRepoURL, "helm-repo-url", "", "URL that points to a Helm repo")
-	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
-	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
-	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+	f := cmd.Flags()
+	f.StringVar(&helmRepoURL, "helm-repo", "", "URL that points to a Helm repo")
+	f.StringVar(&chartName, "chart", "", "Helm Chart name")
+	f.StringVar(&chartVersion, "chart-version", "", "version of the Chart")
+	f.StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+	f.StringArrayVarP(&urls, "url", "u", []string{}, "add URL resources using ref-object component")
+	f.BoolVarP(&noSample, "no-samples", "", false, "do not generate sample files")
+	f.BoolVarP(&overwrite, "force", "f", false, "overwrite existing addon files")
 
 	return cmd
 }
