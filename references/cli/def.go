@@ -52,6 +52,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
@@ -882,6 +883,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			"> vela def apply -",
 		Args: cobra.ExactValidArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
 			dryRun, err := cmd.Flags().GetBool(FlagDryRun)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagDryRun)
@@ -898,15 +900,36 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			cueBytes, err := clicom.ReadRemoteOrLocalPath(args[0])
+			defpath := args[0]
+			defBytes, err := clicom.ReadRemoteOrLocalPath(defpath)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get %s", args[0])
+				return errors.Wrapf(err, "failed to get from %s", defpath)
 			}
 			def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-			if err := def.FromCUEString(string(cueBytes), config); err != nil {
-				return errors.Wrapf(err, "failed to parse CUE")
+
+			switch {
+			case strings.HasSuffix(defpath, ".yaml") || strings.HasSuffix(defpath, ".yml"):
+				// In this case, it's not in cue format, it's a yaml
+				if err = def.FromYAML(defBytes); err != nil {
+					return errors.Wrapf(err, "failed to parse YAML to definition")
+				}
+				if dryRun {
+					return errors.New("dry-run will render CUE to YAML, while the input is already in yaml")
+				}
+				// YAML won't validate or format CUE schematic
+				op, err := utils.CreateOrUpdate(ctx, k8sClient, &def)
+				if err != nil {
+					return err
+				}
+				cmd.Printf("%s %s in namespace %s %s.\n", def.GetKind(), def.GetName(), def.GetNamespace(), op)
+				return nil
+			default:
+				if err := def.FromCUEString(string(defBytes), config); err != nil {
+					return errors.Wrapf(err, "failed to parse CUE for definition")
+				}
+				def.SetNamespace(namespace)
 			}
-			def.SetNamespace(namespace)
+
 			if dryRun {
 				s, err := prettyYAMLMarshal(def.Object)
 				if err != nil {
@@ -916,7 +939,6 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 				return nil
 			}
 
-			ctx := context.Background()
 			oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 			oldDef.SetGroupVersionKind(def.GroupVersionKind())
 			err = k8sClient.Get(ctx, types2.NamespacedName{
@@ -934,7 +956,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 				}
 				return errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
 			}
-			if err := oldDef.FromCUEString(string(cueBytes), config); err != nil {
+			if err := oldDef.FromCUEString(string(defBytes), config); err != nil {
 				return errors.Wrapf(err, "failed to merge with existing definition")
 			}
 			if err = k8sClient.Update(ctx, &oldDef); err != nil {
