@@ -57,7 +57,7 @@ func TestListConfigTypes(t *testing.T) {
 			Name:      "def1",
 			Namespace: types.DefaultKubeVelaNS,
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
+				configCatalog:  types.VelaCoreConfig,
 				definitionType: types.TerraformProvider,
 			},
 		},
@@ -74,7 +74,7 @@ func TestListConfigTypes(t *testing.T) {
 				definitionAlias: "Def2",
 			},
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
+				configCatalog: types.VelaCoreConfig,
 			},
 		},
 	}
@@ -156,7 +156,7 @@ func TestGetConfigType(t *testing.T) {
 				definitionAlias: "Def2",
 			},
 			Labels: map[string]string{
-				definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig,
+				definition.UserPrefix + configCatalog: types.VelaCoreConfig,
 			},
 		},
 	}

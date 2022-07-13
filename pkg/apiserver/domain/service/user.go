@@ -29,7 +29,7 @@ import (
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -151,7 +151,7 @@ func (u *userServiceImpl) DeleteUser(ctx context.Context, username string) error
 		}
 	}
 	if err := u.Store.Delete(ctx, &model.User{Name: username}); err != nil {
-		log.Logger.Errorf("failed to delete user %s %v", utils2.Sanitize(username), err.Error())
+		log.Logger.Errorf("failed to delete user %s %v", pkgUtils.Sanitize(username), err.Error())
 		return err
 	}
 	return nil

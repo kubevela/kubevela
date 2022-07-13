@@ -45,7 +45,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
 	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
-	refcommon "github.com/oam-dev/kubevela/references/common"
 )
 
 const (
@@ -197,7 +196,7 @@ func ParseViewIntoConfigMap(viewStr, name string) (*v1.ConfigMap, error) {
 //
 // By saying file, it can actually be a file, URL, or stdin (-).
 func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName string) error {
-	content, err := refcommon.ReadRemoteOrLocalPath(path)
+	content, err := utils.ReadRemoteOrLocalPath(path, false)
 	if err != nil {
 		return errors.Errorf("cannot load cue file: %v", err)
 	}

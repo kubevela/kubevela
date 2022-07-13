@@ -36,7 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -286,7 +286,7 @@ func compareWorkflowSteps(old, new steps) steps {
 		}
 	}
 
-	_, needDeleted, needAdded := utils2.ThreeWaySliceCompare(oldTargets, newTargets)
+	_, needDeleted, needAdded := pkgUtils.ThreeWaySliceCompare(oldTargets, newTargets)
 	var workflowSteps []*workflowStep
 
 	var deployCloudResourcePolicyExist = false
@@ -295,7 +295,7 @@ func compareWorkflowSteps(old, new steps) steps {
 		var deletedPolicyCount = 0
 		for i := range oldStep.policies {
 			p := oldStep.policies[i]
-			if utils2.SliceIncludeSlice(needDeleted, cacheTarget(oldStep.stepType, p.targets)) {
+			if pkgUtils.SliceIncludeSlice(needDeleted, cacheTarget(oldStep.stepType, p.targets)) {
 				p.state = deleteState
 				deletedPolicyCount++
 			}
@@ -314,7 +314,7 @@ func compareWorkflowSteps(old, new steps) steps {
 		newStep := new[j]
 		for i := range newStep.policies {
 			p := newStep.policies[i]
-			if utils2.SliceIncludeSlice(needAdded, cacheTarget(newStep.stepType, p.targets)) {
+			if pkgUtils.SliceIncludeSlice(needAdded, cacheTarget(newStep.stepType, p.targets)) {
 				if p.policyType == v1alpha1.EnvBindingPolicyType && deployCloudResourcePolicyExist {
 					p.state = updateState
 				} else {
@@ -418,7 +418,7 @@ func UpdateAppEnvWorkflow(ctx context.Context, kubeClient client.Client, ds data
 			log.Logger.Errorf("fail to update the env workflow %s", envs[i].PrimaryKey())
 		}
 	}
-	log.Logger.Infof("The env workflows of app %s updated successfully", utils2.Sanitize(app.PrimaryKey()))
+	log.Logger.Infof("The env workflows of app %s updated successfully", pkgUtils.Sanitize(app.PrimaryKey()))
 	return nil
 }
 
@@ -607,7 +607,7 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 		if step.Properties != nil {
 			properties, err := model.NewJSONStruct(step.Properties)
 			if err != nil {
-				log.Logger.Errorf("workflow %s step %s properties is invalid %s", utils2.Sanitize(app.Name), utils2.Sanitize(step.Name), err.Error())
+				log.Logger.Errorf("workflow %s step %s properties is invalid %s", pkgUtils.Sanitize(app.Name), pkgUtils.Sanitize(step.Name), err.Error())
 				continue
 			}
 			s.Properties = properties

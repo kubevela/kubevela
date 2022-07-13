@@ -24,7 +24,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/references/common"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // QueryView contains query data
@@ -98,7 +98,7 @@ func ParseVelaQL(ql string) (QueryView, error) {
 
 // ParseVelaQLFromPath will parse a velaQL file path to QueryView
 func ParseVelaQLFromPath(velaQLViewPath string) (*QueryView, error) {
-	body, err := common.ReadRemoteOrLocalPath(velaQLViewPath)
+	body, err := utils.ReadRemoteOrLocalPath(velaQLViewPath, false)
 	if err != nil {
 		return nil, errors.Errorf("read view file from %s: %v", velaQLViewPath, err)
 	}

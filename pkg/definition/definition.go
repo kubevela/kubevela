@@ -284,7 +284,11 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 					return err
 				}
 				for _k, _v := range _annotations {
-					annotations[UserPrefix+_k] = _v
+					if strings.Contains(_k, "oam.dev") {
+						annotations[_k] = _v
+					} else {
+						annotations[UserPrefix+_k] = _v
+					}
 				}
 			case "labels":
 				var _labels map[string]string
@@ -292,7 +296,11 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 					return err
 				}
 				for _k, _v := range _labels {
-					labels[UserPrefix+_k] = _v
+					if strings.Contains(_k, "oam.dev") {
+						labels[_k] = _v
+					} else {
+						labels[UserPrefix+_k] = _v
+					}
 				}
 			case "attributes":
 				if err := codec.Encode(_value, &spec); err != nil {

@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	utilcommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
@@ -199,7 +200,7 @@ func addDebugPolicy(app *v1beta1.Application) {
 
 func (opt *UpCommandOptions) deployApplicationFromFile(f velacmd.Factory, cmd *cobra.Command) error {
 	cli := f.Client()
-	body, err := common.ReadRemoteOrLocalPath(opt.File)
+	body, err := pkgUtils.ReadRemoteOrLocalPath(opt.File, true)
 	if err != nil {
 		return err
 	}

@@ -56,8 +56,7 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
-	clicom "github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -68,7 +67,7 @@ const (
 )
 
 // DefinitionCommandGroup create the command group for `vela def` command to manage definitions
-func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
+func DefinitionCommandGroup(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "def",
 		Short: "Manage Definitions",
@@ -87,7 +86,8 @@ func DefinitionCommandGroup(c common.Args, order string) *cobra.Command {
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
-		NewDefinitionGenDocCommand(c),
+		NewDefinitionGenDocCommand(c, ioStreams),
+		NewCapabilityShowCommand(c, ioStreams),
 		NewDefinitionGenAPICommand(c),
 	)
 	return cmd
@@ -115,7 +115,7 @@ func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, pro
 }
 
 func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
-	templateYAMLBytes, err := clicom.ReadRemoteOrLocalPath(templateYAML)
+	templateYAMLBytes, err := utils.ReadRemoteOrLocalPath(templateYAML, false)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get template YAML file %s", templateYAML)
 	}
@@ -511,65 +511,42 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
 	cmd.Flags().BoolVarP(&listRevisions, "revisions", "", false, "List revisions of the specified definition.")
 	cmd.Flags().StringVarP(&targetRevision, "revision", "r", "", "Get the specified version of a definition.")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
 	return cmd
 }
 
 // NewDefinitionGenDocCommand create the `vela def doc-gen` command to generate documentation of definitions
-func NewDefinitionGenDocCommand(c common.Args) *cobra.Command {
+func NewDefinitionGenDocCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var path, location, i18nPath string
 	cmd := &cobra.Command{
 		Use:   "doc-gen NAME",
-		Short: "Generate documentation of definitions (Only Terraform typed definitions are supported)",
-		Long:  "Generate documentation of definitions",
-		Example: "1. Generate documentation for ComponentDefinition alibaba-vpc:\n" +
-			"> vela def doc-gen alibaba-vpc -n vela-system\n" +
-			"2. Generate documentation for local ComponentDefinition file alibaba-vpc.yaml:\n" +
+		Short: "Generate documentation for definitions",
+		Long:  "Generate documentation for definitions",
+		Example: "1. Generate documentation for ComponentDefinition webservice:\n" +
+			"> vela def doc-gen webservice -n vela-system\n" +
+			"2. Generate documentation for local CUE Definition file webservice.cue:\n" +
+			"> vela def doc-gen webservice.cue\n" +
+			"3. Generate documentation for local Cloud Resource Definition YAML alibaba-vpc.yaml:\n" +
 			"> vela def doc-gen alibaba-vpc.yaml\n",
+		Deprecated: "This command has been replaced by 'vela show' or 'vela def show'.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("please specify definition name or a definition file")
+				return fmt.Errorf("please specify definition name, cue file or a cloud resource definition yaml")
 			}
-
-			ref := &plugins.MarkdownReference{}
-			if strings.HasSuffix(args[0], ".yaml") {
-				// read from local file
-				localFilePath := args[0]
-				fileName := filepath.Base(localFilePath)
-				if !strings.HasSuffix(fileName, ".yaml") {
-					return fmt.Errorf("invalid local file path `%s`", localFilePath)
-				}
-				ref.DefinitionName = strings.TrimSuffix(fileName, ".yaml")
-				ref.Local = &plugins.Local{Path: localFilePath}
-			} else {
-				namespace, err := cmd.Flags().GetString(FlagNamespace)
-				if err != nil {
-					return errors.Wrapf(err, "failed to get `%s`", Namespace)
-				}
-				ref.DefinitionName = args[0]
-				ref.Remote = &plugins.Remote{Namespace: namespace}
+			namespace, err := cmd.Flags().GetString(FlagNamespace)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
+			return ShowReferenceMarkdown(context.Background(), c, ioStreams, args[0], path, location, i18nPath, namespace, 0)
 
-			ctx := context.Background()
-			pathEn := plugins.KubeVelaIOTerraformPath
-			ref.I18N = plugins.En
-			if err := ref.GenerateReferenceDocs(ctx, c, pathEn); err != nil {
-				return errors.Wrap(err, "failed to generate reference docs")
-			}
-			cmd.Printf("Generated docs in English for %s in %s/%s.md\n", args[0], pathEn, ref.DefinitionName)
-
-			pathZh := plugins.KubeVelaIOTerraformPathZh
-			ref.I18N = plugins.Zh
-			if err := ref.GenerateReferenceDocs(ctx, c, pathZh); err != nil {
-				return errors.Wrap(err, "failed to generate reference docs")
-			}
-			cmd.Printf("Generated docs in Chinese for %s in %s/%s.md\n", args[0], pathZh, ref.DefinitionName)
-
-			return nil
 		},
 	}
-	cmd.Flags().StringP(Namespace, "n", "", "Specify the namespace of the definition.")
+	cmd.Flags().StringVarP(&path, "path", "p", "", "Specify the path for of the doc generated from definition.")
+	cmd.Flags().StringVarP(&location, "location", "l", "", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
+	cmd.Flags().StringVarP(&i18nPath, "i18n", "", "https://kubevela.io/reference-i18n.json", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
 	return cmd
 }
 
@@ -654,8 +631,8 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to list. If empty, all namespaces will be searched.")
 	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
 	return cmd
 }
 
@@ -743,7 +720,7 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to get. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace to get. If empty, all namespaces will be searched.")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
 	return cmd
 }
 
@@ -782,7 +759,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			}
 
 			render := func(inputFilename, outputFilename string) error {
-				cueBytes, err := clicom.ReadRemoteOrLocalPath(inputFilename)
+				cueBytes, err := utils.ReadRemoteOrLocalPath(inputFilename, false)
 				if err != nil {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
@@ -901,7 +878,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
 			defpath := args[0]
-			defBytes, err := clicom.ReadRemoteOrLocalPath(defpath)
+			defBytes, err := utils.ReadRemoteOrLocalPath(defpath, false)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get from %s", defpath)
 			}
@@ -967,7 +944,7 @@ func NewDefinitionApplyCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolP(FlagDryRun, "", false, "only build definition from CUE into CRB object without applying it to kubernetes clusters")
-	cmd.Flags().StringP(Namespace, "n", "vela-system", "Specify which namespace to apply.")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
 	return cmd
 }
 
@@ -1032,7 +1009,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify the definition type of target. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
-	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates.")
+	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
 	return cmd
 }
 

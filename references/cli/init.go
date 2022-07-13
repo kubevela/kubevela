@@ -107,7 +107,7 @@ func NewInitCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *
 			}
 
 			ctx := context.Background()
-			err = common.BuildRun(ctx, o.app, o.client, o.Namespace, o.IOStreams)
+			err = appfile.BuildRun(ctx, o.app, o.client, o.Namespace, o.IOStreams)
 			if err != nil {
 				return err
 			}

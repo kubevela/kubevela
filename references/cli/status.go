@@ -178,6 +178,7 @@ func printAppEndpoints(ctx context.Context, appName string, namespace string, f 
 	if skipEmptyTable && len(endpoints) == 0 {
 		return nil
 	}
+	fmt.Printf("Please access %s from the following endpoints:\n", appName)
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint", "Inner"})

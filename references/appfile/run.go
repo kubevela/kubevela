@@ -27,6 +27,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // Run will deploy OAM objects and other assistant K8s Objects including ConfigMap, OAM Scope Custom Resource.
@@ -84,4 +86,13 @@ func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v
 	}
 	app.ResourceVersion = geta.ResourceVersion
 	return client.Update(ctx, app)
+}
+
+// BuildRun will build application and deploy from Appfile
+func BuildRun(ctx context.Context, app *api.Application, client client.Client, namespace string, io util.IOStreams) error {
+	o, err := app.ConvertToApplication(namespace, io, app.Tm, true)
+	if err != nil {
+		return err
+	}
+	return Run(ctx, client, o, nil)
 }

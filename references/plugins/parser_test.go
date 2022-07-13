@@ -17,7 +17,6 @@ limitations under the License.
 package plugins
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,14 +26,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var RefTestDir = filepath.Join(TestDir, "ref")
@@ -46,124 +44,9 @@ func TestCreateRefTestDir(t *testing.T) {
 	}
 }
 
-func TestCreateMarkdown(t *testing.T) {
-	ctx := context.Background()
-	ref := &MarkdownReference{}
-
-	refZh := &MarkdownReference{}
-	refZh.I18N = Zh
-
-	workloadName := "workload1"
-	traitName := "trait1"
-	scopeName := "scope1"
-	workloadName2 := "workload2"
-
-	workloadCueTemplate := `
-parameter: {
-	// +usage=Which image would you like to use for your service
-	// +short=i
-	image: string
-}
-`
-	traitCueTemplate := `
-parameter: {
-	replicas: int
-}
-`
-
-	configuration := `
-resource "alicloud_oss_bucket" "bucket-acl" {
-  bucket = var.bucket
-  acl = var.acl
-}
-
-output "BUCKET_NAME" {
-  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
-}
-
-variable "bucket" {
-  description = "OSS bucket name"
-  default = "vela-website"
-  type = string
-}
-
-variable "acl" {
-  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
-  default = "private"
-  type = string
-}
-`
-
-	cases := map[string]struct {
-		reason       string
-		ref          *MarkdownReference
-		capabilities []types.Capability
-		want         error
-	}{
-		"WorkloadTypeAndTraitCapability": {
-			reason: "valid capabilities",
-			ref:    ref,
-			capabilities: []types.Capability{
-				{
-					Name:        workloadName,
-					Type:        types.TypeWorkload,
-					CueTemplate: workloadCueTemplate,
-					Category:    types.CUECategory,
-				},
-				{
-					Name:        traitName,
-					Type:        types.TypeTrait,
-					CueTemplate: traitCueTemplate,
-					Category:    types.CUECategory,
-				},
-				{
-					Name:                   workloadName2,
-					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
-					Category:               types.TerraformCategory,
-				},
-			},
-			want: nil,
-		},
-		"ScopeTypeCapability": {
-			reason: "invalid capabilities",
-			ref:    ref,
-			capabilities: []types.Capability{
-				{
-					Name: scopeName,
-					Type: types.TypeScope,
-				},
-			},
-			want: fmt.Errorf("the type of the capability is not right"),
-		},
-		"TerraformCapabilityInChinese": {
-			reason: "terraform capability",
-			ref:    refZh,
-			capabilities: []types.Capability{
-				{
-					Name:                   workloadName2,
-					TerraformConfiguration: configuration,
-					Type:                   types.TypeWorkload,
-					Category:               types.TerraformCategory,
-				},
-			},
-			want: nil,
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got := tc.ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, ReferenceSourcePath, nil)
-			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nCreateMakrdown(...): -want error, +got error:\n%s", tc.reason, diff)
-			}
-		})
-	}
-
-}
-
 func TestPrepareParameterTable(t *testing.T) {
 	ref := MarkdownReference{}
+	ref.I18N = &En
 	tableName := "hello"
 	parameterList := []ReferenceParameter{
 		{
@@ -173,7 +56,7 @@ func TestPrepareParameterTable(t *testing.T) {
 	parameterName := "cpu"
 	parameterList[0].Name = parameterName
 	parameterList[0].Required = true
-	refContent := ref.prepareParameter(tableName, parameterList, types.CUECategory)
+	refContent := ref.getParameterString(tableName, parameterList, types.CUECategory)
 	assert.Contains(t, refContent, parameterName)
 	assert.Contains(t, refContent, "cpu")
 }
@@ -213,7 +96,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# Properties": {
+				"# Specification": {
 					"cmd": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "cmd",
@@ -258,7 +141,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# Properties": {
+				"# Specification": {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
@@ -321,7 +204,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# Properties": {
+				"# Specification": {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
@@ -367,7 +250,7 @@ func TestWalkParameterSchema(t *testing.T) {
 		swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
-		WalkParameterSchema(parameters, "Properties", 0)
+		WalkParameterSchema(parameters, Specification, 0)
 		refs := make(map[string]map[string]ReferenceParameter)
 		for _, items := range commonRefs {
 			refs[items.Name] = make(map[string]ReferenceParameter)
@@ -423,7 +306,7 @@ variable "acl" {
 			},
 			want: want{
 				errMsg:     "",
-				tableName1: "### Properties",
+				tableName1: "",
 				tableName2: "#### writeConnectionSecretToRef",
 			},
 		},
@@ -437,7 +320,7 @@ variable "acl" {
 			},
 			want: want{
 				errMsg:     "",
-				tableName1: "### Properties",
+				tableName1: "",
 				tableName2: "#### writeConnectionSecretToRef",
 			},
 		},
@@ -525,7 +408,7 @@ func TestMakeReadableTitle(t *testing.T) {
 	ref := &MarkdownReference{}
 
 	refZh := &MarkdownReference{}
-	refZh.I18N = Zh
+	refZh.I18N = &Zh
 
 	testcases := []struct {
 		args args
@@ -652,7 +535,7 @@ func TestParseLocalFile(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run("", func(t *testing.T) {
-			lc, err := ParseLocalFile(tc.localFilePath)
+			lc, err := ParseLocalFile(tc.localFilePath, common.Args{})
 			if err != nil {
 				t.Errorf("ParseLocalFile(...): -want: %v, got error: %s\n", tc.want, err)
 			}
@@ -701,11 +584,13 @@ parameter: {
 	cueValue, _ := common.GetCUEParameterValue(cueTemplate, nil)
 	defaultDepth := 0
 	defaultDisplay := "console"
-	displayFormat = &defaultDisplay
-	ref.parseParameters(cueValue, "Properties", defaultDepth)
-	assert.Equal(t, 1, len(propertyConsole))
-	propertyConsole[0].TableObject.Render()
-	w.Close()
+	ref.DisplayFormat = defaultDisplay
+	_, console, err := ref.parseParameters("", cueValue, Specification, defaultDepth, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(console))
+	console[0].TableObject.Render()
+	err = w.Close()
+	assert.NoError(t, err)
 	out, _ := ioutil.ReadAll(r)
 	assert.True(t, strings.Contains(string(out), "map[string]#KeySecret"))
 }

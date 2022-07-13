@@ -34,7 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 func TestCompareWorkflowSteps(t *testing.T) {
@@ -543,7 +543,7 @@ func CreateEnvWorkflow(ctx context.Context, store datastore.DataStore, kubeClien
 		EnvName:       env.Name,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(workflow.Name), utils2.Sanitize(app.PrimaryKey()))
+	log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 	if err := store.Add(ctx, workflow); err != nil {
 		return err
 	}

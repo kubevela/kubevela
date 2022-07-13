@@ -53,9 +53,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	commonutil "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // PolicyType build-in policy type
@@ -128,7 +128,7 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 	if listOptions.Env != "" || listOptions.TargetName != "" {
 		envBinding, err = repository.ListFullEnvBinding(ctx, ds, repository.EnvListOption{})
 		if err != nil {
-			log.Logger.Errorf("list envbinding for list application in env %s err %v", utils2.Sanitize(listOptions.Env), err)
+			log.Logger.Errorf("list envbinding for list application in env %s err %v", pkgUtils.Sanitize(listOptions.Env), err)
 			return nil, err
 		}
 	}
@@ -197,7 +197,7 @@ func (c *applicationServiceImpl) ListApplications(ctx context.Context, listOptio
 		return []*apisv1.ApplicationBase{}, nil
 	}
 	if len(listOptions.Projects) > 0 {
-		if !utils2.SliceIncludeSlice(availableProjectNames, listOptions.Projects) {
+		if !pkgUtils.SliceIncludeSlice(availableProjectNames, listOptions.Projects) {
 			return []*apisv1.ApplicationBase{}, nil
 		}
 	}
@@ -595,7 +595,7 @@ func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model
 	}
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: component.Type, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(component.Type), err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(component.Type), err.Error())
 	}
 
 	return &apisv1.DetailComponentResponse{
@@ -1065,7 +1065,7 @@ func (c *applicationServiceImpl) UpdateComponent(ctx context.Context, app *model
 func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: com.ComponentType, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(com.ComponentType), err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(com.ComponentType), err.Error())
 		return nil, bcode.ErrComponentTypeNotSupport
 	}
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
@@ -1120,7 +1120,7 @@ func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationComponentExist
 		}
-		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
+		log.Logger.Warnf("add component for app %s failure %s", pkgUtils.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
 	// update the env workflow, the automatically generated workflow is determined by the component type.
@@ -1491,8 +1491,8 @@ func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model
 		return compareResponse, nil
 	}
 
-	args := common2.Args{
-		Schema: common2.Scheme,
+	args := commonutil.Args{
+		Schema: commonutil.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
@@ -1534,8 +1534,8 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 	default:
 		return nil, bcode.ErrApplicationDryRunFailed.SetMessage("The dry run type is not supported")
 	}
-	args := common2.Args{
-		Schema: common2.Scheme,
+	args := commonutil.Args{
+		Schema: commonutil.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
@@ -1594,7 +1594,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 		targetCompNames = append(targetCompNames, comp.Name)
 	}
 
-	readyToUpdate, readyToDelete, readyToAdd := utils2.ThreeWaySliceCompare(originCompNames, targetCompNames)
+	readyToUpdate, readyToDelete, readyToAdd := pkgUtils.ThreeWaySliceCompare(originCompNames, targetCompNames)
 
 	// delete new app's components
 	for _, compName := range readyToDelete {
@@ -1626,11 +1626,11 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 				if errors.Is(err, datastore.ErrRecordExist) {
 					err := c.Store.Put(ctx, &compModel)
 					if err != nil {
-						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 					}
 					return &apisv1.AppResetResponse{IsReset: true}, err
 				}
-				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 				return &apisv1.AppResetResponse{}, err
 			}
 		}
@@ -1638,7 +1638,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 	return &apisv1.AppResetResponse{IsReset: true}, nil
 }
 
-func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Application) (bytes.Buffer, error) {
+func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Application) (bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
 	if _, err := fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
 		return buff, fmt.Errorf("fail to write to buff %w", err)
@@ -1696,7 +1696,7 @@ func ignoreSomeParams(o *v1beta1.Application) {
 	*o = defaultApplication
 }
 
-func compare(ctx context.Context, c common2.Args, targetApp *v1beta1.Application, baseApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
+func compare(ctx context.Context, c commonutil.Args, targetApp *v1beta1.Application, baseApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
 	_, err := c.GetClient()
 	if err != nil {

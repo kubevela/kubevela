@@ -34,7 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // EnvBindingService envbinding service
@@ -129,7 +129,7 @@ func (e *envBindingServiceImpl) BatchCreateEnvBinding(ctx context.Context, app *
 			continue
 		}
 		if err := e.Store.Add(ctx, envBindingModel); err != nil {
-			log.Logger.Errorf("add envbinding %s failure %s", utils2.Sanitize(envBindingModel.Name), err.Error())
+			log.Logger.Errorf("add envbinding %s failure %s", pkgUtils.Sanitize(envBindingModel.Name), err.Error())
 			continue
 		}
 		err = e.createEnvWorkflow(ctx, app, env, i == 0)
@@ -237,7 +237,7 @@ func (e *envBindingServiceImpl) createEnvWorkflow(ctx context.Context, app *mode
 		EnvName:       env.Name,
 		AppPrimaryKey: app.PrimaryKey(),
 	}
-	log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(workflow.Name), utils2.Sanitize(app.PrimaryKey()))
+	log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(workflow.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 	if err := e.Store.Add(ctx, workflow); err != nil {
 		return err
 	}
