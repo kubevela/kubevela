@@ -119,6 +119,7 @@
 			host?:        string
 			port:         int
 			path?:        string
+			inner?:       bool
 		}
 		ref: {...}
 		cluster?:   string

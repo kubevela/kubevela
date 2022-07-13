@@ -87,6 +87,9 @@ type Endpoint struct {
 
 	// the path for the endpoint
 	Path string `json:"path,omitempty"`
+
+	// Inner means the endpoint is only accessible within the cluster.
+	Inner bool `json:"inner,omitempty"`
 }
 
 // AppliedResource resource metadata

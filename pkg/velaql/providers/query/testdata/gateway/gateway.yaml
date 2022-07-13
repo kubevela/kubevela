@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  name: traefik-gateway
+  namespace: vela-system
+  annotations: 
+    ports-mapping: "8000:80,8443:443"
+spec:
+  gatewayClassName: traefik
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: All
+    name: web
+    port: 8000
+    protocol: HTTP

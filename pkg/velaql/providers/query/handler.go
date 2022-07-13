@@ -125,7 +125,7 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app)
+	appResList, err := collector.ListApplicationResources(app, false)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -151,7 +151,7 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app)
+	appResList, err := collector.ListApplicationResources(app, true)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}

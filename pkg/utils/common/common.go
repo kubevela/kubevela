@@ -58,6 +58,7 @@ import (
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/yaml"
 
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
@@ -110,6 +111,7 @@ func init() {
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = prismclusterv1alpha1.AddToScheme(Scheme)
 	_ = cloudshellv1alpha1.AddToScheme(Scheme)
+	_ = gatewayv1alpha2.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

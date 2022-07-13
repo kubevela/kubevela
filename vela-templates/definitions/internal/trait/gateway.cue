@@ -63,6 +63,9 @@ template: {
 				if !parameter.classInSpec {
 					"kubernetes.io/ingress.class": parameter.class
 				}
+				if parameter.gatewayHost != _|_ {
+					"ingress.controller/host": parameter.gatewayHost
+				}
 			}
 		}
 		spec: {
@@ -110,5 +113,8 @@ template: {
 
 		// +usage=Specify the secret name you want to quote.
 		secretName?: string
+
+		// +usage=Specify the host of the ingress gateway, which is used to generate the endpoints when the host is empty.
+		gatewayHost?: string
 	}
 }
