@@ -144,13 +144,13 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 	if len(os.Args) < 2 || os.Args[1] != "provider" {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	defs, err := getTerraformProviderTypes(ctx, k8sClient)
+	defs, err := getTerraformProviderTypes(timeoutCtx, k8sClient)
 	if err == nil {
 		cmds := make([]*cobra.Command, len(defs))
 		for i, d := range defs {
@@ -161,7 +161,7 @@ func prepareProviderAddSubCommand(c common.Args, ioStreams cmdutil.IOStreams) ([
 				Long:    fmt.Sprintf("Authenticate Terraform Cloud Provider %s by creating a credential secret and a Terraform Controller Provider", providerType),
 				Example: fmt.Sprintf("vela provider add %s", providerType),
 			}
-			parameters, err := getParameters(ctx, k8sClient, providerType)
+			parameters, err := getParameters(context.Background(), k8sClient, providerType)
 			if err != nil {
 				return nil, err
 			}
@@ -335,9 +335,9 @@ func prepareProviderDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *c
 		if err != nil {
 			return err
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 		defer cancel()
-		defs, err := getTerraformProviderTypes(ctx, k8sClient)
+		defs, err := getTerraformProviderTypes(timeoutCtx, k8sClient)
 		if len(args) < 1 {
 			errMsg := "must specify a Terraform Cloud Provider type"
 			if err == nil {
@@ -373,13 +373,13 @@ func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams)
 	if len(os.Args) < 2 || os.Args[1] != "provider" {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	timeoutContext, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	defs, err := getTerraformProviderTypes(ctx, k8sClient)
+	defs, err := getTerraformProviderTypes(timeoutContext, k8sClient)
 	if err == nil {
 		cmds := make([]*cobra.Command, len(defs))
 		for i, d := range defs {
@@ -390,7 +390,7 @@ func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams)
 				Long:    fmt.Sprintf("Delete Terraform Cloud Provider %s", providerType),
 				Example: fmt.Sprintf("vela provider delete %s", providerType),
 			}
-			parameters, err := getParameters(ctx, k8sClient, providerType)
+			parameters, err := getParameters(context.Background(), k8sClient, providerType)
 			if err != nil {
 				return nil, err
 			}
@@ -404,7 +404,7 @@ func prepareProviderDeleteSubCommand(c common.Args, ioStreams cmdutil.IOStreams)
 				if err != nil || name == "" {
 					return fmt.Errorf("must specify a name for the Terraform Cloud Provider %s", providerType)
 				}
-				if err := config.DeleteApplication(ctx, k8sClient, name, true); err != nil {
+				if err := config.DeleteApplication(context.Background(), k8sClient, name, true); err != nil {
 					return errors.Wrapf(err, "failed to delete Terraform Cloud Provider %s", name)
 				}
 				ioStreams.Infof("Successfully delete provider %s for %s\n", name, providerType)
