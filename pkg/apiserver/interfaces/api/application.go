@@ -1234,10 +1234,6 @@ func (c *applicationAPIInterface) dryRunAppOrRevision(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if dryRunReq.AppName == "" {
-		dryRunReq.AppName = app.Name
-	}
-
 	base, err := c.ApplicationService.DryRunAppOrRevision(req.Request.Context(), app, dryRunReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)

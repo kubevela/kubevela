@@ -280,19 +280,25 @@ func (e *envBindingServiceImpl) ApplicationEnvRecycle(ctx context.Context, appMo
 		return err
 	}
 	var app v1beta1.Application
-	err = e.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appModel.Name}, &app)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return err
+	name := envBinding.AppDeployName
+	if name == "" {
+		name = appModel.Name
 	}
-	if err := e.KubeClient.Delete(ctx, &app); err != nil {
-		return err
+	err = e.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: name}, &app)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if err == nil {
+		if err := e.KubeClient.Delete(ctx, &app); err != nil {
+			return err
+		}
 	}
 
 	if err := resetRevisionsAndRecords(ctx, e.Store, appModel.Name, "", "", ""); err != nil {
 		return err
 	}
+	log.Logger.Infof("Application %s(%s) recycle successfully from env %s", appModel.Name, name, env.Name)
 	return nil
 }

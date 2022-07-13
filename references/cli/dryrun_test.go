@@ -56,7 +56,7 @@ var _ = Describe("Test dry run with policy", func() {
 		dm, err := discoverymapper.New(cfg)
 		Expect(err).Should(BeNil())
 
-		dryRunOpt := dryrun.NewDryRunOption(k8sClient, cfg, dm, pd, nil)
+		dryRunOpt := dryrun.NewDryRunOption(k8sClient, cfg, dm, pd, nil, false)
 
 		comps, plcs, err := dryRunOpt.ExecuteDryRun(context.TODO(), &app)
 		Expect(err).Should(BeNil())

@@ -808,11 +808,12 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		envName = workflow.EnvName
 	}
 
-	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, envName)
+	env, err := c.EnvService.GetEnv(ctx, envName)
 	if err != nil {
 		return nil, err
 	}
-	env, err := c.EnvService.GetEnv(ctx, envName)
+
+	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, envName)
 	if err != nil {
 		return nil, err
 	}
@@ -1515,27 +1516,35 @@ func (c *applicationServiceImpl) ResetAppToLatestRevision(ctx context.Context, a
 func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appModel *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
 	var app *v1beta1.Application
 	var err error
-	if dryRunReq.DryRunType == "APP" {
+	switch dryRunReq.DryRunType {
+	case "APP":
 		app, err = c.renderOAMApplication(ctx, appModel, dryRunReq.Workflow, dryRunReq.Env, "")
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		app, _, err = c.getAppModelFromRevision(ctx, dryRunReq.AppName, dryRunReq.Version)
+	case "Revision":
+		app, _, err = c.getAppModelFromRevision(ctx, appModel.Name, dryRunReq.Version)
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, bcode.ErrApplicationDryRunFailed.SetMessage("The dry run type is not supported")
 	}
 	args := common2.Args{
 		Schema: common2.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
+	res := &apisv1.AppDryRunResponse{}
 	dryRunResult, err := dryRunApplication(ctx, args, app)
 	if err != nil {
-		return nil, err
+		res.Success = false
+		res.Message = err.Error()
+	} else {
+		res.Success = true
 	}
-	return &apisv1.AppDryRunResponse{YAML: dryRunResult.String()}, nil
+	res.YAML = dryRunResult.String()
+	return res, nil
 }
 
 func genWebhookToken() string {
@@ -1627,6 +1636,15 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 
 func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Application) (bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
+	if _, err := fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
+		return buff, fmt.Errorf("fail to write to buff %w", err)
+	}
+	result, err := yaml.Marshal(app)
+	if err != nil {
+		return buff, fmt.Errorf("marshal app: %w", err)
+	}
+	buff.Write(result)
+
 	newClient, err := c.GetClient()
 	if err != nil {
 		return buff, err
@@ -1644,20 +1662,11 @@ func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Applica
 	if err != nil {
 		return buff, err
 	}
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects, true)
 	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
-		return buff, fmt.Errorf("generate OAM objects %w", err)
+		return buff, err
 	}
-	if _, err = fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
-		return buff, fmt.Errorf("fail to write to buff %w", err)
-	}
-	result, err := yaml.Marshal(app)
-	if err != nil {
-		return buff, fmt.Errorf("marshal app: %w", err)
-	}
-	buff.Write(result)
-	buff.WriteString("\n---\n")
 	if err = dryRunOpt.PrintDryRun(&buff, app.Name, comps, policies); err != nil {
 		return buff, err
 	}
