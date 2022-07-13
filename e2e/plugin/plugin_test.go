@@ -679,6 +679,7 @@ spec:
         - containerPort: 80
 
 ---
+## From the trait test-ingress 
 apiVersion: v1
 kind: Service
 metadata:
@@ -701,6 +702,7 @@ spec:
     app.oam.dev/component: express-server
 
 ---
+## From the trait test-ingress 
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
