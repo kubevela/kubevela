@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -319,6 +320,11 @@ func encodeDeclsToString(decls []ast.Decl) (string, error) {
 		s += string(bs) + "\n"
 	}
 	return s, nil
+}
+
+// FromYAML converts yaml into Definition
+func (def *Definition) FromYAML(data []byte) error {
+	return yaml.Unmarshal(data, def)
 }
 
 // FromCUEString converts cue string into Definition
