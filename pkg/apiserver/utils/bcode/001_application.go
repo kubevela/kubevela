@@ -98,4 +98,4 @@ var ErrApplicationComponentNotAllowDelete = NewBcode(400, 10025, "main component
 var ErrApplicationPolicyIsBeingUsed = NewBcode(400, 10026, "the policy is being used by workflow, cannot be deleted")
 
 // ErrApplicationDryRunFailed means the application configuration does not dry run successfully
-var ErrApplicationDryRunFailed = NewBcode(400, 10026, "The application dry run failed")
+var ErrApplicationDryRunFailed = NewBcode(400, 10027, "The application dry run failed")
