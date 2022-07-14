@@ -163,6 +163,10 @@ func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 }
 
 // ListApplicationResourceTrackers list resource trackers for application with all historyRTs sorted by version number
+// rootRT -> The ResourceTracker that records life-long resources. These resources will only be recycled when application is removed.
+// currentRT -> The ResourceTracker that tracks the resources used by the latest version of application.
+// historyRTs -> The ResourceTrackers that tracks the resources in outdated versions.
+// crRT -> The ResourceTracker that tracks the component revisions created by the application.
 func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
 	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
 	rts, err := listApplicationResourceTrackers(ctx, cli, app)
