@@ -25,3 +25,7 @@ spec:
             - name: my-mount
               mountPath: /test
               claimName: myclaim
+            - name: my-mount
+              mountPath: /test2
+              subPath: /sub
+              claimName: myclaim

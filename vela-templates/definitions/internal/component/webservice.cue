@@ -57,7 +57,10 @@ template: {
 			for v in parameter.volumeMounts.pvc {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -66,7 +69,10 @@ template: {
 				for v in parameter.volumeMounts.configMap {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -75,7 +81,10 @@ template: {
 			for v in parameter.volumeMounts.secret {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -84,7 +93,10 @@ template: {
 				for v in parameter.volumeMounts.emptyDir {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -93,7 +105,10 @@ template: {
 				for v in parameter.volumeMounts.hostPath {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -159,6 +174,20 @@ template: {
 			},
 		] | []
 	}
+
+	volumesList: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+	deDupVolumesArray: [
+		for val in [
+			for i, vi in volumesList {
+				for j, vj in volumesList if j < i && vi.name == vj.name {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]
 
 	output: {
 		apiVersion: "apps/v1"
@@ -305,7 +334,7 @@ template: {
 					}
 
 					if parameter["volumeMounts"] != _|_ {
-						volumes: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+						volumes: deDupVolumesArray
 					}
 				}
 			}
@@ -421,6 +450,7 @@ template: {
 			pvc?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				// +usage=The name of the PVC
 				claimName: string
 			}]
@@ -428,6 +458,7 @@ template: {
 			configMap?: [...{
 				name:        string
 				mountPath:   string
+				subPath?:    string
 				defaultMode: *420 | int
 				cmName:      string
 				items?: [...{
@@ -440,6 +471,7 @@ template: {
 			secret?: [...{
 				name:        string
 				mountPath:   string
+				subPath?:    string
 				defaultMode: *420 | int
 				secretName:  string
 				items?: [...{
@@ -452,12 +484,14 @@ template: {
 			emptyDir?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				medium:    *"" | "Memory"
 			}]
 			// +usage=Mount HostPath type volume
 			hostPath?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				path:      string
 			}]
 		}
