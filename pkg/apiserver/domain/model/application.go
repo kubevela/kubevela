@@ -187,6 +187,7 @@ type ApplicationPolicy struct {
 	BaseModel
 	AppPrimaryKey string      `json:"appPrimaryKey"`
 	Name          string      `json:"name"`
+	Alias         string      `json:"alias"`
 	Description   string      `json:"description"`
 	Type          string      `json:"type"`
 	Creator       string      `json:"creator"`

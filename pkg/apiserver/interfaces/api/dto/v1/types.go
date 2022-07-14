@@ -875,12 +875,11 @@ type DefinitionBase struct {
 // CreatePolicyRequest create app policy
 type CreatePolicyRequest struct {
 	// Name is the unique name of the policy.
-	Name string `json:"name" validate:"checkname"`
-
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias"`
+	EnvName     string `json:"envName"`
 	Description string `json:"description"`
-
-	Type string `json:"type" validate:"checkname"`
-
+	Type        string `json:"type" validate:"checkname"`
 	// Properties json data
 	Properties string `json:"properties"`
 
@@ -896,6 +895,8 @@ type WorkflowPolicyBinding struct {
 
 // UpdatePolicyRequest update policy
 type UpdatePolicyRequest struct {
+	Alias       string `json:"alias"`
+	EnvName     string `json:"envName"`
 	Description string `json:"description"`
 	Type        string `json:"type" validate:"checkname"`
 	// Properties json data

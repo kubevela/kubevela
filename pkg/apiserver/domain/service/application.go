@@ -1177,6 +1177,8 @@ func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Ap
 		Creator:       userName,
 		Name:          createPolicy.Name,
 		Type:          createPolicy.Type,
+		EnvName:       createPolicy.EnvName,
+		Alias:         createPolicy.Alias,
 	}
 	properties, err := model.NewJSONStructByString(createPolicy.Properties)
 	if err != nil {
@@ -1238,6 +1240,8 @@ func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	}
 	policy.Properties = properties
 	policy.Description = policyUpdate.Description
+	policy.Alias = policyUpdate.Alias
+	policy.EnvName = policyUpdate.EnvName
 
 	if err := c.Store.Put(ctx, &policy); err != nil {
 		return nil, err
