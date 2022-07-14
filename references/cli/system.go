@@ -21,14 +21,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
