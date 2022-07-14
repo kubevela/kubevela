@@ -19,6 +19,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -1168,16 +1169,16 @@ func (c *applicationServiceImpl) DeleteComponent(ctx context.Context, app *model
 	return nil
 }
 
-func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Application, createpolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
+func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Application, createPolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
 	policyModel := model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Description:   createpolicy.Description,
+		Description:   createPolicy.Description,
 		Creator:       userName,
-		Name:          createpolicy.Name,
-		Type:          createpolicy.Type,
+		Name:          createPolicy.Name,
+		Type:          createPolicy.Type,
 	}
-	properties, err := model.NewJSONStructByString(createpolicy.Properties)
+	properties, err := model.NewJSONStructByString(createPolicy.Properties)
 	if err != nil {
 		return nil, bcode.ErrInvalidProperties
 	}
@@ -1189,6 +1190,9 @@ func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add policy for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
+	if err = c.handlePolicyBindingWorkflowStep(ctx, app, createPolicy.Name, createPolicy.WorkflowPolicyBindings); err != nil {
+		return nil, err
+	}
 	return assembler.ConvertPolicyModelToBase(&policyModel), nil
 }
 
@@ -1196,6 +1200,13 @@ func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Ap
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
+	}
+	used, err := c.checkPolicyUsedByWorkflow(ctx, app, policyName)
+	if err != nil {
+		return err
+	}
+	if used {
+		return bcode.ErrApplicationPolicyIsBeingUsed
 	}
 	if err := c.Store.Delete(ctx, &policy); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -1229,6 +1240,9 @@ func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	policy.Description = policyUpdate.Description
 
 	if err := c.Store.Put(ctx, &policy); err != nil {
+		return nil, err
+	}
+	if err = c.handlePolicyBindingWorkflowStep(ctx, app, policyName, policyUpdate.WorkflowPolicyBindings); err != nil {
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
@@ -1752,4 +1766,88 @@ func NewTestApplicationService(ds datastore.DataStore, c client.Client, cfg *res
 		ProjectService:    projectService,
 		UserService:       userService,
 	}
+}
+
+// handlePolicyBindingWorkflowStep handle every operation(create/update) against policy, if this policy is bind to a workflow step, will recorde in workflow step.
+func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Context, app *model.Application, policyName string, wfBindings []apisv1.WorkflowPolicyBinding) error {
+	const pattern string = "%s-%s"
+	bindings := map[string]bool{}
+	for _, binding := range wfBindings {
+		for _, s := range binding.Steps {
+			bindings[fmt.Sprintf(pattern, binding.Name, s)] = true
+		}
+	}
+
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return err
+	}
+	needUpdate := false
+	for _, w := range workflows {
+		for i, step := range w.Steps {
+			p := step.Properties
+			policies, properties, err := extractPolicyListAndProperty(p)
+			if err != nil {
+				return err
+			}
+			if policies == nil || properties == nil {
+				policies = []string{}
+				properties = map[string]interface{}{}
+			}
+			var added, deleted bool
+			if ok := bindings[fmt.Sprintf(pattern, w.Name, step.Name)]; ok {
+				policies, added = guaranteePolicyExist(policies, policyName)
+			} else {
+				policies, deleted = guaranteePolicyNotExist(policies, policyName)
+			}
+			if added || deleted {
+				properties["policies"] = policies
+				pStr, err := json.Marshal(properties)
+				if err != nil {
+					return err
+				}
+				w.Steps[i].Properties = string(pStr)
+				needUpdate = true
+			}
+		}
+		if needUpdate {
+			_, err := c.WorkflowService.UpdateWorkflow(ctx,
+				&model.Workflow{
+					BaseModel:     model.BaseModel{CreateTime: w.CreateTime, UpdateTime: time.Now()},
+					Description:   w.Description,
+					Name:          w.Name,
+					Alias:         w.Alias,
+					Default:       &w.Default,
+					AppPrimaryKey: app.Name,
+					EnvName:       w.EnvName,
+				}, apisv1.UpdateWorkflowRequest{Steps: w.Steps, Description: w.Description})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// checkPolicyUsedByWorkflow check a policy whether used by any workflow step
+func (c *applicationServiceImpl) checkPolicyUsedByWorkflow(ctx context.Context, app *model.Application, policyName string) (bool, error) {
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return false, err
+	}
+	for _, w := range workflows {
+		for _, step := range w.Steps {
+			p := step.Properties
+			policies, _, err := extractPolicyListAndProperty(p)
+			if err != nil {
+				return false, err
+			}
+			for _, policy := range policies {
+				if policy == policyName {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }

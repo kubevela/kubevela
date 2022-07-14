@@ -18,6 +18,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -790,6 +791,195 @@ var _ = Describe("Test application component service function", func() {
 		Expect(err).Should(BeNil())
 		Expect(app).ShouldNot(BeNil())
 		Expect(len(app.Traits)).Should(BeEquivalentTo(1))
+	})
+})
+
+var _ = Describe("Test apiserver policy rest api", func() {
+	var (
+		appService     *applicationServiceImpl
+		projectService *projectServiceImpl
+		envService     *envServiceImpl
+		testApp        string
+		testProject    string
+		ctx            context.Context
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		rbacService := &rbacServiceImpl{Store: ds}
+		projectService = &projectServiceImpl{Store: ds, K8sClient: k8sClient, RbacService: rbacService}
+		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
+		workflowService := &workflowServiceImpl{Store: ds, EnvService: envService}
+		envBindingService := &envBindingServiceImpl{Store: ds, EnvService: envService, WorkflowService: workflowService, KubeClient: k8sClient}
+
+		appService = &applicationServiceImpl{
+			Store:             ds,
+			Apply:             apply.NewAPIApplicator(k8sClient),
+			KubeClient:        k8sClient,
+			ProjectService:    projectService,
+			WorkflowService:   workflowService,
+			EnvBindingService: envBindingService,
+			EnvService:        envService,
+		}
+		testApp = "app-policy-workflow-binding"
+		testProject = "project-policy-workflow-binding"
+	})
+
+	It("Test add policy", func() {
+		_, err := projectService.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
+		_, err = appService.CreateApplication(context.TODO(), v1.CreateApplicationRequest{Name: testApp, Project: testProject})
+		Expect(err).Should(BeNil())
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+
+		workflow := v1.CreateWorkflowRequest{
+			Name:    "default",
+			EnvName: "default",
+			Steps: []v1.WorkflowStep{
+				{
+					Name:       "default",
+					Type:       "deploy",
+					Properties: `{"policies":["local"]}`,
+				},
+				{
+					Name:       "suspend",
+					Type:       "suspend",
+					Properties: `{"duration": "10m"}`,
+				},
+				{
+					Name:       "second",
+					Type:       "deploy",
+					Properties: `{"policies":["cluster1"]}`,
+				},
+			},
+		}
+		_, err = appService.WorkflowService.CreateOrUpdateWorkflow(ctx, appModel, workflow)
+		Expect(err).Should(BeNil())
+
+		workflow2 := v1.CreateWorkflowRequest{
+			Name:    "second",
+			EnvName: "default",
+			Steps: []v1.WorkflowStep{
+				{
+					Name:       "second",
+					Type:       "deploy",
+					Properties: `{"policies":["cluster3"]}`,
+				},
+			},
+		}
+		_, err = appService.WorkflowService.CreateOrUpdateWorkflow(ctx, appModel, workflow2)
+		Expect(err).Should(BeNil())
+
+		policyReq := v1.CreatePolicyRequest{
+			Name:       "override1",
+			Type:       "override",
+			Properties: `{"components": [{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}]}`,
+			WorkflowPolicyBindings: []v1.WorkflowPolicyBinding{
+				{
+					Name:  "default",
+					Steps: []string{"default"},
+				},
+			},
+		}
+		_, err = appService.CreatePolicy(ctx, appModel, policyReq)
+		Expect(err).Should(BeNil())
+
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local","override1"]}`))
+
+		// guarantee the suspend workflow step shouldn't be changed
+		suspendStep := checkWorkflow.Steps[1]
+		Expect(suspendStep.Name).Should(BeEquivalentTo("suspend"))
+		Expect(suspendStep.Type).Should(BeEquivalentTo("suspend"))
+		suspendPropertyStr, err := json.Marshal(suspendStep.Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(suspendPropertyStr)).Should(BeEquivalentTo(`{"duration":"10m"}`))
+	})
+
+	It("Update policy to more workflow Step", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+		policyRes, err := appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		propertyStr, err := json.Marshal(policyRes.Properties)
+		Expect(err).Should(BeNil())
+		updatePolicyReq := v1.UpdatePolicyRequest{
+			Description: policyRes.Description,
+			Type:        policyRes.Type,
+			Properties:  string(propertyStr),
+			WorkflowPolicyBindings: []v1.WorkflowPolicyBinding{
+				{
+					Name:  "second",
+					Steps: []string{"second"},
+				},
+			},
+		}
+		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+		Expect(err).Should(BeNil())
+
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local"]}`))
+
+		checkWorkflow, err = appService.WorkflowService.GetWorkflow(ctx, appModel, "second")
+		Expect(err).Should(BeNil())
+		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3","override1"]}`))
+	})
+
+	It("Exsit binding will block policy delete operation", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+		_, err = appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		err = appService.DeletePolicy(ctx, appModel, policyName)
+		Expect(err).ShouldNot(BeNil())
+	})
+
+	It("Update workflow delete using step will unblock delete", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+		policyRes, err := appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		propertyStr, err := json.Marshal(policyRes.Properties)
+		Expect(err).Should(BeNil())
+		updatePolicyReq := v1.UpdatePolicyRequest{
+			Description:            policyRes.Description,
+			Type:                   policyRes.Type,
+			Properties:             string(propertyStr),
+			WorkflowPolicyBindings: nil,
+		}
+		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+		Expect(err).Should(BeNil())
+
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local"]}`))
+
+		checkWorkflow, err = appService.WorkflowService.GetWorkflow(ctx, appModel, "second")
+		Expect(err).Should(BeNil())
+		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3"]}`))
+
+		// try delete again
+		err = appService.DeletePolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
 	})
 })
 
