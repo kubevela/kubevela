@@ -342,8 +342,8 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 						protocol = querytypes.HTTPS
 					}
 					var port = int(listener.Port)
-					// The gateway listener port may be is not the externally exposed port.
-					// Example the traefik addon default configuration, 8443->443 8000->80
+					// The gateway listener port may not be the externally exposed port.
+					// For example, the traefik addon has a default port mapping configuration of 8443->443 8000->80
 					// So users could set the `ports-mapping` annotation.
 					if mapping := gateway.Annotations["ports-mapping"]; mapping != "" {
 						fmt.Println(mapping)
