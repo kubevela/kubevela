@@ -387,7 +387,7 @@ func handleOutput(ctx wfContext.Context, stepStatus *common.StepStatus, operatio
 		}
 
 		for _, hook := range postStopHooks {
-			if err := hook(ctx, contextValue, step, status); err != nil {
+			if err := hook(ctx, contextValue, step, status, nil); err != nil {
 				status.Phase = common.WorkflowStepPhaseFailed
 				if status.Reason == "" {
 					status.Reason = types.StatusReasonOutput

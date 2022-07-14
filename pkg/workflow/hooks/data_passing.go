@@ -17,10 +17,12 @@ limitations under the License.
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -44,9 +46,10 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 }
 
 // Output get data from task value.
-func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus) error {
+func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus, stepStatus map[string]common.StepStatus) error {
 	errMsg := ""
 	if wfTypes.IsStepFinish(status.Phase, status.Reason) {
+		SetAdditionalNameInStatus(stepStatus, step.Name, step.Properties, status)
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
 			// if the error is not nil and the step is not skipped, return the error
@@ -67,4 +70,24 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 		return errors.New(errMsg)
 	}
 	return nil
+}
+
+func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name string, properties *runtime.RawExtension, status common.StepStatus) {
+	if stepStatus == nil || properties == nil {
+		return
+	}
+	o := struct {
+		Name string `json:"name"`
+	}{}
+	js, err := properties.MarshalJSON()
+	if err != nil {
+		return
+	}
+	if err := json.Unmarshal(js, &o); err != nil {
+		return
+	}
+	if _, ok := stepStatus[o.Name]; !ok {
+		stepStatus[o.Name] = status
+	}
+	return
 }

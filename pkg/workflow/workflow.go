@@ -237,17 +237,14 @@ func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash st
 
 func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow, wfStatus *common.WorkflowStatus) *engine {
 	stepStatus := make(map[string]common.StepStatus)
-	for _, ss := range wfStatus.Steps {
-		setStepStatus(stepStatus, ss.StepStatus)
-		for _, sss := range ss.SubStepsStatus {
-			setStepStatus(stepStatus, sss.StepStatus)
-		}
-	}
+	setStepStatus(stepStatus, wfStatus.Steps)
 	stepDependsOn := make(map[string][]string)
 	if w.app.Spec.Workflow != nil {
 		for _, step := range w.app.Spec.Workflow.Steps {
+			hooks.SetAdditionalNameInStatus(stepStatus, step.Name, step.Properties, stepStatus[step.Name])
 			stepDependsOn[step.Name] = append(stepDependsOn[step.Name], step.DependsOn...)
 			for _, sub := range step.SubSteps {
+				hooks.SetAdditionalNameInStatus(stepStatus, sub.Name, sub.Properties, stepStatus[step.Name])
 				stepDependsOn[sub.Name] = append(stepDependsOn[sub.Name], sub.DependsOn...)
 			}
 		}
@@ -270,12 +267,12 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 	}
 }
 
-func setStepStatus(statusMap map[string]common.StepStatus, status common.StepStatus) {
-	statusMap[status.Name] = common.StepStatus{
-		Phase:            status.Phase,
-		ID:               status.ID,
-		Reason:           status.Reason,
-		FirstExecuteTime: status.FirstExecuteTime,
+func setStepStatus(statusMap map[string]common.StepStatus, status []common.WorkflowStepStatus) {
+	for _, ss := range status {
+		statusMap[ss.Name] = ss.StepStatus
+		for _, sss := range ss.SubStepsStatus {
+			statusMap[sss.Name] = sss.StepStatus
+		}
 	}
 }
 
@@ -296,12 +293,7 @@ func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
 		return 0
 	}
 	stepStatus := make(map[string]common.StepStatus)
-	for _, ss := range w.app.Status.Workflow.Steps {
-		setStepStatus(stepStatus, ss.StepStatus)
-		for _, sss := range ss.SubStepsStatus {
-			setStepStatus(stepStatus, sss.StepStatus)
-		}
-	}
+	setStepStatus(stepStatus, w.app.Status.Workflow.Steps)
 	max := time.Duration(1<<63 - 1)
 	min := max
 	for _, step := range w.app.Spec.Workflow.Steps {

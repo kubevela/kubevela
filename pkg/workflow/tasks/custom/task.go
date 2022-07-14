@@ -145,20 +145,18 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			var paramFile string
 
 			defer func() {
-				if len(wfStep.Outputs) > 0 {
-					if taskv == nil {
-						taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
-						if err != nil {
-							return
-						}
+				if taskv == nil {
+					taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
+					if err != nil {
+						return
 					}
-					for _, hook := range options.PostStopHooks {
-						if err := hook(ctx, taskv, wfStep, exec.status()); err != nil {
-							exec.wfStatus.Message = err.Error()
-							stepStatus = exec.status()
-							operations = exec.operation()
-							return
-						}
+				}
+				for _, hook := range options.PostStopHooks {
+					if err := hook(ctx, taskv, wfStep, exec.status(), options.StepStatus); err != nil {
+						exec.wfStatus.Message = err.Error()
+						stepStatus = exec.status()
+						operations = exec.operation()
+						return
 					}
 				}
 			}()
