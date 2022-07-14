@@ -950,8 +950,15 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 			return client.IgnoreNotFound(err)
 		}
 		phase := app.Status.Phase
-		if phase == common2.ApplicationRunning {
+		switch app.Status.Phase {
+		case common2.ApplicationRunning:
 			return nil
+		case common2.ApplicationWorkflowSuspending:
+			fmt.Printf("Enabling suspend, please run \"vela workflow resume %s -n vela-system\" to continue", addonutil.Addon2AppName(addonName))
+			return nil
+		case common2.ApplicationWorkflowTerminated:
+			return errors.Errorf("Enabling failed, please run \"vela status %s -n vela-system\" to check the status of the addon", addonutil.Addon2AppName(addonName))
+		default:
 		}
 		timeConsumed := int(time.Since(start).Seconds())
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
