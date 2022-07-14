@@ -855,12 +855,12 @@ func (p *rbacServiceImpl) InitDefaultRoleAndUsersForProject(ctx context.Context,
 	batchData = append(batchData, &model.Role{
 		Name:        "app-developer",
 		Alias:       "App Developer",
-		Permissions: []string{"project-read", "app-management", "env-management", "configuration-read"},
+		Permissions: []string{"project-view", "app-management", "env-management", "configuration-read"},
 		Project:     project.Name,
 	}, &model.Role{
 		Name:        "project-admin",
 		Alias:       "Project Admin",
-		Permissions: []string{"project-read", "app-management", "env-management", "role-management", "configuration-read"},
+		Permissions: []string{"project-view", "app-management", "env-management", "role-management", "configuration-read"},
 		Project:     project.Name,
 	}, &model.Role{
 		Name:        "project-viewer",
