@@ -72,6 +72,7 @@ func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.Workflow
 	return nil
 }
 
+// SetAdditionalNameInStatus sets additional name from properties to status map
 func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name string, properties *runtime.RawExtension, status common.StepStatus) {
 	if stepStatus == nil || properties == nil {
 		return
@@ -89,5 +90,4 @@ func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name str
 	if _, ok := stepStatus[o.Name]; !ok {
 		stepStatus[o.Name] = status
 	}
-	return
 }
