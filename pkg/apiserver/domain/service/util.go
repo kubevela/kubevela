@@ -44,7 +44,8 @@ func guaranteePolicyNotExist(c []string, policy string) ([]string, bool) {
 			i++
 		}
 	}
-	// the target policy isn't exist yet, put it in.
+	// if len(c) != i, that's mean target policy exist in the list, this function has delete it from returned result,
+	// and outer caller should update with it.
 	return res[:i], len(c) != i
 }
 

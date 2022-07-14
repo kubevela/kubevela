@@ -771,6 +771,11 @@ var _ = Describe("Test apiserver policy rest api", func() {
 					Properties: `{"policies":["local"]}`,
 				},
 				{
+					Name:       "suspend",
+					Type:       "suspend",
+					Properties: `{"duration": "10m"}`,
+				},
+				{
 					Name:       "second",
 					Type:       "deploy",
 					Properties: `{"policies":["cluster1"]}`,
@@ -813,6 +818,14 @@ var _ = Describe("Test apiserver policy rest api", func() {
 		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
 		Expect(err).Should(BeNil())
 		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local","override1"]}`))
+
+		// guarantee the suspend workflow step shouldn't be changed
+		suspendStep := checkWorkflow.Steps[1]
+		Expect(suspendStep.Name).Should(BeEquivalentTo("suspend"))
+		Expect(suspendStep.Type).Should(BeEquivalentTo("suspend"))
+		suspendPropertyStr, err := json.Marshal(suspendStep.Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(suspendPropertyStr)).Should(BeEquivalentTo(`{"duration":"10m"}`))
 	})
 
 	It("Update policy to more workflow Step", func() {
