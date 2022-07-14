@@ -31,7 +31,7 @@
 		kind:       string
 	}
 	filter?: {
-		namespace?: *"" | string
+		namespace?: string
 		matchingLabels?: {...}
 	}
 	list?: {...}
