@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,9 +31,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -64,7 +67,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app)
+	resources, err := collector.ListApplicationResources(app, true)
 	if err != nil {
 		return err
 	}
@@ -80,7 +83,11 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 			}
 			return ip
 		}
-		serviceEndpoints = append(serviceEndpoints, getEndpointFromNode(ctx, h.cli, resource.ResourceTree, resource.Component, cachedSelectorNodeIP)...)
+		if resource.ResourceTree != nil {
+			serviceEndpoints = append(serviceEndpoints, getEndpointFromNode(ctx, h.cli, resource.ResourceTree, resource.Component, cachedSelectorNodeIP)...)
+		} else {
+			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, h.cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
+		}
 	}
 	return fillQueryResult(v, serviceEndpoints, "list")
 }
@@ -170,6 +177,14 @@ func getServiceEndpoints(ctx context.Context, cli client.Client, gvk schema.Grou
 			return nil
 		}
 		serviceEndpoints = append(serviceEndpoints, generatorFromService(service, cachedSelectorNodeIP, cluster, component, fmt.Sprintf("/seldon/%s/%s", namespace, name))...)
+	case "HTTPRoute":
+		var route gatewayv1alpha2.HTTPRoute
+		route.SetGroupVersionKind(gvk)
+		if err := findResource(ctx, cli, &route, name, namespace, cluster); err != nil {
+			klog.Error(err, fmt.Sprintf("find HTTPRoute %s/%s from cluster %s failure", name, namespace, cluster))
+			return nil
+		}
+		serviceEndpoints = append(serviceEndpoints, generatorFromHTTPRoute(ctx, cli, route, cluster, component)...)
 	}
 	return serviceEndpoints
 }
@@ -201,7 +216,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 		ResourceVersion: service.ResourceVersion,
 	}
 
-	formatEndpoint := func(host, appProtocol string, portProtocol corev1.Protocol, portNum int32) querytypes.ServiceEndpoint {
+	formatEndpoint := func(host, appProtocol string, portProtocol corev1.Protocol, portNum int32, inner bool) querytypes.ServiceEndpoint {
 		return querytypes.ServiceEndpoint{
 			Endpoint: querytypes.Endpoint{
 				Protocol:    portProtocol,
@@ -209,6 +224,7 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 				Host:        host,
 				Port:        int(portNum),
 				Path:        path,
+				Inner:       inner,
 			},
 			Ref:       objRef,
 			Cluster:   cluster,
@@ -221,22 +237,22 @@ func generatorFromService(service corev1.Service, selectorNodeIP func() string, 
 			appp := judgeAppProtocol(port.Port)
 			for _, ingress := range service.Status.LoadBalancer.Ingress {
 				if ingress.Hostname != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Protocol, port.Port))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.Hostname, appp, port.Protocol, port.Port, false))
 				}
 				if ingress.IP != "" {
-					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Protocol, port.Port))
+					serviceEndpoints = append(serviceEndpoints, formatEndpoint(ingress.IP, appp, port.Protocol, port.Port, false))
 				}
 			}
 		}
 	case corev1.ServiceTypeNodePort:
 		for _, port := range service.Spec.Ports {
 			appp := judgeAppProtocol(port.Port)
-			serviceEndpoints = append(serviceEndpoints, formatEndpoint(selectorNodeIP(), appp, port.Protocol, port.NodePort))
+			serviceEndpoints = append(serviceEndpoints, formatEndpoint(selectorNodeIP(), appp, port.Protocol, port.NodePort, false))
 		}
 	case corev1.ServiceTypeClusterIP, corev1.ServiceTypeExternalName:
 		for _, port := range service.Spec.Ports {
 			appp := judgeAppProtocol(port.Port)
-			serviceEndpoints = append(serviceEndpoints, formatEndpoint(fmt.Sprintf("%s.%s", service.Name, service.Namespace), appp, port.Protocol, port.Port))
+			serviceEndpoints = append(serviceEndpoints, formatEndpoint(fmt.Sprintf("%s.%s", service.Name, service.Namespace), appp, port.Protocol, port.Port, true))
 		}
 	}
 	return serviceEndpoints
@@ -254,7 +270,7 @@ func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component str
 				}
 			}
 		}
-		return "http"
+		return querytypes.HTTP
 	}
 	// It depends on the Ingress Controller
 	getEndpointPort := func(appProtocol string) int {
@@ -269,6 +285,15 @@ func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component str
 		}
 		return 80
 	}
+
+	// The host in rule maybe empty, means access the application by the Gateway Host(IP)
+	getHost := func(host string) string {
+		if host != "" {
+			return host
+		}
+		return ingress.Annotations[apis.AnnoIngressControllerHost]
+	}
+
 	for _, rule := range ingress.Spec.Rules {
 		var appProtocol = getAppProtocol(rule.Host)
 		var appPort = getEndpointPort(appProtocol)
@@ -278,7 +303,7 @@ func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component str
 					Endpoint: querytypes.Endpoint{
 						Protocol:    corev1.ProtocolTCP,
 						AppProtocol: &appProtocol,
-						Host:        rule.Host,
+						Host:        getHost(rule.Host),
 						Path:        path.Path,
 						Port:        appPort,
 					},
@@ -293,6 +318,87 @@ func generatorFromIngress(ingress networkv1beta1.Ingress, cluster, component str
 					Cluster:   cluster,
 					Component: component,
 				})
+			}
+		}
+	}
+	return serviceEndpoints
+}
+
+func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNamespace, cluster string, parents []gatewayv1alpha2.ParentRef) (string, int) {
+	for _, parent := range parents {
+		if parent.Kind != nil && *parent.Kind == "Gateway" {
+			var gateway gatewayv1alpha2.Gateway
+			namespace := defaultNamespace
+			if parent.Namespace != nil {
+				namespace = string(*parent.Namespace)
+			}
+			if err := findResource(ctx, cli, &gateway, string(parent.Name), namespace, cluster); err != nil {
+				log.Logger.Errorf("query the Gateway %s/%s/%s failure %s", cluster, namespace, string(parent.Name), err.Error())
+			}
+			for _, listener := range gateway.Spec.Listeners {
+				if listener.Name == *parent.SectionName {
+					var protocol = querytypes.HTTP
+					if listener.Protocol == gatewayv1alpha2.HTTPSProtocolType {
+						protocol = querytypes.HTTPS
+					}
+					var port = int(listener.Port)
+					// The gateway listener port may not be the externally exposed port.
+					// For example, the traefik addon has a default port mapping configuration of 8443->443 8000->80
+					// So users could set the `ports-mapping` annotation.
+					if mapping := gateway.Annotations["ports-mapping"]; mapping != "" {
+						fmt.Println(mapping)
+						for _, portItem := range strings.Split(mapping, ",") {
+							if portMap := strings.Split(portItem, ":"); len(portMap) == 2 {
+								if portMap[0] == fmt.Sprintf("%d", listener.Port) {
+									newPort, err := strconv.Atoi(portMap[1])
+									if err == nil {
+										port = newPort
+									}
+								}
+							}
+						}
+					}
+					return protocol, port
+				}
+			}
+		}
+	}
+	return querytypes.HTTP, 80
+}
+
+func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1alpha2.HTTPRoute, cluster, component string) []querytypes.ServiceEndpoint {
+	existPath := make(map[string]bool)
+	var serviceEndpoints []querytypes.ServiceEndpoint
+	for _, rule := range route.Spec.Rules {
+		for _, host := range route.Spec.Hostnames {
+			appProtocol, appPort := getGatewayPortAndProtocol(ctx, cli, route.Namespace, cluster, route.Spec.ParentRefs)
+			for _, match := range rule.Matches {
+				path := ""
+				if match.Path != nil && (match.Path.Type == nil || string(*match.Path.Type) == string(gatewayv1alpha2.PathMatchPathPrefix)) {
+					path = *match.Path.Value
+				}
+				if !existPath[path] {
+					existPath[path] = true
+					serviceEndpoints = append(serviceEndpoints, querytypes.ServiceEndpoint{
+						Endpoint: querytypes.Endpoint{
+							Protocol:    corev1.ProtocolTCP,
+							AppProtocol: &appProtocol,
+							Host:        string(host),
+							Path:        path,
+							Port:        appPort,
+						},
+						Ref: corev1.ObjectReference{
+							Kind:            route.Kind,
+							Namespace:       route.ObjectMeta.Namespace,
+							Name:            route.ObjectMeta.Name,
+							UID:             route.UID,
+							APIVersion:      route.APIVersion,
+							ResourceVersion: route.ResourceVersion,
+						},
+						Cluster:   cluster,
+						Component: component,
+					})
+				}
 			}
 		}
 	}

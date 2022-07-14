@@ -17,7 +17,6 @@ limitations under the License.
 package query
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -331,8 +330,7 @@ func TestReplicaSetStatus(t *testing.T) {
 			res:   types.HealthStatus{Status: types.HealthStatusProgressing, Message: "Waiting for rollout to finish: observed replica set generation less then desired generation"},
 		},
 	}
-	for d, s := range testCases {
-		fmt.Println(d)
+	for _, s := range testCases {
 		rs := s.input.DeepCopy()
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&rs)
 		assert.NoError(t, err)
@@ -852,8 +850,7 @@ func TestPodAdditionalInfo(t *testing.T) {
 		"pod15": case15,
 	}
 
-	for des, t2 := range testCases {
-		fmt.Println(des)
+	for _, t2 := range testCases {
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.pod.DeepCopy())
 		assert.NoError(t, err)
 		res, err := additionalInfo(unstructured.Unstructured{Object: u})
@@ -895,8 +892,7 @@ func TestSvcAdditionalInfo(t *testing.T) {
 		"svc2": case2,
 	}
 
-	for des, t2 := range testCases {
-		fmt.Println(des)
+	for _, t2 := range testCases {
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(t2.svc.DeepCopy())
 		assert.NoError(t, err)
 		res, err := additionalInfo(unstructured.Unstructured{Object: u})

@@ -90,7 +90,7 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*types.AppliedResource, error) {
+func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryTree bool) ([]*types.AppliedResource, error) {
 	ctx := context.Background()
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
@@ -127,6 +127,10 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*ty
 				}
 			}
 		}
+	}
+
+	if !queryTree {
+		return managedResources, nil
 	}
 
 	// merge user defined customize rule before every request.
@@ -566,7 +570,7 @@ func isResourceInTargetCluster(opt FilterOption, resource common.ClusterObjectRe
 }
 
 func isResourceInTargetComponent(opt FilterOption, componentName string) bool {
-	if len(opt.Components) == 0 && len(componentName) != 0 {
+	if len(opt.Components) == 0 {
 		return true
 	}
 	for _, component := range opt.Components {

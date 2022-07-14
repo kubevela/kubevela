@@ -121,6 +121,7 @@ require (
 	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
+	sigs.k8s.io/gateway-api v0.4.3
 )
 
 require (

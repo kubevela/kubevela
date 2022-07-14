@@ -375,8 +375,8 @@ template: {
 		}]
 
 		// +ignore
-		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
-		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
+		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer"
+		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer"
 
 		// +ignore
 		// +usage=If addRevisionLabel is true, the revision label will be added to the underlying pods

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -634,6 +635,15 @@ options: {
 						Name:       "sdep",
 					},
 				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "gateway.networking.k8s.io/v1alpha2",
+						Kind:       "HTTPRoute",
+						Namespace:  "default",
+						Name:       "http-test-route",
+					},
+				},
 			},
 		}
 		testApp := &v1beta1.Application{
@@ -683,7 +693,7 @@ options: {
 		err = k8sClient.Create(context.TODO(), rt)
 		Expect(err).Should(BeNil())
 
-		testServicelist := []map[string]interface{}{
+		testServiceList := []map[string]interface{}{
 			{
 				"name": "clusterip",
 				"ports": []corev1.ServicePort{
@@ -753,7 +763,7 @@ options: {
 			},
 		})
 		Expect(err).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		for _, s := range testServicelist {
+		for _, s := range testServiceList {
 			ns := "default"
 			if s["namespace"] != nil {
 				ns = s["namespace"].(string)
@@ -937,6 +947,22 @@ options: {
 		err = k8sClient.Create(context.TODO(), obj)
 		Expect(err).Should(BeNil())
 
+		// Create the HTTPRoute for test
+		routeData, err := ioutil.ReadFile("./testdata/gateway/http-route.yaml")
+		Expect(err).Should(BeNil())
+		gatewayData, err := ioutil.ReadFile("./testdata/gateway/gateway.yaml")
+		Expect(err).Should(BeNil())
+		var route unstructured.Unstructured
+		err = yaml.Unmarshal(routeData, &route)
+		Expect(err).Should(BeNil())
+		var gateway unstructured.Unstructured
+		err = yaml.Unmarshal(gatewayData, &gateway)
+		Expect(err).Should(BeNil())
+		for _, res := range []client.Object{&route, &gateway} {
+			err := k8sClient.Create(context.TODO(), res)
+			Expect(err).Should(BeNil())
+		}
+
 		opt := `app: {
 			name: "endpoints-app"
 			namespace: "default"
@@ -952,18 +978,7 @@ options: {
 		}
 		err = pr.GeneratorServiceEndpoints(nil, v, nil)
 		Expect(err).Should(BeNil())
-		var node corev1.NodeList
-		err = k8sClient.List(context.TODO(), &node)
-		Expect(err).Should(BeNil())
-		var gatewayIP string
-		if len(node.Items) > 0 {
-			for _, address := range node.Items[0].Status.Addresses {
-				if address.Type == corev1.NodeInternalIP {
-					gatewayIP = address.Address
-					break
-				}
-			}
-		}
+		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
 		urls := []string{
 			"http://ingress.domain",
 			"https://ingress.domain.https",
@@ -974,7 +989,11 @@ options: {
 			"http://text.example.com",
 			"10.10.10.10:81",
 			"text.example.com:81",
+			fmt.Sprintf("http://%s:30002", gatewayIP),
+			"http://ingress.domain.helm",
 			"http://1.1.1.1/seldon/default/sdep",
+			"http://gateway.domain",
+			"http://gateway.domain/api",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())
