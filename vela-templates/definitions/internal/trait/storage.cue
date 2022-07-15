@@ -65,6 +65,9 @@ template: {
 				{
 					name:      "pvc-" + v.name
 					mountPath: v.mountPath
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
 				}
 			}
 		},
@@ -75,6 +78,9 @@ template: {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
@@ -108,6 +114,9 @@ template: {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
@@ -141,6 +150,9 @@ template: {
 			{
 				name:      "emptydir-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
@@ -150,13 +162,30 @@ template: {
 			{
 				name:       "pvc-" + v.name
 				devicePath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
 
+	volumesList: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+	deDupVolumesArray: [
+		for val in [
+			for i, vi in volumesList {
+				for j, vj in volumesList if j < i && vi.name == vj.name {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]
+
 	patch: spec: template: spec: {
 		// +patchKey=name
-		volumes: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+		volumes: deDupVolumesArray
 
 		containers: [{
 			// +patchKey=name
@@ -248,6 +277,7 @@ template: {
 			name:              string
 			mountOnly:         *false | bool
 			mountPath:         string
+			subPath?:          string
 			volumeMode:        *"Filesystem" | string
 			volumeName?:       string
 			accessModes:       *["ReadWriteOnce"] | [...string]
@@ -289,6 +319,7 @@ template: {
 				configMapKey: string
 			}]
 			mountPath?:  string
+			subPath?:    string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			data?: {...}
@@ -312,6 +343,7 @@ template: {
 				secretKey: string
 			}]
 			mountPath?:  string
+			subPath?:    string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			stringData?: {...}
@@ -327,6 +359,7 @@ template: {
 		emptyDir?: [...{
 			name:      string
 			mountPath: string
+			subPath?:  string
 			medium:    *"" | "Memory"
 		}]
 	}
