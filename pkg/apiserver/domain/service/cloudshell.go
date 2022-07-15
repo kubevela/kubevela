@@ -89,6 +89,7 @@ type cloudShellServiceImpl struct {
 	TargetService      TargetService  `inject:""`
 	EnvService         EnvService     `inject:""`
 	GenerateKubeConfig GenerateKubeConfig
+	CACert             []byte
 }
 
 // NewCloudShellService create the instance of the cloud shell service
@@ -233,14 +234,17 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		return err
 	}
 	if len(cfg.Clusters) == 0 {
-		caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
-		if err != nil {
-			log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
-			return err
+		if len(c.CACert) == 0 {
+			caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
+			if err != nil {
+				log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
+				return err
+			}
+			c.CACert = caFromServiceAccount
 		}
 		cfg.Clusters = map[string]*api.Cluster{
 			"local": {
-				CertificateAuthorityData: caFromServiceAccount,
+				CertificateAuthorityData: c.CACert,
 				Server:                   ServerAddressInCluster,
 			},
 		}
