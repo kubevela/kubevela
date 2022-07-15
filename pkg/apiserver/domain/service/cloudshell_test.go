@@ -95,6 +95,7 @@ var _ = Describe("Test cloudshell service function", func() {
 			GenerateKubeConfig: func(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, options ...auth.KubeConfigGenerateOption) (*clientcmdapi.Config, error) {
 				return &clientcmdapi.Config{}, nil
 			},
+			CACert: testEnv.ControlPlane.APIServer.CA,
 		}
 	})
 
