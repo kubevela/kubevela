@@ -239,9 +239,11 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
   Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
   Upgrade addon locally:
-	vela addon enable <your-local-addon-path>
+	vela addon upgrade <your-local-addon-path>
   Upgrade addon with specified args (the args should be defined in addon's parameters):
-	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
+	vela addon upgrade <addon-name> <my-parameter-of-addon>=<my-value>
+  The specified args will be merged with legacy args, what user specified in 'vela addon enable', and non-empty legacy arg will be overridden by
+non-empty new arg
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -259,11 +261,11 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 			if err != nil {
 				return err
 			}
-			addonArgs, err := parseAddonArgsToMap(args[1:])
+			addonInputArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
 				return err
 			}
-			addonArgs[types.ClustersArg] = transClusters(addonClusters)
+			addonInputArgs[types.ClustersArg] = transClusters(addonClusters)
 			addonOrDir := args[0]
 			var name string
 			if file, err := os.Stat(addonOrDir); err == nil {
@@ -281,6 +283,10 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				if err != nil {
+					return err
+				}
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
@@ -293,6 +299,10 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+				}
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				if err != nil {
+					return err
 				}
 				err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
 				if err != nil {

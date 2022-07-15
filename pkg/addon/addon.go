@@ -36,6 +36,7 @@ import (
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
+	"github.com/imdario/mergo"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
@@ -1596,4 +1597,43 @@ func PackageAddon(addonDictPath string) (string, error) {
 		return "", err
 	}
 	return archive, nil
+}
+
+// GetAddonLegacyParameters get addon's legacy parameters, that is stored in Secret
+func GetAddonLegacyParameters(ctx context.Context, k8sClient client.Client, addonName string) (map[string]interface{}, error) {
+	var sec v1.Secret
+	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: addonutil.Addon2SecName(addonName)}, &sec)
+	if err != nil {
+		return nil, err
+	}
+	args, err := FetchArgsFromSecret(&sec)
+	if err != nil {
+		return nil, err
+	}
+	return args, nil
+}
+
+// MergeAddonInstallArgs merge addon's legacy parameter and new input args
+func MergeAddonInstallArgs(ctx context.Context, k8sClient client.Client, addonName string, args map[string]interface{}) (map[string]interface{}, error) {
+	legacyParams, err := GetAddonLegacyParameters(ctx, k8sClient, addonName)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		return args, nil
+	}
+
+	if args == nil && legacyParams == nil {
+		return args, nil
+	}
+
+	r := make(map[string]interface{})
+	if err := mergo.Merge(&r, legacyParams, mergo.WithOverride); err != nil {
+		return nil, err
+	}
+
+	if err := mergo.Merge(&r, args, mergo.WithOverride); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
