@@ -200,6 +200,17 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	return httpClient.Do(req)
 }
 
+// HTTPGetWithOption use HTTP option and default client to send get request
+func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
+	resp, err := HTTPGetResponse(ctx, url, opts)
+	if err != nil {
+		return nil, err
+	}
+	//nolint:errcheck
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
+}
+
 // HTTPGetKubernetesObjects use HTTP requests to load resources from remote url
 func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.Unstructured, error) {
 	resp, err := HTTPGetResponse(ctx, url, nil)

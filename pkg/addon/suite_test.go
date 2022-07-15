@@ -17,10 +17,7 @@ package addon
 
 import (
 	"context"
-	"path/filepath"
-	"testing"
-	"time"
-
+	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v12 "k8s.io/api/core/v1"
@@ -33,13 +30,15 @@ import (
 	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmclusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	ocmworkv1 "open-cluster-management.io/api/work/v1"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"testing"
+	"time"
 
-	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
@@ -104,7 +103,7 @@ var _ = BeforeSuite(func(done Done) {
 		}}))
 
 	err = stepHelmHttpServer()
-	Expect(err).ShouldNot(HaveOccurred())
+	Expect(err).Should(Succeed())
 
 	close(done)
 }, 120)

@@ -15,6 +15,7 @@ package addon
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -88,7 +89,7 @@ var _ = Describe("Test Versioned Registry", func() {
 				Expect(addonsInstallPackage.DefSchemas).NotTo(BeEmpty())
 			})
 
-			It("get addon defail", func() {
+			It("get addon detail", func() {
 				addonWholePackage, err := r.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(addonWholePackage).NotTo(BeNil())
@@ -141,19 +142,65 @@ var _ = Describe("Test Versioned Registry", func() {
 				Expect(addonsInstallPackage).To(BeNil())
 			})
 
-			It("get addon defail", func() {
+			It("get addon detail", func() {
 				addonWholePackage, err := r.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
 				Expect(err).To(HaveOccurred())
 				Expect(addonWholePackage).To(BeNil())
 			})
 		})
 	}
+
+	Context("Test multiversion helm repo", func() {
+		const repoName = "multiversion-helm-repo"
+		mr := BuildVersionedRegistry(repoName, "http://127.0.0.1:18083/multi", nil)
+		It("list addon", func() {
+			addons, err := mr.ListAddon()
+			Expect(err).To(Succeed())
+			Expect(addons).To(HaveLen(2))
+		})
+
+		It("get addon ui data", func() {
+			addonUIData, err := mr.GetAddonUIData(context.Background(), "fluxcd", "2.0.0")
+			Expect(err).To(Succeed())
+			Expect(addonUIData.Definitions).NotTo(BeEmpty())
+			Expect(addonUIData.Icon).NotTo(BeEmpty())
+			Expect(addonUIData.Version).To(Equal("2.0.0"))
+		})
+
+		It("get addon install pkg", func() {
+			addonsInstallPackage, err := mr.GetAddonInstallPackage(context.Background(), "fluxcd", "1.0.0")
+			Expect(err).To(Succeed())
+			Expect(addonsInstallPackage).NotTo(BeNil())
+			Expect(addonsInstallPackage.YAMLTemplates).NotTo(BeEmpty())
+			Expect(addonsInstallPackage.DefSchemas).NotTo(BeEmpty())
+			Expect(addonsInstallPackage.SystemRequirements.VelaVersion).To(HaveSuffix("1.3.0"))
+			Expect(addonsInstallPackage.SystemRequirements.KubernetesVersion).To(HaveSuffix("1.10.0"))
+		})
+
+		It("get addon detail", func() {
+			addonWholePackage, err := mr.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+			Expect(err).To(Succeed())
+			Expect(addonWholePackage).NotTo(BeNil())
+			Expect(addonWholePackage.YAMLTemplates).NotTo(BeEmpty())
+			Expect(addonWholePackage.DefSchemas).NotTo(BeEmpty())
+			Expect(addonWholePackage.RegistryName).To(Equal(repoName))
+			Expect(addonWholePackage.SystemRequirements.VelaVersion).To(Equal(">=1.3.0"))
+			Expect(addonWholePackage.SystemRequirements.KubernetesVersion).To(Equal(">=1.10.0"))
+		})
+
+		It("get addon available version", func() {
+			version, err := mr.GetAddonAvailableVersion("fluxcd")
+			Expect(err).To(Succeed())
+			Expect(version).To(HaveLen(2))
+		})
+	})
 })
 
 func stepHelmHttpServer() error {
 	handler := &http.ServeMux{}
 	handler.HandleFunc("/", versionedHandler)
 	handler.HandleFunc("/authReg", basicAuthVersionedHandler)
+	handler.HandleFunc("/multi/", multiVersionHandler)
 
 	helmRepoHttpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", 18083),
@@ -185,7 +232,7 @@ func stepHelmHttpServer() error {
 }
 
 func checkHelmHttpServer(url string, maxTryNum int, interval time.Duration) error {
-	client := http.Client{}
+	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 	var err error
 	for cur := 0; cur < maxTryNum; cur++ {
 		_, err = client.Get(url)
