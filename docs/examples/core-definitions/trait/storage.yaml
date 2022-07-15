@@ -16,8 +16,9 @@ spec:
             pvc:
               - name: test1
                 mountPath: /test/mount/pvc
-              - name: test2
+              - name: test1
                 mountPath: /test/mount2/pvc
+                subPath: /sub
             configMap:
               - name: test1
                 mountPath: /test/mount/cm
