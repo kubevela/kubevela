@@ -399,7 +399,7 @@ type CompareLatestWithRunningOption struct {
 
 // AppDryRunReq application dry-run req
 type AppDryRunReq struct {
-	DryRunType string `json:"dryRunType" validate:"oneof=APP Revision"`
+	DryRunType string `json:"dryRunType" validate:"oneof=APP REVISION"`
 	Env        string `json:"env"`
 	Workflow   string `json:"workflow"`
 	Version    string `json:"version"`

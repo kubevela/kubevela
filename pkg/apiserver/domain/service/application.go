@@ -1522,7 +1522,7 @@ func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appMod
 		if err != nil {
 			return nil, err
 		}
-	case "Revision":
+	case "REVISION":
 		app, _, err = c.getAppModelFromRevision(ctx, appModel.Name, dryRunReq.Version)
 		if err != nil {
 			return nil, err

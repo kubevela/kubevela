@@ -52,8 +52,8 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object, dryRunInServer bool) *Option {
-	return &Option{c, dm, pd, cfg, as, dryRunInServer}
+func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
+	return &Option{c, dm, pd, cfg, as, serverSideDryRun}
 }
 
 // Option contains options to execute dry-run
@@ -68,8 +68,8 @@ type Option struct {
 	// getting one from cluster.
 	Auxiliaries []oam.Object
 
-	// dryRunInServer If set to true, means will dry run via the apiserver.
-	dryRunInServer bool
+	// serverSideDryRun If set to true, means will dry run via the apiserver.
+	serverSideDryRun bool
 }
 
 // validateObjectFromFile will read file into Unstructured object
@@ -148,7 +148,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from policies")
 	}
-	if d.dryRunInServer {
+	if d.serverSideDryRun {
 		applyUtil := apply.NewAPIApplicator(d.Client)
 		if err := applyUtil.Apply(ctx, app, apply.DryRunAll()); err != nil {
 			return nil, nil, err
