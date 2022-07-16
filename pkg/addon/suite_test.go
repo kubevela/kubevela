@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v12 "k8s.io/api/core/v1"
@@ -39,6 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
 
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
