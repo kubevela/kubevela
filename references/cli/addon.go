@@ -151,7 +151,10 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if err != nil {
 				return err
 			}
-			addonArgs[types.ClustersArg] = transClusters(addonClusters)
+			clusterArgs := transClusters(addonClusters)
+			if len(clusterArgs) != 0 {
+				addonArgs[types.ClustersArg] = clusterArgs
+			}
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -265,7 +268,10 @@ non-empty new arg
 			if err != nil {
 				return err
 			}
-			addonInputArgs[types.ClustersArg] = transClusters(addonClusters)
+			clusterArgs := transClusters(addonClusters)
+			if len(clusterArgs) != 0 {
+				addonInputArgs[types.ClustersArg] = clusterArgs
+			}
 			addonOrDir := args[0]
 			var name string
 			if file, err := os.Stat(addonOrDir); err == nil {
@@ -1071,6 +1077,9 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 }
 
 func transClusters(cstr string) []string {
+	if len(cstr) == 0 {
+		return nil
+	}
 	cstr = strings.TrimPrefix(strings.TrimSuffix(cstr, "}"), "{")
 	var clusterL []string
 	clusterList := strings.Split(cstr, ",")

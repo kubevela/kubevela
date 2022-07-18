@@ -33,10 +33,11 @@ type UIData struct {
 	// Detail is README.md in an addon
 	Detail string `json:"detail,omitempty"`
 
-	Definitions    []ElementFile `json:"definitions"`
-	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
-	Parameters     string        `json:"parameters"`
-	RegistryName   string        `json:"registryName"`
+	Definitions      []ElementFile `json:"definitions"`
+	CUEDefinitions   []ElementFile `json:"CUEDefinitions"`
+	Parameters       string        `json:"parameters"`
+	GlobalParameters string        `json:"globalParameters"`
+	RegistryName     string        `json:"registryName"`
 
 	AvailableVersions []string `json:"availableVersions"`
 }
@@ -54,12 +55,14 @@ type InstallPackage struct {
 	// DefSchemas are UI schemas read by VelaUX, it will only be installed in control plane clusters
 	DefSchemas []ElementFile `json:"defSchemas,omitempty"`
 
-	Parameters string `json:"parameters"`
+	Parameters       string `json:"parameters"`
+	GlobalParameters string `json:"globalParameters"`
 
 	// CUETemplates and YAMLTemplates are resources needed to be installed in managed clusters
-	CUETemplates  []ElementFile        `json:"CUETemplates"`
-	YAMLTemplates []ElementFile        `json:"YAMLTemplates,omitempty"`
-	AppTemplate   *v1beta1.Application `json:"appTemplate"`
+	CUETemplates   []ElementFile        `json:"CUETemplates"`
+	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
+	AppTemplate    *v1beta1.Application `json:"appTemplate"`
+	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon

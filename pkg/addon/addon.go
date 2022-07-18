@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	cueyaml "cuelang.org/go/encoding/yaml"
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
@@ -60,13 +59,10 @@ import (
 	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	utils2 "github.com/oam-dev/kubevela/pkg/controller/utils"
-	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -88,6 +84,12 @@ const (
 
 	// TemplateFileName is the addon template.yaml file name
 	TemplateFileName string = "template.yaml"
+
+	// TemplateCueFileName is the addon template.cue file name
+	TemplateCueFileName string = "template.cue"
+
+	// GlobalParameterFileName is the addon global parameter.cue file name
+	GlobalParameterFileName string = "parameter.cue"
 
 	// ResourcesDirName is the addon resources/ dir name
 	ResourcesDirName string = "resources"
@@ -141,6 +143,8 @@ const (
 	ObservabilityAddonDomainArg = "domain"
 	// LocalAddonRegistryName is the addon-registry name for those installed by local dir
 	LocalAddonRegistryName = "local"
+	// ClusterLabelSelector define the key of topology cluster label selector
+	ClusterLabelSelector = "clusterLabelSelector"
 )
 
 // ObservabilityEnvironment contains the Observability addon's domain for each cluster
@@ -198,7 +202,10 @@ type Pattern struct {
 }
 
 // Patterns is the file pattern that the addon should be in
-var Patterns = []Pattern{{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName}, {Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}}
+var Patterns = []Pattern{
+	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
+	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
+	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: TemplateCueFileName}, {Value: GlobalParameterFileName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -277,10 +284,11 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		skip bool
 		read func(a *UIData, reader AsyncReader, readPath string) error
 	}{
-		ReadmeFileName:     {!opt.GetDetail, readReadme},
-		MetadataFileName:   {false, readMetadata},
-		DefinitionsDirName: {!opt.GetDefinition, readDefFile},
-		ParameterFileName:  {!opt.GetParameter, readParamFile},
+		ReadmeFileName:          {!opt.GetDetail, readReadme},
+		MetadataFileName:        {false, readMetadata},
+		DefinitionsDirName:      {!opt.GetDefinition, readDefFile},
+		ParameterFileName:       {!opt.GetParameter, readParamFile},
+		GlobalParameterFileName: {!opt.GetParameter, readGlobalParamFile},
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 	var addon = &UIData{}
@@ -310,19 +318,21 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 // GetInstallPackageFromReader get install package of addon from Reader, this is used to enable an addon
 func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
 	addonContentsReader := map[string]func(a *InstallPackage, reader AsyncReader, readPath string) error{
-		TemplateFileName: readTemplate,
-		ResourcesDirName: readResFile,
-		DefSchemaName:    readDefSchemaFile,
-		ViewDirName:      readViewFile,
+		TemplateFileName:    readTemplate,
+		ResourcesDirName:    readResFile,
+		DefSchemaName:       readDefSchemaFile,
+		ViewDirName:         readViewFile,
+		TemplateCueFileName: readAppCueTemplate,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
-		Meta:           uiData.Meta,
-		Definitions:    uiData.Definitions,
-		CUEDefinitions: uiData.CUEDefinitions,
-		Parameters:     uiData.Parameters,
+		Meta:             uiData.Meta,
+		Definitions:      uiData.Definitions,
+		CUEDefinitions:   uiData.CUEDefinitions,
+		Parameters:       uiData.Parameters,
+		GlobalParameters: uiData.GlobalParameters,
 	}
 
 	for contentType, method := range addonContentsReader {
@@ -354,6 +364,15 @@ func readTemplate(a *InstallPackage, reader AsyncReader, readPath string) error 
 	return nil
 }
 
+func readAppCueTemplate(a *InstallPackage, reader AsyncReader, readPath string) error {
+	data, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	a.AppCueTemplate = ElementFile{Data: data, Name: filepath.Base(readPath)}
+	return nil
+}
+
 // readParamFile read single resource/parameter.cue file
 func readParamFile(a *UIData, reader AsyncReader, readPath string) error {
 	b, err := reader.ReadFile(readPath)
@@ -361,6 +380,16 @@ func readParamFile(a *UIData, reader AsyncReader, readPath string) error {
 		return err
 	}
 	a.Parameters = b
+	return nil
+}
+
+// readGlobalParamFile read global parameter file.
+func readGlobalParamFile(a *UIData, reader AsyncReader, readPath string) error {
+	b, err := reader.ReadFile(readPath)
+	if err != nil {
+		return err
+	}
+	a.GlobalParameters = b
 	return nil
 }
 
@@ -612,7 +641,7 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 	}
 
 	for _, tmpl := range addon.CUETemplates {
-		comp, err := renderCUETemplate(tmpl, addon.Parameters, args, addon.Meta)
+		comp, err := renderCompAccordingCUETemplate(tmpl, addon, args)
 		if err != nil && strings.Contains(err.Error(), "var(path=output) not exist") {
 			continue
 		}
@@ -625,30 +654,6 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 		resources = append(resources, *comp)
 	}
 	return resources, nil
-}
-
-func formatAppFramework(addon *InstallPackage) *v1beta1.Application {
-	app := addon.AppTemplate
-	if app == nil {
-		app = &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common2.ApplicationComponent{},
-			},
-		}
-	}
-	if app.Spec.Components == nil {
-		app.Spec.Components = []common2.ApplicationComponent{}
-	}
-	app.Name = addonutil.Addon2AppName(addon.Name)
-	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
-	app.SetNamespace(types.DefaultKubeVelaNS)
-	if app.Labels == nil {
-		app.Labels = make(map[string]string)
-	}
-	app.Labels[oam.LabelAddonName] = addon.Name
-	app.Labels[oam.LabelAddonVersion] = addon.Version
-	return app
 }
 
 func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[string]interface{}) ([]string, error) {
@@ -681,119 +686,6 @@ func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[
 		res = append(res, c)
 	}
 	return res, nil
-}
-
-// RenderApp render a K8s application
-func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
-
-	if args == nil {
-		args = map[string]interface{}{}
-	}
-
-	app := formatAppFramework(addon)
-	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
-
-	resources, err := renderResources(addon, args)
-	if err != nil {
-		return nil, err
-	}
-	app.Spec.Components = append(app.Spec.Components, resources...)
-
-	deployClusters, err := checkDeployClusters(ctx, k8sClient, args)
-	if err != nil {
-		return nil, err
-	}
-
-	switch {
-	case isDeployToRuntimeOnly(addon):
-		if len(deployClusters) == 0 {
-			// deploy to all clusters
-			app.Spec.Workflow = &v1beta1.Workflow{Steps: []v1beta1.WorkflowStep{
-				{
-					Name: "deploy-control-plane",
-					Type: "apply-application",
-				},
-				{
-					Name: "deploy-runtime",
-					Type: "deploy2runtime",
-				},
-			}}
-			// TODO(wonderflow): this can be merged into len(deployClusters) > 0 case
-			/*
-				allclusters, err := multicluster.ListVirtualClusters(ctx, k8sClient)
-				if err != nil {
-					return nil, err
-				}
-				for _, c := range allclusters {
-					deployClusters = append(deployClusters, c.Name)
-				}
-			*/
-		} else {
-			var found bool
-			for _, c := range deployClusters {
-				if c == multicluster.ClusterLocalName {
-					found = true
-					break
-				}
-			}
-			if !found {
-				deployClusters = append(deployClusters, multicluster.ClusterLocalName)
-			}
-			// deploy to specified clusters
-			if app.Spec.Policies == nil {
-				app.Spec.Policies = []v1beta1.AppPolicy{}
-			}
-			body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
-			if err != nil {
-				return nil, err
-			}
-			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-				Name:       "specified-addon-clusters",
-				Type:       v1alpha1.TopologyPolicyType,
-				Properties: &runtime.RawExtension{Raw: body},
-			})
-			// addon should not contain workflow, this also update legacy addon with deploy2runtime steps
-			app.Spec.Workflow = nil
-		}
-	case addon.Name == ObservabilityAddon:
-		clusters, err := allocateDomainForAddon(ctx, k8sClient)
-		if err != nil {
-			return nil, err
-		}
-
-		policies, err := preparePolicies4Observability(clusters)
-		if err != nil {
-			return nil, errors.Wrap(err, "fail to render the policies for Add-on Observability")
-		}
-		app.Spec.Policies = policies
-
-		if len(clusters) > 0 {
-			app.Spec.Workflow = &v1beta1.Workflow{
-				Steps: []v1beta1.WorkflowStep{{
-					Name: "deploy-control-plane",
-					Type: "apply-application-in-parallel",
-				}},
-			}
-		} else {
-			app.Spec.Workflow = &v1beta1.Workflow{
-				Steps: []v1beta1.WorkflowStep{{
-					Name: "deploy-control-plane",
-					Type: "apply-application",
-				}},
-			}
-		}
-
-		workflowSteps, err := prepareWorkflow4Observability(clusters)
-		if err != nil {
-			return nil, errors.Wrap(err, "fail to prepare the workflow for Add-on Observability")
-		}
-		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, workflowSteps...)
-
-	default:
-
-	}
-
-	return app, nil
 }
 
 // RenderDefinitions render definition objects if needed
@@ -879,55 +771,6 @@ func allocateDomainForAddon(ctx context.Context, k8sClient client.Client) ([]Obs
 	return envs, nil
 }
 
-func preparePolicies4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.AppPolicy, error) {
-	if clusters == nil {
-		return nil, nil
-	}
-	envProperties, err := render(clusters, ObservabilityEnvBindingEnvTmpl)
-	if err != nil {
-		return nil, err
-	}
-
-	var properties runtime.RawExtension
-	envs := fmt.Sprintf("%s\n%s", ObservabilityEnvBindingEnvTag, envProperties)
-	envJSON, err := yaml.YAMLToJSON([]byte(envs))
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(envJSON, &properties)
-	if err != nil {
-		return nil, err
-	}
-
-	policies := []v1beta1.AppPolicy{{
-		Name:       "domain",
-		Type:       "env-binding",
-		Properties: &properties,
-	}}
-
-	return policies, nil
-}
-
-func prepareWorkflow4Observability(clusters []ObservabilityEnvironment) ([]v1beta1.WorkflowStep, error) {
-	envBindingWorkflow, err := render(clusters, ObservabilityWorkflow4EnvBindingTmpl)
-	if err != nil {
-		return nil, err
-	}
-
-	var workflow v1beta1.Workflow
-	envs := fmt.Sprintf("%s\n%s", ObservabilityWorkflowStepsTag, envBindingWorkflow)
-	envJSON, err := yaml.YAMLToJSON([]byte(envs))
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(envJSON, &workflow)
-	if err != nil {
-		return nil, err
-	}
-
-	return workflow.Steps, nil
-}
-
 func render(envs []ObservabilityEnvironment, tmpl string) (string, error) {
 	todos := ObservabilityEnvBindingValues{
 		Envs: envs,
@@ -941,13 +784,6 @@ func render(envs []ObservabilityEnvironment, tmpl string) (string, error) {
 	}
 
 	return rendered.String(), nil
-}
-
-func isDeployToRuntimeOnly(addon *InstallPackage) bool {
-	if addon.DeployTo == nil {
-		return false
-	}
-	return addon.DeployTo.RuntimeCluster || addon.DeployTo.LegacyRuntimeCluster
 }
 
 func renderObject(elem ElementFile) (*unstructured.Unstructured, error) {
@@ -1016,56 +852,6 @@ func renderCUEView(elem ElementFile) (*unstructured.Unstructured, error) {
 	}
 
 	return util.Object2Unstructured(*cm)
-}
-
-// renderCUETemplate will return a component from cue template
-func renderCUETemplate(elem ElementFile, parameters string, args map[string]interface{}, metadata Meta) (*common2.ApplicationComponent, error) {
-	bt, err := json.Marshal(args)
-	if err != nil {
-		return nil, err
-	}
-	var contextFile = strings.Builder{}
-	var paramFile = cuemodel.ParameterFieldName + ": {}"
-	if string(bt) != "null" {
-		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
-	}
-	// addon metadata context
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return nil, err
-	}
-	contextFile.WriteString(fmt.Sprintf("context: metadata: %s\n", string(metadataJSON)))
-	// parameter definition
-	contextFile.WriteString(paramFile + "\n")
-	// user custom parameter
-	contextFile.WriteString(parameters + "\n")
-
-	v, err := value.NewValue(contextFile.String(), nil, "")
-	if err != nil {
-		return nil, err
-	}
-	out, err := v.LookupByScript(elem.Data)
-	if err != nil {
-		return nil, err
-	}
-	compContent, err := out.LookupValue("output")
-	if err != nil {
-		return nil, err
-	}
-	b, err := cueyaml.Encode(compContent.CueValue())
-	if err != nil {
-		return nil, err
-	}
-	fileName := strings.ReplaceAll(elem.Name, path.Ext(elem.Name), "")
-	comp := common2.ApplicationComponent{
-		Name: strings.ReplaceAll(fileName, ".", "-"),
-	}
-	err = yaml.Unmarshal(b, &comp)
-	if err != nil {
-		return nil, err
-	}
-
-	return &comp, err
 }
 
 // RenderArgsSecret render addon enable argument to secret
