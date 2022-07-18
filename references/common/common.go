@@ -15,23 +15,3 @@ limitations under the License.
 */
 
 package common
-
-import (
-	"context"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
-)
-
-// BuildRun will build application and deploy from Appfile
-func BuildRun(ctx context.Context, app *api.Application, client client.Client, namespace string, io util.IOStreams) error {
-	o, err := app.ConvertToApplication(namespace, io, app.Tm, true)
-	if err != nil {
-		return err
-	}
-
-	return appfile.Run(ctx, client, o, nil)
-}

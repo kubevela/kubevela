@@ -22,14 +22,12 @@ import (
 	"os"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/oam-dev/kubevela/pkg/definition"
-
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,8 +36,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	util2 "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -50,16 +50,42 @@ const DescriptionUndefined = "description not defined"
 
 // GetCapabilitiesFromCluster will get capability from K8s cluster
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
-	workloads, _, err := GetComponentsFromCluster(ctx, namespace, c, selector)
+	caps, erl, err := GetComponentsFromCluster(ctx, namespace, c, selector)
+	for _, er := range erl {
+		klog.Infof("get component capability %v", er)
+	}
 	if err != nil {
 		return nil, err
 	}
-	traits, _, err := GetTraitsFromCluster(ctx, namespace, c, selector)
+
+	traits, erl, err := GetTraitsFromCluster(ctx, namespace, c, selector)
 	if err != nil {
 		return nil, err
 	}
-	workloads = append(workloads, traits...)
-	return workloads, nil
+	for _, er := range erl {
+		klog.Infof("get trait capability %v", er)
+	}
+	caps = append(caps, traits...)
+
+	plcs, erl, err := GetPolicies(ctx, namespace, c)
+	if err != nil {
+		return nil, err
+	}
+	for _, er := range erl {
+		klog.Infof("get policy capability %v", er)
+	}
+	caps = append(caps, plcs...)
+
+	wfs, erl, err := GetWorkflowSteps(ctx, namespace, c)
+	if err != nil {
+		return nil, err
+	}
+	for _, er := range erl {
+		klog.Infof("get workflow step capability %v", er)
+	}
+	caps = append(caps, wfs...)
+
+	return caps, nil
 }
 
 // GetNamespacedCapabilitiesFromCluster will get capability from K8s cluster in the specified namespace and default namespace
@@ -297,6 +323,7 @@ func HandleDefinition(name, crdName string, annotation, labels map[string]string
 	}
 	tmp.CrdName = crdName
 	tmp.Description = GetDescription(annotation)
+	tmp.Example = GetExample(annotation)
 	tmp.Labels = labels
 	return tmp, nil
 }
@@ -312,6 +339,28 @@ func GetDescription(annotation map[string]string) string {
 	}
 	desc = strings.ReplaceAll(desc, "\n", " ")
 	return desc
+}
+
+// GetExample get example markdown from annotation specified url
+func GetExample(annotation map[string]string) string {
+	if annotation == nil {
+		return ""
+	}
+	examplePath, ok := annotation[types.AnnoDefinitionExampleURL]
+	if !ok {
+		return ""
+	}
+	fmt.Println("XXXXX", examplePath)
+	if !utils.IsValidURL(examplePath) {
+		fmt.Println("XXyyy", examplePath)
+		return ""
+	}
+	data, err := common.HTTPGetWithOption(context.Background(), examplePath, nil)
+	if err != nil {
+		fmt.Println("XXyyy", err)
+		return ""
+	}
+	return string(data)
 }
 
 // HandleTemplate will handle definition template to capability

@@ -16,120 +16,172 @@ limitations under the License.
 
 package plugins
 
+import (
+	"encoding/json"
+	"log"
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/utils"
+)
+
 // Language is used to define the language
 type Language string
 
-const (
-	// En is English, the default language
-	En Language = "English"
+var (
+	// En is english, the default language
+	En = I18n{lang: LangEn}
 	// Zh is Chinese
-	Zh Language = "Chinese"
+	Zh = I18n{lang: LangZh}
 )
 
+const (
+	// LangEn is english, the default language
+	LangEn Language = "English"
+	// LangZh is Chinese
+	LangZh Language = "Chinese"
+)
+
+// I18n will automatically get translated data
+type I18n struct {
+	lang Language
+}
+
+// LoadI18nData will load i18n data for the package
+func LoadI18nData(path string) {
+
+	log.Printf("loading i18n data from %s", path)
+	data, err := utils.ReadRemoteOrLocalPath(path, false)
+	if err != nil {
+		log.Println("ignore using the i18n data", err)
+		return
+	}
+	var dat = map[string]map[Language]string{}
+	err = json.Unmarshal(data, &dat)
+	if err != nil {
+		log.Println("ignore using the i18n data", err)
+		return
+	}
+
+	for k, v := range dat {
+		if _, ok := v[LangEn]; !ok {
+			v[LangEn] = k
+		}
+		k = strings.ToLower(k)
+		ed, ok := i18nDoc[k]
+		if !ok {
+			ed = map[Language]string{}
+		}
+		for sk, sv := range v {
+			sv = strings.TrimSpace(sv)
+			if sv == "" {
+				continue
+			}
+			ed[sk] = sv
+		}
+		i18nDoc[k] = ed
+	}
+}
+
+// Language return the language used in i18n instance
+func (i *I18n) Language() Language {
+	if i == nil || i.lang == "" {
+		return En.Language()
+	}
+	return i.lang
+}
+
+func (i *I18n) trans(str string) (string, bool) {
+	dd, ok := i18nDoc[str]
+	if !ok {
+		return str, false
+	}
+	data := dd[i.lang]
+	if data == "" {
+		return str, true
+	}
+	return data, true
+}
+
+// Get translate for the string
+func (i *I18n) Get(str string) string {
+	if i == nil || i.lang == "" {
+		return En.Get(str)
+	}
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	str = strings.TrimSpace(str)
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	str = strings.TrimSuffix(str, ".")
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	str = strings.TrimSuffix(str, "。")
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	raw := str
+	str = strings.TrimSpace(str)
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	str = strings.ToLower(str)
+	if data, ok := i.trans(str); ok {
+		return data
+	}
+	return raw
+}
+
 // Definitions are all the words and phrases for internationalization in cli and docs
-var Definitions = map[string]map[Language]string{
-	"Description": {
-		Zh: "描述",
-		En: "Description",
+var i18nDoc = map[string]map[Language]string{
+	".": {
+		LangZh: "。",
+		LangEn: ".",
 	},
-	"Samples": {
-		Zh: "示例",
-		En: "Samples",
+	"Description": {
+		LangZh: "描述",
+		LangEn: "Description",
+	},
+	"Examples": {
+		LangZh: "示例",
+		LangEn: "Examples",
 	},
 	"Specification": {
-		Zh: "参数说明",
-		En: "Specification",
+		LangZh: "参数说明",
+		LangEn: "Specification",
 	},
 	"AlibabaCloud": {
-		Zh: "阿里云",
-		En: "Alibaba Cloud",
+		LangZh: "阿里云",
+		LangEn: "Alibaba Cloud",
 	},
 	"AWS": {
-		Zh: "AWS",
-		En: "AWS",
+		LangZh: "AWS",
+		LangEn: "AWS",
 	},
 	"Azure": {
-		Zh: "Azure",
-		En: "Azure",
+		LangZh: "Azure",
+		LangEn: "Azure",
 	},
 	"Name": {
-		Zh: "名称",
-		En: "Name",
+		LangZh: "名称",
+		LangEn: "Name",
 	},
 	"Type": {
-		Zh: "类型",
-		En: "Type",
+		LangZh: "类型",
+		LangEn: "Type",
 	},
 	"Required": {
-		Zh: "是否必须",
-		En: "Required",
+		LangZh: "是否必须",
+		LangEn: "Required",
 	},
 	"Default": {
-		Zh: "默认值",
-		En: "Default",
+		LangZh: "默认值",
+		LangEn: "Default",
 	},
-	"WriteConnectionSecretToRefIntroduction": {
-		Zh: "如果设置了 `writeConnectionSecretToRef`，一个 Kubernetes Secret 将会被创建，并且，它的数据里有这些键（key）：",
-		En: "If `writeConnectionSecretToRef` is set, a secret will be generated with these keys as below:",
-	},
-	"Outputs": {
-		Zh: "输出",
-		En: "Outputs",
-	},
-	"Properties": {
-		Zh: "属性",
-		En: "Properties",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_ACK_cluster": {
-		Zh: "用于部署阿里云 ACK 集群的组件说明",
-		En: "Terraform configuration for Alibaba Cloud ACK cluster",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_Serverless_Kubernetes_(ASK)": {
-		Zh: "用于部署阿里云 Serverless Kubernetes (ASK) 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud Serverless Kubernetes (ASK)",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_Elastic_IP": {
-		Zh: "用于部署阿里云弹性 IP 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud Elastic IP",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_OSS_object": {
-		Zh: "用于部署阿里云 OSS 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud OSS",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_RDS_object": {
-		Zh: "用于部署阿里云 RDS 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud RDS",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_Redis": {
-		Zh: "用于部署阿里云 Redis 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud Redis",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_SLS_Project": {
-		Zh: "用于部署阿里云 SLS Project 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud SLS Project",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_SLS_Store": {
-		Zh: "用于部署阿里云 SLS Store 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud SLS Store",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_VPC": {
-		Zh: "用于部署阿里云 VPC 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud VPC",
-	},
-	"Terraform_configuration_for_Alibaba_Cloud_VSwitch": {
-		Zh: "用于部署阿里云 VSwitch 的组件说明",
-		En: "Terraform configuration for Alibaba Cloud VSwitch",
-	},
-	"Terraform_configuration_for_AWS_S3": {
-		Zh: "用于部署 AWS S3 的组件说明",
-		En: "Terraform configuration for AWS S3",
-	},
-	"Terraform_configuration_for_Azure_Database_Mariadb": {
-		Zh: "用于部署 Azure mariadb 数据库的组件说明",
-		En: "Terraform configuration for Azure Database Mariadb",
-	},
-	"Terraform_configuration_for_Azure_Blob_Storage_Account": {
-		Zh: "用于部署 Azure Blob Storage 账号的的组件说明",
-		En: "Terraform configuration for Azure Blob Storage Account",
+	"Apply To Component Types": {
+		LangZh: "适用于组件类型",
+		LangEn: "Apply To Component Types",
 	},
 }

@@ -21,9 +21,6 @@ import (
 	"context"
 	j "encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -284,35 +281,11 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) error {
 
 // LoadAppFile will load vela appfile from remote URL or local file system.
 func LoadAppFile(pathOrURL string) (*api.AppFile, error) {
-	body, err := ReadRemoteOrLocalPath(pathOrURL)
+	body, err := utils.ReadRemoteOrLocalPath(pathOrURL, false)
 	if err != nil {
 		return nil, err
 	}
 	return api.LoadFromBytes(body)
-}
-
-// ReadRemoteOrLocalPath will read a path remote or locally
-func ReadRemoteOrLocalPath(pathOrURL string) ([]byte, error) {
-	if pathOrURL == "-" {
-		return ioutil.ReadAll(os.Stdin)
-	}
-	var body []byte
-	var err error
-	if utils.IsValidURL(pathOrURL) {
-		body, err = common.HTTPGetWithOption(context.Background(), pathOrURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		if err = localSave(pathOrURL, body); err != nil {
-			return nil, err
-		}
-	} else {
-		body, err = os.ReadFile(filepath.Clean(pathOrURL))
-		if err != nil {
-			return nil, err
-		}
-	}
-	return body, nil
 }
 
 // IsAppfile check if a file is Appfile format or application format, return true if it's appfile, false means application object
@@ -331,25 +304,6 @@ func IsAppfile(body []byte) bool {
 		return false
 	}
 	return true
-}
-
-func localSave(url string, body []byte) error {
-	var name string
-	ext := filepath.Ext(url)
-	switch ext {
-	case ".json":
-		name = "vela.json"
-	case ".yaml", ".yml":
-		name = "vela.yaml"
-	default:
-		if j.Valid(body) {
-			name = "vela.json"
-		} else {
-			name = "vela.yaml"
-		}
-	}
-	//nolint:gosec
-	return os.WriteFile(name, body, 0644)
 }
 
 // ExportFromAppFile exports Application from appfile object

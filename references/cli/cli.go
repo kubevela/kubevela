@@ -107,7 +107,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),
 		NewUISchemaCommand(commandArgs, "8", ioStream),
-		DefinitionCommandGroup(commandArgs, "7"),
+		DefinitionCommandGroup(commandArgs, "7", ioStream),
 		NewRegistryCommand(ioStream, "6"),
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),

@@ -40,6 +40,7 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -179,7 +180,7 @@ func removeDir(dirname string, t *testing.T) {
 }
 
 func TestNewDefinitionCommandGroup(t *testing.T) {
-	cmd := DefinitionCommandGroup(common2.Args{}, "")
+	cmd := DefinitionCommandGroup(common2.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	initCommand(cmd)
 	cmd.SetArgs([]string{"-h"})
 	if err := cmd.Execute(); err != nil {
@@ -396,7 +397,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	cmd := NewDefinitionGetCommand(c)
 	initCommand(cmd)
 	traitName := createTrait(c, t)
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n" + VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing get command: %v", err)
 	}
@@ -459,7 +460,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 
 func TestNewDefinitionGenDocCommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionGenDocCommand(c)
+	cmd := NewDefinitionGenDocCommand(c, cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	assert.NotNil(t, cmd.Execute())
 
 	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
@@ -501,7 +502,7 @@ func TestNewDefinitionEditCommand(t *testing.T) {
 	if err := os.Setenv("EDITOR", "sed -i -e 's/test-trait/TestTrait/g'"); err != nil {
 		t.Fatalf("failed to set editor env: %v", err)
 	}
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n", VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
@@ -585,7 +586,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 	traitName := createTrait(c, t)
 	reader := strings.NewReader("yes\n")
 	cmd.SetIn(reader)
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n", VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}

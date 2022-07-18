@@ -93,7 +93,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				var tempApp v1beta1.Application
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
 				return tempApp.Status.LatestRevision != nil
-			}, 20*time.Second).Should(BeTrue())
+			}, 20*time.Second, time.Second).Should(BeTrue())
 
 			By("live-diff application")
 			err := os.WriteFile("live-diff-app.yaml", []byte(newApplication), 0644)
@@ -108,7 +108,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				var tempApp v1beta1.Application
 				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: app.Name}, &tempApp)
 				return tempApp.Status.LatestRevision != nil
-			}, 20*time.Second).Should(BeTrue())
+			}, 20*time.Second, time.Second).Should(BeTrue())
 
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml -d definitions")
 			Expect(err).NotTo(HaveOccurred())
@@ -134,7 +134,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 				cdName := "test-webapp-chart"
 				output, _ := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", cdName))
 				return output
-			}, 20*time.Second).Should(ContainSubstring("Properties"))
+			}, 20*time.Second, time.Second).Should(ContainSubstring("Specification"))
 		})
 		It("Test show componentDefinition def with raw Kube mode", func() {
 			cdName := "kube-worker"
@@ -978,20 +978,20 @@ spec:
         }
 `
 
-var showCdResult = `# Properties
+var showCdResult = `# Specification
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 |  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
-| cmd     | Commands to run in the container                                                                 | []string | false    |         |
-| count   | specify number of tasks to run in parallel                                                       | int      | true     |       1 |
+| cmd     | Commands to run in the container.                                                                | []string | false    |         |
+| count   | specify number of tasks to run in parallel.                                                      | int      | true     |       1 |
 | restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | true     | Never   |
-| image   | Which image would you like to use for your service                                               | string   | true     |         |
+| image   | Which image would you like to use for your service.                                              | string   | true     |         |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 
 
 `
 
-var showTdResult = `# Properties
+var showTdResult = `# Specification
 +---------+-------------+----------+----------+---------+
 |  NAME   | DESCRIPTION |   TYPE   | REQUIRED | DEFAULT |
 +---------+-------------+----------+----------+---------+

@@ -41,7 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
@@ -91,7 +91,7 @@ func (w *workflowServiceImpl) DeleteWorkflow(ctx context.Context, app *model.App
 	}
 	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{})
 	if err != nil {
-		log.Logger.Errorf("list workflow %s record failure %s", utils2.Sanitize(workflow.PrimaryKey()), err.Error())
+		log.Logger.Errorf("list workflow %s record failure %s", pkgUtils.Sanitize(workflow.PrimaryKey()), err.Error())
 	}
 	for _, record := range records {
 		if err := w.Store.Delete(ctx, record); err != nil {
@@ -186,7 +186,7 @@ func (w *workflowServiceImpl) CreateOrUpdateWorkflow(ctx context.Context, app *m
 			EnvName:       req.EnvName,
 			AppPrimaryKey: app.PrimaryKey(),
 		}
-		log.Logger.Infof("create workflow %s for app %s", utils2.Sanitize(req.Name), utils2.Sanitize(app.PrimaryKey()))
+		log.Logger.Infof("create workflow %s for app %s", pkgUtils.Sanitize(req.Name), pkgUtils.Sanitize(app.PrimaryKey()))
 		if err := w.Store.Add(ctx, workflow); err != nil {
 			return nil, err
 		}

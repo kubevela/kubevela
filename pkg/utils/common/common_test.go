@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/load"
@@ -192,6 +193,7 @@ func TestHttpGetCaFile(t *testing.T) {
 		err := testServer.ListenAndServeTLS("./testdata/server.crt", "./testdata/server.key")
 		assert.NoError(t, err)
 	}()
+	time.Sleep(time.Millisecond)
 	caFile, err := ioutil.ReadFile("./testdata/server.crt")
 	assert.NoError(t, err)
 

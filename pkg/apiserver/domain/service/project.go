@@ -568,7 +568,7 @@ func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, config
 			if err != nil {
 				klog.InfoS("failed to get component definition", "ComponentDefinition", configType, "err", err)
 			} else {
-				configs[i].ConfigTypeAlias = d.Annotations[definitionAlias]
+				configs[i].ConfigTypeAlias = DefinitionAlias(d.Annotations)
 			}
 		}
 	}

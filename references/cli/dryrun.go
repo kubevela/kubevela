@@ -35,9 +35,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	clicom "github.com/oam-dev/kubevela/references/common"
 )
 
 // DryRunCmdOptions contains dry-run cmd options
@@ -200,7 +200,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 }
 
 func readApplicationFromFile(filename string) (*corev1beta1.Application, error) {
-	fileContent, err := clicom.ReadRemoteOrLocalPath(filename)
+	fileContent, err := utils.ReadRemoteOrLocalPath(filename, true)
 	if err != nil {
 		return nil, err
 	}
