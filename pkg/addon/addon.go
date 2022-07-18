@@ -80,7 +80,7 @@ import (
 
 const (
 	// ReadmeFileName is the addon readme file name
-	ReadmeFileName string = "readme.md"
+	ReadmeFileName string = "README.md"
 
 	// MetadataFileName is the addon meatadata.yaml file name
 	MetadataFileName string = "metadata.yaml"

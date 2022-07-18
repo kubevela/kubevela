@@ -92,7 +92,7 @@ type Meta struct {
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
 	// This field keep the compatible for older case
-	LegacyRuntimeCluster bool `json:"runtime_cluster"`
+	LegacyRuntimeCluster bool `json:"runtime_cluster,omitempty"`
 	DisableControlPlane  bool `json:"disableControlPlane"`
 	RuntimeCluster       bool `json:"runtimeCluster"`
 }

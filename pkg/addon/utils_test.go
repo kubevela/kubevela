@@ -234,7 +234,11 @@ func TestIsAddonDir(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing")
 
 	// Pass all checks
-	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon2"))
+	cmd := InitCmd{
+		Path:      filepath.Join("testdata", "testaddon2"),
+		AddonName: "testaddon2",
+	}
+	err = cmd.CreateScaffold()
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll(filepath.Join("testdata", "testaddon2"))
@@ -252,7 +256,11 @@ func TestMakeChart(t *testing.T) {
 	assert.Contains(t, err.Error(), "not an addon dir")
 
 	// Valid addon dir
-	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon"))
+	cmd := InitCmd{
+		Path:      filepath.Join("testdata", "testaddon"),
+		AddonName: "testaddon",
+	}
+	err = cmd.CreateScaffold()
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll(filepath.Join("testdata", "testaddon"))
