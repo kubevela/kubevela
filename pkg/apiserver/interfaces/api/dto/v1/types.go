@@ -911,6 +911,7 @@ type UpdatePolicyRequest struct {
 type PolicyBase struct {
 	// Name is the unique name of the policy.
 	Name        string `json:"name"`
+	Alias       string `json:"alias"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Creator     string `json:"creator"`
@@ -924,6 +925,8 @@ type PolicyBase struct {
 // DetailPolicyResponse app policy detail model
 type DetailPolicyResponse struct {
 	PolicyBase
+	// Binding relationShip
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
 }
 
 // ListApplicationPolicy list app policies

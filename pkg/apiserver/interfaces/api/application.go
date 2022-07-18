@@ -18,6 +18,7 @@ package api
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 
@@ -878,7 +879,9 @@ func (c *applicationAPIInterface) detailApplicationPolicy(req *restful.Request, 
 
 func (c *applicationAPIInterface) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"))
+	forceParam := req.QueryParameter("force")
+	force, _ := strconv.ParseBool(forceParam)
+	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"), force)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
