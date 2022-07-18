@@ -107,6 +107,13 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 	It("Test standalone app with publish version", func() {
 		By("Apply resources")
+
+		nsLocal := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace + "-local"}}
+		Expect(k8sClient.Create(hubCtx, nsLocal)).Should(Succeed())
+		defer func() {
+			_ = k8sClient.Delete(hubCtx, nsLocal)
+		}()
+
 		deploy := readFile("deployment.yaml")
 		Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
 		workflow := readFile("workflow-suspend.yaml")
@@ -152,7 +159,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 		// update application without updating publishVersion
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(hubCtx, appKey, _app)).Should(Succeed())
-			_app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(`{"clusters":["local"]}`)}
+			_app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["local"],"namespace":"%s"}`, nsLocal.Name))}
 			g.Expect(k8sClient.Update(hubCtx, _app)).Should(Succeed())
 		}, 10*time.Second).Should(Succeed())
 
@@ -181,7 +188,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			deploys := &v1.DeploymentList{}
 			g.Expect(k8sClient.List(workerCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
 			g.Expect(len(deploys.Items)).Should(Equal(0))
-			g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(k8sClient.List(hubCtx, deploys, client.InNamespace(nsLocal.Name))).Should(Succeed())
 			g.Expect(len(deploys.Items)).Should(Equal(1))
 			g.Expect(deploys.Items[0].Spec.Replicas).Should(Equal(pointer.Int32(3)))
 		}, 30*time.Second).Should(Succeed())

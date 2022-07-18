@@ -18,9 +18,14 @@ package apply
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -128,6 +134,38 @@ var _ = Describe("Test apply", func() {
 			Expect(len(resultDeploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
 
+		It("Test apply resource already exists", func() {
+			ctx := context.Background()
+			app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "test-app", Namespace: "default"}}
+			By("Test create resource already exists but has no application owner")
+			cm1 := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test-resource-exists", Namespace: "default"}}
+			Expect(rawClient.Create(ctx, cm1)).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(cm1), &corev1.ConfigMap{})).Should(Succeed())
+			obj1, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm1)
+			Expect(err).Should(Succeed())
+			u1 := &unstructured.Unstructured{Object: obj1}
+			u1.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
+			Expect(k8sApplicator.Apply(ctx, u1, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "exists but not managed by any application now")
+			}))
+			Expect(rawClient.Delete(ctx, cm1)).Should(Succeed())
+			By("Test create resource already exists but owned by other application")
+			cm2 := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test-resource-exists-owned-by-others", Namespace: "default"}}
+			oamutil.AddLabels(cm2, map[string]string{
+				oam.LabelAppName:      "other",
+				oam.LabelAppNamespace: "default",
+			})
+			Expect(rawClient.Create(ctx, cm2)).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(cm2), &corev1.ConfigMap{})).Should(Succeed())
+			obj2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm2)
+			u2 := &unstructured.Unstructured{Object: obj2}
+			u2.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
+			Expect(err).Should(Succeed())
+			Expect(k8sApplicator.Apply(ctx, u2, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "is managed by other application")
+			}))
+			Expect(rawClient.Delete(ctx, cm2)).Should(Succeed())
+		})
 	})
 })
 
