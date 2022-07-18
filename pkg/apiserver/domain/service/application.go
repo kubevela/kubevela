@@ -804,7 +804,7 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 			return nil, err
 		}
 	}
-	if workflow != nil {
+	if workflow != nil && envName == "" {
 		envName = workflow.EnvName
 	}
 
