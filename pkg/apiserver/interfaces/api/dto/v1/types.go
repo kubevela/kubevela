@@ -399,8 +399,7 @@ type CompareLatestWithRunningOption struct {
 
 // AppDryRunReq application dry-run req
 type AppDryRunReq struct {
-	AppName    string `json:"appName"`
-	DryRunType string `json:"dryRunType"`
+	DryRunType string `json:"dryRunType" validate:"oneof=APP REVISION"`
 	Env        string `json:"env"`
 	Workflow   string `json:"workflow"`
 	Version    string `json:"version"`
@@ -408,7 +407,9 @@ type AppDryRunReq struct {
 
 // AppDryRunResponse application dry-run result
 type AppDryRunResponse struct {
-	YAML string `json:"yaml"`
+	YAML    string `json:"yaml"`
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
 }
 
 // ApplicationStatusResponse application status response body

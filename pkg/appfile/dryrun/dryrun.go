@@ -38,10 +38,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // DryRun executes dry-run on an application
@@ -50,8 +52,8 @@ type DryRun interface {
 }
 
 // NewDryRunOption creates a dry-run option
-func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object) *Option {
-	return &Option{c, dm, pd, cfg, as}
+func NewDryRunOption(c client.Client, cfg *rest.Config, dm discoverymapper.DiscoveryMapper, pd *packages.PackageDiscover, as []oam.Object, serverSideDryRun bool) *Option {
+	return &Option{c, dm, pd, cfg, as, serverSideDryRun}
 }
 
 // Option contains options to execute dry-run
@@ -65,6 +67,9 @@ type Option struct {
 	// DryRun will use capabilities in Auxiliaries as higher priority than
 	// getting one from cluster.
 	Auxiliaries []oam.Object
+
+	// serverSideDryRun If set to true, means will dry run via the apiserver.
+	serverSideDryRun bool
 }
 
 // validateObjectFromFile will read file into Unstructured object
@@ -122,7 +127,8 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 
 // ExecuteDryRun simulates applying an application into cluster and returns rendered
 // resources but not persist them into cluster.
-func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
+func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
+	app := application.DeepCopy()
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
@@ -138,11 +144,17 @@ func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) ([
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from components and traits")
 	}
-	objs, err := appFile.GeneratePolicyManifests(ctx)
+	policyManifests, err := appFile.GeneratePolicyManifests(ctx)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from policies")
 	}
-	return comps, objs, nil
+	if d.serverSideDryRun {
+		applyUtil := apply.NewAPIApplicator(d.Client)
+		if err := applyUtil.Apply(ctx, app, apply.DryRunAll()); err != nil {
+			return nil, nil, err
+		}
+	}
+	return comps, policyManifests, nil
 }
 
 // PrintDryRun will print the result of dry-run
@@ -162,6 +174,13 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 		buff.Write(result)
 		buff.WriteString("\n---\n")
 		for _, t := range c.Traits {
+			traitType := t.GetLabels()[oam.TraitTypeLabel]
+			switch {
+			case traitType == definition.AuxiliaryWorkload:
+				buff.WriteString("## From the auxiliary workload \n")
+			case traitType != "":
+				buff.WriteString(fmt.Sprintf("## From the trait %s \n", traitType))
+			}
 			result, err := yaml.Marshal(t)
 			if err != nil {
 				return errors.New("marshal result for Component " + c.Name + " trait " + t.GetName() + " object in yaml format")

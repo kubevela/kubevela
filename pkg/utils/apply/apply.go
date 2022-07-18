@@ -55,6 +55,7 @@ type applyAction struct {
 	isShared         bool
 	skipUpdate       bool
 	updateAnnotation bool
+	dryRun           bool
 }
 
 // ApplyOption is called before applying state to the object.
@@ -172,6 +173,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	if err != nil {
 		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
 	}
+	if applyAct.dryRun {
+		return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
+	}
 	return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 }
 
@@ -211,6 +215,9 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 			}
 		}
 		loggingApply("creating object", desired)
+		if act.dryRun {
+			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
+		}
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
 	}
 
@@ -371,6 +378,14 @@ func SharedByApp(app *v1beta1.Application) ApplyOption {
 			return err
 		}
 		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+		return nil
+	}
+}
+
+// DryRunAll executing all validation, etc without persisting the change to storage.
+func DryRunAll() ApplyOption {
+	return func(a *applyAction, existing, _ client.Object) error {
+		a.dryRun = true
 		return nil
 	}
 }

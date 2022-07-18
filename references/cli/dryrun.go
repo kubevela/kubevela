@@ -133,7 +133,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		return buff, err
 	}
 
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
 	// Perform validation only if not in offline mode

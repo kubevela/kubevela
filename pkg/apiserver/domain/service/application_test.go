@@ -652,7 +652,7 @@ var _ = Describe("Test application service function", func() {
 	It("Test DryRun with env revision function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision", Env: "app-dev"})
+		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "REVISION", Env: "app-dev"})
 		Expect(err).Should(BeNil())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
@@ -661,7 +661,7 @@ var _ = Describe("Test application service function", func() {
 	It("Test DryRun with last revision function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision"})
+		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "REVISION"})
 		Expect(err).Should(BeNil())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
