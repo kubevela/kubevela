@@ -269,6 +269,7 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("force", "Force delete the policy and all references").DataType("boolean").Required(false)).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))

@@ -926,7 +926,7 @@ type PolicyBase struct {
 type DetailPolicyResponse struct {
 	PolicyBase
 	// Binding relationShip
-	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind,omitempty"`
 }
 
 // ListApplicationPolicy list app policies
