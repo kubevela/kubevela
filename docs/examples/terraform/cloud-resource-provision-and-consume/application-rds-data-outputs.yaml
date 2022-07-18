@@ -1,0 +1,44 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: webapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: zzxwill/flask-web-application:v0.3.1-crossplane
+        ports: 80
+      traits:
+        - type: service-binding
+          properties:
+            envMappings:
+              # environments refer to db-conn secret
+              DB_PASSWORD:
+                secret: db-conn                                   # 1) If the env name is the same as the secret key, secret key can be omitted.
+              endpoint:
+                secret: db-conn
+                key: DB_HOST                                      # 2) If the env name is different from secret key, secret key has to be set.
+              username:
+                secret: db-conn
+                key: DB_USER
+              # environments refer to oss-conn secret
+              BUCKET_NAME:
+                secret: oss-conn
+
+    - name: sample-db
+      type: alibaba-rds
+      properties:
+        instance_name: sample-db
+        account_name: oamtest
+        password: U34rfwefwefffaked
+        writeConnectionSecretToRef:
+          name: db-conn
+
+    - name: sample-oss
+      type: alibaba-oss
+      properties:
+        bucket: vela-website
+        acl: private
+        writeConnectionSecretToRef:
+          name: oss-conn
