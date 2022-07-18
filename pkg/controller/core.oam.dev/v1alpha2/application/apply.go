@@ -362,6 +362,12 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 		return errors.Wrapf(err, "failed to render policy manifests")
 	}
 	if len(policyManifests) > 0 {
+		for _, policyManifest := range policyManifests {
+			util.AddLabels(policyManifest, map[string]string{
+				oam.LabelAppName:      h.app.GetName(),
+				oam.LabelAppNamespace: h.app.GetNamespace(),
+			})
+		}
 		if err = h.Dispatch(ctx, "", common.PolicyResourceCreator, policyManifests...); err != nil {
 			return errors.Wrapf(err, "failed to dispatch policy manifests")
 		}

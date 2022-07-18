@@ -381,19 +381,19 @@ func TestMustBeControlledByApp(t *testing.T) {
 		},
 		"old app has no label": {
 			existing: &appsv1.Deployment{},
-			hasError: false,
+			hasError: true,
 		},
 		"old app has no app label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{},
 			}},
-			hasError: false,
+			hasError: true,
 		},
 		"old app has no app ns label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{oam.LabelAppName: "app"},
 			}},
-			hasError: false,
+			hasError: true,
 		},
 		"old app has correct label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{

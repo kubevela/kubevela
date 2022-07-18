@@ -37,6 +37,9 @@ const (
 	EnableSuspendOnFailure featuregate.Feature = "EnableSuspendOnFailure"
 	// LegacyComponentRevision if enabled, create component revision even no rollout trait attached
 	LegacyComponentRevision featuregate.Feature = "LegacyComponentRevision"
+	// LegacyResourceOwnerValidation if enabled, the resource dispatch will allow existing resource not to have owner
+	// application and the current application will take over it
+	LegacyResourceOwnerValidation featuregate.Feature = "LegacyResourceOwnerValidation"
 
 	// Edge Features
 
@@ -51,6 +54,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
 	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
 	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
+	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 

@@ -28,11 +28,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -297,8 +299,11 @@ func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
 			return nil
 		}
 		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
+		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) {
+			return fmt.Errorf("%s %s/%s exists but not managed by any application now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+		}
 		if controlledBy != "" && controlledBy != appKey {
-			return fmt.Errorf("existing object is managed by other application %s", controlledBy)
+			return fmt.Errorf("existing object %s %s/%s is managed by other application %s", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName(), controlledBy)
 		}
 		return nil
 	}
