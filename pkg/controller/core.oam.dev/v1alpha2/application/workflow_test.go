@@ -442,7 +442,7 @@ var _ = Describe("Test Workflow", func() {
 		Expect(checkCM.Data["lives"]).Should(BeEquivalentTo("hello,i am lives"))
 	})
 
-	FIt("test application with depends on and workflow", func() {
+	It("test application with depends on and workflow", func() {
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-with-dependson-workflow",

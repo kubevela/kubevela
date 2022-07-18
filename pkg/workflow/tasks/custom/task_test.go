@@ -504,7 +504,8 @@ func TestSkip(t *testing.T) {
 	r.NoError(err)
 	runner, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
+	wfCtx := newWorkflowContextForTest(t)
+	status, operations, err := runner.Run(wfCtx, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
 			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Skip: true}, nil

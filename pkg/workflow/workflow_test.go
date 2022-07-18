@@ -2033,12 +2033,6 @@ var _ = Describe("Test Workflow", func() {
 			Steps: []common.WorkflowStepStatus{
 				{
 					StepStatus: common.StepStatus{
-						Name:  "s2",
-						Type:  "pending",
-						Phase: common.WorkflowStepPhasePending,
-					},
-				}, {
-					StepStatus: common.StepStatus{
 						Name:  "s1",
 						Type:  "success",
 						Phase: common.WorkflowStepPhaseSucceeded,
@@ -2049,7 +2043,14 @@ var _ = Describe("Test Workflow", func() {
 						Type:  "success",
 						Phase: common.WorkflowStepPhaseSucceeded,
 					},
-				}},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2",
+						Type:  "pending",
+						Phase: common.WorkflowStepPhasePending,
+					},
+				},
+			},
 		})).Should(BeEquivalentTo(""))
 
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
@@ -2069,12 +2070,6 @@ var _ = Describe("Test Workflow", func() {
 			Steps: []common.WorkflowStepStatus{
 				{
 					StepStatus: common.StepStatus{
-						Name:  "s2",
-						Type:  "pending",
-						Phase: common.WorkflowStepPhaseSucceeded,
-					},
-				}, {
-					StepStatus: common.StepStatus{
 						Name:  "s1",
 						Type:  "success",
 						Phase: common.WorkflowStepPhaseSucceeded,
@@ -2085,7 +2080,14 @@ var _ = Describe("Test Workflow", func() {
 						Type:  "success",
 						Phase: common.WorkflowStepPhaseSucceeded,
 					},
-				}},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2",
+						Type:  "pending",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				},
+			},
 		})).Should(BeEquivalentTo(""))
 	})
 

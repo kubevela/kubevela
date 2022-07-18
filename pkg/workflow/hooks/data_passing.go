@@ -78,7 +78,8 @@ func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name str
 		return
 	}
 	o := struct {
-		Name string `json:"name"`
+		Name      string `json:"name"`
+		Component string `json:"component"`
 	}{}
 	js, err := properties.MarshalJSON()
 	if err != nil {
@@ -87,7 +88,17 @@ func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name str
 	if err := json.Unmarshal(js, &o); err != nil {
 		return
 	}
-	if _, ok := stepStatus[o.Name]; !ok {
-		stepStatus[o.Name] = status
+	additionalName := ""
+	switch {
+	case o.Name != "":
+		additionalName = o.Name
+	case o.Component != "":
+		additionalName = o.Component
+	default:
+		return
+	}
+	if _, ok := stepStatus[additionalName]; !ok {
+		stepStatus[additionalName] = status
+		return
 	}
 }
