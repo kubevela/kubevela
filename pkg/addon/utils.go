@@ -176,8 +176,9 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 			} else {
 				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
-					Username: registry.Helm.Username,
-					Password: registry.Helm.Password,
+					Username:        registry.Helm.Username,
+					Password:        registry.Helm.Password,
+					InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
 				})
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {

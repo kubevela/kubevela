@@ -1726,6 +1726,12 @@
 						"name": "policyName",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "boolean",
+						"description": "Force delete the policy and all references",
+						"name": "force",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -6074,7 +6080,6 @@
 		},
 		"addon.DeployTo": {
 			"required": [
-				"runtime_cluster",
 				"disableControlPlane",
 				"runtimeCluster"
 			],
@@ -6134,6 +6139,9 @@
 		},
 		"addon.HelmSource": {
 			"properties": {
+				"insecureSkipTLS": {
+					"type": "boolean"
+				},
 				"password": {
 					"type": "string"
 				},
@@ -7192,8 +7200,8 @@
 		},
 		"model.ApplicationRevision": {
 			"required": [
-				"createTime",
 				"updateTime",
+				"createTime",
 				"appPrimaryKey",
 				"version",
 				"status",
@@ -8055,10 +8063,10 @@
 		"v1.ApplicationDeployResponse": {
 			"required": [
 				"version",
-				"status",
+				"note",
 				"envName",
 				"createTime",
-				"note",
+				"status",
 				"triggerType"
 			],
 			"properties": {
@@ -9252,12 +9260,21 @@
 		"v1.CreatePolicyRequest": {
 			"required": [
 				"name",
+				"alias",
+				"envName",
 				"description",
 				"type",
-				"properties"
+				"properties",
+				"workflowPolicyBind"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"name": {
@@ -9268,6 +9285,12 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"workflowPolicyBind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowPolicyBinding"
+					}
 				}
 			}
 		},
@@ -9486,11 +9509,11 @@
 		},
 		"v1.DetailAddonResponse": {
 			"required": [
-				"icon",
 				"name",
+				"description",
+				"icon",
 				"version",
 				"invisible",
-				"description",
 				"schema",
 				"uiSchema",
 				"definitions",
@@ -9570,10 +9593,10 @@
 		},
 		"v1.DetailApplicationResponse": {
 			"required": [
-				"name",
-				"alias",
 				"description",
 				"icon",
+				"name",
+				"alias",
 				"project",
 				"createTime",
 				"updateTime",
@@ -9633,20 +9656,20 @@
 		},
 		"v1.DetailClusterResponse": {
 			"required": [
-				"name",
-				"status",
-				"dashboardURL",
 				"createTime",
+				"status",
 				"kubeConfig",
+				"updateTime",
+				"dashboardURL",
+				"name",
+				"description",
+				"icon",
 				"labels",
+				"reason",
+				"alias",
 				"provider",
 				"apiServerURL",
-				"description",
-				"alias",
-				"icon",
-				"reason",
 				"kubeConfigSecret",
-				"updateTime",
 				"resourceInfo"
 			],
 			"properties": {
@@ -9705,13 +9728,13 @@
 		"v1.DetailComponentResponse": {
 			"required": [
 				"appPrimaryKey",
-				"creator",
 				"alias",
-				"name",
-				"main",
 				"createTime",
-				"updateTime",
+				"main",
+				"name",
+				"creator",
 				"type",
+				"updateTime",
 				"definition"
 			],
 			"properties": {
@@ -9799,13 +9822,13 @@
 		},
 		"v1.DetailDefinitionResponse": {
 			"required": [
-				"ownerAddon",
 				"name",
 				"description",
-				"status",
-				"alias",
 				"icon",
+				"alias",
+				"status",
 				"labels",
+				"ownerAddon",
 				"schema",
 				"uiSchema"
 			],
@@ -9862,16 +9885,20 @@
 		},
 		"v1.DetailPolicyResponse": {
 			"required": [
-				"type",
-				"description",
 				"creator",
-				"properties",
-				"createTime",
 				"updateTime",
 				"envName",
-				"name"
+				"name",
+				"alias",
+				"type",
+				"description",
+				"properties",
+				"createTime"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -9897,22 +9924,28 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				},
+				"workflowPolicyBind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowPolicyBinding"
+					}
 				}
 			}
 		},
 		"v1.DetailRevisionResponse": {
 			"required": [
-				"workflowName",
-				"envName",
-				"status",
-				"deployUser",
-				"triggerType",
 				"updateTime",
-				"appPrimaryKey",
-				"version",
 				"createTime",
+				"version",
+				"reason",
+				"envName",
+				"appPrimaryKey",
+				"deployUser",
 				"note",
-				"reason"
+				"status",
+				"workflowName",
+				"triggerType"
 			],
 			"properties": {
 				"appPrimaryKey": {
@@ -10009,11 +10042,11 @@
 		},
 		"v1.DetailUserResponse": {
 			"required": [
-				"disabled",
 				"createTime",
 				"lastLoginTime",
 				"name",
 				"email",
+				"disabled",
 				"projects",
 				"roles"
 			],
@@ -10054,12 +10087,12 @@
 		},
 		"v1.DetailWorkflowRecordResponse": {
 			"required": [
-				"applicationRevision",
 				"status",
 				"name",
 				"namespace",
 				"workflowName",
 				"workflowAlias",
+				"applicationRevision",
 				"deployTime",
 				"deployUser",
 				"note",
@@ -10111,14 +10144,14 @@
 		},
 		"v1.DetailWorkflowResponse": {
 			"required": [
-				"alias",
-				"enable",
 				"envName",
-				"updateTime",
 				"name",
+				"alias",
 				"default",
-				"createTime",
-				"description"
+				"updateTime",
+				"description",
+				"enable",
+				"createTime"
 			],
 			"properties": {
 				"alias": {
@@ -10823,11 +10856,11 @@
 		},
 		"v1.LoginUserInfoResponse": {
 			"required": [
-				"createTime",
-				"lastLoginTime",
 				"name",
 				"email",
 				"disabled",
+				"createTime",
+				"lastLoginTime",
 				"projects",
 				"platformPermissions",
 				"projectPermissions"
@@ -11031,6 +11064,7 @@
 		"v1.PolicyBase": {
 			"required": [
 				"name",
+				"alias",
 				"type",
 				"description",
 				"creator",
@@ -11040,6 +11074,9 @@
 				"envName"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"createTime": {
 					"type": "string",
 					"format": "date-time"
@@ -11468,12 +11505,21 @@
 		},
 		"v1.UpdatePolicyRequest": {
 			"required": [
+				"alias",
+				"envName",
 				"description",
 				"type",
-				"properties"
+				"properties",
+				"workflowPolicyBind"
 			],
 			"properties": {
+				"alias": {
+					"type": "string"
+				},
 				"description": {
+					"type": "string"
+				},
+				"envName": {
 					"type": "string"
 				},
 				"properties": {
@@ -11481,6 +11527,12 @@
 				},
 				"type": {
 					"type": "string"
+				},
+				"workflowPolicyBind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/v1.WorkflowPolicyBinding"
+					}
 				}
 			}
 		},
@@ -11656,6 +11708,23 @@
 				"updateTime": {
 					"type": "string",
 					"format": "date-time"
+				}
+			}
+		},
+		"v1.WorkflowPolicyBinding": {
+			"required": [
+				"name",
+				"steps"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},

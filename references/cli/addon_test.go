@@ -137,6 +137,7 @@ func testAddonRegistryAddCmd() {
 	testcase := []struct {
 		args   []string
 		errMsg string
+		result *pkgaddon.Registry
 	}{
 		{
 			args:   []string{"noAuthRegistry", "--type=helm", "--endpoint=http://127.0.0.1/chartrepo/oam"},
@@ -145,6 +146,9 @@ func testAddonRegistryAddCmd() {
 		{
 			args:   []string{"basicAuthRegistry", "--type=helm", "--endpoint=http://127.0.0.1/chartrepo/oam", "--username=hello", "--password=word"},
 			errMsg: "fail to add basis auth addon registry",
+		},
+		{
+			args: []string{"skipTlsRegistry", "--type=helm", "--endpoint=https://127.0.0.1/chartrepo/oam", "--insecureSkipTLS=true"},
 		},
 	}
 

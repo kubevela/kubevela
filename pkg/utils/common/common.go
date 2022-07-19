@@ -80,6 +80,9 @@ import (
 var (
 	// Scheme defines the default KubeVela schema
 	Scheme = k8sruntime.NewScheme()
+	//nolint:gosec
+	// insecureHTTPClient insecure http client
+	insecureHTTPClient = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 )
 
 const (
@@ -117,11 +120,12 @@ func init() {
 
 // HTTPOption define the https options
 type HTTPOption struct {
-	Username string
-	Password string
-	CaFile   string
-	CertFile string
-	KeyFile  string
+	Username        string
+	Password        string
+	CaFile          string
+	CertFile        string
+	KeyFile         string
+	InsecureSkipTLS bool
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -166,6 +170,9 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	httpClient := http.DefaultClient
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
+	}
+	if opts != nil && opts.InsecureSkipTLS {
+		httpClient = insecureHTTPClient
 	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
