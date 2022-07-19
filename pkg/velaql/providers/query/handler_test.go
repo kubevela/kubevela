@@ -644,6 +644,15 @@ options: {
 						Name:       "http-test-route",
 					},
 				},
+				{
+					Cluster: "",
+					ObjectReference: corev1.ObjectReference{
+						APIVersion: "gateway.networking.k8s.io/v1alpha2",
+						Kind:       "HTTPRoute",
+						Namespace:  "default",
+						Name:       "velaux-ssl",
+					},
+				},
 			},
 		}
 		testApp := &v1beta1.Application{
@@ -948,17 +957,23 @@ options: {
 		Expect(err).Should(BeNil())
 
 		// Create the HTTPRoute for test
-		routeData, err := ioutil.ReadFile("./testdata/gateway/http-route.yaml")
-		Expect(err).Should(BeNil())
-		gatewayData, err := ioutil.ReadFile("./testdata/gateway/gateway.yaml")
-		Expect(err).Should(BeNil())
-		var route unstructured.Unstructured
-		err = yaml.Unmarshal(routeData, &route)
-		Expect(err).Should(BeNil())
-		var gateway unstructured.Unstructured
-		err = yaml.Unmarshal(gatewayData, &gateway)
-		Expect(err).Should(BeNil())
-		for _, res := range []client.Object{&route, &gateway} {
+		resources := []string{
+			"./testdata/gateway/http-route.yaml",
+			"./testdata/gateway/gateway.yaml",
+			"./testdata/gateway/gateway-tls.yaml",
+			"./testdata/gateway/https-route.yaml",
+		}
+		var objects []client.Object
+		for _, resource := range resources {
+			data, err := ioutil.ReadFile(resource)
+			Expect(err).Should(BeNil())
+			var route unstructured.Unstructured
+			err = yaml.Unmarshal(data, &route)
+			Expect(err).Should(BeNil())
+			objects = append(objects, &route)
+		}
+
+		for _, res := range objects {
 			err := k8sClient.Create(context.TODO(), res)
 			Expect(err).Should(BeNil())
 		}
@@ -994,6 +1009,7 @@ options: {
 			"http://1.1.1.1/seldon/default/sdep",
 			"http://gateway.domain",
 			"http://gateway.domain/api",
+			"https://demo.kubevela.net",
 		}
 		endValue, err := v.Field("list")
 		Expect(err).Should(BeNil())

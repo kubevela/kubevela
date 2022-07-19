@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: Gateway
+metadata:
+  annotations:
+    oam.dev/kubevela-version: v1.5.0-alpha.2
+    ports-mapping: "8000:80,8443:443"
+  labels:
+    addons.oam.dev/name: velaux
+    addons.oam.dev/registry: KubeVela
+    addons.oam.dev/version: v1.5.0-alpha.3
+    app.oam.dev/app-revision-hash: 33e813ddfe9a34be
+    app.oam.dev/appRevision: addon-velaux-v36
+    app.oam.dev/cluster: ""
+    app.oam.dev/component: velaux
+    app.oam.dev/name: addon-velaux
+    app.oam.dev/namespace: vela-system
+    app.oam.dev/resourceType: TRAIT
+    app.oam.dev/revision: velaux-v16
+    oam.dev/render-hash: e7be271bfad2cb55
+    trait.oam.dev/resource: gateway
+    trait.oam.dev/type: https-route
+  name: velaux-gateway-tls
+  namespace: vela-system
+spec:
+  gatewayClassName: traefik
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: Same
+    name: kubevela
+    port: 8443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: kubevela
+        namespace: vela-system
+      mode: Terminate
