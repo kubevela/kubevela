@@ -91,13 +91,15 @@ func TestSuspendStep(t *testing.T) {
 	r.Equal(runner.Name(), "test")
 
 	// test pending
-	r.Equal(runner.Pending(nil, nil), true)
+	p, _ := runner.Pending(nil, nil)
+	r.Equal(p, true)
 	ss := map[string]common.StepStatus{
 		"depend": {
 			Phase: common.WorkflowStepPhaseSucceeded,
 		},
 	}
-	r.Equal(runner.Pending(nil, ss), false)
+	p, _ = runner.Pending(nil, ss)
+	r.Equal(p, false)
 
 	// test skip
 	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
@@ -181,13 +183,15 @@ func TestStepGroupStep(t *testing.T) {
 	r.Equal(runner.Name(), "test")
 
 	// test pending
-	r.Equal(runner.Pending(nil, nil), true)
+	p, _ := runner.Pending(nil, nil)
+	r.Equal(p, true)
 	ss := map[string]common.StepStatus{
 		"depend": {
 			Phase: common.WorkflowStepPhaseSucceeded,
 		},
 	}
-	r.Equal(runner.Pending(nil, ss), false)
+	p, _ = runner.Pending(nil, ss)
+	r.Equal(p, false)
 
 	// test skip
 	status, operations, err := runner.Run(nil, &types.TaskRunOptions{

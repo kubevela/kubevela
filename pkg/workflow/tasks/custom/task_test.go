@@ -246,9 +246,9 @@ close({
 		case "input":
 			r.Equal(err.Error(), "do preStartHook: get input from [podIP]: var(path=podIP) not exist")
 		case "output-var-conflict":
-			r.Equal(status.Reason, types.StatusReasonOutput)
+			r.Contains(status.Message, "conflict")
 			r.Equal(operation.Waiting, false)
-			r.Equal(status.Phase, common.WorkflowStepPhaseFailed)
+			r.Equal(status.Phase, common.WorkflowStepPhaseSucceeded)
 		case "failed-after-retries":
 			wfContext.CleanupMemoryStore("app-v1", "default")
 			newCtx := newWorkflowContextForTest(t)
@@ -433,14 +433,16 @@ func TestPendingInputCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx, nil), true)
+	p, _ := run.Pending(wfCtx, nil)
+	r.Equal(p, true)
 	score, err := value.NewValue(`
 100
 `, nil, "")
 	r.NoError(err)
 	err = wfCtx.SetVar(score, "score")
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx, nil), false)
+	p, _ = run.Pending(wfCtx, nil)
+	r.Equal(p, false)
 }
 
 func TestPendingDependsOnCheck(t *testing.T) {
@@ -468,13 +470,15 @@ func TestPendingDependsOnCheck(t *testing.T) {
 	r.NoError(err)
 	run, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	r.Equal(run.Pending(wfCtx, nil), true)
+	p, _ := run.Pending(wfCtx, nil)
+	r.Equal(p, true)
 	ss := map[string]common.StepStatus{
 		"depend": {
 			Phase: common.WorkflowStepPhaseSucceeded,
 		},
 	}
-	r.Equal(run.Pending(wfCtx, ss), false)
+	p, _ = run.Pending(wfCtx, ss)
+	r.Equal(p, false)
 }
 
 func TestSkip(t *testing.T) {
@@ -500,7 +504,8 @@ func TestSkip(t *testing.T) {
 	r.NoError(err)
 	runner, err := gen(step, &types.GeneratorOptions{})
 	r.NoError(err)
-	status, operations, err := runner.Run(nil, &types.TaskRunOptions{
+	wfCtx := newWorkflowContextForTest(t)
+	status, operations, err := runner.Run(wfCtx, &types.TaskRunOptions{
 		PreCheckHooks: []types.TaskPreCheckHook{
 			func(step v1beta1.WorkflowStep, options *types.PreCheckOptions) (*types.PreCheckResult, error) {
 				return &types.PreCheckResult{Skip: true}, nil

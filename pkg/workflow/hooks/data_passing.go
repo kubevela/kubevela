@@ -17,9 +17,12 @@ limitations under the License.
 package hooks
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -43,24 +46,59 @@ func Input(ctx wfContext.Context, paramValue *value.Value, step v1beta1.Workflow
 }
 
 // Output get data from task value.
-func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus) error {
+func Output(ctx wfContext.Context, taskValue *value.Value, step v1beta1.WorkflowStep, status common.StepStatus, stepStatus map[string]common.StepStatus) error {
+	errMsg := ""
 	if wfTypes.IsStepFinish(status.Phase, status.Reason) {
+		SetAdditionalNameInStatus(stepStatus, step.Name, step.Properties, status)
 		for _, output := range step.Outputs {
 			v, err := taskValue.LookupByScript(output.ValueFrom)
-			if err != nil && !strings.Contains(err.Error(), "not found") {
-				return err
+			// if the error is not nil and the step is not skipped, return the error
+			if err != nil && status.Phase != common.WorkflowStepPhaseSkipped {
+				errMsg += fmt.Sprintf("failed to get output from %s: %s\n", output.ValueFrom, err.Error())
 			}
+			// if the error is not nil, set the value to null
 			if err != nil || v.Error() != nil {
-				v, err = taskValue.MakeValue("null")
-				if err != nil {
-					return err
-				}
+				v, _ = taskValue.MakeValue("null")
 			}
 			if err := ctx.SetVar(v, output.Name); err != nil {
-				return err
+				errMsg += fmt.Sprintf("failed to set output %s: %s\n", output.Name, err.Error())
 			}
 		}
 	}
 
+	if errMsg != "" {
+		return errors.New(errMsg)
+	}
 	return nil
+}
+
+// SetAdditionalNameInStatus sets additional name from properties to status map
+func SetAdditionalNameInStatus(stepStatus map[string]common.StepStatus, name string, properties *runtime.RawExtension, status common.StepStatus) {
+	if stepStatus == nil || properties == nil {
+		return
+	}
+	o := struct {
+		Name      string `json:"name"`
+		Component string `json:"component"`
+	}{}
+	js, err := properties.MarshalJSON()
+	if err != nil {
+		return
+	}
+	if err := json.Unmarshal(js, &o); err != nil {
+		return
+	}
+	additionalName := ""
+	switch {
+	case o.Name != "":
+		additionalName = o.Name
+	case o.Component != "":
+		additionalName = o.Component
+	default:
+		return
+	}
+	if _, ok := stepStatus[additionalName]; !ok {
+		stepStatus[additionalName] = status
+		return
+	}
 }

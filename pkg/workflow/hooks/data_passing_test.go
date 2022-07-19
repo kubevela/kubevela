@@ -66,6 +66,7 @@ func TestOutput(t *testing.T) {
 output: score: 99 
 `, nil, "")
 	r.NoError(err)
+	stepStatus := make(map[string]common.StepStatus)
 	err = Output(wfCtx, taskValue, v1beta1.WorkflowStep{
 		Properties: &runtime.RawExtension{
 			Raw: []byte("{\"name\":\"mystep\"}"),
@@ -76,7 +77,7 @@ output: score: 99
 		}},
 	}, common.StepStatus{
 		Phase: common.WorkflowStepPhaseSucceeded,
-	})
+	}, stepStatus)
 	r.NoError(err)
 	result, err := wfCtx.GetVar("myscore")
 	r.NoError(err)
@@ -84,6 +85,7 @@ output: score: 99
 	r.NoError(err)
 	r.Equal(s, `99
 `)
+	r.Equal(stepStatus["mystep"].Phase, common.WorkflowStepPhaseSucceeded)
 }
 
 func mockContext(t *testing.T) wfContext.Context {
