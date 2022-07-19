@@ -78,9 +78,10 @@ type GitlabAddonSource struct {
 
 // HelmSource  defines the information about the helm repo addon source
 type HelmSource struct {
-	URL      string `json:"url,omitempty" validate:"required"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
+	URL             string `json:"url,omitempty" validate:"required"`
+	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
+	Username        string `json:"username,omitempty"`
+	Password        string `json:"password,omitempty"`
 }
 
 // SafeCopier is an interface to copy Struct without sensitive fields, such as Token, Username, Password
