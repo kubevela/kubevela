@@ -649,8 +649,8 @@ options: {
 					ObjectReference: corev1.ObjectReference{
 						APIVersion: "gateway.networking.k8s.io/v1alpha2",
 						Kind:       "HTTPRoute",
-						Namespace:  "vela-system",
-						Name:       "velaux-gateway-tls",
+						Namespace:  "default",
+						Name:       "velaux-ssl",
 					},
 				},
 			},

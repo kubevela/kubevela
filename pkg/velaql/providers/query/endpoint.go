@@ -356,7 +356,6 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 				// For example, the traefik addon has a default port mapping configuration of 8443->443 8000->80
 				// So users could set the `ports-mapping` annotation.
 				if mapping := gateway.Annotations["ports-mapping"]; mapping != "" {
-					fmt.Println(mapping)
 					for _, portItem := range strings.Split(mapping, ",") {
 						if portMap := strings.Split(portItem, ":"); len(portMap) == 2 {
 							if portMap[0] == fmt.Sprintf("%d", listener.Port) {

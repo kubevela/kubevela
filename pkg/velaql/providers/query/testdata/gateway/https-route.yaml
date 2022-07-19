@@ -19,7 +19,7 @@ metadata:
     trait.oam.dev/resource: httpsRoute
     trait.oam.dev/type: https-route
   name: velaux-ssl
-  namespace: vela-system
+  namespace: default
 spec:
   hostnames:
   - demo.kubevela.net
