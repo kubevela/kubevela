@@ -137,7 +137,7 @@ var _ = Describe("Test Query Provider", func() {
 				},
 			})
 			Expect(err).Should(BeNil())
-			testServicelist := []map[string]interface{}{
+			testServiceList := []map[string]interface{}{
 				{
 					"name": "clusterip-2",
 					"ports": []corev1.ServicePort{
@@ -183,7 +183,7 @@ var _ = Describe("Test Query Provider", func() {
 			abobj.SetGroupVersionKind(abgvk)
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "sdep2", Namespace: "default"}, abobj)).Should(BeNil())
 
-			for _, s := range testServicelist {
+			for _, s := range testServiceList {
 				ns := "default"
 				if s["namespace"] != nil {
 					ns = s["namespace"].(string)

@@ -335,31 +335,40 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 			if err := findResource(ctx, cli, &gateway, string(parent.Name), namespace, cluster); err != nil {
 				log.Logger.Errorf("query the Gateway %s/%s/%s failure %s", cluster, namespace, string(parent.Name), err.Error())
 			}
-			for _, listener := range gateway.Spec.Listeners {
-				if listener.Name == *parent.SectionName {
-					var protocol = querytypes.HTTP
-					if listener.Protocol == gatewayv1alpha2.HTTPSProtocolType {
-						protocol = querytypes.HTTPS
+			var listener *gatewayv1alpha2.Listener
+			if parent.SectionName != nil {
+				for i, lis := range gateway.Spec.Listeners {
+					if lis.Name == *parent.SectionName {
+						listener = &gateway.Spec.Listeners[i]
+						break
 					}
-					var port = int(listener.Port)
-					// The gateway listener port may not be the externally exposed port.
-					// For example, the traefik addon has a default port mapping configuration of 8443->443 8000->80
-					// So users could set the `ports-mapping` annotation.
-					if mapping := gateway.Annotations["ports-mapping"]; mapping != "" {
-						fmt.Println(mapping)
-						for _, portItem := range strings.Split(mapping, ",") {
-							if portMap := strings.Split(portItem, ":"); len(portMap) == 2 {
-								if portMap[0] == fmt.Sprintf("%d", listener.Port) {
-									newPort, err := strconv.Atoi(portMap[1])
-									if err == nil {
-										port = newPort
-									}
+				}
+			} else if len(gateway.Spec.Listeners) > 0 {
+				listener = &gateway.Spec.Listeners[0]
+			}
+			if listener != nil {
+				var protocol = querytypes.HTTP
+				if listener.Protocol == gatewayv1alpha2.HTTPSProtocolType {
+					protocol = querytypes.HTTPS
+				}
+				var port = int(listener.Port)
+				// The gateway listener port may not be the externally exposed port.
+				// For example, the traefik addon has a default port mapping configuration of 8443->443 8000->80
+				// So users could set the `ports-mapping` annotation.
+				if mapping := gateway.Annotations["ports-mapping"]; mapping != "" {
+					fmt.Println(mapping)
+					for _, portItem := range strings.Split(mapping, ",") {
+						if portMap := strings.Split(portItem, ":"); len(portMap) == 2 {
+							if portMap[0] == fmt.Sprintf("%d", listener.Port) {
+								newPort, err := strconv.Atoi(portMap[1])
+								if err == nil {
+									port = newPort
 								}
 							}
 						}
 					}
-					return protocol, port
 				}
+				return protocol, port
 			}
 		}
 	}
