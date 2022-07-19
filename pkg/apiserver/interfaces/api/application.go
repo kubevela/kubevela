@@ -18,6 +18,7 @@ package api
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 
@@ -268,6 +269,7 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("force", "Force delete the policy and all references").DataType("boolean").Required(false)).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -878,7 +880,9 @@ func (c *applicationAPIInterface) detailApplicationPolicy(req *restful.Request, 
 
 func (c *applicationAPIInterface) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"))
+	forceParam := req.QueryParameter("force")
+	force, _ := strconv.ParseBool(forceParam)
+	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"), force)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return

@@ -371,7 +371,7 @@ var _ = Describe("Test application service function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		err = appService.DeletePolicy(context.TODO(), appModel, overridePolicyName)
+		err = appService.DeletePolicy(context.TODO(), appModel, overridePolicyName, false)
 		Expect(err).Should(BeNil())
 	})
 
@@ -936,35 +936,37 @@ var _ = Describe("Test apiserver policy rest api", func() {
 		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
 		Expect(err).Should(BeNil())
 		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3","override1"]}`))
+
+		policyRes, err = appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		Expect(policyRes.WorkflowPolicyBindings).Should(BeEquivalentTo([]v1.WorkflowPolicyBinding{
+			{
+				Name:  "second",
+				Steps: []string{"second"},
+			},
+		}))
 	})
 
-	It("Exsit binding will block policy delete operation", func() {
+	It("Exist binding will block policy delete operation", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		policyName := "override1"
 		_, err = appService.DetailPolicy(ctx, appModel, policyName)
 		Expect(err).Should(BeNil())
-		err = appService.DeletePolicy(ctx, appModel, policyName)
+		err = appService.DeletePolicy(ctx, appModel, policyName, false)
 		Expect(err).ShouldNot(BeNil())
 	})
 
-	It("Update workflow delete using step will unblock delete", func() {
+	It("Force delete policy will delete policy workflow binding", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		policyName := "override1"
-		policyRes, err := appService.DetailPolicy(ctx, appModel, policyName)
-		Expect(err).Should(BeNil())
-		propertyStr, err := json.Marshal(policyRes.Properties)
-		Expect(err).Should(BeNil())
-		updatePolicyReq := v1.UpdatePolicyRequest{
-			Description:            policyRes.Description,
-			Type:                   policyRes.Type,
-			Properties:             string(propertyStr),
-			WorkflowPolicyBindings: nil,
-		}
-		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+
+		// try delete again
+		err = appService.DeletePolicy(ctx, appModel, policyName, true)
 		Expect(err).Should(BeNil())
 
+		// check workflow bindings and policy has been removed
 		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
 		Expect(err).Should(BeNil())
 		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
@@ -976,10 +978,6 @@ var _ = Describe("Test apiserver policy rest api", func() {
 		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
 		Expect(err).Should(BeNil())
 		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3"]}`))
-
-		// try delete again
-		err = appService.DeletePolicy(ctx, appModel, policyName)
-		Expect(err).Should(BeNil())
 	})
 })
 

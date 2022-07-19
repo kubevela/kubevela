@@ -85,7 +85,7 @@ type ApplicationService interface {
 	ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error)
 	CreatePolicy(ctx context.Context, app *model.Application, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
 	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
-	DeletePolicy(ctx context.Context, app *model.Application, policyName string) error
+	DeletePolicy(ctx context.Context, app *model.Application, policyName string, force bool) error
 	UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
@@ -628,8 +628,13 @@ func (c *applicationServiceImpl) DetailPolicy(ctx context.Context, app *model.Ap
 	if err != nil {
 		return nil, err
 	}
+	wlb, err := c.findAllBindingPolicyWorkflowStep(ctx, app, policyName)
+	if err != nil {
+		return nil, err
+	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *assembler.ConvertPolicyModelToBase(&policy),
+		PolicyBase:             *assembler.ConvertPolicyModelToBase(&policy),
+		WorkflowPolicyBindings: wlb,
 	}, nil
 }
 
@@ -1199,17 +1204,19 @@ func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Ap
 	return assembler.ConvertPolicyModelToBase(&policyModel), nil
 }
 
-func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string) error {
+func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string, force bool) error {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
 	}
-	used, err := c.checkPolicyUsedByWorkflow(ctx, app, policyName)
-	if err != nil {
-		return err
-	}
-	if used {
-		return bcode.ErrApplicationPolicyIsBeingUsed
+	if !force {
+		used, err := c.checkPolicyUsedByWorkflow(ctx, app, policyName)
+		if err != nil {
+			return err
+		}
+		if used {
+			return bcode.ErrApplicationPolicyIsBeingUsed
+		}
 	}
 	if err := c.Store.Delete(ctx, &policy); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -1218,7 +1225,7 @@ func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("delete app policy %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
-	return nil
+	return c.handlePolicyBindingWorkflowStep(ctx, app, policyName, nil)
 }
 
 func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policyUpdate apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error) {
@@ -1844,23 +1851,39 @@ func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Con
 
 // checkPolicyUsedByWorkflow check a policy whether used by any workflow step
 func (c *applicationServiceImpl) checkPolicyUsedByWorkflow(ctx context.Context, app *model.Application, policyName string) (bool, error) {
-	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	wlb, err := c.findAllBindingPolicyWorkflowStep(ctx, app, policyName)
 	if err != nil {
 		return false, err
 	}
+	return len(wlb) != 0, nil
+}
+
+func (c *applicationServiceImpl) findAllBindingPolicyWorkflowStep(ctx context.Context, app *model.Application, policyName string) ([]apisv1.WorkflowPolicyBinding, error) {
+	var res []apisv1.WorkflowPolicyBinding
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return nil, err
+	}
 	for _, w := range workflows {
+		var wlb apisv1.WorkflowPolicyBinding
+		have := false
 		for _, step := range w.Steps {
 			p := step.Properties
 			policies, _, err := extractPolicyListAndProperty(p)
 			if err != nil {
-				return false, err
+				return nil, err
 			}
 			for _, policy := range policies {
 				if policy == policyName {
-					return true, nil
+					wlb.Steps = append(wlb.Steps, step.Name)
+					have = true
 				}
 			}
 		}
+		if have {
+			wlb.Name = w.Name
+			res = append(res, wlb)
+		}
 	}
-	return false, nil
+	return res, nil
 }
