@@ -457,8 +457,8 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 
 // printRawApplication prints raw Application yaml/json/jsonpath
 func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
-	var app v1beta1.Application
 	var err error
+	app := &v1beta1.Application{}
 
 	k8sClient, err := c.GetClient()
 	if err != nil {
@@ -468,15 +468,20 @@ func printRawApplication(ctx context.Context, c common.Args, format string, out 
 	err = k8sClient.Get(ctx, pkgtypes.NamespacedName{
 		Namespace: ns,
 		Name:      appName,
-	}, &app)
+	}, app)
 	if err != nil {
 		return fmt.Errorf("cannot get application %s in namespace %s: %w", appName, ns, err)
 	}
 
+	// Set GVK because the object returned from client.Get()
+	// has empty GVK since the type info in inherent in the typed object.
+	// But we need that information.
+	app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
+
 	return printApplicationUsingFormat(out, format, app)
 }
 
-func printApplicationUsingFormat(out io.Writer, format string, app v1beta1.Application) error {
+func printApplicationUsingFormat(out io.Writer, format string, app *v1beta1.Application) error {
 	switch format {
 	case "yaml":
 		b, err := yaml.Marshal(app)
