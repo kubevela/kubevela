@@ -912,10 +912,12 @@ var _ = Describe("Test Workflow", func() {
 			Expect(interval).Should(BeEquivalentTo(int(0.05 * math.Pow(2, float64(i+5)))))
 		}
 
-		_, err = wf.ExecuteSteps(ctx, revision, runners)
-		Expect(err).ToNot(HaveOccurred())
-		interval = e.getBackoffWaitTime()
-		Expect(interval).Should(BeEquivalentTo(MaxWorkflowWaitBackoffTime))
+		for i := 0; i < 10; i++ {
+			_, err = wf.ExecuteSteps(ctx, revision, runners)
+			Expect(err).ToNot(HaveOccurred())
+			interval = e.getBackoffWaitTime()
+			Expect(interval).Should(BeEquivalentTo(MaxWorkflowWaitBackoffTime))
+		}
 
 		By("Test get backoff time after clean")
 		wfContext.CleanupMemoryStore(app.Name, app.Namespace)
