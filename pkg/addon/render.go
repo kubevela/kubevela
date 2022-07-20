@@ -41,13 +41,12 @@ import (
 )
 
 type addonCueTemplateRender struct {
-	addon                *InstallPackage
-	inputParameter       map[string]interface{}
-	useResourceParameter bool
+	addon     *InstallPackage
+	inputArgs map[string]interface{}
 }
 
 func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{}) error {
-	bt, err := json.Marshal(a.inputParameter)
+	bt, err := json.Marshal(a.inputArgs)
 	if err != nil {
 		return err
 	}
@@ -65,12 +64,7 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{})
 	// parameter definition
 	contextFile.WriteString(paramFile + "\n")
 	// user custom parameter
-	contextFile.WriteString(a.addon.GlobalParameters + "\n")
-
-	if a.useResourceParameter && len(a.addon.Parameters) != 0 {
-		// use parameter defined in resource/ dir override the global parameter.
-		contextFile.WriteString(a.addon.Parameters + "\n")
-	}
+	contextFile.WriteString(a.addon.Parameters + "\n")
 
 	v, err := value.NewValue(contextFile.String(), nil, "")
 	if err != nil {
@@ -126,12 +120,11 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 	return app, nil
 }
 
-func renderAppAccordingToCueTemplate(addon *InstallPackage, parameters map[string]interface{}) (*v1beta1.Application, error) {
+func renderAppAccordingToCueTemplate(addon *InstallPackage, args map[string]interface{}) (*v1beta1.Application, error) {
 	app := v1beta1.Application{}
 	r := addonCueTemplateRender{
-		addon:                addon,
-		inputParameter:       parameters,
-		useResourceParameter: false,
+		addon:     addon,
+		inputArgs: args,
 	}
 	if err := r.toObject(addon.AppCueTemplate.Data, &app); err != nil {
 		return nil, err
@@ -140,13 +133,12 @@ func renderAppAccordingToCueTemplate(addon *InstallPackage, parameters map[strin
 }
 
 // renderCompAccordingCUETemplate will return a component from cue template
-func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPackage, parameters map[string]interface{}) (*common2.ApplicationComponent, error) {
+func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPackage, args map[string]interface{}) (*common2.ApplicationComponent, error) {
 	comp := common2.ApplicationComponent{}
 
 	r := addonCueTemplateRender{
-		addon:                addon,
-		inputParameter:       parameters,
-		useResourceParameter: true,
+		addon:     addon,
+		inputArgs: args,
 	}
 	if err := r.toObject(cueTemplate.Data, &comp); err != nil {
 		return nil, err
@@ -177,27 +169,12 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 
 	// for legacy addons those hasn't define policy in template.cue but still want to deploy runtime cluster
 	// attach topology policy to application.
-	if checkLegacyAddon(app, addon) {
+	if checkNeedAttachTopologyPolicy(app, addon) {
 		if err := attachPolicyForLegacyAddon(ctx, app, addon, args, k8sClient); err != nil {
 			return nil, err
 		}
 	}
 	return app, nil
-}
-
-// checkLegacyAddon will check this addon want to deploy to runtime-cluster, but application template doesn't specify the
-// topology policy, then will attach the policy to application automatically.
-func checkLegacyAddon(app *v1beta1.Application, addon *InstallPackage) bool {
-	isLegacy := true
-	if addon.Meta.DeployTo != nil && (addon.Meta.DeployTo.RuntimeCluster || addon.Meta.DeployTo.LegacyRuntimeCluster) {
-		for _, policy := range app.Spec.Policies {
-			if policy.Type == v1alpha1.TopologyPolicyType {
-				isLegacy = false
-				break
-			}
-		}
-	}
-	return isLegacy
 }
 
 func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, addon *InstallPackage, args map[string]interface{}, k8sClient client.Client) error {
@@ -251,6 +228,20 @@ func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, a
 		}
 	}
 	return nil
+}
+
+// checkNeedAttachTopologyPolicy will check this addon want to deploy to runtime-cluster, but application template doesn't specify the
+// topology policy, then will attach the policy to application automatically.
+func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPackage) bool {
+	if !isDeployToRuntime(addon) {
+		return false
+	}
+	for _, policy := range app.Spec.Policies {
+		if policy.Type == v1alpha1.TopologyPolicyType {
+			return false
+		}
+	}
+	return true
 }
 
 func isDeployToRuntime(addon *InstallPackage) bool {

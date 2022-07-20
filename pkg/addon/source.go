@@ -319,6 +319,9 @@ func (r *Registry) GetUIData(meta *SourceMeta, opt ListOptions) (*UIData, error)
 	if err != nil {
 		return nil, err
 	}
+	if len(addon.GlobalParameters) != 0 {
+		addon.Parameters = addon.GlobalParameters
+	}
 	return addon, nil
 }
 

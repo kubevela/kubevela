@@ -305,10 +305,13 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		}
 	}
 
-	if opt.GetParameter && addon.Parameters != "" {
+	if opt.GetParameter && (len(addon.Parameters) != 0 || len(addon.GlobalParameters) != 0) {
 		err := genAddonAPISchema(addon)
 		if err != nil {
 			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
+		}
+		if len(addon.GlobalParameters) != 0 {
+			addon.Parameters = addon.GlobalParameters
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
@@ -328,11 +331,10 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 
 	// Read the installed data from UI metadata object to reduce network payload
 	var addon = &InstallPackage{
-		Meta:             uiData.Meta,
-		Definitions:      uiData.Definitions,
-		CUEDefinitions:   uiData.CUEDefinitions,
-		Parameters:       uiData.Parameters,
-		GlobalParameters: uiData.GlobalParameters,
+		Meta:           uiData.Meta,
+		Definitions:    uiData.Definitions,
+		CUEDefinitions: uiData.CUEDefinitions,
+		Parameters:     uiData.Parameters,
 	}
 
 	for contentType, method := range addonContentsReader {

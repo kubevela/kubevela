@@ -55,8 +55,7 @@ type InstallPackage struct {
 	// DefSchemas are UI schemas read by VelaUX, it will only be installed in control plane clusters
 	DefSchemas []ElementFile `json:"defSchemas,omitempty"`
 
-	Parameters       string `json:"parameters"`
-	GlobalParameters string `json:"globalParameters"`
+	Parameters string `json:"parameters"`
 
 	// CUETemplates and YAMLTemplates are resources needed to be installed in managed clusters
 	CUETemplates   []ElementFile        `json:"CUETemplates"`
