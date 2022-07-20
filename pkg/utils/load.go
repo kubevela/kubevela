@@ -30,6 +30,7 @@ import (
 func ReadRemoteOrLocalPath(pathOrURL string, saveLocal bool) ([]byte, error) {
 	var data []byte
 	var err error
+	fromLocalPath := false
 	switch {
 	case pathOrURL == "-":
 		data, err = ioutil.ReadAll(os.Stdin)
@@ -42,12 +43,13 @@ func ReadRemoteOrLocalPath(pathOrURL string, saveLocal bool) ([]byte, error) {
 			return nil, err
 		}
 	default:
+		fromLocalPath = true
 		data, err = os.ReadFile(filepath.Clean(pathOrURL))
 		if err != nil {
 			return nil, err
 		}
 	}
-	if saveLocal {
+	if saveLocal && !fromLocalPath {
 		if err = localSave(pathOrURL, data); err != nil {
 			return nil, err
 		}
