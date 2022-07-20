@@ -18,7 +18,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -28,8 +30,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/jsonpath"
+	"k8s.io/kubectl/pkg/cmd/get"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -94,11 +100,22 @@ const (
 // NewAppStatusCommand creates `status` command for showing status
 func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
+	var outputFormat string
 	cmd := &cobra.Command{
-		Use:     "status APP_NAME",
-		Short:   "Show status of an application.",
-		Long:    "Show status of vela application.",
-		Example: `vela status APP_NAME`,
+		Use:   "status APP_NAME",
+		Short: "Show status of an application.",
+		Long:  "Show status of vela application.",
+		Example: `  # Get basic app info
+  vela status APP_NAME
+
+  # Show detailed info in tree
+  vela status first-vela-app --tree --detail --detail-format list
+
+  # Get raw Application
+  vela status first-vela-app -o yaml
+
+  # Get raw Application status
+  vela status first-vela-app -o jsonpath='{.status}' | jq`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// check args
 			argsLength := len(args)
@@ -117,6 +134,11 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
+			}
+			// The user have defined output format,
+			// so we print the application yaml/json for them
+			if outputFormat != "" {
+				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
@@ -137,8 +159,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
 	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
 	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
-	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources")
-	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details. Can be one of inline (default), wide, list, table, raw.")
+	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
+	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format. One of: (json, yaml, jsonpath)")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -224,11 +247,11 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
 		ioStreams.Info("  Steps")
 		for _, step := range workflowStatus.Steps {
-			ioStreams.Infof("  - id:%s\n", step.ID)
-			ioStreams.Infof("    name:%s\n", step.Name)
-			ioStreams.Infof("    type:%s\n", step.Type)
-			ioStreams.Infof("    phase:%s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
-			ioStreams.Infof("    message:%s\n", step.Message)
+			ioStreams.Infof("  - id: %s\n", step.ID)
+			ioStreams.Infof("    name: %s\n", step.Name)
+			ioStreams.Infof("    type: %s\n", step.Type)
+			ioStreams.Infof("    phase: %s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
+			ioStreams.Infof("    message: %s\n", step.Message)
 		}
 		ioStreams.Infof("\n")
 	}
@@ -429,5 +452,70 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		options.DetailRetriever = msgRetriever
 	}
 	options.PrintResourceTree(cmd.OutOrStdout(), placements, currentRT, historyRTs)
+	return nil
+}
+
+// printRawApplication prints raw Application yaml/json/jsonpath
+func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
+	var app v1beta1.Application
+	var err error
+
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return fmt.Errorf("cannot get k8s client: %w", err)
+	}
+
+	err = k8sClient.Get(ctx, pkgtypes.NamespacedName{
+		Namespace: ns,
+		Name:      appName,
+	}, &app)
+	if err != nil {
+		return fmt.Errorf("cannot get application %s in namespace %s: %w", appName, ns, err)
+	}
+
+	return printApplicationUsingFormat(out, format, app)
+}
+
+func printApplicationUsingFormat(out io.Writer, format string, app v1beta1.Application) error {
+	switch format {
+	case "yaml":
+		b, err := yaml.Marshal(app)
+		if err != nil {
+			return err
+		}
+		_, _ = out.Write(b)
+	case "json":
+		b, err := json.MarshalIndent(app, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, _ = out.Write(b)
+	default:
+		// Not any of json/yaml/jsonpath, not supported
+		if !strings.HasPrefix(format, "jsonpath") {
+			return fmt.Errorf("output %s is not supported", format)
+		}
+
+		// format: jsonpath
+		s := strings.Split(format, "=")
+		if len(s) < 2 {
+			return fmt.Errorf("jsonpath template format specified but no template given")
+		}
+		path, err := get.RelaxedJSONPathExpression(s[1])
+		if err != nil {
+			return err
+		}
+
+		jp := jsonpath.New("").AllowMissingKeys(true)
+		err = jp.Parse(path)
+		if err != nil {
+			return err
+		}
+		err = jp.Execute(out, app)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
