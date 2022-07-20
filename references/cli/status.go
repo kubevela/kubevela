@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -111,7 +112,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
   # Show detailed info in tree
   vela status first-vela-app --tree --detail --detail-format list
 
-  # Get raw Application
+  # Get raw Application yaml (without managedFields)
   vela status first-vela-app -o yaml
 
   # Get raw Application status
@@ -135,8 +136,6 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if err != nil {
 				return err
 			}
-			// The user have defined output format,
-			// so we print the application yaml/json for them
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -455,7 +454,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	return nil
 }
 
-// printRawApplication prints raw Application yaml/json/jsonpath
+// printRawApplication prints raw Application in yaml/json/jsonpath (without managedFields).
 func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
 	var err error
 	app := &v1beta1.Application{}
@@ -473,57 +472,70 @@ func printRawApplication(ctx context.Context, c common.Args, format string, out 
 		return fmt.Errorf("cannot get application %s in namespace %s: %w", appName, ns, err)
 	}
 
-	// Set GVK because the object returned from client.Get()
-	// has empty GVK since the type info in inherent in the typed object.
-	// But we need that information.
+	// Set GVK, we need it
+	// because the object returned from client.Get() has empty GVK
+	// (since the type info is inherent in the typed object, so GVK is empty)
 	app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
+	str, err := formatApplicationString(format, app)
+	if err != nil {
+		return err
+	}
 
-	return printApplicationInFormat(out, format, app)
+	_, err = out.Write([]byte(str))
+	return err
 }
 
-func printApplicationInFormat(out io.Writer, format string, app *v1beta1.Application) error {
-	// We don't want managedFields, get rid of it.
+// formatApplicationString formats an Application to string in yaml/json/jsonpath for printing (without managedFields).
+//
+// format = "yaml" / "json" / "jsonpath={.field}"
+func formatApplicationString(format string, app *v1beta1.Application) (string, error) {
+	var ret string
+
+	// No, we don't want managedFields, get rid of it.
 	app.ManagedFields = nil
 
 	switch format {
 	case "yaml":
 		b, err := yaml.Marshal(app)
 		if err != nil {
-			return err
+			return "", err
 		}
-		_, _ = out.Write(b)
+		ret = string(b)
 	case "json":
 		b, err := json.MarshalIndent(app, "", "  ")
 		if err != nil {
-			return err
+			return "", err
 		}
-		_, _ = out.Write(b)
+		ret = string(b)
 	default:
-		// Not any of json/yaml/jsonpath, not supported
+		// format is not any of json/yaml/jsonpath, not supported
 		if !strings.HasPrefix(format, "jsonpath") {
-			return fmt.Errorf("output %s is not supported", format)
+			return "", fmt.Errorf("output %s is not supported", format)
 		}
 
-		// format: jsonpath
+		// format = jsonpath
 		s := strings.Split(format, "=")
 		if len(s) < 2 {
-			return fmt.Errorf("jsonpath template format specified but no template given")
+			return "", fmt.Errorf("jsonpath template format specified but no template given")
 		}
 		path, err := get.RelaxedJSONPathExpression(s[1])
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		jp := jsonpath.New("").AllowMissingKeys(true)
 		err = jp.Parse(path)
 		if err != nil {
-			return err
+			return "", err
 		}
-		err = jp.Execute(out, app)
+
+		buf := &bytes.Buffer{}
+		err = jp.Execute(buf, app)
 		if err != nil {
-			return err
+			return "", err
 		}
+		ret = buf.String()
 	}
 
-	return nil
+	return ret, nil
 }
