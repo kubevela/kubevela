@@ -168,3 +168,112 @@ func TestCheckNeedAttachTopologyPolicy(t *testing.T) {
 		Type: v1alpha1.SharedResourcePolicyType,
 	}}}}, addon4), true)
 }
+
+func TestGenerateAppFrameworkWithCue(t *testing.T) {
+	paraDefined := `parameter: {
+	// +usage=The clusters to install
+	clusters?: [...string]
+	namespace: string
+}`
+	cueTemplate := `output: {
+	   apiVersion: "core.oam.dev/v1beta1"
+	   kind: "Application"
+	   metadata: {
+	       name:  "velaux"
+	       namespace: "vela-system"
+	   }
+	   spec: {
+	       components: [{
+	           type: "k8s-objects"
+	           name: "vela-namespace"
+	           properties: objects: [{
+	               apiVersion: "v1"
+	               kind: "Namespace"
+	               metadata: name: parameter.namespace
+	           }]
+	       }]
+	       policies: [{
+	           type: "shared-resource"
+	           name: "namespace"
+	           properties: rules: [{selector: resourceTypes: ["Namespace"]}]
+	       }, {
+	           type: "topology"
+	           name: "deploy-topology"
+	           properties: {
+	               if parameter.clusters != _|_ {
+	                   clusters: parameter.clusters
+	               }
+	               if parameter.clusters == _|_ {
+	                   clusterLabelSelector: {}
+	               }
+	               namespace: parameter.namespace
+	           }
+	       }]
+	   }
+	}`
+	cueAddon := &InstallPackage{
+		Meta:           Meta{Name: "velaux", DeployTo: &DeployTo{RuntimeCluster: true}},
+		AppCueTemplate: ElementFile{Data: cueTemplate},
+		Parameters:     paraDefined,
+	}
+	app, err := generateAppFramework(cueAddon, map[string]interface{}{
+		"namespace": "vela-system",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, len(app.Spec.Components), 1)
+	str, err := json.Marshal(app.Spec.Components[0].Properties)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"objects":[{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"vela-system"}}]}`, string(str))
+
+	assert.Equal(t, len(app.Spec.Policies), 2)
+	str, err = json.Marshal(app.Spec.Policies)
+	assert.NoError(t, err)
+	assert.Equal(t, `[{"name":"namespace","type":"shared-resource","properties":{"rules":[{"selector":{"resourceTypes":["Namespace"]}}]}},{"name":"deploy-topology","type":"topology","properties":{"clusterLabelSelector":{},"namespace":"vela-system"}}]`, string(str))
+
+	assert.Equal(t, len(app.Labels), 2)
+}
+
+func TestGenerateAppFrameworkWithYamlTemplate(t *testing.T) {
+	yamlAddon := &InstallPackage{
+		Meta:        Meta{Name: "velaux"},
+		AppTemplate: nil,
+	}
+	app, err := generateAppFramework(yamlAddon, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, app.Spec.Components != nil, true)
+	assert.Equal(t, len(app.Labels), 2)
+
+	noCompAddon := &InstallPackage{
+		Meta:        Meta{Name: "velaux"},
+		AppTemplate: &v1beta1.Application{},
+	}
+	app, err = generateAppFramework(noCompAddon, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, app.Spec.Components != nil, true)
+	assert.Equal(t, len(app.Labels), 2)
+}
+
+func TestRenderCueResourceError(t *testing.T) {
+	cueTemplate1 := `{
+ type: "webservice"
+ name: "velaux"
+}`
+	cueTemplate2 := `output: {
+ type: "webservice"
+ name: "velaux"
+}`
+	comp, err := renderResources(&InstallPackage{
+		CUETemplates: []ElementFile{
+			{
+				Data: cueTemplate1,
+				Name: "tmplaate1.cue",
+			},
+			{
+				Data: cueTemplate2,
+				Name: "tmplaate2.cue",
+			},
+		},
+	}, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, len(comp), 1)
+}
