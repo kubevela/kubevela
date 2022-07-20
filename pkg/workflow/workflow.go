@@ -423,14 +423,14 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func (e *engine) getBackoffTimes(stepID string) (success bool, backoffTimes int) {
+func (e *engine) getBackoffTimes(stepID string) int {
 	if v, ok := e.wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffTimes, stepID); ok {
 		times, ok := v.(int)
 		if ok {
-			return true, times
+			return times
 		}
 	}
-	return false, 0
+	return -1
 }
 
 func (e *engine) getBackoffWaitTime() int {
@@ -438,17 +438,19 @@ func (e *engine) getBackoffWaitTime() int {
 	minTimes := 15
 	found := false
 	for _, step := range e.status.Steps {
-		success, backoffTimes := e.getBackoffTimes(step.ID)
-		if success && backoffTimes < minTimes {
-			minTimes = backoffTimes
+		if backoffTimes := e.getBackoffTimes(step.ID); backoffTimes > 0 {
 			found = true
+			if backoffTimes < minTimes {
+				minTimes = backoffTimes
+			}
 		}
 		if step.SubStepsStatus != nil {
 			for _, subStep := range step.SubStepsStatus {
-				success, backoffTimes := e.getBackoffTimes(subStep.ID)
-				if success && backoffTimes < minTimes {
-					minTimes = backoffTimes
+				if backoffTimes := e.getBackoffTimes(subStep.ID); backoffTimes > 0 {
 					found = true
+					if backoffTimes < minTimes {
+						minTimes = backoffTimes
+					}
 				}
 			}
 		}
