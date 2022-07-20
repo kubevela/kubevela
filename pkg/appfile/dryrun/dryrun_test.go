@@ -41,6 +41,10 @@ var _ = Describe("Test DryRun", func() {
 		err = json.Unmarshal(b, app)
 		Expect(err).Should(BeNil())
 
+		By("Validate App With Empty Namespace")
+		err = dryrunOpt.ValidateApp(context.Background(), "./testdata/dryrun-app.yaml")
+		Expect(err).Should(BeNil())
+
 		By("Execute DryRun")
 		comps, _, err := dryrunOpt.ExecuteDryRun(context.Background(), app)
 		Expect(err).Should(BeNil())

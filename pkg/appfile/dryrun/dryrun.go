@@ -114,7 +114,9 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-
+	if len(app.GetNamespace()) == 0 {
+		app.SetNamespace(corev1.NamespaceDefault)
+	}
 	app2 := app.DeepCopy()
 
 	err = d.Client.Get(ctx, client.ObjectKey{Namespace: app.GetNamespace(), Name: app.GetName()}, app2)
