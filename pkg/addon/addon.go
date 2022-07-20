@@ -85,8 +85,8 @@ const (
 	// TemplateFileName is the addon template.yaml file name
 	TemplateFileName string = "template.yaml"
 
-	// TemplateCueFileName is the addon template.cue file name
-	TemplateCueFileName string = "template.cue"
+	// AppTemplateCueFileName is the addon application template.cue file name
+	AppTemplateCueFileName string = "template.cue"
 
 	// GlobalParameterFileName is the addon global parameter.cue file name
 	GlobalParameterFileName string = "parameter.cue"
@@ -205,7 +205,7 @@ type Pattern struct {
 var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
-	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: TemplateCueFileName}, {Value: GlobalParameterFileName}}
+	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -321,11 +321,11 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 // GetInstallPackageFromReader get install package of addon from Reader, this is used to enable an addon
 func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData) (*InstallPackage, error) {
 	addonContentsReader := map[string]func(a *InstallPackage, reader AsyncReader, readPath string) error{
-		TemplateFileName:    readTemplate,
-		ResourcesDirName:    readResFile,
-		DefSchemaName:       readDefSchemaFile,
-		ViewDirName:         readViewFile,
-		TemplateCueFileName: readAppCueTemplate,
+		TemplateFileName:       readTemplate,
+		ResourcesDirName:       readResFile,
+		DefSchemaName:          readDefSchemaFile,
+		ViewDirName:            readViewFile,
+		AppTemplateCueFileName: readAppCueTemplate,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
@@ -630,32 +630,6 @@ func renderNeededNamespaceAsComps(addon *InstallPackage) []common2.ApplicationCo
 		nscomps = append(nscomps, comp)
 	}
 	return nscomps
-}
-
-func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
-	var resources []common2.ApplicationComponent
-	if len(addon.YAMLTemplates) != 0 {
-		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
-		if err != nil {
-			return nil, err
-		}
-		resources = append(resources, *comp)
-	}
-
-	for _, tmpl := range addon.CUETemplates {
-		comp, err := renderCompAccordingCUETemplate(tmpl, addon, args)
-		if err != nil && strings.Contains(err.Error(), "var(path=output) not exist") {
-			continue
-		}
-		if err != nil {
-			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
-		}
-		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
-			comp.Name = strings.Split(comp.Name, ".cue")[0]
-		}
-		resources = append(resources, *comp)
-	}
-	return resources, nil
 }
 
 func checkDeployClusters(ctx context.Context, k8sClient client.Client, args map[string]interface{}) ([]string, error) {

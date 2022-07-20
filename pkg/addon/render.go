@@ -45,6 +45,8 @@ type addonCueTemplateRender struct {
 	inputArgs map[string]interface{}
 }
 
+// This func can be used for addon render, supporting render app template and component.
+// Please notice the result will be stored in object parameter, so object must be a pointer type
 func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{}) error {
 	bt, err := json.Marshal(a.inputArgs)
 	if err != nil {
@@ -143,6 +145,7 @@ func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPacka
 	if err := r.toObject(cueTemplate.Data, &comp); err != nil {
 		return nil, err
 	}
+	// If the name of component has been set, just keep it, otherwise will set with file name.
 	if len(comp.Name) == 0 {
 		fileName := strings.ReplaceAll(cueTemplate.Name, path.Ext(cueTemplate.Name), "")
 		comp.Name = strings.ReplaceAll(fileName, ".", "-")
@@ -228,6 +231,32 @@ func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, a
 		}
 	}
 	return nil
+}
+
+func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
+	var resources []common2.ApplicationComponent
+	if len(addon.YAMLTemplates) != 0 {
+		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
+		if err != nil {
+			return nil, err
+		}
+		resources = append(resources, *comp)
+	}
+
+	for _, tmpl := range addon.CUETemplates {
+		comp, err := renderCompAccordingCUETemplate(tmpl, addon, args)
+		if err != nil && strings.Contains(err.Error(), "var(path=output) not exist") {
+			continue
+		}
+		if err != nil {
+			return nil, NewAddonError(fmt.Sprintf("fail to render cue template %s", err.Error()))
+		}
+		if addon.Name == ObservabilityAddon && strings.HasSuffix(comp.Name, ".cue") {
+			comp.Name = strings.Split(comp.Name, ".cue")[0]
+		}
+		resources = append(resources, *comp)
+	}
+	return resources, nil
 }
 
 // checkNeedAttachTopologyPolicy will check this addon want to deploy to runtime-cluster, but application template doesn't specify the

@@ -517,6 +517,7 @@ var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
+		DeployTo:      &DeployTo{RuntimeCluster: true},
 	},
 	CUEDefinitions: []ElementFile{
 		{
