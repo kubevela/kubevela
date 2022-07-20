@@ -478,10 +478,13 @@ func printRawApplication(ctx context.Context, c common.Args, format string, out 
 	// But we need that information.
 	app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
 
-	return printApplicationUsingFormat(out, format, app)
+	return printApplicationInFormat(out, format, app)
 }
 
-func printApplicationUsingFormat(out io.Writer, format string, app *v1beta1.Application) error {
+func printApplicationInFormat(out io.Writer, format string, app *v1beta1.Application) error {
+	// We don't want managedFields, get rid of it.
+	app.ManagedFields = nil
+
 	switch format {
 	case "yaml":
 		b, err := yaml.Marshal(app)
