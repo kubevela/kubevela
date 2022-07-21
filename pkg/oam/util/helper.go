@@ -869,6 +869,26 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 	return r
 }
 
+// ParseLabelString turns the label string into a map[string]string
+func ParseLabelString(labelString string) (map[string]string, error) {
+	if len(labelString) == 0 {
+		return nil, fmt.Errorf("the label string can't be empty")
+	}
+	labels := map[string]string{}
+	labelStrings := strings.Split(labelString, ",")
+	for index := range labelStrings {
+		labelSpec := strings.Split(labelStrings[index], "=")
+		if len(labelSpec) != 2 {
+			return nil, fmt.Errorf("unexpected label spec: %s", labelStrings[index])
+		}
+		if len(labelSpec[0]) == 0 {
+			return nil, fmt.Errorf("unexpected empty label key")
+		}
+		labels[labelSpec[0]] = labelSpec[1]
+	}
+	return labels, nil
+}
+
 // ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
 func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1beta1.ComponentDefinition,
 	workloadDef *v1beta1.WorkloadDefinition) error {

@@ -1992,3 +1992,47 @@ func TestConvertDefinitionRevName(t *testing.T) {
 		}
 	}
 }
+
+func TestParseLabels(t *testing.T) {
+	type args struct {
+		labelString string
+	}
+	tests := []struct {
+		args     args
+		want     map[string]string
+		hasError bool
+	}{
+		{
+			args:     args{labelString: "trivy-scan=true"},
+			want:     map[string]string{"trivy-scan": "true"},
+			hasError: false,
+		},
+		{
+			args:     args{labelString: "trivy-scan=true,key=value"},
+			want:     map[string]string{"trivy-scan": "true", "key": "value"},
+			hasError: false,
+		},
+		{
+			args:     args{labelString: ""},
+			want:     map[string]string{},
+			hasError: true,
+		},
+		{
+			args:     args{labelString: "trivy-scan$$true"},
+			want:     map[string]string{},
+			hasError: true,
+		},
+		{
+			args:     args{labelString: "trivy-scan=true$$key=value"},
+			want:     map[string]string{},
+			hasError: true,
+		},
+	}
+	for _, tt := range tests {
+		got, err := util.ParseLabelString(tt.args.labelString)
+		assert.Equal(t, tt.hasError, err != nil)
+		if !tt.hasError {
+			assert.Equal(t, tt.want, got)
+		}
+	}
+}
