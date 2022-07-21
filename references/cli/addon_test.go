@@ -22,16 +22,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fatih/color"
-
-	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
-
-	"github.com/getkin/kin-openapi/openapi3"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/fatih/color"
+	"github.com/getkin/kin-openapi/openapi3"
 	"gotest.tools/assert"
 
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )

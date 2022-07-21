@@ -86,11 +86,12 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 	return []FileData{{Path: path, Data: bs}}, nil
 }
 
-// IsJSONOrYAMLFile check if the path is a json or yaml file
-func IsJSONOrYAMLFile(path string) bool {
+// IsJSONYAMLorCUEFile check if the path is a json or yaml file
+func IsJSONYAMLorCUEFile(path string) bool {
 	return strings.HasSuffix(path, ".json") ||
 		strings.HasSuffix(path, ".yaml") ||
-		strings.HasSuffix(path, ".yml")
+		strings.HasSuffix(path, ".yml") ||
+		strings.HasSuffix(path, ".cue")
 }
 
 // IsEmptyDir checks if a given path is an empty directory
