@@ -18,7 +18,9 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -30,7 +32,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/jsonpath"
+	"k8s.io/kubectl/pkg/cmd/get"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -114,4 +121,63 @@ func (ui *UserInput) read() (string, error) {
 	}
 	resultStr := strings.TrimSuffix(line, "\n")
 	return resultStr, err
+}
+
+// formatApplicationString formats an Application to string in yaml/json/jsonpath for printing (without managedFields).
+//
+// format = "yaml" / "json" / "jsonpath={.field}"
+func formatApplicationString(format string, app *v1beta1.Application) (string, error) {
+	var ret string
+
+	if format == "" {
+		return "", fmt.Errorf("no format provided")
+	}
+
+	// No, we don't want managedFields, get rid of it.
+	app.ManagedFields = nil
+
+	switch format {
+	case "yaml":
+		b, err := yaml.Marshal(app)
+		if err != nil {
+			return "", err
+		}
+		ret = string(b)
+	case "json":
+		b, err := json.MarshalIndent(app, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		ret = string(b)
+	default:
+		// format is not any of json/yaml/jsonpath, not supported
+		if !strings.HasPrefix(format, "jsonpath") {
+			return "", fmt.Errorf("output %s is not supported", format)
+		}
+
+		// format = jsonpath
+		s := strings.Split(format, "=")
+		if len(s) < 2 {
+			return "", fmt.Errorf("jsonpath template format specified but no template given")
+		}
+		path, err := get.RelaxedJSONPathExpression(s[1])
+		if err != nil {
+			return "", err
+		}
+
+		jp := jsonpath.New("").AllowMissingKeys(true)
+		err = jp.Parse(path)
+		if err != nil {
+			return "", err
+		}
+
+		buf := &bytes.Buffer{}
+		err = jp.Execute(buf, app)
+		if err != nil {
+			return "", err
+		}
+		ret = buf.String()
+	}
+
+	return ret, nil
 }
