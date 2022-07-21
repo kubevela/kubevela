@@ -142,6 +142,16 @@ func (c *CR2UX) AddOrUpdate(ctx context.Context, targetApp *v1beta1.Application)
 		return err
 	}
 
+	if err = StoreApplicationRevision(ctx, dsApp, ds); err != nil {
+		log.Logger.Errorf("Store application revision to data store err %v", err)
+		return err
+	}
+
+	if err = StoreWorkflowRecord(ctx, dsApp, ds); err != nil {
+		log.Logger.Errorf("Store Workflow Record to data store err %v", err)
+		return err
+	}
+
 	if err = StoreAppMeta(ctx, dsApp, ds); err != nil {
 		log.Logger.Errorf("Store App Metadata to data store err %v", err)
 		return err

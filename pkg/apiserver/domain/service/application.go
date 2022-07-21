@@ -30,8 +30,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -264,7 +262,6 @@ func (c *applicationServiceImpl) DetailApplication(ctx context.Context, app *mod
 	for _, e := range envBindings {
 		envBindingNames = append(envBindingNames, e.Name)
 	}
-
 	var detail = &apisv1.DetailApplicationResponse{
 		ApplicationBase: *base,
 		Policies:        policyNames,
@@ -283,7 +280,11 @@ func (c *applicationServiceImpl) GetApplicationStatus(ctx context.Context, appmo
 	if err != nil {
 		return nil, err
 	}
-	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
+	envBinding, err := c.EnvBindingService.GetEnvBinding(ctx, appmodel, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: envBinding.AppDeployName}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -303,7 +304,11 @@ func (c *applicationServiceImpl) GetApplicationCRInEnv(ctx context.Context, appm
 	if err != nil {
 		return nil, err
 	}
-	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
+	envBinding, err := c.EnvBindingService.GetEnvBinding(ctx, appmodel, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: envBinding.AppDeployName}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -314,35 +319,23 @@ func (c *applicationServiceImpl) GetApplicationCRInEnv(ctx context.Context, appm
 }
 
 // GetApplicationCR get application CR in cluster
-func (c *applicationServiceImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
-	var apps v1beta1.ApplicationList
-	if appModel.IsSynced() {
+func (c *applicationServiceImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) ([]v1beta1.Application, error) {
+	var apps []v1beta1.Application
+	envbindings, err := c.EnvBindingService.GetEnvBindings(ctx, appModel)
+	if err != nil {
+		return nil, err
+	}
+	for _, env := range envbindings {
 		var app v1beta1.Application
-		err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.GetAppNamespaceForSynced(), Name: appModel.GetAppNameForSynced()}, &app)
+		err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.AppDeployNamespace, Name: env.AppDeployName}, &app)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 		if err == nil {
-			apps.Items = append(apps.Items, app)
-			return &apps, nil
+			apps = append(apps, app)
 		}
 	}
-	selector := labels.NewSelector()
-	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.GetAppNameForSynced()})
-	if err != nil {
-		return nil, err
-	}
-	selector = selector.Add(*re)
-	err = c.KubeClient.List(ctx, &apps, &client.ListOptions{
-		LabelSelector: selector,
-	})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return &apps, nil
-		}
-		return nil, err
-	}
-	return &apps, nil
+	return apps, nil
 }
 
 // PublishApplicationTemplate publish app template
@@ -512,6 +505,19 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 	}
 	app.Alias = req.Alias
 	app.Description = req.Description
+
+	// Some built-in labels can not be updated
+	if _, exist := app.Labels[model.LabelSyncNamespace]; exist {
+		req.Labels[model.LabelSyncNamespace] = app.Labels[model.LabelSyncNamespace]
+	}
+
+	if _, exist := app.Labels[model.LabelSourceOfTruth]; exist {
+		req.Labels[model.LabelSourceOfTruth] = app.Labels[model.LabelSourceOfTruth]
+	}
+
+	if _, exist := app.Labels[model.LabelSyncGeneration]; exist {
+		req.Labels[model.LabelSyncGeneration] = app.Labels[model.LabelSyncGeneration]
+	}
 	app.Labels = req.Labels
 	app.Icon = req.Icon
 	if err := c.Store.Put(ctx, app); err != nil {
@@ -541,7 +547,6 @@ func (c *applicationServiceImpl) ListRecords(ctx context.Context, appName string
 			return nil, err
 		}
 	}
-
 	resp := &apisv1.ListWorkflowRecordsResponse{
 		Records: []apisv1.WorkflowRecord{},
 	}
@@ -583,7 +588,6 @@ func (c *applicationServiceImpl) ListComponents(ctx context.Context, app *model.
 }
 
 // DetailComponent detail app component
-// TODO: Add status data about the component.
 func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model.Application, compName string) (*apisv1.DetailComponentResponse, error) {
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -618,7 +622,6 @@ func (c *applicationServiceImpl) ListPolicies(ctx context.Context, app *model.Ap
 }
 
 // DetailPolicy detail app policy
-// TODO: Add status data about the policy.
 func (c *applicationServiceImpl) DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error) {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -704,6 +707,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
+		RevisionCRName: version,
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
 		DeployUser:     userName,
@@ -748,6 +752,12 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	appRevision.Status = model.RevisionStatusRunning
 	if err := c.Store.Put(ctx, appRevision); err != nil {
 		log.Logger.Warnf("update app revision failure %s", err.Error())
+	}
+
+	// step7: change the source of trust
+	app.Labels[model.LabelSourceOfTruth] = model.FromUX
+	if err := c.Store.Put(ctx, app); err != nil {
+		log.Logger.Warnf("failed to update app %s", err.Error())
 	}
 
 	return &apisv1.ApplicationDeployResponse{
@@ -957,7 +967,7 @@ func (c *applicationServiceImpl) DeleteApplication(ctx context.Context, app *mod
 	if err != nil {
 		return err
 	}
-	if len(crs.Items) > 0 {
+	if len(crs) > 0 {
 		return bcode.ErrApplicationRefusedDelete
 	}
 	// query all components to deleted

@@ -65,6 +65,8 @@ type DataStoreApp struct {
 	Policies []*ApplicationPolicy
 	Workflow *Workflow
 	Targets  []*Target
+	Record   *WorkflowRecord
+	Revision *ApplicationRevision
 }
 
 const (

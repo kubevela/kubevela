@@ -28,7 +28,7 @@ func CreateEnvBindingModel(app *model.Application, req apisv1.CreateApplicationE
 	envBinding := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          req.Name,
-		AppDeployName: app.GetAppNameForSynced(),
+		AppDeployName: app.Name,
 	}
 	return envBinding
 }
@@ -38,7 +38,7 @@ func ConvertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 	re := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          envBind.Name,
-		AppDeployName: app.GetAppNameForSynced(),
+		AppDeployName: envBind.Name,
 	}
 	return &re
 }

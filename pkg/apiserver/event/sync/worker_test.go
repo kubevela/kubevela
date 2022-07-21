@@ -67,7 +67,7 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 			KubeClient:         k8sClient,
 			KubeConfig:         cfg,
 			Store:              ds,
-			Queue:              workqueue.New(),
+			Queue:              workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 			ProjectService:     crux.projectService,
 			ApplicationService: crux.applicationService,
 			TargetService:      crux.targetService,
