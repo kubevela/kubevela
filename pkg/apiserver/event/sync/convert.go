@@ -105,8 +105,8 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		envName := model.AutoGenEnvNamePrefix + targetApp.Namespace
 		// Get the env name from the label of namespace
 		// If the namespace created by `vela env init`
-		if c.cli.Get(ctx, types.NamespacedName{Name: targetApp.Namespace}, &namespace) == nil {
-			if env, ok := namespace.Labels[oam.LabelNamespaceOfEnvName]; ok {
+		if c.cli.Get(ctx, types.NamespacedName{Name: targetApp.Namespace}, &namespace) == nil && namespace.Labels != nil {
+			if env := namespace.Labels[oam.LabelNamespaceOfEnvName]; env != "" {
 				envName = env
 			}
 		}
