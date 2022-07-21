@@ -66,6 +66,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		Expect(common.ReadYamlToObject("./testdata/example-app.yaml", &app)).Should(BeNil())
 		app.Spec.Components[0].Name = component1Name
 		app.Spec.Components[1].Name = component2Name
+		app.Name = appName
 
 		req := apiv1.ApplicationRequest{
 			Components: app.Spec.Components,

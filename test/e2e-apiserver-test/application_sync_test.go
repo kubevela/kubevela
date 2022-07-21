@@ -26,7 +26,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
-	apiv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -37,7 +36,7 @@ var _ = Describe("Test the application synchronizing", func() {
 		Expect(common.ReadYamlToObject("./testdata/example-app.yaml", &app)).Should(BeNil())
 		app.Spec.Components[0].Name = appName
 		app.Name = appName
-		req := apiv1.ApplicationRequest{
+		req := apisv1.ApplicationRequest{
 			Components: app.Spec.Components,
 			Policies:   app.Spec.Policies,
 			Workflow:   app.Spec.Workflow,
@@ -62,7 +61,7 @@ var _ = Describe("Test the application synchronizing", func() {
 			Expect(decodeResponseBody(res, &detail)).Should(Succeed())
 			Expect(cmp.Diff(len(detail.Policies), 3)).Should(BeEmpty())
 			Expect(cmp.Diff(len(detail.EnvBindings), 1)).Should(BeEmpty())
-			Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(1))).Should(BeEmpty())
+			Expect(cmp.Diff(detail.ResourceInfo.ComponentNum, int64(2))).Should(BeEmpty())
 			break
 		}
 	})

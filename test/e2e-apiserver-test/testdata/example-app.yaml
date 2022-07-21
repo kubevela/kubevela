@@ -15,6 +15,13 @@ spec:
         - type: scaler
           properties:
             replicas: 1
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
   policies:
     - name: target-default
       type: topology

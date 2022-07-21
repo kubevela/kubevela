@@ -507,16 +507,18 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 	app.Description = req.Description
 
 	// Some built-in labels can not be updated
-	if _, exist := app.Labels[model.LabelSyncNamespace]; exist {
-		req.Labels[model.LabelSyncNamespace] = app.Labels[model.LabelSyncNamespace]
-	}
+	if app.Labels != nil && req.Labels != nil {
+		if _, exist := app.Labels[model.LabelSyncNamespace]; exist {
+			req.Labels[model.LabelSyncNamespace] = app.Labels[model.LabelSyncNamespace]
+		}
 
-	if _, exist := app.Labels[model.LabelSourceOfTruth]; exist {
-		req.Labels[model.LabelSourceOfTruth] = app.Labels[model.LabelSourceOfTruth]
-	}
+		if _, exist := app.Labels[model.LabelSourceOfTruth]; exist {
+			req.Labels[model.LabelSourceOfTruth] = app.Labels[model.LabelSourceOfTruth]
+		}
 
-	if _, exist := app.Labels[model.LabelSyncGeneration]; exist {
-		req.Labels[model.LabelSyncGeneration] = app.Labels[model.LabelSyncGeneration]
+		if _, exist := app.Labels[model.LabelSyncGeneration]; exist {
+			req.Labels[model.LabelSyncGeneration] = app.Labels[model.LabelSyncGeneration]
+		}
 	}
 	app.Labels = req.Labels
 	app.Icon = req.Icon
@@ -755,6 +757,9 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	}
 
 	// step7: change the source of trust
+	if app.Labels == nil {
+		app.Labels = make(map[string]string)
+	}
 	app.Labels[model.LabelSourceOfTruth] = model.FromUX
 	if err := c.Store.Put(ctx, app); err != nil {
 		log.Logger.Warnf("failed to update app %s", err.Error())

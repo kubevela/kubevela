@@ -38,7 +38,7 @@ func ConvertToEnvBindingModel(app *model.Application, envBind apisv1.EnvBinding)
 	re := model.EnvBinding{
 		AppPrimaryKey: app.Name,
 		Name:          envBind.Name,
-		AppDeployName: envBind.Name,
+		AppDeployName: app.Name,
 	}
 	return &re
 }

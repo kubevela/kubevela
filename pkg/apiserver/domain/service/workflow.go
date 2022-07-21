@@ -382,16 +382,20 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		// try to sync the status from the controller revision
 		var revision = &model.ApplicationRevision{AppPrimaryKey: record.AppPrimaryKey, Version: record.RevisionPrimaryKey}
 		if err := w.Store.Get(ctx, revision); err != nil {
-			if errors.Is(err, datastore.ErrRecordNotExist) {
-				return bcode.ErrApplicationRevisionNotExist
-			}
-			return err
+			log.Logger.Errorf("failed to get the application revision from database %s", err.Error())
+			continue
 		}
 
 		var appRevision v1beta1.ApplicationRevision
 		if err := w.KubeClient.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: revision.RevisionCRName}, &appRevision); err != nil {
+			if apierrors.IsNotFound(err) {
+				if err := w.setRecordToTerminated(ctx, record.AppPrimaryKey, record.Name); err != nil {
+					log.Logger.Errorf("failed to set the record status to terminated %s", err.Error())
+				}
+				continue
+			}
 			log.Logger.Warnf("failed to get the application revision %s", err.Error())
-			return nil
+			continue
 		}
 
 		appRevision.Spec.Application.Status.Workflow = appRevision.Status.Workflow
@@ -631,7 +635,6 @@ func (w *workflowServiceImpl) TerminateRecord(ctx context.Context, appModel *mod
 	if err != nil {
 		return err
 	}
-
 	if err := TerminateWorkflow(ctx, w.KubeClient, oamApp); err != nil {
 		return err
 	}
