@@ -382,6 +382,22 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 		// try to sync the status from the controller revision
 		var revision = &model.ApplicationRevision{AppPrimaryKey: record.AppPrimaryKey, Version: record.RevisionPrimaryKey}
 		if err := w.Store.Get(ctx, revision); err != nil {
+			if errors.Is(err, datastore.ErrRecordNotExist) {
+				// If the application revision is not exist, the record do not need be synced
+				var record = &model.WorkflowRecord{
+					AppPrimaryKey: record.AppPrimaryKey,
+					Name:          recordName,
+				}
+				if err := w.Store.Get(ctx, record); err == nil {
+					record.Finished = "true"
+					record.Status = model.RevisionStatusFail
+					err := w.Store.Put(ctx, record)
+					if err != nil {
+						log.Logger.Errorf("failed to set the workflow status is failure %s", err.Error())
+					}
+					continue
+				}
+			}
 			log.Logger.Errorf("failed to get the application revision from database %s", err.Error())
 			continue
 		}

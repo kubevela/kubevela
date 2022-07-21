@@ -80,8 +80,8 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if len(oldApp.Status.AppliedResources) != 2 {
-				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
+			if len(oldApp.Status.AppliedResources) != 3 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 3, len(oldApp.Status.AppliedResources))
 			}
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
@@ -111,8 +111,8 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if len(oldApp.Status.AppliedResources) != 2 {
-				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
+			if len(oldApp.Status.AppliedResources) != 3 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 3, len(oldApp.Status.AppliedResources))
 			}
 			return nil
 		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
