@@ -155,7 +155,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
 	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format. One of: (json, yaml, jsonpath)")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
