@@ -131,6 +131,7 @@ func NewEnvDeleteCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 
 // NewEnvSetCommand creates `env set` command for setting current environment
 func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var envArgs types.EnvMeta
 	cmd := &cobra.Command{
 		Use:                   "set",
 		Aliases:               []string{"sw"},
@@ -147,13 +148,14 @@ func NewEnvSetCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
-			return SetEnv(args, ioStreams)
+			return SetEnv(&envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
+	cmd.Flags().StringVar(&envArgs.Labels, "labels", "", "set labels for namespace")
 	return cmd
 }
 
@@ -205,7 +207,7 @@ func CreateEnv(envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStream
 }
 
 // SetEnv sets current environment
-func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
+func SetEnv(envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify environment name for vela env command")
 	}
@@ -213,6 +215,11 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		return err
+	}
+	if envArgs.Labels != "" {
+		envArgs.Name = envMeta.Name
+		// just set labels, not change current env
+		return env.SetEnvLabels(envArgs)
 	}
 	err = env.SetCurrentEnv(envMeta)
 	if err != nil {
