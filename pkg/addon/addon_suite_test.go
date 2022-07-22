@@ -319,7 +319,7 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		}
 		ap, err := RenderApp(ctx, i, k8sClient, args)
 		Expect(err).Should(BeNil())
-		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: "specified-addon-clusters",
+		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: specifyAddonClustersTopologyPolicy,
 			Type:       v1alpha12.TopologyPolicyType,
 			Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["add-c1","add-c2","local"]}`)}}}))
 	})

@@ -47,6 +47,7 @@ import (
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -290,10 +291,9 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 
 	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
-	steps := app.Spec.Workflow.Steps
-	assert.True(t, len(steps) >= 2)
-	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
-	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
+	policies := app.Spec.Policies
+	assert.True(t, len(policies) == 1)
+	assert.Equal(t, policies[0].Type, v1alpha1.TopologyPolicyType)
 }
 
 func TestRenderDefinitions(t *testing.T) {
@@ -517,6 +517,7 @@ var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
+		DeployTo:      &DeployTo{RuntimeCluster: true},
 	},
 	CUEDefinitions: []ElementFile{
 		{
@@ -756,84 +757,6 @@ status: {
 }
 
 `
-
-func TestRenderApp4Observability(t *testing.T) {
-	k8sClient := fake.NewClientBuilder().Build()
-	testcases := []struct {
-		addon       InstallPackage
-		args        map[string]interface{}
-		application string
-		err         error
-	}{
-		{
-			addon: InstallPackage{
-				Meta: Meta{
-					Name: "observability",
-				},
-			},
-			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application"}]}},"status":{}}`,
-		},
-	}
-	for _, tc := range testcases {
-		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
-			assert.Equal(t, tc.err, err)
-			if app != nil {
-				data, err := json.Marshal(app)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.application, string(data))
-			}
-		})
-	}
-}
-
-// TestRenderApp4ObservabilityWithEnvBinding tests the case of RenderApp for Addon Observability with some Kubernetes data
-func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
-	k8sClient := fake.NewClientBuilder().Build()
-	ctx := context.Background()
-	secret1 := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-secret",
-			Labels: map[string]string{
-				clustercommon.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
-			},
-		},
-		Data: map[string][]byte{
-			"test-key": []byte("test-value"),
-		},
-	}
-	err := k8sClient.Create(ctx, secret1)
-	assert.NoError(t, err)
-
-	testcases := []struct {
-		addon       InstallPackage
-		args        map[string]interface{}
-		application string
-		err         error
-	}{
-		{
-			addon: InstallPackage{
-				Meta: Meta{
-					Name: "observability",
-				},
-			},
-			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":[{"name":"test-secret","placement":{"clusterSelector":{"name":"test-secret"}}}]}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"},{"name":"test-secret","type":"deploy2env","properties":{"env":"test-secret","parallel":true,"policy":"domain"}}]}},"status":{}}`,
-		},
-	}
-	for _, tc := range testcases {
-		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
-			assert.Equal(t, tc.err, err)
-			if app != nil {
-				data, err := json.Marshal(app)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.application, string(data))
-			}
-		})
-	}
-}
 
 func TestGetPatternFromItem(t *testing.T) {
 	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "", "some-sub-path", "", ossType)
@@ -1199,10 +1122,14 @@ func TestReadViewFile(t *testing.T) {
 func TestRenderCUETemplate(t *testing.T) {
 	fileDate, err := os.ReadFile("./testdata/example/resources/configmap.cue")
 	assert.NoError(t, err)
-	component, err := renderCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, "{\"example\": \"\"}", map[string]interface{}{
+	addon := &InstallPackage{
+		Meta: Meta{
+			Version: "1.0.1",
+		},
+		Parameters: "{\"example\": \"\"}",
+	}
+	component, err := renderCompAccordingCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, addon, map[string]interface{}{
 		"example": "render",
-	}, Meta{
-		Version: "1.0.1",
 	})
 	assert.NoError(t, err)
 	assert.True(t, component.Type == "raw")
