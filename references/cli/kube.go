@@ -189,7 +189,6 @@ func (opt *KubeApplyOptions) Run(ctx context.Context, cli client.Client) error {
 		_, _ = fmt.Fprintf(opt.Out, "Apply objects in cluster %s.\n", cluster)
 		ctx := multicluster.ContextWithClusterName(ctx, cluster)
 		for _, obj := range opt.objects {
-			fmt.Println("XXXXXX creating", obj.GetName())
 			copiedObj := &unstructured.Unstructured{}
 			bs, err := obj.MarshalJSON()
 			if err != nil {
