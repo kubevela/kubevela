@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: podinfo
+  name: hello-world-ref
 spec:
   replicas: 0
   selector:
     matchLabels:
-      app: podinfo
+      app: hello-world
   template:
     metadata:
       labels:
-        app: podinfo
+        app: hello-world
     spec:
       containers:
-        - image: stefanprodan/podinfo:6.0.2
-          name: podinfo
+        - image: crccheck/hello-world
+          name: hello-world

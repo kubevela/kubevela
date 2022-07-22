@@ -4,12 +4,12 @@ metadata:
   name: podinfo
 spec:
   components:
-    - name: podinfo
+    - name: hello-world
       type: ref-objects
       properties:
         objects:
           - resource: deployment
-            name: podinfo
+            name: hello-world-ref
           - resource: configmap
             labelSelector:
               app: podinfo
@@ -23,4 +23,4 @@ spec:
       properties:
         clusters: ["cluster-worker"]
   workflow:
-    ref: deploy-podinfo
+    ref: deploy-hello-world

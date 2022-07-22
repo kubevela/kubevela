@@ -1,21 +1,21 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: podinfo
+  name: hello-world
   annotations:
     app.oam.dev/publishVersion: alpha1
 spec:
   components:
-    - name: podinfo
+    - name: hello-world
       type: ref-objects
       properties:
         objects:
           - resource: deployment
-            name: podinfo
+            name: hello-world-ref
   policies:
     - type: topology
       name: topology-worker
       properties:
         clusters: ["cluster-worker"]
   workflow:
-    ref: deploy-podinfo
+    ref: deploy-hello-world

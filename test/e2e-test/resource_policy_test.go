@@ -63,7 +63,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 120*time.Second).Should(Succeed())
 
 		By("test state-keep")
 		deploy := &v13.Deployment{}
@@ -118,7 +118,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 120*time.Second).Should(Succeed())
 
 		By("upgrade to v2 (same component)")
 		Eventually(func(g Gomega) {
@@ -217,7 +217,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
 			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationWorkflowSuspending))
-		}, 30*time.Second).Should(Succeed())
+		}, 60*time.Second).Should(Succeed())
 
 		By("test suspending app state-keep")
 		deploy := &v13.Deployment{}
