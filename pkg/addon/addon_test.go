@@ -1260,3 +1260,100 @@ func TestGenerateAnnotation(t *testing.T) {
 	assert.Equal(t, res[velaSystemRequirement], "")
 	assert.Equal(t, res[kubernetesSystemRequirement], ">=1.20.1")
 }
+
+func TestMergeAddonInstallArgs(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	ctx := context.Background()
+
+	testcases := []struct {
+		name        string
+		legacyArgs  string
+		args        map[string]interface{}
+		mergedArgs  string
+		application string
+		err         error
+	}{
+		{
+			name:       "addon1",
+			legacyArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+			args: map[string]interface{}{
+				"serviceType": "NodePort",
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			name:       "addon2",
+			legacyArgs: "{\"clusters\":[\"\"]}",
+			args: map[string]interface{}{
+				"repo":             "hub.vela.com",
+				"serviceType":      "NodePort",
+				"imagePullSecrets": []string{"test-hub"},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			name:       "addon3",
+			legacyArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+			args: map[string]interface{}{
+				"imagePullSecrets": []string{"test-hub-2"},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub-2\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			// merge nested parameters
+			name:       "addon4",
+			legacyArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+			args: map[string]interface{}{
+				"p1": map[string]interface{}{
+					"p12": "p12-v2",
+					"p13": "p13-v1",
+				},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v2\",\"p13\":\"p13-v1\"}}",
+		},
+		{
+			// there is not legacyArgs
+			name:       "addon5",
+			legacyArgs: "",
+			args: map[string]interface{}{
+				"p1": map[string]interface{}{
+					"p12": "p12-v2",
+					"p13": "p13-v1",
+				},
+			},
+			mergedArgs: "{\"p1\":{\"p12\":\"p12-v2\",\"p13\":\"p13-v1\"}}",
+		},
+		{
+			// there is not new args
+			name:       "addon6",
+			legacyArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+			args:       nil,
+			mergedArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			if len(tc.legacyArgs) != 0 {
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      addonutil.Addon2SecName(tc.name),
+						Namespace: types.DefaultKubeVelaNS,
+					},
+					Data: map[string][]byte{
+						AddonParameterDataKey: []byte(tc.legacyArgs),
+					},
+				}
+				err := k8sClient.Create(ctx, secret)
+				assert.NoError(t, err)
+			}
+
+			addonArgs, err := MergeAddonInstallArgs(ctx, k8sClient, tc.name, tc.args)
+			assert.NoError(t, err)
+			args, err := json.Marshal(addonArgs)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.mergedArgs, string(args), tc.name)
+		})
+	}
+
+}
