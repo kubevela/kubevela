@@ -42,9 +42,8 @@ import (
 )
 
 type PodStatus struct {
-	Name       string      `json:"name"`
-	Containers []string    `json:"containers"`
-	Events     interface{} `json:"events"`
+	Cluster   string `json:"cluster"`
+	Component string `json:"component"`
 }
 type Status struct {
 	PodList []PodStatus `json:"podList,omitempty"`
@@ -121,7 +120,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		status := new(Status)
 		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
 		Expect(len(status.PodList)).Should(Equal(1))
-		Expect(status.PodList[0].Containers[0]).Should(Equal(component1Name))
+		Expect(status.PodList[0].Component).Should(Equal(component1Name))
 
 		Eventually(func() error {
 			queryRes1 := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"))
@@ -137,7 +136,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			if len(status1.PodList) != 1 {
 				return errors.New("pod number is zero")
 			}
-			if status1.PodList[0].Containers[0] != component2Name {
+			if status1.PodList[0].Component != component2Name {
 				return errors.New("container name is not correct")
 			}
 			return nil

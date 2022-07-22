@@ -111,7 +111,7 @@ data:
       }]
       podsError: [ for pods in collectedPods if pods.err != _|_ {pods.err}]
       status: {
-        if len(podsError) == 0 {
+        if len(podsError) == 0 && podsWithCluster != _|_ {
           podList: [ for pod in podsWithCluster {
             cluster:   pod.cluster
             workload:  pod.workload
@@ -142,6 +142,9 @@ data:
         }
         if len(podsError) != 0 {
           error: strings.Join(podsError, ",")
+        }
+        if podsWithCluster == _|_ {
+          podList: []
         }
       }
     }
