@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -211,10 +212,17 @@ func decodeResponseBody(resp *http.Response, dst interface{}) error {
 	if resp.Body == nil {
 		return fmt.Errorf("response body is nil")
 	}
+	defer resp.Body.Close()
 	if dst != nil {
-		err := json.NewDecoder(resp.Body).Decode(dst)
-		Expect(err).Should(BeNil())
-		return resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(body, dst)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	return resp.Body.Close()
+	return nil
 }
