@@ -21,7 +21,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +36,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/apiserver"
 	"github.com/oam-dev/kubevela/pkg/apiserver/config"
+	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/clients"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
@@ -82,9 +85,13 @@ var _ = BeforeSuite(func() {
 	By("wait for api server to start")
 	Eventually(
 		func() error {
+			password := os.Getenv("VELA_UX_PASSWORD")
+			if password == "" {
+				password = service.InitAdminPassword
+			}
 			var req = apisv1.LoginRequest{
 				Username: "admin",
-				Password: "VelaUX12345",
+				Password: password,
 			}
 			bodyByte, err := json.Marshal(req)
 			Expect(err).Should(BeNil())
@@ -118,11 +125,13 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	var nsList v1.NamespaceList
-	err := k8sClient.List(context.TODO(), &nsList)
-	Expect(err).ToNot(HaveOccurred())
-	for _, ns := range nsList.Items {
-		if strings.HasPrefix(ns.Name, testNSprefix) {
-			_ = k8sClient.Delete(context.TODO(), &ns)
+	if k8sClient != nil {
+		err := k8sClient.List(context.TODO(), &nsList)
+		Expect(err).ToNot(HaveOccurred())
+		for _, ns := range nsList.Items {
+			if strings.HasPrefix(ns.Name, testNSprefix) {
+				_ = k8sClient.Delete(context.TODO(), &ns)
+			}
 		}
 	}
 })
@@ -203,10 +212,17 @@ func decodeResponseBody(resp *http.Response, dst interface{}) error {
 	if resp.Body == nil {
 		return fmt.Errorf("response body is nil")
 	}
+	defer resp.Body.Close()
 	if dst != nil {
-		err := json.NewDecoder(resp.Body).Decode(dst)
-		Expect(err).Should(BeNil())
-		return resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(body, dst)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	return resp.Body.Close()
+	return nil
 }

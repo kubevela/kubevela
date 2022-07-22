@@ -99,9 +99,10 @@ func (w *Workflow) Index() map[string]string {
 // WorkflowRecord is the workflow record database model
 type WorkflowRecord struct {
 	BaseModel
-	WorkflowName       string               `json:"workflowName"`
-	WorkflowAlias      string               `json:"workflowAlias"`
-	AppPrimaryKey      string               `json:"appPrimaryKey"`
+	WorkflowName  string `json:"workflowName"`
+	WorkflowAlias string `json:"workflowAlias"`
+	AppPrimaryKey string `json:"appPrimaryKey"`
+	// RevisionPrimaryKey: should be assigned the version(PublishVersion)
 	RevisionPrimaryKey string               `json:"revisionPrimaryKey"`
 	Name               string               `json:"name"`
 	Namespace          string               `json:"namespace"`

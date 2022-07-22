@@ -123,7 +123,7 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 	dsApp.Eb = &model.EnvBinding{
 		AppPrimaryKey: appMeta.PrimaryKey(),
 		Name:          dsApp.Env.Name,
-		AppDeployName: appMeta.GetAppNameForSynced(),
+		AppDeployName: targetApp.Name,
 	}
 
 	for i := range dsApp.Targets {
@@ -166,6 +166,15 @@ func (c *CR2UX) ConvertApp2DatastoreApp(ctx context.Context, targetApp *v1beta1.
 		}
 		plcModel.EnvName = dsApp.Env.Name
 		dsApp.Policies = append(dsApp.Policies, &plcModel)
+	}
+
+	// 7. convert the revision
+	if revision := convert.FromCRApplicationRevision(ctx, cli, targetApp, *dsApp.Workflow, dsApp.Env.Name); revision != nil {
+		dsApp.Revision = revision
+	}
+	// 8. convert the workflow record
+	if record := convert.FromCRWorkflowRecord(targetApp, *dsApp.Workflow, dsApp.Revision); record != nil {
+		dsApp.Record = record
 	}
 	return dsApp, nil
 }

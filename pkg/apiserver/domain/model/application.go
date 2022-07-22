@@ -18,7 +18,6 @@ package model
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -67,18 +66,6 @@ func (a *Application) Index() map[string]string {
 		index["project"] = a.Project
 	}
 	return index
-}
-
-// GetAppNameForSynced will trim namespace suffix for synced CR
-func (a *Application) GetAppNameForSynced() string {
-	if a.Labels == nil {
-		return a.Name
-	}
-	namespace := a.Labels[LabelSyncNamespace]
-	if namespace == "" {
-		return a.Name
-	}
-	return strings.TrimSuffix(a.Name, "-"+namespace)
 }
 
 // GetAppNamespaceForSynced will return the namespace of synced CR
@@ -267,6 +254,9 @@ type ApplicationRevision struct {
 	// ApplyAppConfig Stores the application configuration during the current deploy.
 	ApplyAppConfig string `json:"applyAppConfig,omitempty"`
 
+	// RevisionCRName This is associated with the application revision in the cluster.
+	RevisionCRName string `json:"revisionCRName"`
+
 	// Deploy event status
 	Status string `json:"status"`
 	Reason string `json:"reason"`
@@ -276,7 +266,7 @@ type ApplicationRevision struct {
 
 	// Information that users can note.
 	Note string `json:"note"`
-	// TriggerType the event trigger source, Web or API
+	// TriggerType the event trigger source, Web、API、SyncFromCR
 	TriggerType string `json:"triggerType"`
 
 	// WorkflowName deploy controller by workflow

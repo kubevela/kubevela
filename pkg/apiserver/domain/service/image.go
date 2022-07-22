@@ -40,6 +40,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 )
 
+// True -
+const True = "true"
+
 // NewImageService create a image service instance
 func NewImageService() ImageService {
 	return &imageImpl{}
@@ -148,8 +151,8 @@ func (i *imageImpl) GetImageInfo(ctx context.Context, project, secretName, image
 func getAccountFromSecret(secret corev1.Secret, registryDomain string) (insecure, useHTTP bool, username, password string) {
 	if secret.Data != nil {
 		// If users use the self-signed certificate, enable the insecure-skip-verify
-		insecure = string(secret.Data["insecure-skip-verify"]) == "true"
-		useHTTP = string(secret.Data["protocol-use-http"]) == "true"
+		insecure = string(secret.Data["insecure-skip-verify"]) == True
+		useHTTP = string(secret.Data["protocol-use-http"]) == True
 		conf := secret.Data[".dockerconfigjson"]
 		if len(conf) > 0 {
 			var authConfig map[string]map[string]map[string]string

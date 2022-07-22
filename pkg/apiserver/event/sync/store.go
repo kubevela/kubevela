@@ -233,6 +233,38 @@ func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.
 	return ds.Add(ctx, dsApp.Workflow)
 }
 
+// StoreWorkflowRecord will sync workflow status to datastore.
+func StoreWorkflowRecord(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+	if dsApp.Record == nil {
+		return nil
+	}
+	records, err := ds.List(ctx, &model.WorkflowRecord{AppPrimaryKey: dsApp.AppMeta.Name, Name: dsApp.Record.Name}, nil)
+	if err == nil && len(records) > 0 {
+		return nil
+	}
+	if err != nil {
+		// other database error, return it
+		return err
+	}
+	return ds.Add(ctx, dsApp.Record)
+}
+
+// StoreApplicationRevision will sync the application revision to datastore.
+func StoreApplicationRevision(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+	if dsApp.Revision == nil {
+		return nil
+	}
+	err := ds.Get(ctx, &model.ApplicationRevision{AppPrimaryKey: dsApp.AppMeta.Name, Version: dsApp.Revision.Version})
+	if err == nil {
+		return ds.Put(ctx, dsApp.Revision)
+	}
+	if !errors.Is(err, datastore.ErrRecordNotExist) {
+		// other database error, return it
+		return err
+	}
+	return ds.Add(ctx, dsApp.Revision)
+}
+
 // StoreTargets will sync targets from application CR to datastore
 func StoreTargets(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore, targetService service.TargetService) error {
 	for _, t := range dsApp.Targets {
