@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -263,7 +264,7 @@ func SetEnvLabels(envArgs *types.EnvMeta) error {
 	if err != nil {
 		return err
 	}
-	labels, err := util.ParseLabelString(envArgs.Labels)
+	labels, err := labels.ConvertSelectorToLabelsMap(envArgs.Labels)
 	if err != nil {
 		return err
 	}
