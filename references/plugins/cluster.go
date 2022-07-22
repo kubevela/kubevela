@@ -350,14 +350,11 @@ func GetExample(annotation map[string]string) string {
 	if !ok {
 		return ""
 	}
-	fmt.Println("XXXXX", examplePath)
 	if !utils.IsValidURL(examplePath) {
-		fmt.Println("XXyyy", examplePath)
 		return ""
 	}
 	data, err := common.HTTPGetWithOption(context.Background(), examplePath, nil)
 	if err != nil {
-		fmt.Println("XXyyy", err)
 		return ""
 	}
 	return string(data)
