@@ -23,11 +23,9 @@ import (
 	"path"
 	"strings"
 
-	cueyaml "cuelang.org/go/encoding/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -40,6 +38,12 @@ import (
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
+const (
+	specifyAddonClustersTopologyPolicy = "deploy-addon-to-specified-clusters"
+	addonAllClusterPolicy              = "deploy-addon-to-all-clusters"
+	renderOutputCuePath                = "output"
+)
+
 type addonCueTemplateRender struct {
 	addon     *InstallPackage
 	inputArgs map[string]interface{}
@@ -48,15 +52,17 @@ type addonCueTemplateRender struct {
 // This func can be used for addon render, supporting render app template and component.
 // Please notice the result will be stored in object parameter, so object must be a pointer type
 func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{}) error {
-	bt, err := json.Marshal(a.inputArgs)
+	args := a.inputArgs
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	bt, err := json.Marshal(args)
 	if err != nil {
 		return err
 	}
+	paramFile := fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
+
 	var contextFile = strings.Builder{}
-	var paramFile = cuemodel.ParameterFieldName + ": {}"
-	if string(bt) != "null" {
-		paramFile = fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
-	}
 	// addon metadata context
 	metadataJSON, err := json.Marshal(a.addon.Meta)
 	if err != nil {
@@ -76,19 +82,19 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{})
 	if err != nil {
 		return err
 	}
-	outputContent, err := out.LookupValue("output")
+	outputContent, err := out.LookupValue(renderOutputCuePath)
 	if err != nil {
 		return err
 	}
-	b, err := cueyaml.Encode(outputContent.CueValue())
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal(b, object)
+	return outputContent.UnmarshalTo(object)
 }
 
 // generateAppFramework generate application from yaml defined by template.yaml or cue file from template.cue
 func generateAppFramework(addon *InstallPackage, parameters map[string]interface{}) (*v1beta1.Application, error) {
+	if len(addon.AppCueTemplate.Data) != 0 && addon.AppTemplate != nil {
+		return nil, ErrBothCueAndYamlTmpl
+	}
+
 	var app *v1beta1.Application
 	var err error
 	if len(addon.AppCueTemplate.Data) != 0 {
@@ -100,10 +106,7 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 		app = addon.AppTemplate
 		if app == nil {
 			app = &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{APIVersion: "core.oam.dev/v1beta1", Kind: "Application"},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common2.ApplicationComponent{},
-				},
+				TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ApplicationKind},
 			}
 		}
 		if app.Spec.Components == nil {
@@ -185,51 +188,53 @@ func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, a
 	if err != nil {
 		return err
 	}
-	if isDeployToRuntime(addon) {
-		if len(deployClusters) == 0 {
-			// empty cluster args deploy to all clusters
-			clusterSelector := map[string]interface{}{
-				// empty labelSelector means deploy resources to all clusters
-				ClusterLabelSelector: map[string]string{},
-			}
-			properties, err := json.Marshal(clusterSelector)
-			if err != nil {
-				return err
-			}
-			policy := v1beta1.AppPolicy{
-				Name:       "deploy-addon-to-clusters",
-				Type:       v1alpha1.TopologyPolicyType,
-				Properties: &runtime.RawExtension{Raw: properties},
-			}
-			app.Spec.Policies = append(app.Spec.Policies, policy)
-		} else {
-			var found bool
-			for _, c := range deployClusters {
-				if c == multicluster.ClusterLocalName {
-					found = true
-					break
-				}
-			}
-			if !found {
-				deployClusters = append(deployClusters, multicluster.ClusterLocalName)
-			}
-			// deploy to specified clusters
-			if app.Spec.Policies == nil {
-				app.Spec.Policies = []v1beta1.AppPolicy{}
-			}
-			body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
-			if err != nil {
-				return err
-			}
-			app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-				Name:       "specified-addon-clusters",
-				Type:       v1alpha1.TopologyPolicyType,
-				Properties: &runtime.RawExtension{Raw: body},
-			})
-			// addon should not contain workflow, this also update legacy addon with deploy2runtime steps
-			app.Spec.Workflow = nil
-		}
+
+	if !isDeployToRuntime(addon) {
+		return nil
 	}
+
+	if len(deployClusters) == 0 {
+		// empty cluster args deploy to all clusters
+		clusterSelector := map[string]interface{}{
+			// empty labelSelector means deploy resources to all clusters
+			ClusterLabelSelector: map[string]string{},
+		}
+		properties, err := json.Marshal(clusterSelector)
+		if err != nil {
+			return err
+		}
+		policy := v1beta1.AppPolicy{
+			Name:       addonAllClusterPolicy,
+			Type:       v1alpha1.TopologyPolicyType,
+			Properties: &runtime.RawExtension{Raw: properties},
+		}
+		app.Spec.Policies = append(app.Spec.Policies, policy)
+	} else {
+		var found bool
+		for _, c := range deployClusters {
+			if c == multicluster.ClusterLocalName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			deployClusters = append(deployClusters, multicluster.ClusterLocalName)
+		}
+		// deploy to specified clusters
+		if app.Spec.Policies == nil {
+			app.Spec.Policies = []v1beta1.AppPolicy{}
+		}
+		body, err := json.Marshal(map[string][]string{types.ClustersArg: deployClusters})
+		if err != nil {
+			return err
+		}
+		app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
+			Name:       specifyAddonClustersTopologyPolicy,
+			Type:       v1alpha1.TopologyPolicyType,
+			Properties: &runtime.RawExtension{Raw: body},
+		})
+	}
+
 	return nil
 }
 

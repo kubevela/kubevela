@@ -18,6 +18,7 @@ package addon
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,12 +92,12 @@ func TestRenderAppTemplate(t *testing.T) {
 	assert.Equal(t, len(app.Spec.Components), 1)
 	str, err := json.Marshal(app.Spec.Components[0].Properties)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"objects":[{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"vela-system"}}]}`, string(str))
+	assert.True(t, strings.Contains(string(str), `{"name":"vela-system"}`))
 
 	assert.Equal(t, len(app.Spec.Policies), 2)
 	str, err = json.Marshal(app.Spec.Policies)
 	assert.NoError(t, err)
-	assert.Equal(t, `[{"name":"namespace","type":"shared-resource","properties":{"rules":[{"selector":{"resourceTypes":["Namespace"]}}]}},{"name":"deploy-topology","type":"topology","properties":{"clusterLabelSelector":{},"namespace":"vela-system"}}]`, string(str))
+	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
 }
 
 func TestAppComponentRender(t *testing.T) {
@@ -223,13 +224,11 @@ func TestGenerateAppFrameworkWithCue(t *testing.T) {
 	assert.Equal(t, len(app.Spec.Components), 1)
 	str, err := json.Marshal(app.Spec.Components[0].Properties)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"objects":[{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"vela-system"}}]}`, string(str))
-
+	assert.True(t, strings.Contains(string(str), `{"name":"vela-system"}`))
 	assert.Equal(t, len(app.Spec.Policies), 2)
 	str, err = json.Marshal(app.Spec.Policies)
 	assert.NoError(t, err)
-	assert.Equal(t, `[{"name":"namespace","type":"shared-resource","properties":{"rules":[{"selector":{"resourceTypes":["Namespace"]}}]}},{"name":"deploy-topology","type":"topology","properties":{"clusterLabelSelector":{},"namespace":"vela-system"}}]`, string(str))
-
+	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
 	assert.Equal(t, len(app.Labels), 2)
 }
 
