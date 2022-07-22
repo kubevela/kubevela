@@ -27,6 +27,8 @@ const (
 	DebugPolicyType = "debug"
 	// SharedResourcePolicyType refers to the type of shared resource policy
 	SharedResourcePolicyType = "shared-resource"
+	// ReplicationPolicyType refers to the type of replication policy
+	ReplicationPolicyType = "replication"
 )
 
 // TopologyPolicySpec defines the spec of topology policy
@@ -76,4 +78,16 @@ func (in SharedResourcePolicySpec) FindStrategy(manifest *unstructured.Unstructu
 		}
 	}
 	return false
+}
+
+// ReplicationPolicySpec defines the spec of replication policy
+type ReplicationPolicySpec struct {
+	Keys     []string `json:"keys,omitempty"`
+	Selector []string `json:"selector,omitempty"`
+}
+
+// ReplicationDecision describe replication of one application components
+type ReplicationDecision struct {
+	Keys       []string `json:"keys"`
+	Components []string `json:"components"`
 }

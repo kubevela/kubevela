@@ -814,7 +814,7 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 
 		args := appArgs{
 			wl: &Workload{
-				Name: "sample-db",
+				Name: compName,
 				FullTemplate: &Template{
 					Terraform: &common.Terraform{
 						Configuration: `
@@ -891,7 +891,7 @@ variable "password" {
 			AppRevisionName: args.revision,
 		}, args.wl.Name)
 		pCtx := NewBasicContext(ctxData, args.wl.Params)
-		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
+		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
 		Expect(err).Should(BeNil())

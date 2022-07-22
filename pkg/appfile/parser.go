@@ -408,6 +408,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.ReplicationPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		case v1alpha1.OverridePolicyType:
@@ -524,6 +525,7 @@ func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawEx
 		Traits:             []*Trait{},
 		ScopeDefinition:    []*v1beta1.ScopeDefinition{},
 		Name:               name,
+		ResourceName:       name,
 		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,

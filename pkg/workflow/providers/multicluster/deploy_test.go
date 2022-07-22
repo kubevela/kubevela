@@ -83,31 +83,47 @@ func TestOverrideConfiguration(t *testing.T) {
 
 func TestApplyComponents(t *testing.T) {
 	r := require.New(t)
-	const n, m = 50, 5
+	const n, m = 30, 5
 	var components []apicommon.ApplicationComponent
 	var placements []v1alpha1.PlacementDecision
+	var replicas []v1alpha1.ReplicationDecision
 	for i := 0; i < n*3; i++ {
 		comp := apicommon.ApplicationComponent{Name: fmt.Sprintf("comp-%d", i)}
 		if i%3 != 0 {
 			comp.DependsOn = append(comp.DependsOn, fmt.Sprintf("comp-%d", i-1))
 		}
 		if i%3 == 2 {
-			comp.DependsOn = append(comp.DependsOn, fmt.Sprintf("comp-%d", i-1))
+			comp.DependsOn = append(comp.DependsOn, fmt.Sprintf("comp-%d", i-2))
 		}
 		components = append(components, comp)
 	}
 	for i := 0; i < m; i++ {
 		placements = append(placements, v1alpha1.PlacementDecision{Cluster: fmt.Sprintf("cluster-%d", i)})
 	}
+	twoReplicas := []string{"replica-1", "replica-2"}
+	oneReplica := []string{"replica-1"}
+	for i := 0; i < n; i++ {
+		if i%3 == 0 {
+			replicas = append(replicas, v1alpha1.ReplicationDecision{
+				Keys:       twoReplicas,
+				Components: []string{fmt.Sprintf("comp-%d", i)},
+			})
+		} else {
+			replicas = append(replicas, v1alpha1.ReplicationDecision{
+				Keys:       oneReplica,
+				Components: []string{fmt.Sprintf("comp-%d", i)},
+			})
+		}
+	}
 
 	applyMap := &sync.Map{}
-	apply := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
-		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
+		applyMap.Store(fmt.Sprintf("%s/%s/%s", clusterName, comp.Name, replicaKey), true)
 		return nil, nil, true, nil
 	}
-	healthCheck := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
-		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
+	healthCheck := func(comp apicommon.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (bool, error) {
+		_, found := applyMap.Load(fmt.Sprintf("%s/%s/%s", clusterName, comp.Name, replicaKey))
 		return found, nil
 	}
 	parallelism := 10
@@ -121,18 +137,18 @@ func TestApplyComponents(t *testing.T) {
 		return cnt
 	}
 
-	healthy, _, err := applyComponents(apply, healthCheck, components, placements, parallelism)
+	healthy, _, err := applyComponents(apply, healthCheck, components, placements, replicas, parallelism)
 	r.NoError(err)
 	r.False(healthy)
-	r.Equal(n*m, countMap())
+	r.Equal(n*m*2/3, countMap())
 
-	healthy, _, err = applyComponents(apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(apply, healthCheck, components, placements, replicas, parallelism)
 	r.NoError(err)
 	r.False(healthy)
-	r.Equal(2*n*m, countMap())
+	r.Equal(n*m*3/3, countMap())
 
-	healthy, _, err = applyComponents(apply, healthCheck, components, placements, parallelism)
+	healthy, _, err = applyComponents(apply, healthCheck, components, placements, replicas, parallelism)
 	r.NoError(err)
 	r.True(healthy)
-	r.Equal(3*n*m, countMap())
+	r.Equal(n*m*4/3, countMap())
 }

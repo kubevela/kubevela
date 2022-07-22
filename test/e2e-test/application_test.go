@@ -433,4 +433,25 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking an application status")
 		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
+
+	It("Test app with replication policy", func() {
+		By("Creating an application")
+		applyApp("app_replication.yaml")
+
+		By("Checking the replication & application status")
+		verifyWorkloadRunningExpected("hello-rep-beijing", 1, "crccheck/hello-world")
+		verifyWorkloadRunningExpected("hello-rep-hangzhou", 1, "crccheck/hello-world")
+
+		var svc corev1.Service
+		By("Verify Service running as expected")
+		verifySeriveDispatched := func(svcName string) {
+			Eventually(
+				func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: svcName}, &svc)
+				},
+				time.Second*120, time.Millisecond*500).Should(BeNil())
+		}
+		verifySeriveDispatched("hello-rep-beijing")
+		verifySeriveDispatched("hello-rep-hangzhou")
+	})
 })

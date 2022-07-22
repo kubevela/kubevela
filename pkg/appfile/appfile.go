@@ -77,7 +77,9 @@ const (
 
 // Workload is component
 type Workload struct {
-	Name               string
+	Name string
+	// ResourceName is the name of the dispatched resource
+	ResourceName       string
 	Type               string
 	ExternalRevision   string
 	CapabilityCategory types.CapabilityCategory
@@ -281,6 +283,7 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*process.
 	if mutate != nil {
 		mutate(&ctxData)
 	}
+	patchWorkloadForReplication(wl, ctxData.ReplicaKey)
 	// generate context here to avoid nil pointer panic
 	wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	switch wl.CapabilityCategory {
@@ -522,11 +525,11 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 			}
 		}
 	}
-	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
+	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
 		return nil, err
 	}
-	compManifest.Name = wl.Name
+	compManifest.Name = wl.ResourceName
 	compManifest.Namespace = ns
 	// we record the external revision name in ExternalRevision field
 	compManifest.ExternalRevision = wl.ExternalRevision
@@ -570,7 +573,7 @@ func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component manifest
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*types.ComponentManifest, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*types.ComponentManifest, error) {
 	compManifest := &types.ComponentManifest{}
 	workload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
@@ -584,7 +587,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
-			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
+			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, wl.Name, appName)
 		}
 		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
 		if assist.Name != "" {
@@ -952,4 +955,9 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	}
 	_comp.Properties = &runtime.RawExtension{Raw: bs}
 	return _comp, nil
+}
+
+// patchWorkloadForReplication will add a replication key suffix to workload's resource name.
+func patchWorkloadForReplication(wl *Workload, replicaKey string) {
+	wl.ResourceName = util.ComponentNameWithReplicaKey(wl.Name, replicaKey)
 }

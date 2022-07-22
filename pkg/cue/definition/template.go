@@ -409,7 +409,11 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 		case model.ContextAppName:
 			commonLabels[oam.LabelAppName] = v
 		case model.ContextName:
-			commonLabels[oam.LabelAppComponent] = v
+			if contextLabels[model.ContextReplicaKey] != "" {
+				commonLabels[oam.LabelAppComponent] = fmt.Sprintf("%s-%s", v, contextLabels[model.ContextReplicaKey])
+			} else {
+				commonLabels[oam.LabelAppComponent] = v
+			}
 		case model.ContextAppRevision:
 			commonLabels[oam.LabelAppRevision] = v
 		}

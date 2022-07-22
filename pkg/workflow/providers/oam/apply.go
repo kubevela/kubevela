@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"sync"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,13 +42,13 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error)
+type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (bool, error)
 
 // WorkloadRenderer renderer to render application component into workload
 type WorkloadRenderer func(comp common.ApplicationComponent) (*appfile.Workload, error)
@@ -64,11 +63,11 @@ type provider struct {
 
 // RenderComponent render component
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, nil)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, "", env)
 	if err != nil {
 		return err
 	}
@@ -91,19 +90,15 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 	return nil
 }
 
-func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, mu)
+// ApplyComponent apply component.
+func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
+	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, "", env)
 	if err != nil {
 		return err
-	}
-
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
 	}
 
 	if workload != nil {
@@ -129,20 +124,10 @@ func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTyp
 	if waitHealthy && !healthy {
 		act.Wait("wait healthy")
 	}
-
 	return nil
 }
 
-// ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	return p.applyComponent(ctx, v, act, nil)
-}
-
-func lookUpValues(v *value.Value, mu *sync.Mutex) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
-	}
+func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
 		return nil, nil, "", "", "", err
