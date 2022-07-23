@@ -156,13 +156,13 @@ func (a *authenticationServiceImpl) Login(ctx context.Context, loginReq apisv1.L
 	}
 	loginType := sysInfo.LoginType
 
-	switch loginType {
-	case model.LoginTypeDex:
+	switch {
+	case loginType == model.LoginTypeDex || (loginReq.Code != "" && loginReq.Username == ""):
 		handler, err = a.newDexHandler(ctx, loginReq)
 		if err != nil {
 			return nil, err
 		}
-	case model.LoginTypeLocal:
+	case loginType == model.LoginTypeLocal:
 		handler, err = a.newLocalHandler(loginReq)
 		if err != nil {
 			return nil, err
@@ -287,6 +287,11 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, update *mo
 	}
 	if len(update.StaticPasswords) > 0 {
 		dexConfig.StaticPasswords = update.StaticPasswords
+	}
+	// This is the title that the dex login page.
+	// It will be: Log in to KubeVela
+	if dexConfig.Frontend.Issuer == "" {
+		dexConfig.Frontend.Issuer = "KubeVela"
 	}
 	config, err := model.NewJSONStructByStruct(dexConfig)
 	if err != nil {
