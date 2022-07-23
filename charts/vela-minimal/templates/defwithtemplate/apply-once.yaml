@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: PolicyDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Configure the behaviour of preventing configuration drift.
+    definition.oam.dev/description: Allow configuration drift for applied resources, delivery the resource without continuously reconciliation.
   name: apply-once
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
