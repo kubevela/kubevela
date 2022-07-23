@@ -9,7 +9,7 @@ include makefiles/e2e.mk
 all: build
 
 # Run tests
-test: vet lint staticcheck unit-test-core test-cli-gen
+test: unit-test-core test-cli-gen
 	@$(OK) unit-tests pass
 
 test-cli-gen: 
@@ -22,7 +22,7 @@ unit-test-apiserver:
 	go test -gcflags=all=-l -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/...  | grep -E 'apiserver|velaql')
 
 # Build vela cli binary
-build: fmt vet lint staticcheck vela-cli kubectl-vela
+build: vela-cli kubectl-vela
 	@$(OK) build succeed
 
 build-cleanup:
@@ -95,15 +95,15 @@ kind-load-runtime-cluster:
 	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --name=$(RUNTIME_CLUSTER_NAME)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
 
 # Run tests
-core-test: fmt vet manifests
+core-test:
 	go test ./pkg/... -coverprofile cover.out
 
 # Build vela core manager and apiserver binary
-manager: fmt vet lint manifests
+manager:
 	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
 	$(GOBUILD_ENV) go build -o bin/apiserver -a -ldflags $(LDFLAGS) ./cmd/apiserver/main.go
 
-vela-runtime-rollout-manager: fmt vet lint manifests
+vela-runtime-rollout-manager:
 	$(GOBUILD_ENV) go build -o ./runtime/rollout/bin/manager -a -ldflags $(LDFLAGS) ./runtime/rollout/cmd/main.go
 
 # Generate manifests e.g. CRD, RBAC etc.
