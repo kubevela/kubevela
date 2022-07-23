@@ -328,7 +328,7 @@ func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress st
 		StaticClients: []model.DexStaticClient{
 			{
 				ID:           "velaux",
-				Name:         "Vela UX",
+				Name:         "VelaUX",
 				Secret:       "velaux-secret",
 				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
 			},
@@ -408,9 +408,13 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConf
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexConfigSecret); err != nil {
 		if kerrors.IsNotFound(err) {
-			return nil, bcode.ErrDexConfigNotFound
+			dexConfigSecret, err = initDexConfig(ctx, kubeClient, "http://velaux.com")
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	if dexConfigSecret.Data == nil {
 		return nil, bcode.ErrInvalidDexConfig
