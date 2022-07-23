@@ -253,23 +253,23 @@ func (ref *MarkdownReference) getParameterString(tableName string, parameterList
 		for _, p := range parameterList {
 			if !p.Ignore {
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, printableDefaultValue)
+				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
 			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
 			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, printableDefaultValue)
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
 		}
 	case types.KubeCategory:
 		for _, p := range parameterList {
 			// Kube parameter doesn't have default value
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
 		for _, p := range parameterList {
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
 		}
 	default:
 	}

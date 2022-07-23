@@ -111,6 +111,9 @@ func (ref *ParseReference) prettySentence(s string) string {
 	}
 	return ref.I18N.Get(s) + ref.I18N.Get(".")
 }
+func (ref *ParseReference) formatTableString(s string) string {
+	return strings.ReplaceAll(s, "|", `\|`)
+}
 
 // prepareConsoleParameter prepares the table content for each property
 func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) ConsoleReference {
@@ -164,7 +167,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
-				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+				param.PrintableType = fmt.Sprintf("map[string]:%s", tl("").IncompleteKind().String())
 			} else {
 				param.PrintableType = "{}"
 			}
@@ -190,12 +193,11 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
-						// In the future we could recursively call to support complex map-value(struct or list)
 						source, converted := mapValue.Source().(*ast.Ident)
 						if converted && len(source.Name) != 0 {
-							param.PrintableType = fmt.Sprintf("map[string]%s", source.Name)
+							param.PrintableType = fmt.Sprintf("map[string]:%s", source.Name)
 						} else {
-							param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+							param.PrintableType = fmt.Sprintf("map[string]:%s", mapValue.IncompleteKind().String())
 						}
 					} else {
 						return "", nil, fmt.Errorf("failed to got Map kind from %s", param.Name)

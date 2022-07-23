@@ -1,3 +1,5 @@
+It's generally used in [one time delivery only without continuous management](../policies/apply-once) scenario.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application

@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: PolicyDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Determining the destination where components should be deployed to.
+    definition.oam.dev/description: Describe the destination where components should be deployed to.
   name: topology
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
