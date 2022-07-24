@@ -1,0 +1,23 @@
+name: example-legacy
+version: 1.0.1
+description: Extended workload to do continuous and progressive delivery
+icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
+url: https://fluxcd.io
+
+tags:
+  - extended_workload
+  - gitops
+  - only_example
+
+deployTo:
+  control_plane: true
+  runtime_cluster: false
+
+dependencies: []
+#- name: addon_name
+
+# set invisible means this won't be list and will be enabled when depended on
+# for example, terraform-alibaba depends on terraform which is invisible,
+# when terraform-alibaba is enabled, terraform will be enabled automatically
+# default: false
+invisible: false
