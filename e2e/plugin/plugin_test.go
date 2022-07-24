@@ -985,8 +985,8 @@ var showCdResult = `# Specification
 |  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 | cmd     | Commands to run in the container.                                                                | []string | false    |         |
-| count   | specify number of tasks to run in parallel.                                                      | int      | true     |       1 |
-| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | true     | Never   |
+| count   | specify number of tasks to run in parallel.                                                      | int      | false    |       1 |
+| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | false    | Never   |
 | image   | Which image would you like to use for your service.                                              | string   | true     |         |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 

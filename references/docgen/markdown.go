@@ -25,7 +25,12 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/klog/v2"
+
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -47,6 +52,16 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	var pd *packages.PackageDiscover
 	if ref.Remote != nil {
 		pd = ref.Remote.PD
+	}
+	if pd == nil {
+		pd = func() *packages.PackageDiscover {
+			rpd, err := c.GetPackageDiscover()
+			if err != nil {
+				klog.Error("fail to build package discover", err)
+				return nil
+			}
+			return rpd
+		}()
 	}
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, false, pd)
 }
@@ -138,7 +153,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 	switch c.Category {
 	case types.CUECategory:
 		cueValue, err := common.GetCUEParameterValue(c.CueTemplate, pd)
-		if err != nil {
+		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
 		var defaultDepth = 0
@@ -177,6 +192,9 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 	parameterDoc := DefinitionDocParameters[capName]
 	if parameterDoc == "" {
+		if strings.TrimSpace(generatedDoc) == "" {
+			generatedDoc = "This capability has no arguments."
+		}
 		parameterDoc = generatedDoc
 	}
 

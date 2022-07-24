@@ -21,9 +21,9 @@ spec:
         	ignoreTerraformComponent: parameter.ignoreTerraformComponent
         }
         parameter: {
-        	//+usage=If set false, the workflow will be suspend before this step.
+        	//+usage=If set to false, the workflow will suspend automatically before this step, default to be true.
         	auto: *true | bool
-        	//+usage=Declare the policies used for this step.
+        	//+usage=Declare the policies that used for this deployment. If not specified, the components will be deployed to the hub cluster.
         	policies?: [...string]
         	//+usage=Maximum number of concurrent delivered components.
         	parallelism: *5 | int
