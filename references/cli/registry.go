@@ -42,7 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apis"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // NewRegistryCommand Manage Capability Center
@@ -741,5 +741,5 @@ func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types
 	if err != nil {
 		return types.Capability{}, err
 	}
-	return plugins.ParseCapabilityFromUnstructured(mapper, obj)
+	return docgen.ParseCapabilityFromUnstructured(mapper, obj)
 }

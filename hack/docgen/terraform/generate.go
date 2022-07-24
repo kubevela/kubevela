@@ -25,7 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const (
@@ -36,7 +36,7 @@ const (
 )
 
 func main() {
-	ref := &plugins.MarkdownReference{}
+	ref := &docgen.MarkdownReference{}
 	ctx := context.Background()
 
 	c, err := common.InitBaseRestConfig()
@@ -44,7 +44,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	ref.Remote = &plugins.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
 	ref.Filter = func(capability types.Capability) bool {
 		if capability.Labels != nil && capability.Labels[types.LabelDefinitionHidden] == "true" {
 			return false
@@ -58,13 +58,13 @@ func main() {
 	flag.Parse()
 
 	if *i18nfile != "" {
-		plugins.LoadI18nData(*i18nfile)
+		docgen.LoadI18nData(*i18nfile)
 	}
 
 	if *path != "" {
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
-			ref.I18N = &plugins.Zh
+			ref.I18N = &docgen.Zh
 		}
 		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
 			fmt.Println(err)
@@ -72,13 +72,13 @@ func main() {
 		}
 		fmt.Printf("terraform reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
 	}
-	ref.I18N = &plugins.En
+	ref.I18N = &docgen.En
 	if err := ref.GenerateReferenceDocs(ctx, c, KubeVelaIOTerraformPath); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	fmt.Printf("terraform reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), KubeVelaIOTerraformPath)
-	ref.I18N = &plugins.Zh
+	ref.I18N = &docgen.Zh
 	if err := ref.GenerateReferenceDocs(ctx, c, KubeVelaIOTerraformPathZh); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -26,7 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const (
@@ -62,7 +62,7 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 	if defdir == "" {
 		defdir = PolicyDefDir
 	}
-	ref := &plugins.MarkdownReference{
+	ref := &docgen.MarkdownReference{
 		AllInOne: true,
 		Filter: func(capability types.Capability) bool {
 			if capability.Type != types.TypePolicy || capability.Category != types.CUECategory {
@@ -86,11 +86,11 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 		},
 		CustomDocHeader: CustomPolicyHeaderEN,
 	}
-	ref.Remote = &plugins.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
 	if *path != "" {
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
-			ref.I18N = &plugins.Zh
+			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomPolicyHeaderZH
 		}
 		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
@@ -100,7 +100,7 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
 	}
 	if *location == "" || *location == "en" {
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPath); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -108,7 +108,7 @@ func PolicyDef(ctx context.Context, c common.Args, path, location *string, defdi
 		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), PolicyDefRefPath)
 	}
 	if *location == "" || *location == "zh" {
-		ref.I18N = &plugins.Zh
+		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomPolicyHeaderZH
 		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPathZh); err != nil {
 			fmt.Println(err)

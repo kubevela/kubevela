@@ -28,7 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // InitApplication will load Application from cluster
@@ -65,7 +65,7 @@ func BaseComplete(namespace string, c common.Args, workloadName string, appName 
 		// Not exist
 		tp = workloadType
 	}
-	template, err := plugins.LoadCapabilityByName(tp, namespace, c)
+	template, err := docgen.LoadCapabilityByName(tp, namespace, c)
 	if err != nil {
 		return nil, err
 	}
