@@ -32,10 +32,16 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID        string        `json:"installID"`
-	EnableCollection bool          `json:"enableCollection"`
-	LoginType        string        `json:"loginType"`
-	StatisticInfo    StatisticInfo `json:"statisticInfo,omitempty"`
+	InstallID              string        `json:"installID"`
+	EnableCollection       bool          `json:"enableCollection"`
+	StatisticInfo          StatisticInfo `json:"statisticInfo,omitempty"`
+	LoginType              string        `json:"loginType"`
+	DexUserDefaultProjects []ProjectRef  `json:"projects"`
+}
+
+type ProjectRef struct {
+	Name  string   `json:"name"`
+	Roles []string `json:"roles"`
 }
 
 // UpdateDexConfig update dex config

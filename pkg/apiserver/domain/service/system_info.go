@@ -113,7 +113,8 @@ func (u systemInfoServiceImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 			CreateTime: info.CreateTime,
 			UpdateTime: time.Now(),
 		},
-		StatisticInfo: info.StatisticInfo,
+		StatisticInfo:          info.StatisticInfo,
+		DexUserDefaultProjects: sysInfo.DexUserDefaultProjects,
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
@@ -166,9 +167,10 @@ func (u systemInfoServiceImpl) Init(ctx context.Context) error {
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
-		PlatformID:       info.InstallID,
-		EnableCollection: info.EnableCollection,
-		LoginType:        info.LoginType,
-		InstallTime:      info.CreateTime,
+		PlatformID:             info.InstallID,
+		EnableCollection:       info.EnableCollection,
+		LoginType:              info.LoginType,
+		InstallTime:            info.CreateTime,
+		DexUserDefaultProjects: info.DexUserDefaultProjects,
 	}
 }
