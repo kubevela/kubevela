@@ -244,9 +244,18 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 		return nil, nil, fmt.Errorf("list WorkflowStepDefinition err: %w", err)
 	}
 
+	config, err := c.GetConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	pd, err := packages.NewPackageDiscover(config)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var templateErrors []error
 	for _, def := range workflowStepDefs.Items {
-		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, nil)
+		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, pd)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue

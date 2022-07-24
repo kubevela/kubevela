@@ -72,14 +72,14 @@ type Template struct {
 func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, capName string, capType types.CapType) (*Template, error) {
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd := new(v1beta1.ComponentDefinition)
 		err := oamutil.GetCapabilityDefinition(ctx, cli, cd, capName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				wd := new(v1beta1.WorkloadDefinition)
 				if err := oamutil.GetDefinition(ctx, cli, wd, capName); err != nil {
-					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", capName)
+					return nil, errors.WithMessagef(err, "load template from component definition [%s] ", capName)
 				}
 				tmpl, err := newTemplateOfWorkloadDefinition(wd)
 				if err != nil {
@@ -87,7 +87,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				}
 				gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
 				if err != nil {
-					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
+					return nil, errors.WithMessagef(err, "get group version kind from component definition [%s]", capName)
 				}
 				tmpl.Reference = common.WorkloadTypeDescriptor{
 					Definition: common.WorkloadGVK{
@@ -100,7 +100,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				}
 				return tmpl, nil
 			}
-			return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", capName)
+			return nil, errors.WithMessagef(err, "load template from component definition [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfCompDefinition(cd)
 		if err != nil {
@@ -112,7 +112,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 		td := new(v1beta1.TraitDefinition)
 		err := oamutil.GetCapabilityDefinition(ctx, cli, td, capName)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+			return nil, errors.WithMessagef(err, "load template from trait definition [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfTraitDefinition(td)
 		if err != nil {
@@ -123,7 +123,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 		d := new(v1beta1.PolicyDefinition)
 		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+			return nil, errors.WithMessagef(err, "load template from policy definition [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfPolicyDefinition(d)
 		if err != nil {
@@ -134,7 +134,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 		d := new(v1beta1.WorkflowStepDefinition)
 		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+			return nil, errors.WithMessagef(err, "load template from workflow step definition  [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfWorkflowStepDefinition(d)
 		if err != nil {
@@ -143,8 +143,6 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 		return tmpl, nil
 	case types.TypeScope:
 		// TODO: add scope template support
-	default:
-		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
 	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
@@ -161,7 +159,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 		if !ok {
 			wd, ok := apprev.Spec.WorkloadDefinitions[capName]
 			if !ok {
-				return nil, errors.Errorf("ComponentDefinition [%s] not found in app revision %s", capName, apprev.Name)
+				return nil, errors.Errorf("component definition [%s] not found in app revision %s", capName, apprev.Name)
 			}
 			tmpl, err := newTemplateOfWorkloadDefinition(&wd)
 			if err != nil {
@@ -169,7 +167,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			}
 			gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
 			if err != nil {
-				return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
+				return nil, errors.WithMessagef(err, "Get group version kind from component definition [%s]", capName)
 			}
 			tmpl.Reference = common.WorkloadTypeDescriptor{
 				Definition: common.WorkloadGVK{

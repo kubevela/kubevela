@@ -1,4 +1,4 @@
-It's used in [garbage collection](../policies/gc) scenario. It can be used to configure the collection policy, e.g. don't delete the legacy resources when updating.
+It's used in [garbage collection](https://kubevela.io/docs/end-user/policies/gc) scenario. It can be used to configure the collection policy, e.g. don't delete the legacy resources when updating.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
