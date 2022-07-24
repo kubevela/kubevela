@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -40,7 +41,7 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -180,7 +181,7 @@ func removeDir(dirname string, t *testing.T) {
 }
 
 func TestNewDefinitionCommandGroup(t *testing.T) {
-	cmd := DefinitionCommandGroup(common2.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+	cmd := DefinitionCommandGroup(common2.Args{}, "", util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	initCommand(cmd)
 	cmd.SetArgs([]string{"-h"})
 	if err := cmd.Execute(); err != nil {
@@ -460,7 +461,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 
 func TestNewDefinitionGenDocCommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionGenDocCommand(c, cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
+	cmd := NewDefinitionGenDocCommand(c, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	assert.NotNil(t, cmd.Execute())
 
 	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
@@ -559,8 +560,9 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 
 func TestNewDefinitionApplyCommand(t *testing.T) {
 	c := initArgs()
+	ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
 	// dry-run test
-	cmd := NewDefinitionApplyCommand(c)
+	cmd := NewDefinitionApplyCommand(c, ioStreams)
 	initCommand(cmd)
 	_, traitFilename := createLocalTrait(t)
 	defer removeFile(traitFilename, t)
@@ -569,7 +571,7 @@ func TestNewDefinitionApplyCommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing apply command: %v", err)
 	}
 	// normal test and reapply
-	cmd = NewDefinitionApplyCommand(c)
+	cmd = NewDefinitionApplyCommand(c, ioStreams)
 	initCommand(cmd)
 	cmd.SetArgs([]string{traitFilename})
 	for i := 0; i < 2; i++ {
