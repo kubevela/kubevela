@@ -48,6 +48,7 @@ type User struct {
 	LastLoginTime time.Time `json:"lastLoginTime,omitempty"`
 	// UserRoles binding the platform level roles
 	UserRoles []string `json:"userRoles"`
+	DexSub    string   `json:"dexSub,omitempty"`
 }
 
 // TableName return custom table name
@@ -73,6 +74,9 @@ func (u *User) Index() map[string]string {
 	}
 	if u.Email != "" {
 		index["email"] = u.Email
+	}
+	if u.DexSub != "" {
+		index["dexSub"] = u.DexSub
 	}
 	return index
 }
