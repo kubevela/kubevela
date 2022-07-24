@@ -40,7 +40,7 @@ template: {
 		type?: string
 		// +usage=Specify the data of secret
 		data: {}
-		// +usage=Specify the cluster of the config map
+		// +usage=Specify the cluster of the secret
 		cluster: *"" | string
 	}
 }
