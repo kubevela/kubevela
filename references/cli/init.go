@@ -39,7 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 type appInitOptions struct {
@@ -193,7 +193,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponentDefinition)
+	workloads, err := docgen.LoadInstalledCapabilityWithType(o.Namespace, o.c, types.TypeComponentDefinition)
 	if err != nil {
 		return err
 	}

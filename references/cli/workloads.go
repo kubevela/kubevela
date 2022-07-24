@@ -22,7 +22,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // NewWorkloadsCommand creates `workloads` command
@@ -56,7 +56,7 @@ func printWorkloadList(userNamespace string, c common2.Args, ioStreams cmdutil.I
 	table := newUITable()
 	table.AddRow("NAME", "NAMESPACE", "WORKLOAD", "DESCRIPTION")
 	for _, r := range def {
-		table.AddRow(r.Name, r.Namespace, r.Spec.Reference.Name, plugins.GetDescription(r.Annotations))
+		table.AddRow(r.Name, r.Namespace, r.Spec.Reference.Name, docgen.GetDescription(r.Annotations))
 	}
 	ioStreams.Info(table.String())
 	return nil

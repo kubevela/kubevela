@@ -19,7 +19,7 @@ package template
 import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // Manager defines a manager for template
@@ -30,7 +30,7 @@ type Manager interface {
 
 // Load will load all installed capabilities and create a manager
 func Load(namespace string, c common.Args) (Manager, error) {
-	caps, err := plugins.LoadAllInstalledCapability(namespace, c)
+	caps, err := docgen.LoadAllInstalledCapability(namespace, c)
 	if err != nil {
 		return nil, err
 	}
