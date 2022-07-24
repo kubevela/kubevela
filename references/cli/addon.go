@@ -393,15 +393,8 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 
 // NewAddonInitCommand creates an addon scaffold
 func NewAddonInitCommand() *cobra.Command {
-	var (
-		helmRepoURL  string
-		chartName    string
-		chartVersion string
-		urls         []string
-		path         string
-		noSample     bool
-		overwrite    bool
-	)
+	var path string
+	initCmd := pkgaddon.InitCmd{}
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -438,29 +431,21 @@ func NewAddonInitCommand() *cobra.Command {
 				return fmt.Errorf("addon name or path should not be empty")
 			}
 
-			initCmd := pkgaddon.InitCmd{
-				AddonName:        addonName,
-				HelmChartName:    chartName,
-				HelmChartVersion: chartVersion,
-				HelmRepoURL:      helmRepoURL,
-				Path:             addonPath,
-				RefObjURLs:       urls,
-				NoSamples:        noSample,
-				Overwrite:        overwrite,
-			}
+			initCmd.AddonName = addonName
+			initCmd.Path = addonPath
 
 			return initCmd.CreateScaffold()
 		},
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&helmRepoURL, "helm-repo", "", "URL that points to a Helm repo")
-	f.StringVar(&chartName, "chart", "", "Helm Chart name")
-	f.StringVar(&chartVersion, "chart-version", "", "version of the Chart")
+	f.StringVar(&initCmd.HelmRepoURL, "helm-repo", "", "URL that points to a Helm repo")
+	f.StringVar(&initCmd.HelmChartName, "chart", "", "Helm Chart name")
+	f.StringVar(&initCmd.HelmChartVersion, "chart-version", "", "version of the Chart")
 	f.StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
-	f.StringArrayVarP(&urls, "url", "u", []string{}, "add URL resources using ref-object component")
-	f.BoolVarP(&noSample, "no-samples", "", false, "do not generate sample files")
-	f.BoolVarP(&overwrite, "force", "f", false, "overwrite existing addon files")
+	f.StringArrayVarP(&initCmd.RefObjURLs, "url", "u", []string{}, "add URL resources using ref-object component")
+	f.BoolVarP(&initCmd.NoSamples, "no-samples", "", false, "do not generate sample files")
+	f.BoolVarP(&initCmd.Overwrite, "force", "f", false, "overwrite existing addon files")
 
 	return cmd
 }
