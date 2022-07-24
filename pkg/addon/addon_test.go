@@ -17,7 +17,6 @@ limitations under the License.
 package addon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -41,7 +40,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -65,6 +63,14 @@ var paths = []string{
 	"example/resources/configmap.cue",
 	"example/parameter.cue",
 	"example/resources/service/source-controller.yaml",
+
+	"example-legacy/metadata.yaml",
+	"example-legacy/readme.md",
+	"example-legacy/template.yaml",
+	"example-legacy/definitions/helm.yaml",
+	"example-legacy/resources/configmap.cue",
+	"example-legacy/resources/parameter.cue",
+	"example-legacy/resources/service/source-controller.yaml",
 
 	"terraform/metadata.yaml",
 	"terraform-alibaba/metadata.yaml",
@@ -161,11 +167,25 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.True(t, uiData.Parameters != "")
 	assert.True(t, len(uiData.Definitions) > 0)
 
+	testAddonName = "example-legacy"
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err = GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+	assert.True(t, len(uiData.Definitions) > 0)
+
 	// test get ui data
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, 4, len(uiDataList))
+	assert.Equal(t, 5, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package
@@ -1285,43 +1305,4 @@ func TestMergeAddonInstallArgs(t *testing.T) {
 		})
 	}
 
-}
-
-func TestGenOpenAPISchema(t *testing.T) {
-	var err error
-	var uiData *UIData
-
-	// no global param and legacy param
-	uiData = &UIData{}
-	err = genAddonAPISchema(uiData)
-	assert.Error(t, err)
-
-	// have global param but no legacy param
-	uiData = &UIData{
-		GlobalParameters: "parameter: {}",
-	}
-	err = genAddonAPISchema(uiData)
-	assert.NoError(t, err)
-
-	// no global param but have legacy param
-	uiData = &UIData{
-		Parameters: "parameter: {}",
-	}
-	err = genAddonAPISchema(uiData)
-	assert.NoError(t, err)
-
-	// have both global param and legacy param
-	uiData = &UIData{
-		GlobalParameters: "parameter: {}",
-		Parameters:       "parameter: {}",
-	}
-	// capture logs
-	buf := new(bytes.Buffer)
-	klog.SetOutput(buf)
-	err = genAddonAPISchema(uiData)
-	klog.SetOutput(os.Stderr)
-	assert.NoError(t, err)
-	assert.Contains(t, buf.String(),
-		"both legacy parameter",
-		"should have a warning about global and legacy params")
 }
