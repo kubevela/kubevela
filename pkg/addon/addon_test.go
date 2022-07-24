@@ -58,7 +58,7 @@ import (
 var paths = []string{
 	"example/metadata.yaml",
 	"example/readme.md",
-	"example/template.yaml",
+	"example/template.cue",
 	"example/definitions/helm.yaml",
 	"example/resources/configmap.cue",
 	"example/parameter.cue",

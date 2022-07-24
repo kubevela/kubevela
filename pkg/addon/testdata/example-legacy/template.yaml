@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: example
+  name: example-legacy
   namespace: vela-system
 spec:
   workflow:

@@ -141,6 +141,7 @@ var _ = Describe("test FindWholeAddonPackagesFromRegistry", func() {
 			cmYaml := strings.ReplaceAll(registryCmYaml, "TEST_SERVER_URL", server.URL)
 			cmYaml = strings.ReplaceAll(cmYaml, "KubeVela", "testreg")
 			Expect(yaml.Unmarshal([]byte(cmYaml), &cm)).Should(BeNil())
+			_ = k8sClient.Create(ctx, &cm)
 			Expect(k8sClient.Update(ctx, &cm)).Should(BeNil())
 		})
 
