@@ -1173,13 +1173,13 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 func TestPackageAddon(t *testing.T) {
 	pwd, _ := os.Getwd()
 
-	validAddonDict := "./testdata/example"
+	validAddonDict := "./testdata/example-legacy"
 	archiver, err := PackageAddon(validAddonDict)
 	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(pwd, "example-1.0.1.tgz"), archiver)
+	assert.Equal(t, filepath.Join(pwd, "example-legacy-1.0.1.tgz"), archiver)
 	// Remove generated package after tests
 	defer func() {
-		_ = os.RemoveAll(filepath.Join(pwd, "example-1.0.1.tgz"))
+		_ = os.RemoveAll(filepath.Join(pwd, "example-legacy-1.0.1.tgz"))
 	}()
 
 	invalidAddonDict := "./testdata"

@@ -7,6 +7,6 @@ keywords:
 - extended_workload
 - gitops
 - only_example
-name: example
+name: example-legacy
 type: library
 version: 1.0.1
