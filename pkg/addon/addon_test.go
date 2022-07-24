@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -40,6 +41,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -61,7 +63,7 @@ var paths = []string{
 	"example/template.yaml",
 	"example/definitions/helm.yaml",
 	"example/resources/configmap.cue",
-	"example/resources/parameter.cue",
+	"example/parameter.cue",
 	"example/resources/service/source-controller.yaml",
 
 	"terraform/metadata.yaml",
@@ -1283,4 +1285,43 @@ func TestMergeAddonInstallArgs(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGenOpenAPISchema(t *testing.T) {
+	var err error
+	var uiData *UIData
+
+	// no global param and legacy param
+	uiData = &UIData{}
+	err = genAddonAPISchema(uiData)
+	assert.Error(t, err)
+
+	// have global param but no legacy param
+	uiData = &UIData{
+		GlobalParameters: "parameter: {}",
+	}
+	err = genAddonAPISchema(uiData)
+	assert.NoError(t, err)
+
+	// no global param but have legacy param
+	uiData = &UIData{
+		Parameters: "parameter: {}",
+	}
+	err = genAddonAPISchema(uiData)
+	assert.NoError(t, err)
+
+	// have both global param and legacy param
+	uiData = &UIData{
+		GlobalParameters: "parameter: {}",
+		Parameters:       "parameter: {}",
+	}
+	// capture logs
+	buf := new(bytes.Buffer)
+	klog.SetOutput(buf)
+	err = genAddonAPISchema(uiData)
+	klog.SetOutput(os.Stderr)
+	assert.NoError(t, err)
+	assert.Contains(t, buf.String(),
+		"both legacy parameter",
+		"should have a warning about global and legacy params")
 }
