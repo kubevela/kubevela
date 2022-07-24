@@ -146,7 +146,7 @@ func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPacka
 		inputArgs: args,
 	}
 	if err := r.toObject(cueTemplate.Data, &comp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error rendering file %s: %w", cueTemplate.Name, err)
 	}
 	// If the name of component has been set, just keep it, otherwise will set with file name.
 	if len(comp.Name) == 0 {

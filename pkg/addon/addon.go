@@ -579,10 +579,24 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	var (
+		param string
+		err   error
+	)
+
+	if addonRes.GlobalParameters != "" {
+		if addonRes.Parameters != "" {
+			klog.Warning("both legacy parameter and global parameter provided, but only global parameter will be used. Consider removing the legacy parameters.")
+		}
+		param, err = utils2.PrepareParameterCue(addonRes.Name, addonRes.GlobalParameters)
+	} else {
+		param, err = utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
+	}
+
 	if err != nil {
 		return err
 	}
+
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", param)
 	if err != nil {
