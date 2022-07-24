@@ -39,6 +39,7 @@ type SystemInfo struct {
 	DexUserDefaultProjects []ProjectRef  `json:"projects"`
 }
 
+// ProjectRef set the project name and roles
 type ProjectRef struct {
 	Name  string   `json:"name"`
 	Roles []string `json:"roles"`
