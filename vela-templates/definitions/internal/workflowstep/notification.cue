@@ -16,6 +16,7 @@ template: {
 		lark?: {
 			// +usage=Specify the the lark url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -37,6 +38,7 @@ template: {
 		dingding?: {
 			// +usage=Specify the the dingding url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -94,6 +96,7 @@ template: {
 		slack?: {
 			// +usage=Specify the the slack url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -127,6 +130,7 @@ template: {
 				alias?: string
 				// +usage=Specify the password of the email, you can either sepcify it in value or use secretRef
 				password: {
+					// +usage=the password content in string
 					value: string
 				} | {
 					secretRef: {
