@@ -200,7 +200,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 							param.PrintableType = fmt.Sprintf("map[string]:%s", mapValue.IncompleteKind().String())
 						}
 					} else {
-						return "", nil, fmt.Errorf("failed to got Map kind from %s", param.Name)
+						return "", nil, fmt.Errorf("failed to got Map kind from %s: %v", param.Name, err)
 					}
 				} else {
 					subDoc, subConsole, err := ref.parseParameters(capName, val, name, depth+1, containSuffix)

@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Deploy components with policies.
+    definition.oam.dev/description: A powerful and unified deploy step for components multi-cluster delivery with policies.
   name: deploy
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

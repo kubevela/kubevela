@@ -9,7 +9,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "check or install depends-on Application"
+	description: "Wait for the specified Application to complete."
 }
 
 template: {

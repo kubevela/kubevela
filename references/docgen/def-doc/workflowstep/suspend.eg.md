@@ -1,3 +1,5 @@
+The `duration` parameter is supported in KubeVela v1.4 or higher.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application

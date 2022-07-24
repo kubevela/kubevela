@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Suspend your workflow
+    definition.oam.dev/description: Suspend the current workflow, it can be resumed by 'vela workflow resume' command.
   name: suspend
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
