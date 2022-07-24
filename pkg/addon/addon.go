@@ -306,12 +306,15 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 	}
 
 	if opt.GetParameter && (len(addon.Parameters) != 0 || len(addon.GlobalParameters) != 0) {
+		if addon.GlobalParameters != "" {
+			if addon.Parameters != "" {
+				klog.Warning("both legacy parameter and global parameter are provided, but only global parameter will be used. Consider removing the legacy parameters.")
+			}
+			addon.Parameters = addon.GlobalParameters
+		}
 		err := genAddonAPISchema(addon)
 		if err != nil {
 			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
-		}
-		if len(addon.GlobalParameters) != 0 {
-			addon.Parameters = addon.GlobalParameters
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
@@ -579,24 +582,10 @@ func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, 
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
-	var (
-		param string
-		err   error
-	)
-
-	if addonRes.GlobalParameters != "" {
-		if addonRes.Parameters != "" {
-			klog.Warning("both legacy parameter and global parameter provided, but only global parameter will be used. Consider removing the legacy parameters.")
-		}
-		param, err = utils2.PrepareParameterCue(addonRes.Name, addonRes.GlobalParameters)
-	} else {
-		param, err = utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
-	}
-
+	param, err := utils2.PrepareParameterCue(addonRes.Name, addonRes.Parameters)
 	if err != nil {
 		return err
 	}
-
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", param)
 	if err != nil {
