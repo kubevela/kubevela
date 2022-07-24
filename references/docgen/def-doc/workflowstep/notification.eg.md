@@ -67,3 +67,7 @@ spec:
               subject: test-subject
               body: test-body
 ```
+
+**Expected outcome**
+
+We can see that before and after the deployment of the application, the messages can be seen in the corresponding group chat.

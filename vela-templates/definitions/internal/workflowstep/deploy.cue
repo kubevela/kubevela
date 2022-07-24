@@ -6,7 +6,7 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Deploy components with policies."
+	description: "A powerful and unified deploy step for components multi-cluster delivery with policies."
 }
 template: {
 	deploy: op.#Deploy & {

@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Send message to webhook
+    definition.oam.dev/description: Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow.
   name: notification
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

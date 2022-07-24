@@ -7,7 +7,7 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Send message to webhook"
+	description: "Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow."
 }
 template: {
 

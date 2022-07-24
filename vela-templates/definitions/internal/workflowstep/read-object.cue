@@ -8,7 +8,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "Read objects for your workflow steps"
+	description: "Read Kubernetes objects from cluster for your workflow steps"
 }
 template: {
 	output: {

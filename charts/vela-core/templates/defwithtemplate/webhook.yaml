@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Send webhook request to the url
+    definition.oam.dev/description: Send a request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default.
   name: webhook
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

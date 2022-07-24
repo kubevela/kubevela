@@ -8,7 +8,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "Export data to secret for your workflow steps"
+	description: "Export data to Kubernetes Secret in your workflow."
 }
 template: {
 	apply: op.#Apply & {

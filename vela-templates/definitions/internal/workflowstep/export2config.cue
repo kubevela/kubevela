@@ -8,7 +8,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "Export data to config map for your workflow steps"
+	description: "Export data to specified Kubernetes ConfigMap in your workflow."
 }
 template: {
 	apply: op.#Apply & {

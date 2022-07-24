@@ -70,7 +70,7 @@ func WorkflowDef(ctx context.Context, c common.Args, path, location *string, def
 				return false
 			}
 
-			if capability.Labels != nil && (capability.Labels[types.LabelDefinitionHidden] == "true" || capability.Labels[types.LabelDefinitionDeprecated] == "true") {
+			if capability.Labels != nil && capability.Labels[types.LabelDefinitionDeprecated] == "true" {
 				return false
 			}
 			// only print capability which contained in cue def
