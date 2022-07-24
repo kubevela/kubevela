@@ -741,5 +741,5 @@ func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types
 	if err != nil {
 		return types.Capability{}, err
 	}
-	return docgen.ParseCapabilityFromUnstructured(mapper, obj)
+	return docgen.ParseCapabilityFromUnstructured(mapper, nil, obj)
 }

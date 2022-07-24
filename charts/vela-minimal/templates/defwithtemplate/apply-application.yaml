@@ -6,6 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Apply application for your workflow steps, it has no arguments, should be used for custom steps before or after application applied.
   labels:
+    custom.definition.oam.dev/deprecated: "true"
     custom.definition.oam.dev/ui-hidden: "true"
   name: apply-application
   namespace: {{ include "systemDefinitionNamespace" . }}

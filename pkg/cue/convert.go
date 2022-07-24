@@ -29,6 +29,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 )
 
+// ErrParameterNotExist represents the parameter field is not exist in CUE template
+var ErrParameterNotExist = errors.New("parameter not exist")
+
 // GetParameters get parameter from cue template
 func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
 	var template *cue.Instance
@@ -66,7 +69,7 @@ func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Pa
 		}
 	}
 	if !found {
-		return nil, errors.New("arguments not exist")
+		return nil, ErrParameterNotExist
 	}
 	arguments, err := paraDef.Value.Struct()
 	if err != nil {

@@ -81,7 +81,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 		return nil, err
 	}
 	for _, er := range erl {
-		klog.Infof("get workflow step capability %v", er)
+		klog.Infof("get workflow step %v", er)
 	}
 	caps = append(caps, wfs...)
 
@@ -411,7 +411,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
 	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate, pd)
-	if err != nil {
+	if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 		return types.Capability{}, err
 	}
 	tmp.Category = types.CUECategory
