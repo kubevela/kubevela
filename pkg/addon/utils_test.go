@@ -23,18 +23,15 @@ import (
 	"strings"
 	"testing"
 
-	"helm.sh/helm/v3/pkg/chartutil"
-
-	"github.com/stretchr/testify/assert"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
@@ -213,7 +210,7 @@ func TestIsAddonDir(t *testing.T) {
 	assert.Equal(t, isAddonDir, false)
 	assert.Contains(t, err.Error(), "addon version is empty")
 
-	// No template.yaml
+	// No metadata.yaml
 	meta = &Meta{
 		Name:    "name",
 		Version: "1.0.0",
@@ -232,6 +229,13 @@ func TestIsAddonDir(t *testing.T) {
 	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
 	assert.Equal(t, isAddonDir, false)
 	assert.Contains(t, err.Error(), "missing")
+
+	// Empty template.cue
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", AppTemplateCueFileName), []byte{}, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), "var(")
 
 	// Pass all checks
 	cmd := InitCmd{

@@ -24,18 +24,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	errors "github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
-	"sigs.k8s.io/yaml"
-
-	errors "github.com/pkg/errors"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	rest "k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -279,23 +277,58 @@ func IsAddonDir(dirName string) (bool, error) {
 		return false, errors.Errorf("addon version is empty")
 	}
 
-	// Load template.yaml
-	templateYaml := filepath.Join(dirName, TemplateFileName)
-	if _, err := os.Stat(templateYaml); os.IsNotExist(err) {
-		return false, errors.Errorf("no %s exists in directory %q", TemplateFileName, dirName)
+	// Load template.yaml/cue
+	var errYAML error
+	var errCUE error
+	templateYAML := filepath.Join(dirName, TemplateFileName)
+	templateCUE := filepath.Join(dirName, AppTemplateCueFileName)
+	_, errYAML = os.Stat(templateYAML)
+	_, errCUE = os.Stat(templateCUE)
+	if os.IsNotExist(errYAML) && os.IsNotExist(errCUE) {
+		return false, fmt.Errorf("no %s or %s exists in directory %q", TemplateFileName, AppTemplateCueFileName, dirName)
 	}
-	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYaml))
+	if errYAML != nil && errCUE != nil {
+		return false, errors.Errorf("cannot stat %s or %s", TemplateFileName, AppTemplateCueFileName)
+	}
+
+	// template.cue have higher priority
+	if errCUE == nil {
+		templateContent, err := ioutil.ReadFile(filepath.Clean(templateCUE))
+		if err != nil {
+			return false, fmt.Errorf("cannot read %s: %w", AppTemplateCueFileName, err)
+		}
+		v, err := value.NewValue("", nil, "")
+		if err != nil {
+			return false, err
+		}
+		out, err := v.LookupByScript(string(templateContent))
+		if err != nil {
+			return false, err
+		}
+		content, err := out.LookupValue(renderOutputCuePath)
+		if err != nil {
+			return false, fmt.Errorf("no output in %s: %w", AppTemplateCueFileName, err)
+		}
+		app := &v1beta1.Application{}
+		err = content.UnmarshalTo(app)
+		if err != nil {
+			return false, fmt.Errorf("no application in %s: %w", AppTemplateCueFileName, err)
+		}
+		return true, nil
+	}
+
+	// then check template.yaml
+	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYAML))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", TemplateFileName, dirName)
 	}
-
 	// Check template.yaml contents
-	templateContent := new(v1beta1.Application)
-	if err := yaml.Unmarshal(templateYamlContent, &templateContent); err != nil {
+	template := new(v1beta1.Application)
+	if err := yaml.Unmarshal(templateYamlContent, &template); err != nil {
 		return false, err
 	}
-	if templateContent == nil {
-		return false, errors.Errorf("chart metadata (%s) missing", TemplateFileName)
+	if template == nil {
+		return false, errors.Errorf("template (%s) missing", TemplateFileName)
 	}
 
 	return true, nil

@@ -28,19 +28,16 @@ import (
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"github.com/fatih/color"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
 	// AddonNameRegex is the regex to validate addon names
-	AddonNameRegex          = `^[a-z\d]+(-[a-z\d]+)*$`
+	AddonNameRegex = `^[a-z\d]+(-[a-z\d]+)*$`
+	// helmComponentDependency is the dependent addon of Helm Component
 	helmComponentDependency = "fluxcd"
 )
 
@@ -54,13 +51,16 @@ type InitCmd struct {
 	Path             string
 	Overwrite        bool
 	RefObjURLs       []string
-	AppTmpl          v1beta1.Application
-	Metadata         Meta
-	Readme           string
-	Resources        []ElementFile
-	Schemas          []ElementFile
-	Views            []ElementFile
-	Definitions      []ElementFile
+	// We use string instead of v1beta1.Application is because
+	// the cue formatter is having some problems: it will keep
+	// TypeMeta (instead of inlined).
+	AppTmpl     string
+	Metadata    Meta
+	Readme      string
+	Resources   []ElementFile
+	Schemas     []ElementFile
+	Views       []ElementFile
+	Definitions []ElementFile
 }
 
 // CreateScaffold creates an addon scaffold
@@ -152,9 +152,6 @@ func (cmd *InitCmd) createSamples() {
 	cmd.Resources = append(cmd.Resources, ElementFile{
 		Data: resourceTemplate,
 		Name: "myresource.cue",
-	}, ElementFile{
-		Data: parameterTemplate,
-		Name: "parameter.cue",
 	})
 	// Sample schema
 	cmd.Schemas = append(cmd.Schemas, ElementFile{
@@ -173,21 +170,8 @@ func (cmd *InitCmd) createRequiredFiles() {
 	// README.md
 	cmd.Readme = strings.ReplaceAll(readmeTemplate, "ADDON_NAME", cmd.AddonName)
 
-	// template.yaml
-	cmd.AppTmpl = v1beta1.Application{
-		TypeMeta: v1.TypeMeta{
-			APIVersion: v1beta1.SchemeGroupVersion.String(),
-			Kind:       "Application",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name:      cmd.AddonName,
-			Namespace: types.DefaultKubeVelaNS,
-		},
-		Spec: v1beta1.ApplicationSpec{
-			// Prevent nulls after serialization
-			Components: []common.ApplicationComponent{},
-		},
-	}
+	// template.cue
+	cmd.AppTmpl = strings.ReplaceAll(appTemplate, "ADDON_NAME", cmd.AddonName)
 
 	// metadata.yaml
 	cmd.Metadata = Meta{
@@ -341,6 +325,9 @@ func (cmd *InitCmd) writeFiles() error {
 	files = append(files, ElementFile{
 		Name: ReadmeFileName,
 		Data: cmd.Readme,
+	}, ElementFile{
+		Data: parameterTemplate,
+		Name: GlobalParameterFileName,
 	})
 
 	for _, v := range cmd.Resources {
@@ -368,14 +355,10 @@ func (cmd *InitCmd) writeFiles() error {
 		})
 	}
 
-	// Prepare template.yaml
-	tmplBytes, err := yaml.Marshal(cmd.AppTmpl)
-	if err != nil {
-		return err
-	}
+	// Prepare template.cue
 	files = append(files, ElementFile{
-		Data: string(tmplBytes),
-		Name: TemplateFileName,
+		Data: cmd.AppTmpl,
+		Name: AppTemplateCueFileName,
 	})
 
 	// Prepare metadata.yaml
@@ -502,7 +485,7 @@ output: {
 `
 	parameterTemplate = `// parameter.cue is used to store addon parameters.
 //
-// You can use these parameters in other resources by 'parameter.myparam'
+// You can use these parameters in template.cue or in resources/ by 'parameter.myparam'
 //
 // For example, you can use parameters to allow the user to customize
 // container images, ports, and etc.
@@ -519,5 +502,19 @@ parameter: {
   label: MyParam
   validate:
     required: true
+`
+	appTemplate = `output: {
+	apiVersion: "core.oam.dev/v1beta1"
+	kind:       "Application"
+	metadata: {
+		name:      "ADDON_NAME"
+		namespace: "vela-system"
+	}
+	spec: {
+		components: []
+		policies: []
+	}
+	status: {}
+}
 `
 )
