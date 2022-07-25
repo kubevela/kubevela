@@ -126,7 +126,7 @@ func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act ty
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	deployCtx = h.setServiceAccountInContext(deployCtx)
 	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
-		return v.FillObject(err, "err")
+		return err
 	}
 	return nil
 }
