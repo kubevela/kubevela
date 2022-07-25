@@ -87,7 +87,7 @@ func TestRenderAppTemplate(t *testing.T) {
 		},
 	}
 	app := v1beta1.Application{}
-	err := render.toObject(appTemplate, &app)
+	err := render.toObject(appTemplate, renderOutputCuePath, &app)
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 1)
 	str, err := json.Marshal(app.Spec.Components[0].Properties)
@@ -98,6 +98,123 @@ func TestRenderAppTemplate(t *testing.T) {
 	str, err = json.Marshal(app.Spec.Policies)
 	assert.NoError(t, err)
 	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
+}
+
+func TestOutputsRender(t *testing.T) {
+	appTemplate := `output: {
+	   apiVersion: "core.oam.dev/v1beta1"
+	   kind: "Application"
+	   metadata: {
+	       name:  "velaux"
+	       namespace: "vela-system"
+	   }
+	   spec: {
+	       components: [{
+	           type: "k8s-objects"
+	           name: "vela-namespace"
+	           properties: objects: [{
+	               apiVersion: "v1"
+	               kind: "Namespace"
+	               metadata: name: parameter.namespace
+	           }]
+	       }]
+	       policies: [{
+	           type: "shared-resource"
+	           name: "namespace"
+	           properties: rules: [{selector: resourceTypes: ["Namespace"]}]
+	       }, {
+	           type: "topology"
+	           name: "deploy-topology"
+	           properties: {
+	               if parameter.clusters != _|_ {
+	                   clusters: parameter.clusters
+	               }
+	               if parameter.clusters == _|_ {
+	                   clusterLabelSelector: {}
+	               }
+	               namespace: parameter.namespace
+	           }
+	       }]
+	   }
+	},
+	outputs: configmap: {
+       apiVersion: "v1"
+       kind: "Configmap"
+       metadata: {
+            name: "test-cm"
+            namespace: "default"
+       }
+       data: parameter.data
+    }
+`
+	paraDefined := `parameter: {
+	// +usage=The clusters to install
+	data: "myData"
+}`
+	appTemplateNoOutputs := `output: {
+	   apiVersion: "core.oam.dev/v1beta1"
+	   kind: "Application"
+	   metadata: {
+	       name:  "velaux"
+	       namespace: "vela-system"
+	   }
+	   spec: {
+	       components: [{
+	           type: "k8s-objects"
+	           name: "vela-namespace"
+	           properties: objects: [{
+	               apiVersion: "v1"
+	               kind: "Namespace"
+	               metadata: name: parameter.namespace
+	           }]
+	       }]
+	       policies: [{
+	           type: "shared-resource"
+	           name: "namespace"
+	           properties: rules: [{selector: resourceTypes: ["Namespace"]}]
+	       }, {
+	           type: "topology"
+	           name: "deploy-topology"
+	           properties: {
+	               if parameter.clusters != _|_ {
+	                   clusters: parameter.clusters
+	               }
+	               if parameter.clusters == _|_ {
+	                   clusterLabelSelector: {}
+	               }
+	               namespace: parameter.namespace
+	           }
+	       }]
+	   }
+	},
+`
+
+	addon := &InstallPackage{
+		Meta: Meta{
+			Name: "velaux",
+			DeployTo: &DeployTo{
+				RuntimeCluster: true,
+			},
+		},
+		Parameters:     paraDefined,
+		AppCueTemplate: ElementFile{Data: appTemplate},
+	}
+	list, err := renderAliasOutputs(addon, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, true, len(list) == 1)
+
+	addon = &InstallPackage{
+		Meta: Meta{
+			Name: "velaux",
+			DeployTo: &DeployTo{
+				RuntimeCluster: true,
+			},
+		},
+		Parameters:     paraDefined,
+		AppCueTemplate: ElementFile{Data: appTemplateNoOutputs},
+	}
+	_, err = renderAliasOutputs(addon, nil)
+	assert.NoError(t, err)
 }
 
 func TestAppComponentRender(t *testing.T) {
@@ -127,7 +244,7 @@ func TestAppComponentRender(t *testing.T) {
 		},
 	}
 	comp := common.ApplicationComponent{}
-	err := render.toObject(compTemplate, &comp)
+	err := render.toObject(compTemplate, renderOutputCuePath, &comp)
 	assert.NoError(t, err)
 	assert.Equal(t, comp.Name, "velaux")
 	assert.Equal(t, comp.Type, "webservice")
