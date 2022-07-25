@@ -39,6 +39,5 @@ RUN apk add --no-cache ca-certificates bash expat
 WORKDIR /
 
 ARG TARGETARCH
-COPY --from=builder /workspace/vela-${TARGETARCH} /vela
-COPY /vela /bin/
-ENTRYPOINT ["/vela"]
+COPY --from=builder /workspace/vela-${TARGETARCH} /bin/vela
+ENTRYPOINT ["/bin/vela"]

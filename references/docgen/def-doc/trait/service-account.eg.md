@@ -10,7 +10,7 @@ spec:
       type: webservice
       properties:
         image: oamdev/vela-cli:v1.5.0-beta.1
-        cmd: ["/vela","show"]
+        cmd: ["/bin/vela","show"]
         ports:
           - port: 18081
             expose: true
