@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -474,7 +475,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	} else {
 		user := &model.User{
 			Email:         claims.Email,
-			Name:          claims.Sub,
+			Name:          strings.ToLower(claims.Sub),
 			DexSub:        claims.Sub,
 			Alias:         claims.Name,
 			LastLoginTime: time.Now(),
