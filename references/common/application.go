@@ -421,6 +421,9 @@ func (o *AppfileOptions) apply(app *corev1beta1.Application, scopes []oam.Object
 func Info(app *corev1beta1.Application) string {
 	yellow := color.New(color.FgYellow)
 	appName := app.Name
+	if app.Namespace != "" && app.Namespace != "default" {
+		appName += " -n " + app.Namespace
+	}
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		"    Port forward: " + yellow.Sprintf("vela port-forward %s\n", appName) +
 		"             SSH: " + yellow.Sprintf("vela exec %s\n", appName) +

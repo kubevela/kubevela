@@ -394,8 +394,7 @@ func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterOb
 }
 
 var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
-var isPortForwardEndpointClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment",
-	"StatefulSet", "CloneSet", "Job", "Service", "HelmRelease")
+
 var resourceNameClusterObjectReferenceFilter = func(resourceName []string) clusterObjectReferenceFilter {
 	return func(reference common.ClusterObjectReference) bool {
 		if len(resourceName) == 0 {
@@ -528,14 +527,6 @@ func removeEmptyString(items []string) []string {
 // return the selected ClusterObjectReference
 func AskToChooseOneEnvResource(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
 	filters := []clusterObjectReferenceFilter{isWorkloadClusterObjectReferenceFilter}
-	_resourceName := removeEmptyString(resourceName)
-	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
-	return askToChooseOneResource(app, filters...)
-}
-
-// AskToChooseOnePortForwardEndpoint will ask user to select one applied resource as port forward endpoint
-func AskToChooseOnePortForwardEndpoint(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
-	filters := []clusterObjectReferenceFilter{isPortForwardEndpointClusterObjectReferenceFilter}
 	_resourceName := removeEmptyString(resourceName)
 	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
 	return askToChooseOneResource(app, filters...)

@@ -40,4 +40,5 @@ WORKDIR /
 
 ARG TARGETARCH
 COPY --from=builder /workspace/vela-${TARGETARCH} /vela
+COPY /vela /bin/
 ENTRYPOINT ["/vela"]
