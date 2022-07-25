@@ -25,7 +25,6 @@ import (
 // constants used in `svc` command
 const (
 	App       = "app"
-	Service   = "svc"
 	Namespace = "namespace"
 
 	// FlagDescription command flag to specify the description of the definition
