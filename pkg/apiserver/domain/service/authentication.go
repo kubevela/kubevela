@@ -129,9 +129,10 @@ func (a *authenticationServiceImpl) newDexHandler(ctx context.Context, req apisv
 		return nil, err
 	}
 	return &dexHandlerImpl{
-		idToken:        idToken,
-		Store:          a.Store,
-		projectService: a.ProjectService,
+		idToken:           idToken,
+		Store:             a.Store,
+		projectService:    a.ProjectService,
+		systemInfoService: a.SystemInfoService,
 	}, nil
 }
 
@@ -477,6 +478,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	if len(users) > 0 {
 		u := users[0].(*model.User)
 		u.LastLoginTime = time.Now()
+		u.DexSub = claims.Sub
 		if err := d.Store.Put(ctx, u); err != nil {
 			return nil, err
 		}
@@ -490,6 +492,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 			LastLoginTime: time.Now(),
 		}
 		if err := d.Store.Add(ctx, user); err != nil {
+			log.Logger.Errorf("failed to save the user from the dex: %s", err.Error())
 			return nil, err
 		}
 		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
