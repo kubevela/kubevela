@@ -1056,7 +1056,6 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
-
 	appName, err := determineAddonAppName(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err

@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,32 +52,42 @@ type addonCueTemplateRender struct {
 	inputArgs map[string]interface{}
 }
 
-// This func can be used for addon render, supporting render app template and component.
-// Please notice the result will be stored in object parameter, so object must be a pointer type
-func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object interface{}) error {
+func (a addonCueTemplateRender) formatContext() (string, error) {
 	args := a.inputArgs
 	if args == nil {
 		args = map[string]interface{}{}
 	}
 	bt, err := json.Marshal(args)
 	if err != nil {
-		return err
+		return "", err
 	}
 	paramFile := fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
 
 	var contextFile = strings.Builder{}
+	// user custom parameter but be the first data and generated data should be appended at last
+	// in case the user defined data has packages
+	contextFile.WriteString(a.addon.Parameters + "\n")
+
 	// addon metadata context
 	metadataJSON, err := json.Marshal(a.addon.Meta)
 	if err != nil {
-		return err
+		return "", err
 	}
 	contextFile.WriteString(fmt.Sprintf("context: metadata: %s\n", string(metadataJSON)))
 	// parameter definition
 	contextFile.WriteString(paramFile + "\n")
-	// user custom parameter
-	contextFile.WriteString(a.addon.Parameters + "\n")
 
-	v, err := value.NewValue(contextFile.String(), nil, "")
+	return contextFile.String(), nil
+}
+
+// This func can be used for addon render component.
+// Please notice the result will be stored in object parameter, so object must be a pointer type
+func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object interface{}) error {
+	contextFile, err := a.formatContext()
+	if err != nil {
+		return err
+	}
+	v, err := value.NewValue(contextFile, nil, "")
 	if err != nil {
 		return err
 	}
@@ -89,6 +100,35 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object
 		return err
 	}
 	return outputContent.UnmarshalTo(object)
+}
+
+// renderApp will render Application from CUE files
+func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, error) {
+	var app v1beta1.Application
+
+	contextFile, err := a.formatContext()
+	if err != nil {
+		return nil, errors.Wrap(err, "format context for app render")
+	}
+	var files = []string{contextFile}
+	for _, cuef := range a.addon.CUETemplates {
+		files = append(files, cuef.Data)
+	}
+
+	// TODO(wonderflow): add package discover to support vela own packages if needed
+	v, err := value.NewValueWithFiles(a.addon.AppCueTemplate.Data, files, nil, "")
+	if err != nil {
+		return nil, errors.Wrap(err, "load app template with CUE files")
+	}
+	outputContent, err := v.LookupValue(renderOutputCuePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "render app from output field from CUE")
+	}
+	err = outputContent.UnmarshalTo(&app)
+	if err != nil {
+		return nil, errors.Wrap(err, "decode app from CUE")
+	}
+	return &app, nil
 }
 
 // generateAppFramework generate application from yaml defined by template.yaml or cue file from template.cue
@@ -128,15 +168,15 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 }
 
 func renderAppAccordingToCueTemplate(addon *InstallPackage, args map[string]interface{}) (*v1beta1.Application, error) {
-	app := v1beta1.Application{}
 	r := addonCueTemplateRender{
 		addon:     addon,
 		inputArgs: args,
 	}
-	if err := r.toObject(addon.AppCueTemplate.Data, renderOutputCuePath, &app); err != nil {
+	app, err := r.renderApp()
+	if err != nil {
 		return nil, err
 	}
-	return &app, nil
+	return app, nil
 }
 
 // renderCompAccordingCUETemplate will return a component from cue template
