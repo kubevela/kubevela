@@ -227,6 +227,11 @@ var _ = Describe("Test project service functions", func() {
 			UserRoles: []string{"project-admin"},
 		})
 		Expect(err).Should(BeNil())
+
+		users, err := projectService.ListProjectUser(context.TODO(), "test-project", 0, 0)
+		Expect(err).Should(BeNil())
+		Expect(len(users.Users)).Should(Equal(1))
+		Expect(users.Users[0].UserAlias).Should(Equal("Administrator"))
 	})
 
 	It("Test Update project user function", func() {
