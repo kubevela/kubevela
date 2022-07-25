@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -297,17 +296,10 @@ func IsAddonDir(dirName string) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("cannot read %s: %w", AppTemplateCueFileName, err)
 		}
-		v, err := value.NewValue("", nil, "")
-		if err != nil {
-			return false, err
-		}
-		out, err := v.LookupByScript(string(templateContent))
-		if err != nil {
-			return false, err
-		}
-		_, err = out.LookupValue(renderOutputCuePath)
-		if err != nil {
-			return false, fmt.Errorf("no output in %s: %w", AppTemplateCueFileName, err)
+		// Just look for `output` field is enough.
+		// No need to load the whole addon package to render the Application.
+		if !strings.Contains(string(templateContent), "output") {
+			return false, fmt.Errorf("no output in %s", AppTemplateCueFileName)
 		}
 		return true, nil
 	}
