@@ -29,17 +29,12 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/jsonpath"
 	"k8s.io/kubectl/pkg/cmd/get"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -58,24 +53,6 @@ func getPodNameForResource(ctx context.Context, clientSet kubernetes.Interface, 
 		return "", fmt.Errorf("no pods found created by resource %s", resourceName)
 	}
 	return common.AskToChooseOnePods(pods)
-}
-
-func getCompNameFromClusterObjectReference(ctx context.Context, k8sClient client.Client, r *common2.ClusterObjectReference) (string, error) {
-	u := &unstructured.Unstructured{}
-	u.SetGroupVersionKind(r.GroupVersionKind())
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: r.Namespace, Name: r.Name}, u); err != nil {
-		return "", err
-	}
-	labels := u.GetLabels()
-	if labels == nil {
-		return "", nil
-	}
-	// Addon observability --> some Helm typed components --> some fluxcd objects --> some services. Those services
-	// are not labeled with oam.LabelAppComponent
-	if r.Name == common.AddonObservabilityGrafanaSvc {
-		return r.Name, nil
-	}
-	return labels[oam.LabelAppComponent], nil
 }
 
 // UserInput user input in command
