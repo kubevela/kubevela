@@ -171,7 +171,7 @@ func (cmd *InitCmd) createRequiredFiles() {
 	cmd.Readme = strings.ReplaceAll(readmeTemplate, "ADDON_NAME", cmd.AddonName)
 
 	// template.cue
-	cmd.AppTmpl = strings.ReplaceAll(appTemplate, "ADDON_NAME", cmd.AddonName)
+	cmd.AppTmpl = appTemplate
 
 	// metadata.yaml
 	cmd.Metadata = Meta{
@@ -506,10 +506,6 @@ parameter: {
 	appTemplate = `output: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
-	metadata: {
-		name:      "ADDON_NAME"
-		namespace: "vela-system"
-	}
 	spec: {
 		components: []
 		policies: []
