@@ -77,6 +77,11 @@ func (c *CR2UX) shouldSync(ctx context.Context, targetApp *v1beta1.Application, 
 		}
 	}
 
+	// if no LabelSourceOfTruth label, it means the app is existing ones, check the existing labels and annotations
+	if _, appName := targetApp.Annotations[oam.AnnotationAppName]; appName {
+		return false
+	}
+
 	key := formatAppComposedName(targetApp.Name, targetApp.Namespace)
 	cachedData, ok := c.cache.Load(key)
 	if ok {
