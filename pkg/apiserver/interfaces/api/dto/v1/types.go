@@ -1275,6 +1275,7 @@ type DetailUserResponse struct {
 // ProjectUserBase project user base
 type ProjectUserBase struct {
 	UserName   string    `json:"name"`
+	UserAlias  string    `json:"alias"`
 	UserRoles  []string  `json:"userRoles"`
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`
