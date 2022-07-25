@@ -75,6 +75,49 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 	return json.Unmarshal(data, x)
 }
 
+// NewValueWithFiles new a value from main and appendix files
+func NewValueWithFiles(main string, slaveFiles []string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*Value, error) {
+	builder := &build.Instance{}
+
+	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse main file")
+	}
+	for _, opt := range opts {
+		if err := opt(mainFile); err != nil {
+			return nil, errors.Wrap(err, "run option func for main file")
+		}
+	}
+	if err := builder.AddSyntax(mainFile); err != nil {
+		return nil, errors.Wrap(err, "add main file to CUE builder")
+	}
+
+	for idx, sf := range slaveFiles {
+		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
+		}
+		if mainFile.PackageName() != "" && cueSF.PackageName() == "" {
+			cueSF, err = parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", "package "+mainFile.PackageName()+"\n"+sf, parser.ParseComments)
+			if err != nil {
+				return nil, errors.Wrap(err, "add package for added file")
+			}
+		}
+		if cueSF.PackageName() != mainFile.PackageName() {
+			continue
+		}
+		for _, opt := range opts {
+			if err := opt(cueSF); err != nil {
+				return nil, errors.Wrap(err, "run option func for files")
+			}
+		}
+		if err := builder.AddSyntax(cueSF); err != nil {
+			return nil, errors.Wrap(err, "add slave files to CUE builder")
+		}
+	}
+	return newValue(builder, pd, tagTempl)
+}
+
 // NewValue new a value
 func NewValue(s string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*Value, error) {
 	builder := &build.Instance{}
@@ -91,6 +134,10 @@ func NewValue(s string, pd *packages.PackageDiscover, tagTempl string, opts ...f
 	if err := builder.AddSyntax(file); err != nil {
 		return nil, err
 	}
+	return newValue(builder, pd, tagTempl)
+}
+
+func newValue(builder *build.Instance, pd *packages.PackageDiscover, tagTempl string) (*Value, error) {
 	addImports := func(inst *build.Instance) error {
 		if pd != nil {
 			pd.ImportBuiltinPackagesFor(inst)
