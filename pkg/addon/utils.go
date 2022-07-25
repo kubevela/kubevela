@@ -298,7 +298,7 @@ func IsAddonDir(dirName string) (bool, error) {
 		}
 		// Just look for `output` field is enough.
 		// No need to load the whole addon package to render the Application.
-		if !strings.Contains(string(templateContent), "output") {
+		if !strings.Contains(string(templateContent), renderOutputCuePath) {
 			return false, fmt.Errorf("no output in %s", AppTemplateCueFileName)
 		}
 		return true, nil
