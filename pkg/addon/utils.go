@@ -305,14 +305,9 @@ func IsAddonDir(dirName string) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		content, err := out.LookupValue(renderOutputCuePath)
+		_, err = out.LookupValue(renderOutputCuePath)
 		if err != nil {
 			return false, fmt.Errorf("no output in %s: %w", AppTemplateCueFileName, err)
-		}
-		app := &v1beta1.Application{}
-		err = content.UnmarshalTo(app)
-		if err != nil {
-			return false, fmt.Errorf("no application in %s: %w", AppTemplateCueFileName, err)
 		}
 		return true, nil
 	}
