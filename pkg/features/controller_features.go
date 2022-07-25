@@ -40,6 +40,8 @@ const (
 	// LegacyResourceOwnerValidation if enabled, the resource dispatch will allow existing resource not to have owner
 	// application and the current application will take over it
 	LegacyResourceOwnerValidation featuregate.Feature = "LegacyResourceOwnerValidation"
+	// DisableReferObjectsFromURL if set, the url ref objects will be disallowed
+	DisableReferObjectsFromURL featuregate.Feature = "DisableReferObjectsFromURL"
 
 	// Edge Features
 
@@ -55,6 +57,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
 	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
+	DisableReferObjectsFromURL:    {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 
