@@ -17,7 +17,10 @@ spec:
     - name: data-worker
       type: worker
       properties:
-        image: crccheck/hello-world
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
   policies:
     - name: example-multi-env-policy
       type: env-binding
