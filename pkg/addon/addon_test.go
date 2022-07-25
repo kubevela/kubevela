@@ -58,11 +58,19 @@ import (
 var paths = []string{
 	"example/metadata.yaml",
 	"example/readme.md",
-	"example/template.yaml",
+	"example/template.cue",
 	"example/definitions/helm.yaml",
 	"example/resources/configmap.cue",
-	"example/resources/parameter.cue",
+	"example/parameter.cue",
 	"example/resources/service/source-controller.yaml",
+
+	"example-legacy/metadata.yaml",
+	"example-legacy/readme.md",
+	"example-legacy/template.yaml",
+	"example-legacy/definitions/helm.yaml",
+	"example-legacy/resources/configmap.cue",
+	"example-legacy/resources/parameter.cue",
+	"example-legacy/resources/service/source-controller.yaml",
 
 	"terraform/metadata.yaml",
 	"terraform-alibaba/metadata.yaml",
@@ -159,11 +167,25 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.True(t, uiData.Parameters != "")
 	assert.True(t, len(uiData.Definitions) > 0)
 
+	testAddonName = "example-legacy"
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err = GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+	assert.True(t, len(uiData.Definitions) > 0)
+
 	// test get ui data
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, 4, len(uiDataList))
+	assert.Equal(t, 5, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package
@@ -1151,13 +1173,13 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 func TestPackageAddon(t *testing.T) {
 	pwd, _ := os.Getwd()
 
-	validAddonDict := "./testdata/example"
+	validAddonDict := "./testdata/example-legacy"
 	archiver, err := PackageAddon(validAddonDict)
 	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(pwd, "example-1.0.1.tgz"), archiver)
+	assert.Equal(t, filepath.Join(pwd, "example-legacy-1.0.1.tgz"), archiver)
 	// Remove generated package after tests
 	defer func() {
-		_ = os.RemoveAll(filepath.Join(pwd, "example-1.0.1.tgz"))
+		_ = os.RemoveAll(filepath.Join(pwd, "example-legacy-1.0.1.tgz"))
 	}()
 
 	invalidAddonDict := "./testdata"

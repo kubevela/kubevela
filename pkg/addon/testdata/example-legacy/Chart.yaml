@@ -1,0 +1,12 @@
+apiVersion: v2
+appVersion: 1.0.1
+description: Extended workload to do continuous and progressive delivery
+home: https://fluxcd.io
+icon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png
+keywords:
+- extended_workload
+- gitops
+- only_example
+name: example-legacy
+type: library
+version: 1.0.1
