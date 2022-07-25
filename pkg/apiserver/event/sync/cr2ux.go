@@ -27,34 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/service"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
-
-// CheckSoTFromCR will check the source of truth of the application
-func CheckSoTFromCR(targetApp *v1beta1.Application) string {
-	if sot := targetApp.Annotations[model.LabelSourceOfTruth]; sot != "" {
-		return sot
-	}
-	// if no LabelSourceOfTruth label, it means the app is existing ones, check the existing labels and annotations
-	if _, appName := targetApp.Annotations[oam.AnnotationAppName]; appName {
-		return model.FromUX
-	}
-	// no labels mean it's created by K8s resources.
-	return model.FromCR
-}
-
-// CheckSoTFromAppMeta will check the source of truth marked in datastore
-func (c *CR2UX) CheckSoTFromAppMeta(ctx context.Context, appName, namespace string, sotFromCR string) string {
-
-	app, _, err := c.getApp(ctx, appName, namespace)
-	if err != nil {
-		return sotFromCR
-	}
-	if app.Labels == nil || app.Labels[model.LabelSourceOfTruth] == "" {
-		return sotFromCR
-	}
-	return app.Labels[model.LabelSourceOfTruth]
-}
 
 // getApp will return the app and appname if exists
 func (c *CR2UX) getApp(ctx context.Context, name, namespace string) (*model.Application, string, error) {
