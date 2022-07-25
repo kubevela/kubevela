@@ -34,6 +34,14 @@ func TestRenderAppTemplate(t *testing.T) {
 	clusters?: [...string]
 	namespace: string
 }`
+	resourceComponent1 := `
+myref: {
+	type: "ref-objects"
+	properties: {
+		urls: ["https://hello.yaml"]
+	}
+}
+`
 	appTemplate := `output: {
 	   apiVersion: "core.oam.dev/v1beta1"
 	   kind: "Application"
@@ -50,7 +58,7 @@ func TestRenderAppTemplate(t *testing.T) {
 	               kind: "Namespace"
 	               metadata: name: parameter.namespace
 	           }]
-	       }]
+	       },myref]
 	       policies: [{
 	           type: "shared-resource"
 	           name: "namespace"
@@ -77,7 +85,9 @@ func TestRenderAppTemplate(t *testing.T) {
 				RuntimeCluster: true,
 			},
 		},
-		Parameters: paraDefined,
+		Parameters:     paraDefined,
+		CUETemplates:   []ElementFile{{Data: resourceComponent1}},
+		AppCueTemplate: ElementFile{Data: appTemplate},
 	}
 
 	render := addonCueTemplateRender{
@@ -86,18 +96,43 @@ func TestRenderAppTemplate(t *testing.T) {
 			"namespace": "vela-system",
 		},
 	}
-	app := v1beta1.Application{}
-	err := render.toObject(appTemplate, renderOutputCuePath, &app)
+	app, err := render.renderApp()
 	assert.NoError(t, err)
-	assert.Equal(t, len(app.Spec.Components), 1)
+	assert.Equal(t, len(app.Spec.Components), 2)
 	str, err := json.Marshal(app.Spec.Components[0].Properties)
 	assert.NoError(t, err)
 	assert.True(t, strings.Contains(string(str), `{"name":"vela-system"}`))
+	str2, err := json.Marshal(app.Spec.Components[1].Properties)
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(str2), `{"urls":["https://hello.yaml"]}`))
 
 	assert.Equal(t, len(app.Spec.Policies), 2)
 	str, err = json.Marshal(app.Spec.Policies)
 	assert.NoError(t, err)
 	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
+
+	addon.CUETemplates = []ElementFile{{Data: resourceComponent1}}
+	addon.AppCueTemplate = ElementFile{Data: "package main\n" + appTemplate}
+	app, err = render.renderApp()
+	assert.NoError(t, err)
+	assert.Equal(t, len(app.Spec.Components), 2)
+
+	addon.Parameters = "package main\n" + paraDefined
+	app, err = render.renderApp()
+	assert.NoError(t, err)
+	assert.Equal(t, len(app.Spec.Components), 2)
+
+	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
+	addon.AppCueTemplate = ElementFile{Data: "package main\n" + appTemplate}
+	_, err = render.renderApp()
+	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+
+	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
+	addon.Parameters = paraDefined
+	addon.AppCueTemplate = ElementFile{Data: appTemplate}
+	_, err = render.renderApp()
+	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+
 }
 
 func TestOutputsRender(t *testing.T) {
@@ -370,13 +405,17 @@ func TestGenerateAppFrameworkWithYamlTemplate(t *testing.T) {
 }
 
 func TestRenderCueResourceError(t *testing.T) {
-	cueTemplate1 := `{
+	cueTemplate1 := `output: {
  type: "webservice"
  name: "velaux"
 }`
 	cueTemplate2 := `output: {
  type: "webservice"
- name: "velaux"
+ name: "velaux2"
+}`
+	cueTemplate3 := `nooutput: {
+ type: "webservice"
+ name: "velaux3"
 }`
 	comp, err := renderResources(&InstallPackage{
 		CUETemplates: []ElementFile{
@@ -388,8 +427,12 @@ func TestRenderCueResourceError(t *testing.T) {
 				Data: cueTemplate2,
 				Name: "tmplaate2.cue",
 			},
+			{
+				Data: cueTemplate3,
+				Name: "tmplaate3.cue",
+			},
 		},
 	}, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, len(comp), 1)
+	assert.Equal(t, len(comp), 2)
 }
