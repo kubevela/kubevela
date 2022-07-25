@@ -199,7 +199,7 @@ func TestOutputsRender(t *testing.T) {
 		Parameters:     paraDefined,
 		AppCueTemplate: ElementFile{Data: appTemplate},
 	}
-	list, err := renderAliasOutputs(addon, nil)
+	list, err := renderOutputs(addon, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, true, len(list) == 1)
 
@@ -213,7 +213,7 @@ func TestOutputsRender(t *testing.T) {
 		Parameters:     paraDefined,
 		AppCueTemplate: ElementFile{Data: appTemplateNoOutputs},
 	}
-	_, err = renderAliasOutputs(addon, nil)
+	_, err = renderOutputs(addon, nil)
 	assert.NoError(t, err)
 }
 

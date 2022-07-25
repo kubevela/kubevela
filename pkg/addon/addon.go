@@ -1084,8 +1084,8 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
 	}
 
-	var aliasOutputs []*unstructured.Unstructured
-	aliasOutputs, err = renderAliasOutputs(addon, h.args)
+	var auxiliaryOutputs []*unstructured.Unstructured
+	auxiliaryOutputs, err = renderOutputs(addon, h.args)
 	if err != nil {
 		return err
 	}
@@ -1118,7 +1118,7 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 		}
 	}
 
-	for _, o := range aliasOutputs {
+	for _, o := range auxiliaryOutputs {
 		addOwner(o, app)
 		err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
 		if err != nil {

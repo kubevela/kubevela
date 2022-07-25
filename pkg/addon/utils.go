@@ -385,3 +385,7 @@ func generateAnnotation(meta *Meta) map[string]string {
 	}
 	return res
 }
+
+func isErrorCueRenderPathNotFound(err error, path string) bool {
+	return err.Error() == fmt.Sprintf("var(path=%s) not exist", path)
+}
