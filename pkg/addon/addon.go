@@ -306,12 +306,15 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 	}
 
 	if opt.GetParameter && (len(addon.Parameters) != 0 || len(addon.GlobalParameters) != 0) {
+		if addon.GlobalParameters != "" {
+			if addon.Parameters != "" {
+				klog.Warning("both legacy parameter and global parameter are provided, but only global parameter will be used. Consider removing the legacy parameters.")
+			}
+			addon.Parameters = addon.GlobalParameters
+		}
 		err := genAddonAPISchema(addon)
 		if err != nil {
 			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w", meta.Name, err)
-		}
-		if len(addon.GlobalParameters) != 0 {
-			addon.Parameters = addon.GlobalParameters
 		}
 	}
 	addon.AvailableVersions = []string{addon.Version}
