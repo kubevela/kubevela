@@ -47,6 +47,9 @@ type ServiceEndpoint struct {
 
 // String return endpoint URL
 func (s *ServiceEndpoint) String() string {
+	if s.Endpoint.Host == "" && s.Endpoint.Port == 0 {
+		return "-"
+	}
 	protocol := strings.ToLower(string(s.Endpoint.Protocol))
 	if s.Endpoint.AppProtocol != nil && *s.Endpoint.AppProtocol != "" {
 		protocol = *s.Endpoint.AppProtocol

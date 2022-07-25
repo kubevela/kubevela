@@ -302,7 +302,7 @@ func extractTypeFromError(paraValue cue.Value) string {
 	}
 	str = err.Error()
 	sll := strings.Split(str, "cannot use value (")
-	if len(sll) < 1 {
+	if len(sll) < 2 {
 		return str
 	}
 	str = sll[1]

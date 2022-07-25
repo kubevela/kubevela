@@ -77,7 +77,7 @@ export: "status"
 		cmd := NewCommand()
 		var buff = bytes.NewBufferString("")
 		cmd.SetOut(buff)
-		Expect(queryFromView(context.TODO(), k8sClient, arg, name, cmd)).Should(BeNil())
+		Expect(queryFromView(context.TODO(), arg, name, cmd)).Should(BeNil())
 		Expect(strings.TrimSpace(buff.String())).Should(BeEquivalentTo("my-value"))
 	})
 })
@@ -428,7 +428,7 @@ var _ = Describe("Test velaQL", func() {
 		Expect(err).Should(BeNil())
 		err = k8sClient.Create(context.Background(), &cm)
 		Expect(err).Should(BeNil())
-		endpoints, err := GetServiceEndpoints(context.TODO(), k8sClient, appName, namespace, arg, Filter{})
+		endpoints, err := GetServiceEndpoints(context.TODO(), appName, namespace, arg, Filter{})
 		Expect(err).Should(BeNil())
 		urls := []string{
 			"http://ingress.domain",

@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -179,6 +180,22 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
+func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
+	var result [][]string
+	result = append(result, []string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint", "Inner"})
+
+	for _, endpoint := range endpoints {
+		if endpoint.Cluster == "" {
+			endpoint.Cluster = multicluster.ClusterLocalName
+		}
+		if endpoint.Component == "" {
+			endpoint.Component = "-"
+		}
+		result = append(result, []string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String(), fmt.Sprintf("%v", endpoint.Endpoint.Inner)})
+	}
+	return result
+}
+
 func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args, skipEmptyTable bool) error {
 	config, err := velaC.GetConfig()
 	if err != nil {
@@ -188,7 +205,8 @@ func printAppEndpoints(ctx context.Context, appName string, namespace string, f 
 	if err != nil {
 		return err
 	}
-	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
+	velaC.SetClient(client)
+	endpoints, err := GetServiceEndpoints(ctx, appName, namespace, velaC, f)
 	if err != nil {
 		return err
 	}
@@ -198,12 +216,11 @@ func printAppEndpoints(ctx context.Context, appName string, namespace string, f 
 	fmt.Printf("Please access %s from the following endpoints:\n", appName)
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
-	table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint", "Inner"})
-	for _, endpoint := range endpoints {
-		if endpoint.Cluster == "" {
-			endpoint.Cluster = multicluster.ClusterLocalName
-		}
-		table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String(), fmt.Sprintf("%v", endpoint.Endpoint.Inner)})
+
+	printablePoints := formatEndpoints(endpoints)
+	table.SetHeader(printablePoints[0])
+	for i := 1; i < len(printablePoints); i++ {
+		table.Append(printablePoints[i])
 	}
 	table.Render()
 	return nil
