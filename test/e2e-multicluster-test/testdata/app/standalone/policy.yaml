@@ -5,7 +5,7 @@ metadata:
 type: override
 properties:
   components:
-    - name: hello-world
+    - name: podinfo
       traits:
         - type: scaler
           properties:

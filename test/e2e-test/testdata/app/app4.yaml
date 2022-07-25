@@ -7,7 +7,10 @@ spec:
     - name: myweb
       type: worker
       properties:
-        image: hello-world
+        image: "stefanprodan/podinfo:5.0.2"
+        cmd:
+          - ./podinfo
+          - stress-cpu=1
       traits:
         - type: scaler
           properties:
