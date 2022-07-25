@@ -7,4 +7,7 @@ spec:
     - name: myweb
       type: worker
       properties:
-        image: crccheck/hello-world
+        image: "stefanprodan/podinfo:4.0.3"
+        cmd:
+          - ./podinfo
+          - stress-cpu=1
