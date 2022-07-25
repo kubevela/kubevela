@@ -82,8 +82,13 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL string) (*apis
 		return nil, bcode.ErrParseQuery2Json
 	}
 	if strings.Contains(velaQL, "collect-logs") {
-		enc, _ := base64.StdEncoding.DecodeString(resp["logs"].(string))
-		resp["logs"] = string(enc)
+		logs, ok := resp["logs"].(string)
+		if ok {
+			enc, _ := base64.StdEncoding.DecodeString(logs)
+			resp["logs"] = string(enc)
+		} else {
+			resp["logs"] = ""
+		}
 	}
 	return &resp, err
 }

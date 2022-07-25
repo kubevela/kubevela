@@ -19,6 +19,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"strconv"
@@ -64,8 +65,9 @@ var _ = Describe("Test authentication service functions", func() {
 	})
 	It("Test Dex login", func() {
 		testIDToken := &oidc.IDToken{}
+		sub := "248289761001"
 		patch := ApplyMethod(reflect.TypeOf(testIDToken), "Claims", func(_ *oidc.IDToken, v interface{}) error {
-			return json.Unmarshal([]byte(`{"email":"test@test.com", "name":"show name", "sub": "testuser"}`), v)
+			return json.Unmarshal([]byte(fmt.Sprintf(`{"email":"test@test.com", "name":"show name", "sub": "%s"}`, sub)), v)
 		})
 		defer patch.Reset()
 
@@ -94,22 +96,22 @@ var _ = Describe("Test authentication service functions", func() {
 		resp, err := dexHandler.login(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(resp.Email).Should(Equal("test@test.com"))
-		Expect(resp.Name).Should(Equal("testuser"))
+		Expect(resp.Name).Should(Equal(sub))
 		Expect(resp.Alias).Should(Equal("show name"))
 
-		projects, err := projectService.ListUserProjects(context.TODO(), "testuser")
+		projects, err := projectService.ListUserProjects(context.TODO(), sub)
 		Expect(err).Should(BeNil())
 		Expect(len(projects)).Should(Equal(1))
 
 		user := &model.User{
-			Name: "testuser",
+			Name: sub,
 		}
 		err = ds.Get(context.Background(), user)
 		Expect(err).Should(BeNil())
 		Expect(user.Email).Should(Equal("test@test.com"))
 
 		existUser := &model.User{
-			Name: "testuser",
+			Name: sub,
 		}
 		err = ds.Delete(context.Background(), existUser)
 		Expect(err).Should(BeNil())
@@ -131,7 +133,7 @@ var _ = Describe("Test authentication service functions", func() {
 		existUser = &model.User{
 			Name:   "zhangsan",
 			Email:  "test2@test.com",
-			DexSub: "testuser",
+			DexSub: sub,
 		}
 		err = ds.Add(context.Background(), existUser)
 		Expect(err).Should(BeNil())

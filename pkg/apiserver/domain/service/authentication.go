@@ -129,9 +129,10 @@ func (a *authenticationServiceImpl) newDexHandler(ctx context.Context, req apisv
 		return nil, err
 	}
 	return &dexHandlerImpl{
-		idToken:        idToken,
-		Store:          a.Store,
-		projectService: a.ProjectService,
+		idToken:           idToken,
+		Store:             a.Store,
+		projectService:    a.ProjectService,
+		systemInfoService: a.SystemInfoService,
 	}, nil
 }
 
@@ -156,13 +157,13 @@ func (a *authenticationServiceImpl) Login(ctx context.Context, loginReq apisv1.L
 	}
 	loginType := sysInfo.LoginType
 
-	switch loginType {
-	case model.LoginTypeDex:
+	switch {
+	case loginType == model.LoginTypeDex || (loginReq.Code != "" && loginReq.Username == ""):
 		handler, err = a.newDexHandler(ctx, loginReq)
 		if err != nil {
 			return nil, err
 		}
-	case model.LoginTypeLocal:
+	case loginType == model.LoginTypeLocal:
 		handler, err = a.newLocalHandler(loginReq)
 		if err != nil {
 			return nil, err
@@ -288,6 +289,11 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, update *mo
 	if len(update.StaticPasswords) > 0 {
 		dexConfig.StaticPasswords = update.StaticPasswords
 	}
+	// This is the title that the dex login page.
+	// It will be: Log in to KubeVela
+	if dexConfig.Frontend.Issuer == "" {
+		dexConfig.Frontend.Issuer = "KubeVela"
+	}
 	config, err := model.NewJSONStructByStruct(dexConfig)
 	if err != nil {
 		return err
@@ -323,7 +329,7 @@ func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress st
 		StaticClients: []model.DexStaticClient{
 			{
 				ID:           "velaux",
-				Name:         "Vela UX",
+				Name:         "VelaUX",
 				Secret:       "velaux-secret",
 				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
 			},
@@ -403,9 +409,13 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConf
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexConfigSecret); err != nil {
 		if kerrors.IsNotFound(err) {
-			return nil, bcode.ErrDexConfigNotFound
+			dexConfigSecret, err = initDexConfig(ctx, kubeClient, "http://velaux.com")
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	if dexConfigSecret.Data == nil {
 		return nil, bcode.ErrInvalidDexConfig
@@ -468,6 +478,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	if len(users) > 0 {
 		u := users[0].(*model.User)
 		u.LastLoginTime = time.Now()
+		u.DexSub = claims.Sub
 		if err := d.Store.Put(ctx, u); err != nil {
 			return nil, err
 		}
@@ -481,6 +492,7 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 			LastLoginTime: time.Now(),
 		}
 		if err := d.Store.Add(ctx, user); err != nil {
+			log.Logger.Errorf("failed to save the user from the dex: %s", err.Error())
 			return nil, err
 		}
 		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
