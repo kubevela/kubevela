@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -68,10 +69,12 @@ type AuthenticationService interface {
 }
 
 type authenticationServiceImpl struct {
-	SysService  SystemInfoService   `inject:""`
-	UserService UserService         `inject:""`
-	Store       datastore.DataStore `inject:"datastore"`
-	KubeClient  client.Client       `inject:"kubeClient"`
+	SysService        SystemInfoService   `inject:""`
+	UserService       UserService         `inject:""`
+	ProjectService    ProjectService      `inject:""`
+	SystemInfoService SystemInfoService   `inject:""`
+	Store             datastore.DataStore `inject:"datastore"`
+	KubeClient        client.Client       `inject:"kubeClient"`
 }
 
 // NewAuthenticationService new authentication service
@@ -84,8 +87,10 @@ type authHandler interface {
 }
 
 type dexHandlerImpl struct {
-	idToken *oidc.IDToken
-	Store   datastore.DataStore
+	idToken           *oidc.IDToken
+	Store             datastore.DataStore
+	projectService    ProjectService
+	systemInfoService SystemInfoService
 }
 
 type localHandlerImpl struct {
@@ -124,8 +129,9 @@ func (a *authenticationServiceImpl) newDexHandler(ctx context.Context, req apisv
 		return nil, err
 	}
 	return &dexHandlerImpl{
-		idToken: idToken,
-		Store:   a.Store,
+		idToken:        idToken,
+		Store:          a.Store,
+		projectService: a.ProjectService,
 	}, nil
 }
 
@@ -433,31 +439,66 @@ func (a *authenticationServiceImpl) GetLoginType(ctx context.Context) (*apisv1.G
 func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	var claims struct {
 		Email string `json:"email"`
-		Name  string `json:"name"`
+		// Name End-User's full name in displayable form including all name parts, possibly including titles and suffixes, ordered according to the End-User's locale and preferences.
+		Name string `json:"name"`
+		// Subject - Identifier for the End-User at the Issuer.
+		Sub string `json:"sub"`
 	}
 	if err := d.idToken.Claims(&claims); err != nil {
 		return nil, err
 	}
-
-	user := &model.User{Email: claims.Email}
-	userBase := &apisv1.UserBase{Email: claims.Email, Name: claims.Name}
-	users, err := d.Store.List(ctx, user, &datastore.ListOptions{})
-	if err != nil {
-		return nil, err
+	var users []datastore.Entity
+	var err error
+	if claims.Email != "" {
+		user := &model.User{Email: claims.Email}
+		users, err = d.Store.List(ctx, user, &datastore.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
 	}
+	if len(users) == 0 && claims.Sub != "" {
+		// Support query the user by the subject
+		user := &model.User{DexSub: claims.Sub}
+		users, err = d.Store.List(ctx, user, &datastore.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	var userBase *apisv1.UserBase
 	if len(users) > 0 {
 		u := users[0].(*model.User)
 		u.LastLoginTime = time.Now()
 		if err := d.Store.Put(ctx, u); err != nil {
 			return nil, err
 		}
-		userBase.Name = u.Name
-	} else if err := d.Store.Add(ctx, &model.User{
-		Email:         claims.Email,
-		Name:          claims.Name,
-		LastLoginTime: time.Now(),
-	}); err != nil {
-		return nil, err
+		userBase = convertUserBase(u)
+	} else {
+		user := &model.User{
+			Email:         claims.Email,
+			Name:          strings.ToLower(claims.Sub),
+			DexSub:        claims.Sub,
+			Alias:         claims.Name,
+			LastLoginTime: time.Now(),
+		}
+		if err := d.Store.Add(ctx, user); err != nil {
+			return nil, err
+		}
+		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
+		if err != nil {
+			log.Logger.Errorf("failed to get the system info %s", err.Error())
+		}
+		if systemInfo != nil {
+			for _, project := range systemInfo.DexUserDefaultProjects {
+				_, err := d.projectService.AddProjectUser(ctx, project.Name, apisv1.AddProjectUserRequest{
+					UserName:  claims.Sub,
+					UserRoles: project.Roles,
+				})
+				if err != nil {
+					log.Logger.Errorf("failed to add a user to project %s", err.Error())
+				}
+			}
+		}
+		userBase = convertUserBase(user)
 	}
 
 	return userBase, nil
