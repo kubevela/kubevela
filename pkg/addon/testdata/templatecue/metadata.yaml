@@ -1,0 +1,12 @@
+name: templatecue
+version: v0.1.0
+description: A simple service that listens to the Kubernetes API server and generates metrics about the state of the objects.
+icon: https://artifacthub.io/image/81797fec-309d-4380-a527-68f1c9e1dcfb@1x
+url: https://github.com/kubernetes/kube-state-metrics
+
+tags:
+  - observability
+  - kubernetes
+  - metrics
+
+invisible: false

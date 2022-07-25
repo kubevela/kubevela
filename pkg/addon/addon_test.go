@@ -73,6 +73,10 @@ var paths = []string{
 	"test-disable-addon/metadata.yaml",
 	"test-disable-addon/definitions/compDef.yaml",
 	"test-disable-addon/definitions/traitDef.cue",
+
+	"templatecue/metadata.yaml",
+	"templatecue/parameter.cue",
+	"templatecue/template.cue",
 }
 
 var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request) {
@@ -163,7 +167,7 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
 	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, 4, len(uiDataList))
+	assert.Equal(t, 5, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package
@@ -173,6 +177,25 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.Equal(t, len(installPkg.CUETemplates), 1)
 }
 
+func testReaderCueTemplateFunc(t *testing.T, reader AsyncReader) {
+	registryMeta, err := reader.ListAddonMeta()
+	assert.NoError(t, err)
+
+	testAddonName := "templatecue"
+	var testAddonMeta SourceMeta
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err := GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+}
+
 func TestGetAddonData(t *testing.T) {
 	server := httptest.NewServer(ossHandler)
 	defer server.Close()
@@ -180,6 +203,7 @@ func TestGetAddonData(t *testing.T) {
 	reader, err := NewAsyncReader(server.URL, "", "", "", "", ossType)
 	assert.NoError(t, err)
 	testReaderFunc(t, reader)
+	testReaderCueTemplateFunc(t, reader)
 }
 
 func TestRender(t *testing.T) {
