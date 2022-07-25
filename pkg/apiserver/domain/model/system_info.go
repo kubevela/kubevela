@@ -57,6 +57,8 @@ type DexConfig struct {
 	Issuer           string                   `json:"issuer"`
 	Web              DexWeb                   `json:"web"`
 	Storage          DexStorage               `json:"storage"`
+	Telemetry        Telemetry                `json:"telemetry"`
+	Frontend         WebConfig                `json:"frontend"`
 	StaticClients    []DexStaticClient        `json:"staticClients"`
 	Connectors       []map[string]interface{} `json:"connectors,omitempty"`
 	EnablePasswordDB bool                     `json:"enablePasswordDB"`
@@ -95,6 +97,26 @@ type DexStorageConfig struct {
 
 // DexWeb dex web
 type DexWeb struct {
+	HTTP           string   `json:"http"`
+	HTTPS          string   `json:"https"`
+	TLSCert        string   `json:"tlsCert"`
+	TLSKey         string   `json:"tlsKey"`
+	AllowedOrigins []string `json:"allowedOrigins"`
+}
+
+// WebConfig holds the server's frontend templates and asset configuration.
+type WebConfig struct {
+	LogoURL string
+
+	// Defaults to "dex"
+	Issuer string
+
+	// Defaults to "light"
+	Theme string
+}
+
+// Telemetry is the config format for telemetry including the HTTP server config.
+type Telemetry struct {
 	HTTP string `json:"http"`
 }
 

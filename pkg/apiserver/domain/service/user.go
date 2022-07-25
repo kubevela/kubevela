@@ -192,18 +192,17 @@ func (u *userServiceImpl) UpdateUser(ctx context.Context, user *model.User, req 
 	if err != nil {
 		return nil, err
 	}
-	if sysInfo.LoginType == model.LoginTypeDex {
-		return nil, bcode.ErrUserCannotModified
-	}
 	if req.Alias != "" {
 		user.Alias = req.Alias
 	}
-	if req.Password != "" {
-		hash, err := GeneratePasswordHash(req.Password)
-		if err != nil {
-			return nil, err
+	if sysInfo.LoginType != model.LoginTypeDex {
+		if req.Password != "" {
+			hash, err := GeneratePasswordHash(req.Password)
+			if err != nil {
+				return nil, err
+			}
+			user.Password = hash
 		}
-		user.Password = hash
 	}
 	if req.Email != "" {
 		if user.Email != "" {
@@ -211,6 +210,7 @@ func (u *userServiceImpl) UpdateUser(ctx context.Context, user *model.User, req 
 		}
 		user.Email = req.Email
 	}
+
 	// TODO: validate the roles, they must be platform roles
 	if req.Roles != nil {
 		user.UserRoles = *req.Roles
