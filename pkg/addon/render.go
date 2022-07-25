@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -42,6 +43,7 @@ const (
 	specifyAddonClustersTopologyPolicy = "deploy-addon-to-specified-clusters"
 	addonAllClusterPolicy              = "deploy-addon-to-all-clusters"
 	renderOutputCuePath                = "output"
+	renderAliasOutputsPath             = "outputs"
 )
 
 type addonCueTemplateRender struct {
@@ -51,7 +53,7 @@ type addonCueTemplateRender struct {
 
 // This func can be used for addon render, supporting render app template and component.
 // Please notice the result will be stored in object parameter, so object must be a pointer type
-func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{}) error {
+func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object interface{}) error {
 	args := a.inputArgs
 	if args == nil {
 		args = map[string]interface{}{}
@@ -82,7 +84,7 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, object interface{})
 	if err != nil {
 		return err
 	}
-	outputContent, err := out.LookupValue(renderOutputCuePath)
+	outputContent, err := out.LookupValue(path)
 	if err != nil {
 		return err
 	}
@@ -131,7 +133,7 @@ func renderAppAccordingToCueTemplate(addon *InstallPackage, args map[string]inte
 		addon:     addon,
 		inputArgs: args,
 	}
-	if err := r.toObject(addon.AppCueTemplate.Data, &app); err != nil {
+	if err := r.toObject(addon.AppCueTemplate.Data, renderOutputCuePath, &app); err != nil {
 		return nil, err
 	}
 	return &app, nil
@@ -145,7 +147,7 @@ func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPacka
 		addon:     addon,
 		inputArgs: args,
 	}
-	if err := r.toObject(cueTemplate.Data, &comp); err != nil {
+	if err := r.toObject(cueTemplate.Data, renderOutputCuePath, &comp); err != nil {
 		return nil, fmt.Errorf("error rendering file %s: %w", cueTemplate.Name, err)
 	}
 	// If the name of component has been set, just keep it, otherwise will set with file name.
@@ -273,6 +275,28 @@ func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPacka
 		}
 	}
 	return true
+}
+
+func renderAliasOutputs(addon *InstallPackage, args map[string]interface{}) ([]*unstructured.Unstructured, error) {
+	outputs := map[string]interface{}{}
+	r := addonCueTemplateRender{
+		addon:     addon,
+		inputArgs: args,
+	}
+	if err := r.toObject(addon.AppCueTemplate.Data, renderAliasOutputsPath, &outputs); err != nil {
+		if err.Error() == "var(path=outputs) not exist" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	fmt.Println(outputs)
+	var res []*unstructured.Unstructured
+	for _, o := range outputs {
+		if ao, ok := o.(map[string]interface{}); ok {
+			res = append(res, &unstructured.Unstructured{Object: ao})
+		}
+	}
+	return res, nil
 }
 
 func isDeployToRuntime(addon *InstallPackage) bool {
