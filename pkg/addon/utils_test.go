@@ -235,7 +235,7 @@ func TestIsAddonDir(t *testing.T) {
 	assert.NoError(t, err)
 	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
 	assert.Equal(t, isAddonDir, false)
-	assert.Contains(t, err.Error(), "var(")
+	assert.Contains(t, err.Error(), renderOutputCuePath)
 
 	// Pass all checks
 	cmd := InitCmd{
