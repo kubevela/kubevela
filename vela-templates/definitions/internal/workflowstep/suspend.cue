@@ -2,7 +2,7 @@
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Suspend your workflow"
+	description: "Suspend the current workflow, it can be resumed by 'vela workflow resume' command."
 }
 template: {
 	parameter: {

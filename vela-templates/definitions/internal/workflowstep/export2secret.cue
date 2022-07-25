@@ -8,7 +8,7 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "Export data to secret for your workflow steps"
+	description: "Export data to Kubernetes Secret in your workflow."
 }
 template: {
 	apply: op.#Apply & {
@@ -40,7 +40,7 @@ template: {
 		type?: string
 		// +usage=Specify the data of secret
 		data: {}
-		// +usage=Specify the cluster of the config map
+		// +usage=Specify the cluster of the secret
 		cluster: *"" | string
 	}
 }

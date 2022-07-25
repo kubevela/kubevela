@@ -271,7 +271,7 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 		}
 	}
 	if !found {
-		return cue.Value{}, errors.New("parameter not exist")
+		return cue.Value{}, velacue.ErrParameterNotExist
 	}
 	arguments := paraDef.Value
 

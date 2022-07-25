@@ -41,26 +41,28 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentDefName}, &cd)
 				return err
-			}, 5*time.Second).Should(BeNil())
+			}, 5*time.Second, time.Second).Should(BeNil())
 
 			var td v1beta1.TraitDefinition
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitDefName}, &td)
 				return err
-			}, 5*time.Second).Should(BeNil())
+			}, 5*time.Second, time.Second).Should(BeNil())
 
 			By("dry-run application")
 			err := os.WriteFile("dry-run-app.yaml", []byte(application), 0644)
 			Expect(err).NotTo(HaveOccurred())
-			output, err := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -n vela-system")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring(dryRunResult))
+			Eventually(func() string {
+				output, _ := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -n vela-system")
+				return output
+			}, 10*time.Second, time.Second).Should(ContainSubstring(dryRunResult))
 		})
 
 		It("Test dry-run application use definitions in local", func() {
-			output, err := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -d definitions")
-			Expect(output).Should(ContainSubstring(dryRunResult))
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() string {
+				output, _ := e2e.Exec("kubectl-vela dry-run -f dry-run-app.yaml -d definitions")
+				return output
+			}, 10*time.Second, time.Second).Should(ContainSubstring(dryRunResult))
 		})
 	})
 
@@ -156,7 +158,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			tdName := "annotations"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s -n default", tdName))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("map[string](null|string)"))
+			Expect(output).Should(ContainSubstring("map[string]:(null|string)"))
 		})
 		It("Test show webservice def with cue ignore annotation ", func() {
 			tdName := "webservice"
@@ -983,8 +985,8 @@ var showCdResult = `# Specification
 |  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 | cmd     | Commands to run in the container.                                                                | []string | false    |         |
-| count   | specify number of tasks to run in parallel.                                                      | int      | true     |       1 |
-| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | true     | Never   |
+| count   | specify number of tasks to run in parallel.                                                      | int      | false    |       1 |
+| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | false    | Never   |
 | image   | Which image would you like to use for your service.                                              | string   | true     |         |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 

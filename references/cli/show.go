@@ -38,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const (
@@ -144,7 +144,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 			return err
 		}
 	}
-	capabilities, err := plugins.GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
+	capabilities, err := docgen.GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
 	if err != nil {
 		return err
 	}
@@ -170,10 +170,10 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	if err != nil {
 		return err
 	}
-	ref := &plugins.MarkdownReference{
-		ParseReference: plugins.ParseReference{
+	ref := &docgen.MarkdownReference{
+		ParseReference: docgen.ParseReference{
 			Client: cli,
-			I18N:   &plugins.En,
+			I18N:   &docgen.En,
 		},
 	}
 
@@ -340,7 +340,7 @@ func generateIndexHTML(docsPath string) error {
   <!-- Docsify v4 -->
   <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script>
-  <!-- plugins -->
+  <!-- docgen -->
   <script src="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script>
 </body>
 </html>
@@ -435,7 +435,7 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	if err != nil {
 		return err
 	}
-	ref := &plugins.ConsoleReference{}
+	ref := &docgen.ConsoleReference{}
 	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
 	if err != nil {
 		return err
@@ -447,7 +447,7 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 
 // ShowReferenceMarkdown will show capability in "markdown" format
 func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
-	ref := &plugins.MarkdownReference{}
+	ref := &docgen.MarkdownReference{}
 	paserRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
 	if err != nil {
 		return err
@@ -462,26 +462,26 @@ func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil
 	return nil
 }
 
-func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64) (plugins.ParseReference, error) {
-	ref := plugins.ParseReference{}
+func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64) (docgen.ParseReference, error) {
+	ref := docgen.ParseReference{}
 	if location != "" {
-		plugins.LoadI18nData(i18nPath)
+		docgen.LoadI18nData(i18nPath)
 	}
 	if strings.HasSuffix(capabilityNameOrPath, ".yaml") || strings.HasSuffix(capabilityNameOrPath, ".cue") {
 		// read from local file
 		localFilePath := capabilityNameOrPath
 		fileName := filepath.Base(localFilePath)
 		ref.DefinitionName = strings.TrimSuffix(strings.TrimSuffix(fileName, ".yaml"), ".cue")
-		ref.Local = &plugins.FromLocal{Path: localFilePath}
+		ref.Local = &docgen.FromLocal{Path: localFilePath}
 	} else {
 		ref.DefinitionName = capabilityNameOrPath
-		ref.Remote = &plugins.FromCluster{Namespace: ns, Rev: rev}
+		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev}
 	}
 	switch strings.ToLower(location) {
 	case "zh", "cn", "chinese":
-		ref.I18N = &plugins.Zh
+		ref.I18N = &docgen.Zh
 	case "", "en", "english":
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 	default:
 		return ref, fmt.Errorf("unknown location %s for i18n translation", location)
 	}

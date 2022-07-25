@@ -26,7 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const (
@@ -62,7 +62,7 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 	if defdir == "" {
 		defdir = TraitDefDir
 	}
-	ref := &plugins.MarkdownReference{
+	ref := &docgen.MarkdownReference{
 		AllInOne: true,
 		Filter: func(capability types.Capability) bool {
 			if capability.Type != types.TypeTrait || capability.Category != types.CUECategory {
@@ -86,12 +86,12 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 		},
 		CustomDocHeader: CustomTraitHeaderEN,
 	}
-	ref.Remote = &plugins.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
 
 	if *path != "" {
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {
-			ref.I18N = &plugins.Zh
+			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomTraitHeaderZH
 		}
 		if err := ref.GenerateReferenceDocs(ctx, c, *path); err != nil {
@@ -101,7 +101,7 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 		fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), *path)
 	}
 	if *location == "" || *location == "en" {
-		ref.I18N = &plugins.En
+		ref.I18N = &docgen.En
 		if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPath); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -109,7 +109,7 @@ func TraitDef(ctx context.Context, c common.Args, path, location *string, defdir
 		fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), TraitDefRefPath)
 	}
 	if *location == "" || *location == "zh" {
-		ref.I18N = &plugins.Zh
+		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomTraitHeaderZH
 		if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPathZh); err != nil {
 			fmt.Println(err)

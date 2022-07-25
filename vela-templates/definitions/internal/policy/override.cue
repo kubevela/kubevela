@@ -1,6 +1,6 @@
 "override": {
 	annotations: {}
-	description: "Override configuration when deploying resources"
+	description: "Describe the configuration to override when deploying resources, it only works with specified `deploy` step in workflow."
 	labels: {}
 	attributes: {}
 	type: "policy"
@@ -13,11 +13,15 @@ template: {
 		name?: string
 		// +usage=Specify the type of the patch component.
 		type?: string
+		// +usage=Specify the properties to override.
 		properties?: {...}
+		// +usage=Specify the traits to override.
 		traits?: [...{
+			// +usage=Specify the type of the trait to be patched.
 			type: string
+			// +usage=Specify the properties to override.
 			properties?: {...}
-			// +usage=Specify if the trait shoued be remove, default false
+			// +usage=Specify if the trait should be remove, default false
 			disable: *false | bool
 		}]
 	}

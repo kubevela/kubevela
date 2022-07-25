@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package docgen
 
 import (
 	"encoding/json"
@@ -592,5 +592,5 @@ parameter: {
 	err = w.Close()
 	assert.NoError(t, err)
 	out, _ := ioutil.ReadAll(r)
-	assert.True(t, strings.Contains(string(out), "map[string]#KeySecret"))
+	assert.True(t, strings.Contains(string(out), "map[string]:#KeySecret"))
 }

@@ -39,7 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/config"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/plugins"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const (
@@ -210,7 +210,7 @@ func getParameters(ctx context.Context, k8sClient client.Client, providerType st
 	if err != nil {
 		return nil, err
 	}
-	cap, err := plugins.GetCapabilityByComponentDefinitionObject(*def, "")
+	cap, err := docgen.GetCapabilityByComponentDefinitionObject(*def, "")
 	if err != nil {
 		return nil, err
 	}

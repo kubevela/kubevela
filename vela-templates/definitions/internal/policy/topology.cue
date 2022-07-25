@@ -1,6 +1,6 @@
 "topology": {
 	annotations: {}
-	description: "Determining the destination where components should be deployed to."
+	description: "Describe the destination where components should be deployed to."
 	labels: {}
 	attributes: {}
 	type: "policy"

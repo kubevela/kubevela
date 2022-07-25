@@ -73,7 +73,7 @@ You can also specify a remote url for app:
 					return err
 				}
 
-				// Set the namespace to default to match behaviour of `GetFlagNamespaceOrEnv`
+				// Set the namespace to default to match behavior of `GetFlagNamespaceOrEnv`
 				namespace = "default"
 			}
 
