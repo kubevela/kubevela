@@ -510,7 +510,6 @@ parameter: {
 		components: []
 		policies: []
 	}
-	status: {}
 }
 `
 )
