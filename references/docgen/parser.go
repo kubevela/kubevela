@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package plugins
+package docgen
 
 import (
 	"context"
@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -111,6 +112,9 @@ func (ref *ParseReference) prettySentence(s string) string {
 	}
 	return ref.I18N.Get(s) + ref.I18N.Get(".")
 }
+func (ref *ParseReference) formatTableString(s string) string {
+	return strings.ReplaceAll(s, "|", `\|`)
+}
 
 // prepareConsoleParameter prepares the table content for each property
 func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) ConsoleReference {
@@ -142,10 +146,17 @@ func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterLi
 }
 
 // parseParameters parses every parameter
+// TODO(wonderflowe2e/plugin/plugin_test.go:122): refactor the code to reduce the complexity
+//nolint:gocyclo
 func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, paramKey string, depth int, containSuffix bool) (string, []ConsoleReference, error) {
 	var doc string
 	var console []ConsoleReference
 	var params []ReferenceParameter
+
+	if !paraValue.Exists() {
+		return "", console, nil
+	}
+
 	var suffixTitle = " (" + capName + ")"
 	var suffixRef = "-" + strings.ToLower(capName)
 	if !containSuffix || capName == "" {
@@ -164,7 +175,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			param.Required = true
 			tl := paraValue.Template()
 			if tl != nil { // is map type
-				param.PrintableType = fmt.Sprintf("map[string]%s", tl("").IncompleteKind().String())
+				param.PrintableType = fmt.Sprintf("map[string]:%s", tl("").IncompleteKind().String())
 			} else {
 				param.PrintableType = "{}"
 			}
@@ -180,34 +191,49 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			val := fi.Value
 			name := fi.Name
 			param.Name = name
-			param.Required = !fi.IsOptional
 			if def, ok := val.Default(); ok && def.IsConcrete() {
 				param.Default = velacue.GetDefault(def)
 			}
+			param.Required = !fi.IsOptional && (param.Default == nil)
 			param.Short, param.Usage, param.Alias, param.Ignore = velacue.RetrieveComments(val)
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
-						// In the future we could recursively call to support complex map-value(struct or list)
 						source, converted := mapValue.Source().(*ast.Ident)
 						if converted && len(source.Name) != 0 {
-							param.PrintableType = fmt.Sprintf("map[string]%s", source.Name)
+							param.PrintableType = fmt.Sprintf("map[string]:%s", source.Name)
 						} else {
-							param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+							param.PrintableType = fmt.Sprintf("map[string]:%s", mapValue.IncompleteKind().String())
 						}
 					} else {
-						return "", nil, fmt.Errorf("failed to got Map kind from %s", param.Name)
+						param.PrintableType = val.IncompleteKind().String()
 					}
 				} else {
-					subDoc, subConsole, err := ref.parseParameters(capName, val, name, depth+1, containSuffix)
-					if err != nil {
-						return "", nil, err
+					op, elements := val.Expr()
+					if op == cue.OrOp {
+						var printTypes []string
+						for idx, ev := range elements {
+							opName := fmt.Sprintf("%s-option-%d", name, idx)
+							subDoc, subConsole, err := ref.parseParameters(capName, ev, opName, depth+1, containSuffix)
+							if err != nil {
+								return "", nil, err
+							}
+							printTypes = append(printTypes, fmt.Sprintf("[%s](#%s%s)", opName, strings.ToLower(opName), suffixRef))
+							doc += subDoc
+							console = append(console, subConsole...)
+						}
+						param.PrintableType = strings.Join(printTypes, " or ")
+					} else {
+						subDoc, subConsole, err := ref.parseParameters(capName, val, name, depth+1, containSuffix)
+						if err != nil {
+							return "", nil, err
+						}
+						param.PrintableType = fmt.Sprintf("[%s](#%s%s)", name, strings.ToLower(name), suffixRef)
+						doc += subDoc
+						console = append(console, subConsole...)
 					}
-					param.PrintableType = fmt.Sprintf("[%s](#%s%s)", name, strings.ToLower(name), suffixRef)
-					doc += subDoc
-					console = append(console, subConsole...)
 				}
 			case cue.ListKind:
 				elem, success := val.Elem()
@@ -236,7 +262,11 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			params = append(params, param)
 		}
 	default:
-		//
+		var param ReferenceParameter
+		param.Name = "-"
+		param.Usage = "Composition type"
+		param.PrintableType = extractTypeFromError(paraValue)
+		params = append(params, param)
 	}
 
 	switch ref.DisplayFormat {
@@ -263,6 +293,21 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 		console = append([]ConsoleReference{cref.prepareConsoleParameter(tableName, params, types.CUECategory)}, console...)
 	}
 	return doc, console, nil
+}
+
+func extractTypeFromError(paraValue cue.Value) string {
+	str, err := paraValue.String()
+	if err == nil {
+		return str
+	}
+	str = err.Error()
+	sll := strings.Split(str, "cannot use value (")
+	if len(sll) < 1 {
+		return str
+	}
+	str = sll[1]
+	sll = strings.Split(str, ") (type")
+	return sll[0]
 }
 
 // getCUEPrintableDefaultValue converts the value in `interface{}` type to be printable
@@ -479,8 +524,15 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 	if err = def.FromCUEString(string(data), config); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 	}
-
-	lcap, err := ParseCapabilityFromUnstructured(nil, def.Unstructured)
+	pd, err := c.GetPackageDiscover()
+	if err != nil {
+		klog.Warning("fail to build package discover, use local info instead", err)
+	}
+	mapper, err := c.GetDiscoveryMapper()
+	if err != nil {
+		klog.Warning("fail to build discover mapper, use local info instead", err)
+	}
+	lcap, err := ParseCapabilityFromUnstructured(mapper, pd, def.Unstructured)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fail to parse definition to capability")
 	}

@@ -19,7 +19,7 @@ template: {
 		traits?: [...{
 			type: string
 			properties?: {...}
-			// +usage=Specify if the trait shoued be remove, default false
+			// +usage=Specify if the trait should be remove, default false
 			disable: *false | bool
 		}]
 	}

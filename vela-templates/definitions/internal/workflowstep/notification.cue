@@ -7,14 +7,16 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {}
-	description: "Send message to webhook"
+	description: "Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow."
 }
 template: {
 
 	parameter: {
+		// +usage=Please fulfill its url and message if you want to send Lark messages
 		lark?: {
 			// +usage=Specify the the lark url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -24,7 +26,7 @@ template: {
 					key: string
 				}
 			}
-			// +useage=Specify the message that you want to sent
+			// +usage=Specify the message that you want to sent, refer to [Lark messaging](https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#8b0f2a1b).
 			message: {
 				// +usage=msg_type can be text, post, image, interactive, share_chat, share_user, audio, media, file, sticker
 				msg_type: string
@@ -32,10 +34,11 @@ template: {
 				content: string
 			}
 		}
-
+		// +usage=Please fulfill its url and message if you want to send DingTalk messages
 		dingding?: {
 			// +usage=Specify the the dingding url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -45,8 +48,9 @@ template: {
 					key: string
 				}
 			}
-			// +useage=Specify the message that you want to sent
+			// +usage=Specify the message that you want to sent, refer to [dingtalk messaging](https://developers.dingtalk.com/document/robots/custom-robot-access/title-72m-8ag-pqw)
 			message: {
+				// +usage=Specify the message content of dingtalk notification
 				text?: *null | {
 					content: string
 				}
@@ -88,10 +92,11 @@ template: {
 				}
 			}
 		}
-
+		// +usage=Please fulfill its url and message if you want to send Slack messages
 		slack?: {
 			// +usage=Specify the the slack url, you can either sepcify it in value or use secretRef
 			url: {
+				// +usage=the url address content in string
 				value: string
 			} | {
 				secretRef: {
@@ -101,8 +106,9 @@ template: {
 					key: string
 				}
 			}
-			// +useage=Specify the message that you want to sent
+			// +usage=Specify the message that you want to sent, refer to [slack messaging](https://api.slack.com/reference/messaging/payload)
 			message: {
+				// +usage=Specify the message text for slack notification
 				text:         string
 				blocks?:      *null | [...block]
 				attachments?: *null | {
@@ -110,10 +116,11 @@ template: {
 					color?:  string
 				}
 				thread_ts?: string
-				mrkdwn?:    *true | bool
+				// +usage=Specify the message text format in markdown for slack notification
+				mrkdwn?: *true | bool
 			}
 		}
-
+		// +usage=Please fulfill its from, to and content if you want to send email
 		email?: {
 			// +usage=Specify the email info that you want to send from
 			from: {
@@ -123,6 +130,7 @@ template: {
 				alias?: string
 				// +usage=Specify the password of the email, you can either sepcify it in value or use secretRef
 				password: {
+					// +usage=the password content in string
 					value: string
 				} | {
 					secretRef: {

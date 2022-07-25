@@ -1,4 +1,4 @@
-# Binaries for programs and plugins
+# Binaries for programs and docgen
 *.exe
 *.exe~
 *.dll

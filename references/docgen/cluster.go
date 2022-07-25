@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package docgen
 
 import (
 	"context"
@@ -81,7 +81,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 		return nil, err
 	}
 	for _, er := range erl {
-		klog.Infof("get workflow step capability %v", er)
+		klog.Infof("get workflow step %v", er)
 	}
 	caps = append(caps, wfs...)
 
@@ -244,9 +244,18 @@ func GetWorkflowSteps(ctx context.Context, namespace string, c common.Args) ([]t
 		return nil, nil, fmt.Errorf("list WorkflowStepDefinition err: %w", err)
 	}
 
+	config, err := c.GetConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	pd, err := packages.NewPackageDiscover(config)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var templateErrors []error
 	for _, def := range workflowStepDefs.Items {
-		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, nil)
+		tmp, err := GetCapabilityByWorkflowStepDefinitionObject(def, pd)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
@@ -402,7 +411,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
 	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate, pd)
-	if err != nil {
+	if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 		return types.Capability{}, err
 	}
 	tmp.Category = types.CUECategory

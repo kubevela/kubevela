@@ -14,14 +14,20 @@
  limitations under the License.
 */
 
-package plugins
+package docgen
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+const (
+	// Markdown marks the format name of docs
+	Markdown = "markdown"
+	// Console marks the format name of docs
+	Console = "console"
 )
 
-func TestDcoInit(t *testing.T) {
-	assert.True(t, len(DefinitionDocSamples) > 0)
-}
+const (
+	// Specification marks the title of parameter in reference docs
+	Specification = "Specification"
+	// Description marks the title of description in reference docs
+	Description = "Description"
+	// Examples marks the title of example in reference doc
+	Examples = "Examples"
+)

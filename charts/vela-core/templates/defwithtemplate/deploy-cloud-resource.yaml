@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: WorkflowStepDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Deploy cloud resource and bind secret to clusters
+    definition.oam.dev/description: Deploy cloud resource and deliver secret to multi clusters.
   name: deploy-cloud-resource
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

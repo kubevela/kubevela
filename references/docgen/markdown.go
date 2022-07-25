@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package plugins
+package docgen
 
 import (
 	"context"
@@ -25,7 +25,12 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/klog/v2"
+
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -47,6 +52,16 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, c commo
 	var pd *packages.PackageDiscover
 	if ref.Remote != nil {
 		pd = ref.Remote.PD
+	}
+	if pd == nil {
+		pd = func() *packages.PackageDiscover {
+			rpd, err := c.GetPackageDiscover()
+			if err != nil {
+				klog.Error("fail to build package discover", err)
+				return nil
+			}
+			return rpd
+		}()
 	}
 	return ref.CreateMarkdown(ctx, caps, baseRefPath, false, pd)
 }
@@ -138,7 +153,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 	switch c.Category {
 	case types.CUECategory:
 		cueValue, err := common.GetCUEParameterValue(c.CueTemplate, pd)
-		if err != nil {
+		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
 		var defaultDepth = 0
@@ -177,6 +192,9 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 	parameterDoc := DefinitionDocParameters[capName]
 	if parameterDoc == "" {
+		if strings.TrimSpace(generatedDoc) == "" {
+			generatedDoc = "This capability has no arguments."
+		}
 		parameterDoc = generatedDoc
 	}
 
@@ -253,23 +271,23 @@ func (ref *MarkdownReference) getParameterString(tableName string, parameterList
 		for _, p := range parameterList {
 			if !p.Ignore {
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, printableDefaultValue)
+				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
 			}
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
 			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, printableDefaultValue)
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
 		}
 	case types.KubeCategory:
 		for _, p := range parameterList {
 			// Kube parameter doesn't have default value
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
 		for _, p := range parameterList {
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), p.PrintableType, p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
 		}
 	default:
 	}

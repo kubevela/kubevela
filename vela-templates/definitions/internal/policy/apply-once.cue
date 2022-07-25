@@ -1,6 +1,6 @@
 "apply-once": {
 	annotations: {}
-	description: "Configure the behaviour of preventing configuration drift."
+	description: "Allow configuration drift for applied resources, delivery the resource without continuously reconciliation."
 	labels: {}
 	attributes: {}
 	type: "policy"
