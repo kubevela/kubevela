@@ -15,10 +15,13 @@ spec:
     - name: my-server
       type: webservice
       properties:
-        image: crccheck/hello-world
+        cmd:
+          - node
+          - server.js
+        image: oamdev/testapp:v1
         port: 8080
       traits:
-        - type: gateway
+        - type: ingress
           properties:
             domain: test.my.domain
             http:
