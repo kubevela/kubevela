@@ -43,7 +43,7 @@ const (
 	specifyAddonClustersTopologyPolicy = "deploy-addon-to-specified-clusters"
 	addonAllClusterPolicy              = "deploy-addon-to-all-clusters"
 	renderOutputCuePath                = "output"
-	renderAliasOutputsPath             = "outputs"
+	renderAuxiliaryOutputsPath         = "outputs"
 )
 
 type addonCueTemplateRender struct {
@@ -277,19 +277,18 @@ func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPacka
 	return true
 }
 
-func renderAliasOutputs(addon *InstallPackage, args map[string]interface{}) ([]*unstructured.Unstructured, error) {
+func renderOutputs(addon *InstallPackage, args map[string]interface{}) ([]*unstructured.Unstructured, error) {
 	outputs := map[string]interface{}{}
 	r := addonCueTemplateRender{
 		addon:     addon,
 		inputArgs: args,
 	}
-	if err := r.toObject(addon.AppCueTemplate.Data, renderAliasOutputsPath, &outputs); err != nil {
-		if err.Error() == "var(path=outputs) not exist" {
+	if err := r.toObject(addon.AppCueTemplate.Data, renderAuxiliaryOutputsPath, &outputs); err != nil {
+		if isErrorCueRenderPathNotFound(err, renderAuxiliaryOutputsPath) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	fmt.Println(outputs)
 	var res []*unstructured.Unstructured
 	for _, o := range outputs {
 		if ao, ok := o.(map[string]interface{}); ok {
