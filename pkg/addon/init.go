@@ -180,9 +180,7 @@ func (cmd *InitCmd) createRequiredFiles() {
 		Description:  "An addon for KubeVela.",
 		Tags:         []string{"my-tag"},
 		Dependencies: []*Dependency{},
-		DeployTo: &DeployTo{
-			RuntimeCluster: false,
-		},
+		DeployTo:     nil,
 	}
 }
 
@@ -507,10 +505,6 @@ parameter: {
 output: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
-	metadata: {
-		name:      "my-addon-name"
-		namespace: "vela-system"
-	}
 	spec: {
 		components: []
 		policies: []
