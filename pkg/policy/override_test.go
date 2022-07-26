@@ -66,6 +66,7 @@ func TestParseOverridePolicyRelatedDefinitions(t *testing.T) {
 			Policy:        v1beta1.AppPolicy{Properties: nil},
 			ComponentDefs: nil,
 			TraitDefs:     nil,
+			Error:         "have empty properties",
 		},
 	}
 	for name, tt := range testCases {

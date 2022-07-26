@@ -68,7 +68,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 	for _, policy := range policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
 			if policy.Properties == nil {
-				return nil, fmt.Errorf("topology should not have empty properties")
+				return nil, fmt.Errorf("topology policy %s must not have empty properties", policy.Name)
 			}
 			hasTopologyPolicy = true
 			topologySpec := &v1alpha1.TopologyPolicySpec{}

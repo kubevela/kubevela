@@ -54,6 +54,7 @@ func TestOverrideConfiguration(t *testing.T) {
 				Type:       "override",
 				Properties: nil,
 			}},
+			Error: "empty properties",
 		},
 		"normal": {
 			Policies: []v1beta1.AppPolicy{{

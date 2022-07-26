@@ -125,7 +125,10 @@ func loadComponents(ctx context.Context, renderer oamProvider.WorkloadRenderer, 
 func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.ApplicationComponent) ([]common.ApplicationComponent, error) {
 	var err error
 	for _, policy := range policies {
-		if policy.Type == v1alpha1.OverridePolicyType && policy.Properties != nil {
+		if policy.Type == v1alpha1.OverridePolicyType {
+			if policy.Properties == nil {
+				return nil, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
+			}
 			overrideSpec := &v1alpha1.OverridePolicySpec{}
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse override policy %s", policy.Name)

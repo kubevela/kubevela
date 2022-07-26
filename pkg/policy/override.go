@@ -19,6 +19,7 @@ package policy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -33,7 +34,7 @@ import (
 // ParseOverridePolicyRelatedDefinitions get definitions inside override policy
 func ParseOverridePolicyRelatedDefinitions(ctx context.Context, cli client.Client, app *v1beta1.Application, policy v1beta1.AppPolicy) (compDefs []*v1beta1.ComponentDefinition, traitDefs []*v1beta1.TraitDefinition, err error) {
 	if policy.Properties == nil {
-		return compDefs, traitDefs, nil
+		return compDefs, traitDefs, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
 	}
 	spec := &v1alpha1.OverridePolicySpec{}
 	if err = json.Unmarshal(policy.Properties.Raw, spec); err != nil {
