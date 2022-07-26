@@ -281,7 +281,7 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	// definition should not be rendered
 	assert.Equal(t, len(app.Spec.Components), 1)
@@ -290,7 +290,7 @@ func TestRenderApp(t *testing.T) {
 func TestRenderAppWithNeedNamespace(t *testing.T) {
 	addon := baseAddon
 	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS, "test-ns2")
-	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 	for _, c := range app.Spec.Components {
@@ -311,7 +311,7 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	policies := app.Spec.Policies
 	assert.True(t, len(policies) == 1)
@@ -331,7 +331,7 @@ func TestRenderDefinitions(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	// addon which app work on no-runtime-cluster mode workflow is nil
 	assert.Nil(t, app.Spec.Workflow)
@@ -368,7 +368,7 @@ func TestRenderK8sObjects(t *testing.T) {
 		RuntimeCluster:      false,
 	}
 
-	app, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 1)
 	comp := app.Spec.Components[0]

@@ -36,6 +36,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/stdlib"
 )
 
+// DefaultPackageHeader describes the default package header for CUE files.
+const DefaultPackageHeader = "package main\n"
+
 // Value is an object with cue.runtime and vendors
 type Value struct {
 	v          cue.Value
@@ -75,13 +78,20 @@ func (val *Value) UnmarshalTo(x interface{}) error {
 	return json.Unmarshal(data, x)
 }
 
-// NewValueWithFiles new a value from main and appendix files
-func NewValueWithFiles(main string, slaveFiles []string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*Value, error) {
+// NewValueWithMainAndFiles new a value from main and appendix files
+func NewValueWithMainAndFiles(main string, slaveFiles []string, pd *packages.PackageDiscover, tagTempl string, opts ...func(*ast.File) error) (*Value, error) {
 	builder := &build.Instance{}
 
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse main file")
+	}
+	if mainFile.PackageName() == "" {
+		// add a default package main if not exist
+		mainFile, err = parser.ParseFile("main.cue", DefaultPackageHeader+main, parser.ParseComments)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse main file with added package main header")
+		}
 	}
 	for _, opt := range opts {
 		if err := opt(mainFile); err != nil {
@@ -96,12 +106,6 @@ func NewValueWithFiles(main string, slaveFiles []string, pd *packages.PackageDis
 		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
 		if err != nil {
 			return nil, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
-		}
-		if mainFile.PackageName() != "" && cueSF.PackageName() == "" {
-			cueSF, err = parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", "package "+mainFile.PackageName()+"\n"+sf, parser.ParseComments)
-			if err != nil {
-				return nil, errors.Wrap(err, "add package for added file")
-			}
 		}
 		if cueSF.PackageName() != mainFile.PackageName() {
 			continue

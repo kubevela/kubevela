@@ -307,7 +307,7 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		args := map[string]interface{}{
 			"clusters": []string{"add-c1", "ne"},
 		}
-		_, err := RenderApp(ctx, i, k8sClient, args)
+		_, _, err := RenderApp(ctx, i, k8sClient, args)
 		Expect(err.Error()).Should(BeEquivalentTo("cluster ne not exist"))
 	})
 	It("test render normal addon with specified clusters", func() {
@@ -317,7 +317,7 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		args := map[string]interface{}{
 			"clusters": []string{"add-c1", "add-c2"},
 		}
-		ap, err := RenderApp(ctx, i, k8sClient, args)
+		ap, _, err := RenderApp(ctx, i, k8sClient, args)
 		Expect(err).Should(BeNil())
 		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: specifyAddonClustersTopologyPolicy,
 			Type:       v1alpha12.TopologyPolicyType,
