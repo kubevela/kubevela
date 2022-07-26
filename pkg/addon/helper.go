@@ -50,7 +50,7 @@ const (
 	enabling = "enabling"
 	// disabling indicates the addon related app is deleting
 	disabling = "disabling"
-	// suspend indicates the addon related app is suspend
+	// suspend indicates the addon related app is suspended
 	suspend = "suspend"
 )
 
