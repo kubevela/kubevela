@@ -94,7 +94,6 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 				}
 			}
 		}
-
 	}
 	if !hasTopologyPolicy {
 		placements = []v1alpha1.PlacementDecision{{Cluster: multicluster.ClusterLocalName}}
