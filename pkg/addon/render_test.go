@@ -96,7 +96,12 @@ myref: {
 			"namespace": "vela-system",
 		},
 	}
-	app, err := render.renderApp()
+	app, _, err := render.renderApp()
+	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+	assert.Nil(t, app)
+
+	addon.CUETemplates = []ElementFile{{Data: "package main\n" + resourceComponent1}}
+	app, _, err = render.renderApp()
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 2)
 	str, err := json.Marshal(app.Spec.Components[0].Properties)
@@ -111,26 +116,29 @@ myref: {
 	assert.NoError(t, err)
 	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
 
-	addon.CUETemplates = []ElementFile{{Data: resourceComponent1}}
-	addon.AppCueTemplate = ElementFile{Data: "package main\n" + appTemplate}
-	app, err = render.renderApp()
+	addon.Parameters = "package newp\n" + paraDefined
+	addon.CUETemplates = []ElementFile{{Data: "package newp\n" + resourceComponent1}}
+	addon.AppCueTemplate = ElementFile{Data: "package newp\n" + appTemplate}
+	app, _, err = render.renderApp()
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 2)
 
-	addon.Parameters = "package main\n" + paraDefined
-	app, err = render.renderApp()
+	addon.CUETemplates = []ElementFile{{Data: "package main\n" + resourceComponent1}}
+	addon.Parameters = paraDefined
+	addon.AppCueTemplate = ElementFile{Data: appTemplate}
+	app, _, err = render.renderApp()
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 2)
 
 	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
 	addon.AppCueTemplate = ElementFile{Data: "package main\n" + appTemplate}
-	_, err = render.renderApp()
+	_, _, err = render.renderApp()
 	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
 
 	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
 	addon.Parameters = paraDefined
 	addon.AppCueTemplate = ElementFile{Data: appTemplate}
-	_, err = render.renderApp()
+	_, _, err = render.renderApp()
 	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
 
 }
@@ -234,21 +242,28 @@ func TestOutputsRender(t *testing.T) {
 		Parameters:     paraDefined,
 		AppCueTemplate: ElementFile{Data: appTemplate},
 	}
-	list, err := renderOutputs(addon, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, true, len(list) == 1)
-
-	addon = &InstallPackage{
-		Meta: Meta{
-			Name: "velaux",
-			DeployTo: &DeployTo{
-				RuntimeCluster: true,
-			},
+	render := addonCueTemplateRender{
+		addon: addon,
+		inputArgs: map[string]interface{}{
+			"namespace": "vela-system",
 		},
-		Parameters:     paraDefined,
-		AppCueTemplate: ElementFile{Data: appTemplateNoOutputs},
 	}
-	_, err = renderOutputs(addon, nil)
+	app, auxdata, err := render.renderApp()
+	assert.NoError(t, err)
+	assert.Equal(t, len(app.Spec.Components), 1)
+	str, err := json.Marshal(app.Spec.Components[0].Properties)
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(str), `{"name":"vela-system"}`))
+	assert.Equal(t, len(auxdata), 1)
+	auxStr, err := json.Marshal(auxdata[0])
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(string(auxStr), "myData"))
+	assert.True(t, strings.Contains(string(auxStr), "addons.oam.dev/auxiliary-name"))
+	assert.True(t, strings.Contains(string(auxStr), "configmap"))
+
+	// test no error when no outputs
+	addon.AppCueTemplate = ElementFile{Data: appTemplateNoOutputs}
+	_, _, err = render.renderApp()
 	assert.NoError(t, err)
 }
 
@@ -369,7 +384,7 @@ func TestGenerateAppFrameworkWithCue(t *testing.T) {
 		AppCueTemplate: ElementFile{Data: cueTemplate},
 		Parameters:     paraDefined,
 	}
-	app, err := generateAppFramework(cueAddon, map[string]interface{}{
+	app, _, err := generateAppFramework(cueAddon, map[string]interface{}{
 		"namespace": "vela-system",
 	})
 	assert.NoError(t, err)
@@ -389,7 +404,7 @@ func TestGenerateAppFrameworkWithYamlTemplate(t *testing.T) {
 		Meta:        Meta{Name: "velaux"},
 		AppTemplate: nil,
 	}
-	app, err := generateAppFramework(yamlAddon, nil)
+	app, _, err := generateAppFramework(yamlAddon, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, app.Spec.Components != nil, true)
 	assert.Equal(t, len(app.Labels), 2)
@@ -398,7 +413,7 @@ func TestGenerateAppFrameworkWithYamlTemplate(t *testing.T) {
 		Meta:        Meta{Name: "velaux"},
 		AppTemplate: &v1beta1.Application{},
 	}
-	app, err = generateAppFramework(noCompAddon, nil)
+	app, _, err = generateAppFramework(noCompAddon, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, app.Spec.Components != nil, true)
 	assert.Equal(t, len(app.Labels), 2)

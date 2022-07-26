@@ -69,6 +69,9 @@ const (
 	// LabelAddonName indicates the name of the corresponding Addon
 	LabelAddonName = "addons.oam.dev/name"
 
+	// LabelAddonAuxiliaryName indicates the name of the auxiliary resource in addon app template
+	LabelAddonAuxiliaryName = "addons.oam.dev/auxiliary-name"
+
 	// LabelAddonVersion indicates the version of the corresponding  installed Addon
 	LabelAddonVersion = "addons.oam.dev/version"
 

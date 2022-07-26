@@ -503,9 +503,14 @@ parameter: {
   validate:
     required: true
 `
-	appTemplate = `output: {
+	appTemplate = `package main
+output: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
+	metadata: {
+		name:      "my-addon-name"
+		namespace: "vela-system"
+	}
 	spec: {
 		components: []
 		policies: []
