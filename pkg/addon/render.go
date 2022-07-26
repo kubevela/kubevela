@@ -193,7 +193,7 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 	if app.Name != "" && app.Name != addonutil.Addon2AppName(addon.Name) {
 		klog.Warningf("Application name %s will be overwritten with %s. Consider removing metadata.name in template.", app.Name, addonutil.Addon2AppName(addon.Name))
 	}
-	app.Name = addonutil.Addon2AppName(addon.Name)
+	app.SetName(addonutil.Addon2AppName(addon.Name))
 
 	if app.Namespace != "" && app.Namespace != types.DefaultKubeVelaNS {
 		klog.Warningf("Namespace %s will be overwritten with %s. Consider removing metadata.namespace in template.", app.Namespace, types.DefaultKubeVelaNS)
