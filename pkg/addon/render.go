@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 
+	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
@@ -103,46 +105,77 @@ func (a addonCueTemplateRender) toObject(cueTemplate string, path string, object
 }
 
 // renderApp will render Application from CUE files
-func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, error) {
+func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	var app v1beta1.Application
+	var outputs = map[string]interface{}{}
+	var res []*unstructured.Unstructured
 
 	contextFile, err := a.formatContext()
 	if err != nil {
-		return nil, errors.Wrap(err, "format context for app render")
+		return nil, nil, errors.Wrap(err, "format context for app render")
 	}
+	contextCue, err := parser.ParseFile("parameter.cue", contextFile, parser.ParseComments)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "parse parameter context")
+	}
+	if contextCue.PackageName() == "" {
+		contextFile = value.DefaultPackageHeader + contextFile
+	}
+
 	var files = []string{contextFile}
 	for _, cuef := range a.addon.CUETemplates {
 		files = append(files, cuef.Data)
 	}
 
 	// TODO(wonderflow): add package discover to support vela own packages if needed
-	v, err := value.NewValueWithFiles(a.addon.AppCueTemplate.Data, files, nil, "")
+	v, err := value.NewValueWithMainAndFiles(a.addon.AppCueTemplate.Data, files, nil, "")
 	if err != nil {
-		return nil, errors.Wrap(err, "load app template with CUE files")
+		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
 	outputContent, err := v.LookupValue(renderOutputCuePath)
 	if err != nil {
-		return nil, errors.Wrap(err, "render app from output field from CUE")
+		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
 	}
 	err = outputContent.UnmarshalTo(&app)
 	if err != nil {
-		return nil, errors.Wrap(err, "decode app from CUE")
+		return nil, nil, errors.Wrap(err, "decode app from CUE")
 	}
-	return &app, nil
+	auxiliaryContent, err := v.LookupValue(renderAuxiliaryOutputsPath)
+	if err != nil {
+		// no outputs defined in app template, return normal data
+		if isErrorCueRenderPathNotFound(err, renderAuxiliaryOutputsPath) {
+			return &app, res, nil
+		}
+		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
+	}
+
+	err = auxiliaryContent.UnmarshalTo(&outputs)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "decode app from CUE")
+	}
+	for k, o := range outputs {
+		if ao, ok := o.(map[string]interface{}); ok {
+			auxO := &unstructured.Unstructured{Object: ao}
+			auxO.SetLabels(util.MergeMapOverrideWithDst(auxO.GetLabels(), map[string]string{oam.LabelAddonAuxiliaryName: k}))
+			res = append(res, auxO)
+		}
+	}
+	return &app, res, nil
 }
 
 // generateAppFramework generate application from yaml defined by template.yaml or cue file from template.cue
-func generateAppFramework(addon *InstallPackage, parameters map[string]interface{}) (*v1beta1.Application, error) {
+func generateAppFramework(addon *InstallPackage, parameters map[string]interface{}) (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	if len(addon.AppCueTemplate.Data) != 0 && addon.AppTemplate != nil {
-		return nil, ErrBothCueAndYamlTmpl
+		return nil, nil, ErrBothCueAndYamlTmpl
 	}
 
 	var app *v1beta1.Application
+	var auxiliaryObjects []*unstructured.Unstructured
 	var err error
 	if len(addon.AppCueTemplate.Data) != 0 {
-		app, err = renderAppAccordingToCueTemplate(addon, parameters)
+		app, auxiliaryObjects, err = renderAppAccordingToCueTemplate(addon, parameters)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	} else {
 		app = addon.AppTemplate
@@ -164,19 +197,20 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 	}
 	app.Labels[oam.LabelAddonName] = addon.Name
 	app.Labels[oam.LabelAddonVersion] = addon.Version
-	return app, nil
+
+	for _, aux := range auxiliaryObjects {
+		aux.SetLabels(util.MergeMapOverrideWithDst(aux.GetLabels(), map[string]string{oam.LabelAddonName: addon.Name, oam.LabelAddonVersion: addon.Version}))
+	}
+
+	return app, auxiliaryObjects, nil
 }
 
-func renderAppAccordingToCueTemplate(addon *InstallPackage, args map[string]interface{}) (*v1beta1.Application, error) {
+func renderAppAccordingToCueTemplate(addon *InstallPackage, args map[string]interface{}) (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	r := addonCueTemplateRender{
 		addon:     addon,
 		inputArgs: args,
 	}
-	app, err := r.renderApp()
-	if err != nil {
-		return nil, err
-	}
-	return app, nil
+	return r.renderApp()
 }
 
 // renderCompAccordingCUETemplate will return a component from cue template
@@ -199,19 +233,19 @@ func renderCompAccordingCUETemplate(cueTemplate ElementFile, addon *InstallPacka
 }
 
 // RenderApp render a K8s application
-func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, error) {
+func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Client, args map[string]interface{}) (*v1beta1.Application, []*unstructured.Unstructured, error) {
 	if args == nil {
 		args = map[string]interface{}{}
 	}
-	app, err := generateAppFramework(addon, args)
+	app, auxiliaryObjects, err := generateAppFramework(addon, args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
 
 	resources, err := renderResources(addon, args)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	app.Spec.Components = append(app.Spec.Components, resources...)
 
@@ -219,10 +253,10 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 	// attach topology policy to application.
 	if checkNeedAttachTopologyPolicy(app, addon) {
 		if err := attachPolicyForLegacyAddon(ctx, app, addon, args, k8sClient); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return app, nil
+	return app, auxiliaryObjects, nil
 }
 
 func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, addon *InstallPackage, args map[string]interface{}, k8sClient client.Client) error {
@@ -315,27 +349,6 @@ func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPacka
 		}
 	}
 	return true
-}
-
-func renderOutputs(addon *InstallPackage, args map[string]interface{}) ([]*unstructured.Unstructured, error) {
-	outputs := map[string]interface{}{}
-	r := addonCueTemplateRender{
-		addon:     addon,
-		inputArgs: args,
-	}
-	if err := r.toObject(addon.AppCueTemplate.Data, renderAuxiliaryOutputsPath, &outputs); err != nil {
-		if isErrorCueRenderPathNotFound(err, renderAuxiliaryOutputsPath) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var res []*unstructured.Unstructured
-	for _, o := range outputs {
-		if ao, ok := o.(map[string]interface{}); ok {
-			res = append(res, &unstructured.Unstructured{Object: ao})
-		}
-	}
-	return res, nil
 }
 
 func isDeployToRuntime(addon *InstallPackage) bool {

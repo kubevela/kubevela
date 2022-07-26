@@ -1052,7 +1052,7 @@ func (h *Installer) createOrUpdate(app *v1beta1.Application) error {
 }
 
 func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
-	app, err := RenderApp(h.ctx, addon, h.cli, h.args)
+	app, auxiliaryOutputs, err := RenderApp(h.ctx, addon, h.cli, h.args)
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
@@ -1081,12 +1081,6 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	if err := passDefInAppAnnotation(defs, app); err != nil {
 		return errors.Wrapf(err, "cannot pass definition to addon app's annotation")
-	}
-
-	var auxiliaryOutputs []*unstructured.Unstructured
-	auxiliaryOutputs, err = renderOutputs(addon, h.args)
-	if err != nil {
-		return err
 	}
 
 	if err = h.createOrUpdate(app); err != nil {
