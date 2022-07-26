@@ -136,7 +136,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
-	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationKubeVelaVersion])
+	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 	handler, err := NewAppHandler(logCtx, r, app, appParser)
