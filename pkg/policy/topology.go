@@ -18,6 +18,7 @@ package policy
 
 import (
 	"context"
+	"fmt"
 
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/pkg/errors"
@@ -65,7 +66,10 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 	}
 	hasTopologyPolicy := false
 	for _, policy := range policies {
-		if policy.Type == v1alpha1.TopologyPolicyType && policy.Properties != nil {
+		if policy.Type == v1alpha1.TopologyPolicyType {
+			if policy.Properties == nil {
+				return nil, fmt.Errorf("topology should not have empty properties")
+			}
 			hasTopologyPolicy = true
 			topologySpec := &v1alpha1.TopologyPolicySpec{}
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
