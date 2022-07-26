@@ -32,6 +32,9 @@ import (
 
 // ParseOverridePolicyRelatedDefinitions get definitions inside override policy
 func ParseOverridePolicyRelatedDefinitions(ctx context.Context, cli client.Client, app *v1beta1.Application, policy v1beta1.AppPolicy) (compDefs []*v1beta1.ComponentDefinition, traitDefs []*v1beta1.TraitDefinition, err error) {
+	if policy.Properties == nil {
+		return compDefs, traitDefs, nil
+	}
 	spec := &v1alpha1.OverridePolicySpec{}
 	if err = json.Unmarshal(policy.Properties.Raw, spec); err != nil {
 		return nil, nil, errors.Wrapf(err, "invalid override policy spec")

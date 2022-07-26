@@ -65,39 +65,36 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 	}
 	hasTopologyPolicy := false
 	for _, policy := range policies {
-		if policy.Type != v1alpha1.TopologyPolicyType {
-			continue
-		}
-		if policy.Properties == nil {
-			continue
-		}
-		hasTopologyPolicy = true
-		topologySpec := &v1alpha1.TopologyPolicySpec{}
-		if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
-			return nil, errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
-		}
-		clusterLabelSelector := GetClusterLabelSelectorInTopology(topologySpec)
-		switch {
-		case topologySpec.Clusters != nil:
-			for _, cluster := range topologySpec.Clusters {
-				if err := addCluster(cluster, topologySpec.Namespace, true); err != nil {
-					return nil, err
+		if policy.Type == v1alpha1.TopologyPolicyType && policy.Properties != nil {
+			hasTopologyPolicy = true
+			topologySpec := &v1alpha1.TopologyPolicySpec{}
+			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
+				return nil, errors.Wrapf(err, "failed to parse topology policy %s", policy.Name)
+			}
+			clusterLabelSelector := GetClusterLabelSelectorInTopology(topologySpec)
+			switch {
+			case topologySpec.Clusters != nil:
+				for _, cluster := range topologySpec.Clusters {
+					if err := addCluster(cluster, topologySpec.Namespace, true); err != nil {
+						return nil, err
+					}
 				}
-			}
-		case clusterLabelSelector != nil:
-			clusterList, err := prismclusterv1alpha1.NewClusterClient(cli).List(ctx, client.MatchingLabels(clusterLabelSelector))
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
-			}
-			if len(clusterList.Items) == 0 {
-				return nil, errors.New("failed to find any cluster matches given labels")
-			}
-			for _, cluster := range clusterList.Items {
-				if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
-					return nil, err
+			case clusterLabelSelector != nil:
+				clusterList, err := prismclusterv1alpha1.NewClusterClient(cli).List(ctx, client.MatchingLabels(clusterLabelSelector))
+				if err != nil {
+					return nil, errors.Wrapf(err, "failed to find clusters in topology %s", policy.Name)
+				}
+				if len(clusterList.Items) == 0 {
+					return nil, errors.New("failed to find any cluster matches given labels")
+				}
+				for _, cluster := range clusterList.Items {
+					if err = addCluster(cluster.Name, topologySpec.Namespace, false); err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
+
 	}
 	if !hasTopologyPolicy {
 		placements = []v1alpha1.PlacementDecision{{Cluster: multicluster.ClusterLocalName}}
