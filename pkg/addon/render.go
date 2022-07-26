@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -189,9 +190,17 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 		}
 	}
 
+	if app.Name != "" && app.Name != addonutil.Addon2AppName(addon.Name) {
+		klog.Warningf("Application name %s will be overwritten with %s. Consider removing app name in template.", app.Name, addonutil.Addon2AppName(addon.Name))
+	}
 	app.Name = addonutil.Addon2AppName(addon.Name)
-	// force override the namespace defined vela with DefaultVelaNS,this value can be modified by Env
+
+	if app.Namespace != "" && app.Namespace != types.DefaultKubeVelaNS {
+		klog.Warningf("Namespace %s will be overwritten with %s. Consider removing namespace in template.", app.Namespace, types.DefaultKubeVelaNS)
+	}
+	// force override the namespace defined vela with DefaultVelaNS. this value can be modified by Env
 	app.SetNamespace(types.DefaultKubeVelaNS)
+
 	if app.Labels == nil {
 		app.Labels = make(map[string]string)
 	}
@@ -345,6 +354,7 @@ func checkNeedAttachTopologyPolicy(app *v1beta1.Application, addon *InstallPacka
 	}
 	for _, policy := range app.Spec.Policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
+			klog.Warningf("deployTo in metadata will NOT have any effect. It conflicts with %s policy named %s. Consider removing deployTo field in addon metadata.", v1alpha1.TopologyPolicyType, policy.Name)
 			return false
 		}
 	}
