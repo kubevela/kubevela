@@ -198,7 +198,7 @@ func generateAppFramework(addon *InstallPackage, parameters map[string]interface
 	if app.Namespace != "" && app.Namespace != types.DefaultKubeVelaNS {
 		klog.Warningf("Namespace %s will be overwritten with %s. Consider removing metadata.namespace in template.", app.Namespace, types.DefaultKubeVelaNS)
 	}
-	// force override the namespace defined vela with DefaultVelaNS. this value can be modified by Env
+	// force override the namespace defined vela with DefaultVelaNS. This value can be modified by env
 	app.SetNamespace(types.DefaultKubeVelaNS)
 
 	if app.Labels == nil {
