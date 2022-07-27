@@ -8,7 +8,8 @@
 	}
 	description: "Add a datasource to Grafana"
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
+		"deprecated": "true"
 	}
 	type: "trait"
 }
