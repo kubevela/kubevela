@@ -146,6 +146,10 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Inputs:  []v1beta1.AppPolicy{},
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "local", Namespace: ""}},
 		},
+		"empty-topology-policy": {
+			Inputs: []v1beta1.AppPolicy{{Type: "topology", Name: "some-name", Properties: nil}},
+			Error:  "have empty properties",
+		},
 	}
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {

@@ -437,7 +437,7 @@ func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) er
 		}
 	}
 	for _, policy := range h.app.Spec.Policies {
-		if policy.Type == v1alpha1.EnvBindingPolicyType {
+		if policy.Type == v1alpha1.EnvBindingPolicyType && policy.Properties != nil {
 			spec := &v1alpha1.EnvBindingSpec{}
 			if err = json.Unmarshal(policy.Properties.Raw, &spec); err == nil {
 				for _, env := range spec.Envs {

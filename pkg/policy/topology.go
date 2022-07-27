@@ -18,6 +18,7 @@ package policy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -65,6 +66,9 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, cli client.Client, a
 	hasTopologyPolicy := false
 	for _, policy := range policies {
 		if policy.Type == v1alpha1.TopologyPolicyType {
+			if policy.Properties == nil {
+				return nil, fmt.Errorf("topology policy %s must not have empty properties", policy.Name)
+			}
 			hasTopologyPolicy = true
 			topologySpec := &v1alpha1.TopologyPolicySpec{}
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, topologySpec); err != nil {
