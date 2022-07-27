@@ -48,6 +48,14 @@ func TestOverrideConfiguration(t *testing.T) {
 			}},
 			Error: "failed to parse override policy",
 		},
+		"empty-policy": {
+			Policies: []v1beta1.AppPolicy{{
+				Name:       "override-policy",
+				Type:       "override",
+				Properties: nil,
+			}},
+			Error: "empty properties",
+		},
 		"normal": {
 			Policies: []v1beta1.AppPolicy{{
 				Name:       "override-policy",
