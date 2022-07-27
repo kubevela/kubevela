@@ -1,7 +1,13 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee @Somefive
-design/                            @barnettZQG @leejanee @wonderflow @Somefive
+*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat
+design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat
+
+# Owner of Core Controllers
+pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow
+
+# Owner of Standard Controllers
+pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow
 
 # Owner of CUE
 pkg/cue                            @leejanee @FogDong @Somefive
@@ -11,16 +17,8 @@ pkg/stdlib                         @leejanee @FogDong @Somefive
 pkg/workflow                       @leejanee @FogDong @Somefive
 
 # Owner of rollout
-pkg/controller/common/rollout/                              @wangyikewxgm @wonderflow
-pkg/controller/core.oam.dev/v1alpha2/applicationrollout     @wangyikewxgm @wonderflow
-pkg/controller/standard.oam.dev/v1alpha1/rollout            @wangyikewxgm @wonderflow
-runtime/rollout                                             @wangyikewxgm @wonderflow
-
-# Owner of definition controller
-pkg/controller/core.oam.dev/v1alpha2/core/workflow/workflowstepdefinition  @yangsoon @Somefive @FogDong
-pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition        @yangsoon @Somefive @FogDong
-pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition   @yangsoon @zzxwill @Somefive
-pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon @zzxwill @Somefive
+pkg/controller/common/rollout/     @wangyikewxgm @wonderflow
+runtime/rollout                    @wangyikewxgm @wonderflow
 
 # Owner of vela templates
 vela-templates/                     @Somefive @barnettZQG @wonderflow
@@ -33,3 +31,7 @@ pkg/apiserver/                     @barnettZQG @yangsoon @FogDong
 
 # Owner of vela addon framework
 pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
+
+# Owner of resource keeper and tracker
+pkg/resourcekeeper                 @Somefive @FogDong
+pkg/resourcetracker                @Somefive @FogDong
