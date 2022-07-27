@@ -34,7 +34,7 @@ const (
 // GetEnvBindingPolicy extract env-binding policy with given policy name, if policy name is empty, the first env-binding policy will be used
 func GetEnvBindingPolicy(app *v1beta1.Application, policyName string) (*v1alpha1.EnvBindingSpec, error) {
 	for _, policy := range app.Spec.Policies {
-		if (policy.Name == policyName || policyName == "") && policy.Type == v1alpha1.EnvBindingPolicyType {
+		if (policy.Name == policyName || policyName == "") && policy.Type == v1alpha1.EnvBindingPolicyType && policy.Properties != nil {
 			envBindingSpec := &v1alpha1.EnvBindingSpec{}
 			err := json.Unmarshal(policy.Properties.Raw, envBindingSpec)
 			return envBindingSpec, err

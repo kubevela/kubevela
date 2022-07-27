@@ -107,3 +107,14 @@ func TestParseSharedResourcePolicy(t *testing.T) {
 	r.NoError(err)
 	r.Equal(policySpec, spec)
 }
+
+func TestParsePolicy(t *testing.T) {
+	r := require.New(t)
+	// Test skipping empty policy
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
+		Policies: []v1beta1.AppPolicy{{Type: "example", Name: "s", Properties: nil}},
+	}}
+	exists, err := parsePolicy(app, "example", nil)
+	r.False(exists, "empty policy should not be included")
+	r.NoError(err)
+}
