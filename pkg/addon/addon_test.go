@@ -945,6 +945,11 @@ func TestCheckSemVer(t *testing.T) {
 			require: ">=v1.2.4-beta.3",
 			res:     false,
 		},
+		{
+			actual:  "1.5.0-beta.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
 	}
 	for _, testCase := range testCases {
 		result, err := checkSemVer(testCase.actual, testCase.require)

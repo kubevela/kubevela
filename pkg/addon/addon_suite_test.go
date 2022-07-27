@@ -26,6 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -396,6 +397,33 @@ var _ = Describe("test enable addon which applies the views independently", func
 	})
 })
 
+var _ = Describe("test override defs of addon", func() {
+	It("test compDef exist", func() {
+		ctx := context.Background()
+		comp := v1beta1.ComponentDefinition{}
+		Expect(yaml.Unmarshal([]byte(helmCompDefYaml), &comp)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
+
+		u := unstructured.Unstructured{}
+		u.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u.SetKind(v1beta1.ComponentDefinitionKind)
+		u.SetNamespace("vela-system")
+		u.SetName("helm")
+		c, err := checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		Expect(err).Should(BeNil())
+		Expect(c).Should(BeEquivalentTo(true))
+
+		u.SetName("rollout")
+		c, err = checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		Expect(err).Should(BeNil())
+		Expect(c).Should(BeEquivalentTo(false))
+
+		u.SetKind("NotExistKind")
+		c, err = checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		Expect(err).ShouldNot(BeNil())
+	})
+})
+
 const (
 	appYaml = `apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -491,5 +519,15 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 8000
+`
+	helmCompDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: helm
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
 `
 )

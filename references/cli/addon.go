@@ -77,6 +77,8 @@ var verboseStatus bool
 
 var skipValidate bool
 
+var overrideDefs bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -203,6 +205,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-defs", "o", false, "override already exist definitions within addon")
 	return cmd
 }
 
@@ -323,6 +326,7 @@ non-empty new arg
 	}
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-defs", "o", false, "override already exist definitions within addon")
 	return cmd
 }
 
@@ -535,6 +539,9 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if skipValidate {
 			opts = append(opts, pkgaddon.SkipValidateVersion)
 		}
+		if overrideDefs {
+			opts = append(opts, pkgaddon.OverrideDefinitions)
+		}
 		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
@@ -569,6 +576,9 @@ func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient 
 	var opts []pkgaddon.InstallOption
 	if skipValidate {
 		opts = append(opts, pkgaddon.SkipValidateVersion)
+	}
+	if overrideDefs {
+		opts = append(opts, pkgaddon.OverrideDefinitions)
 	}
 	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...); err != nil {
 		return err
