@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: sae-pressure-app-{{ .Env.APP_ID }}
+  name: sae-load-test-app-{{ .Env.APP_ID }}
 spec:
   components:
     - name: example-component-{{ .Env.APP_ID }}
@@ -27,11 +27,11 @@ spec:
             replicas: 3
         - type: annotations
           properties:
-            pressure-test-description: A simple but complete app.
-            pressure-test-id: "{{ .Env.APP_ID }}"
+            load-test-description: A simple but complete app.
+            load-test-id: "{{ .Env.APP_ID }}"
         - type: labels
           properties:
-            pressure-test: sae
+            load-test: sae
         - type: ingress
           properties:
             domain: testsvc-{{ .Env.APP_ID }}.example.com

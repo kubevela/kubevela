@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: community-pressure-app-{{ .Env.APP_ID }}
+  name: community-load-test-app-{{ .Env.APP_ID }}
 spec:
   components:
     - name: example-component-first-{{ .Env.APP_ID }}-1
