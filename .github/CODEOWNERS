@@ -22,15 +22,14 @@ pkg/controller/core.oam.dev/v1alpha2/core/policies/policydefinition        @yang
 pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition   @yangsoon @zzxwill @Somefive
 pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition           @yangsoon @zzxwill @Somefive
 
-# Owner of health scope controller
-pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope     @captainroy-hy @zzxwill @yangsoon
-
 # Owner of vela templates
 vela-templates/                     @Somefive @barnettZQG @wonderflow
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129
 
 # Owner of vela APIServer
 pkg/apiserver/                     @barnettZQG @yangsoon @FogDong
 
+# Owner of vela addon framework
+pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
