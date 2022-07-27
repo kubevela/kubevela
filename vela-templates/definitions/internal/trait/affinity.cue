@@ -6,7 +6,7 @@
 	}
 	description: "Affinity specifies affinity and toleration K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 		podDisruptive: true
 	}
 }

@@ -5,7 +5,7 @@
 	description: "Specify serviceAccount for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: false
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 template: {

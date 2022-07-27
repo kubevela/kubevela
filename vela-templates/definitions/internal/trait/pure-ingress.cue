@@ -1,7 +1,7 @@
 "pure-ingress": {
 	annotations: {}
 	attributes: {
-		appliesToWorkloads: []
+		appliesToWorkloads: ["*"]
 		conflictsWith: []
 		podDisruptive: false
 		status: {
