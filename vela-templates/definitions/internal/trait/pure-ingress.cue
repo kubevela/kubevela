@@ -23,7 +23,7 @@
 	}
 	description: "Enable public web traffic for the component without creating a Service."
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
 		"deprecated": "true"
 	}
 	type: "trait"
