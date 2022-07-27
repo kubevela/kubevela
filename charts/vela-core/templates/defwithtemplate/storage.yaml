@@ -8,8 +8,12 @@ metadata:
   name: storage
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  appliesToWorkloads:
-    - deployments.apps
+  attributes:
+    appliesToWorkloads:
+      - deployments.apps
+      - statefulsets.apps
+      - daemonsets.apps
+      - jobs.batch
   podDisruptive: true
   schematic:
     cue:

@@ -120,7 +120,7 @@ type TraitDefinitionSpec struct {
 	PodDisruptive bool `json:"podDisruptive,omitempty"`
 
 	// AppliesToWorkloads specifies the list of workload kinds this trait
-	// applies to. Workload kinds are specified in kind.group/version format,
+	// applies to. Workload kinds are specified in resource.group/version format,
 	// e.g. server.core.oam.dev/v1alpha2. Traits that omit this field apply to
 	// all workload kinds.
 	// +optional

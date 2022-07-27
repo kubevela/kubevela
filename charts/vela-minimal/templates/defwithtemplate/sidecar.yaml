@@ -10,8 +10,12 @@ metadata:
   name: sidecar
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  appliesToWorkloads:
-    - '*'
+  attributes:
+    appliesToWorkloads:
+      - deployments.apps
+      - statefulsets.apps
+      - daemonsets.apps
+      - jobs.batch
   podDisruptive: true
   schematic:
     cue:

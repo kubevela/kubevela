@@ -7,7 +7,7 @@ lifecycle: {
 	description: "Add lifecycle hooks for every container of K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 template: {

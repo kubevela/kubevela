@@ -11,7 +11,7 @@ nocalhost: {
 	description: "nocalhost develop configuration."
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 

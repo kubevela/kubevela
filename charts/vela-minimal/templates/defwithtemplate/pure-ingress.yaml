@@ -10,7 +10,8 @@ metadata:
   name: pure-ingress
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  appliesToWorkloads: []
+  appliesToWorkloads:
+    - '*'
   conflictsWith: []
   podDisruptive: false
   schematic:

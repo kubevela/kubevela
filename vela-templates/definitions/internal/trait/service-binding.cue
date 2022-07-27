@@ -5,7 +5,9 @@
 		"ui-hidden": "true"
 	}
 	description: "Binding secrets of cloud resources to component env. This definition is DEPRECATED, please use 'storage' instead."
-	attributes: appliesToWorkloads: ["*"]
+	attributes: {
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
+	}
 }
 template: {
 	patch: spec: template: spec: {
