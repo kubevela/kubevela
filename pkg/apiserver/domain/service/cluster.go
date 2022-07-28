@@ -403,12 +403,22 @@ func (c *clusterServiceImpl) DeleteKubeCluster(ctx context.Context, clusterName 
 }
 
 func (c *clusterServiceImpl) CreateClusterNamespace(ctx context.Context, clusterName string, req apis.CreateClusterNamespaceRequest) (*apis.CreateClusterNamespaceResponse, error) {
-	_, err := c.getClusterFromDataStore(ctx, clusterName)
+	cluster, err := c.getClusterFromDataStore(ctx, clusterName)
 	if err != nil {
-		if errors.Is(err, datastore.ErrRecordNotExist) {
-			return nil, bcode.ErrClusterNotFoundInDataStore
+		if !errors.Is(err, datastore.ErrRecordNotExist) {
+			return nil, errors.Wrapf(err, "failed to find cluster %s in data store", clusterName)
 		}
-		return nil, errors.Wrapf(err, "failed to found cluster %s in data store", clusterName)
+		prismCluster, err := prismclusterv1alpha1.NewClusterClient(c.K8sClient).Get(ctx, clusterName)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return nil, bcode.ErrClusterNotFoundInDataStore
+			}
+			return nil, errors.Wrapf(err, "failed to find cluster %s in control plane", clusterName)
+		}
+		cluster = newClusterModelFromPrismCluster(prismCluster)
+		if err = c.Store.Add(ctx, cluster); err != nil {
+			return nil, errors.Wrapf(err, "failed to add cluster %s from existing prism cluster", clusterName)
+		}
 	}
 	ns := &v12.Namespace{}
 	ns.Name = req.Namespace
