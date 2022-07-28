@@ -167,8 +167,8 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 
 // ComputeMetricByDeploymentName computes cpu and memory metric of deployment
 func ComputeMetricByDeploymentName(deployments *v1.DeploymentList, podMetricsList *v1beta1.PodMetricsList) (cpuMetricMap, memMetricMap map[string]int64) {
-	cpuMetricMap = make(map[string]int64, 0)
-	memMetricMap = make(map[string]int64, 0)
+	cpuMetricMap = make(map[string]int64)
+	memMetricMap = make(map[string]int64)
 	for _, deploy := range deployments.Items {
 		cpuUsage, memUsage := int64(0), int64(0)
 		for _, pod := range podMetricsList.Items {
