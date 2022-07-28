@@ -28,6 +28,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	rest "k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -266,6 +267,7 @@ func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
 }
 
+// OverrideDefinitions menas override definitions within this addon if some of them already exist
 func OverrideDefinitions(installer *Installer) {
 	installer.overrideDefs = true
 }
@@ -438,15 +440,20 @@ func isErrorCueRenderPathNotFound(err error, path string) bool {
 	return err.Error() == fmt.Sprintf("var(path=%s) not exist", path)
 }
 
-func checkDefAlreadyExist(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured) (bool, error) {
+func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, app v1beta1.Application) ([]string, error) {
+	var res []string
 	for _, def := range defs {
 		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(def), def)
 		if err == nil {
-			return true, nil
+			owner := metav1.GetControllerOf(def)
+			if owner == nil || owner.Kind != v1beta1.ApplicationKind || owner.Name != app.Name {
+				// if addon not belong to an addon or addon name is another one, we should put them in result
+				res = append(res, def.GetName())
+			}
 		}
-		if !errors2.IsNotFound(err) {
-			return false, err
+		if err != nil && !errors2.IsNotFound(err) {
+			return nil, err
 		}
 	}
-	return false, nil
+	return res, nil
 }

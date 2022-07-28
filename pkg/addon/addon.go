@@ -1071,12 +1071,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	if !h.overrideDefs {
-		conflict, err := checkDefAlreadyExist(h.ctx, h.cli, defs)
+		existDefs, err := checkConflictDefs(h.ctx, h.cli, defs, *app)
 		if err != nil {
 			return err
 		}
-		if conflict {
-			return fmt.Errorf(`definitions in this addon already exist, if you want override them, Please use "vela addon enable <addon-name> --override-defs" to enable`)
+		if len(existDefs) != 0 {
+			return fmt.Errorf(`definitions: %s in this addon already exist, if you want override them, Please use add "--override-defs" to re-enable or re-upgrade`, existDefs)
 		}
 	}
 
