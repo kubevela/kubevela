@@ -400,27 +400,54 @@ var _ = Describe("test enable addon which applies the views independently", func
 var _ = Describe("test override defs of addon", func() {
 	It("test compDef exist", func() {
 		ctx := context.Background()
-		comp := v1beta1.ComponentDefinition{}
+		comp := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
 		Expect(yaml.Unmarshal([]byte(helmCompDefYaml), &comp)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
 
-		u := unstructured.Unstructured{}
+		comp2 := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
+		Expect(yaml.Unmarshal([]byte(kustomizeCompDefYaml), &comp2)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp2)).Should(BeNil())
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "addon-fluxcd"}}
+
+		comp3 := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
+		Expect(yaml.Unmarshal([]byte(kustomizeCompDefYaml1), &comp3)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp3)).Should(BeNil())
+
+		compUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp)
+		Expect(err).Should(BeNil())
+		u := unstructured.Unstructured{Object: compUnstructured}
 		u.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 		u.SetKind(v1beta1.ComponentDefinitionKind)
-		u.SetNamespace("vela-system")
-		u.SetName("helm")
-		c, err := checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		c, err := checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
 		Expect(err).Should(BeNil())
-		Expect(c).Should(BeEquivalentTo(true))
+		Expect(len(c)).Should(BeEquivalentTo(1))
 
 		u.SetName("rollout")
-		c, err = checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
 		Expect(err).Should(BeNil())
-		Expect(c).Should(BeEquivalentTo(false))
+		Expect(len(c)).Should(BeEquivalentTo(0))
 
 		u.SetKind("NotExistKind")
-		c, err = checkDefAlreadyExist(ctx, k8sClient, []*unstructured.Unstructured{&u})
+		_, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
 		Expect(err).ShouldNot(BeNil())
+
+		compUnstructured2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp2)
+		Expect(err).Should(BeNil())
+		u2 := &unstructured.Unstructured{Object: compUnstructured2}
+		u2.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u2.SetKind(v1beta1.ComponentDefinitionKind)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u2}, app)
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(1))
+
+		compUnstructured3, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp3)
+		Expect(err).Should(BeNil())
+		u3 := &unstructured.Unstructured{Object: compUnstructured3}
+		u3.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u3.SetKind(v1beta1.ComponentDefinitionKind)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u3}, app)
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(0))
 	})
 })
 
@@ -526,6 +553,40 @@ kind: ComponentDefinition
 metadata:
   name: helm
   namespace: vela-system
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Application
+    name: addon-fluxcd-helm
+    uid: 73c47933-002e-4182-a673-6da6a9dcf080
+spec:
+  schematic:
+    cue:
+`
+	kustomizeCompDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kustomize
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+`
+	kustomizeCompDefYaml1 = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kustomize-another
+  namespace: vela-system
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Application
+    name: addon-fluxcd
+    uid: 73c47933-002e-4182-a673-6da6a9dcf080
 spec:
   schematic:
     cue:
