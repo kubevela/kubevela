@@ -181,6 +181,7 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			tl := paraValue.Template()
 			if tl != nil { // is map type
 				param.PrintableType = fmt.Sprintf("map[string]:%s", tl("").IncompleteKind().String())
+				param.PrintableType = strings.ReplaceAll(param.PrintableType, "|", `&#124;`)
 			} else {
 				param.PrintableType = "{}"
 			}
@@ -268,7 +269,8 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 		}
 	default:
 		var param ReferenceParameter
-		param.Name = "-"
+		// TODO better composition type handling, see command trait.
+		param.Name = "--"
 		param.Usage = "Composition type"
 		param.PrintableType = extractTypeFromError(paraValue)
 		params = append(params, param)
@@ -311,7 +313,7 @@ func extractTypeFromError(paraValue cue.Value) string {
 		return str
 	}
 	str = sll[1]
-	sll = strings.Split(str, ") (type")
+	sll = strings.Split(str, " (type")
 	return sll[0]
 }
 

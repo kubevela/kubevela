@@ -86,7 +86,7 @@ spec:
         	// +usage=Set ingress class in '.spec.ingressClassName' instead of 'kubernetes.io/ingress.class' annotation.
         	classInSpec: *false | bool
 
-        	// +usage=Specify the secret name you want to quote.
+        	// +usage=Specify the secret name you want to quote to use tls.
         	secretName?: string
 
         	// +usage=Specify the host of the ingress gateway, which is used to generate the endpoints when the host is empty.
