@@ -175,12 +175,11 @@ func (c *cloudShellServiceImpl) Destroy(ctx context.Context) error {
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: makeUserCloudShellName(userName)}, &cloudShell); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
-		} else {
-			if meta.IsNoMatchError(err) {
-				return bcode.ErrCloudShellAddonNotEnabled
-			}
-			return err
 		}
+		if meta.IsNoMatchError(err) {
+			return bcode.ErrCloudShellAddonNotEnabled
+		}
+		return err
 	}
 	return c.KubeClient.Delete(ctx, &cloudShell)
 }
