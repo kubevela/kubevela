@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +32,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
+	"github.com/rogpeppe/go-internal/modfile"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
@@ -65,11 +68,13 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 	)
 	switch {
 	case ref.Local != nil:
-		lcap, err := ParseLocalFile(ref.Local.Path, c)
+		lcaps, err := ParseLocalFiles(ref.Local.Path, c)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get capability from local file %s: %w", ref.DefinitionName, err)
 		}
-		caps = append(caps, *lcap)
+		for _, lcap := range lcaps {
+			caps = append(caps, *lcap)
+		}
 	case ref.Remote != nil:
 		config, err := c.GetConfig()
 		if err != nil {
@@ -485,7 +490,41 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	return tables, outputsTables, nil
 }
 
-// ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
+// ParseLocalFiles parse the local file and get name, configuration from local ComponentDefinition file
+func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, error) {
+	lcaps := make([]*types.Capability, 0)
+	if modfile.IsDirectoryPath(localFilePath) {
+		// walk the dir and get files
+		err := filepath.WalkDir(localFilePath, func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(info.Name(), ".yaml") && !strings.HasSuffix(info.Name(), ".cue") {
+				return nil
+			}
+			lcap, err := ParseLocalFile(path, c)
+			if err != nil {
+				return err
+			}
+			lcaps = append(lcaps, lcap)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		lcap, err := ParseLocalFile(localFilePath, c)
+		if err != nil {
+			return nil, err
+		}
+		lcaps = append(lcaps, lcap)
+	}
+	return lcaps, nil
+}
+
 func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, error) {
 	data, err := pkgUtils.ReadRemoteOrLocalPath(localFilePath, false)
 	if err != nil {
@@ -537,6 +576,7 @@ func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, err
 		return nil, errors.Wrapf(err, "fail to parse definition to capability")
 	}
 	return &lcap, nil
+
 }
 
 // WalkParameterSchema will extract properties from *openapi3.Schema
