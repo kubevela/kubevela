@@ -221,7 +221,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		description += "\n\n### " + lang.Get("Apply To Component Types") + "\n\n"
 		var applyto string
 		if len(c.AppliesTo) == 1 && c.AppliesTo[0] == AllComponentTypes {
-			applyto += lang.Get("All Component Types")
+			applyto += lang.Get("All Component Types.")
 		} else {
 			applyto += lang.Get("Component based on the following kinds of resources:") + "\n"
 			for _, ap := range c.AppliesTo {
@@ -229,7 +229,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 			}
 		}
 		if applyto == "" {
-			applyto = lang.Get("All Component Types")
+			applyto = lang.Get("All Component Types.")
 		}
 		description += applyto + "\n"
 	}
