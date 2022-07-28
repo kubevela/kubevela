@@ -109,7 +109,7 @@ func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, accessor 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
 	// if health of template is not set or standard workload is managed by trait always return true
-	if wl.FullTemplate.Health == "" || wl.SkipApplyWorkload {
+	if wl.SkipApplyWorkload {
 		return true, nil
 	}
 	return wl.engine.HealthCheck(ctx, client, accessor, wl.FullTemplate.Health)
@@ -152,9 +152,6 @@ func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, accessor 
 
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
-	if trait.FullTemplate.Health == "" {
-		return true, nil
-	}
 	return trait.engine.HealthCheck(ctx, client, accessor, trait.HealthCheckPolicy)
 }
 
