@@ -1071,12 +1071,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	if !h.overrideDefs {
-		existDefs, err := checkConflictDefs(h.ctx, h.cli, defs, *app)
+		existDefs, err := checkConflictDefs(h.ctx, h.cli, defs, app.Name)
 		if err != nil {
 			return err
 		}
 		if len(existDefs) != 0 {
-			return fmt.Errorf(`definitions: %s in this addon already exist, if you want override them, Please use add "--override-defs" to re-enable or re-upgrade`, existDefs)
+			return produceDefConflictError(existDefs)
 		}
 	}
 

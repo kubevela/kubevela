@@ -418,17 +418,17 @@ var _ = Describe("test override defs of addon", func() {
 		u := unstructured.Unstructured{Object: compUnstructured}
 		u.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 		u.SetKind(v1beta1.ComponentDefinitionKind)
-		c, err := checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
+		c, err := checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
 		Expect(err).Should(BeNil())
 		Expect(len(c)).Should(BeEquivalentTo(1))
 
 		u.SetName("rollout")
-		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
 		Expect(err).Should(BeNil())
 		Expect(len(c)).Should(BeEquivalentTo(0))
 
 		u.SetKind("NotExistKind")
-		_, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app)
+		_, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
 		Expect(err).ShouldNot(BeNil())
 
 		compUnstructured2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp2)
@@ -436,7 +436,7 @@ var _ = Describe("test override defs of addon", func() {
 		u2 := &unstructured.Unstructured{Object: compUnstructured2}
 		u2.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 		u2.SetKind(v1beta1.ComponentDefinitionKind)
-		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u2}, app)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u2}, app.GetName())
 		Expect(err).Should(BeNil())
 		Expect(len(c)).Should(BeEquivalentTo(1))
 
@@ -445,7 +445,7 @@ var _ = Describe("test override defs of addon", func() {
 		u3 := &unstructured.Unstructured{Object: compUnstructured3}
 		u3.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 		u3.SetKind(v1beta1.ComponentDefinitionKind)
-		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u3}, app)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u3}, app.GetName())
 		Expect(err).Should(BeNil())
 		Expect(len(c)).Should(BeEquivalentTo(0))
 	})
