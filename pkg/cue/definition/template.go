@@ -202,9 +202,6 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 
 // HealthCheck address health check for workload
 func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
 	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
@@ -213,6 +210,9 @@ func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, acces
 }
 
 func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string) (bool, error) {
+	if healthPolicyTemplate == "" {
+		return true, nil
+	}
 	bt, err := json.Marshal(templateContext)
 	if err != nil {
 		return false, errors.WithMessage(err, "json marshal template context")
@@ -233,9 +233,6 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 
 // Status get workload status by customStatusTemplate
 func (wd *workloadDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
 	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
@@ -244,6 +241,9 @@ func (wd *workloadDef) Status(ctx process.Context, cli client.Client, accessor u
 }
 
 func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
+	if customStatusTemplate == "" {
+		return "", nil
+	}
 	bi := build.NewContext().NewInstance("", nil)
 	var ctxBuff string
 	var paramBuff = "parameter: {}\n"
@@ -455,9 +455,6 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 
 // Status get trait status by customStatusTemplate
 func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
 	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
@@ -467,9 +464,6 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util
 
 // HealthCheck address health check for trait
 func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
 	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
