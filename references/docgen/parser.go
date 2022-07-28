@@ -490,7 +490,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 	return tables, outputsTables, nil
 }
 
-// ParseLocalFiles parse the local file and get name, configuration from local ComponentDefinition file
+// ParseLocalFiles parse the local files in directory and get name, configuration from local ComponentDefinition file
 func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, error) {
 	lcaps := make([]*types.Capability, 0)
 	if modfile.IsDirectoryPath(localFilePath) {
@@ -525,6 +525,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 	return lcaps, nil
 }
 
+// ParseLocalFile parse the local file and get name, configuration from local ComponentDefinition file
 func ParseLocalFile(localFilePath string, c common.Args) (*types.Capability, error) {
 	data, err := pkgUtils.ReadRemoteOrLocalPath(localFilePath, false)
 	if err != nil {
