@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -440,15 +441,19 @@ func isErrorCueRenderPathNotFound(err error, path string) bool {
 	return err.Error() == fmt.Sprintf("var(path=%s) not exist", path)
 }
 
-func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, app v1beta1.Application) ([]string, error) {
-	var res []string
+func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, appName string) (map[string]string, error) {
+	res := map[string]string{}
 	for _, def := range defs {
 		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(def), def)
 		if err == nil {
 			owner := metav1.GetControllerOf(def)
-			if owner == nil || owner.Kind != v1beta1.ApplicationKind || owner.Name != app.Name {
+			if owner == nil || owner.Kind != v1beta1.ApplicationKind {
+				res[def.GetName()] = fmt.Sprintf("definition: %s already exist and not belong to any addon \n", def.GetName())
+				continue
+			}
+			if owner.Name != appName {
 				// if addon not belong to an addon or addon name is another one, we should put them in result
-				res = append(res, def.GetName())
+				res[def.GetName()] = fmt.Sprintf("definition: %s in this addon already exist in %s \n", def.GetName(), addon.AppName2Addon(appName))
 			}
 		}
 		if err != nil && !errors2.IsNotFound(err) {
@@ -456,4 +461,16 @@ func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*uns
 		}
 	}
 	return res, nil
+}
+
+func produceDefConflictError(conflictDefs map[string]string) error {
+	if len(conflictDefs) == 0 {
+		return nil
+	}
+	var errorInfo string
+	for _, s := range conflictDefs {
+		errorInfo += s
+	}
+	errorInfo += "if you want override them, Please use arguments '--override' to enable \n"
+	return errors.New(errorInfo)
 }

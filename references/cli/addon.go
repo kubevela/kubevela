@@ -205,7 +205,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
-	cmd.Flags().BoolVarP(&overrideDefs, "override-defs", "o", false, "override already exist definitions within addon")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	return cmd
 }
 
@@ -326,7 +326,7 @@ non-empty new arg
 	}
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
-	cmd.Flags().BoolVarP(&overrideDefs, "override-defs", "o", false, "override already exist definitions within addon")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	return cmd
 }
 
