@@ -471,6 +471,6 @@ func produceDefConflictError(conflictDefs map[string]string) error {
 	for _, s := range conflictDefs {
 		errorInfo += s
 	}
-	errorInfo += "if you want override them, Please use arguments '--override' to enable \n"
+	errorInfo += "if you want override them, please use argument '--override-definitions' to enable \n"
 	return errors.New(errorInfo)
 }

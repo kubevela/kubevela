@@ -1320,7 +1320,7 @@ func TestMergeAddonInstallArgs(t *testing.T) {
 func TestGenerateConflictError(t *testing.T) {
 	confictAddon := map[string]string{
 		"helm":      "definition: helm already exist and not belong to any addon \n",
-		"kustomize": "definition: %s in this addon already exist in fluxcd \n",
+		"kustomize": "definition: kustomize in this addon already exist in fluxcd \n",
 	}
 	err := produceDefConflictError(confictAddon)
 	assert.Error(t, err)
