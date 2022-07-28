@@ -24,8 +24,12 @@ import (
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -33,8 +37,10 @@ import (
 )
 
 const (
-	// FlagDeploymentName specifies the deployment name
-	FlagDeploymentName = "name"
+	// FlagSpecify specifies the deployment name
+	FlagSpecify = "specify"
+	// FlagDeploymentNamespace specifies the namespace of deployment
+	FlagDeploymentNamespace = "namespace"
 )
 
 // NewSystemCommand print system detail info
@@ -43,10 +49,10 @@ func NewSystemCommand(c common.Args) *cobra.Command {
 		Use:   "system",
 		Short: "Manage system.",
 		Long:  "Manage system, incluing printing the system deployment information in vela-system namespace and diagnosing the system's health.",
-		Example: "# Check all deployments information:\n" +
+		Example: "# Check all deployments information in all namespaces with label app.kubernetes.io/name=vela-core :\n" +
 			"> vela system info\n" +
-			"# Specify a deployment name to check detail information:\n" +
-			"> vela system info --name kubevela-vela-core\n" +
+			"# Specify a deployment name with a namespace to check detail information:\n" +
+			"> vela system info -s kubevela-vela-core -n vela-system\n" +
 			"# Diagnose the system's health:\n" +
 			"> vela system diagnose\n",
 		Annotations: map[string]string{
@@ -63,17 +69,19 @@ func NewSystemCommand(c common.Args) *cobra.Command {
 func NewSystemInfoCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "info",
-		Short: "Print the system deployment detail information in vela-system namespace.",
-		Long:  "Print the system deployment detail information in vela-system namespace.",
+		Short: "Print the system deployment detail information in all namespaces with label app.kubernetes.io/name=vela-core.",
+		Long:  "Print the system deployment detail information in all namespaces with label app.kubernetes.io/name=vela-core.",
 		Args:  cobra.ExactValidArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get deploymentName from flag
-			deployName, err := cmd.Flags().GetString(FlagDeploymentName)
+			deployName, err := cmd.Flags().GetString(FlagSpecify)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get deployment name flag")
 			}
-			table := newUITable().AddRow("NAME", "NAMESPACE", "IMAGE", "ARGS")
-			table.MaxColWidth = 120
+			namespace, err := cmd.Flags().GetString(FlagDeploymentNamespace)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get deployment namespace flag")
+			}
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -81,33 +89,67 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 			// Get clientset
 			clientset, err := kubernetes.NewForConfig(config)
 			if err != nil {
-				panic(err)
+				return err
 			}
-			// Get deploymentsClient
-			deploymentsClient := clientset.AppsV1().Deployments(types.DefaultKubeVelaNS)
+			mc, err := metrics.NewForConfig(config)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			if deployName != "" {
-				// DeployName is not empty, print the specified deployment's all args
-				deployment, err := deploymentsClient.Get(ctx, deployName, metav1.GetOptions{})
-				if err != nil {
-					panic(err)
+				// DeployName is not empty, print the specified deployment's information in yaml type
+				if namespace == "" {
+					return errors.Errorf("An empty namespace can not be set when a resource name is provided. Use -n to specify the namespace.")
 				}
-				table.AddRow(deployment.Name, deployment.Namespace, deployment.Spec.Template.Spec.Containers[0].Image, strings.Join(deployment.Spec.Template.Spec.Containers[0].Args, " "))
+				// Get specified deployment in specified namespace
+				deployment, err := clientset.AppsV1().Deployments(namespace).Get(
+					ctx,
+					deployName,
+					metav1.GetOptions{},
+				)
+				if err != nil {
+					return err
+				}
+				// Set ManagedFields to nil because it's too long to read
+				deployment.ManagedFields = nil
+				deploymentYaml, _ := yaml.Marshal(deployment)
+				if err != nil {
+					return err
+				}
+				cmd.Println(string(deploymentYaml))
 			} else {
 				// DeployName is empty, print all deployment's partial args
-				deployments, err := deploymentsClient.List(ctx, metav1.ListOptions{})
+				// Get deploymentsClient in all namespace
+				deployments, err := clientset.AppsV1().Deployments(metav1.NamespaceAll).List(
+					ctx,
+					metav1.ListOptions{
+						LabelSelector: "app.kubernetes.io/name=vela-core",
+					},
+				)
 				if err != nil {
-					panic(err)
+					return err
 				}
+				podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
+					ctx,
+					metav1.ListOptions{},
+				)
+				if err != nil {
+					return err
+				}
+				table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS")
+				cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
 				for _, deploy := range deployments.Items {
-					allArgs := deploy.Spec.Template.Spec.Containers[0].Args
-					table.AddRow(deploy.Name, deploy.Namespace, deploy.Spec.Template.Spec.Containers[0].Image, limitStringLength(strings.Join(allArgs, " "), 60))
+					table.AddRow(
+						deploy.Name,
+						deploy.Namespace,
+						fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
+						deploy.Spec.Template.Spec.Containers[0].Image,
+						fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
+						fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
+						limitStringLength(strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "), 50),
+					)
 				}
-			}
-			if len(table.Rows) == 1 {
-				cmd.Println("No deployment found.")
-			} else {
 				cmd.Println(table.String())
 			}
 			return nil
@@ -116,8 +158,29 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
-	cmd.Flags().StringP(FlagDeploymentName, "n", "", "Specify the deployment name to check detail information. If empty, it will print all deployments information. Default to be empty.")
+	cmd.Flags().StringP(FlagSpecify, "s", "", "Specify the name of the deployment to check detail information. If empty, it will print all deployments information. Default to be empty.")
+	cmd.Flags().StringP(FlagDeploymentNamespace, "n", "", "Specify the namespace of the deployment to check detail information. If empty, it will prints deployments information of all namespaces. Default to be empty. An empty namespace may not be can when a resource name is provided. ")
 	return cmd
+}
+
+// ComputeMetricByDeploymentName computes cpu and memory metric of deployment
+func ComputeMetricByDeploymentName(deployments *v1.DeploymentList, podMetricsList *v1beta1.PodMetricsList) (cpuMetricMap, memMetricMap map[string]int64) {
+	cpuMetricMap = make(map[string]int64, 0)
+	memMetricMap = make(map[string]int64, 0)
+	for _, deploy := range deployments.Items {
+		cpuUsage, memUsage := int64(0), int64(0)
+		for _, pod := range podMetricsList.Items {
+			if strings.HasPrefix(pod.Name, deploy.Name) {
+				for _, container := range pod.Containers {
+					cpuUsage += container.Usage.Cpu().MilliValue()
+					memUsage += container.Usage.Memory().Value() / (1024 * 1024)
+				}
+			}
+		}
+		cpuMetricMap[deploy.Name] = cpuUsage
+		memMetricMap[deploy.Name] = memUsage
+	}
+	return
 }
 
 // NewSystemDiagnoseCommand create command to help user to diagnose system's health
