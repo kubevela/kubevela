@@ -32,11 +32,12 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
-	InstallID              string        `json:"installID"`
-	EnableCollection       bool          `json:"enableCollection"`
-	StatisticInfo          StatisticInfo `json:"statisticInfo,omitempty"`
-	LoginType              string        `json:"loginType"`
-	DexUserDefaultProjects []ProjectRef  `json:"projects"`
+	InstallID                   string        `json:"installID"`
+	EnableCollection            bool          `json:"enableCollection"`
+	StatisticInfo               StatisticInfo `json:"statisticInfo,omitempty"`
+	LoginType                   string        `json:"loginType"`
+	DexUserDefaultProjects      []ProjectRef  `json:"projects"`
+	DexUserDefaultPlatformRoles []string      `json:"dexUserDefaultPlatformRoles"`
 }
 
 // ProjectRef set the project name and roles
