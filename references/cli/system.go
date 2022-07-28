@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -137,7 +138,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS")
+				table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS", "ENVS")
 				cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
 				for _, deploy := range deployments.Items {
 					table.AddRow(
@@ -148,6 +149,7 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 						fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
 						fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
 						limitStringLength(strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "), 50),
+						limitStringLength(GetEnvVariable(deploy.Spec.Template.Spec.Containers[0].Env), 50),
 					)
 				}
 				cmd.Println(table.String())
@@ -179,6 +181,17 @@ func ComputeMetricByDeploymentName(deployments *v1.DeploymentList, podMetricsLis
 		}
 		cpuMetricMap[deploy.Name] = cpuUsage
 		memMetricMap[deploy.Name] = memUsage
+	}
+	return
+}
+
+// GetEnvVariable gets the environment variables
+func GetEnvVariable(envList []corev1.EnvVar) (envStr string) {
+	for _, env := range envList {
+		envStr += fmt.Sprintf("%s=%s ", env.Name, env.Value)
+	}
+	if len(envStr) == 0 {
+		return "-"
 	}
 	return
 }
