@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+// AllComponentTypes means trait can be applied to all component types
 const AllComponentTypes = "*"
 
 // MarkdownReference is the struct for capability information in
