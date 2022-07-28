@@ -61,6 +61,14 @@ func (c *CloudShellAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.CloudShellPrepareResponse{}).Do(returns200, returns500))
 
+	ws.Route(ws.DELETE("/").To(c.destroyCloudShell).
+		Doc("destroy the user's cloud shell environment").
+		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Filter(c.RbacService.CheckPerm("cloudshell", "delete")).
+		Returns(200, "OK", apis.EmptyResponse{}).
+		Returns(400, "Bad Request", bcode.Bcode{}).
+		Writes(apis.EmptyResponse{}).Do(returns200, returns500))
+
 	ws.Filter(authCheckFilter)
 	return ws
 }
@@ -77,6 +85,19 @@ func (c *CloudShellAPIInterface) prepareCloudShell(req *restful.Request, res *re
 		prepare.Message = err.Error()
 	}
 	if err := res.WriteEntity(prepare); err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+}
+
+func (c *CloudShellAPIInterface) destroyCloudShell(req *restful.Request, res *restful.Response) {
+	err := c.CloudShellService.Destroy(req.Request.Context())
+	// Write back response data
+	if err != nil {
+		bcode.ReturnError(req, res, err)
+		return
+	}
+	if err := res.WriteEntity(apis.EmptyResponse{}); err != nil {
 		bcode.ReturnError(req, res, err)
 		return
 	}
