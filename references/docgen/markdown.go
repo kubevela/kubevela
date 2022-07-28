@@ -35,6 +35,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+const AllComponentTypes = "*"
+
 // MarkdownReference is the struct for capability information in
 type MarkdownReference struct {
 	Filter          func(types.Capability) bool
@@ -213,13 +215,21 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 	if c.Type == types.TypeTrait {
 
+		if c.Labels[types.LabelDefinitionHidden] == "true" {
+			description += "\n\n> " + lang.Get("For now this trait is hidden from the VelaUX. Available when using CLI.")
+		}
 		description += "\n\n### " + lang.Get("Apply To Component Types") + "\n\n"
 		var applyto string
-		for _, ap := range c.AppliesTo {
-			applyto += "- " + ap + "\n"
+		if len(c.AppliesTo) == 1 && c.AppliesTo[0] == AllComponentTypes {
+			applyto += lang.Get("All Component Types")
+		} else {
+			applyto += lang.Get("Component based on the following kinds of resources:") + "\n"
+			for _, ap := range c.AppliesTo {
+				applyto += "- " + ap + "\n"
+			}
 		}
 		if applyto == "" {
-			applyto = "- All/*"
+			applyto = lang.Get("All Component Types")
 		}
 		description += applyto + "\n"
 	}

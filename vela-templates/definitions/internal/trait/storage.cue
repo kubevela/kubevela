@@ -4,10 +4,7 @@ storage: {
 	labels: {}
 	description: "Add storages on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
-		attributes: {
-			appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
-		}
-
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 		podDisruptive: true
 	}
 }
