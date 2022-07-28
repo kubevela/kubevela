@@ -89,8 +89,13 @@ func (u *configServiceImpl) ListConfigTypes(ctx context.Context, query string) (
 		}); err != nil {
 		return nil, err
 	}
-	items = append(items, defsLegacy.Items...)
-
+	// filter repeated config,due to new labels that exist at the same time
+	for _, legacy := range defsLegacy.Items {
+		if legacy.Labels[configCatalog] == types.VelaCoreConfig {
+			continue
+		}
+		items = append(items, legacy)
+	}
 	var tfDefs []v1beta1.ComponentDefinition
 	var configTypes []*apis.ConfigType
 
