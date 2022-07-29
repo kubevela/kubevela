@@ -679,7 +679,7 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 	return itemList.Items, nil
 }
 
-func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int) ([]*types.ResourceTreeNode, error) {
+func iteratorChildResources(ctx context.Context, cluster string, k8sClient client.Client, parentResource types.ResourceTreeNode, depth int, filter func(node types.ResourceTreeNode) bool) ([]*types.ResourceTreeNode, error) {
 	if depth > maxDepth {
 		log.Logger.Warnf("listing application resource tree has reached the max-depth %d parentObject is %v", depth, parentResource)
 		return nil, nil
@@ -703,7 +703,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 				}
 				return nil, err
 			}
-			for _, item := range items {
+			for i, item := range items {
 				rtn := types.ResourceTreeNode{
 					APIVersion: item.GetAPIVersion(),
 					Kind:       item.GroupVersionKind().Kind,
@@ -711,13 +711,17 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 					Name:       item.GetName(),
 					UID:        item.GetUID(),
 					Cluster:    cluster,
+					Object:     items[i],
 				}
 				if _, ok := globalRule[GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}]; ok {
-					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn, depth+1)
+					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn, depth+1, filter)
 					if err != nil {
 						return nil, err
 					}
 					rtn.LeafNodes = childrenRes
+				}
+				if !filter(rtn) && len(rtn.LeafNodes) == 0 {
+					continue
 				}
 				healthStatus, err := checkResourceStatus(item)
 				if err != nil {

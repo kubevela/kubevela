@@ -10,6 +10,8 @@
 
 #CollectPods: query.#CollectPods
 
+#CollectServices: query.#CollectServices
+
 #SearchEvents: query.#SearchEvents
 
 #CollectLogsInPod: query.#CollectLogsInPod

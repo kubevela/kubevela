@@ -285,6 +285,77 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 	return response.Endpoints, nil
 }
 
+// GetApplicationPods get the pods by velaQL
+func GetApplicationPods(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.PodBase, error) {
+	params := map[string]string{
+		"appName": appName,
+		"appNs":   namespace,
+	}
+	if f.Component != "" {
+		params["name"] = f.Component
+	}
+	if f.Cluster != "" && f.ClusterNamespace != "" {
+		params["cluster"] = f.Cluster
+		params["clusterNs"] = f.ClusterNamespace
+	}
+
+	velaQL := MakeVelaQL("component-pod-view", params, "status")
+	queryView, err := velaql.ParseVelaQL(velaQL)
+	if err != nil {
+		return nil, err
+	}
+	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	if err != nil {
+		return nil, err
+	}
+	var response = struct {
+		Pods  []querytypes.PodBase `json:"podList"`
+		Error string               `json:"error"`
+	}{}
+	if err := queryValue.UnmarshalTo(&response); err != nil {
+		return nil, err
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf(response.Error)
+	}
+	return response.Pods, nil
+}
+
+// GetApplicationServices get the services by velaQL
+func GetApplicationServices(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.ResourceItem, error) {
+	params := map[string]string{
+		"appName": appName,
+		"appNs":   namespace,
+	}
+	if f.Component != "" {
+		params["name"] = f.Component
+	}
+	if f.Cluster != "" && f.ClusterNamespace != "" {
+		params["cluster"] = f.Cluster
+		params["clusterNs"] = f.ClusterNamespace
+	}
+	velaQL := MakeVelaQL("component-service-view", params, "status")
+	queryView, err := velaql.ParseVelaQL(velaQL)
+	if err != nil {
+		return nil, err
+	}
+	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	if err != nil {
+		return nil, err
+	}
+	var response = struct {
+		Services []querytypes.ResourceItem `json:"services"`
+		Error    string                    `json:"error"`
+	}{}
+	if err := queryValue.UnmarshalTo(&response); err != nil {
+		return nil, err
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf(response.Error)
+	}
+	return response.Services, nil
+}
+
 // QueryValue get queryValue from velaQL
 func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (*value.Value, error) {
 	dm, err := velaC.GetDiscoveryMapper()

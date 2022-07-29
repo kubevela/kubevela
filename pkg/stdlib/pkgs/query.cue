@@ -58,10 +58,40 @@
 }
 
 #CollectPods: {
-	#do:       "collectPods"
+	#do:       "collectResources"
 	#provider: "query"
-	value: {...}
-	cluster: string
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+			kind:       "Pod"
+			apiVersion: "v1"
+		}
+		withTree: true
+	}
+	list: [...{...}]
+	...
+}
+
+#CollectServices: {
+	#do:       "collectResources"
+	#provider: "query"
+	app: {
+		name:      string
+		namespace: string
+		filter?: {
+			cluster?:          string
+			clusterNamespace?: string
+			components?: [...string]
+			kind:       "Service"
+			apiVersion: "v1"
+		}
+		withTree: true
+	}
+	list: [...{...}]
 	...
 }
 
@@ -111,6 +141,7 @@
 			clusterNamespace?: string
 			components?: [...string]
 		}
+		withTree: true
 	}
 	list?: [...{
 		endpoint: {
@@ -130,7 +161,7 @@
 }
 
 #GetApplicationTree: {
-	#do:       "getApplicationTree"
+	#do:       "listAppliedResources"
 	#provider: "query"
 	app: {
 		name:      string
@@ -140,6 +171,7 @@
 			clusterNamespace?: string
 			components?: [...string]
 		}
+		withTree: true
 	}
 	list?: [...{
 		name:             string

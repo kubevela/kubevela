@@ -102,9 +102,14 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
-					isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion) {
+					(queryTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
 					managedResources = append(managedResources, &types.AppliedResource{
-						Cluster:         managedResource.Cluster,
+						Cluster: func() string {
+							if managedResource.Cluster != "" {
+								return managedResource.Cluster
+							}
+							return "local"
+						}(),
 						Kind:            managedResource.Kind,
 						Component:       managedResource.Component,
 						Trait:           managedResource.Trait,
@@ -139,8 +144,13 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 		return managedResources, err
 	}
 
+	filter := func(node types.ResourceTreeNode) bool {
+		return isResourceMatchKindAndVersion(c.opt.Filter, node.Kind, node.APIVersion)
+	}
+	var matchedResources []*types.AppliedResource
 	// error from leaf nodes won't block the results
-	for _, resource := range managedResources {
+	for i := range managedResources {
+		resource := managedResources[i]
 		root := types.ResourceTreeNode{
 			Cluster:    resource.Cluster,
 			APIVersion: resource.APIVersion,
@@ -149,13 +159,16 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			Name:       resource.Name,
 			UID:        resource.UID,
 		}
-		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1)
+		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1, filter)
 		if err != nil {
 			// if the resource has been deleted, continue access next appliedResource don't break the whole request
 			if kerrors.IsNotFound(err) {
 				continue
 			}
 			klog.Errorf("query leaf node resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		if !filter(root) && len(root.LeafNodes) == 0 {
 			continue
 		}
 		rootObject, err := fetchObjectWithResourceTreeNode(ctx, resource.Cluster, c.k8sClient, root)
@@ -183,9 +196,11 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 		if !rootObject.GetDeletionTimestamp().IsZero() {
 			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
 		}
+		root.Object = *rootObject
 		resource.ResourceTree = &root
+		matchedResources = append(matchedResources, resource)
 	}
-	return managedResources, nil
+	return matchedResources, nil
 }
 
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
@@ -490,35 +505,6 @@ func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster strin
 		}
 	}
 	return ingresses.Items, nil
-}
-
-// helmReleasePodCollector collect pods created by helmRelease
-func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	hc := NewHelmReleaseCollector(cli, obj)
-	workloads, err := hc.CollectWorkloads(cluster)
-	if err != nil {
-		return nil, err
-	}
-	podsList := make([][]*unstructured.Unstructured, len(workloads))
-	wg := sync.WaitGroup{}
-	wg.Add(len(workloads))
-	for i := range workloads {
-		go func(index int) {
-			defer wg.Done()
-			collector := NewPodCollector(workloads[index].GroupVersionKind())
-			pods, err := collector(cli, &workloads[index], cluster)
-			if err != nil {
-				return
-			}
-			podsList[index] = pods
-		}(i)
-	}
-	wg.Wait()
-	var collectedPods []*unstructured.Unstructured
-	for i := range podsList {
-		collectedPods = append(collectedPods, podsList[i]...)
-	}
-	return collectedPods, nil
 }
 
 func velaComponentPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {

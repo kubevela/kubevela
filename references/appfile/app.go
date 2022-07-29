@@ -79,7 +79,7 @@ func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Applica
 	}
 	app := &v1beta1.Application{}
 	if err := newClient.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: appName}, app); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load application %s from namespace %s: %w", appName, namespace, err)
 	}
 	return app, nil
 }
