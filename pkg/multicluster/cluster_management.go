@@ -96,8 +96,10 @@ func (clusterConfig *KubeClusterConfig) PostRegistration(ctx context.Context, cl
 		if err := ensureNamespaceExists(ctx, cli, clusterConfig.ClusterName, clusterConfig.CreateNamespace); err != nil {
 			// Cluster gateway discovers the cluster maybe be deferred, so we should retry.
 			if strings.Contains(err.Error(), "no such cluster") {
-				time.Sleep(time.Second * 1)
-				continue
+				if i < 2 {
+					time.Sleep(time.Second * 1)
+					continue
+				}
 			}
 			_ = DetachCluster(ctx, cli, clusterConfig.ClusterName, DetachClusterManagedClusterKubeConfigPathOption(clusterConfig.FilePath))
 			return fmt.Errorf("failed to ensure %s namespace installed in cluster %s: %w", clusterConfig.CreateNamespace, clusterConfig.ClusterName, err)
