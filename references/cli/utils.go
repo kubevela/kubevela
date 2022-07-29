@@ -209,6 +209,9 @@ func AskToChooseOneService(services []types.ResourceItem, selectPort bool) (*typ
 
 		}
 	}
+	if len(ops) == 1 {
+		return &res[0].item, res[0].port, nil
+	}
 	prompt := &survey.Select{
 		Message: fmt.Sprintf("There are %d services match your filter conditions. Please choose one:\nCluster | Component | Service", len(ops)),
 		Options: ops,

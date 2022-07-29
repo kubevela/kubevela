@@ -303,7 +303,7 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 					gomega.Expect(v.Workload.ApiVersion).To(gomega.ContainSubstring("apps/v1"))
 				}
 				if v.Workload.Kind != "" {
-					gomega.Expect(v.Workload.Kind).To(gomega.ContainSubstring("Deployment"))
+					gomega.Expect(v.Workload.Kind).To(gomega.ContainSubstring("ReplicaSet"))
 				}
 			}
 		})
