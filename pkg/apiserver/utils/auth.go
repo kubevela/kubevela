@@ -33,7 +33,7 @@ import (
 const KubeVelaProjectGroupPrefix = "kubevela:project:"
 
 // KubeVelaProjectReadGroupPrefix the prefix kubevela project group that only has the read permissions
-const KubeVelaProjectReadGroupPrefix = "kubevela:project-read:"
+const KubeVelaProjectReadGroupPrefix = "kubevela:project-ro:"
 
 // KubeVelaAdminGroupPrefix the prefix kubevela admin
 const KubeVelaAdminGroupPrefix = "kubevela:admin:"
