@@ -84,8 +84,8 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
 	cmd.Flags().StringVarP(&largs.ComponentName, "component", "c", "", "filter the pod by the component name")
 	cmd.Flags().StringVarP(&largs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
-	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "Specify the pod name")
-	cmd.Flags().StringVarP(&largs.ContainerName, "container", "", "", "Specify the container name")
+	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "specify the pod name")
+	cmd.Flags().StringVarP(&largs.ContainerName, "container", "", "", "specify the container name")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }

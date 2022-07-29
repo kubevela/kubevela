@@ -21,68 +21,42 @@ import (
 	"fmt"
 
 	"github.com/gosuri/uitable"
-	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
-// NewPodCommand create `pod` command
-func NewPodCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var podArgs PodArgs
-	podArgs.Args = c
-	cmd := &cobra.Command{
-		Use:   "pods APP_NAME",
-		Short: "Query and show the pod list of the application.",
-		Long:  "Query and show the pod list of the application.",
-		Args:  cobra.ExactArgs(1),
-		Annotations: map[string]string{
-			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeApp,
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			podArgs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
-			if err != nil {
-				return err
-			}
-			app, err := appfile.LoadApplication(podArgs.Namespace, args[0], c)
-			if err != nil {
-				return err
-			}
-			podArgs.App = app
-
-			table, err := podArgs.listPods(context.Background())
-			if err != nil {
-				return err
-			}
-			fmt.Println(table.String())
-			return nil
-		},
+func printAppPods(appName string, namespace string, f Filter, velaC common.Args) error {
+	app, err := appfile.LoadApplication(namespace, appName, velaC)
+	if err != nil {
+		return err
 	}
-	cmd.Flags().StringVarP(&podArgs.ComponentName, "component", "c", "", "filter the pod by the component name")
-	cmd.Flags().StringVarP(&podArgs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
-	addNamespaceAndEnvArg(cmd)
-	return cmd
+	var podArgs = PodArgs{
+		Args:      velaC,
+		Namespace: namespace,
+		Filter:    f,
+		App:       app,
+	}
+
+	table, err := podArgs.listPods(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Println(table.String())
+	return nil
 }
 
 // PodArgs creates arguments for `pods` command
 type PodArgs struct {
-	Args          common.Args
-	Namespace     string
-	ClusterName   string
-	ComponentName string
-	App           *v1beta1.Application
+	Args      common.Args
+	Namespace string
+	Filter    Filter
+	App       *v1beta1.Application
 }
 
 func (p *PodArgs) listPods(ctx context.Context) (*uitable.Table, error) {
-	pods, err := GetApplicationPods(ctx, p.App.Name, p.Namespace, p.Args, Filter{
-		Component: p.ComponentName,
-		Cluster:   p.ClusterName,
-	})
+	pods, err := GetApplicationPods(ctx, p.App.Name, p.Namespace, p.Args, p.Filter)
 	if err != nil {
 		return nil, err
 	}
