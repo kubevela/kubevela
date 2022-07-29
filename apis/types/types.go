@@ -106,6 +106,7 @@ type Config map[string]string
 type EnvMeta struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+	Labels    string `json:"labels"`
 	Current   string `json:"current"`
 }
 

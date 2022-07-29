@@ -122,6 +122,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewCUEPackageCommand(commandArgs, ioStream),
 		NewVersionCommand(ioStream),
 		NewCompletionCommand(),
+		NewSystemCommand(commandArgs),
 
 		// helper
 		NewHelpCommand(),

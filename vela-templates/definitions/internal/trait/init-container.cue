@@ -7,7 +7,7 @@
 	description: "add an init container and use shared volume with pod"
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 template: {

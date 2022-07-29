@@ -12,6 +12,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - deployments.apps
+    - statefulsets.apps
   schematic:
     cue:
       template: |

@@ -206,23 +206,23 @@ func delete(path string) *http.Response {
 }
 
 func decodeResponseBody(resp *http.Response, dst interface{}) error {
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("response code is not 200: %d", resp.StatusCode)
-	}
 	if resp.Body == nil {
 		return fmt.Errorf("response body is nil")
 	}
 	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
 	if dst != nil {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
 		err = json.Unmarshal(body, dst)
 		if err != nil {
 			return err
 		}
 		return nil
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("response code is not 200: %d body: %s", resp.StatusCode, string(body))
 	}
 	return nil
 }

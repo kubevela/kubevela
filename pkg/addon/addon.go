@@ -889,6 +889,7 @@ type Installer struct {
 	cache               *Cache
 	dc                  *discovery.DiscoveryClient
 	skipVersionValidate bool
+	overrideDefs        bool
 }
 
 // NewAddonInstaller will create an installer for addon
@@ -1067,6 +1068,16 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	defs, err := RenderDefinitions(addon, h.config)
 	if err != nil {
 		return errors.Wrap(err, "render addon definitions fail")
+	}
+
+	if !h.overrideDefs {
+		existDefs, err := checkConflictDefs(h.ctx, h.cli, defs, app.Name)
+		if err != nil {
+			return err
+		}
+		if len(existDefs) != 0 {
+			return produceDefConflictError(existDefs)
+		}
 	}
 
 	schemas, err := RenderDefinitionSchema(addon)
@@ -1286,26 +1297,30 @@ func checkSemVer(actual string, require string) (bool, error) {
 	if len(require) == 0 {
 		return true, nil
 	}
-	smeVer := strings.TrimPrefix(actual, "v")
+	semVer := strings.TrimPrefix(actual, "v")
 	l := strings.ReplaceAll(require, "v", " ")
 	constraint, err := semver.NewConstraint(l)
 	if err != nil {
 		log.Logger.Errorf("fail to new constraint: %s", err.Error())
 		return false, err
 	}
-	v, err := semver.NewVersion(smeVer)
+	v, err := semver.NewVersion(semVer)
 	if err != nil {
-		log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
+		log.Logger.Errorf("fail to new version %s: %s", semVer, err.Error())
 		return false, err
 	}
 	if constraint.Check(v) {
 		return true, nil
 	}
 	if strings.Contains(actual, "-") && !strings.Contains(require, "-") {
-		smeVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v")
-		v, err := semver.NewVersion(smeVer)
+		semVer := strings.TrimPrefix(actual[:strings.Index(actual, "-")], "v")
+		if strings.Contains(require, ">=") && require[strings.Index(require, "=")+1:] == semVer {
+			// for case: `actual` is 1.5.0-beta.1 require is >=`1.5.0`
+			return false, nil
+		}
+		v, err := semver.NewVersion(semVer)
 		if err != nil {
-			log.Logger.Errorf("fail to new version %s: %s", smeVer, err.Error())
+			log.Logger.Errorf("fail to new version %s: %s", semVer, err.Error())
 			return false, err
 		}
 		if constraint.Check(v) {

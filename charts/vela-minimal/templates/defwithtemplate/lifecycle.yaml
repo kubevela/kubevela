@@ -11,7 +11,10 @@ metadata:
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   appliesToWorkloads:
-    - '*'
+    - deployments.apps
+    - statefulsets.apps
+    - daemonsets.apps
+    - jobs.batch
   podDisruptive: true
   schematic:
     cue:

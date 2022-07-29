@@ -484,7 +484,7 @@ func (p *rbacServiceImpl) GetUserPermissions(ctx context.Context, user *model.Us
 	perms = append(perms, &model.Permission{
 		Name:      "cloudshell",
 		Resources: []string{"cloudshell"},
-		Actions:   []string{"create"},
+		Actions:   []string{"*"},
 		Effect:    "Allow",
 	})
 	return perms, nil
