@@ -141,8 +141,8 @@ func NewExecCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	)
 	cmd.Flags().StringVarP(&o.ComponentName, "component", "c", "", "filter the pod by the component name")
 	cmd.Flags().StringVarP(&o.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
-	cmd.Flags().StringVarP(&o.PodName, "pod", "p", "", "Specify the pod name")
-	cmd.Flags().StringVarP(&o.ContainerName, "container", "", "", "Specify the container name")
+	cmd.Flags().StringVarP(&o.PodName, "pod", "p", "", "specify the pod name")
+	cmd.Flags().StringVarP(&o.ContainerName, "container", "", "", "specify the container name")
 	addNamespaceAndEnvArg(cmd)
 
 	return cmd

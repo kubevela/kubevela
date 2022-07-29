@@ -136,8 +136,8 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 	)
 	cmd.Flags().StringVarP(&o.ComponentName, "component", "c", "", "filter the pod by the component name")
 	cmd.Flags().StringVarP(&o.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
-	cmd.Flags().StringVarP(&o.ResourceName, "resource-name", "", "", "Specify the resource name")
-	cmd.Flags().StringVarP(&o.ResourceType, "resource-type", "t", "", "Specify the resource type, support the service, and pod")
+	cmd.Flags().StringVarP(&o.ResourceName, "resource-name", "", "", "specify the resource name")
+	cmd.Flags().StringVarP(&o.ResourceType, "resource-type", "t", "", "specify the resource type, support the service, and pod")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
