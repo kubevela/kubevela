@@ -10,6 +10,9 @@ metadata:
   name: expose
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  appliesToWorkloads:
+    - deployments.apps
+    - statefulsets.apps
   podDisruptive: false
   schematic:
     cue:

@@ -6,11 +6,13 @@ metadata:
   annotations:
     definition.oam.dev/description: Enable public web traffic for the component without creating a Service.
   labels:
+    custom.definition.oam.dev/deprecated: "true"
     custom.definition.oam.dev/ui-hidden: "true"
   name: pure-ingress
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  appliesToWorkloads: []
+  appliesToWorkloads:
+    - '*'
   conflictsWith: []
   podDisruptive: false
   schematic:
