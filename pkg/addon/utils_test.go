@@ -108,9 +108,13 @@ var _ = Describe("Test definition check", func() {
 		Expect(yaml.Unmarshal([]byte(testApp3Yaml), &app3)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &app3)).Should(BeNil())
 
+		app4 := v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(testApp4Yaml), &app4)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &app4)).Should(BeNil())
+
 		usedApps, err := checkAddonHasBeenUsed(ctx, k8sClient, "my-addon", addonApp, cfg)
 		Expect(err).Should(BeNil())
-		Expect(len(usedApps)).Should(BeEquivalentTo(3))
+		Expect(len(usedApps)).Should(BeEquivalentTo(4))
 	})
 
 	It("check fetch lagacy addon definitions", func() {
@@ -319,6 +323,7 @@ metadata:
     addon.oam.dev/componentDefinitions: "my-comp"
     addon.oam.dev/traitDefinitions: "my-trait"
     addon.oam.dev/workflowStepDefinitions: "my-wfstep"
+    addon.oam.dev/policyDefinitions: "my-policy"
   name: addon-myaddon
   namespace: vela-system
 spec:
@@ -367,6 +372,22 @@ spec:
     - type: my-wfstep
       name: deploy
 `
+	testApp4Yaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-4
+  namespace: test-ns
+spec:
+  components:
+    - name: podinfo
+      type: webservice
+
+  policies:
+    - type: my-policy
+      name: topology
+`
+
 	registryCmYaml = `
 apiVersion: v1
 data:

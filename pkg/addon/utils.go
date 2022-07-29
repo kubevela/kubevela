@@ -27,6 +27,8 @@ import (
 	errors "github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	rest "k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -43,12 +46,17 @@ const (
 	compDefAnnotation         = "addon.oam.dev/componentDefinitions"
 	traitDefAnnotation        = "addon.oam.dev/traitDefinitions"
 	workflowStepDefAnnotation = "addon.oam.dev/workflowStepDefinitions"
+	policyDefAnnotation       = "addon.oam.dev/policyDefinitions"
 	defKeytemplate            = "addon-%s-%s"
+	compMapKey                = "comp"
+	traitMapKey               = "trait"
+	wfStepMapKey              = "wfStep"
+	policyMapKey              = "policy"
 )
 
 // parse addon's created x-defs in addon-app's annotation, this will be used to check whether app still using it while disabling.
 func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Application) error {
-	var comps, traits, workflowSteps []string
+	var comps, traits, workflowSteps, policies []string
 	for _, def := range defs {
 		switch def.GetObjectKind().GroupVersionKind().Kind {
 		case v1beta1.ComponentDefinitionKind:
@@ -57,6 +65,8 @@ func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Appl
 			traits = append(traits, def.GetName())
 		case v1beta1.WorkflowStepDefinitionKind:
 			workflowSteps = append(workflowSteps, def.GetName())
+		case v1beta1.PolicyDefinitionKind:
+			policies = append(policies, def.GetName())
 		default:
 			return fmt.Errorf("cannot handle definition types %s, name %s", def.GetObjectKind().GroupVersionKind().Kind, def.GetName())
 		}
@@ -69,6 +79,9 @@ func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Appl
 	}
 	if len(workflowSteps) != 0 {
 		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{workflowStepDefAnnotation: strings.Join(workflowSteps, ",")}))
+	}
+	if len(policies) != 0 {
+		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{policyDefAnnotation: strings.Join(policies, ",")}))
 	}
 	return nil
 }
@@ -87,7 +100,7 @@ func checkAddonHasBeenUsed(ctx context.Context, k8sClient client.Client, name st
 	createdDefs := make(map[string]bool)
 	for key, defNames := range addonApp.GetAnnotations() {
 		switch key {
-		case compDefAnnotation, traitDefAnnotation, workflowStepDefAnnotation:
+		case compDefAnnotation, traitDefAnnotation, workflowStepDefAnnotation, policyDefAnnotation:
 			merge2DefMap(key, defNames, createdDefs)
 		}
 	}
@@ -102,25 +115,34 @@ func checkAddonHasBeenUsed(ctx context.Context, k8sClient client.Client, name st
 CHECKNEXT:
 	for _, app := range apps.Items {
 		for _, component := range app.Spec.Components {
-			if createdDefs[fmt.Sprintf(defKeytemplate, "comp", component.Type)] {
+			if createdDefs[fmt.Sprintf(defKeytemplate, compMapKey, component.Type)] {
 				res = append(res, app)
 				// this app has used this addon, there is no need check other components
 				continue CHECKNEXT
 			}
 			for _, trait := range component.Traits {
-				if createdDefs[fmt.Sprintf(defKeytemplate, "trait", trait.Type)] {
+				if createdDefs[fmt.Sprintf(defKeytemplate, traitMapKey, trait.Type)] {
 					res = append(res, app)
 					continue CHECKNEXT
 				}
 			}
 		}
-		if app.Spec.Workflow == nil || len(app.Spec.Workflow.Steps) == 0 {
-			return res, nil
+
+		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) != 0 {
+			for _, s := range app.Spec.Workflow.Steps {
+				if createdDefs[fmt.Sprintf(defKeytemplate, wfStepMapKey, s.Type)] {
+					res = append(res, app)
+					continue CHECKNEXT
+				}
+			}
 		}
-		for _, s := range app.Spec.Workflow.Steps {
-			if createdDefs[fmt.Sprintf(defKeytemplate, "wfStep", s.Type)] {
-				res = append(res, app)
-				continue CHECKNEXT
+
+		if app.Spec.Policies != nil && len(app.Spec.Policies) != 0 {
+			for _, p := range app.Spec.Policies {
+				if createdDefs[fmt.Sprintf(defKeytemplate, policyMapKey, p.Type)] {
+					res = append(res, app)
+					continue CHECKNEXT
+				}
 			}
 		}
 	}
@@ -134,11 +156,13 @@ func merge2DefMap(defType string, defNames string, defMap map[string]bool) {
 	for _, defName := range list {
 		switch defType {
 		case compDefAnnotation:
-			defMap[fmt.Sprintf(template, "comp", defName)] = true
+			defMap[fmt.Sprintf(template, compMapKey, defName)] = true
 		case traitDefAnnotation:
-			defMap[fmt.Sprintf(template, "trait", defName)] = true
+			defMap[fmt.Sprintf(template, traitMapKey, defName)] = true
 		case workflowStepDefAnnotation:
-			defMap[fmt.Sprintf(template, "wfStep", defName)] = true
+			defMap[fmt.Sprintf(template, wfStepMapKey, defName)] = true
+		case policyDefAnnotation:
+			defMap[fmt.Sprintf(template, policyMapKey, defName)] = true
 		}
 	}
 }
@@ -210,6 +234,8 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 			defs[fmt.Sprintf(defKeytemplate, "trait", defObject.GetName())] = true
 		case v1beta1.WorkflowStepDefinitionKind:
 			defs[fmt.Sprintf(defKeytemplate, "wfStep", defObject.GetName())] = true
+		case v1beta1.PolicyDefinitionKind:
+
 		}
 	}
 	return nil
@@ -240,6 +266,11 @@ type InstallOption func(installer *Installer)
 // SkipValidateVersion means skip validating system version
 func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
+}
+
+// OverrideDefinitions menas override definitions within this addon if some of them already exist
+func OverrideDefinitions(installer *Installer) {
+	installer.overrideDefs = true
 }
 
 // IsAddonDir validates an addon directory.
@@ -408,4 +439,38 @@ func generateAnnotation(meta *Meta) map[string]string {
 
 func isErrorCueRenderPathNotFound(err error, path string) bool {
 	return err.Error() == fmt.Sprintf("var(path=%s) not exist", path)
+}
+
+func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, appName string) (map[string]string, error) {
+	res := map[string]string{}
+	for _, def := range defs {
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(def), def)
+		if err == nil {
+			owner := metav1.GetControllerOf(def)
+			if owner == nil || owner.Kind != v1beta1.ApplicationKind {
+				res[def.GetName()] = fmt.Sprintf("definition: %s already exist and not belong to any addon \n", def.GetName())
+				continue
+			}
+			if owner.Name != appName {
+				// if addon not belong to an addon or addon name is another one, we should put them in result
+				res[def.GetName()] = fmt.Sprintf("definition: %s in this addon already exist in %s \n", def.GetName(), addon.AppName2Addon(appName))
+			}
+		}
+		if err != nil && !errors2.IsNotFound(err) {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func produceDefConflictError(conflictDefs map[string]string) error {
+	if len(conflictDefs) == 0 {
+		return nil
+	}
+	var errorInfo string
+	for _, s := range conflictDefs {
+		errorInfo += s
+	}
+	errorInfo += "if you want override them, please use argument '--override-definitions' to enable \n"
+	return errors.New(errorInfo)
 }
