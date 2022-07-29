@@ -175,17 +175,22 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 				fmt.Println("The Service you specified does not exist, please select it from the list.")
 			}
 		}
-		if selectService == nil {
-			selectService, o.targetPort, err = AskToChooseOneService(services, len(o.Args) < 2)
-			if err != nil {
-				return err
+		if len(services) > 0 {
+			if selectService == nil {
+				selectService, o.targetPort, err = AskToChooseOneService(services, len(o.Args) < 2)
+				if err != nil {
+					return err
+				}
 			}
-		}
-		if selectService != nil {
-			o.targetResource.cluster = selectService.Cluster
-			o.targetResource.name = selectService.Object.GetName()
-			o.targetResource.namespace = selectService.Object.GetNamespace()
-			o.targetResource.kind = selectService.Object.GetKind()
+			if selectService != nil {
+				o.targetResource.cluster = selectService.Cluster
+				o.targetResource.name = selectService.Object.GetName()
+				o.targetResource.namespace = selectService.Object.GetNamespace()
+				o.targetResource.kind = selectService.Object.GetKind()
+			}
+		} else if o.ResourceName == "" {
+			// If users do not specify the resource name and there is no service, switch to query the pod
+			o.ResourceType = "pod"
 		}
 	}
 
