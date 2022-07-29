@@ -118,7 +118,7 @@ func (ref *ParseReference) prettySentence(s string) string {
 	return ref.I18N.Get(s) + ref.I18N.Get(".")
 }
 func (ref *ParseReference) formatTableString(s string) string {
-	return strings.ReplaceAll(s, "|", `\|`)
+	return strings.ReplaceAll(s, "|", `&#124;`)
 }
 
 // prepareConsoleParameter prepares the table content for each property
@@ -181,7 +181,6 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			tl := paraValue.Template()
 			if tl != nil { // is map type
 				param.PrintableType = fmt.Sprintf("map[string]:%s", tl("").IncompleteKind().String())
-				param.PrintableType = strings.ReplaceAll(param.PrintableType, "|", `&#124;`)
 			} else {
 				param.PrintableType = "{}"
 			}
