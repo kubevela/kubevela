@@ -87,7 +87,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		Long:  "Manage addons for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
 	cmd.AddCommand(

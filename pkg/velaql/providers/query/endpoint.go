@@ -27,7 +27,6 @@ import (
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -67,7 +65,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app, true)
+	resources, err := collector.ListApplicationResources(app, opt.WithTree)
 	if err != nil {
 		return err
 	}
@@ -88,6 +86,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 		} else {
 			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, h.cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
 		}
+
 	}
 	return fillQueryResult(v, serviceEndpoints, "list")
 }
@@ -127,32 +126,6 @@ func getServiceEndpoints(ctx context.Context, cli client.Client, gvk schema.Grou
 			return nil
 		}
 		serviceEndpoints = append(serviceEndpoints, generatorFromService(service, cachedSelectorNodeIP, cluster, component, "")...)
-	case helmapi.HelmReleaseGVK.Kind:
-		obj := new(unstructured.Unstructured)
-		obj.SetNamespace(namespace)
-		obj.SetName(name)
-		hc := NewHelmReleaseCollector(cli, obj)
-		services, err := hc.CollectServices(ctx, cluster)
-		if err != nil {
-			klog.Error(err, "collect service by helm release failure", "helmRelease", name, "namespace", namespace, "cluster", cluster)
-			return nil
-		}
-		for _, service := range services {
-			serviceEndpoints = append(serviceEndpoints, generatorFromService(service, cachedSelectorNodeIP, cluster, component, "")...)
-		}
-		ingresses, err := hc.CollectIngress(ctx, cluster)
-		if err != nil {
-			klog.Error(err, "collect ingres by helm release failure", "helmRelease", name, "namespace", namespace, "cluster", cluster)
-			return nil
-		}
-		for _, uns := range ingresses {
-			var ingress networkv1beta1.Ingress
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uns.UnstructuredContent(), &ingress); err != nil {
-				klog.Errorf("fail to convert unstructured to ingress %s", err.Error())
-				continue
-			}
-			serviceEndpoints = append(serviceEndpoints, generatorFromIngress(ingress, cluster, component)...)
-		}
 	case "SeldonDeployment":
 		obj := new(unstructured.Unstructured)
 		obj.SetGroupVersionKind(gvk)
