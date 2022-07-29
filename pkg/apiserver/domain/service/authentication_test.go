@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/agiledragon/gomonkey/v2"
@@ -65,7 +66,7 @@ var _ = Describe("Test authentication service functions", func() {
 	})
 	It("Test Dex login", func() {
 		testIDToken := &oidc.IDToken{}
-		sub := "248289761001"
+		sub := "248289761001Abv"
 		patch := ApplyMethod(reflect.TypeOf(testIDToken), "Claims", func(_ *oidc.IDToken, v interface{}) error {
 			return json.Unmarshal([]byte(fmt.Sprintf(`{"email":"test@test.com", "name":"show name", "sub": "%s"}`, sub)), v)
 		})
@@ -78,13 +79,14 @@ var _ = Describe("Test authentication service functions", func() {
 		err = projectService.Init(context.TODO())
 		Expect(err).Should(BeNil())
 
-		_, err = sysService.UpdateSystemInfo(context.TODO(), apisv1.SystemInfoRequest{
-			LoginType: "local",
-			DexUserDefaultProjects: []model.ProjectRef{{
-				Name:  "default",
-				Roles: []string{"app-developer"},
-			}},
-		})
+		info, err := sysService.Get(context.TODO())
+		Expect(err).Should(BeNil())
+		info.DexUserDefaultProjects = []model.ProjectRef{{
+			Name:  "default",
+			Roles: []string{"app-developer"},
+		}}
+		info.DexUserDefaultPlatformRoles = []string{"admin"}
+		err = ds.Put(context.TODO(), info)
 		Expect(err).Should(BeNil())
 
 		dexHandler := dexHandlerImpl{
@@ -96,8 +98,13 @@ var _ = Describe("Test authentication service functions", func() {
 		resp, err := dexHandler.login(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(resp.Email).Should(Equal("test@test.com"))
-		Expect(resp.Name).Should(Equal(sub))
+		Expect(resp.Name).Should(Equal(strings.ToLower(sub)))
 		Expect(resp.Alias).Should(Equal("show name"))
+
+		newUser, err := userService.GetUser(context.TODO(), resp.Name)
+		Expect(err).Should(BeNil())
+		Expect(newUser.DexSub).Should(Equal(sub))
+		Expect(newUser.UserRoles).Should(Equal([]string{"admin"}))
 
 		projects, err := projectService.ListUserProjects(context.TODO(), sub)
 		Expect(err).Should(BeNil())

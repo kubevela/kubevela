@@ -484,6 +484,10 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 		}
 		userBase = convertUserBase(u)
 	} else {
+		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
+		if err != nil {
+			log.Logger.Errorf("failed to get the system info %s", err.Error())
+		}
 		user := &model.User{
 			Email:         claims.Email,
 			Name:          strings.ToLower(claims.Sub),
@@ -491,18 +495,17 @@ func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 			Alias:         claims.Name,
 			LastLoginTime: time.Now(),
 		}
+		if systemInfo != nil {
+			user.UserRoles = systemInfo.DexUserDefaultPlatformRoles
+		}
 		if err := d.Store.Add(ctx, user); err != nil {
 			log.Logger.Errorf("failed to save the user from the dex: %s", err.Error())
 			return nil, err
 		}
-		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
-		if err != nil {
-			log.Logger.Errorf("failed to get the system info %s", err.Error())
-		}
 		if systemInfo != nil {
 			for _, project := range systemInfo.DexUserDefaultProjects {
 				_, err := d.projectService.AddProjectUser(ctx, project.Name, apisv1.AddProjectUserRequest{
-					UserName:  claims.Sub,
+					UserName:  strings.ToLower(claims.Sub),
 					UserRoles: project.Roles,
 				})
 				if err != nil {
