@@ -154,10 +154,13 @@ var _ = Describe("Test cloudshell service function", func() {
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "kubevela:reader:application:binding", Namespace: "default"}, &rb)
 		Expect(err).Should(BeNil())
 		Expect(len(rb.Subjects)).Should(Equal(1))
-		Expect(rb.Subjects[0].Name).Should(Equal("test-viewer"))
-		Expect(rb.Subjects[0].Kind).Should(Equal("User"))
+		Expect(rb.Subjects[0].Name).Should(Equal(utils.KubeVelaProjectReadGroupPrefix + "default"))
+		Expect(rb.Subjects[0].Kind).Should(Equal("Group"))
 		err = k8sClient.Get(context.Background(), types.NamespacedName{Name: "kubevela:reader:binding", Namespace: "default"}, &rb)
 		Expect(err).Should(BeNil())
+		Expect(len(rb.Subjects)).Should(Equal(1))
+		Expect(rb.Subjects[0].Name).Should(Equal(utils.KubeVelaProjectReadGroupPrefix + "default"))
+		Expect(rb.Subjects[0].Kind).Should(Equal("Group"))
 
 		By("test the administrator users")
 
@@ -178,7 +181,7 @@ var _ = Describe("Test cloudshell service function", func() {
 	})
 
 	It("test prepare", func() {
-		By("With not CRD")
+		By("Test with not CRD")
 		_, err = userService.CreateUser(context.TODO(), apisv1.CreateUserRequest{Name: "test", Password: "test"})
 		Expect(err).Should(BeNil())
 		ctx := context.WithValue(context.TODO(), &apisv1.CtxKeyUser, "test")
@@ -186,6 +189,7 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(Equal(bcode.ErrCloudShellAddonNotEnabled.Error()))
 
+		By("Test with CRD")
 		cloudshellCRDBytes, err := ioutil.ReadFile("./testdata/cloudshell-crd.yaml")
 		Expect(err).Should(BeNil())
 
@@ -210,8 +214,12 @@ var _ = Describe("Test cloudshell service function", func() {
 		Expect(err).Should(BeNil())
 		Expect(re.Status).Should(Equal(StatusCompleted))
 
+		By("Test get the cloud shell endpoint")
 		endpoint, err := cloudShellService.GetCloudShellEndpoint(ctx)
 		Expect(err).Should(BeNil())
 		Expect(endpoint).Should(Equal("10.10.1.1:8765"))
+
+		By("Test destroy cloud shell")
+		Expect(cloudShellService.Destroy(ctx)).Should(BeNil())
 	})
 })

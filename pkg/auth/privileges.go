@@ -403,8 +403,21 @@ func removeSubjects(src []rbacv1.Subject, toRemove []rbacv1.Subject) []rbacv1.Su
 	return subs
 }
 
+type opts struct {
+	replace bool
+}
+
+// WithReplace means to replace all subjects, this is only useful in Grant Privileges
+func WithReplace(o *opts) {
+	o.replace = true
+}
+
 // GrantPrivileges grant privileges to identity
-func GrantPrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer) error {
+func GrantPrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer, optionFuncs ...func(*opts)) error {
+	var options = &opts{}
+	for _, fc := range optionFuncs {
+		fc(options)
+	}
 	subs := identity.Subjects()
 	if len(subs) == 0 {
 		return fmt.Errorf("failed to find RBAC subjects in identity")
@@ -434,12 +447,20 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 		case *rbacv1.RoleBinding:
 			obj := &rbacv1.RoleBinding{}
 			if err := cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
-				bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+				if options.replace {
+					bindingObj.Subjects = obj.Subjects
+				} else {
+					bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+				}
 			}
 		case *rbacv1.ClusterRoleBinding:
 			obj := &rbacv1.ClusterRoleBinding{}
 			if err := cli.Get(_ctx, client.ObjectKeyFromObject(bindingObj), obj); err == nil {
-				bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+				if options.replace {
+					bindingObj.Subjects = obj.Subjects
+				} else {
+					bindingObj.Subjects = mergeSubjects(bindingObj.Subjects, obj.Subjects)
+				}
 			}
 		}
 		res, err := utils.CreateOrUpdate(_ctx, cli, binding)
@@ -454,7 +475,11 @@ func GrantPrivileges(ctx context.Context, cli client.Client, privileges []Privil
 // RevokePrivileges revoke privileges (notice that the revoking process only deletes bond subject in the
 // RoleBinding/ClusterRoleBinding, it does not ensure the identity's other related privileges are removed to
 // prevent identity from accessing)
-func RevokePrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer) error {
+func RevokePrivileges(ctx context.Context, cli client.Client, privileges []PrivilegeDescription, identity *Identity, writer io.Writer, optionFuncs ...func(*opts)) error {
+	var options = &opts{}
+	for _, fc := range optionFuncs {
+		fc(options)
+	}
 	subs := identity.Subjects()
 	if len(subs) == 0 {
 		return fmt.Errorf("failed to find RBAC subjects in identity")
