@@ -953,11 +953,10 @@ options: {
 		var endpoints []querytypes.ServiceEndpoint
 		err = endValue.Decode(&endpoints)
 		Expect(err).Should(BeNil())
-		var edps []string
-		for _, e := range endpoints {
-			edps = append(edps, e.String())
+		Expect(len(urls)).Should(Equal(len(endpoints)))
+		for i, e := range endpoints {
+			Expect(urls[i]).Should(Equal(e.String()))
 		}
-		Expect(edps).Should(BeEquivalentTo(urls))
 	})
 })
 
