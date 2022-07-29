@@ -945,6 +945,16 @@ func TestCheckSemVer(t *testing.T) {
 			require: ">=v1.2.4-beta.3",
 			res:     false,
 		},
+		{
+			actual:  "1.5.0-beta.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
+		{
+			actual:  "1.5.0-alpha.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
 	}
 	for _, testCase := range testCases {
 		result, err := checkSemVer(testCase.actual, testCase.require)
@@ -1305,4 +1315,16 @@ func TestMergeAddonInstallArgs(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGenerateConflictError(t *testing.T) {
+	confictAddon := map[string]string{
+		"helm":      "definition: helm already exist and not belong to any addon \n",
+		"kustomize": "definition: kustomize in this addon already exist in fluxcd \n",
+	}
+	err := produceDefConflictError(confictAddon)
+	assert.Error(t, err)
+	strings.Contains(err.Error(), "in this addon already exist in fluxcd")
+
+	assert.NoError(t, produceDefConflictError(map[string]string{}))
 }
