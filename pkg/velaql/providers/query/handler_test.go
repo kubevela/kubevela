@@ -955,6 +955,7 @@ options: {
 		Expect(err).Should(BeNil())
 		Expect(len(urls)).Should(Equal(len(endpoints)))
 		for i, e := range endpoints {
+			fmt.Println(e.String())
 			Expect(urls[i]).Should(Equal(e.String()))
 		}
 	})
