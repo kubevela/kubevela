@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/briandowns/spinner"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
@@ -89,9 +91,20 @@ func (clusterConfig *KubeClusterConfig) PostRegistration(ctx context.Context, cl
 	if clusterConfig.CreateNamespace == "" {
 		return nil
 	}
-	if err := ensureNamespaceExists(ctx, cli, clusterConfig.ClusterName, clusterConfig.CreateNamespace); err != nil {
-		_ = DetachCluster(ctx, cli, clusterConfig.ClusterName, DetachClusterManagedClusterKubeConfigPathOption(clusterConfig.FilePath))
-		return fmt.Errorf("failed to ensure %s namespace installed in cluster %s: %w", clusterConfig.CreateNamespace, clusterConfig.ClusterName, err)
+	// retry 3 times.
+	for i := 0; i < 3; i++ {
+		if err := ensureNamespaceExists(ctx, cli, clusterConfig.ClusterName, clusterConfig.CreateNamespace); err != nil {
+			// Cluster gateway discovers the cluster maybe be deferred, so we should retry.
+			if strings.Contains(err.Error(), "no such cluster") {
+				if i < 2 {
+					time.Sleep(time.Second * 1)
+					continue
+				}
+			}
+			_ = DetachCluster(ctx, cli, clusterConfig.ClusterName, DetachClusterManagedClusterKubeConfigPathOption(clusterConfig.FilePath))
+			return fmt.Errorf("failed to ensure %s namespace installed in cluster %s: %w", clusterConfig.CreateNamespace, clusterConfig.ClusterName, err)
+		}
+		break
 	}
 	return nil
 }
