@@ -42,10 +42,10 @@ var (
 	applicationName             = "app-basic"
 	traitAlias                  = "scaler"
 	appNameForInit              = "initmyapp"
-	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
-	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
-	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
-	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80,"scaler":{"replicas":2}}}}`
+	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
+	testDeleteJsonAppFile       = `{"name":"test-vela-delete","services":{"nginx-test":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
+	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}]}}}`
+	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","ports":[{port: 80, expose: true}],"scaler":{"replicas":2}}}}`
 	velaQL                      = "test-component-pod-view{appNs=default,appName=nginx-vela,name=nginx}"
 )
 
