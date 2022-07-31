@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -643,6 +644,9 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 				}
 			}
 		}
+		sort.Slice(res, func(i, j int) bool {
+			return res[i].GetName() < res[j].GetName()
+		})
 		return res, nil
 	}
 	var listOptions client.ListOptions
@@ -676,6 +680,9 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 		}
 		return res, nil
 	}
+	sort.Slice(itemList.Items, func(i, j int) bool {
+		return itemList.Items[i].GetName() < itemList.Items[j].GetName()
+	})
 	return itemList.Items, nil
 }
 
