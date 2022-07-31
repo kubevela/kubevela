@@ -57,7 +57,9 @@ var _ = Describe("Test multicluster CLI commands", func() {
 		Expect(err).Should(Succeed())
 		Eventually(func(g Gomega) {
 			pods := &v1.PodList{}
-			g.Expect(k8sClient.List(workerCtx, pods, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(k8sClient.List(workerCtx, pods, client.InNamespace(namespace), client.MatchingLabels(map[string]string{
+				"app.oam.dev/name": app.Name,
+			}))).Should(Succeed())
 			g.Expect(len(pods.Items)).Should(Equal(1))
 			g.Expect(pods.Items[0].Status.Phase).Should(Equal(v1.PodRunning))
 			g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
