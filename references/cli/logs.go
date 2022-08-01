@@ -49,15 +49,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Short: "Tail logs for application.",
 		Long:  "Tail logs for vela application.",
 		Args:  cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			largs.Args = c
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
@@ -104,15 +95,6 @@ type Args struct {
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
-	config, err := l.Args.GetConfig()
-	if err != nil {
-		return err
-	}
-	clientSet, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
 	pods, err := GetApplicationPods(ctx, l.App.Name, l.App.Namespace, l.Args, Filter{
 		Component: l.ComponentName,
 		Cluster:   l.ClusterName,
@@ -161,6 +143,15 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 		if req != nil {
 			selector = selector.Add(*req)
 		}
+	}
+
+	config, err := l.Args.GetConfig()
+	if err != nil {
+		return err
+	}
+	clientSet, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
 	}
 	added, removed, err := stern.Watch(ctx,
 		clientSet.CoreV1().Pods(namespace),
