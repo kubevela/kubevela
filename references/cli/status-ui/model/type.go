@@ -16,9 +16,7 @@ type (
 
 	Initer interface {
 		Start()
-
 		Stop()
-
 		Init()
 	}
 

@@ -1,8 +1,11 @@
 package view
 
 import (
+	"context"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/ui"
@@ -11,13 +14,15 @@ import (
 type App struct {
 	*ui.App
 
+	client  client.Client
 	command *Command
 	Content *PageStack
 }
 
-func NewApp() *App {
+func NewApp(c client.Client) *App {
 	a := &App{
-		App: ui.NewApp(),
+		App:    ui.NewApp(),
+		client: c,
 	}
 	a.command = NewCommand(a)
 	a.Content = NewPageStack(a)
@@ -27,7 +32,6 @@ func NewApp() *App {
 
 func (a *App) Init() {
 	a.command.Init()
-
 	a.Content.Init()
 	a.Content.AddListener(a.Menu())
 	a.Content.AddListener(a.Crumbs())
@@ -88,7 +92,8 @@ func (a *App) inject(c model.Component) {
 }
 
 func (a *App) defaultView(event *tcell.EventKey) *tcell.EventKey {
-	a.command.run("app", nil)
+	ctx := context.Background()
+	a.command.run(ctx, "app")
 	return event
 }
 

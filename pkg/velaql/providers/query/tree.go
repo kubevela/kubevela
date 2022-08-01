@@ -525,7 +525,7 @@ var checkServiceStatus = func(obj unstructured.Unstructured) (*types.HealthStatu
 	return &health, nil
 }
 
-func checkResourceStatus(obj unstructured.Unstructured) (*types.HealthStatus, error) {
+func CheckResourceStatus(obj unstructured.Unstructured) (*types.HealthStatus, error) {
 	group := obj.GroupVersionKind().Group
 	kind := obj.GroupVersionKind().Kind
 	var checkFunc healthyCheckFunc
@@ -844,7 +844,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 				if !filter(rtn) && len(rtn.LeafNodes) == 0 {
 					continue
 				}
-				healthStatus, err := checkResourceStatus(item)
+				healthStatus, err := CheckResourceStatus(item)
 				if err != nil {
 					return nil, err
 				}

@@ -1,47 +1,35 @@
 package view
 
 import (
+	"context"
+
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 )
-
-type argMap map[string]string
-
-type viewFunc func(app *App, list ResourceList) model.Component
-type listFunc func(argMap) ResourceList
-
-type ResourceList interface {
-	Header() []string
-	Body() [][]string
-}
-
-type ResourceViewer struct {
-	title    string
-	viewFunc viewFunc
-	listFunc listFunc
-}
 
 type ResourceView struct {
 	*Table
 	app *App
 }
 
+type ResourceViewer struct {
+	title    string
+	viewFunc func(context.Context, *App) model.Component
+}
+
 var ResourceMap = map[string]ResourceViewer{
 	"app": {
 		title:    "Application",
 		viewFunc: NewApplicationView,
-		listFunc: ListApplications,
 	},
 	"cluster": {
 		title:    "Cluster",
 		viewFunc: NewClusterView,
-		listFunc: ListClusters,
 	},
 	"k8s": {
 		title:    "K8s-Object",
 		viewFunc: NewK8SView,
-		listFunc: ListK8SObjects,
 	},
 }
 
@@ -53,13 +41,13 @@ func NewResourceView(app *App) *ResourceView {
 	return v
 }
 
-func (v *ResourceView) Init(list ResourceList) {
+func (v *ResourceView) Init(list model.ResourceList) {
 	v.SetSelectable(true, false)
 	v.buildTable(list)
 	v.bindKeys()
 }
 
-func (v *ResourceView) buildTable(list ResourceList) {
+func (v *ResourceView) buildTable(list model.ResourceList) {
 	v.Table.Init()
 	v.buildTableHeader(list.Header())
 	v.buildTableBody(list.Body())

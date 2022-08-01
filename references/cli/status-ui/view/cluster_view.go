@@ -1,6 +1,8 @@
 package view
 
 import (
+	"context"
+
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
@@ -9,56 +11,27 @@ import (
 
 type ClusterView struct {
 	*ResourceView
-	list ResourceList
+	ctx context.Context
 }
 
-type Cluster struct {
-	name        string
-	description string
-	status      string
-}
-
-type ClusterList struct {
-	title []string
-	data  []Cluster
-}
-
-func NewClusterView(app *App, list ResourceList) model.Component {
+func NewClusterView(ctx context.Context, app *App) model.Component {
 	v := &ClusterView{
 		ResourceView: NewResourceView(app),
-		list:         list,
+		ctx:          ctx,
 	}
 	return v
 }
 
-func ListClusters(args argMap) ResourceList {
-	list := &ClusterList{
-		title: []string{"name", "description", "status"},
-		data: []Cluster{{
-			"hangzhou", "hangzhou", "running",
-		}, {
-			"beijing", "beijing", "running",
-		},
-		},
-	}
-	return list
-}
-
-func (l *ClusterList) Header() []string {
-	return l.title
-}
-
-func (l *ClusterList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, cluster := range l.data {
-		data = append(data, []string{cluster.name, cluster.description, cluster.status})
-	}
-	return data
-}
-
 func (v *ClusterView) Init() {
-	v.ResourceView.Init(v.list)
+	v.SetTitle(v.Name())
+	resourceList := v.ListClusters()
+	v.ResourceView.Init(resourceList)
 	v.bindKeys()
+}
+
+func (v *ClusterView) ListClusters() model.ResourceList {
+	list := model.ListClusters(v.ctx, v.app.client)
+	return list
 }
 
 func (v *ClusterView) Name() string {
@@ -80,11 +53,8 @@ func (v *ClusterView) bindKeys() {
 
 func (v *ClusterView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
-	name := v.GetCell(row, 0)
-
-	args := make(argMap)
-	args["name"] = name.Text
-
-	v.app.command.run("k8s", args)
+	clusterName := v.GetCell(row, 0).Text
+	v.ctx = context.WithValue(v.ctx, "cluster", clusterName)
+	v.app.command.run(v.ctx, "k8s")
 	return event
 }

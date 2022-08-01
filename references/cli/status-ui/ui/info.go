@@ -23,7 +23,7 @@ func NewClusterInfo(style *config.Style) *ClusterInfo {
 
 func (ci *ClusterInfo) init() {
 	var row int
-	cluster := model.NewCluster()
+	cluster := model.NewInfo()
 	ci.SetCell(row, 0, ci.sectionCell("Cluster"))
 	ci.SetCell(row, 1, ci.infoCell(cluster.Name()))
 	row++

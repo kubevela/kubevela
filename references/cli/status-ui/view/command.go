@@ -1,6 +1,7 @@
 package view
 
 import (
+	"context"
 	"strings"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
@@ -25,16 +26,15 @@ func (c *Command) exec(cmd string, component model.Component) {
 	c.app.inject(component)
 }
 
-func (c *Command) run(cmd string, args argMap) {
+func (c *Command) run(ctx context.Context, cmd string) {
 	cmd = strings.ToLower(cmd)
-
 	var component model.Component
 	switch {
-	case (cmd == "?" || cmd == "h" || cmd == "help"):
+	case cmd == "?" || cmd == "h" || cmd == "help":
 		component = NewHelpView(c.app)
 	default:
 		if resource, ok := ResourceMap[cmd]; ok {
-			component = resource.viewFunc(c.app, resource.listFunc(args))
+			component = resource.viewFunc(ctx, c.app)
 		} else {
 			return
 		}

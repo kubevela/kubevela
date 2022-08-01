@@ -34,5 +34,5 @@ func (h *HelpView) bindKeys() {
 }
 
 func (h *HelpView) Name() string {
-	return "help"
+	return "Help"
 }

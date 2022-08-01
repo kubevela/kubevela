@@ -1,71 +1,41 @@
 package view
 
 import (
+	"context"
+
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/ui"
 )
 
-type K8SObject struct {
-	name       string
-	namespace  string
-	kind       string
-	apiVersion string
-	cluster    string
-	status     string
-}
-
-type K8SObjectList struct {
-	title []string
-	data  []K8SObject
-}
-
 type K8SView struct {
 	*ResourceView
-	list ResourceList
+	ctx context.Context
 }
 
-func NewK8SView(app *App, list ResourceList) model.Component {
+func NewK8SView(ctx context.Context, app *App) model.Component {
 	v := &K8SView{
 		ResourceView: NewResourceView(app),
-		list:         list,
+		ctx:          ctx,
 	}
 	return v
 }
 
-func ListK8SObjects(args argMap) ResourceList {
-	list := &K8SObjectList{
-		title: []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"},
-		data: []K8SObject{{
-			"configMap", "vela", "configMap", "v1", "hangzhou", "running",
-		}, {
-			"pod", "vela", "pod", "v1", "hangzhou", "running",
-		},
-		},
-	}
-	return list
-}
-
-func (l *K8SObjectList) Header() []string {
-	return l.title
-}
-
-func (l *K8SObjectList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, app := range l.data {
-		data = append(data, []string{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
-	}
-	return data
-}
-
 func (v *K8SView) Init() {
-	v.ResourceView.Init(v.list)
+	resourceList := v.ListK8SObjects()
+	v.ResourceView.Init(resourceList)
+	v.ResourceView.Init(resourceList)
 	v.bindKeys()
 }
 
+func (v *K8SView) ListK8SObjects() model.ResourceList {
+	list := model.ListObjects(v.ctx, v.app.client)
+	return list
+}
+
 func (v *K8SView) Name() string {
-	return "object"
+	return "K8S-Object"
 }
 
 func (v *K8SView) Hint() []model.MenuHint {

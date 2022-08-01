@@ -47,6 +47,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/cli/status-ui/view"
 )
 
 // HealthStatus represents health status strings.
@@ -119,8 +120,14 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
   vela status first-vela-app -o yaml
 
   # Get raw Application status using jsonpath
-  vela status first-vela-app -o jsonpath='{.status}'`,
+  vela status first-vela-app -o jsonpath='{.status}'
+
+  # Launch UI view that can query and display application status
+  vela status --ui`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if showUI, err := cmd.Flags().GetBool("ui"); err == nil && showUI {
+				return launchUI(c, cmd)
+			}
 			// check args
 			argsLength := len(args)
 			if argsLength == 0 {
@@ -176,6 +183,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
 	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
+	cmd.Flags().BoolP("ui", "u", false, "launch UI to query and display application status")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
@@ -483,6 +491,18 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		options.DetailRetriever = msgRetriever
 	}
 	options.PrintResourceTree(cmd.OutOrStdout(), placements, currentRT, historyRTs)
+	return nil
+}
+
+func launchUI(c common.Args, cmd *cobra.Command) error {
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return fmt.Errorf("cannot get k8s client: %w", err)
+	}
+	app := view.NewApp(k8sClient)
+	app.Init()
+	app.Run()
+
 	return nil
 }
 

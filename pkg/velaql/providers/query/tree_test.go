@@ -383,7 +383,7 @@ func TestHelmResourceStatus(t *testing.T) {
 	for _, s := range testCases {
 		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s.hr.DeepCopy())
 		assert.NoError(t, err)
-		res, err := checkResourceStatus(unstructured.Unstructured{Object: obj})
+		res, err := CheckResourceStatus(unstructured.Unstructured{Object: obj})
 		assert.NoError(t, err)
 		assert.Equal(t, res, s.res)
 	}
@@ -430,7 +430,7 @@ func TestHelmRepoResourceStatus(t *testing.T) {
 	for _, s := range testCases {
 		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s.hr.DeepCopy())
 		assert.NoError(t, err)
-		res, err := checkResourceStatus(unstructured.Unstructured{Object: obj})
+		res, err := CheckResourceStatus(unstructured.Unstructured{Object: obj})
 		assert.NoError(t, err)
 		assert.Equal(t, res, s.res)
 	}
