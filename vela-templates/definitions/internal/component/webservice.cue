@@ -196,6 +196,9 @@ template: {
 			selector: matchLabels: {
 				"app.oam.dev/component": context.name
 			}
+			if parameter.revisionHistoryLimit != _|_ {
+				revisionHistoryLimit: parameter.revisionHistoryLimit
+			}
 
 			template: {
 				metadata: {
@@ -539,6 +542,9 @@ template: {
 			ip: string
 			hostnames: [...string]
 		}]
+
+		// +usage=Specify the total limit of the ReplicaSet, the default is 10
+		revisionHistoryLimit?: int
 	}
 
 	#HealthProbe: {
