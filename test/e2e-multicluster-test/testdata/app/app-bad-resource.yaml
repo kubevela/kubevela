@@ -1,0 +1,22 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: bad-resource
+  namespace: TEST_NAMESPACE
+spec:
+  components:
+    - name: bad-resource
+      properties:
+        objects:
+        - apiVersion: apiregistration.k8s.io/v1beta1
+          kind: APIService
+          metadata:
+            name: test-bad-resource
+          spec:
+            group: bad
+      type: k8s-objects
+  policies:
+    - name: topology
+      type: topology
+      properties:
+        clusters: ["local"]
