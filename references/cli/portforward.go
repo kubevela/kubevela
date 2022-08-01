@@ -230,7 +230,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
-	cf.Namespace = pointer.String(o.namespace)
+	cf.Namespace = pointer.String(o.targetResource.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
 		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(o.targetResource.cluster))
 		return cfg
@@ -286,6 +286,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	args := make([]string, len(o.Args))
 	copy(args, o.Args)
 	args[0] = forwardTypeName
+	o.kcPortForwardOptions.Namespace = o.targetResource.namespace
 	o.ioStreams.Infof("trying to connect the remote endpoint %s ..", strings.Join(args, " "))
 	return o.kcPortForwardOptions.Complete(o.f, o.Cmd, args)
 }
