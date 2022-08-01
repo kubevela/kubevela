@@ -251,11 +251,6 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 		}
 
 		_, isHealth, err := h.collectHealthStatus(auth.ContextWithUserInfo(ctx, h.app), wl, appRev, overrideNamespace)
-		// TODO(somefive): temporary fix, ignore resource not found error
-		if err != nil && strings.Contains(err.Error(), "not found") {
-			isHealth = false
-			err = nil
-		}
 		return isHealth, err
 	}
 }

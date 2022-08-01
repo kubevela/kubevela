@@ -186,7 +186,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 			return nil, err
 		}
 		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: AuxiliaryWorkload,
 		}, commonLabels), assist.Name)
 		if err != nil {
