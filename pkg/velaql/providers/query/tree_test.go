@@ -1506,32 +1506,35 @@ childrenResourceType:
 		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
 
 		Expect(mergeCustomRules(ctx, k8sClient)).Should(BeNil())
-		childrenResources, ok := globalRule[GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"}]
+		childrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(childrenResources.CareResource)).Should(BeEquivalentTo(2))
-		specifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
-		Expect(ok).Should(BeTrue())
-		Expect(specifyFunc).Should(BeNil())
+		Expect(len(*childrenResources.CareResources)).Should(BeEquivalentTo(2))
 
-		dsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "DaemonSet"}]
+		crPod := childrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod).ShouldNot(BeNil())
+		Expect(crPod.listOptions).Should(BeNil())
+
+		dsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "DaemonSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(dsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
-		dsSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
-		Expect(ok).Should(BeTrue())
-		Expect(dsSpecifyFunc).Should(BeNil())
-		crSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
-		Expect(ok).Should(BeTrue())
-		Expect(crSpecifyFunc).Should(BeNil())
+		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
 
-		stsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "StatefulSet"}]
+		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod2).ShouldNot(BeNil())
+		Expect(crPod2.listOptions).Should(BeNil())
+
+		cr := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(cr).ShouldNot(BeNil())
+		Expect(cr.listOptions).Should(BeNil())
+
+		stsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "StatefulSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(stsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
-		stsCrSpecifyFunc, ok := stsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
-		Expect(ok).Should(BeTrue())
-		Expect(stsCrSpecifyFunc).Should(BeNil())
+		Expect(len(*stsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
+		revisionCR := stsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(revisionCR).ShouldNot(BeNil())
+		Expect(revisionCR.listOptions).Should(BeNil())
 
 		// clear data
 		Expect(k8sClient.Delete(context.TODO(), &missConfigedCm)).Should(BeNil())
