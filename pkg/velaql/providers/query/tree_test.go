@@ -17,6 +17,7 @@ limitations under the License.
 package query
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -1293,7 +1294,9 @@ var _ = Describe("unit-test to e2e test", func() {
 			Name:       "deploy1",
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
-		}, 1)
+		}, 1, func(node types.ResourceTreeNode) bool {
+			return true
+		})
 		Expect(err).Should(BeNil())
 		Expect(len(tn)).Should(BeEquivalentTo(2))
 		Expect(len(tn[0].LeafNodes)).Should(BeEquivalentTo(1))
@@ -1364,10 +1367,11 @@ var _ = Describe("unit-test to e2e test", func() {
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
+				withTree: true
 			}`
 		v, err := value.NewValue(opt, nil, "")
 		Expect(err).Should(BeNil())
-		Expect(prd.GetApplicationResourceTree(nil, v, nil)).Should(BeNil())
+		Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}
@@ -1401,21 +1405,28 @@ var _ = Describe("unit-test to e2e test", func() {
 		}
 		Expect(k8sClient.Create(ctx, &badRuleConfigMap)).Should(BeNil())
 
+		// clear after test
+		objectList = append(objectList, &badRuleConfigMap)
+
 		notExistParentConfigMap := v1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: types3.DefaultKubeVelaNS, Name: "not-exist-parent", Labels: map[string]string{oam.LabelResourceRules: "true"}},
 			Data:       map[string]string{relationshipKey: notExistParentResourceStr},
 		}
 		Expect(k8sClient.Create(ctx, &notExistParentConfigMap)).Should(BeNil())
 
+		// clear after test
+		objectList = append(objectList, &badRuleConfigMap)
+
 		prd := provider{cli: k8sClient}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
+				withTree: true
 			}`
 		v, err := value.NewValue(opt, nil, "")
 
 		Expect(err).Should(BeNil())
-		Expect(prd.GetApplicationResourceTree(nil, v, nil)).Should(BeNil())
+		Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}
@@ -1495,31 +1506,40 @@ childrenResourceType:
 		Expect(k8sClient.Create(ctx, &missConfigedCm)).Should(BeNil())
 
 		Expect(mergeCustomRules(ctx, k8sClient)).Should(BeNil())
-		childrenResources, ok := globalRule[GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"}]
+		childrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(childrenResources.CareResource)).Should(BeEquivalentTo(2))
-		specifyFunc, ok := childrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
-		Expect(ok).Should(BeTrue())
-		Expect(specifyFunc).Should(BeNil())
+		Expect(len(*childrenResources.CareResources)).Should(BeEquivalentTo(2))
 
-		dsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "DaemonSet"}]
+		crPod := childrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod).ShouldNot(BeNil())
+		Expect(crPod.listOptions).Should(BeNil())
+
+		dsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "DaemonSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(dsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
-		dsSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "v1", Kind: "Pod"}]
-		Expect(ok).Should(BeTrue())
-		Expect(dsSpecifyFunc).Should(BeNil())
-		crSpecifyFunc, ok := dsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
-		Expect(ok).Should(BeTrue())
-		Expect(crSpecifyFunc).Should(BeNil())
+		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
 
-		stsChildrenResources, ok := globalRule[GroupResourceType{Group: "apps", Kind: "StatefulSet"}]
+		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod2).ShouldNot(BeNil())
+		Expect(crPod2.listOptions).Should(BeNil())
+
+		cr := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(cr).ShouldNot(BeNil())
+		Expect(cr.listOptions).Should(BeNil())
+
+		stsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "StatefulSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(stsChildrenResources.CareResource)).Should(BeEquivalentTo(2))
-		stsCrSpecifyFunc, ok := stsChildrenResources.CareResource[ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"}]
-		Expect(ok).Should(BeTrue())
-		Expect(stsCrSpecifyFunc).Should(BeNil())
+		Expect(len(*stsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
+		revisionCR := stsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(revisionCR).ShouldNot(BeNil())
+		Expect(revisionCR.listOptions).Should(BeNil())
+
+		// clear data
+		Expect(k8sClient.Delete(context.TODO(), &missConfigedCm)).Should(BeNil())
+		Expect(k8sClient.Delete(context.TODO(), &stsConfigMap)).Should(BeNil())
+		Expect(k8sClient.Delete(context.TODO(), &daemonSetConfigMap)).Should(BeNil())
+		Expect(k8sClient.Delete(context.TODO(), &cloneSetConfigMap)).Should(BeNil())
 	})
 })

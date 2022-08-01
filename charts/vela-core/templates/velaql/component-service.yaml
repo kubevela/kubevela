@@ -1,0 +1,48 @@
+apiVersion: v1
+data:
+  template: |
+      import (
+      "vela/ql"
+      )
+
+      parameter: {
+        appName:    string
+        appNs:      string
+        name?:      string
+        cluster?:   string
+        clusterNs?: string
+      }
+
+      result: ql.#CollectServices & {
+        app: {
+          name:      parameter.appName
+          namespace: parameter.appNs
+          filter: {
+            if parameter.cluster != _|_ {
+              cluster: parameter.cluster
+            }
+            if parameter.clusterNs != _|_ {
+              clusterNamespace: parameter.clusterNs
+            }
+            if parameter.name != _|_ {
+              components: [parameter.name]
+            }
+          }
+        }
+      }
+
+      if result.err == _|_ {
+        status: {
+          services: result.list
+        }
+      }
+
+      if result.err != _|_ {
+        status: {
+          error: result.err
+        }
+      }
+kind: ConfigMap
+metadata:
+  name: component-service-view
+  namespace: {{ include "systemDefinitionNamespace" . }}

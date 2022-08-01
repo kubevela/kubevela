@@ -24,10 +24,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -43,28 +41,37 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
-	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
 // VelaPortForwardOptions for vela port-forward
 type VelaPortForwardOptions struct {
-	Cmd       *cobra.Command
-	Args      []string
-	ioStreams util.IOStreams
+	Cmd           *cobra.Command
+	Args          []string
+	ioStreams     util.IOStreams
+	ClusterName   string
+	ComponentName string
+	ResourceName  string
+	ResourceType  string
 
-	Ctx            context.Context
-	VelaC          common.Args
-	Env            *types.EnvMeta
+	Ctx   context.Context
+	VelaC common.Args
+
+	namespace      string
 	App            *v1beta1.Application
-	targetResource *types2.ServiceEndpoint
+	targetResource struct {
+		kind      string
+		name      string
+		cluster   string
+		namespace string
+	}
+	targetPort int
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
 	ClientSet            kubernetes.Interface
 	Client               client.Client
-
-	namespace string
 }
 
 // NewPortForwardCommand is vela port-forward command
@@ -89,7 +96,12 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 				ioStreams.Error("Please specify application name.")
 				return nil
 			}
-
+			if o.ResourceType != "pod" && o.ResourceType != "service" {
+				o.ResourceType = "service"
+			}
+			if o.ResourceType == "pod" && len(args) < 2 {
+				return errors.New("not port specified for port-forward")
+			}
 			var err error
 			o.namespace, err = GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
@@ -122,7 +134,10 @@ func NewPortForwardCommand(c common.Args, order string, ioStreams util.IOStreams
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
-
+	cmd.Flags().StringVarP(&o.ComponentName, "component", "c", "", "filter the pod by the component name")
+	cmd.Flags().StringVarP(&o.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
+	cmd.Flags().StringVarP(&o.ResourceName, "resource-name", "", "", "specify the resource name")
+	cmd.Flags().StringVarP(&o.ResourceType, "resource-type", "t", "", "specify the resource type, support the service, and pod")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -139,56 +154,89 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.App = app
 
-	rawEndpoints, err := GetServiceEndpoints(o.Ctx, o.App.Name, o.namespace, o.VelaC, Filter{})
-	if err != nil {
-		return err
-	}
-	var endpoints []types2.ServiceEndpoint
-	for _, ep := range rawEndpoints {
-		if ep.Ref.Kind != "Service" {
-			continue
+	if o.ResourceType == "service" {
+		var selectService *querytypes.ResourceItem
+		services, err := GetApplicationServices(o.Ctx, o.App.Name, o.namespace, o.VelaC, Filter{
+			Component: o.ComponentName,
+			Cluster:   o.ClusterName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to load the application services: %w", err)
 		}
-		endpoints = append(endpoints, ep)
-	}
-	if len(endpoints) == 0 {
-		inSide := func(str string) bool {
-			for _, s := range []string{"Deployment", "StatefulSet", "CloneSet", "Job"} {
-				if str == s {
-					return true
+
+		if o.ResourceName != "" {
+			for i, service := range services {
+				if service.Object.GetName() == o.ResourceName {
+					selectService = &services[i]
+					break
 				}
 			}
-			return false
-		}
-		for _, ap := range app.Status.AppliedResources {
-			if !inSide(ap.Kind) {
-				continue
+			if selectService == nil {
+				fmt.Println("The Service you specified does not exist, please select it from the list.")
 			}
-			endpoints = append(endpoints, types2.ServiceEndpoint{
-				Endpoint: types2.Endpoint{},
-				Ref: corev1.ObjectReference{
-					Namespace:  ap.Namespace,
-					Name:       ap.Name,
-					Kind:       ap.Kind,
-					APIVersion: ap.APIVersion,
-				},
-				Cluster: ap.Cluster,
-			})
+		}
+		if len(services) > 0 {
+			if selectService == nil {
+				selectService, o.targetPort, err = AskToChooseOneService(services, len(o.Args) < 2)
+				if err != nil {
+					return err
+				}
+			}
+			if selectService != nil {
+				o.targetResource.cluster = selectService.Cluster
+				o.targetResource.name = selectService.Object.GetName()
+				o.targetResource.namespace = selectService.Object.GetNamespace()
+				o.targetResource.kind = selectService.Object.GetKind()
+			}
+		} else if o.ResourceName == "" {
+			// If users do not specify the resource name and there is no service, switch to query the pod
+			o.ResourceType = "pod"
 		}
 	}
-	targetResource, err := AskToChooseOnePortForwardEndpoint(endpoints)
-	if err != nil {
-		return err
+
+	if o.ResourceType == "pod" {
+		var selectPod *querytypes.PodBase
+		pods, err := GetApplicationPods(o.Ctx, o.App.Name, o.namespace, o.VelaC, Filter{
+			Component: o.ComponentName,
+			Cluster:   o.ClusterName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to load the application services: %w", err)
+		}
+
+		if o.ResourceName != "" {
+			for i, pod := range pods {
+				if pod.Metadata.Name == o.ResourceName {
+					selectPod = &pods[i]
+					break
+				}
+			}
+			if selectPod == nil {
+				fmt.Println("The Service you specified does not exist, please select it from the list.")
+			}
+		}
+		if selectPod == nil {
+			selectPod, err = AskToChooseOnePod(pods)
+			if err != nil {
+				return err
+			}
+		}
+		if selectPod != nil {
+			o.targetResource.cluster = selectPod.Cluster
+			o.targetResource.name = selectPod.Metadata.Name
+			o.targetResource.namespace = selectPod.Metadata.Namespace
+			o.targetResource.kind = "Pod"
+		}
 	}
 
 	cf := genericclioptions.NewConfigFlags(true)
 	cf.Namespace = pointer.String(o.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
-		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(targetResource.Cluster))
+		cfg.Wrap(multicluster.NewClusterGatewayRoundTripperWrapperGenerator(o.targetResource.cluster))
 		return cfg
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
-	o.targetResource = &targetResource
-	o.Ctx = multicluster.ContextWithClusterName(ctx, targetResource.Cluster)
+	o.Ctx = multicluster.ContextWithClusterName(ctx, o.targetResource.cluster)
 	config, err := o.VelaC.GetConfig()
 	if err != nil {
 		return err
@@ -209,54 +257,14 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	return nil
 }
 
-// getPortsFromApp works for compatible
-func getPortsFromApp(app *v1beta1.Application) int {
-	if app == nil || len(app.Spec.Components) == 0 {
-		return 0
-	}
-	_, configs := appfile.GetApplicationSettings(app, app.Spec.Components[0].Name)
-	for k, v := range configs {
-		portConv := func(v interface{}) int {
-			switch pv := v.(type) {
-			case int:
-				return pv
-			case string:
-				data, err := strconv.ParseInt(pv, 10, 64)
-				if err != nil {
-					return 0
-				}
-				return int(data)
-			case float64:
-				return int(pv)
-			}
-			return 0
-		}
-		if k == "port" {
-			return portConv(v)
-		}
-		if k == "ports" {
-			portArray := v.([]interface{})
-			for _, p := range portArray {
-				return portConv(p.(map[string]interface{})["port"])
-			}
-		}
-	}
-	return 0
-}
-
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-
 	var forwardTypeName string
-	switch o.targetResource.Ref.Kind {
+	switch o.targetResource.kind {
 	case "Service":
-		forwardTypeName = "svc/" + o.targetResource.Ref.Name
-	case "Deployment", "StatefulSet", "CloneSet", "Job":
-		var err error
-		forwardTypeName, err = getPodNameForResource(o.Ctx, o.ClientSet, o.targetResource.Ref.Name, o.targetResource.Ref.Namespace)
-		if err != nil {
-			return err
-		}
+		forwardTypeName = "svc/" + o.targetResource.name
+	case "Pod":
+		forwardTypeName = "pod/" + o.targetResource.name
 	}
 
 	if len(o.Args) < 2 {
@@ -269,10 +277,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 			}
 			return val
 		}
-		pt := o.targetResource.Endpoint.Port
-		if pt == 0 {
-			pt = getPortsFromApp(o.App)
-		}
+		pt := o.targetPort
 		if pt == 0 {
 			return errors.New("not port specified for port-forward")
 		}
@@ -323,36 +328,4 @@ func (f *defaultPortForwarder) ForwardPorts(method string, url *url.URL, opts cm
 		return err
 	}
 	return fw.ForwardPorts()
-}
-
-// AskToChooseOnePortForwardEndpoint will ask user to select one applied resource as port forward endpoint
-func AskToChooseOnePortForwardEndpoint(endpoints []types2.ServiceEndpoint) (types2.ServiceEndpoint, error) {
-	if len(endpoints) == 0 {
-		return types2.ServiceEndpoint{}, errors.New("no endpoint found in your application")
-	}
-	if len(endpoints) == 1 {
-		return endpoints[0], nil
-	}
-	lines := formatEndpoints(endpoints)
-	header := strings.Join(lines[0], " | ")
-	var ops []string
-	for i := 1; i < len(lines); i++ {
-		ops = append(ops, strings.Join(lines[i], " | "))
-	}
-	prompt := &survey.Select{
-		Message: fmt.Sprintf("You have %d endpoints in your app. Please choose one:\n%s", len(ops), header),
-		Options: ops,
-	}
-	var selectedRsc string
-	err := survey.AskOne(prompt, &selectedRsc)
-	if err != nil {
-		return types2.ServiceEndpoint{}, fmt.Errorf("choosing endpoint err %w", err)
-	}
-	for k, resource := range ops {
-		if selectedRsc == resource {
-			return endpoints[k], nil
-		}
-	}
-	// it should never happen.
-	return types2.ServiceEndpoint{}, errors.New("no endpoint match for your choice")
 }

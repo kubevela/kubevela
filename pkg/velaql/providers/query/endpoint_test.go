@@ -221,6 +221,7 @@ var _ = Describe("Test Query Provider", func() {
 				cluster: "",
 				clusterNamespace: "default",
 			}
+			withTree: true
 		}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())

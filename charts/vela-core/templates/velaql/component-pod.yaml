@@ -1,11 +1,7 @@
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: test-component-pod-view
-  namespace: vela-system
 data:
   template: |
-    import (
+      import (
       "vela/ql"
       )
 
@@ -73,3 +69,7 @@ data:
           error: result.err
         }
       }
+kind: ConfigMap
+metadata:
+  name: component-pod-view
+  namespace: {{ include "systemDefinitionNamespace" . }}
