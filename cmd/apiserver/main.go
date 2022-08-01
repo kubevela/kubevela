@@ -26,6 +26,7 @@ import (
 	"time"
 
 	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	"github.com/fatih/color"
 	"github.com/go-openapi/spec"
 	"github.com/google/uuid"
 	flag "github.com/spf13/pflag"
@@ -81,6 +82,10 @@ func main() {
 		}()
 		return
 	}
+
+	// The server is not terminal, there is no color default.
+	// Force set to false, this is useful for the dry-run API.
+	color.NoColor = false
 
 	errChan := make(chan error)
 	ctx, cancel := context.WithCancel(context.Background())
