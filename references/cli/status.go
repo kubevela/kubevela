@@ -108,6 +108,13 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
   # Show detailed info in tree
   vela status first-vela-app --tree --detail --detail-format list
 
+  # Show pod list
+  vela status first-vela-app --pod
+  vela status first-vela-app --pod --component express-server --cluster local
+
+  # Show endpoint list
+  vela status first-vela-app --endpoint
+
   # Get raw Application yaml (without managedFields)
   vela status first-vela-app -o yaml
 
@@ -128,20 +135,31 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
 				return printApplicationTree(c, cmd, appName, namespace)
 			}
+			if printPod, err := cmd.Flags().GetBool("pod"); err == nil && printPod {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				f := Filter{
+					Component: component,
+					Cluster:   cluster,
+				}
+				return printAppPods(appName, namespace, f, c)
+			}
+			showEndpoints, err := cmd.Flags().GetBool("endpoint")
+			if showEndpoints && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				f := Filter{
+					Component: component,
+					Cluster:   cluster,
+				}
+				return printAppEndpoints(ctx, appName, namespace, f, c, false)
+			}
 			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
-			}
-			showEndpoints, err := cmd.Flags().GetBool("endpoint")
-			if showEndpoints && err == nil {
-				component, _ := cmd.Flags().GetString("component")
-				f := Filter{
-					Component: component,
-				}
-				return printAppEndpoints(ctx, appName, namespace, f, c, false)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -152,8 +170,10 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
-	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
+	cmd.Flags().StringP("component", "c", "", "filter the endpoints or pods by component name")
+	cmd.Flags().StringP("cluster", "", "", "filter the endpoints or pods by cluster name")
 	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
+	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
 	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")

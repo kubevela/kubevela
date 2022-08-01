@@ -18,21 +18,13 @@ package query
 
 import (
 	"context"
-	"reflect"
-	"sync"
 
 	"github.com/hashicorp/go-version"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
@@ -102,9 +93,14 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
-					isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion) {
+					(queryTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
 					managedResources = append(managedResources, &types.AppliedResource{
-						Cluster:         managedResource.Cluster,
+						Cluster: func() string {
+							if managedResource.Cluster != "" {
+								return managedResource.Cluster
+							}
+							return "local"
+						}(),
 						Kind:            managedResource.Kind,
 						Component:       managedResource.Component,
 						Trait:           managedResource.Trait,
@@ -139,8 +135,13 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 		return managedResources, err
 	}
 
+	filter := func(node types.ResourceTreeNode) bool {
+		return isResourceMatchKindAndVersion(c.opt.Filter, node.Kind, node.APIVersion)
+	}
+	var matchedResources []*types.AppliedResource
 	// error from leaf nodes won't block the results
-	for _, resource := range managedResources {
+	for i := range managedResources {
+		resource := managedResources[i]
 		root := types.ResourceTreeNode{
 			Cluster:    resource.Cluster,
 			APIVersion: resource.APIVersion,
@@ -149,13 +150,16 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			Name:       resource.Name,
 			UID:        resource.UID,
 		}
-		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1)
+		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1, filter)
 		if err != nil {
 			// if the resource has been deleted, continue access next appliedResource don't break the whole request
 			if kerrors.IsNotFound(err) {
 				continue
 			}
 			klog.Errorf("query leaf node resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		if !filter(root) && len(root.LeafNodes) == 0 {
 			continue
 		}
 		rootObject, err := fetchObjectWithResourceTreeNode(ctx, resource.Cluster, c.k8sClient, root)
@@ -183,9 +187,11 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 		if !rootObject.GetDeletionTimestamp().IsZero() {
 			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
 		}
+		root.Object = *rootObject
 		resource.ResourceTree = &root
+		matchedResources = append(matchedResources, resource)
 	}
-	return managedResources, nil
+	return matchedResources, nil
 }
 
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
@@ -279,275 +285,6 @@ func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReferenc
 	}
 	componentName := obj.GetLabels()[oam.LabelAppComponent]
 	return componentName, obj, nil
-}
-
-var standardWorkloads = []schema.GroupVersionKind{
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.ReplicaSet{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.DaemonSet{}).Name()),
-	batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
-	kruise.SchemeGroupVersion.WithKind(reflect.TypeOf(kruise.CloneSet{}).Name()),
-}
-
-var podCollectorMap = map[schema.GroupVersionKind]PodCollector{
-	batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.CronJob{}).Name()):           cronJobPodCollector,
-	batchv1beta1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1beta1.CronJob{}).Name()): cronJobPodCollector,
-}
-
-// PodCollector collector pod created by workload
-type PodCollector func(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error)
-
-// NewPodCollector create a PodCollector
-func NewPodCollector(gvk schema.GroupVersionKind) PodCollector {
-	for _, workload := range standardWorkloads {
-		if gvk == workload {
-			return standardWorkloadPodCollector
-		}
-	}
-	if collector, ok := podCollectorMap[gvk]; ok {
-		return collector
-	}
-	return velaComponentPodCollector
-}
-
-// standardWorkloadPodCollector collect pods created by standard workload
-func standardWorkloadPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	selectorPath := []string{"spec", "selector", "matchLabels"}
-	labels, found, err := unstructured.NestedStringMap(obj.UnstructuredContent(), selectorPath...)
-
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, errors.Errorf("fail to find matchLabels from %s %s", obj.GroupVersionKind().String(), klog.KObj(obj))
-	}
-
-	listOpts := []client.ListOption{
-		client.MatchingLabels(labels),
-		client.InNamespace(obj.GetNamespace()),
-	}
-
-	podList := corev1.PodList{}
-	if err := cli.List(ctx, &podList, listOpts...); err != nil {
-		return nil, err
-	}
-
-	pods := make([]*unstructured.Unstructured, len(podList.Items))
-	for i := range podList.Items {
-		pod, err := oamutil.Object2Unstructured(podList.Items[i])
-		if err != nil {
-			return nil, err
-		}
-		pod.SetGroupVersionKind(
-			corev1.SchemeGroupVersion.WithKind(
-				reflect.TypeOf(corev1.Pod{}).Name(),
-			),
-		)
-		pods[i] = pod
-	}
-	return pods, nil
-}
-
-// cronJobPodCollector collect pods created by cronjob
-func cronJobPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-
-	jobList := new(batchv1.JobList)
-	if err := cli.List(ctx, jobList, client.InNamespace(obj.GetNamespace())); err != nil {
-		return nil, err
-	}
-
-	uid := obj.GetUID()
-	var jobs []batchv1.Job
-	for _, job := range jobList.Items {
-		for _, owner := range job.GetOwnerReferences() {
-			if owner.Kind == reflect.TypeOf(batchv1.CronJob{}).Name() && owner.UID == uid {
-				jobs = append(jobs, job)
-			}
-		}
-	}
-	var pods []*unstructured.Unstructured
-	podGVK := corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Pod{}).Name())
-	for _, job := range jobs {
-		labels := job.Spec.Selector.MatchLabels
-		listOpts := []client.ListOption{
-			client.MatchingLabels(labels),
-			client.InNamespace(job.GetNamespace()),
-		}
-		podList := corev1.PodList{}
-		if err := cli.List(ctx, &podList, listOpts...); err != nil {
-			return nil, err
-		}
-
-		items := make([]*unstructured.Unstructured, len(podList.Items))
-		for i := range podList.Items {
-			pod, err := oamutil.Object2Unstructured(podList.Items[i])
-			if err != nil {
-				return nil, err
-			}
-			pod.SetGroupVersionKind(podGVK)
-			items[i] = pod
-		}
-		pods = append(pods, items...)
-	}
-	return pods, nil
-}
-
-// HelmReleaseCollector HelmRelease resources collector
-type HelmReleaseCollector struct {
-	matchLabels  map[string]string
-	workloadsGVK []schema.GroupVersionKind
-	cli          client.Client
-}
-
-// NewHelmReleaseCollector create a HelmRelease collector
-func NewHelmReleaseCollector(cli client.Client, hr *unstructured.Unstructured) *HelmReleaseCollector {
-	return &HelmReleaseCollector{
-		// matchLabels for resources created by HelmRelease refer to
-		// https://github.com/fluxcd/helm-controller/blob/main/internal/runner/post_renderer_origin_labels.go#L31
-		matchLabels: map[string]string{
-			"helm.toolkit.fluxcd.io/name":      hr.GetName(),
-			"helm.toolkit.fluxcd.io/namespace": hr.GetNamespace(),
-		},
-		workloadsGVK: []schema.GroupVersionKind{
-			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
-			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
-			batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
-		},
-		cli: cli,
-	}
-}
-
-// CollectWorkloads collect workloads of HelmRelease
-func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	workloadsList := make([][]unstructured.Unstructured, len(c.workloadsGVK))
-	wg := sync.WaitGroup{}
-	wg.Add(len(c.workloadsGVK))
-
-	for i, workloadGVK := range c.workloadsGVK {
-		go func(index int, gvk schema.GroupVersionKind) {
-			defer wg.Done()
-			unstructuredObjList := &unstructured.UnstructuredList{}
-			unstructuredObjList.SetGroupVersionKind(gvk)
-			if err := c.cli.List(ctx, unstructuredObjList, listOptions...); err != nil {
-				return
-			}
-			workloadsList[index] = unstructuredObjList.Items
-		}(i, workloadGVK)
-	}
-	wg.Wait()
-
-	var workloads []unstructured.Unstructured
-	for i := range workloadsList {
-		workloads = append(workloads, workloadsList[i]...)
-	}
-	return workloads, nil
-}
-
-// CollectServices collect service of HelmRelease
-func (c *HelmReleaseCollector) CollectServices(ctx context.Context, cluster string) ([]corev1.Service, error) {
-	cctx := multicluster.ContextWithClusterName(ctx, cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	var services corev1.ServiceList
-	if err := c.cli.List(cctx, &services, listOptions...); err != nil {
-		return nil, err
-	}
-	return services.Items, nil
-}
-
-// CollectIngress collect ingress of HelmRelease
-func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster string) ([]unstructured.Unstructured, error) {
-	clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	var ingresses = new(unstructured.UnstructuredList)
-	ingresses.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "networking.k8s.io",
-		Version: "v1beta1",
-		Kind:    "IngressList",
-	})
-	if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
-		if meta.IsNoMatchError(err) {
-			ingresses.SetGroupVersionKind(schema.GroupVersionKind{
-				Group:   "networking.k8s.io",
-				Version: "v1",
-				Kind:    "IngressList",
-			})
-			if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-	return ingresses.Items, nil
-}
-
-// helmReleasePodCollector collect pods created by helmRelease
-func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	hc := NewHelmReleaseCollector(cli, obj)
-	workloads, err := hc.CollectWorkloads(cluster)
-	if err != nil {
-		return nil, err
-	}
-	podsList := make([][]*unstructured.Unstructured, len(workloads))
-	wg := sync.WaitGroup{}
-	wg.Add(len(workloads))
-	for i := range workloads {
-		go func(index int) {
-			defer wg.Done()
-			collector := NewPodCollector(workloads[index].GroupVersionKind())
-			pods, err := collector(cli, &workloads[index], cluster)
-			if err != nil {
-				return
-			}
-			podsList[index] = pods
-		}(i)
-	}
-	wg.Wait()
-	var collectedPods []*unstructured.Unstructured
-	for i := range podsList {
-		collectedPods = append(collectedPods, podsList[i]...)
-	}
-	return collectedPods, nil
-}
-
-func velaComponentPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-
-	listOpts := []client.ListOption{
-		client.MatchingLabels(map[string]string{"app.oam.dev/component": obj.GetName()}),
-		client.InNamespace(obj.GetNamespace()),
-	}
-
-	podList := corev1.PodList{}
-	if err := cli.List(ctx, &podList, listOpts...); err != nil {
-		return nil, err
-	}
-
-	pods := make([]*unstructured.Unstructured, len(podList.Items))
-	for i := range podList.Items {
-		pod, err := oamutil.Object2Unstructured(podList.Items[i])
-		if err != nil {
-			return nil, err
-		}
-		pod.SetGroupVersionKind(
-			corev1.SchemeGroupVersion.WithKind(
-				reflect.TypeOf(corev1.Pod{}).Name(),
-			),
-		)
-		pods[i] = pod
-	}
-	return pods, nil
 }
 
 func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {

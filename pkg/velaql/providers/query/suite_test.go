@@ -48,6 +48,7 @@ var _ = BeforeSuite(func(done Done) {
 			"./testdata/gateway/crds",
 			"../../../../charts/vela-core/crds",
 			"./testdata/machinelearning.seldon.io_seldondeployments.yaml",
+			"./testdata/helm-release-crd.yaml",
 		},
 	}
 

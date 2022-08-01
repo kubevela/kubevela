@@ -41,7 +41,6 @@ import (
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
-	errors2 "github.com/pkg/errors"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	yamlv3 "gopkg.in/yaml.v3"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -68,7 +67,6 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -382,19 +380,6 @@ type ResourceLocation struct {
 
 type clusterObjectReferenceFilter func(common.ClusterObjectReference) bool
 
-func clusterObjectReferenceTypeFilterGenerator(allowedKinds ...string) clusterObjectReferenceFilter {
-	allowedKindMap := map[string]bool{}
-	for _, allowedKind := range allowedKinds {
-		allowedKindMap[allowedKind] = true
-	}
-	return func(item common.ClusterObjectReference) bool {
-		_, exists := allowedKindMap[item.Kind]
-		return exists
-	}
-}
-
-var isWorkloadClusterObjectReferenceFilter = clusterObjectReferenceTypeFilterGenerator("Deployment", "StatefulSet", "CloneSet", "Job", "Configuration")
-
 var resourceNameClusterObjectReferenceFilter = func(resourceName []string) clusterObjectReferenceFilter {
 	return func(reference common.ClusterObjectReference) bool {
 		if len(resourceName) == 0 {
@@ -423,44 +408,6 @@ func filterResource(inputs []common.ClusterObjectReference, filters ...clusterOb
 		}
 	}
 	return
-}
-
-func askToChooseOneResource(app *v1beta1.Application, filters ...clusterObjectReferenceFilter) (*common.ClusterObjectReference, error) {
-	resources := app.Status.AppliedResources
-	if len(resources) == 0 {
-		return nil, fmt.Errorf("no resources in the application deployed yet")
-	}
-	resources = filterResource(resources, filters...)
-	if app.Name == AddonObservabilityApplication {
-		resources = filterClusterObjectRefFromAddonObservability(resources)
-	}
-	// filter locations
-	if len(resources) == 0 {
-		return nil, fmt.Errorf("no supported resources detected in deployed resources")
-	}
-	if len(resources) == 1 {
-		return &resources[0], nil
-	}
-	opMap := ClusterObject2Map(resources)
-	var ops []string
-	for _, r := range opMap {
-		ops = append(ops, r)
-	}
-	prompt := &survey.Select{
-		Message: fmt.Sprintf("You have %d deployed resources in your app. Please choose one:", len(ops)),
-		Options: ops,
-	}
-	var selectedRsc string
-	err := survey.AskOne(prompt, &selectedRsc)
-	if err != nil {
-		return nil, fmt.Errorf("choosing resource err %w", err)
-	}
-	for k, resource := range ops {
-		if selectedRsc == resource {
-			return &resources[k], nil
-		}
-	}
-	return nil, fmt.Errorf("choosing resource err %w", err)
 }
 
 // AskToChooseOneNamespace ask for choose one namespace as env
@@ -520,43 +467,6 @@ func removeEmptyString(items []string) []string {
 		}
 	}
 	return r
-}
-
-// AskToChooseOneEnvResource will ask users to select one applied resource of the application if more than one
-// resource is a map for component to applied resources
-// return the selected ClusterObjectReference
-func AskToChooseOneEnvResource(app *v1beta1.Application, resourceName ...string) (*common.ClusterObjectReference, error) {
-	filters := []clusterObjectReferenceFilter{isWorkloadClusterObjectReferenceFilter}
-	_resourceName := removeEmptyString(resourceName)
-	filters = append(filters, resourceNameClusterObjectReferenceFilter(_resourceName))
-	return askToChooseOneResource(app, filters...)
-}
-
-func askToChooseOneInApplication(category string, options []string) (decision string, err error) {
-	if len(options) == 0 {
-		return "", fmt.Errorf("no %s exists in the application", category)
-	}
-	if len(options) == 1 {
-		return options[0], nil
-	}
-	prompt := &survey.Select{
-		Message: fmt.Sprintf("You have multiple %ss in your app. Please choose one %s: ", category, category),
-		Options: options,
-	}
-	if err = survey.AskOne(prompt, &decision); err != nil {
-		return "", errors2.Wrapf(err, "choosing %s failed", category)
-	}
-	return
-}
-
-// AskToChooseOneService will ask users to select one service of the application if more than one
-func AskToChooseOneService(svcNames []string) (string, error) {
-	return askToChooseOneInApplication("service", svcNames)
-}
-
-// AskToChooseOnePods will ask users to select one pods of the resource if more than one
-func AskToChooseOnePods(podNames []string) (string, error) {
-	return askToChooseOneInApplication("pod", podNames)
 }
 
 // ReadYamlToObject will read a yaml K8s object to runtime.Object

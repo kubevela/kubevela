@@ -29,13 +29,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -53,8 +54,6 @@ const (
 	annoAmbassadorServiceName      = "ambassador.service/name"
 	annoAmbassadorServiceNamespace = "ambassador.service/namespace"
 )
-
-var fluxcdGroupVersion = schema.GroupVersion{Group: "helm.toolkit.fluxcd.io", Version: "v2beta1"}
 
 type provider struct {
 	cli client.Client
@@ -77,6 +76,9 @@ type Option struct {
 	// WithStatus means query the object from the cluster and get the latest status
 	// This field only suitable for ListResourcesInApp
 	WithStatus bool `json:"withStatus,omitempty"`
+
+	// WithTree means recursively query the resource tree.
+	WithTree bool `json:"withTree,omitempty"`
 }
 
 // FilterOption filter resource created by component
@@ -125,7 +127,7 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app, false)
+	appResList, err := collector.ListApplicationResources(app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -135,11 +137,10 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	return fillQueryResult(v, appResList, "list")
 }
 
-// GetApplicationResourceTree get resource tree of application
-func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
-		return v.FillObject(err.Error(), "err")
+		return err
 	}
 	opt := Option{}
 	if err = val.UnmarshalTo(&opt); err != nil {
@@ -151,45 +152,31 @@ func (h *provider) GetApplicationResourceTree(ctx wfContext.Context, v *value.Va
 	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app, true)
+	appResList, err := collector.ListApplicationResources(app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	if appResList == nil {
-		appResList = []*querytypes.AppliedResource{}
+	var resources = make([]querytypes.ResourceItem, 0)
+	for _, res := range appResList {
+		if res.ResourceTree != nil {
+			resources = append(resources, buildResourceArray(*res, res.ResourceTree, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
+		} else if res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion {
+			var object unstructured.Unstructured
+			object.SetAPIVersion(opt.Filter.APIVersion)
+			object.SetKind(opt.Filter.Kind)
+			if err := h.cli.Get(context.Background(), apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
+					APIVersion: app.APIVersion,
+					Kind:       app.Kind,
+					Name:       app.Name,
+					Namespace:  app.Namespace,
+				}, object))
+			} else {
+				log.Logger.Errorf("failed to get the service:%s", err.Error())
+			}
+		}
 	}
-	return fillQueryResult(v, appResList, "list")
-}
-
-func (h *provider) CollectPods(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	val, err := v.LookupValue("value")
-	if err != nil {
-		return err
-	}
-	cluster, err := v.GetString("cluster")
-	if err != nil {
-		return err
-	}
-	obj := new(unstructured.Unstructured)
-	if err = val.UnmarshalTo(obj); err != nil {
-		return err
-	}
-
-	var pods []*unstructured.Unstructured
-	var collector PodCollector
-
-	switch obj.GroupVersionKind() {
-	case fluxcdGroupVersion.WithKind(HelmReleaseKind):
-		collector = helmReleasePodCollector
-	default:
-		collector = NewPodCollector(obj.GroupVersionKind())
-	}
-
-	pods, err = collector(h.cli, obj, cluster)
-	if err != nil {
-		return v.FillObject(err.Error(), "err")
-	}
-	return fillQueryResult(v, pods, "list")
+	return fillQueryResult(v, resources, "list")
 }
 
 func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
@@ -315,10 +302,9 @@ func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
 	p.Register(ProviderName, map[string]providers.Handler{
 		"listResourcesInApp":      prd.ListResourcesInApp,
 		"listAppliedResources":    prd.ListAppliedResources,
-		"collectPods":             prd.CollectPods,
+		"collectResources":        prd.CollectResources,
 		"searchEvents":            prd.SearchEvents,
 		"collectLogsInPod":        prd.CollectLogsInPod,
 		"collectServiceEndpoints": prd.GeneratorServiceEndpoints,
-		"getApplicationTree":      prd.GetApplicationResourceTree,
 	})
 }
