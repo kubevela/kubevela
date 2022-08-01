@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -128,9 +129,11 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	b, err := io.ReadAll(resp.Body)
 	// parse response body and headers
 	return map[string]interface{}{
-		"body":    string(b),
-		"header":  resp.Header,
-		"trailer": resp.Trailer,
+		"body":        string(b),
+		"header":      resp.Header,
+		"trailer":     resp.Trailer,
+		"status":      resp.Status,
+		"status_code": strconv.Itoa(resp.StatusCode),
 	}, err
 }
 
