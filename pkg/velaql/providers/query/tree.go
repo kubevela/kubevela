@@ -53,48 +53,107 @@ var relationshipKey = "rules"
 // set the iterator max depth is 5
 var maxDepth = 5
 
+// RuleList the rule list
+type RuleList []ChildrenResourcesRule
+
+// GetRule get the rule by the resource type
+func (rl *RuleList) GetRule(grt GroupResourceType) (*ChildrenResourcesRule, bool) {
+	for i, r := range *rl {
+		if r.GroupResourceType == grt {
+			return &(*rl)[i], true
+		}
+	}
+	return nil, false
+}
+
 // globalRule define the whole relationShip rule
-var globalRule map[GroupResourceType]ChildrenResourcesRule
+var globalRule RuleList
 
 func init() {
-	globalRule = make(map[GroupResourceType]ChildrenResourcesRule)
-	globalRule[GroupResourceType{Group: "apps", Kind: "Deployment"}] = ChildrenResourcesRule{
-		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "apps/v1", Kind: "ReplicaSet"}: deploy2RsLabelListOption,
+	globalRule = append(globalRule,
+		ChildrenResourcesRule{
+			GroupResourceType: GroupResourceType{Group: "apps", Kind: "Deployment"},
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"},
+					listOptions:  deploy2RsLabelListOption,
+				},
+			}),
 		},
-	}
-	globalRule[GroupResourceType{Group: "apps", Kind: "ReplicaSet"}] = ChildrenResourcesRule{
-		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "v1", Kind: "Pod"}: rs2PodLabelListOption,
+		ChildrenResourcesRule{
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					listOptions:  rs2PodLabelListOption,
+				},
+			}),
+			GroupResourceType: GroupResourceType{Group: "apps", Kind: "ReplicaSet"},
 		},
-	}
-	globalRule[GroupResourceType{Group: "apps", Kind: "StatefulSet"}] = ChildrenResourcesRule{
-		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "v1", Kind: "Pod"}: statefulSet2PodListOption,
+		ChildrenResourcesRule{
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					listOptions:  statefulSet2PodListOption,
+				},
+			}),
+			GroupResourceType: GroupResourceType{Group: "apps", Kind: "StatefulSet"},
 		},
-	}
-	globalRule[GroupResourceType{Group: "", Kind: "Service"}] = ChildrenResourcesRule{
-		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "discovery.k8s.io/v1beta1", Kind: "EndpointSlice"}: nil,
-			{APIVersion: "v1", Kind: "Endpoints"}:                           service2EndpointListOption,
+		ChildrenResourcesRule{
+			GroupResourceType: GroupResourceType{Group: "", Kind: "Service"},
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "discovery.k8s.io/v1beta1", Kind: "EndpointSlice"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Endpoints"},
+					listOptions:  service2EndpointListOption,
+				},
+			}),
 		},
-	}
-	globalRule[GroupResourceType{Group: "helm.toolkit.fluxcd.io", Kind: "HelmRelease"}] = ChildrenResourcesRule{
-		CareResource: map[ResourceType]genListOptionFunc{
-			{APIVersion: "apps/v1", Kind: "Deployment"}:                       nil,
-			{APIVersion: "apps/v1", Kind: "StatefulSet"}:                      nil,
-			{APIVersion: "v1", Kind: "ConfigMap"}:                             nil,
-			{APIVersion: "v1", Kind: "Secret"}:                                nil,
-			{APIVersion: "v1", Kind: "Service"}:                               nil,
-			{APIVersion: "v1", Kind: "PersistentVolumeClaim"}:                 nil,
-			{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"}:             nil,
-			{APIVersion: "v1", Kind: "ServiceAccount"}:                        nil,
-			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"}:        nil,
-			{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"}: nil,
+		ChildrenResourcesRule{
+			GroupResourceType: GroupResourceType{Group: "helm.toolkit.fluxcd.io", Kind: "HelmRelease"},
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "Deployment"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "StatefulSet"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "ConfigMap"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Secret"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Service"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "PersistentVolumeClaim"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "networking.k8s.io/v1", Kind: "Ingress"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "HTTPRoute"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "gateway.networking.k8s.io/v1alpha2", Kind: "Gateway"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "ServiceAccount"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "Role"},
+				},
+				{
+					ResourceType: ResourceType{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "RoleBinding"},
+				},
+			}),
+			DefaultGenListOptionFunc:      helmRelease2AnyListOption,
+			DisableFilterByOwnerReference: true,
 		},
-		DefaultGenListOptionFunc:      helmRelease2AnyListOption,
-		DisableFilterByOwnerReference: true,
-	}
+	)
 }
 
 // GroupResourceType define the parent resource type
@@ -117,12 +176,43 @@ type customRule struct {
 
 // ChildrenResourcesRule define the relationShip between parentObject and children resource
 type ChildrenResourcesRule struct {
+	// GroupResourceType the root resource type
+	GroupResourceType GroupResourceType
 	// every subResourceType can have a specified genListOptionFunc.
-	CareResource map[ResourceType]genListOptionFunc
+	CareResources *CareResources
 	// if specified genListOptionFunc is nil will use use default genListOptionFunc to generate listOption.
 	DefaultGenListOptionFunc genListOptionFunc
 	// DisableFilterByOwnerReference means don't use parent resource's UID filter the result.
 	DisableFilterByOwnerReference bool
+}
+
+func buildCareResources(crs []*CareResource) *CareResources {
+	var cr CareResources = crs
+	return &cr
+}
+
+// CareResources the care resource definitions
+type CareResources []*CareResource
+
+// Get get the care resource by the resource type
+func (c *CareResources) Get(rt ResourceType) *CareResource {
+	for _, r := range *c {
+		if r.ResourceType == rt {
+			return r
+		}
+	}
+	return nil
+}
+
+// Put add a care resource to the list
+func (c *CareResources) Put(cr *CareResource) {
+	*c = append(*c, cr)
+}
+
+// CareResource resource type and list options
+type CareResource struct {
+	ResourceType
+	listOptions genListOptionFunc
 }
 
 type genListOptionFunc func(unstructured.Unstructured) (client.ListOptions, error)
@@ -698,11 +788,14 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 	group := parentObject.GetObjectKind().GroupVersionKind().Group
 	kind := parentObject.GetObjectKind().GroupVersionKind().Kind
 
-	if rules, ok := globalRule[GroupResourceType{Group: group, Kind: kind}]; ok {
+	if rule, ok := globalRule.GetRule(GroupResourceType{Group: group, Kind: kind}); ok {
 		var resList []*types.ResourceTreeNode
-		for resource, specifiedFunc := range rules.CareResource {
+		for i := range *rule.CareResources {
+			resource := (*rule.CareResources)[i].ResourceType
+			specifiedFunc := (*rule.CareResources)[i].listOptions
+
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
-			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rules.DefaultGenListOptionFunc, rules.DisableFilterByOwnerReference)
+			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rule.DefaultGenListOptionFunc, rule.DisableFilterByOwnerReference)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
 					klog.Errorf("error to list sub-resources: %s err: %v", resource.Kind, err)
@@ -720,7 +813,7 @@ func iteratorChildResources(ctx context.Context, cluster string, k8sClient clien
 					Cluster:    cluster,
 					Object:     items[i],
 				}
-				if _, ok := globalRule[GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}]; ok {
+				if _, ok := globalRule.GetRule(GroupResourceType{Group: item.GetObjectKind().GroupVersionKind().Group, Kind: item.GetObjectKind().GroupVersionKind().Kind}); ok {
 					childrenRes, err := iteratorChildResources(ctx, cluster, k8sClient, rtn, depth+1, filter)
 					if err != nil {
 						return nil, err
@@ -780,18 +873,21 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 			continue
 		}
 		for _, rule := range customRules {
-			if cResource, ok := globalRule[*rule.ParentResourceType]; ok {
-				for _, resourceType := range rule.ChildrenResourceType {
-					if _, ok := cResource.CareResource[resourceType]; !ok {
-						cResource.CareResource[resourceType] = nil
+			if cResource, ok := globalRule.GetRule(*rule.ParentResourceType); ok {
+				for i, resourceType := range rule.ChildrenResourceType {
+					if cResource.CareResources.Get(resourceType) == nil {
+						cResource.CareResources.Put(&CareResource{ResourceType: rule.ChildrenResourceType[i]})
 					}
 				}
 			} else {
-				caredResources := map[ResourceType]genListOptionFunc{}
-				for _, resourceType := range rule.ChildrenResourceType {
-					caredResources[resourceType] = nil
+				var caredResources []*CareResource
+				for i := range rule.ChildrenResourceType {
+					caredResources = append(caredResources, &CareResource{ResourceType: rule.ChildrenResourceType[i]})
 				}
-				globalRule[*rule.ParentResourceType] = ChildrenResourcesRule{DefaultGenListOptionFunc: nil, CareResource: caredResources}
+				globalRule = append(globalRule, ChildrenResourcesRule{
+					GroupResourceType:        *rule.ParentResourceType,
+					DefaultGenListOptionFunc: nil,
+					CareResources:            buildCareResources(caredResources)})
 			}
 		}
 	}
