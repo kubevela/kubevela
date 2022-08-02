@@ -445,7 +445,7 @@ func TestGenListOption(t *testing.T) {
 	du, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&deploy)
 	assert.NoError(t, err)
 	assert.NotNil(t, du)
-	dls, err := deploy2RsLabelListOption(unstructured.Unstructured{Object: du})
+	dls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: du})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, dls)
 
@@ -453,7 +453,7 @@ func TestGenListOption(t *testing.T) {
 	rsu, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&rs)
 	assert.NoError(t, err)
 	assert.NotNil(t, du)
-	rsls, err := rs2PodLabelListOption(unstructured.Unstructured{Object: rsu})
+	rsls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: rsu})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, rsls)
 
@@ -461,7 +461,7 @@ func TestGenListOption(t *testing.T) {
 	stsu, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&sts)
 	assert.NoError(t, err)
 	assert.NotNil(t, stsu)
-	stsls, err := statefulSet2PodListOption(unstructured.Unstructured{Object: stsu})
+	stsls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: stsu})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, stsls)
 
@@ -1263,14 +1263,14 @@ var _ = Describe("unit-test to e2e test", func() {
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy1.DeepCopy())
 		Expect(err).Should(BeNil())
 		items, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u},
-			deploy2RsLabelListOption, nil, true)
+			defaultWorkloadLabelListOption, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(items)).Should(BeEquivalentTo(2))
 
 		u2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy2.DeepCopy())
 		Expect(err).Should(BeNil())
 		items2, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u2},
-			nil, deploy2RsLabelListOption, true)
+			nil, defaultWorkloadLabelListOption, true)
 		Expect(len(items2)).Should(BeEquivalentTo(1))
 
 		// test use ownerReference UId to filter
@@ -1288,7 +1288,7 @@ var _ = Describe("unit-test to e2e test", func() {
 	})
 
 	It("iterate resource", func() {
-		tn, err := iteratorChildResources(ctx, "", k8sClient, types.ResourceTreeNode{
+		tn, err := iterateListSubResources(ctx, "", k8sClient, types.ResourceTreeNode{
 			Cluster:    "",
 			Namespace:  "test-namespace",
 			Name:       "deploy1",
@@ -1445,6 +1445,7 @@ var _ = Describe("test merge globalRules", func() {
   childrenResourceType:
     - apiVersion: v1
       kind: Pod
+      defaultLabelSelector: true
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
@@ -1453,8 +1454,6 @@ var _ = Describe("test merge globalRules", func() {
     group: apps
     kind: DaemonSet
   childrenResourceType:
-    - apiVersion: v1
-      kind: Pod
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
@@ -1509,30 +1508,34 @@ childrenResourceType:
 		childrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*childrenResources.CareResources)).Should(BeEquivalentTo(2))
+		Expect(len(*childrenResources.SubResources)).Should(BeEquivalentTo(2))
 
-		crPod := childrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		crPod := childrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
 		Expect(crPod).ShouldNot(BeNil())
-		Expect(crPod.listOptions).Should(BeNil())
+		Expect(crPod.listOptions).ShouldNot(BeNil())
 
 		dsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "DaemonSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
+		Expect(len(*dsChildrenResources.SubResources)).Should(BeEquivalentTo(2))
 
-		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
-		Expect(crPod2).ShouldNot(BeNil())
-		Expect(crPod2.listOptions).Should(BeNil())
+		// with the error version
+		crPod2 := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "ControllerRevision"})
+		Expect(crPod2).Should(BeNil())
 
-		cr := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		crPod3 := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod3).ShouldNot(BeNil())
+		Expect(crPod3.listOptions).ShouldNot(BeNil())
+
+		cr := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(cr).ShouldNot(BeNil())
 		Expect(cr.listOptions).Should(BeNil())
 
 		stsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "StatefulSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*stsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
-		revisionCR := stsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(len(*stsChildrenResources.SubResources)).Should(BeEquivalentTo(2))
+		revisionCR := stsChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(revisionCR).ShouldNot(BeNil())
 		Expect(revisionCR.listOptions).Should(BeNil())
 
