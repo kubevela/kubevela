@@ -79,6 +79,9 @@ const (
 	// ReadmeFileName is the addon readme file name
 	ReadmeFileName string = "README.md"
 
+	// LegacyFineName is the addon readme lower case file name
+	LegacyReadmeFileName string = "readme.md"
+
 	// MetadataFileName is the addon meatadata.yaml file name
 	MetadataFileName string = "metadata.yaml"
 
@@ -205,7 +208,7 @@ type Pattern struct {
 var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
-	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}}
+	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: LegacyReadmeFileName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -285,6 +288,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		read func(a *UIData, reader AsyncReader, readPath string) error
 	}{
 		ReadmeFileName:          {!opt.GetDetail, readReadme},
+		LegacyReadmeFileName:    {!opt.GetDetail, readReadme},
 		MetadataFileName:        {false, readMetadata},
 		DefinitionsDirName:      {!opt.GetDefinition, readDefFile},
 		ParameterFileName:       {!opt.GetParameter, readParamFile},
@@ -481,6 +485,10 @@ func readMetadata(a *UIData, reader AsyncReader, readPath string) error {
 }
 
 func readReadme(a *UIData, reader AsyncReader, readPath string) error {
+	// the detail will contain readme.md or README.md, if the content already is filled, don't read another.
+	if len(a.Detail) != 0 {
+		return nil
+	}
 	content, err := reader.ReadFile(readPath)
 	if err != nil {
 		return err
@@ -1100,9 +1108,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 
 	for _, def := range defs {
 		addOwner(def, app)
-		err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
-		if err != nil {
-			return err
+		if checkObjectBindingComponent(*def, *app) {
+			// if binding component exist, apply the definition
+			err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1123,10 +1134,12 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	for _, o := range auxiliaryOutputs {
-		addOwner(o, app)
-		err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
-		if err != nil {
-			return err
+		if checkObjectBindingComponent(*o, *app) {
+			addOwner(o, app)
+			err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
+			if err != nil {
+				return err
+			}
 		}
 	}
 
