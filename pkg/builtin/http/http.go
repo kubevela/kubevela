@@ -131,8 +131,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		"body":        string(b),
 		"header":      resp.Header,
 		"trailer":     resp.Trailer,
-		"status":      resp.Status,
-		"status_code": resp.StatusCode,
+		"statusCode": resp.StatusCode,
 	}, err
 }
 
