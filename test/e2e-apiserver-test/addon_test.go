@@ -103,7 +103,7 @@ var _ = Describe("Test addon rest api", func() {
 			Expect(addon.Name).Should(BeEquivalentTo("mock-addon"))
 			Expect(addon.Detail).Should(BeEquivalentTo("Test addon readme.md file"))
 			Expect(len(addon.Definitions)).Should(BeEquivalentTo(1))
-			Expect(addon.Definitions[0].Name).Should(BeEquivalentTo("kustomize-json-patch"))
+			Expect(addon.Definitions[0].Name).Should(BeEquivalentTo("kustomize-json-patch-mock-adddon"))
 		})
 
 		It("enable addon ", func() {
