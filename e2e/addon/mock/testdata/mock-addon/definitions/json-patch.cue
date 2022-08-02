@@ -1,4 +1,4 @@
-"kustomize-json-patch": {
+"kustomize-json-patch-mock-adddon": {
 	attributes: {
 		podDisruptive: false
 	}
