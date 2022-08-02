@@ -290,7 +290,7 @@ func TestMakeChart(t *testing.T) {
 
 func TestCheckObjectBindingComponent(t *testing.T) {
 	existingBindingDef := unstructured.Unstructured{}
-	existingBindingDef.SetAnnotations(map[string]string{annotationBindCompKey: "kustomize"})
+	existingBindingDef.SetAnnotations(map[string]string{oam.AnnotationIgnoreWithoutCompKey: "kustomize"})
 
 	emptyAnnoDef := unstructured.Unstructured{}
 	emptyAnnoDef.SetAnnotations(map[string]string{"test": "onlyForTest"})
@@ -313,7 +313,7 @@ func TestCheckObjectBindingComponent(t *testing.T) {
 			res: false},
 	}
 	for _, s := range testCases {
-		result := checkObjectBindingComponent(s.object, s.app)
+		result := checkBondComponentExist(s.object, s.app)
 		assert.Equal(t, result, s.res)
 	}
 }
