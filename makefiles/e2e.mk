@@ -8,7 +8,8 @@ e2e-setup-core-post-hook:
 	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
 	go run ./e2e/addon/mock &
 	sleep 15
-	bin/vela addon enable rollout
+	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
+	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
 
 .PHONY: e2e-setup-core-wo-auth
 e2e-setup-core-wo-auth:
@@ -37,10 +38,10 @@ e2e-setup:
 
 	go run ./e2e/addon/mock &
 	sleep 15
-	bin/vela addon enable fluxcd
-	bin/vela addon enable terraform
-	bin/vela addon enable terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
-	bin/vela addon enable rollout
+	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
+	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
+	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
+	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
 	ginkgo version
 	ginkgo -v -r e2e/setup
 
