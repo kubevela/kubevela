@@ -6,15 +6,13 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-type (
-	KeyAction struct {
-		Description string
-		Action      func(*tcell.EventKey) *tcell.EventKey
-		Visible     bool
-		Shared      bool
-	}
-	KeyActions map[tcell.Key]KeyAction
-)
+type KeyAction struct {
+	Description string
+	Action      func(*tcell.EventKey) *tcell.EventKey
+	Visible     bool
+	Shared      bool
+}
+type KeyActions map[tcell.Key]KeyAction
 
 func (ka KeyActions) Hint() []MenuHint {
 	tmp := make([]int, 0)
@@ -22,7 +20,6 @@ func (ka KeyActions) Hint() []MenuHint {
 		tmp = append(tmp, int(k))
 	}
 	sort.Ints(tmp)
-
 	hints := make([]MenuHint, 0)
 
 	for _, key := range tmp {
@@ -36,7 +33,6 @@ func (ka KeyActions) Hint() []MenuHint {
 		}
 	}
 	return hints
-
 }
 
 func (ka KeyActions) Add(actions KeyActions) {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
@@ -20,24 +21,18 @@ func NewTable() *Table {
 
 func (t *Table) Init() {
 	t.SetBorder(true)
-	t.SetBorderPadding(0, 0, 1, 1)
-
+	t.SetBorderAttributes(tcell.AttrItalic)
+	t.SetBorderPadding(1, 1, 1, 1)
 }
 
-func (h *Table) Name() string {
-	return "TABLE"
+func (t *Table) Start() {
 }
 
-func (h *Table) Start() {
-
+func (t *Table) Stop() {
 }
 
-func (h *Table) Stop() {
-
-}
-
-func (h *Table) Hint() []model.MenuHint {
-	return h.actions.Hint()
+func (t *Table) Hint() []model.MenuHint {
+	return t.actions.Hint()
 }
 
 func (t *Table) Actions() model.KeyActions {

@@ -19,7 +19,6 @@ func NewCommand(app *App) *Command {
 }
 
 func (c *Command) Init() {
-
 }
 
 func (c *Command) exec(cmd string, component model.Component) {
@@ -39,6 +38,5 @@ func (c *Command) run(ctx context.Context, cmd string) {
 			return
 		}
 	}
-
 	c.exec(cmd, component)
 }

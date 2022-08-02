@@ -35,7 +35,6 @@ func (p *Pages) StackPush(component model.Component) {
 func (p *Pages) addAndShow(c model.Component) {
 	p.add(c)
 	p.Show(c)
-
 }
 
 // Add adds a new page.

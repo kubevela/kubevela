@@ -4,41 +4,33 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"github.com/oam-dev/kubevela/references/cli/status-ui/config"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 )
 
 type App struct {
 	*tview.Application
-	actions model.KeyActions
-
+	actions    model.KeyActions
 	Components map[string]tview.Primitive
 	Main       *Pages
-	Style      *config.Style
 }
 
 func NewApp() *App {
-	a := App{
+	a := &App{
 		Application: tview.NewApplication(),
 		actions:     make(model.KeyActions),
 		Main:        NewPages(),
 	}
 	a.Components = map[string]tview.Primitive{
-		"clusterInfo": NewClusterInfo(a.Style),
-		"menu":        NewMenu(a.Style),
-		"logo":        NewLogo(a.Style),
-		"crumbs":      NewCrumbs(a.Style),
+		"info":   NewInfo(),
+		"menu":   NewMenu(),
+		"logo":   NewLogo(),
+		"crumbs": NewCrumbs(),
 	}
-	return &a
+	return a
 }
 
 func (a *App) Init() {
-	a.bindKeys()
 	a.SetRoot(a.Main, true)
-}
-
-func (a *App) bindKeys() {
-
 }
 
 func (a *App) HasAction(key tcell.Key) (model.KeyAction, bool) {
@@ -64,8 +56,8 @@ func (a *App) QueueUpdateDraw(f func()) {
 	}()
 }
 
-func (a *App) ClusterInfo() *ClusterInfo {
-	return a.Components["clusterInfo"].(*ClusterInfo)
+func (a *App) InfoBoard() *InfoBoard {
+	return a.Components["info"].(*InfoBoard)
 }
 
 func (a *App) Logo() *Logo {

@@ -499,7 +499,11 @@ func launchUI(c common.Args, cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("cannot get k8s client: %w", err)
 	}
-	app := view.NewApp(k8sClient)
+	restConfig, err := c.GetConfig()
+	if err != nil {
+		return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
+	}
+	app := view.NewApp(k8sClient, restConfig)
 	app.Init()
 	app.Run()
 

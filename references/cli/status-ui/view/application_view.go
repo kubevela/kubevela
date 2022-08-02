@@ -56,6 +56,9 @@ func (v *ApplicationView) bindKeys() {
 
 func (v *ApplicationView) clusterView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
 
 	v.ctx = context.WithValue(v.ctx, "appName", name)

@@ -1,27 +1,58 @@
 package model
 
+import (
+	"fmt"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
+	"github.com/oam-dev/kubevela/version"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"runtime"
+	"strings"
+)
+
 type Info struct {
-	name        string
-	k8sVersion  string
-	velaVersion string
+	cluster string
 }
 
 func NewInfo() *Info {
 	return &Info{
-		name:        "local",
-		k8sVersion:  "v20.0.1",
-		velaVersion: "v1.4.8",
+		cluster: "local",
 	}
 }
 
-func (c Info) Name() string {
-	return c.name
+func (i Info) Cluster() string {
+	return i.cluster
 }
 
-func (c Info) K8SVersion() string {
-	return c.k8sVersion
+func (i Info) K8SVersion(config *rest.Config) string {
+	client, err := kubernetes.NewForConfig(config)
+	serverVersion, err := client.ServerVersion()
+	if err != nil {
+		return "UNKNOWN"
+	}
+	vStr := fmt.Sprintf("%s.%s", serverVersion.Major, strings.Replace(serverVersion.Minor, "+", "", 1))
+	return vStr
 }
 
-func (c Info) VelaVersion() string {
-	return c.velaVersion
+func (i Info) VelaCLIVersion() string {
+	return version.VelaVersion
+}
+
+func (i Info) VelaCoreVersion() string {
+	results, err := helm.GetHelmRelease(types.DefaultKubeVelaNS)
+	if err != nil {
+		return "UNKNOWN"
+	}
+
+	for _, result := range results {
+		if result.Chart.ChartFullPath() == types.DefaultKubeVelaChartName {
+			return result.Chart.AppVersion()
+		}
+	}
+	return "UNKNOWN"
+}
+
+func (i Info) GOLangVersion() string {
+	return runtime.Version()
 }

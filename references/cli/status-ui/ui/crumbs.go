@@ -4,26 +4,22 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"github.com/oam-dev/kubevela/references/cli/status-ui/config"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 )
 
 type Crumbs struct {
 	*tview.Flex
-	style *config.Style
 }
 
-func NewCrumbs(style *config.Style) *Crumbs {
+func NewCrumbs() *Crumbs {
 	c := &Crumbs{
-		Flex:  tview.NewFlex(),
-		style: style,
+		Flex: tview.NewFlex(),
 	}
 	c.init()
 	return c
 }
 
 func (c *Crumbs) init() {
-
 }
 
 func (c *Crumbs) StackPop(old, new model.Component) {

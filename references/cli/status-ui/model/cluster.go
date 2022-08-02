@@ -26,6 +26,18 @@ type ClusterList struct {
 	data  []Cluster
 }
 
+func (l *ClusterList) Header() []string {
+	return l.title
+}
+
+func (l *ClusterList) Body() [][]string {
+	data := make([][]string, 0)
+	for _, cluster := range l.data {
+		data = append(data, []string{cluster.name, cluster.alias, cluster.clusterType, cluster.endpoint, cluster.labels})
+	}
+	return data
+}
+
 func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 	list := &ClusterList{
 		title: []string{"Name", "Alias", "Type", "EndPoint", "Labels"},
@@ -69,16 +81,4 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 		}
 	}
 	return list
-}
-
-func (l *ClusterList) Header() []string {
-	return l.title
-}
-
-func (l *ClusterList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, cluster := range l.data {
-		data = append(data, []string{cluster.name, cluster.alias, cluster.clusterType, cluster.endpoint, cluster.labels})
-	}
-	return data
 }

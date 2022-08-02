@@ -5,8 +5,10 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/references/cli/status-ui/config"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
 	"github.com/oam-dev/kubevela/references/cli/status-ui/ui"
 )
@@ -16,13 +18,17 @@ type App struct {
 
 	client  client.Client
 	command *Command
+	config  config.Config
 	Content *PageStack
 }
 
-func NewApp(c client.Client) *App {
+func NewApp(c client.Client, restConfig *rest.Config) *App {
 	a := &App{
 		App:    ui.NewApp(),
 		client: c,
+		config: config.Config{
+			RestConfig: restConfig,
+		},
 	}
 	a.command = NewCommand(a)
 	a.Content = NewPageStack(a)
@@ -47,17 +53,21 @@ func (a *App) Init() {
 
 func (a *App) layout() {
 	main := tview.NewFlex().SetDirection(tview.FlexRow)
-	main.AddItem(a.buildHeader(), ui.HADER_ROW_NUM, 1, false)
+	main.SetBorder(true)
+	main.SetBorderAttributes(tcell.RuneBoard)
+	main.SetBorderPadding(0, 0, 1, 1)
+	main.AddItem(a.buildHeader(), ui.HEADER_ROW_NUM, 1, false)
 	main.AddItem(a.Content, 0, 3, true)
 	main.AddItem(a.Crumbs(), ui.FOOTER_ROW_NUM, 1, false)
-
 	a.Main.AddPage("main", main, true, false)
 }
 
 func (a *App) buildHeader() tview.Primitive {
 	header := tview.NewFlex()
 	header.SetDirection(tview.FlexColumn)
-	header.AddItem(a.ClusterInfo(), 0, 1, false)
+	info := a.InfoBoard()
+	info.Init(a.config.RestConfig)
+	header.AddItem(info, 30, 1, false)
 	header.AddItem(a.Menu(), 0, 2, false)
 	header.AddItem(a.Logo(), 45, 1, false)
 	return header
@@ -69,7 +79,10 @@ func (a *App) Run() {
 			a.Main.SwitchToPage("main")
 		})
 	}()
-	a.Application.Run()
+	err := a.Application.Run()
+	if err != nil {
+		return
+	}
 }
 
 func (a *App) bindKeys() {

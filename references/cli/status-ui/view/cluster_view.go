@@ -53,6 +53,9 @@ func (v *ClusterView) bindKeys() {
 
 func (v *ClusterView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
 	clusterName := v.GetCell(row, 0).Text
 	v.ctx = context.WithValue(v.ctx, "cluster", clusterName)
 	v.app.command.run(v.ctx, "k8s")

@@ -28,7 +28,7 @@ func (p *PageStack) StackPop(old, new model.Component) {
 }
 
 func (p *PageStack) StackPush(component model.Component) {
-	p.app.SetFocus(component)
+	//p.app.SetFocus(component)
 }
 
 func (p *PageStack) LastPage() bool {

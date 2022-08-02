@@ -5,8 +5,6 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-
-	"github.com/oam-dev/kubevela/references/cli/status-ui/config"
 )
 
 var VelaLogo = []string{
@@ -20,14 +18,12 @@ var VelaLogo = []string{
 
 type Logo struct {
 	*tview.TextView
-	Style *config.Style
 }
 
 // NewLogo returns a new logo.
-func NewLogo(style *config.Style) *Logo {
+func NewLogo() *Logo {
 	l := Logo{
 		TextView: tview.NewTextView(),
-		Style:    style,
 	}
 	l.init()
 	return &l

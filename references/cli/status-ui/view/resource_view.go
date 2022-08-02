@@ -68,7 +68,6 @@ func (v *ResourceView) buildTableBody(body [][]string) {
 			c.SetExpansion(3)
 			v.SetCell(i+1, j, c)
 		}
-
 	}
 }
 

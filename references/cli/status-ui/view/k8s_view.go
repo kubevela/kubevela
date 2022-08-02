@@ -23,6 +23,7 @@ func NewK8SView(ctx context.Context, app *App) model.Component {
 }
 
 func (v *K8SView) Init() {
+	v.SetTitle(v.Name())
 	resourceList := v.ListK8SObjects()
 	v.ResourceView.Init(resourceList)
 	v.ResourceView.Init(resourceList)
