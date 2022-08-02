@@ -21,7 +21,11 @@ jobs:
       MINIMAL_HELM_CHART: charts/vela-minimal
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
       VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
-      LOCAL_OSS_DIRECTORY: .oss/
+      LOCAL_OSS_DIRECTORY: .oss
+      HELM_CHART_NAME: vela-core
+      MINIMAL_HELM_CHART_NAME: vela-minimal
+      LEGACY_HELM_CHART_NAME: vela-core-legacy
+      VELA_ROLLOUT_HELM_CHART_NAME: vela-rollout
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
@@ -86,4 +90,10 @@ jobs:
           helm package $VELA_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
           helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
+        run: |
+          image_tag=${{ steps.get_version.outputs.VERSION }}
+          ./ossutil --config-file .ossutilconfig cp -f $LOCAL_OSS_DIRECTORY/index.yaml oss://$BUCKET/core/index.yaml
+          ./ossutil --config-file .ossutilconfig cp -f $LOCAL_OSS_DIRECTORY/$HELM_CHART_NAME-${image_tag}.tgz oss://$BUCKET/core/$HELM_CHART_NAME-${image_tag}.tgz 
+          ./ossutil --config-file .ossutilconfig cp -f $LOCAL_OSS_DIRECTORY/$MINIMAL_HELM_CHART_NAME-${image_tag}.tgz oss://$BUCKET/core/$MINIMAL_HELM_CHART_NAME-${image_tag}.tgz
+          ./ossutil --config-file .ossutilconfig cp -f $LOCAL_OSS_DIRECTORY/$LEGACY_HELM_CHART_NAME-${image_tag}.tgz oss://$BUCKET/core/$LEGACY_HELM_CHART_NAME-${image_tag}.tgz
+          ./ossutil --config-file .ossutilconfig cp -f $LOCAL_OSS_DIRECTORY/$VELA_ROLLOUT_HELM_CHART_NAME-${image_tag}.tgz oss://$BUCKET/core/$VELA_ROLLOUT_HELM_CHART_NAME-${image_tag}.tgz
