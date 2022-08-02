@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-env-and-storage
+  namespace: TEST_NAMESPACE
+spec:
+  components:
+    - name: data-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000000'
+      traits:
+        - type: env
+          properties:
+            env:
+              TZ: Asia/Shanghai
+        - type: storage
+          properties:
+            emptyDir:
+              - name: jvm
+                mountPath: /jvm

@@ -590,5 +590,18 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Satisfy(kerrors.IsNotFound))
 			}, 10*time.Second).Should(Succeed())
 		})
+
+		It("Test applications with env and storage trait", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-and-storage.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+		})
 	})
 })
