@@ -59,6 +59,10 @@ const (
 func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Application) error {
 	var comps, traits, workflowSteps, policies []string
 	for _, def := range defs {
+		if !checkObjectBindingComponent(*def, *app) {
+			// if the definition binding a component, and the component not exist, skip recording.
+			continue
+		}
 		switch def.GetObjectKind().GroupVersionKind().Kind {
 		case v1beta1.ComponentDefinitionKind:
 			comps = append(comps, def.GetName())
