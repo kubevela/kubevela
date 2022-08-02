@@ -204,4 +204,4 @@ jobs:
       - name: rsync all capabilites
         run: rsync vela-templates/registry/auto-gen/* $CAPABILITY_DIR
       - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f
+        run: ./ossutil --config-file .ossutilconfig sync $CAPABILITY_DIR oss://$CAPABILITY_BUCKET -f -u
