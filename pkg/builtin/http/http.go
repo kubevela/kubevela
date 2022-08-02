@@ -128,9 +128,10 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	b, err := io.ReadAll(resp.Body)
 	// parse response body and headers
 	return map[string]interface{}{
-		"body":    string(b),
-		"header":  resp.Header,
-		"trailer": resp.Trailer,
+		"body":       string(b),
+		"header":     resp.Header,
+		"trailer":    resp.Trailer,
+		"statusCode": resp.StatusCode,
 	}, err
 }
 
