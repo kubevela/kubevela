@@ -26,7 +26,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -250,7 +249,7 @@ func (w *WorkloadUnstructured) GetSelector() (labels.Selector, error) {
 		return labels.Everything(), nil
 	}
 	if v, ok := value.(map[string]interface{}); ok {
-		var selector metav1.LabelSelector
+		var selector v1.LabelSelector
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(v, &selector); err != nil {
 			return nil, err
 		}
