@@ -1288,7 +1288,7 @@ var _ = Describe("unit-test to e2e test", func() {
 	})
 
 	It("iterate resource", func() {
-		tn, err := iteratorChildResources(ctx, "", k8sClient, types.ResourceTreeNode{
+		tn, err := iterateListSubResources(ctx, "", k8sClient, types.ResourceTreeNode{
 			Cluster:    "",
 			Namespace:  "test-namespace",
 			Name:       "deploy1",
@@ -1508,34 +1508,34 @@ childrenResourceType:
 		childrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps.kruise.io", Kind: "CloneSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(childrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*childrenResources.CareResources)).Should(BeEquivalentTo(2))
+		Expect(len(*childrenResources.SubResources)).Should(BeEquivalentTo(2))
 
-		crPod := childrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		crPod := childrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
 		Expect(crPod).ShouldNot(BeNil())
 		Expect(crPod.listOptions).ShouldNot(BeNil())
 
 		dsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "DaemonSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
+		Expect(len(*dsChildrenResources.SubResources)).Should(BeEquivalentTo(2))
 
 		// with the error version
-		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "ControllerRevision"})
+		crPod2 := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "ControllerRevision"})
 		Expect(crPod2).Should(BeNil())
 
-		crPod3 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		crPod3 := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
 		Expect(crPod3).ShouldNot(BeNil())
 		Expect(crPod3.listOptions).ShouldNot(BeNil())
 
-		cr := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		cr := dsChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(cr).ShouldNot(BeNil())
 		Expect(cr.listOptions).Should(BeNil())
 
 		stsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "StatefulSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(stsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
-		Expect(len(*stsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
-		revisionCR := stsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
+		Expect(len(*stsChildrenResources.SubResources)).Should(BeEquivalentTo(2))
+		revisionCR := stsChildrenResources.SubResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(revisionCR).ShouldNot(BeNil())
 		Expect(revisionCR.listOptions).Should(BeNil())
 

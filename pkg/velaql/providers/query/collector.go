@@ -150,7 +150,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			Name:       resource.Name,
 			UID:        resource.UID,
 		}
-		root.LeafNodes, err = iteratorChildResources(ctx, resource.Cluster, c.k8sClient, root, 1, filter)
+		root.LeafNodes, err = iterateListSubResources(ctx, resource.Cluster, c.k8sClient, root, 1, filter)
 		if err != nil {
 			// if the resource has been deleted, continue access next appliedResource don't break the whole request
 			if kerrors.IsNotFound(err) {
