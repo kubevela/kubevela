@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	errors3 "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
@@ -68,7 +70,7 @@ type AddonService interface {
 }
 
 // AddonImpl2AddonRes convert pkgaddon.UIData to the type apiserver need
-func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error) {
+func AddonImpl2AddonRes(impl *pkgaddon.UIData, config *rest.Config) (*apis.DetailAddonResponse, error) {
 	var defs []*apis.AddonDefinition
 	for _, def := range impl.Definitions {
 		obj := &unstructured.Unstructured{}
@@ -83,6 +85,20 @@ func AddonImpl2AddonRes(impl *pkgaddon.UIData) (*apis.DetailAddonResponse, error
 			Description: obj.GetAnnotations()["definition.oam.dev/description"],
 		})
 	}
+
+	for _, cueDef := range impl.CUEDefinitions {
+		def := definition.Definition{Unstructured: unstructured.Unstructured{}}
+		err := def.FromCUEString(cueDef.Data, config)
+		if err != nil {
+			return nil, errors3.Wrapf(err, "fail to render definition: %s in cue's format", cueDef.Name)
+		}
+		defs = append(defs, &apis.AddonDefinition{
+			Name:        def.GetName(),
+			DefType:     def.GetKind(),
+			Description: def.GetAnnotations()["definition.oam.dev/description"],
+		})
+	}
+
 	if impl.Meta.DeployTo != nil && impl.Meta.DeployTo.LegacyRuntimeCluster != impl.Meta.DeployTo.RuntimeCluster {
 		impl.Meta.DeployTo.LegacyRuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
 		impl.Meta.DeployTo.RuntimeCluster = impl.Meta.DeployTo.LegacyRuntimeCluster || impl.Meta.DeployTo.RuntimeCluster
@@ -175,7 +191,7 @@ func (u *addonServiceImpl) GetAddon(ctx context.Context, name string, registry s
 
 	addon.UISchema = renderAddonCustomUISchema(ctx, u.kubeClient, name, renderDefaultUISchema(addon.APISchema))
 
-	a, err := AddonImpl2AddonRes(addon)
+	a, err := AddonImpl2AddonRes(addon, u.config)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +300,7 @@ func (u *addonServiceImpl) ListAddons(ctx context.Context, registry, query strin
 
 	var addonResources []*apis.DetailAddonResponse
 	for _, a := range addons {
-		addonRes, err := AddonImpl2AddonRes(a)
+		addonRes, err := AddonImpl2AddonRes(a, u.config)
 		if err != nil {
 			log.Logger.Errorf("err while converting AddonImpl to DetailAddonResponse: %v", err)
 			continue

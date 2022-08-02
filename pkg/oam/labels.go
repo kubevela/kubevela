@@ -226,6 +226,9 @@ const (
 
 	// AnnotationResourceURL records the source url of the Kubernetes object
 	AnnotationResourceURL = "app.oam.dev/resource-url"
+
+	// AnnotationIgnoreWithoutCompKey indicates the bond component
+	AnnotationIgnoreWithoutCompKey = "addon.oam.dev/ignore-without-component"
 )
 
 const (
