@@ -21,7 +21,7 @@ jobs:
       MINIMAL_HELM_CHART: charts/vela-minimal
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
       VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
-      LOCAL_OSS_DIRECTORY: .oss/
+      LOCAL_OSS_DIRECTORY: .oss
       HELM_CHART_NAME: vela-core
       MINIMAL_HELM_CHART_NAME: vela-minimal
       LEGACY_HELM_CHART_NAME: vela-core-legacy
