@@ -115,6 +115,9 @@ func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.Lis
 			kmaps[fmt.Sprintf(key, blit.Value)] = patchList.Elts[i]
 		}
 		if !foundPatch {
+			if len(patchList.Elts) == 0 {
+				continue
+			}
 			return
 		}
 
