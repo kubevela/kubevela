@@ -25,7 +25,7 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -a -ldflags "-s -w -X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
     -o vela ./references/cmd/cli/main.go
 
-FROM ghcr.io/cloudtty/cloudshell:v0.2.0
+FROM hub.kubevela.net/oamdev/cloudshell:v0.2.1
 RUN apt-get install -y vim
 ENV API_TOKEN_PATH=/usr/local/kubeconfig/token
 COPY --from=builder /workspace/vela  /usr/local/bin/vela
