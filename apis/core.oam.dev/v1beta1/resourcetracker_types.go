@@ -82,6 +82,8 @@ type ManagedResource struct {
 	Data *runtime.RawExtension `json:"raw,omitempty"`
 	// Deleted marks the resource to be deleted
 	Deleted bool `json:"deleted,omitempty"`
+	// SkipGC marks the resource to skip gc
+	SkipGC bool `json:"skipGC,omitempty"`
 }
 
 // Equal check if two managed resource equals
@@ -215,8 +217,9 @@ func (in *ResourceTracker) ContainsManagedResource(rsc client.Object) bool {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, creator common.ResourceCreatorRole) (updated bool) {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, skipGC bool, creator common.ResourceCreatorRole) (updated bool) {
 	mr := newManagedResourceFromResource(rsc)
+	mr.SkipGC = skipGC
 	if !metaOnly {
 		mr.Data = &runtime.RawExtension{Object: rsc}
 	}

@@ -62,12 +62,12 @@ type GarbageCollectPolicyRule struct {
 // if one resource is specified with conflict strategies, strategy as component go first.
 // 2) for ApplyOncePolicyRule only CompNames and ResourceTypes are used
 type ResourcePolicyRuleSelector struct {
-	CompNames        []string `json:"componentNames"`
-	CompTypes        []string `json:"componentTypes"`
-	OAMResourceTypes []string `json:"oamTypes"`
-	TraitTypes       []string `json:"traitTypes"`
-	ResourceTypes    []string `json:"resourceTypes"`
-	ResourceNames    []string `json:"resourceNames"`
+	CompNames        []string `json:"componentNames,omitempty"`
+	CompTypes        []string `json:"componentTypes,omitempty"`
+	OAMResourceTypes []string `json:"oamTypes,omitempty"`
+	TraitTypes       []string `json:"traitTypes,omitempty"`
+	ResourceTypes    []string `json:"resourceTypes,omitempty"`
+	ResourceNames    []string `json:"resourceNames,omitempty"`
 }
 
 // Match check if current rule selector match the target resource
