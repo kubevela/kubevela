@@ -104,6 +104,7 @@ func authCheckFilter(req *restful.Request, res *restful.Response, chain *restful
 		}
 		if tokenValue == "" {
 			bcode.ReturnError(req, res, bcode.ErrNotAuthorized)
+			return
 		}
 	}
 
