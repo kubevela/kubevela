@@ -76,6 +76,8 @@ func ApplyMockServerConfig() error {
 	} else {
 		cm.ResourceVersion = originCm.ResourceVersion
 		if err = k8sClient.Update(ctx, &cm); err != nil {
+			fmt.Println("print errr------")
+			fmt.Println(err)
 			return err
 		}
 	}
