@@ -72,19 +72,17 @@ func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.U
 
 func (h *resourceKeeper) delete(ctx context.Context, manifest *unstructured.Unstructured, cfg *deleteConfig) (err error) {
 	// 1. mark manifests as deleted in resourcetracker
-	if !cfg.skipRT {
-		var rt *v1beta1.ResourceTracker
-		if cfg.useRoot {
-			rt, err = h.getRootRT(ctx)
-		} else {
-			rt, err = h.getCurrentRT(ctx)
-		}
-		if err != nil {
-			return errors.Wrapf(err, "failed to get resourcetracker")
-		}
-		if err = resourcetracker.DeletedManifestInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, manifest, false); err != nil {
-			return errors.Wrapf(err, "failed to delete resources in resourcetracker")
-		}
+	var rt *v1beta1.ResourceTracker
+	if cfg.useRoot || cfg.skipGC {
+		rt, err = h.getRootRT(ctx)
+	} else {
+		rt, err = h.getCurrentRT(ctx)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "failed to get resourcetracker")
+	}
+	if err = resourcetracker.DeletedManifestInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, manifest, false); err != nil {
+		return errors.Wrapf(err, "failed to delete resources in resourcetracker")
 	}
 	// 2. delete manifests
 	deleteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))

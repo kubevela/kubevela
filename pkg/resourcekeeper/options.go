@@ -23,7 +23,7 @@ import (
 
 type rtConfig struct {
 	useRoot bool
-	skipRT  bool
+	skipGC  bool
 }
 
 // MetaOnlyOption record only meta part in resourcetracker, which disables the configuration-drift-prevention
@@ -40,15 +40,14 @@ type CreatorOption struct {
 // ApplyToDispatchConfig apply change to dispatch config
 func (option CreatorOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.creator = option.Creator }
 
-// SkipRTOption skip the rt recording during dispatch/delete resources, which means the resource will not be controlled
-// by application resourcetracker
-type SkipRTOption struct{}
+// SkipGCOption marks the recorded resource to skip gc
+type SkipGCOption struct{}
 
 // ApplyToDispatchConfig apply change to dispatch config
-func (option SkipRTOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.skipRT = true }
+func (option SkipGCOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.skipGC = true }
 
 // ApplyToDeleteConfig apply change to delete config
-func (option SkipRTOption) ApplyToDeleteConfig(cfg *deleteConfig) { cfg.skipRT = true }
+func (option SkipGCOption) ApplyToDeleteConfig(cfg *deleteConfig) { cfg.skipGC = true }
 
 // UseRootOption let the recording and management of target resource belongs to the RootRT instead of VersionedRT. This
 // will let the resource be alive as long as the application is still alive.
@@ -106,13 +105,13 @@ type GarbageCollectStrategyOption v1alpha1.GarbageCollectStrategy
 func (option GarbageCollectStrategyOption) applyToRTConfig(cfg *rtConfig) {
 	switch v1alpha1.GarbageCollectStrategy(option) {
 	case v1alpha1.GarbageCollectStrategyOnAppUpdate:
-		cfg.skipRT = false
+		cfg.skipGC = false
 		cfg.useRoot = false
 	case v1alpha1.GarbageCollectStrategyOnAppDelete:
-		cfg.skipRT = false
+		cfg.skipGC = false
 		cfg.useRoot = true
 	case v1alpha1.GarbageCollectStrategyNever:
-		cfg.skipRT = true
+		cfg.skipGC = true
 	}
 }
 

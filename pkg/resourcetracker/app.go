@@ -213,12 +213,16 @@ func RecordManifestsInResourceTracker(
 	rt *v1beta1.ResourceTracker,
 	manifests []*unstructured.Unstructured,
 	metaOnly bool,
+	skipGC bool,
 	creator common.ResourceCreatorRole) error {
 	if len(manifests) != 0 {
+		updated := false
 		for _, manifest := range manifests {
-			rt.AddManagedResource(manifest, metaOnly, creator)
+			updated = rt.AddManagedResource(manifest, metaOnly, skipGC, creator) || updated
 		}
-		return cli.Update(ctx, rt)
+		if updated {
+			return cli.Update(ctx, rt)
+		}
 	}
 	return nil
 }

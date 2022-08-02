@@ -31,9 +31,9 @@ func TestDispatchOptions(t *testing.T) {
 			option: MetaOnlyOption{},
 			cfg:    dispatchConfig{metaOnly: true},
 		},
-		"skip-rt": {
-			option: SkipRTOption{},
-			cfg:    dispatchConfig{rtConfig: rtConfig{skipRT: true}},
+		"skip-gc": {
+			option: SkipGCOption{},
+			cfg:    dispatchConfig{rtConfig: rtConfig{skipGC: true}},
 		},
 		"use-root": {
 			option: UseRootOption{},
@@ -52,9 +52,9 @@ func TestDeleteOptions(t *testing.T) {
 		option DeleteOption
 		cfg    deleteConfig
 	}{
-		"skip-rt": {
-			option: SkipRTOption{},
-			cfg:    deleteConfig{rtConfig: rtConfig{skipRT: true}},
+		"skip-gc": {
+			option: SkipGCOption{},
+			cfg:    deleteConfig{rtConfig: rtConfig{skipGC: true}},
 		},
 		"use-root": {
 			option: UseRootOption{},
