@@ -445,7 +445,7 @@ func TestGenListOption(t *testing.T) {
 	du, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&deploy)
 	assert.NoError(t, err)
 	assert.NotNil(t, du)
-	dls, err := deploy2RsLabelListOption(unstructured.Unstructured{Object: du})
+	dls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: du})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, dls)
 
@@ -453,7 +453,7 @@ func TestGenListOption(t *testing.T) {
 	rsu, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&rs)
 	assert.NoError(t, err)
 	assert.NotNil(t, du)
-	rsls, err := rs2PodLabelListOption(unstructured.Unstructured{Object: rsu})
+	rsls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: rsu})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, rsls)
 
@@ -461,7 +461,7 @@ func TestGenListOption(t *testing.T) {
 	stsu, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&sts)
 	assert.NoError(t, err)
 	assert.NotNil(t, stsu)
-	stsls, err := statefulSet2PodListOption(unstructured.Unstructured{Object: stsu})
+	stsls, err := defaultWorkloadLabelListOption(unstructured.Unstructured{Object: stsu})
 	assert.NoError(t, err)
 	assert.Equal(t, listOption, stsls)
 
@@ -1263,14 +1263,14 @@ var _ = Describe("unit-test to e2e test", func() {
 		u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy1.DeepCopy())
 		Expect(err).Should(BeNil())
 		items, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u},
-			deploy2RsLabelListOption, nil, true)
+			defaultWorkloadLabelListOption, nil, true)
 		Expect(err).Should(BeNil())
 		Expect(len(items)).Should(BeEquivalentTo(2))
 
 		u2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deploy2.DeepCopy())
 		Expect(err).Should(BeNil())
 		items2, err := listItemByRule(ctx, k8sClient, ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"}, unstructured.Unstructured{Object: u2},
-			nil, deploy2RsLabelListOption, true)
+			nil, defaultWorkloadLabelListOption, true)
 		Expect(len(items2)).Should(BeEquivalentTo(1))
 
 		// test use ownerReference UId to filter
@@ -1445,6 +1445,7 @@ var _ = Describe("test merge globalRules", func() {
   childrenResourceType:
     - apiVersion: v1
       kind: Pod
+      defaultLabelSelector: true
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
@@ -1453,8 +1454,6 @@ var _ = Describe("test merge globalRules", func() {
     group: apps
     kind: DaemonSet
   childrenResourceType:
-    - apiVersion: v1
-      kind: Pod
     - apiVersion: apps/v1
       kind: ControllerRevision
 `
@@ -1513,16 +1512,20 @@ childrenResourceType:
 
 		crPod := childrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
 		Expect(crPod).ShouldNot(BeNil())
-		Expect(crPod.listOptions).Should(BeNil())
+		Expect(crPod.listOptions).ShouldNot(BeNil())
 
 		dsChildrenResources, ok := globalRule.GetRule(GroupResourceType{Group: "apps", Kind: "DaemonSet"})
 		Expect(ok).Should(BeTrue())
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
 		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
 
-		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "ControllerRevision"})
 		Expect(crPod2).ShouldNot(BeNil())
 		Expect(crPod2.listOptions).Should(BeNil())
+
+		crPod3 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
+		Expect(crPod3).ShouldNot(BeNil())
+		Expect(crPod3.listOptions).ShouldNot(BeNil())
 
 		cr := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "apps/v1", Kind: "ControllerRevision"})
 		Expect(cr).ShouldNot(BeNil())
