@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-gc-policy-change-test
+  namespace: TEST_NAMESPACE
+spec:
+  components:
+    - name: gc-policy-test
+      properties:
+        objects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: gc-policy-test
+          data:
+            key: value
+      type: k8s-objects
+  policies:
+    - name: gc-policy
+      type: garbage-collect
+      properties:
+        rules:
+          - selector:
+              resourceTypes: ["ConfigMap"]
+            strategy: onAppUpdate
+    - name: topology
+      type: topology
+      properties:
+        clusters: ["local"]

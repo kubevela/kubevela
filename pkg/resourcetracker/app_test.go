@@ -100,7 +100,7 @@ func TestRecordAndDeleteManifestsInResourceTracker(t *testing.T) {
 		obj := &unstructured.Unstructured{}
 		obj.SetName(fmt.Sprintf("workload-%d", i))
 		objs = append(objs, obj)
-		r.NoError(RecordManifestsInResourceTracker(context.Background(), cli, rt, []*unstructured.Unstructured{obj}, rand.Int()%2 == 0, ""))
+		r.NoError(RecordManifestsInResourceTracker(context.Background(), cli, rt, []*unstructured.Unstructured{obj}, rand.Int()%2 == 0, false, ""))
 	}
 	rand.Shuffle(len(objs), func(i, j int) { objs[i], objs[j] = objs[j], objs[i] })
 	for i := 0; i < n; i++ {
