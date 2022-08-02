@@ -52,14 +52,13 @@ const (
 	traitMapKey               = "trait"
 	wfStepMapKey              = "wfStep"
 	policyMapKey              = "policy"
-	annotationBindCompKey     = "addon.oam.dev/ignore-without-component"
 )
 
 // parse addon's created x-defs in addon-app's annotation, this will be used to check whether app still using it while disabling.
 func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Application) error {
 	var comps, traits, workflowSteps, policies []string
 	for _, def := range defs {
-		if !checkObjectBindingComponent(*def, *app) {
+		if !checkBondComponentExist(*def, *app) {
 			// if the definition binding a component, and the component not exist, skip recording.
 			continue
 		}
@@ -480,17 +479,17 @@ func produceDefConflictError(conflictDefs map[string]string) error {
 	return errors.New(errorInfo)
 }
 
-// checkObjectRelatedComponent will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
+// checkBondComponentExistt will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
 // if the target component not exist, return false.
-func checkObjectBindingComponent(u unstructured.Unstructured, app v1beta1.Application) bool {
-	comp, existKey := u.GetAnnotations()[annotationBindCompKey]
+func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Application) bool {
+	comp, existKey := u.GetAnnotations()[oam.AnnotationIgnoreWithoutCompKey]
 	if !existKey {
 		// if an object(def or auxiliary outputs ) binding no components return true
 		return true
 	}
 	for _, component := range app.Spec.Components {
 		if component.Name == comp {
-			// find the match component, return ture
+			// the bond component exists, return ture
 			return true
 		}
 	}

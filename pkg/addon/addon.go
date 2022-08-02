@@ -1107,13 +1107,14 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	for _, def := range defs {
+		if !checkBondComponentExist(*def, *app) {
+			continue
+		}
+		// if binding component exist, apply the definition
 		addOwner(def, app)
-		if checkObjectBindingComponent(*def, *app) {
-			// if binding component exist, apply the definition
-			err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
-			if err != nil {
-				return err
-			}
+		err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
+		if err != nil {
+			return err
 		}
 	}
 
@@ -1134,12 +1135,13 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	for _, o := range auxiliaryOutputs {
-		if checkObjectBindingComponent(*o, *app) {
-			addOwner(o, app)
-			err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
-			if err != nil {
-				return err
-			}
+		if !checkBondComponentExist(*o, *app) {
+			continue
+		}
+		addOwner(o, app)
+		err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
+		if err != nil {
+			return err
 		}
 	}
 
