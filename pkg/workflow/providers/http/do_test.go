@@ -57,6 +57,8 @@ func TestHttpDo(t *testing.T) {
 			body: string
 			header?:  [string]: [...string]
 			trailer?: [string]: [...string]
+			status: string
+			status_code: number
 		})
 `
 	testCases := map[string]struct {
