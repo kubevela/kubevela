@@ -1519,9 +1519,9 @@ childrenResourceType:
 		Expect(dsChildrenResources.DefaultGenListOptionFunc).Should(BeNil())
 		Expect(len(*dsChildrenResources.CareResources)).Should(BeEquivalentTo(2))
 
+		// with the error version
 		crPod2 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "ControllerRevision"})
-		Expect(crPod2).ShouldNot(BeNil())
-		Expect(crPod2.listOptions).Should(BeNil())
+		Expect(crPod2).Should(BeNil())
 
 		crPod3 := dsChildrenResources.CareResources.Get(ResourceType{APIVersion: "v1", Kind: "Pod"})
 		Expect(crPod3).ShouldNot(BeNil())
