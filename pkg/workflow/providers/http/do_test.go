@@ -63,12 +63,14 @@ func TestHttpDo(t *testing.T) {
 	testCases := map[string]struct {
 		request      string
 		expectedBody string
+		statusCode   int64
 	}{
 		"hello": {
 			request: baseTemplate + `
 method: "GET"
 url: "http://127.0.0.1:1229/hello"`,
 			expectedBody: `hello`,
+			statusCode: 200,
 		},
 
 		"echo": {
@@ -80,6 +82,7 @@ request:{
    header: "Content-Type": "text/plain; charset=utf-8"
 }`,
 			expectedBody: `I am vela`,
+			statusCode: 200,
 		},
 		"json": {
 			request: `
@@ -96,6 +99,7 @@ request:{
    header: "Content-Type": "application/json; charset=utf-8"
 }` + baseTemplate,
 			expectedBody: `{"name":"foo","score":100}`,
+			statusCode: 200,
 		},
 	}
 
@@ -110,6 +114,11 @@ request:{
 		ret, err := body.CueValue().String()
 		assert.NilError(t, err, tName)
 		assert.Equal(t, ret, tCase.expectedBody, tName)
+		statusCode, err := v.LookupValue("response", "statusCode")
+		assert.NilError(t, err, tName)
+		code, err := statusCode.CueValue().Int64()
+		assert.NilError(t, err, tName)
+		assert.Equal(t, code, tCase.statusCode, tName)
 	}
 }
 
