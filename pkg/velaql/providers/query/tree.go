@@ -26,8 +26,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/duration"
@@ -76,7 +78,7 @@ func init() {
 			CareResources: buildCareResources([]*CareResource{
 				{
 					ResourceType: ResourceType{APIVersion: "apps/v1", Kind: "ReplicaSet"},
-					listOptions:  deploy2RsLabelListOption,
+					listOptions:  defaultWorkloadLabelListOption,
 				},
 			}),
 		},
@@ -84,7 +86,7 @@ func init() {
 			CareResources: buildCareResources([]*CareResource{
 				{
 					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
-					listOptions:  rs2PodLabelListOption,
+					listOptions:  defaultWorkloadLabelListOption,
 				},
 			}),
 			GroupResourceType: GroupResourceType{Group: "apps", Kind: "ReplicaSet"},
@@ -93,10 +95,19 @@ func init() {
 			CareResources: buildCareResources([]*CareResource{
 				{
 					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
-					listOptions:  statefulSet2PodListOption,
+					listOptions:  defaultWorkloadLabelListOption,
 				},
 			}),
 			GroupResourceType: GroupResourceType{Group: "apps", Kind: "StatefulSet"},
+		},
+		ChildrenResourcesRule{
+			CareResources: buildCareResources([]*CareResource{
+				{
+					ResourceType: ResourceType{APIVersion: "v1", Kind: "Pod"},
+					listOptions:  defaultWorkloadLabelListOption,
+				},
+			}),
+			GroupResourceType: GroupResourceType{Group: "apps", Kind: "DaemonSet"},
 		},
 		ChildrenResourcesRule{
 			GroupResourceType: GroupResourceType{Group: "", Kind: "Service"},
@@ -170,8 +181,15 @@ type ResourceType struct {
 
 // customRule define the customize rule created by user
 type customRule struct {
-	ParentResourceType   *GroupResourceType `json:"parentResourceType,omitempty"`
-	ChildrenResourceType []ResourceType     `json:"childrenResourceType,omitempty"`
+	ParentResourceType   *GroupResourceType   `json:"parentResourceType,omitempty"`
+	ChildrenResourceType []CustomCareResource `json:"childrenResourceType,omitempty"`
+}
+
+// CustomCareResource the custom care resource in configmap. support set the label policy
+type CustomCareResource struct {
+	ResourceType `json:",inline"`
+	// defaultLabelSelector means read the label selector condition from the spec.selector.
+	DefaultLabelSelector bool `json:"defaultLabelSelector"`
 }
 
 // ChildrenResourcesRule define the relationShip between parentObject and children resource
@@ -217,43 +235,37 @@ type CareResource struct {
 
 type genListOptionFunc func(unstructured.Unstructured) (client.ListOptions, error)
 
-var deploy2RsLabelListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
-	deploy := appsv1.Deployment{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &deploy)
-	if err != nil {
-		return client.ListOptions{}, err
-	}
-	deploySelector, err := v1.LabelSelectorAsSelector(deploy.Spec.Selector)
-	if err != nil {
-		return client.ListOptions{}, err
-	}
-	return client.ListOptions{Namespace: deploy.Namespace, LabelSelector: deploySelector}, nil
+// WorkloadUnstructured the workload unstructured, such as Deployment、Job、StatefulSet、ReplicaSet and DaemonSet
+type WorkloadUnstructured struct {
+	unstructured.Unstructured
 }
 
-var rs2PodLabelListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
-	rs := appsv1.ReplicaSet{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &rs)
+// GetSelector get the selector from the field path: spec.selector
+func (w *WorkloadUnstructured) GetSelector() (labels.Selector, error) {
+	value, exist, err := unstructured.NestedFieldNoCopy(w.Object, "spec", "selector")
 	if err != nil {
-		return client.ListOptions{}, err
+		return nil, err
 	}
-	rsSelector, err := v1.LabelSelectorAsSelector(rs.Spec.Selector)
-	if err != nil {
-		return client.ListOptions{}, err
+	if !exist {
+		return labels.Everything(), nil
 	}
-	return client.ListOptions{Namespace: rs.Namespace, LabelSelector: rsSelector}, nil
+	if v, ok := value.(map[string]interface{}); ok {
+		var selector metav1.LabelSelector
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(v, &selector); err != nil {
+			return nil, err
+		}
+		return v1.LabelSelectorAsSelector(&selector)
+	}
+	return labels.Everything(), nil
 }
 
-var statefulSet2PodListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
-	sts := appsv1.StatefulSet{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &sts)
+var defaultWorkloadLabelListOption genListOptionFunc = func(obj unstructured.Unstructured) (client.ListOptions, error) {
+	workload := WorkloadUnstructured{obj}
+	deploySelector, err := workload.GetSelector()
 	if err != nil {
 		return client.ListOptions{}, err
 	}
-	stsSelector, err := v1.LabelSelectorAsSelector(sts.Spec.Selector)
-	if err != nil {
-		return client.ListOptions{}, err
-	}
-	return client.ListOptions{Namespace: sts.Namespace, LabelSelector: stsSelector}, nil
+	return client.ListOptions{Namespace: obj.GetNamespace(), LabelSelector: deploySelector}, nil
 }
 
 var service2EndpointListOption = func(obj unstructured.Unstructured) (client.ListOptions, error) {
@@ -873,16 +885,17 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 			continue
 		}
 		for _, rule := range customRules {
+
 			if cResource, ok := globalRule.GetRule(*rule.ParentResourceType); ok {
 				for i, resourceType := range rule.ChildrenResourceType {
-					if cResource.CareResources.Get(resourceType) == nil {
-						cResource.CareResources.Put(&CareResource{ResourceType: rule.ChildrenResourceType[i]})
+					if cResource.CareResources.Get(resourceType.ResourceType) == nil {
+						cResource.CareResources.Put(buildCareResource(rule.ChildrenResourceType[i]))
 					}
 				}
 			} else {
 				var caredResources []*CareResource
 				for i := range rule.ChildrenResourceType {
-					caredResources = append(caredResources, &CareResource{ResourceType: rule.ChildrenResourceType[i]})
+					caredResources = append(caredResources, buildCareResource(rule.ChildrenResourceType[i]))
 				}
 				globalRule = append(globalRule, ChildrenResourcesRule{
 					GroupResourceType:        *rule.ParentResourceType,
@@ -892,4 +905,14 @@ func mergeCustomRules(ctx context.Context, k8sClient client.Client) error {
 		}
 	}
 	return nil
+}
+
+func buildCareResource(cus CustomCareResource) *CareResource {
+	cr := CareResource{
+		ResourceType: cus.ResourceType,
+	}
+	if cus.DefaultLabelSelector {
+		cr.listOptions = defaultWorkloadLabelListOption
+	}
+	return &cr
 }
