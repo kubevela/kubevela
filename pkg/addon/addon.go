@@ -79,7 +79,7 @@ const (
 	// ReadmeFileName is the addon readme file name
 	ReadmeFileName string = "README.md"
 
-	// LegacyFineName is the addon readme lower case file name
+	// LegacyReadmeFileName is the addon readme lower case file name
 	LegacyReadmeFileName string = "readme.md"
 
 	// MetadataFileName is the addon meatadata.yaml file name
