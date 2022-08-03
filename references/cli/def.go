@@ -857,7 +857,7 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 			"# Command below will convert the ./defs/my-trait.cue file to kubernetes CRD object and print it without applying it to kubernetes\n" +
 			"> vela def apply ./defs/my-trait.cue --dry-run" +
 			"# Apply a CUE from URL \n" +
-			"> vela def apply https://<my-host-to-def>/my-trait.cue --dry-run" +
+			"> vela def apply https://my-host-to-def/my-trait.cue --dry-run" +
 			"# Apply a CUE from stdin \n" +
 			"> vela def apply -",
 		Args: cobra.ExactValidArgs(1),

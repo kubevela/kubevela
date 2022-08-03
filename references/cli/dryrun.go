@@ -56,10 +56,10 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		DisableFlagsInUseLine: true,
 		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
 		Long: `Dry-run application locally, render the Kubernetes resources as result to stdout.
-	vela dry-run -d <definition file or directory> -f /path/to/app.yaml
+	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml
 
 You can also specify a remote url for app:
-	vela dry-run -d <definition file or directory> -f https://<remote-host>/app.yaml
+	vela dry-run -d /definition/directory/or/file/ -f https://remote-host/app.yaml
 `,
 		Example: "vela dry-run",
 		Annotations: map[string]string{

@@ -56,15 +56,15 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 		Use:   "ql",
 		Short: "Show result of executing velaQL.",
 		Long: `Show result of executing velaQL, use it like:
-		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
+		vela ql --query "inner-view-name{param1=value1,param2=value2}"
 		vela ql --file ./ql.cue`,
 		Example: `  Users can query with a query statement:
-		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
+		vela ql --query "inner-view-name{param1=value1,param2=value2}"
 
   Query by a ql file:
 		vela ql --file ./ql.cue
   Query by a ql file from remote url:
-		vela ql --file https://<my-host-to-cue>/ql.cue
+		vela ql --file https://my.host.to.cue/ql.cue
   Query by a ql file from stdin:
 		cat ./ql.cue | vela ql --file -
 
