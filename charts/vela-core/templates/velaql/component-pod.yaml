@@ -1,3 +1,5 @@
+{{- $namespace := include "systemDefinitionNamespace" . }}
+{{- if (lookup "v1" "ConfigMap" $namespace "component-pod-view") }}
 apiVersion: v1
 data:
   template: |
@@ -73,3 +75,4 @@ kind: ConfigMap
 metadata:
   name: component-pod-view
   namespace: {{ include "systemDefinitionNamespace" . }}
+{{- end }}
