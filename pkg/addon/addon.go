@@ -683,7 +683,7 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 	for _, def := range addon.Definitions {
 		obj, err := renderObject(def)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render definition file %s", def.Name)
 		}
 		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
 		obj.SetNamespace(types.DefaultKubeVelaNS)
@@ -712,7 +712,7 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 	for _, teml := range addon.DefSchemas {
 		u, err := renderSchemaConfigmap(teml)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render uiSchema file %s", teml.Name)
 		}
 		schemaConfigmaps = append(schemaConfigmaps, u)
 	}
@@ -725,14 +725,14 @@ func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	for _, view := range addon.YAMLViews {
 		obj, err := renderObject(view)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render velaQL view file %s", view.Name)
 		}
 		views = append(views, obj)
 	}
 	for _, view := range addon.CUEViews {
 		obj, err := renderCUEView(view)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render velaQL view file %s", view.Name)
 		}
 		views = append(views, obj)
 	}
@@ -796,7 +796,7 @@ func renderK8sObjectsComponent(elems []ElementFile, addonName string) (*common2.
 	for _, elem := range elems {
 		obj, err := renderObject(elem)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render resource file %s", elem.Name)
 		}
 		objects = append(objects, obj)
 	}
