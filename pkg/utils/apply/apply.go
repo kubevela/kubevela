@@ -299,7 +299,10 @@ func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
 			return nil
 		}
 		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
-		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) {
+		// if the existing object has no resource version, it means this resource is an API response not directly from
+		// an etcd object but from some external services, such as vela-prism. Then the response does not necessarily
+		// contain the owner
+		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) && existing.GetResourceVersion() != "" {
 			return fmt.Errorf("%s %s/%s exists but not managed by any application now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
 		}
 		if controlledBy != "" && controlledBy != appKey {
