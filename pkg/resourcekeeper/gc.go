@@ -232,7 +232,7 @@ func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, 
 		if entry.err != nil {
 			return false, entry.mr, entry.err
 		}
-		if entry.exists && entry.gcExecutorRT == rt {
+		if entry.exists && entry.gcExecutorRT == rt && !mr.SkipGC {
 			return false, entry.mr, nil
 		}
 	}
@@ -347,12 +347,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 			}
 		}
 		if mr.SkipGC {
-			if labels := entry.obj.GetLabels(); labels != nil {
-				delete(labels, oam.LabelAppName)
-				delete(labels, oam.LabelAppNamespace)
-				entry.obj.SetLabels(labels)
-			}
-			return errors.Wrapf(h.Client.Update(ctx, entry.obj), "failed to remove owner labels for resource while skipping gc")
+			return nil
 		}
 		if err := h.Client.Delete(_ctx, entry.obj); err != nil && !kerrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
