@@ -380,18 +380,20 @@ func TestMustBeControlledByApp(t *testing.T) {
 			hasError: false,
 		},
 		"old app has no label": {
-			existing: &appsv1.Deployment{},
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{ResourceVersion: "-"}},
 			hasError: true,
 		},
 		"old app has no app label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{},
+				Labels:          map[string]string{},
+				ResourceVersion: "-",
 			}},
 			hasError: true,
 		},
 		"old app has no app ns label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{oam.LabelAppName: "app"},
+				Labels:          map[string]string{oam.LabelAppName: "app"},
+				ResourceVersion: "-",
 			}},
 			hasError: true,
 		},
@@ -412,6 +414,18 @@ func TestMustBeControlledByApp(t *testing.T) {
 				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "ns"},
 			}},
 			hasError: true,
+		},
+		"old app has no resource version but with bad app key": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "ns"},
+			}},
+			hasError: true,
+		},
+		"old app has no resource version": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{},
+			}},
+			hasError: false,
 		},
 	}
 	for name, tc := range testCases {
