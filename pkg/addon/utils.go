@@ -461,7 +461,7 @@ func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*uns
 			}
 		}
 		if err != nil && !errors2.IsNotFound(err) {
-			return nil, fmt.Errorf("error checking definition %s: %w", def.GetName(), err)
+			return nil,  errors.Wrapf(err, "check definition %s", def.GetName())
 		}
 	}
 	return res, nil
