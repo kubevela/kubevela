@@ -328,7 +328,7 @@ func renderResources(addon *InstallPackage, args map[string]interface{}) ([]comm
 	if len(addon.YAMLTemplates) != 0 {
 		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
 		if err != nil {
-			return nil, errors.Wrap(err, "fail to render yaml template")
+			return nil, errors.Wrapf(err, "render components from yaml template")
 		}
 		resources = append(resources, *comp)
 	}
