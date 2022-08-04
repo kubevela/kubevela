@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -83,12 +83,7 @@ metadata: name: "test"
 	}
 
 	for _, v := range testCases {
-		var r cue.Runtime
-		inst, err := r.Compile("-", v.src)
-		if err != nil {
-			t.Error(err)
-			return
-		}
+		inst := cuecontext.New().CompileString(v.src)
 		base, err := NewBase(inst.Value())
 		if err != nil {
 			t.Error(err)
@@ -169,9 +164,7 @@ output: {
 }
 `
 
-	var r cue.Runtime
-	inst, err := r.Compile("-", base)
-	assert.NoError(t, err)
+	inst := cuecontext.New().CompileString(base)
 	newbase, err := NewBase(inst.Value())
 	assert.NoError(t, err)
 	data, err := newbase.Unstructured()
@@ -181,26 +174,27 @@ output: {
 }
 
 func TestError(t *testing.T) {
+	ctx := cuecontext.New()
 	ins := &instance{
-		v: ``,
+		v: ctx.CompileString(``),
 	}
 	_, err := ins.Unstructured()
 	assert.Equal(t, err.Error(), "Object 'Kind' is missing in '{}'")
 	ins = &instance{
-		v: `
+		v: ctx.CompileString(`
 apiVersion: "apps/v1"
 kind:       "Deployment"
 metadata: name: parameter.name
-`,
+`),
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), fmt.Sprintf(`failed to have the workload/trait unstructured: metadata.name: reference "%s" not found`, ParameterFieldName))
+	assert.Equal(t, err.Error(), fmt.Sprintf("failed to have the workload/trait unstructured: metadata.name: reference \"%s\" not found", ParameterFieldName))
 	ins = &instance{
-		v: `
+		v: ctx.CompileString(`
 apiVersion: "apps/v1"
 kind:       "Deployment"
 metadata: name: "abc"
-`,
+`),
 	}
 	obj, err := ins.Unstructured()
 	assert.Equal(t, err, nil)
@@ -215,7 +209,7 @@ metadata: name: "abc"
 	})
 
 	ins = &instance{
-		v: `
+		v: ctx.CompileString(`
 apiVersion: "source.toolkit.fluxcd.io/v1beta1"
 metadata: {
 	name: "grafana"
@@ -224,7 +218,7 @@ kind: "HelmRepository"
 spec: {
 	url:      string
 	interval: *"5m" | string
-}`,
+}`),
 	}
 	o, err := ins.Unstructured()
 	assert.Nil(t, o)

@@ -26,6 +26,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/encoding/jsonschema"
 	"github.com/pkg/errors"
@@ -106,6 +108,7 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 }
 
 // ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
+// nolint:staticcheck
 func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
 	var r cue.Runtime
 	if pd == nil {
@@ -118,6 +121,21 @@ func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (i
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()
 	return r.Build(bi)
+}
+
+// ImportPackagesAndBuildValue Combine import built-in packages and build cue template together to avoid data race
+func (pd *PackageDiscover) ImportPackagesAndBuildValue(bi *build.Instance) (val cue.Value, err error) {
+	cuectx := cuecontext.New()
+	if pd == nil {
+		return cuectx.BuildInstance(bi), nil
+	}
+	pd.ImportBuiltinPackagesFor(bi)
+	if err := stdlib.AddImportsFor(bi, ""); err != nil {
+		return cue.Value{}, err
+	}
+	pd.mutex.Lock()
+	defer pd.mutex.Unlock()
+	return cuectx.BuildInstance(bi), nil
 }
 
 // ListPackageKinds list packages and their kinds
@@ -189,7 +207,11 @@ func (pd *PackageDiscover) pkgBuild(packages map[string]*pkgInstance, pkgName st
 		DefinitionName: "#" + dGVK.Kind,
 	})
 
-	if err := pkg.AddFile(dGVK.reverseString(), def); err != nil {
+	file, err := parser.ParseFile(dGVK.reverseString(), def)
+	if err != nil {
+		return err
+	}
+	if err := pkg.AddSyntax(file); err != nil {
 		return err
 	}
 
@@ -199,19 +221,21 @@ func (pd *PackageDiscover) pkgBuild(packages map[string]*pkgInstance, pkgName st
 }
 
 func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error {
-	var r cue.Runtime
-	oaInst, err := r.Compile("-", apiSchema)
+	file, err := parser.ParseFile("-", apiSchema)
+	if err != nil {
+		return err
+	}
+	oaInst := cuecontext.New().BuildFile(file)
 	if err != nil {
 		return err
 	}
 	dgvkMapper := make(map[string]domainGroupVersionKind)
-	pathValue := oaInst.Value().Lookup("paths")
+	pathValue := oaInst.LookupPath(cue.ParsePath("paths"))
 	if pathValue.Exists() {
 		if st, err := pathValue.Struct(); err == nil {
 			iter := st.Fields()
 			for iter.Next() {
-				gvk := iter.Value().Lookup("post",
-					"x-kubernetes-group-version-kind")
+				gvk := iter.Value().LookupPath(cue.ParsePath("post[\"x-kubernetes-group-version-kind\"]"))
 				if gvk.Exists() {
 					if v, err := getDGVK(gvk); err == nil {
 						dgvkMapper[v.reverseString()] = v
@@ -398,16 +422,16 @@ func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 
 func getDGVK(v cue.Value) (ret domainGroupVersionKind, err error) {
 	gvk := metav1.GroupVersionKind{}
-	gvk.Group, err = v.Lookup("group").String()
+	gvk.Group, err = v.LookupPath(cue.ParsePath("group")).String()
 	if err != nil {
 		return
 	}
-	gvk.Version, err = v.Lookup("version").String()
+	gvk.Version, err = v.LookupPath(cue.ParsePath("version")).String()
 	if err != nil {
 		return
 	}
 
-	gvk.Kind, err = v.Lookup("kind").String()
+	gvk.Kind, err = v.LookupPath(cue.ParsePath("kind")).String()
 	if err != nil {
 		return
 	}

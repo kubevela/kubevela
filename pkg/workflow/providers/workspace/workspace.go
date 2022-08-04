@@ -58,13 +58,21 @@ func (h *provider) Load(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 func fillComponent(v *value.Value, component *wfContext.ComponentManifest, paths ...string) error {
-	if err := v.FillRaw(component.Workload.String(), append(paths, "workload")...); err != nil {
+	workload, err := component.Workload.String()
+	if err != nil {
+		return err
+	}
+	if err := v.FillRaw(workload, append(paths, "workload")...); err != nil {
 		return err
 	}
 	if len(component.Auxiliaries) > 0 {
 		var auxiliaries []string
 		for _, aux := range component.Auxiliaries {
-			auxiliaries = append(auxiliaries, "{"+aux.String()+"}")
+			auxiliary, err := aux.String()
+			if err != nil {
+				return err
+			}
+			auxiliaries = append(auxiliaries, "{"+auxiliary+"}")
 		}
 		if err := v.FillRaw(fmt.Sprintf("[%s]", strings.Join(auxiliaries, ",")), append(paths, "auxiliaries")...); err != nil {
 			return err
@@ -138,7 +146,7 @@ func (h *provider) Wait(ctx wfContext.Context, v *value.Value, act types.Action)
 
 	cv := v.CueValue()
 	if cv.Exists() {
-		ret := cv.Lookup("continue")
+		ret := cv.LookupPath(value.FieldPath("continue"))
 		if ret.Exists() {
 			isContinue, err := ret.Bool()
 			if err == nil && isContinue {

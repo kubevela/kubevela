@@ -140,6 +140,16 @@
           "type": "boolean"
         },
         "hosts": {
+          "default":[	
+            {	
+              "host":"chart-example.local",	
+              "paths":[	
+                {	
+                  "path":"/"	
+                }	
+              ]	
+            }	
+         ],
           "description": "kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"",
           "items": {
             "properties": {
@@ -148,6 +158,11 @@
                 "type": "string"
               },
               "paths": {
+                "default":[	
+                  {	
+                    "path":"/"	
+                  }	
+                ],
                 "items": {
                   "properties": {
                     "path": {

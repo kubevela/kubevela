@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"cuelang.org/go/encoding/yaml"
@@ -83,14 +84,16 @@ func GetChartValuesJSONSchema(ctx context.Context, h *common.Helm) ([]byte, erro
 
 // generateSchemaFromValues generate OpenAPIv3 schema based on Chart Values
 // file.
+// nolint:staticcheck
 func generateSchemaFromValues(values []byte) ([]byte, error) {
 	valuesIdentifier := "values"
-	r := cue.Runtime{}
+	cuectx := cuecontext.New()
 	// convert Values yaml to CUE
-	ins, err := yaml.Decode(&r, "", string(values))
+	file, err := yaml.Extract("", string(values))
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot decode Values.yaml to CUE")
+		return nil, errors.Wrap(err, "cannot extract Values.yaml to CUE")
 	}
+	ins := cuectx.BuildFile(file)
 	// get the streamed CUE including the comments which will be used as
 	// 'description' in the schema
 	c, err := format.Node(ins.Value().Syntax(cue.Docs(true)), format.Simplify())
@@ -101,18 +104,15 @@ func generateSchemaFromValues(values []byte) ([]byte, error) {
 	// an identifier manually
 	valuesStr := fmt.Sprintf("#%s:{\n%s\n}", valuesIdentifier, string(c))
 
-	r = cue.Runtime{}
-	ins, err = r.Compile("-", valuesStr)
+	r := cue.Runtime{}
+	inst, err := r.Compile("-", valuesStr)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot compile CUE generated from Values.yaml")
 	}
-	if ins.Err != nil {
-		return nil, errors.Wrap(ins.Err, "cannot compile CUE generated from Values.yaml")
-	}
 	// generate OpenAPIv3 schema through cue openapi encoder
-	rawSchema, err := openapi.Gen(ins, &openapi.Config{})
+	rawSchema, err := openapi.Gen(inst, &openapi.Config{})
 	if err != nil {
-		return nil, errors.Wrap(ins.Err, "cannot generate OpenAPIv3 schema")
+		return nil, errors.Wrap(err, "cannot generate OpenAPIv3 schema")
 	}
 	rawSchema, err = makeSwaggerCompatible(rawSchema)
 	if err != nil {

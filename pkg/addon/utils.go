@@ -442,7 +442,7 @@ func generateAnnotation(meta *Meta) map[string]string {
 }
 
 func isErrorCueRenderPathNotFound(err error, path string) bool {
-	return err.Error() == fmt.Sprintf("var(path=%s) not exist", path)
+	return err.Error() == fmt.Sprintf("failed to lookup value: var(path=%s) not exist", path)
 }
 
 func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, appName string) (map[string]string, error) {

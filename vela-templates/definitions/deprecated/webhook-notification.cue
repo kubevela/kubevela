@@ -133,10 +133,20 @@ template: {
 	}
 
 	option: {
-		text:         textType
-		value:        string
-		description?: textType
-		url?:         string
+		text: {
+			type:      string
+			text:      string
+			emoji?:    bool
+			verbatim?: bool
+		}
+		value: string
+		description?: {
+			type:      string
+			text:      string
+			emoji?:    bool
+			verbatim?: bool
+		}
+		url?: string
 	}
 
 	secretRef: {

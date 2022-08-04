@@ -114,6 +114,7 @@ func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, pro
 	}
 }
 
+// nolint:staticcheck
 func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	templateYAMLBytes, err := utils.ReadRemoteOrLocalPath(templateYAML, false)
 	if err != nil {

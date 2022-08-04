@@ -28,10 +28,12 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/bmizerany/assert"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 const (
@@ -70,11 +72,7 @@ func TestHTTPCmdRun(t *testing.T) {
 	s := NewMock()
 	defer s.Close()
 
-	r := cue.Runtime{}
-	reqInst, err := r.Compile("", Req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	reqInst := cuecontext.New().CompileString(Req)
 
 	runner, _ := newHTTPCmd(cue.Value{})
 	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
@@ -85,7 +83,7 @@ func TestHTTPCmdRun(t *testing.T) {
 
 	assert.Equal(t, "{\"token\":\"test-token\"}", body)
 
-	reqNoHeaderInst, err := r.Compile("", ReqWithoutHeader)
+	reqNoHeaderInst := cuecontext.New().CompileString(ReqWithoutHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,15 +101,11 @@ func TestHTTPCmdRun(t *testing.T) {
 func TestHTTPSRun(t *testing.T) {
 	s := newMockHttpsServer()
 	defer s.Close()
-	r := cue.Runtime{}
-	reqInst, err := r.Compile("-", `method: "GET"
+	reqInst := cuecontext.New().CompileString(`method: "GET"
 url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.Ca), "tls_config", "ca")
-	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientCrt), "tls_config", "client_crt")
-	reqInst, _ = reqInst.Fill(decodeCert(testdata.MockCerts.ClientKey), "tls_config", "client_key")
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "ca"), decodeCert(testdata.MockCerts.Ca))
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "client_crt"), decodeCert(testdata.MockCerts.ClientCrt))
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "client_key"), decodeCert(testdata.MockCerts.ClientKey))
 
 	runner, _ := newHTTPCmd(cue.Value{})
 	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})

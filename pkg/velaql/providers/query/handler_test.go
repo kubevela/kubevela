@@ -252,7 +252,7 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 			err = prd.ListResourcesInApp(nil, newV, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=app) not exist"))
+			Expect(err.Error()).Should(Equal("failed to lookup value: var(path=app) not exist"))
 		})
 	})
 
@@ -392,14 +392,14 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 			err = prd.SearchEvents(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=value) not exist"))
+			Expect(err.Error()).Should(Equal("failed to lookup value: var(path=value) not exist"))
 
 			optWithoutCluster := `value: {}`
 			v, err = value.NewValue(optWithoutCluster, nil, "")
 			Expect(err).Should(BeNil())
 			err = prd.SearchEvents(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
+			Expect(err.Error()).Should(Equal("failed to lookup value: var(path=cluster) not exist"))
 
 			optWithWrongValue := `value: {}
 cluster: "test"`
@@ -424,13 +424,13 @@ cluster: "test"`
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=cluster) not exist"))
+			Expect(err.Error()).Should(ContainSubstring("failed to lookup value: var(path=cluster) not exist"))
 
 			v, err = value.NewValue(`cluster: "local"`, nil, "")
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=namespace) not exist"))
+			Expect(err.Error()).Should(ContainSubstring("failed to lookup value: var(path=namespace) not exist"))
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"`, nil, "")

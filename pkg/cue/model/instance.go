@@ -21,8 +21,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
-	"cuelang.org/go/cue/format"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
@@ -32,20 +30,25 @@ import (
 
 // Instance defines Model Interface
 type Instance interface {
-	String() string
+	String() (string, error)
+	Value() cue.Value
 	Unstructured() (*unstructured.Unstructured, error)
 	IsBase() bool
-	Unify(other Instance, options ...sets.UnifyOption) error
+	Unify(other cue.Value, options ...sets.UnifyOption) error
 	Compile() ([]byte, error)
 }
 
 type instance struct {
-	v    string
+	v    cue.Value
 	base bool
 }
 
 // String return instance's cue format string
-func (inst *instance) String() string {
+func (inst *instance) String() (string, error) {
+	return sets.ToString(inst.v)
+}
+
+func (inst *instance) Value() cue.Value {
 	return inst.v
 }
 
@@ -55,21 +58,14 @@ func (inst *instance) IsBase() bool {
 }
 
 func (inst *instance) Compile() ([]byte, error) {
-	bi := build.NewContext().NewInstance("", nil)
-	err := bi.AddFile("-", inst.v)
-	if err != nil {
-		return nil, err
-	}
-	var r cue.Runtime
-	it, err := r.Build(bi)
-	if err != nil {
+	if err := inst.v.Err(); err != nil {
 		return nil, err
 	}
 	// compiled object should be final and concrete value
-	if err := it.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
+	if err := inst.v.Validate(cue.Concrete(true), cue.Final()); err != nil {
 		return nil, err
 	}
-	return it.Value().MarshalJSON()
+	return inst.v.MarshalJSON()
 }
 
 // Unstructured convert cue values to unstructured.Unstructured
@@ -77,7 +73,7 @@ func (inst *instance) Compile() ([]byte, error) {
 func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
 	jsonv, err := inst.Compile()
 	if err != nil {
-		klog.ErrorS(err, "failed to have the workload/trait unstructured", "Definition", inst.String())
+		klog.ErrorS(err, "failed to have the workload/trait unstructured", "Definition", inst.v)
 		return nil, errors.Wrap(err, "failed to have the workload/trait unstructured")
 	}
 	o := &unstructured.Unstructured{}
@@ -88,8 +84,8 @@ func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
 }
 
 // Unify implement unity operations between instances
-func (inst *instance) Unify(other Instance, options ...sets.UnifyOption) error {
-	pv, err := sets.StrategyUnify(inst.v, other.String(), options...)
+func (inst *instance) Unify(other cue.Value, options ...sets.UnifyOption) error {
+	pv, err := sets.StrategyUnify(inst.v, other, options...)
 	if err != nil {
 		return err
 	}
@@ -99,47 +95,17 @@ func (inst *instance) Unify(other Instance, options ...sets.UnifyOption) error {
 
 // NewBase create a base instance
 func NewBase(v cue.Value) (Instance, error) {
-	vs, err := openPrint(v)
-	if err != nil {
-		return nil, err
-	}
 	return &instance{
-		v:    vs,
+		v:    v,
 		base: true,
 	}, nil
 }
 
 // NewOther create a non-base instance
 func NewOther(v cue.Value) (Instance, error) {
-	vs, err := openPrint(v)
-	if err != nil {
-		return nil, err
-	}
 	return &instance{
-		v: vs,
+		v: v,
 	}, nil
-}
-
-func openPrint(v cue.Value) (string, error) {
-	sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
-	f, err := sets.ToFile(v.Syntax(sysopts...))
-	if err != nil {
-		return "", err
-	}
-	for _, decl := range f.Decls {
-		sets.ListOpen(decl)
-	}
-
-	ret, err := format.Node(f)
-	if err != nil {
-		return "", err
-	}
-
-	errInfo, contain := IndexMatchLine(string(ret), "_|_")
-	if contain {
-		return "", errors.New(errInfo)
-	}
-	return string(ret), nil
 }
 
 // IndexMatchLine will index and extract the line contains the pattern.

@@ -94,7 +94,6 @@ func TestDebugApplicationWithWorkflow(t *testing.T) {
 				},
 			},
 			step:        "test-wf1",
-			focus:       "test",
 			expectedErr: "failed to parse debug configmap",
 		},
 		"success": {

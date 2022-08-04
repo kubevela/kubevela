@@ -42,7 +42,7 @@ func TestParser(t *testing.T) {
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
 	err = p.ApplyComponent(nil, v, act)
-	r.Equal(err.Error(), "var(path=value) not exist")
+	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
 	v.FillObject(map[string]interface{}{}, "value")
 	err = p.ApplyComponent(nil, v, act)
 	r.NoError(err)
@@ -53,10 +53,10 @@ func TestParser(t *testing.T) {
 	r.Equal(outStr, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
-	name: "rss-site"
 	labels: {
 		app: "web"
 	}
+	name: "rss-site"
 }
 `)
 
@@ -68,10 +68,10 @@ metadata: {
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
-		name: "service"
 		labels: {
 			"trait.oam.dev/resource": "service"
 		}
+		name: "service"
 	}
 }
 `)

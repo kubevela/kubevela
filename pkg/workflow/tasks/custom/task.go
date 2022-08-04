@@ -145,6 +145,10 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 			var paramFile string
 
 			defer func() {
+				if r := recover(); r != nil {
+					rErr = fmt.Errorf("panic in cue: %v", r)
+					return
+				}
 				if taskv == nil {
 					taskv, err = convertTemplate(ctx, t.pd, strings.Join([]string{templ, paramFile}, "\n"), exec.wfStatus.ID, options.PCtx)
 					if err != nil {
@@ -290,7 +294,14 @@ func buildValueForStatus(ctx wfContext.Context, step v1beta1.WorkflowStep, pd *p
 	statusTemplate += fmt.Sprintf("status: %s\n", status)
 	statusTemplate += contextTempl
 	statusTemplate += "\n" + inputsTempl
-	return value.NewValue(template+"\n"+statusTemplate, pd, "")
+	v, err := value.NewValue(template+"\n"+statusTemplate, pd, "")
+	if err != nil {
+		return nil, err
+	}
+	if v.Error() != nil {
+		return nil, v.Error()
+	}
+	return v, nil
 }
 
 func convertTemplate(ctx wfContext.Context, pd *packages.PackageDiscover, templ, id string, pCtx process.Context) (*value.Value, error) {
@@ -464,11 +475,8 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 	}
 	return v.StepByFields(func(fieldName string, in *value.Value) (bool, error) {
 		if in.CueValue().IncompleteKind() == cue.BottomKind {
-			errInfo, err := sets.ToString(in.CueValue())
-			if err != nil {
-				errInfo = "value is _|_"
-			}
-			return true, errors.New(errInfo + "(bottom kind)")
+			// continue if the field is incomplete
+			return false, nil
 		}
 		if retErr := in.CueValue().Err(); retErr != nil {
 			errInfo, err := sets.ToString(in.CueValue())
@@ -517,7 +525,7 @@ func isStepList(fieldName string) bool {
 }
 
 func debugLog(v *value.Value) bool {
-	debug, _ := v.CueValue().LookupDef("#debug").Bool()
+	debug, _ := v.CueValue().LookupPath(value.FieldPath("#debug")).Bool()
 	return debug
 }
 

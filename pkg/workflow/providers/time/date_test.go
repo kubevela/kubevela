@@ -53,12 +53,12 @@ layout: "Mon, 02 Jan 2006 15:04:05 MST"`,
 		"test convert date without time layout": {
 			from:        `date: "2021-11-07T01:47:51Z"`,
 			expected:    0,
-			expectedErr: errors.New("var(path=layout) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=layout) not exist"),
 		},
 		"test convert without date": {
 			from:        ``,
 			expected:    0,
-			expectedErr: errors.New("var(path=date) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=date) not exist"),
 		},
 		"test convert date with wrong time layout": {
 			from: `date: "2021-11-07T01:47:51Z"
@@ -119,12 +119,12 @@ layout: "Mon, 02 Jan 2006 15:04:05 MST"
 		"test convert date without time layout": {
 			from:        `timestamp: 1551452400`,
 			expected:    "",
-			expectedErr: errors.New("var(path=layout) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=layout) not exist"),
 		},
 		"test convert without timestamp": {
 			from:        ``,
 			expected:    "",
-			expectedErr: errors.New("var(path=timestamp) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=timestamp) not exist"),
 		},
 	}
 

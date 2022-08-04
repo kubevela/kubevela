@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -713,6 +714,7 @@ func getOpenAPISchema(capability types.Capability, pd *packages.PackageDiscover)
 }
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
+// nolint:staticcheck
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *packages.PackageDiscover) ([]byte, error) {
 	template, err := PrepareParameterCue(capability.Name, capability.CueTemplate)
 	if err != nil {
@@ -735,7 +737,7 @@ func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, p
 		return common.GenOpenAPI(cueInst)
 	}
 	bi := build.NewContext().NewInstance("", nil)
-	err = bi.AddFile("-", template)
+	err = value.AddFile(bi, "-", template)
 	if err != nil {
 		return nil, err
 	}

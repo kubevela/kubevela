@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -273,11 +273,11 @@ type ComponentManifest struct {
 
 // Patch the ComponentManifest with value
 func (comp *ComponentManifest) Patch(patchValue *value.Value) error {
-	pInst, err := model.NewOther(patchValue.CueValue())
-	if err != nil {
-		return err
-	}
-	return comp.Workload.Unify(pInst)
+	// pInst, err := model.NewOther(patchValue.CueValue())
+	// if err != nil {
+	// 	return err
+	// }
+	return comp.Workload.Unify(patchValue.CueValue())
 }
 
 type componentMould struct {
@@ -286,11 +286,19 @@ type componentMould struct {
 }
 
 func (comp *ComponentManifest) string() (string, error) {
+	workload, err := comp.Workload.String()
+	if err != nil {
+		return "", err
+	}
 	cm := componentMould{
-		StandardWorkload: comp.Workload.String(),
+		StandardWorkload: workload,
 	}
 	for _, aux := range comp.Auxiliaries {
-		cm.Traits = append(cm.Traits, aux.String())
+		auxiliary, err := aux.String()
+		if err != nil {
+			return "", err
+		}
+		cm.Traits = append(cm.Traits, auxiliary)
 	}
 	js, err := json.Marshal(cm)
 	return string(js), err
@@ -302,23 +310,16 @@ func (comp *ComponentManifest) unmarshal(v string) error {
 	if err := json.Unmarshal([]byte(v), &cm); err != nil {
 		return err
 	}
-	var r cue.Runtime
-	wlInst, err := r.Compile("workload", cm.StandardWorkload)
-	if err != nil {
-		return err
-	}
-	wl, err := model.NewBase(wlInst.Value())
+	wlInst := cuecontext.New().CompileString(cm.StandardWorkload)
+	wl, err := model.NewBase(wlInst)
 	if err != nil {
 		return err
 	}
 
 	comp.Workload = wl
 	for _, s := range cm.Traits {
-		auxInst, err := r.Compile("-", s)
-		if err != nil {
-			return err
-		}
-		aux, err := model.NewOther(auxInst.Value())
+		auxInst := cuecontext.New().CompileString(s)
+		aux, err := model.NewOther(auxInst)
 		if err != nil {
 			return err
 		}

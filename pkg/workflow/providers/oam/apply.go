@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -199,8 +200,15 @@ func (p *provider) LoadComponent(ctx wfContext.Context, v *value.Value, act wfTy
 			return err
 		}
 		vs := string(jt)
-		if s, err := sets.OpenBaiscLit(vs); err == nil {
-			vs = s
+		cuectx := cuecontext.New()
+		val := cuectx.CompileString(vs)
+		if s, err := sets.OpenBaiscLit(val); err == nil {
+			v := cuectx.BuildFile(s)
+			str, err := sets.ToString(v)
+			if err != nil {
+				return err
+			}
+			vs = str
 		}
 		if err := v.FillRaw(vs, "value", comp.Name); err != nil {
 			return err

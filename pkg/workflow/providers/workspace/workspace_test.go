@@ -85,7 +85,8 @@ component: "server"
 	assert.NilError(t, err)
 	component, err := wfCtx.GetComponent("server")
 	assert.NilError(t, err)
-	s := component.Workload.String()
+	s, err := component.Workload.String()
+	assert.NilError(t, err)
 	assert.Equal(t, s, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
@@ -95,7 +96,6 @@ metadata: {
 }
 spec: {
 	containers: [{
-		name: "main"
 		// +patchKey=name
 		env: [{
 			name:  "APP"
@@ -106,11 +106,12 @@ spec: {
 		}, ...]
 		image:           "nginx:1.14.2"
 		imagePullPolicy: "IfNotPresent"
+		name:            "main"
 		ports: [{
 			containerPort: 8080
 			protocol:      "TCP"
 		}, ...]
-	}, ...]
+	}]
 }
 `)
 
@@ -320,18 +321,18 @@ metadata:
 	}
 	spec: {
 		containers: [{
-			name: "main"
 			env: [{
 				name:  "APP"
 				value: "nginx"
-			}, ...]
+			}]
 			image:           "nginx:1.14.2"
 			imagePullPolicy: "IfNotPresent"
+			name:            "main"
 			ports: [{
 				containerPort: 8080
 				protocol:      "TCP"
-			}, ...]
-		}, ...]
+			}]
+		}]
 	}
 }
 auxiliaries: [{
@@ -342,10 +343,10 @@ auxiliaries: [{
 	}
 	spec: {
 		ports: [{
-			protocol:   "TCP"
 			port:       80
+			protocol:   "TCP"
 			targetPort: 8080
-		}, ...]
+		}]
 		selector: {
 			app: "nginx"
 		}

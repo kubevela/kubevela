@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -499,21 +499,13 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	if patcher := wl.Patch; patcher != nil {
 		workload, auxiliaries := pCtx.Output()
 		if p, err := patcher.LookupValue("workload"); err == nil {
-			pi, err := model.NewOther(p.CueValue())
-			if err != nil {
-				return nil, errors.WithMessage(err, "patch workload")
-			}
-			if err := workload.Unify(pi); err != nil {
+			if err := workload.Unify(p.CueValue()); err != nil {
 				return nil, errors.WithMessage(err, "patch workload")
 			}
 		}
 		for _, aux := range auxiliaries {
 			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.CueValue().Err() == nil {
-				pi, err := model.NewOther(p.CueValue())
-				if err != nil {
-					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
-				}
-				if err := aux.Ins.Unify(pi); err != nil {
+				if err := aux.Ins.Unify(p.CueValue()); err != nil {
 					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
 				}
 			}
@@ -618,20 +610,20 @@ func GenerateCUETemplate(wl *Workload) (string, error) {
 		if err != nil {
 			return templateStr, errors.Wrap(err, "cannot marshal kube object")
 		}
-		ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
+		cuectx := cuecontext.New()
+		expr, err := json2cue.Extract("", objRaw)
 		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot decode object into CUE")
+			return templateStr, errors.Wrap(err, "cannot extract object into CUE")
 		}
-		cueRaw, err := format.Node(ins.Value().Syntax())
+		v := cuectx.BuildExpr(expr)
+		cueRaw, err := format.Node(v.Syntax())
 		if err != nil {
 			return templateStr, errors.Wrap(err, "cannot format CUE")
 		}
 
 		// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
 		templateStr = fmt.Sprintf(`
-output: { 
-%s 
-}`, string(cueRaw))
+output: %s`, string(cueRaw))
 	case types.HelmCategory:
 		gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
 		if err != nil {

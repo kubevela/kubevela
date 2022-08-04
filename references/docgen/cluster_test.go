@@ -57,10 +57,6 @@ var _ = Describe("DefinitionFiles", func() {
 		Category:    types.CUECategory,
 		Parameters: []types.Parameter{
 			{
-				Type: cue.ListKind,
-				Name: "env",
-			},
-			{
 				Name:     "image",
 				Type:     cue.StringKind,
 				Default:  "",
@@ -74,6 +70,10 @@ var _ = Describe("DefinitionFiles", func() {
 				Short:   "p",
 				Default: int64(8080),
 				Usage:   "Which port do you want customer traffic sent to",
+			},
+			{
+				Type: cue.ListKind,
+				Name: "env",
 			},
 		},
 		CrdInfo: &types.CRDInfo{
@@ -89,22 +89,25 @@ var _ = Describe("DefinitionFiles", func() {
 		Type:        types.TypeComponentDefinition,
 		Description: "description not defined",
 		Category:    types.CUECategory,
-		Parameters: []types.Parameter{{
-			Name: "env", Type: cue.ListKind,
-		}, {
-			Name:     "image",
-			Type:     cue.StringKind,
-			Default:  "",
-			Short:    "i",
-			Required: true,
-			Usage:    "Which image would you like to use for your service",
-		}, {
-			Name:    "port",
-			Type:    cue.IntKind,
-			Short:   "p",
-			Default: int64(6379),
-			Usage:   "Which port do you want customer traffic sent to",
-		}},
+		Parameters: []types.Parameter{
+			{
+				Name:     "image",
+				Type:     cue.StringKind,
+				Default:  "",
+				Short:    "i",
+				Required: true,
+				Usage:    "Which image would you like to use for your service",
+			}, {
+				Name:    "port",
+				Type:    cue.IntKind,
+				Short:   "p",
+				Default: int64(6379),
+				Usage:   "Which port do you want customer traffic sent to",
+			},
+			{
+				Name: "env", Type: cue.ListKind,
+			},
+		},
 		CrdName: "deployments.apps",
 		CrdInfo: &types.CRDInfo{
 			APIVersion: "apps/v1",

@@ -24,6 +24,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 // Meta provides context for running a task.
@@ -38,7 +40,7 @@ type Meta struct {
 
 // Lookup fetches the value of context by filed
 func (m *Meta) Lookup(field string) cue.Value {
-	f := m.Obj.Lookup(field)
+	f := m.Obj.LookupPath(value.FieldPath(field))
 	if !f.Exists() {
 		m.Err = fmt.Errorf("invalid lookup argument")
 		return cue.Value{}
@@ -51,7 +53,7 @@ func (m *Meta) Lookup(field string) cue.Value {
 
 // Int64 fetch the value formatted int64 of context by filed
 func (m *Meta) Int64(field string) int64 {
-	f := m.Obj.Lookup(field)
+	f := m.Obj.LookupPath(value.FieldPath(field))
 	value, err := f.Int64()
 	if err != nil {
 		m.Err = fmt.Errorf("invalid int64 argument, %w", err)
@@ -63,7 +65,7 @@ func (m *Meta) Int64(field string) int64 {
 
 // String fetch the value formatted string of context by filed
 func (m *Meta) String(field string) string {
-	f := m.Obj.Lookup(field)
+	f := m.Obj.LookupPath(value.FieldPath(field))
 	value, err := f.String()
 	if err != nil {
 		m.Err = fmt.Errorf("invalid string argument, %w", err)
@@ -74,7 +76,7 @@ func (m *Meta) String(field string) string {
 
 // Bytes fetch the value formatted bytes of context by filed
 func (m *Meta) Bytes(field string) []byte {
-	f := m.Obj.Lookup(field)
+	f := m.Obj.LookupPath(value.FieldPath(field))
 	value, err := f.Bytes()
 	if err != nil {
 		m.Err = fmt.Errorf("invalid bytes argument, %w", err)

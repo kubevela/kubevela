@@ -22,10 +22,10 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 )
 
@@ -34,27 +34,11 @@ var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
 func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
-	var template *cue.Instance
-	var err error
-	if pd != nil {
-		bi := build.NewContext().NewInstance("", nil)
-		err := bi.AddFile("-", templateStr+BaseTemplate)
-		if err != nil {
-			return nil, err
-		}
-
-		template, err = pd.ImportPackagesAndBuildInstance(bi)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		r := cue.Runtime{}
-		template, err = r.Compile("", templateStr+BaseTemplate)
-		if err != nil {
-			return nil, err
-		}
+	template, err := value.NewValue(templateStr+BaseTemplate, pd, "")
+	if err != nil {
+		return nil, err
 	}
-	tempStruct, err := template.Value().Struct()
+	tempStruct, err := template.CueValue().Struct()
 	if err != nil {
 		return nil, err
 	}

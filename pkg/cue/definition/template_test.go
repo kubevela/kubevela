@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -961,16 +962,6 @@ parameter: [string]: string`,
 			params:        map[string]interface{}{},
 			hasCompileErr: true,
 		},
-		"incorrect use of the map field in patch will raise error": {
-			traitTemplate: `
-patch: {
-	metadata: annotations: parameter.none
-}
-
-parameter: [string]: string`,
-			params:        map[string]interface{}{},
-			hasCompileErr: true,
-		},
 		"out-of-scope variables in patch will raise error": {
 			traitTemplate: `
 patchOutputs: {
@@ -992,7 +983,7 @@ patch: {
 
 parameter: [string]: string`,
 			params: map[string]interface{}{
-				"wrong-keyword": "_|_ //",
+				"wrong-keyword": 5,
 			},
 			hasCompileErr: true,
 		},
@@ -1080,22 +1071,23 @@ parameter: { errs: [...string] }`,
 			return
 		}
 		td := NewTraitAbstractEngine(v.traitName, &packages.PackageDiscover{})
+		r := require.New(t)
 		err := td.Complete(ctx, v.traitTemplate, v.params)
-		hasError := err != nil
-		assert.Equal(t, v.hasCompileErr, hasError)
 		if v.hasCompileErr {
+			r.Error(err, cassinfo)
 			continue
 		}
+		r.NoError(err, cassinfo)
 		base, assists := ctx.Output()
-		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
-		assert.NotNil(t, base)
+		// r.Equal(len(v.expAssObjs), len(assists), cassinfo)
+		r.NotNil(base)
 		obj, err := base.Unstructured()
-		assert.NoError(t, err, base.String())
-		assert.Equal(t, v.expWorkload, obj, cassinfo)
+		r.NoError(err)
+		r.Equal(v.expWorkload, obj, cassinfo)
 		for _, ss := range assists {
 			got, err := ss.Ins.Unstructured()
-			assert.NoError(t, err, cassinfo)
-			assert.Equal(t, v.expAssObjs[ss.Type+ss.Name], got, "case %s , type: %s name: %s", cassinfo, ss.Type, ss.Name)
+			r.NoError(err, cassinfo)
+			r.Equal(v.expAssObjs[ss.Type+ss.Name], got, "case %s , type: %s name: %s, got: %s", cassinfo, ss.Type, ss.Name, got)
 		}
 	}
 }
@@ -1178,7 +1170,9 @@ outputs: service :{
 		_, assists := ctx.Output()
 		for i, ss := range assists {
 			assert.Equal(t, ss.Name, v.order[i].name)
-			assert.Equal(t, ss.Ins.String(), v.order[i].content)
+			s, err := ss.Ins.String()
+			assert.NoError(t, err)
+			assert.Equal(t, s, v.order[i].content)
 		}
 	}
 }
@@ -1261,7 +1255,9 @@ outputs: abc :{
 		_, assists := ctx.Output()
 		for i, ss := range assists {
 			assert.Equal(t, ss.Name, v.order[i].name)
-			assert.Equal(t, ss.Ins.String(), v.order[i].content)
+			s, err := ss.Ins.String()
+			assert.NoError(t, err)
+			assert.Equal(t, s, v.order[i].content)
 		}
 	}
 }

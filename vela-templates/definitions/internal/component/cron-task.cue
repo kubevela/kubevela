@@ -225,7 +225,7 @@ template: {
 			name:      string
 			mountPath: string
 			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir"
-			type: "pvc" | "configMap" | "secret" | "emptyDir"
+			type: *"pvc" | "configMap" | "secret" | "emptyDir"
 			if type == "pvc" {
 				claimName: string
 			}

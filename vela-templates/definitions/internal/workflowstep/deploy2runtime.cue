@@ -15,9 +15,9 @@ template: {
 	app: op.#Steps & {
 		load: op.#Load @step(1)
 		clusters: [...string]
+		listClusters: op.#ListClusters @step(2)
 		if parameter.clusters == _|_ {
-			listClusters: op.#ListClusters @step(2)
-			clusters:     listClusters.outputs.clusters
+			clusters: listClusters.outputs.clusters
 		}
 		if parameter.clusters != _|_ {
 			clusters: parameter.clusters

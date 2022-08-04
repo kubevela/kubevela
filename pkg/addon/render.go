@@ -133,6 +133,10 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
+	if v.Error() != nil {
+		return nil, nil, errors.Wrap(v.Error(), "load app template with CUE files")
+	}
+
 	outputContent, err := v.LookupValue(renderOutputCuePath)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
