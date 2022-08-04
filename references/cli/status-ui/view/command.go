@@ -21,7 +21,7 @@ func NewCommand(app *App) *Command {
 func (c *Command) Init() {
 }
 
-func (c *Command) exec(cmd string, component model.Component) {
+func (c *Command) exec(_ string, component model.Component) {
 	c.app.inject(component)
 }
 

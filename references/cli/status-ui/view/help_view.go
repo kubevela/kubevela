@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"

@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+
 	"github.com/oam-dev/kubevela/references/cli/status-ui/ui"
 
 	"github.com/rivo/tview"
@@ -15,21 +16,17 @@ type ResourceView struct {
 }
 
 type ResourceViewer struct {
-	title    string
 	viewFunc func(context.Context, *App) model.Component
 }
 
 var ResourceMap = map[string]ResourceViewer{
 	"app": {
-		title:    "Application",
 		viewFunc: NewApplicationView,
 	},
 	"cluster": {
-		title:    "Cluster",
 		viewFunc: NewClusterView,
 	},
 	"k8s": {
-		title:    "K8s-Object",
 		viewFunc: NewK8SView,
 	},
 }
@@ -44,7 +41,6 @@ func NewResourceView(app *App) *ResourceView {
 
 func (v *ResourceView) Init(list model.ResourceList) {
 	v.SetSelectable(true, false)
-	// record which columns are status column whose color need to specially set
 	v.buildTable(list)
 	v.bindKeys()
 }

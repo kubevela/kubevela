@@ -494,7 +494,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	return nil
 }
 
-func launchUI(c common.Args, cmd *cobra.Command) error {
+func launchUI(c common.Args, _ *cobra.Command) error {
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return fmt.Errorf("cannot get k8s client: %w", err)

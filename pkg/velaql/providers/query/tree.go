@@ -525,6 +525,7 @@ var checkServiceStatus = func(obj unstructured.Unstructured) (*types.HealthStatu
 	return &health, nil
 }
 
+// CheckResourceStatus return object status data
 func CheckResourceStatus(obj unstructured.Unstructured) (*types.HealthStatus, error) {
 	group := obj.GroupVersionKind().Group
 	kind := obj.GroupVersionKind().Kind

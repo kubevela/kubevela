@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -62,7 +61,7 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 		}
 	}
 
-	clusters, err := prismclusterv1alpha1.NewClusterClient(c).List(context.Background())
+	clusters, _ := prismclusterv1alpha1.NewClusterClient(c).List(context.Background())
 
 	for _, cluster := range clusters.Items {
 		if _, ok := clusterSet[cluster.Name]; ok {
@@ -75,7 +74,7 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 			var labels []string
 			for k, v := range cluster.Labels {
 				if !strings.HasPrefix(k, config.MetaApiGroupName) {
-					labels = append(labels, color.CyanString(k)+"="+color.GreenString(v))
+					labels = append(labels, "[blue::]"+k+"="+"[green::]"+v)
 				}
 			}
 			clusterInfo.labels = strings.Join(labels, ",")

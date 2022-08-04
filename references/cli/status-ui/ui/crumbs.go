@@ -21,7 +21,7 @@ func NewCrumbs() *Crumbs {
 func (c *Crumbs) init() {
 }
 
-func (c *Crumbs) StackPop(old, new model.Component) {
+func (c *Crumbs) StackPop(_, _ model.Component) {
 	num := c.GetItemCount()
 	c.RemoveItem(c.GetItem(num - 1))
 	c.RemoveItem(c.GetItem(num - 2))
@@ -31,7 +31,7 @@ func (c *Crumbs) StackPop(old, new model.Component) {
 func (c *Crumbs) StackPush(component model.Component) {
 	name := component.Name()
 	t := tview.NewTextView()
-	t.SetBackgroundColor(CRUMBS_BACKGORUND_COLOR)
+	t.SetBackgroundColor(CRUMBS_BACKGROUND_COLOR)
 	t.SetTextAlign(tview.AlignCenter)
 
 	t.SetText(name)

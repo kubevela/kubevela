@@ -7,7 +7,7 @@ import (
 const (
 	INFO_TEXT_COLOR = tcell.ColorOrange
 
-	CRUMBS_BACKGORUND_COLOR = tcell.ColorOrange
+	CRUMBS_BACKGROUND_COLOR = tcell.ColorOrange
 
 	RESOURCE_TABLE_TITLE_COLOR  = tcell.ColorOrange
 	RESOURCE_TABLE_HEADER_COLOR = tcell.ColorOrange

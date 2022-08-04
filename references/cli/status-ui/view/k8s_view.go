@@ -50,6 +50,8 @@ func (v *K8SView) ColorizeStatusText(rowNum int) {
 		status := v.Table.GetCell(i, 5).Text
 		if status == "Healthy" {
 			status = fmt.Sprintf("[lightgreen::]%s", status)
+		} else if status == "UnHealthy" {
+			status = fmt.Sprintf("[red::]%s", status)
 		}
 		v.Table.GetCell(i, 5).SetText(status)
 	}

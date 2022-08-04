@@ -39,6 +39,10 @@ func (board *InfoBoard) Init(config *rest.Config) {
 	board.SetCell(row, 0, board.sectionCell("VelaCore Version").SetTextColor(INFO_TEXT_COLOR))
 	board.SetCell(row, 1, infoCell(velaCore))
 	row++
+
+	goVersion := info.GOLangVersion()
+	board.SetCell(row, 0, board.sectionCell("Golang Version").SetTextColor(INFO_TEXT_COLOR))
+	board.SetCell(row, 1, infoCell(goVersion))
 }
 
 func (board *InfoBoard) sectionCell(t string) *tview.TableCell {

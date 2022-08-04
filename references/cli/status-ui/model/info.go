@@ -2,18 +2,24 @@ package model
 
 import (
 	"fmt"
+	"runtime"
+	"strings"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/version"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"runtime"
-	"strings"
 )
 
 type Info struct {
 	cluster string
 }
+
+const (
+	UNKOWN_VERSION = "UNKNOWN"
+)
 
 func NewInfo() *Info {
 	return &Info{
@@ -27,9 +33,12 @@ func (i Info) Cluster() string {
 
 func (i Info) K8SVersion(config *rest.Config) string {
 	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return UNKOWN_VERSION
+	}
 	serverVersion, err := client.ServerVersion()
 	if err != nil {
-		return "UNKNOWN"
+		return UNKOWN_VERSION
 	}
 	vStr := fmt.Sprintf("%s.%s", serverVersion.Major, strings.Replace(serverVersion.Minor, "+", "", 1))
 	return vStr

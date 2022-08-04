@@ -45,6 +45,8 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 		status := v.Table.GetCell(i, 2).Text
 		if status == "running" {
 			status = fmt.Sprintf("[lightgreen::]%s", status)
+		} else if status == "workflowTerminated" {
+			status = fmt.Sprintf("[yellow::]%s", status)
 		}
 		v.Table.GetCell(i, 2).SetText(status)
 	}
