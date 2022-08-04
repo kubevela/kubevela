@@ -366,7 +366,7 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 	}
 	for _, policy := range af.Policies {
 		if policy.Properties == nil {
-			return fmt.Errorf("policy name %s must not have empty properties", policy.Name)
+			return fmt.Errorf("policy %s named %s must not have empty properties", policy.Type, policy.Name)
 		}
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
@@ -394,7 +394,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 	}
 	for _, policy := range af.Policies {
 		if policy.Properties == nil {
-			return fmt.Errorf("policy name %s must not have empty properties", policy.Name)
+			return fmt.Errorf("policy %s named %s must not have empty properties", policy.Type, policy.Name)
 		}
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
