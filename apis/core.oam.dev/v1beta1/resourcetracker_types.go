@@ -123,12 +123,13 @@ func (in ManagedResource) NamespacedName() types.NamespacedName {
 
 // ResourceKey computes the key for managed resource, resources with the same key points to the same resource
 func (in ManagedResource) ResourceKey() string {
-	gv, kind := in.GroupVersionKind().ToAPIVersionAndKind()
+	group := in.GroupVersionKind().Group
+	kind := in.GroupVersionKind().Kind
 	cluster := in.Cluster
 	if cluster == "" {
 		cluster = velatypes.ClusterLocalName
 	}
-	return strings.Join([]string{gv, kind, cluster, in.Namespace, in.Name}, "/")
+	return strings.Join([]string{group, kind, cluster, in.Namespace, in.Name}, "/")
 }
 
 // ComponentKey computes the key for the component which managed resource belongs to
