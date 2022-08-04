@@ -19,20 +19,22 @@ package service
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/definition"
+
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCompatiblleTag(t *testing.T) {
+func TestCompatibleTag(t *testing.T) {
 	tg := map[string]string{
-		"alias.config.oam.dev":   "abc",
-		"type.config.oam.dev":    "image-registry",
-		"catalog.config.oam.dev": "cata",
+		definition.DefinitionAlias: "abc",
+		definition.DefinitionType:  "image-registry",
+		definition.ConfigCatalog:   "cata",
 	}
 
 	tgOld := map[string]string{
-		"custom.definition.oam.dev/alias.config.oam.dev":   "abc-2",
-		"custom.definition.oam.dev/type.config.oam.dev":    "image-registry-2",
-		"custom.definition.oam.dev/catalog.config.oam.dev": "cata-2",
+		definition.UserPrefix + definition.DefinitionAlias: "abc-2",
+		definition.UserPrefix + definition.DefinitionType:  "image-registry-2",
+		definition.UserPrefix + definition.ConfigCatalog:   "cata-2",
 	}
 
 	assert.Equal(t, DefinitionAlias(nil), "")

@@ -18,22 +18,16 @@ package service
 
 import "github.com/oam-dev/kubevela/pkg/definition"
 
-const (
-	definitionAlias = "alias.config.oam.dev"
-	definitionType  = "type.config.oam.dev"
-	configCatalog   = "catalog.config.oam.dev"
-)
-
 // DefinitionAlias will get definitionAlias value from tags
 func DefinitionAlias(tags map[string]string) string {
 	if tags == nil {
 		return ""
 	}
-	val := tags[definitionAlias]
+	val := tags[definition.DefinitionAlias]
 	if val != "" {
 		return val
 	}
-	return tags[definition.UserPrefix+definitionAlias]
+	return tags[definition.UserPrefix+definition.DefinitionAlias]
 }
 
 // DefinitionType will get definitionType value from tags
@@ -41,11 +35,11 @@ func DefinitionType(tags map[string]string) string {
 	if tags == nil {
 		return ""
 	}
-	val := tags[definitionType]
+	val := tags[definition.DefinitionType]
 	if val != "" {
 		return val
 	}
-	return tags[definition.UserPrefix+definitionType]
+	return tags[definition.UserPrefix+definition.DefinitionType]
 }
 
 // ConfigCatalog will get configCatalog value from tags
@@ -53,9 +47,9 @@ func ConfigCatalog(tags map[string]string) string {
 	if tags == nil {
 		return ""
 	}
-	val := tags[configCatalog]
+	val := tags[definition.ConfigCatalog]
 	if val != "" {
 		return val
 	}
-	return tags[definition.UserPrefix+configCatalog]
+	return tags[definition.UserPrefix+definition.ConfigCatalog]
 }
