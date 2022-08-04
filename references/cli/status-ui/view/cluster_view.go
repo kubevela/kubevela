@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -23,7 +24,8 @@ func NewClusterView(ctx context.Context, app *App) model.Component {
 }
 
 func (v *ClusterView) Init() {
-	v.SetTitle(v.Name())
+	title := fmt.Sprintf("[ %s ]", v.Name())
+	v.SetTitle(title).SetTitleColor(ui.RESOURCE_TABLE_TITLE_COLOR)
 	resourceList := v.ListClusters()
 	v.ResourceView.Init(resourceList)
 	v.bindKeys()
@@ -35,7 +37,7 @@ func (v *ClusterView) ListClusters() model.ResourceList {
 }
 
 func (v *ClusterView) Name() string {
-	return "cluster"
+	return "Cluster"
 }
 
 func (v *ClusterView) Hint() []model.MenuHint {

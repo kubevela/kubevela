@@ -1,6 +1,7 @@
 package view
 
 import (
+	"fmt"
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
@@ -20,19 +21,20 @@ func NewHelpView(app *App) *HelpView {
 	return v
 }
 
-func (h *HelpView) Init() {
-	h.Table.Init()
-	h.SetTitle(h.Name())
-	h.bindKeys()
+func (v *HelpView) Init() {
+	v.Table.Init()
+	title := fmt.Sprintf("[ %s ]", v.Name())
+	v.SetTitle(title).SetTitleColor(ui.RESOURCE_TABLE_TITLE_COLOR)
+	v.bindKeys()
 }
 
-func (h *HelpView) bindKeys() {
-	h.Actions().Add(model.KeyActions{
-		tcell.KeyESC: model.KeyAction{Description: "Back", Action: h.app.Back, Visible: true, Shared: true},
-		ui.KeyHelp:   model.KeyAction{Description: "Back", Action: h.app.Back, Visible: true, Shared: true},
+func (v *HelpView) bindKeys() {
+	v.Actions().Add(model.KeyActions{
+		tcell.KeyESC: model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
+		ui.KeyHelp:   model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 	})
 }
 
-func (h *HelpView) Name() string {
+func (v *HelpView) Name() string {
 	return "Help"
 }

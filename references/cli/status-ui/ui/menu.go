@@ -76,7 +76,7 @@ func (m *Menu) buildMenuTable(hints []model.MenuHint, table [][]model.MenuHint) 
 }
 
 func formatPlainMenu(h model.MenuHint) string {
-	menuFmt := " [white:-:b]%-" + strconv.Itoa(10) + "s [:-:b]%s "
+	menuFmt := " [blue:-:b]%-" + strconv.Itoa(10) + "s [:-:b]%s "
 	return fmt.Sprintf(menuFmt, menuFormat(h), h.Description)
 }
 

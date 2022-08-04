@@ -5,12 +5,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 )
 
 type Cluster struct {
@@ -42,21 +40,26 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 	list := &ClusterList{
 		title: []string{"Name", "Alias", "Type", "EndPoint", "Labels"},
 	}
-	name, ns := ctx.Value("appName").(string), ctx.Value("appNs").(string)
+	name, ok := ctx.Value("appName").(string)
+	if !ok {
+		return list
+	}
+	ns, ok := ctx.Value("appNs").(string)
+	if !ok {
+		return list
+	}
 	app, err := LoadApplication(c, name, ns)
-
-	_, currentRT, _, _, err := resourcetracker.ListApplicationResourceTrackers(context.Background(), c, app)
 	if err != nil {
 		return list
 	}
-
 	clusterSet := make(map[string]interface{})
-	for _, resource := range currentRT.Spec.ManagedResources {
-		cluster := multicluster.ClusterLocalName
-		if resource.Cluster != "" {
-			cluster = resource.Cluster
+
+	for _, svc := range app.Status.AppliedResources {
+		if svc.Cluster == "" {
+			clusterSet["local"] = struct{}{}
+		} else {
+			clusterSet[svc.Cluster] = struct{}{}
 		}
-		clusterSet[cluster] = struct{}{}
 	}
 
 	clusters, err := prismclusterv1alpha1.NewClusterClient(c).List(context.Background())
@@ -69,7 +72,6 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 				clusterType: string(cluster.Spec.CredentialType),
 				endpoint:    cluster.Spec.Endpoint,
 			}
-
 			var labels []string
 			for k, v := range cluster.Labels {
 				if !strings.HasPrefix(k, config.MetaApiGroupName) {

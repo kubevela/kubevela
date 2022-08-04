@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/status-ui/model"
@@ -32,7 +31,7 @@ func (c *Crumbs) StackPop(old, new model.Component) {
 func (c *Crumbs) StackPush(component model.Component) {
 	name := component.Name()
 	t := tview.NewTextView()
-	t.SetBackgroundColor(tcell.ColorOrange)
+	t.SetBackgroundColor(CRUMBS_BACKGORUND_COLOR)
 	t.SetTextAlign(tview.AlignCenter)
 
 	t.SetText(name)

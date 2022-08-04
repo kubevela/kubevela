@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -23,9 +24,11 @@ func NewApplicationView(ctx context.Context, app *App) model.Component {
 }
 
 func (v *ApplicationView) Init() {
-	v.SetTitle(v.Name())
+	title := fmt.Sprintf("[ %s ]", v.Name())
+	v.SetTitle(title).SetTitleColor(ui.RESOURCE_TABLE_TITLE_COLOR)
 	resourceList := v.ListApplications()
 	v.ResourceView.Init(resourceList)
+	v.ColorizeStatusText(len(resourceList.Body()))
 	v.bindKeys()
 }
 
@@ -35,6 +38,16 @@ func (v *ApplicationView) ListApplications() model.ResourceList {
 		return appList
 	}
 	return appList
+}
+
+func (v *ApplicationView) ColorizeStatusText(rowNum int) {
+	for i := 1; i < rowNum+1; i++ {
+		status := v.Table.GetCell(i, 2).Text
+		if status == "running" {
+			status = fmt.Sprintf("[lightgreen::]%s", status)
+		}
+		v.Table.GetCell(i, 2).SetText(status)
+	}
 }
 
 func (v *ApplicationView) Name() string {

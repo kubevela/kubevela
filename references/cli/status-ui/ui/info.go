@@ -21,22 +21,22 @@ func NewInfo() *InfoBoard {
 func (board *InfoBoard) Init(config *rest.Config) {
 	var row int
 	info := model.NewInfo()
-	board.SetCell(row, 0, board.sectionCell("Cluster"))
+	board.SetCell(row, 0, board.sectionCell("Cluster").SetTextColor(INFO_TEXT_COLOR))
 	board.SetCell(row, 1, infoCell(info.Cluster()))
 	row++
 
 	k8s := info.K8SVersion(config)
-	board.SetCell(row, 0, board.sectionCell("K8S Version"))
+	board.SetCell(row, 0, board.sectionCell("K8S Version").SetTextColor(INFO_TEXT_COLOR))
 	board.SetCell(row, 1, infoCell(k8s))
 	row++
 
 	velaCLI := info.VelaCLIVersion()
-	board.SetCell(row, 0, board.sectionCell("VelaCLI Version"))
+	board.SetCell(row, 0, board.sectionCell("VelaCLI Version").SetTextColor(INFO_TEXT_COLOR))
 	board.SetCell(row, 1, infoCell(velaCLI))
 	row++
 
 	velaCore := info.VelaCoreVersion()
-	board.SetCell(row, 0, board.sectionCell("VelaCore Version"))
+	board.SetCell(row, 0, board.sectionCell("VelaCore Version").SetTextColor(INFO_TEXT_COLOR))
 	board.SetCell(row, 1, infoCell(velaCore))
 	row++
 }

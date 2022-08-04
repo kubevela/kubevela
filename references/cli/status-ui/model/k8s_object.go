@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
@@ -38,7 +37,18 @@ func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 	list := &K8SObjectList{
 		title: []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"},
 	}
-	name, namespace, cluster := ctx.Value("appName").(string), ctx.Value("appNs").(string), ctx.Value("cluster").(string)
+	name, ok := ctx.Value("appName").(string)
+	if !ok {
+		return list
+	}
+	namespace, ok := ctx.Value("appNs").(string)
+	if !ok {
+		return list
+	}
+	cluster, ok := ctx.Value("cluster").(string)
+	if !ok {
+		return list
+	}
 	opt := query.Option{
 		Name:      name,
 		Namespace: namespace,

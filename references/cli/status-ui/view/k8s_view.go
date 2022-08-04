@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -23,10 +24,11 @@ func NewK8SView(ctx context.Context, app *App) model.Component {
 }
 
 func (v *K8SView) Init() {
-	v.SetTitle(v.Name())
+	title := fmt.Sprintf("[ %s ]", v.Name())
+	v.SetTitle(title).SetTitleColor(ui.RESOURCE_TABLE_TITLE_COLOR)
 	resourceList := v.ListK8SObjects()
 	v.ResourceView.Init(resourceList)
-	v.ResourceView.Init(resourceList)
+	v.ColorizeStatusText(len(resourceList.Body()))
 	v.bindKeys()
 }
 
@@ -41,6 +43,16 @@ func (v *K8SView) Name() string {
 
 func (v *K8SView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
+}
+
+func (v *K8SView) ColorizeStatusText(rowNum int) {
+	for i := 1; i < rowNum+1; i++ {
+		status := v.Table.GetCell(i, 5).Text
+		if status == "Healthy" {
+			status = fmt.Sprintf("[lightgreen::]%s", status)
+		}
+		v.Table.GetCell(i, 5).SetText(status)
+	}
 }
 
 func (v *K8SView) bindKeys() {

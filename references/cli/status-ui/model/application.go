@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,12 +32,13 @@ func (l *ApplicationList) Body() [][]string {
 	return data
 }
 
+// ListApplications list all apps in all namespaces
 func ListApplications(ctx context.Context, c client.Reader) (*ApplicationList, error) {
 	list := &ApplicationList{title: []string{"Name", "Namespace", "Phase", "CreateTime"}}
-
 	apps := v1beta1.ApplicationList{}
-	namespace := ""
 
+	// all namespaces
+	namespace := ""
 	if err := c.List(ctx, &apps, client.InNamespace(namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
 			return list, nil
@@ -52,6 +52,7 @@ func ListApplications(ctx context.Context, c client.Reader) (*ApplicationList, e
 	return list, nil
 }
 
+// LoadApplication load the corresponding application according to name and namespace
 func LoadApplication(c client.Client, name, ns string) (*v1beta1.Application, error) {
 	app := new(v1beta1.Application)
 	err := c.Get(context.Background(), client.ObjectKey{
