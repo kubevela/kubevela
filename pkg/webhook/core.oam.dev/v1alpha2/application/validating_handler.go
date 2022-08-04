@@ -96,8 +96,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	switch req.Operation {
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
-			// http.StatusUnprocessableEntity will NOT report any error descriptions to the client,
-			// use generic http.StatusBadRequest instead.
+			// http.StatusUnprocessableEntity will NOT report any error descriptions
+			// to the client, use generic http.StatusBadRequest instead.
 			return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
 		}
 	case admissionv1.Update:

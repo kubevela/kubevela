@@ -118,13 +118,14 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-
 		if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+			// http.StatusUnprocessableEntity will NOT report any error descriptions
+			// to the client, use generic http.StatusBadRequest instead.
+			return admission.Errored(http.StatusBadRequest, allErrs.ToAggregate())
 		}
 	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+			return admission.Errored(http.StatusBadRequest, allErrs.ToAggregate())
 		}
 	default:
 		// Do nothing for CONNECT
