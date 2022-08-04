@@ -301,13 +301,13 @@ func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]
 	legacyDefs := &v1beta1.ComponentDefinitionList{}
 	err := k8sClient.List(ctx, legacyDefs, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider})
-	if err != nil && kerrors.IsNotFound(err) {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, err
 	}
 	defs := &v1beta1.ComponentDefinitionList{}
 	err = k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{definition.DefinitionType: types.TerraformProvider})
-	if err != nil {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, err
 	}
 
