@@ -299,15 +299,13 @@ func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdut
 func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]v1beta1.ComponentDefinition, error) {
 	// keep compatibility with old version of terraform-xxx provider definition
 	legacyDefs := &v1beta1.ComponentDefinitionList{}
-	err := k8sClient.List(ctx, legacyDefs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider})
-	if err != nil && !kerrors.IsNotFound(err) {
+	if err := k8sClient.List(ctx, legacyDefs, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider}); err != nil {
 		return nil, err
 	}
 	defs := &v1beta1.ComponentDefinitionList{}
-	err = k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.DefinitionType: types.TerraformProvider})
-	if err != nil && !kerrors.IsNotFound(err) {
+	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{definition.DefinitionType: types.TerraformProvider}); err != nil {
 		return nil, err
 	}
 
