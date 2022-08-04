@@ -365,60 +365,6 @@ var _ = Describe("Test multicluster scenario", func() {
 			}, time.Minute).Should(Succeed())
 		})
 
-		It("Test helm addon relied feature", func() {
-			By("apply application")
-			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/app-apply-in-order.yaml")
-			Expect(err).Should(Succeed())
-			Expect(yaml.Unmarshal([]byte(bs), app)).Should(Succeed())
-			app.SetNamespace(testNamespace)
-			err = k8sClient.Create(hubCtx, app)
-			Expect(err).Should(Succeed())
-			By("wait application resource ready")
-			targetNamespace := "test-addon-namespace"
-			Eventually(func() error {
-				// check deployments in clusters
-				ns := corev1.Namespace{}
-				if err := k8sClient.Get(hubCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
-					return err
-				}
-				svc := corev1.Service{}
-				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
-					return err
-				}
-				return nil
-			}, 20*time.Minute).Should(Succeed())
-
-			Eventually(func() error {
-				// check deployments in clusters
-				ns := corev1.Namespace{}
-				if err := k8sClient.Get(workerCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
-					return err
-				}
-				svc := corev1.Service{}
-				if err := k8sClient.Get(workerCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
-					return err
-				}
-				return nil
-			}, 20*time.Minute).Should(Succeed())
-
-			checkApp := v1beta1.Application{}
-			Eventually(func() error {
-				err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: app.Name}, &checkApp)
-				if err != nil {
-					return err
-				}
-				if checkApp.Status.Phase != common.ApplicationRunning {
-					return fmt.Errorf("application not running")
-				}
-				return nil
-			}, 30*time.Minute, 500*time.Millisecond).Should(BeNil())
-
-			By("test delete env")
-			err = k8sClient.Delete(hubCtx, &checkApp)
-			Expect(err).Should(BeNil())
-		})
-
 		It("Test deploy multi-cluster application with target", func() {
 			By("apply application")
 			app := &v1beta1.Application{
