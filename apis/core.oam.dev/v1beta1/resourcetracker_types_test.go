@@ -125,7 +125,7 @@ func TestManagedResourceKeys(t *testing.T) {
 		},
 	}
 	r.Equal("namespace/name", input.NamespacedName().String())
-	r.Equal("apps/v1/Deployment/cluster/namespace/name", input.ResourceKey())
+	r.Equal("apps/Deployment/cluster/namespace/name", input.ResourceKey())
 	r.Equal("env/component", input.ComponentKey())
 	r.Equal("Deployment name (Cluster: cluster, Namespace: namespace)", input.DisplayName())
 	var deploy1, deploy2 v12.Deployment
