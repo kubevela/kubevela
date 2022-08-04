@@ -243,6 +243,20 @@ spec:
         image: "busybox"
 `
 
+const appfileYamlEmptyPolicy = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+  namespace: default
+spec:
+  components: []
+  policies:
+    - type: garbage-collect
+      name: somename
+      properties:
+`
+
 var _ = Describe("Test application parser", func() {
 	It("Test we can parse an application to an appFile", func() {
 		o := v1beta1.Application{}
@@ -282,6 +296,14 @@ var _ = Describe("Test application parser", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &notfound)
 		Expect(err).Should(HaveOccurred())
+
+		By("app with empty policy")
+		emptyPolicy := v1beta1.Application{}
+		err = yaml.Unmarshal([]byte(appfileYamlEmptyPolicy), &emptyPolicy)
+		Expect(err).ShouldNot(HaveOccurred())
+		_, err = NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), &emptyPolicy)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("have empty properties"))
 	})
 })
 
