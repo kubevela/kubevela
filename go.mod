@@ -126,7 +126,7 @@ require (
 
 require (
 	github.com/gdamore/tcell/v2 v2.5.2
-	github.com/rivo/tview v0.0.0-20220728094620-c6cff75ed57b
+	github.com/rivo/tview v0.0.0-20220709181631-73bf2902b59a
 )
 
 require github.com/rogpeppe/go-internal v1.8.1
@@ -265,7 +265,7 @@ require (
 	github.com/prometheus/common v0.28.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20220428173112-74888fd59c2b // indirect
-	github.com/rivo/uniseg v0.3.1 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/rubenv/sql-migrate v0.0.0-20210614095031-55d5740dbbcc // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
