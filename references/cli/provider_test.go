@@ -21,11 +21,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pkg/errors"
-
-	"github.com/oam-dev/kubevela/pkg/definition"
-
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
