@@ -777,15 +777,19 @@ func makePath(paths ...string) string {
 	if len(paths) == 0 {
 		return mergedPath
 	}
-	if paths[0] == "" || (len(paths) == 1 && (strings.Contains(paths[0], ".") || strings.Contains(paths[0], "["))) {
+	mergedPath = paths[0]
+	if mergedPath == "" || (len(paths) == 1 && (strings.Contains(mergedPath, ".") || strings.Contains(mergedPath, "["))) {
 		return paths[0]
 	}
-	mergedPath = paths[0]
-	if !strings.HasPrefix(paths[0], "_") && !strings.Contains(paths[0], "#") {
+	if !strings.HasPrefix(mergedPath, "_") && !strings.HasPrefix(mergedPath, "#") {
 		mergedPath = fmt.Sprintf("\"%s\"", mergedPath)
 	}
 	for _, p := range paths[1:] {
-		mergedPath += fmt.Sprintf("[\"%s\"]", p)
+		if !strings.HasPrefix(p, "#") {
+			mergedPath += fmt.Sprintf("[\"%s\"]", p)
+		} else {
+			mergedPath += fmt.Sprintf(".%s", p)
+		}
 	}
 	return mergedPath
 }

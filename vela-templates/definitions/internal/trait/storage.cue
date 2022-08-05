@@ -185,7 +185,7 @@ template: {
 
 	patch: spec: template: spec: {
 		// +patchKey=name
-		volumes: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+		volumes: deDupVolumesArray
 
 		containers: [{
 			// +patchKey=name

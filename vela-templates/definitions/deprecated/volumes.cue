@@ -54,8 +54,8 @@ template: {
 		// +usage=Declare volumes and volumeMounts
 		volumes?: [...{
 			name: string
-			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir"
-			type: *"pvc" | "configMap" | "secret" | "emptyDir"
+			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir", default to emptyDir
+			type: *"emptyDir" | "pvc" | "configMap" | "secret"
 			if type == "pvc" {
 				claimName: string
 			}

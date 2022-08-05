@@ -474,6 +474,83 @@ x: #X & {
 	assert.NilError(t, err)
 }
 
+func TestLookupValue(t *testing.T) {
+	testCases := []struct {
+		name  string
+		str   string
+		paths []string
+	}{
+		{
+			name: "def",
+			str: `
+#x: "v"
+`,
+			paths: []string{"#x"},
+		},
+		{
+			name: "def in def",
+			str: `
+#x: {
+	#y: "v"
+}
+`,
+			paths: []string{"#x", "#y"},
+		},
+		{
+			name: "num",
+			str: `
+"1": {
+	"2": "v"
+}
+`,
+			paths: []string{"1", "2"},
+		},
+		{
+			name: "invalid",
+			str: `
+"a-b": {
+	"b-c": "v"
+}
+`,
+			paths: []string{"a-b", "b-c"},
+		},
+		{
+			name: "concrete path",
+			str: `
+a: {
+	"b-c": "v"
+}
+`,
+			paths: []string{`a["b-c"]`},
+		},
+		{
+			name: "concrete path with num",
+			str: `
+a: [
+	{
+		key: "v"
+	}
+]
+`,
+			paths: []string{`a[0].key`},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := NewValue(tc.str, nil, "")
+			r.NoError(err)
+			result, err := v.LookupValue(tc.paths...)
+			r.NoError(err)
+			r.NoError(result.Error())
+			s, err := sets.ToString(result.v)
+			r.Equal(s, `"v"
+`)
+		})
+	}
+}
+
 func TestValueError(t *testing.T) {
 	caseOk := `
 provider: "kube"
