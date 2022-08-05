@@ -297,12 +297,25 @@ func listProviders(ctx context.Context, k8sClient client.Client, ioStreams cmdut
 // getTerraformProviderTypes retrieves all ComponentDefinition for Terraform Cloud Providers which are delivered by
 // Terraform Cloud provider addons
 func getTerraformProviderTypes(ctx context.Context, k8sClient client.Client) ([]v1beta1.ComponentDefinition, error) {
-	defs := &v1beta1.ComponentDefinitionList{}
-	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "type.config.oam.dev": types.TerraformProvider}); err != nil {
+	// keep compatibility with old version of terraform-xxx provider definition
+	legacyDefs := &v1beta1.ComponentDefinitionList{}
+	if err := k8sClient.List(ctx, legacyDefs, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider}); err != nil {
 		return nil, err
 	}
-	return defs.Items, nil
+	defs := &v1beta1.ComponentDefinitionList{}
+	if err := k8sClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{definition.DefinitionType: types.TerraformProvider}); err != nil {
+		return nil, err
+	}
+
+	var result []v1beta1.ComponentDefinition
+	result = append(result, legacyDefs.Items...)
+	result = append(result, defs.Items...)
+	if len(result) == 0 {
+		return nil, errors.New("no Terraform Cloud Provider ComponentDefinition found")
+	}
+	return result, nil
 }
 
 // getTerraformProviderType retrieves the ComponentDefinition for a Terraform Cloud Provider which is delivered by
