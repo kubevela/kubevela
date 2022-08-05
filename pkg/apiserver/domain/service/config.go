@@ -72,7 +72,7 @@ func (u *configServiceImpl) ListConfigTypes(ctx context.Context, query string) (
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.KubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
-			configCatalog: types.VelaCoreConfig,
+			definition.ConfigCatalog: types.VelaCoreConfig,
 		}); err != nil {
 		return nil, err
 	}
@@ -85,13 +85,13 @@ func (u *configServiceImpl) ListConfigTypes(ctx context.Context, query string) (
 	if err := u.KubeClient.List(ctx, defsLegacy, client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
 			// leave here as the legacy format to test the compatibility
-			definition.UserPrefix + configCatalog: types.VelaCoreConfig,
+			definition.UserPrefix + definition.ConfigCatalog: types.VelaCoreConfig,
 		}); err != nil {
 		return nil, err
 	}
 	// filter repeated config,due to new labels that exist at the same time
 	for _, legacy := range defsLegacy.Items {
-		if legacy.Labels[configCatalog] == types.VelaCoreConfig {
+		if legacy.Labels[definition.ConfigCatalog] == types.VelaCoreConfig {
 			continue
 		}
 		items = append(items, legacy)
