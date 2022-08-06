@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/references/cli/top/view"
+
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
@@ -47,7 +49,6 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/cli/status-ui/view"
 )
 
 // HealthStatus represents health status strings.
