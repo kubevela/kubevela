@@ -38,5 +38,5 @@ func IsLabelConflict(err error) bool {
 
 // IsCuePathNotFound checks if the error is cue path not found error
 func IsCuePathNotFound(err error) bool {
-	return strings.Contains(err.Error(), "failed to lookup value")
+	return strings.Contains(err.Error(), "failed to lookup value") && strings.Contains(err.Error(), "not exist")
 }

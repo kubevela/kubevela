@@ -547,6 +547,7 @@ a: [
 			s, err := sets.ToString(result.v)
 			r.Equal(s, `"v"
 `)
+			r.NoError(err)
 		})
 	}
 }
