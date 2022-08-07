@@ -73,6 +73,10 @@ const (
 	// If enabled, no StateKeep will be run, ResourceTracker will also disable the storage of all resource data, only
 	// metadata will be kept
 	ApplyOnce featuregate.Feature = "ApplyOnce"
+
+	// MultiStageComponentApply enable multi-stage feature for component
+	// If enabled, the dispatch of manifests is performed in batches according to the stage
+	MultiStageComponentApply featuregate.Feature = "MultiStageComponentApply"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -88,6 +92,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                     {Default: false, PreRelease: featuregate.Alpha},
+	MultiStageComponentApply:      {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

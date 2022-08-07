@@ -158,7 +158,28 @@ type TraitDefinitionSpec struct {
 	// ControlPlaneOnly defines which cluster is dispatched to
 	// +optional
 	ControlPlaneOnly bool `json:"controlPlaneOnly,omitempty"`
+
+	// Stage defines the stage information to which this trait resource processing belongs.
+	// Currently, PreDispatch and PostDispatch are provided, which are used to control resource
+	// pre-process and post-process respectively.
+	// +optional
+	Stage StageType `json:"stage,omitempty"`
 }
+
+// StageType describes how the manifests should be dispatched.
+// Only one of the following stage types may be specified.
+// If none of the following types is specified, the default one
+// is DefaultDispatch.
+type StageType string
+
+const (
+	// PreDispatch means that pre dispatch for manifests
+	PreDispatch StageType = "PreDispatch"
+	// DefaultDispatch means that default dispatch for manifests
+	DefaultDispatch StageType = "DefaultDispatch"
+	// PostDispatch means that post dispatch for manifests
+	PostDispatch StageType = "PostDispatch"
+)
 
 // TraitDefinitionStatus is the status of TraitDefinition
 type TraitDefinitionStatus struct {
