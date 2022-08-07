@@ -33,8 +33,3 @@ func (ps *PageStack) StackPop(_, _ model.Component) {}
 func (ps *PageStack) StackPush(component model.Component) {
 	ps.app.SetFocus(component)
 }
-
-// LastPage check whether only have one page
-func (ps *PageStack) LastPage() bool {
-	return ps.Stack.Empty()
-}

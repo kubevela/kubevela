@@ -28,8 +28,10 @@ func (c *Crumbs) init() {
 // StackPop change itself when accept "pop" notify from app's main view
 func (c *Crumbs) StackPop(_, _ model.Component) {
 	num := c.GetItemCount()
-	c.RemoveItem(c.GetItem(num - 1))
-	c.RemoveItem(c.GetItem(num - 2))
+	if num >= 2 {
+		c.RemoveItem(c.GetItem(num - 1))
+		c.RemoveItem(c.GetItem(num - 2))
+	}
 }
 
 // StackPush change itself when accept "push" notify from app's main view

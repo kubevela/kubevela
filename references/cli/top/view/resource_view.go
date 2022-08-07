@@ -3,10 +3,9 @@ package view
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-
 	"github.com/rivo/tview"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
@@ -78,5 +77,5 @@ func (v *ResourceView) buildTableBody(body [][]string) {
 
 // Name return view name
 func (v *ResourceView) Name() string {
-	return ""
+	return "Resource"
 }

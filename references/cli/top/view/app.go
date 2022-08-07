@@ -2,7 +2,6 @@ package view
 
 import (
 	"context"
-
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"k8s.io/client-go/rest"
@@ -74,7 +73,7 @@ func (a *App) buildHeader() tview.Primitive {
 }
 
 // Run is the application running entrance
-func (a *App) Run() {
+func (a *App) Run() error {
 	go func() {
 		a.QueueUpdateDraw(func() {
 			a.Main.SwitchToPage("main")
@@ -82,8 +81,9 @@ func (a *App) Run() {
 	}()
 	err := a.Application.Run()
 	if err != nil {
-		return
+		return err
 	}
+	return nil
 }
 
 func (a *App) bindKeys() {
@@ -109,7 +109,7 @@ func (a *App) inject(c model.Component) {
 // defaultView is the first view of running application
 func (a *App) defaultView(event *tcell.EventKey) *tcell.EventKey {
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, model.CtxKeyNamespace, "")
+	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
 	a.command.run(ctx, "app")
 	return event
 }
@@ -117,7 +117,7 @@ func (a *App) defaultView(event *tcell.EventKey) *tcell.EventKey {
 // helpView to display the view after pressing the Help key(?)
 func (a *App) helpView(_ *tcell.EventKey) *tcell.EventKey {
 	top := a.content.TopComponent()
-	if top != nil && top.Name() == "help" {
+	if top != nil && top.Name() == "Help" {
 		a.content.PopComponent()
 		return nil
 	}

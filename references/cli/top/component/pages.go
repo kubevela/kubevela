@@ -24,8 +24,27 @@ func NewPages() *Pages {
 	return p
 }
 
+// Init table component
+func (p *Pages) Init() {}
+
+// Name return pages' name
+func (p *Pages) Name() string {
+	return "Pages"
+}
+
+// Start table component
+func (p *Pages) Start() {}
+
+// Stop table component
+func (p *Pages) Stop() {}
+
+// Hint return key action menu hints of the component
+func (p *Pages) Hint() []model.MenuHint {
+	return []model.MenuHint{}
+}
+
 // StackPop change itself when accept "pop" notify from app's main view
-func (p *Pages) StackPop(old, new model.Component) {
+func (p *Pages) StackPop(old, _ model.Component) {
 	p.delete(old)
 }
 

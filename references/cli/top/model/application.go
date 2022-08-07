@@ -2,8 +2,6 @@ package model
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -41,8 +39,7 @@ func (l *ApplicationList) Body() [][]string {
 func ListApplications(ctx context.Context, c client.Reader) *ApplicationList {
 	list := &ApplicationList{title: []string{"Name", "Namespace", "Phase", "CreateTime"}}
 	apps := v1beta1.ApplicationList{}
-
-	namespace := ctx.Value(model.ContextNamespace).(string)
+	namespace := ctx.Value(&CtxKeyNamespace).(string)
 
 	if err := c.List(ctx, &apps, client.InNamespace(namespace)); err != nil {
 		return list

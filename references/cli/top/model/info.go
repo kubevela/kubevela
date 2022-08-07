@@ -22,7 +22,7 @@ type Info struct {
 }
 
 const (
-	// UnknownVersion unknown info
+	// Unknown info
 	Unknown = "UNKNOWN"
 )
 
@@ -77,7 +77,6 @@ func VelaCoreVersion() string {
 	if err != nil {
 		return Unknown
 	}
-
 	for _, result := range results {
 		if result.Chart.ChartFullPath() == types.DefaultKubeVelaChartName {
 			return result.Chart.AppVersion()

@@ -86,6 +86,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
+		NewTopCommand(commandArgs, "11", ioStream),
 		NewListCommand(commandArgs, "10", ioStream),
 		NewAppStatusCommand(commandArgs, "9", ioStream),
 		NewDeleteCommand(commandArgs, "7", ioStream),

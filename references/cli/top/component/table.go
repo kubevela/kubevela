@@ -28,6 +28,11 @@ func (t *Table) Init() {
 	t.SetBorderPadding(1, 1, 1, 1)
 }
 
+// Name return table's name
+func (t *Table) Name() string {
+	return "table"
+}
+
 // Start table component
 func (t *Table) Start() {
 }

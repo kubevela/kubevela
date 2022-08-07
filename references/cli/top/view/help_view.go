@@ -3,11 +3,10 @@ package view
 import (
 	"fmt"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 

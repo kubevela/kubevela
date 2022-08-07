@@ -26,6 +26,7 @@ func TestApplicationList_Body(t *testing.T) {
 var _ = Describe("test Application", func() {
 	var err error
 	ctx := context.Background()
+	ctx = context.WithValue(ctx, &CtxKeyNamespace, "")
 
 	It("list applications", func() {
 		k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})

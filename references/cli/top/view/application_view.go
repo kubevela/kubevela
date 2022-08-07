@@ -55,7 +55,7 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 		case "workflowSuspending":
 			status = fmt.Sprintf("[yellow::]%s", status)
 		case "workflowTerminated":
-			status = fmt.Sprintf("[red:]%s", status)
+			status = fmt.Sprintf("[red::]%s", status)
 		case "running":
 			status = fmt.Sprintf("[green::]%s", status)
 		}
