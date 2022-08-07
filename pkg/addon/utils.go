@@ -58,6 +58,10 @@ const (
 func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Application) error {
 	var comps, traits, workflowSteps, policies []string
 	for _, def := range defs {
+		if !checkBondComponentExist(*def, *app) {
+			// if the definition binding a component, and the component not exist, skip recording.
+			continue
+		}
 		switch def.GetObjectKind().GroupVersionKind().Kind {
 		case v1beta1.ComponentDefinitionKind:
 			comps = append(comps, def.GetName())
@@ -457,7 +461,7 @@ func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*uns
 			}
 		}
 		if err != nil && !errors2.IsNotFound(err) {
-			return nil, err
+			return nil, errors.Wrapf(err, "check definition %s", def.GetName())
 		}
 	}
 	return res, nil
@@ -473,4 +477,21 @@ func produceDefConflictError(conflictDefs map[string]string) error {
 	}
 	errorInfo += "if you want override them, please use argument '--override-definitions' to enable \n"
 	return errors.New(errorInfo)
+}
+
+// checkBondComponentExistt will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
+// if the target component not exist, return false.
+func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Application) bool {
+	comp, existKey := u.GetAnnotations()[oam.AnnotationIgnoreWithoutCompKey]
+	if !existKey {
+		// if an object(def or auxiliary outputs ) binding no components return true
+		return true
+	}
+	for _, component := range app.Spec.Components {
+		if component.Name == comp {
+			// the bond component exists, return ture
+			return true
+		}
+	}
+	return false
 }

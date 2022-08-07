@@ -79,6 +79,9 @@ const (
 	// ReadmeFileName is the addon readme file name
 	ReadmeFileName string = "README.md"
 
+	// LegacyReadmeFileName is the addon readme lower case file name
+	LegacyReadmeFileName string = "readme.md"
+
 	// MetadataFileName is the addon meatadata.yaml file name
 	MetadataFileName string = "metadata.yaml"
 
@@ -205,7 +208,7 @@ type Pattern struct {
 var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	{Value: ParameterFileName}, {IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName},
-	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}}
+	{IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName}, {Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: LegacyReadmeFileName}}
 
 // GetPatternFromItem will check if the file path has a valid pattern, return empty string if it's invalid.
 // AsyncReader is needed to calculate relative path
@@ -285,6 +288,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 		read func(a *UIData, reader AsyncReader, readPath string) error
 	}{
 		ReadmeFileName:          {!opt.GetDetail, readReadme},
+		LegacyReadmeFileName:    {!opt.GetDetail, readReadme},
 		MetadataFileName:        {false, readMetadata},
 		DefinitionsDirName:      {!opt.GetDefinition, readDefFile},
 		ParameterFileName:       {!opt.GetParameter, readParamFile},
@@ -481,6 +485,10 @@ func readMetadata(a *UIData, reader AsyncReader, readPath string) error {
 }
 
 func readReadme(a *UIData, reader AsyncReader, readPath string) error {
+	// the detail will contain readme.md or README.md, if the content already is filled, don't read another.
+	if len(a.Detail) != 0 {
+		return nil
+	}
 	content, err := reader.ReadFile(readPath)
 	if err != nil {
 		return err
@@ -675,7 +683,7 @@ func RenderDefinitions(addon *InstallPackage, config *rest.Config) ([]*unstructu
 	for _, def := range addon.Definitions {
 		obj, err := renderObject(def)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render definition file %s", def.Name)
 		}
 		// we should ignore the namespace defined in definition yaml, override the filed by DefaultKubeVelaNS
 		obj.SetNamespace(types.DefaultKubeVelaNS)
@@ -704,7 +712,7 @@ func RenderDefinitionSchema(addon *InstallPackage) ([]*unstructured.Unstructured
 	for _, teml := range addon.DefSchemas {
 		u, err := renderSchemaConfigmap(teml)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render uiSchema file %s", teml.Name)
 		}
 		schemaConfigmaps = append(schemaConfigmaps, u)
 	}
@@ -717,14 +725,14 @@ func RenderViews(addon *InstallPackage) ([]*unstructured.Unstructured, error) {
 	for _, view := range addon.YAMLViews {
 		obj, err := renderObject(view)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render velaQL view file %s", view.Name)
 		}
 		views = append(views, obj)
 	}
 	for _, view := range addon.CUEViews {
 		obj, err := renderCUEView(view)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render velaQL view file %s", view.Name)
 		}
 		views = append(views, obj)
 	}
@@ -788,7 +796,7 @@ func renderK8sObjectsComponent(elems []ElementFile, addonName string) (*common2.
 	for _, elem := range elems {
 		obj, err := renderObject(elem)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "render resource file %s", elem.Name)
 		}
 		objects = append(objects, obj)
 	}
@@ -1099,6 +1107,10 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	for _, def := range defs {
+		if !checkBondComponentExist(*def, *app) {
+			continue
+		}
+		// if binding component exist, apply the definition
 		addOwner(def, app)
 		err = h.apply.Apply(h.ctx, def, apply.DisableUpdateAnnotation())
 		if err != nil {
@@ -1123,6 +1135,9 @@ func (h *Installer) dispatchAddonResource(addon *InstallPackage) error {
 	}
 
 	for _, o := range auxiliaryOutputs {
+		if !checkBondComponentExist(*o, *app) {
+			continue
+		}
 		addOwner(o, app)
 		err = h.apply.Apply(h.ctx, o, apply.DisableUpdateAnnotation())
 		if err != nil {

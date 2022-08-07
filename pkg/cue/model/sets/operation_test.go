@@ -110,6 +110,19 @@ containers: [{noname: "x3"}]`,
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `
 // +patchKey=name
+containers: []`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+}, ...]
+`,
+		},
+		{
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `
+// +patchKey=name
 containers: [{noname: "x3"},{name: "x1"}]`,
 			result: `// +patchKey=name
 containers: [{
@@ -359,8 +372,10 @@ containers: [{
 	}
 
 	for i, tcase := range testCase {
-		v, _ := StrategyUnify(tcase.base, tcase.patch)
-		assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d) %s", i, v))
+		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
+			v, _ := StrategyUnify(tcase.base, tcase.patch)
+			assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d) %s", i, v))
+		})
 	}
 }
 

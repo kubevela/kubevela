@@ -346,6 +346,14 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 				return nil
 			}
 		}
+		if mr.SkipGC {
+			if labels := entry.obj.GetLabels(); labels != nil {
+				delete(labels, oam.LabelAppName)
+				delete(labels, oam.LabelAppNamespace)
+				entry.obj.SetLabels(labels)
+			}
+			return errors.Wrapf(h.Client.Update(ctx, entry.obj), "failed to remove owner labels for resource while skipping gc")
+		}
 		if err := h.Client.Delete(_ctx, entry.obj); err != nil && !kerrors.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 		}

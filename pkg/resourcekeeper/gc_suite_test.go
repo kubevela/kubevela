@@ -189,7 +189,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		}
 		By("Test delete normal resource")
 		o1 := createResource("o1", "app", namespace, "")
-		h._currentRT.AddManagedResource(o1, false, "test")
+		h._currentRT.AddManagedResource(o1, false, false, "test")
 		Expect(cli.Create(ctx, o1)).Should(Succeed())
 		h.cache.registerResourceTrackers(h._currentRT)
 		Expect(h.Finalize(ctx)).Should(Succeed())
@@ -199,7 +199,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 
 		By("Test delete resource shared by others")
 		o2 := createResource("o2", "app", namespace, fmt.Sprintf("%s/app,x/y", namespace))
-		h._currentRT.AddManagedResource(o2, false, "test")
+		h._currentRT.AddManagedResource(o2, false, false, "test")
 		Expect(cli.Create(ctx, o2)).Should(Succeed())
 		h.cache.registerResourceTrackers(h._currentRT)
 		Expect(h.Finalize(ctx)).Should(Succeed())
@@ -212,7 +212,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 
 		By("Test delete resource shared by self")
 		o3 := createResource("o3", "app", namespace, fmt.Sprintf("%s/app", namespace))
-		h._currentRT.AddManagedResource(o3, false, "test")
+		h._currentRT.AddManagedResource(o3, false, false, "test")
 		Expect(cli.Create(ctx, o3)).Should(Succeed())
 		h.cache.registerResourceTrackers(h._currentRT)
 		Expect(h.Finalize(ctx)).Should(Succeed())

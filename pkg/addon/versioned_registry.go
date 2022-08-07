@@ -86,6 +86,7 @@ func (i *versionedRegistry) GetAddonUIData(ctx context.Context, addonName, versi
 		Detail:            wholePackage.Detail,
 		Definitions:       wholePackage.Definitions,
 		AvailableVersions: wholePackage.AvailableVersions,
+		CUEDefinitions:    wholePackage.CUEDefinitions,
 	}, nil
 }
 

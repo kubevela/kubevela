@@ -18,7 +18,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -385,80 +384,6 @@ var _ = Describe("Test Query Provider", func() {
 		})
 	})
 
-	Context("Test CollectPods", func() {
-		It("Test collect pod from workload deployment", func() {
-			deploy := baseDeploy.DeepCopy()
-			deploy.SetName("test-collect-pod")
-			deploy.Spec.Selector = &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					oam.LabelAppComponent: "test",
-				},
-			}
-			deploy.Spec.Template.ObjectMeta.SetLabels(map[string]string{
-				oam.LabelAppComponent: "test",
-			})
-			Expect(k8sClient.Create(ctx, deploy)).Should(BeNil())
-			for i := 1; i <= 5; i++ {
-				pod := basePod.DeepCopy()
-				pod.SetName(fmt.Sprintf("test-collect-pod-%d", i))
-				pod.SetLabels(map[string]string{
-					oam.LabelAppComponent: "test",
-				})
-				Expect(k8sClient.Create(ctx, pod)).Should(BeNil())
-			}
-
-			prd := provider{cli: k8sClient}
-			unstructuredDeploy, err := util.Object2Unstructured(deploy)
-			Expect(err).Should(BeNil())
-			unstructuredDeploy.SetGroupVersionKind((&corev1.ObjectReference{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-			}).GroupVersionKind())
-
-			deployJson, err := json.Marshal(unstructuredDeploy)
-			Expect(err).Should(BeNil())
-			opt := fmt.Sprintf(`value: %s
-cluster: ""`, deployJson)
-			v, err := value.NewValue(opt, nil, "")
-			Expect(err).Should(BeNil())
-			Expect(prd.CollectPods(nil, v, nil)).Should(BeNil())
-
-			podList := new(PodList)
-			Expect(v.UnmarshalTo(podList)).Should(BeNil())
-			Expect(len(podList.List)).Should(Equal(5))
-			for _, pod := range podList.List {
-				Expect(pod.GroupVersionKind()).Should(Equal((&corev1.ObjectReference{
-					APIVersion: "v1",
-					Kind:       "Pod",
-				}).GroupVersionKind()))
-			}
-		})
-
-		It("Test collect pod with incomplete parameter", func() {
-			emptyOpt := ""
-			prd := provider{cli: k8sClient}
-			v, err := value.NewValue(emptyOpt, nil, "")
-			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
-			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=value) not exist"))
-
-			optWithoutCluster := `value: {}`
-			v, err = value.NewValue(optWithoutCluster, nil, "")
-			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
-			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
-
-			optWithWrongValue := `value: {test: 1}
-cluster: "test"`
-			v, err = value.NewValue(optWithWrongValue, nil, "")
-			Expect(err).Should(BeNil())
-			err = prd.CollectPods(nil, v, nil)
-			Expect(err).ShouldNot(BeNil())
-		})
-	})
-
 	Context("Test search event from k8s object", func() {
 		It("Test search event with incomplete parameter", func() {
 			emptyOpt := ""
@@ -555,8 +480,11 @@ options: {
 		h, ok := p.GetHandler("query", "listResourcesInApp")
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
-		h, ok = p.GetHandler("query", "collectPods")
+		h, ok = p.GetHandler("query", "collectResources")
 		Expect(h).ShouldNot(BeNil())
+		Expect(ok).Should(Equal(true))
+		l, ok := p.GetHandler("query", "listAppliedResources")
+		Expect(l).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
 		h, ok = p.GetHandler("query", "searchEvents")
 		Expect(ok).Should(Equal(true))
@@ -623,7 +551,7 @@ options: {
 						APIVersion: "helm.toolkit.fluxcd.io/v2beta1",
 						Kind:       helmapi.HelmReleaseGVK.Kind,
 						Namespace:  "default",
-						Name:       "helmRelease",
+						Name:       "helm-release",
 					},
 				},
 				{
@@ -702,6 +630,13 @@ options: {
 		err = k8sClient.Create(context.TODO(), rt)
 		Expect(err).Should(BeNil())
 
+		helmRelease := &unstructured.Unstructured{}
+		helmRelease.SetName("helm-release")
+		helmRelease.SetNamespace("default")
+		helmRelease.SetGroupVersionKind(helmapi.HelmReleaseGVK)
+		err = k8sClient.Create(context.TODO(), helmRelease)
+		Expect(err).Should(BeNil())
+
 		testServiceList := []map[string]interface{}{
 			{
 				"name": "clusterip",
@@ -745,7 +680,7 @@ options: {
 				},
 				"type": corev1.ServiceTypeNodePort,
 				"labels": map[string]string{
-					"helm.toolkit.fluxcd.io/name":      "helmRelease",
+					"helm.toolkit.fluxcd.io/name":      "helm-release",
 					"helm.toolkit.fluxcd.io/namespace": "default",
 				},
 			},
@@ -799,6 +734,7 @@ options: {
 				Expect(err).Should(BeNil())
 			}
 		}
+
 		var prefixbeta = networkv1beta1.PathTypePrefix
 		testIngress := []client.Object{
 			&networkv1beta1.Ingress{
@@ -908,7 +844,7 @@ options: {
 					Name:      "ingress-helm",
 					Namespace: "default",
 					Labels: map[string]string{
-						"helm.toolkit.fluxcd.io/name":      "helmRelease",
+						"helm.toolkit.fluxcd.io/name":      "helm-release",
 						"helm.toolkit.fluxcd.io/namespace": "default",
 					},
 				},
@@ -985,6 +921,7 @@ options: {
 				cluster: "",
 				clusterNamespace: "default",
 			}
+			withTree: true
 		}`
 		v, err := value.NewValue(opt, nil, "")
 		Expect(err).Should(BeNil())
@@ -1016,11 +953,11 @@ options: {
 		var endpoints []querytypes.ServiceEndpoint
 		err = endValue.Decode(&endpoints)
 		Expect(err).Should(BeNil())
-		var edps []string
-		for _, e := range endpoints {
-			edps = append(edps, e.String())
+		Expect(len(urls)).Should(Equal(len(endpoints)))
+		for i, e := range endpoints {
+			fmt.Println(e.String())
+			Expect(urls[i]).Should(Equal(e.String()))
 		}
-		Expect(edps).Should(BeEquivalentTo(urls))
 	})
 })
 

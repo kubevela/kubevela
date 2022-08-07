@@ -54,6 +54,12 @@ const (
 	AliasKey = "definition.oam.dev/alias"
 	// UserPrefix defines the prefix of user customized label or annotation
 	UserPrefix = "custom.definition.oam.dev/"
+	// DefinitionAlias is alias of definition
+	DefinitionAlias = "alias.config.oam.dev"
+	// DefinitionType marks definition's usage type, like image-registry
+	DefinitionType = "type.config.oam.dev"
+	// ConfigCatalog marks definition is a catalog
+	ConfigCatalog = "catalog.config.oam.dev"
 )
 
 var (

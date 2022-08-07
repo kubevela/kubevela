@@ -28,6 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -55,15 +56,15 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 		Use:   "ql",
 		Short: "Show result of executing velaQL.",
 		Long: `Show result of executing velaQL, use it like:
-		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}
+		vela ql --query "inner-view-name{param1=value1,param2=value2}"
 		vela ql --file ./ql.cue`,
 		Example: `  Users can query with a query statement:
-		vela ql --query "<inner-view-name>{<param1>=<value1>,<param2>=<value2>}"
+		vela ql --query "inner-view-name{param1=value1,param2=value2}"
 
   Query by a ql file:
 		vela ql --file ./ql.cue
   Query by a ql file from remote url:
-		vela ql --file https://<my-host-to-cue>/ql.cue
+		vela ql --file https://my.host.to.cue/ql.cue
   Query by a ql file from stdin:
 		cat ./ql.cue | vela ql --file -
 
@@ -285,6 +286,77 @@ func GetServiceEndpoints(ctx context.Context, appName string, namespace string, 
 	return response.Endpoints, nil
 }
 
+// GetApplicationPods get the pods by velaQL
+func GetApplicationPods(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.PodBase, error) {
+	params := map[string]string{
+		"appName": appName,
+		"appNs":   namespace,
+	}
+	if f.Component != "" {
+		params["name"] = f.Component
+	}
+	if f.Cluster != "" && f.ClusterNamespace != "" {
+		params["cluster"] = f.Cluster
+		params["clusterNs"] = f.ClusterNamespace
+	}
+
+	velaQL := MakeVelaQL("component-pod-view", params, "status")
+	queryView, err := velaql.ParseVelaQL(velaQL)
+	if err != nil {
+		return nil, err
+	}
+	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	if err != nil {
+		return nil, err
+	}
+	var response = struct {
+		Pods  []querytypes.PodBase `json:"podList"`
+		Error string               `json:"error"`
+	}{}
+	if err := queryValue.UnmarshalTo(&response); err != nil {
+		return nil, err
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf(response.Error)
+	}
+	return response.Pods, nil
+}
+
+// GetApplicationServices get the services by velaQL
+func GetApplicationServices(ctx context.Context, appName string, namespace string, velaC common.Args, f Filter) ([]querytypes.ResourceItem, error) {
+	params := map[string]string{
+		"appName": appName,
+		"appNs":   namespace,
+	}
+	if f.Component != "" {
+		params["name"] = f.Component
+	}
+	if f.Cluster != "" && f.ClusterNamespace != "" {
+		params["cluster"] = f.Cluster
+		params["clusterNs"] = f.ClusterNamespace
+	}
+	velaQL := MakeVelaQL("component-service-view", params, "status")
+	queryView, err := velaql.ParseVelaQL(velaQL)
+	if err != nil {
+		return nil, err
+	}
+	queryValue, err := QueryValue(ctx, velaC, &queryView)
+	if err != nil {
+		return nil, err
+	}
+	var response = struct {
+		Services []querytypes.ResourceItem `json:"services"`
+		Error    string                    `json:"error"`
+	}{}
+	if err := queryValue.UnmarshalTo(&response); err != nil {
+		return nil, err
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf(response.Error)
+	}
+	return response.Services, nil
+}
+
 // QueryValue get queryValue from velaQL
 func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryView) (*value.Value, error) {
 	dm, err := velaC.GetDiscoveryMapper()
@@ -299,6 +371,7 @@ func QueryValue(ctx context.Context, velaC common.Args, queryView *velaql.QueryV
 	if err != nil {
 		return nil, err
 	}
+	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	client, err := velaC.GetClient()
 	if err != nil {
 		return nil, err

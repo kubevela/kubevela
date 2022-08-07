@@ -82,6 +82,7 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	var skipGCManifests []*unstructured.Unstructured
 	var rootManifests []*unstructured.Unstructured
 	var versionManifests []*unstructured.Unstructured
 
@@ -94,25 +95,29 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 				}
 			}
 			cfg := newDispatchConfig(_options...)
-			if !cfg.skipRT {
-				if cfg.useRoot {
-					rootManifests = append(rootManifests, manifest)
-				} else {
-					versionManifests = append(versionManifests, manifest)
-				}
+			switch {
+			case cfg.skipGC:
+				skipGCManifests = append(skipGCManifests, manifest)
+			case cfg.useRoot:
+				rootManifests = append(rootManifests, manifest)
+			default:
+				versionManifests = append(versionManifests, manifest)
 			}
 		}
 	}
 
 	cfg := newDispatchConfig(options...)
 	ctx = auth.ContextClearUserInfo(ctx)
-	if len(rootManifests) != 0 {
+	if len(rootManifests)+len(skipGCManifests) != 0 {
 		rt, err := h.getRootRT(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get resourcetracker")
 		}
-		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly, cfg.creator); err != nil {
+		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, rootManifests, cfg.metaOnly, false, cfg.creator); err != nil {
 			return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
+		}
+		if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, skipGCManifests, cfg.metaOnly, true, cfg.creator); err != nil {
+			return errors.Wrapf(err, "failed to record resources (skip-gc) in resourcetracker %s", rt.Name)
 		}
 	}
 
@@ -120,7 +125,7 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
 	}
-	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly, cfg.creator); err != nil {
+	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly, false, cfg.creator); err != nil {
 		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
 	return nil

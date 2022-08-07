@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -285,6 +286,36 @@ func TestMakeChart(t *testing.T) {
 	isChartDir, err = chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
 	assert.NoError(t, err)
 	assert.Equal(t, isChartDir, true)
+}
+
+func TestCheckObjectBindingComponent(t *testing.T) {
+	existingBindingDef := unstructured.Unstructured{}
+	existingBindingDef.SetAnnotations(map[string]string{oam.AnnotationIgnoreWithoutCompKey: "kustomize"})
+
+	emptyAnnoDef := unstructured.Unstructured{}
+	emptyAnnoDef.SetAnnotations(map[string]string{"test": "onlyForTest"})
+	testCases := map[string]struct {
+		object unstructured.Unstructured
+		app    v1beta1.Application
+		res    bool
+	}{
+		"bindingExist": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true},
+		"NotExisting": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "helm"}}}},
+			res: false},
+		"NoBidingAnnotation": {object: emptyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true},
+		"EmptyApp": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{}}},
+			res: false},
+	}
+	for _, s := range testCases {
+		result := checkBondComponentExist(s.object, s.app)
+		assert.Equal(t, result, s.res)
+	}
 }
 
 const (

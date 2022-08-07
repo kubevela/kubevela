@@ -1,4 +1,4 @@
-# Pressure Test Guide
+# Load Test Guide
 
 ## Files
 

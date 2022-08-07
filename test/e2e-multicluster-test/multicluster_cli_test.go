@@ -57,12 +57,14 @@ var _ = Describe("Test multicluster CLI commands", func() {
 		Expect(err).Should(Succeed())
 		Eventually(func(g Gomega) {
 			pods := &v1.PodList{}
-			g.Expect(k8sClient.List(workerCtx, pods, client.InNamespace(namespace))).Should(Succeed())
+			g.Expect(k8sClient.List(workerCtx, pods, client.InNamespace(namespace), client.MatchingLabels(map[string]string{
+				"app.oam.dev/name": app.Name,
+			}))).Should(Succeed())
 			g.Expect(len(pods.Items)).Should(Equal(1))
 			g.Expect(pods.Items[0].Status.Phase).Should(Equal(v1.PodRunning))
 			g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
 			g.Expect(len(app.Status.AppliedResources)).ShouldNot(Equal(0))
-		}, 2*time.Minute).Should(Succeed())
+		}, 2*time.Minute, time.Second*3).Should(Succeed())
 	})
 
 	AfterEach(func() {
@@ -76,8 +78,8 @@ var _ = Describe("Test multicluster CLI commands", func() {
 		It("Test vela exec", func() {
 			command := exec.Command("vela", "exec", app.Name, "-n", namespace, "-i=false", "-t=false", "--", "pwd")
 			outputs, err := command.CombinedOutput()
-			Expect(err).Should(Succeed())
 			Expect(string(outputs)).Should(ContainSubstring("/"))
+			Expect(err).Should(Succeed())
 		})
 
 		It("Test vela port-forward", func() {
