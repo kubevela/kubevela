@@ -142,6 +142,7 @@ func main() {
 	flag.DurationVar(&clusterMetricsInterval, "cluster-metrics-interval", 15*time.Second, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	flag.BoolVar(&controllerArgs.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", false, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
+	flag.BoolVar(&controllerArgs.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", false, "If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 	standardcontroller.AddOptimizeFlags()
 	standardcontroller.AddAdmissionFlags()
 	flag.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
