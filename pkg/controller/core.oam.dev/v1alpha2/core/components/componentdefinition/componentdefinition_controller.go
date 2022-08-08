@@ -43,17 +43,24 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/version"
 )
 
 // Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
-	dm                   discoverymapper.DiscoveryMapper
-	pd                   *packages.PackageDiscover
-	Scheme               *runtime.Scheme
-	record               event.Recorder
+	dm     discoverymapper.DiscoveryMapper
+	pd     *packages.PackageDiscover
+	Scheme *runtime.Scheme
+	record event.Recorder
+	options
+}
+
+type options struct {
 	defRevLimit          int
 	concurrentReconciles int
+	ignoreDefNoCtrlReq   bool
+	controllerVersion    string
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
@@ -66,6 +73,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var componentDefinition v1beta1.ComponentDefinition
 	if err := r.Get(ctx, req.NamespacedName, &componentDefinition); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !r.matchControllerRequirement(&componentDefinition) {
+		klog.InfoS("skip componentDefinition: not match the controller requirement of componentDefinition", "componentDefinition", klog.KObj(&componentDefinition))
+		return ctrl.Result{}, nil
 	}
 
 	// refresh package discover when componentDefinition is registered
@@ -187,12 +199,32 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles ComponentDefinition.
 func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 	r := Reconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		dm:                   args.DiscoveryMapper,
-		pd:                   args.PackageDiscover,
-		defRevLimit:          args.DefRevisionLimit,
-		concurrentReconciles: args.ConcurrentReconciles,
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		dm:      args.DiscoveryMapper,
+		pd:      args.PackageDiscover,
+		options: parseOptions(args),
 	}
 	return r.SetupWithManager(mgr)
+}
+
+func parseOptions(args oamctrl.Args) options {
+	return options{
+		defRevLimit:          args.DefRevisionLimit,
+		concurrentReconciles: args.ConcurrentReconciles,
+		ignoreDefNoCtrlReq:   args.IgnoreDefinitionWithoutControllerRequirement,
+		controllerVersion:    version.VelaVersion,
+	}
+}
+
+func (r *Reconciler) matchControllerRequirement(componentDefinition *v1beta1.ComponentDefinition) bool {
+	if componentDefinition.Annotations != nil {
+		if requireVersion, ok := componentDefinition.Annotations[oam.AnnotationControllerRequirement]; ok {
+			return requireVersion == r.controllerVersion
+		}
+	}
+	if r.ignoreDefNoCtrlReq {
+		return false
+	}
+	return true
 }
