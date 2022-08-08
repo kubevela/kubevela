@@ -427,6 +427,8 @@ do: "apply"
 	assert.Equal(t, err != nil, true)
 	_, err = val.MakeValue(":")
 	assert.Equal(t, err != nil, true)
+	_, err = val.MakeValue("test: _|_")
+	assert.Equal(t, err != nil, true)
 	err = val.FillRaw(caseError)
 	assert.Equal(t, err != nil, true)
 	assert.Equal(t, originCue, val.CueValue())

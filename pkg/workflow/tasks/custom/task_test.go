@@ -645,6 +645,14 @@ func TestValidateIfValue(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "error if",
+			step: v1beta1.WorkflowStep{
+				If: `test == true`,
+			},
+			expectedErr: "invalid if value",
+			expected:    false,
+		},
 	}
 
 	for _, tc := range testCases {
