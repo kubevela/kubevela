@@ -206,7 +206,7 @@ step3: "3"
 }
 
 func TestStepWithTag(t *testing.T) {
-	// comment all the tests with comprehension with if for now,
+	// TODO(@FogDong): add if condition test cases back.
 	// refer to issue: https://github.com/cue-lang/cue/issues/1826
 	testCases := []struct {
 		base     string

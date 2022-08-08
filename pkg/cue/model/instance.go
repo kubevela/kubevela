@@ -17,9 +17,6 @@ limitations under the License.
 package model
 
 import (
-	"regexp"
-	"strings"
-
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -106,18 +103,4 @@ func NewOther(v cue.Value) (Instance, error) {
 	return &instance{
 		v: v,
 	}, nil
-}
-
-// IndexMatchLine will index and extract the line contains the pattern.
-func IndexMatchLine(ret, target string) (string, bool) {
-	if strings.Contains(ret, target) {
-		if target == "_|_" {
-			r := regexp.MustCompile(`_\|_[\s]//.*`)
-			match := r.FindAllString(ret, -1)
-			if len(match) > 0 {
-				return strings.Join(match, ","), true
-			}
-		}
-	}
-	return "", false
 }

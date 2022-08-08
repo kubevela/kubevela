@@ -1079,7 +1079,7 @@ parameter: { errs: [...string] }`,
 		}
 		r.NoError(err, cassinfo)
 		base, assists := ctx.Output()
-		// r.Equal(len(v.expAssObjs), len(assists), cassinfo)
+		r.Equal(len(v.expAssObjs), len(assists), cassinfo)
 		r.NotNil(base)
 		obj, err := base.Unstructured()
 		r.NoError(err)

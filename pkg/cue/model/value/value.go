@@ -747,7 +747,7 @@ func (a *assembler) installTo(expr ast.Expr) error {
 				return err
 			}
 		} else {
-			return errors.New("assembler parse selector.Sel invalid(!=ident)")
+			return errors.New("invalid sel type in selector")
 		}
 		if err := a.installTo(v.X); err != nil {
 			return err
