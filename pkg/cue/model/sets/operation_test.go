@@ -384,6 +384,26 @@ containers: [{
 	}, ...]
 }, ...]
 `},
+		{
+			base: `containers: [{name: "x1"}]`,
+			patch: `
+containers: [{
+	// +patchKey=name
+	env: [{
+		name: "k"
+		value: "v"
+	}]
+}, ...]`,
+			result: `containers: [{
+	name: "x1"
+	// +patchKey=name
+	env: [{
+		name:  "k"
+		value: "v"
+	}]
+}, ...]
+`,
+		},
 	}
 
 	for i, tcase := range testCase {

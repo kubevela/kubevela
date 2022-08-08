@@ -174,11 +174,11 @@ template: {
 		for val in [
 			for i, vi in volumesList {
 				for j, vj in volumesList if j < i && vi.name == vj.name {
-					ignore: true
+					_ignore: true
 				}
 				vi
 			},
-		] if val.ignore == _|_ {
+		] if val._ignore == _|_ {
 			val
 		},
 	]

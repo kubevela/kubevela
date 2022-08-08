@@ -264,7 +264,7 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 func GenOpenAPI(inst *cue.Instance) (b []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic in cue: %v", r)
+			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
 			return
 		}
 	}()

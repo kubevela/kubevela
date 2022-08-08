@@ -273,10 +273,6 @@ type ComponentManifest struct {
 
 // Patch the ComponentManifest with value
 func (comp *ComponentManifest) Patch(patchValue *value.Value) error {
-	// pInst, err := model.NewOther(patchValue.CueValue())
-	// if err != nil {
-	// 	return err
-	// }
 	return comp.Workload.Unify(patchValue.CueValue())
 }
 

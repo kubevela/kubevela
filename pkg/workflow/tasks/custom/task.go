@@ -146,7 +146,9 @@ func (t *TaskLoader) makeTaskGenerator(templ string) (wfTypes.TaskGenerator, err
 
 			defer func() {
 				if r := recover(); r != nil {
-					rErr = fmt.Errorf("panic in cue: %v", r)
+					exec.err(ctx, false, fmt.Errorf("invalid cue task for evaluation: %v", r), wfTypes.StatusReasonRendering)
+					stepStatus = exec.status()
+					operations = exec.operation()
 					return
 				}
 				if taskv == nil {

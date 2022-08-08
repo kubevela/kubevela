@@ -504,8 +504,10 @@ var _ = Describe("Test Application Controller", func() {
 
 		traitList := []string{"gateway", "storage", "env", "affinity"}
 		for _, trait := range traitList {
-			installDefinition(ctx, trait)
+			installDefinition(ctx, "../../../../charts/vela-core/templates/defwithtemplate", trait)
 		}
+
+		installDefinition(ctx, "./application/testdata/definitions", "panic")
 
 		hubCpuScalerJson, hubCpuScalerErr := yaml.YAMLToJSON([]byte(hubCpuScalerYaml))
 		Expect(hubCpuScalerErr).ShouldNot(HaveOccurred())
@@ -4693,11 +4695,41 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("test cue panic", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cue-panic",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithMountToEnvs.SetNamespace(ns.Name)
+		app := appWithMountToEnvs.DeepCopy()
+		app.Spec.Components[0].Traits = []common.ApplicationTrait{
+			{
+				Type:       "panic",
+				Properties: &runtime.RawExtension{Raw: []byte("{\"configMap\": [{\"name\": \"myweb-cm\"}]}")},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+		Expect(curApp.Status.Workflow.Steps[0].Message).Should(ContainSubstring("invalid cue task for evaluation: runtime error: invalid memory address or nil pointer dereference"))
+	})
 })
 
-func installDefinition(ctx context.Context, name string) {
+func installDefinition(ctx context.Context, defPath, name string) {
 	_, file, _, _ := sysruntime.Caller(0)
-	definitionPath := filepath.Join(filepath.Dir(filepath.Dir(file)), "../../../../charts/vela-core/templates/defwithtemplate")
+	definitionPath := filepath.Join(filepath.Dir(filepath.Dir(file)), defPath)
 
 	b, err := ioutil.ReadFile(filepath.Join(definitionPath, name+".yaml"))
 	Expect(err).ShouldNot(HaveOccurred())

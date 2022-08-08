@@ -86,6 +86,7 @@ func TestWalk(t *testing.T) {
 		    tags_str: strings.Compare(b,"c")
 		}
 	`,
+		`a: [1, 2, 3]`,
 	}
 
 	for _, src := range testCases {

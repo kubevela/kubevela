@@ -69,10 +69,6 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 			return err
 		}
 
-		// patcher, err := model.NewOther(pv)
-		// if err != nil {
-		// 	return err
-		// }
 		if err := base.Unify(pv); err != nil {
 			return err
 		}
