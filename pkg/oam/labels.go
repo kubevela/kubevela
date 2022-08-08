@@ -230,6 +230,7 @@ const (
 	// Deprecated: AnnotationIgnoreWithoutCompKey indicates the bond component, please use AnnotationAddonDefinitionBindCompKey.
 	AnnotationIgnoreWithoutCompKey = "addon.oam.dev/ignore-without-component"
 
+	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
 )
 
