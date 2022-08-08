@@ -86,4 +86,7 @@ type Args struct {
 
 	// IgnoreAppWithoutControllerRequirement indicates that application controller will not process the app without 'app.oam.dev/controller-version-require' annotation.
 	IgnoreAppWithoutControllerRequirement bool
+
+	// IgnoreDefinitionWithoutControllerRequirement indicates that trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation.
+	IgnoreDefinitionWithoutControllerRequirement bool
 }
