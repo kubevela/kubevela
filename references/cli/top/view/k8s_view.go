@@ -22,6 +22,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -74,15 +75,16 @@ func (v *K8SView) Hint() []model.MenuHint {
 func (v *K8SView) ColorizeStatusText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		status := v.Table.GetCell(i, 5).Text
-		switch status {
-		case "Healthy":
-			status = fmt.Sprintf("[green::]%s", status)
-		case "UnHealthy":
-			status = fmt.Sprintf("[red::]%s", status)
-		case "Progressing":
-			status = fmt.Sprintf("[blue::]%s", status)
-		case "UnKnown":
-			status = fmt.Sprintf("[gray::]%s", status)
+		switch querytypes.HealthStatusCode(status) {
+		case querytypes.HealthStatusHealthy:
+			status = config.ObjectHealthyStatusColor + status
+		case querytypes.HealthStatusUnHealthy:
+			status = config.ObjectUnhealthyStatusColor + status
+		case querytypes.HealthStatusProgressing:
+			status = config.ObjectProgressingStatusColor + status
+		case querytypes.HealthStatusUnKnown:
+			status = config.ObjectUnKnownStatusColor + status
+		default:
 		}
 		v.Table.GetCell(i, 5).SetText(status)
 	}

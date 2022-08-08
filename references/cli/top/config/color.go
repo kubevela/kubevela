@@ -35,4 +35,20 @@ const (
 	ResourceTableHeaderColor = tcell.ColorLightGray
 	// ResourceTableBodyColor resource table body text color
 	ResourceTableBodyColor = tcell.ColorBlue
+	// ApplicationStartingAndRenderingPhaseColor application Starting and Rendering phase text color
+	ApplicationStartingAndRenderingPhaseColor = "[blue::]"
+	// ApplicationWorkflowSuspendingPhaseColor application WorkflowSuspending phase text color
+	ApplicationWorkflowSuspendingPhaseColor = "[yellow::]"
+	// ApplicationWorkflowTerminatedPhaseColor application WorkflowTerminated phase text color
+	ApplicationWorkflowTerminatedPhaseColor = "[red::]"
+	// ApplicationRunningPhaseColor application Running phase text color
+	ApplicationRunningPhaseColor = "[green::]"
+	// ObjectHealthyStatusColor is object Healthy status text color
+	ObjectHealthyStatusColor = "[green::]"
+	// ObjectUnhealthyStatusColor is object Unhealthy status text color
+	ObjectUnhealthyStatusColor = "[red::]"
+	// ObjectProgressingStatusColor is object Progressing status text color
+	ObjectProgressingStatusColor = "[blue::]"
+	// ObjectUnKnownStatusColor is object UnKnown status text color
+	ObjectUnKnownStatusColor = "[gray::]"
 )

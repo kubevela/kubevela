@@ -22,6 +22,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -64,15 +65,16 @@ func (v *ApplicationView) ListApplications() model.ResourceList {
 func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		status := v.Table.GetCell(i, 2).Text
-		switch status {
-		case "rendering":
-			status = fmt.Sprintf("[blue::]%s", status)
-		case "workflowSuspending":
-			status = fmt.Sprintf("[yellow::]%s", status)
-		case "workflowTerminated":
-			status = fmt.Sprintf("[red::]%s", status)
-		case "running":
-			status = fmt.Sprintf("[green::]%s", status)
+		switch common.ApplicationPhase(status) {
+		case common.ApplicationRendering, common.ApplicationStarting:
+			status = config.ApplicationStartingAndRenderingPhaseColor + status
+		case common.ApplicationWorkflowSuspending:
+			status = config.ApplicationWorkflowSuspendingPhaseColor + status
+		case common.ApplicationWorkflowTerminated:
+			status = config.ApplicationWorkflowTerminatedPhaseColor + status
+		case common.ApplicationRunning:
+			status = config.ApplicationRunningPhaseColor + status
+		default:
 		}
 		v.Table.GetCell(i, 2).SetText(status)
 	}
