@@ -290,10 +290,13 @@ func TestMakeChart(t *testing.T) {
 
 func TestCheckObjectBindingComponent(t *testing.T) {
 	existingBindingDef := unstructured.Unstructured{}
-	existingBindingDef.SetAnnotations(map[string]string{oam.AnnotationIgnoreWithoutCompKey: "kustomize"})
+	existingBindingDef.SetAnnotations(map[string]string{oam.AnnotationAddonDefinitionBondCompKey: "kustomize"})
 
 	emptyAnnoDef := unstructured.Unstructured{}
 	emptyAnnoDef.SetAnnotations(map[string]string{"test": "onlyForTest"})
+
+	legacyAnnoDef := unstructured.Unstructured{}
+	legacyAnnoDef.SetAnnotations(map[string]string{oam.AnnotationIgnoreWithoutCompKey: "kustomize"})
 	testCases := map[string]struct {
 		object unstructured.Unstructured
 		app    v1beta1.Application
@@ -311,6 +314,14 @@ func TestCheckObjectBindingComponent(t *testing.T) {
 		"EmptyApp": {object: existingBindingDef,
 			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{}}},
 			res: false},
+		"LegacyApp": {object: legacyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true,
+		},
+		"LegacyAppWithoutComp": {object: legacyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{}}}},
+			res: false,
+		},
 	}
 	for _, s := range testCases {
 		result := checkBondComponentExist(s.object, s.app)
