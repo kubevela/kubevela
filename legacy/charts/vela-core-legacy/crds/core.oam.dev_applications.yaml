@@ -566,9 +566,10 @@ spec:
                 format: int64
                 type: integer
               policy:
-                description: PolicyStatus records the status of policy
+                description: PolicyStatus records the status of policy Deprecated
+                  This field is only used by EnvBinding Policy which is deprecated.
                 items:
-                  description: PolicyStatus records the status of policy
+                  description: PolicyStatus records the status of policy Deprecated
                   properties:
                     name:
                       type: string
@@ -1315,9 +1316,10 @@ spec:
                 format: int64
                 type: integer
               policy:
-                description: PolicyStatus records the status of policy
+                description: PolicyStatus records the status of policy Deprecated
+                  This field is only used by EnvBinding Policy which is deprecated.
                 items:
-                  description: PolicyStatus records the status of policy
+                  description: PolicyStatus records the status of policy Deprecated
                   properties:
                     name:
                       type: string

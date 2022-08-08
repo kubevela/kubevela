@@ -324,10 +324,12 @@ type AppStatus struct {
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
 
 	// PolicyStatus records the status of policy
+	// Deprecated This field is only used by EnvBinding Policy which is deprecated.
 	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
 }
 
 // PolicyStatus records the status of policy
+// Deprecated
 type PolicyStatus struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
