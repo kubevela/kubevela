@@ -25,6 +25,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
@@ -130,6 +131,7 @@ func (def *Definition) SetType(t string) error {
 }
 
 // ToCUE converts Definition to CUE value (with predefined Definition's cue format)
+// nolint:staticcheck
 func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	annotations := map[string]string{}
 	for key, val := range def.GetAnnotations() {
@@ -221,7 +223,7 @@ func (def *Definition) ToCUEString() (string, error) {
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
-// nolint:gocyclo
+// nolint:gocyclo,staticcheck
 func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if def.Object == nil {
 		def.Object = map[string]interface{}{}
@@ -343,7 +345,7 @@ func (def *Definition) FromYAML(data []byte) error {
 
 // FromCUEString converts cue string into Definition
 func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
-	r := &cue.Runtime{}
+	cuectx := cuecontext.New()
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return err
@@ -393,9 +395,9 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
 
-	inst, err := r.Compile("-", metadataString)
-	if err != nil {
-		return err
+	inst := cuectx.CompileString(metadataString)
+	if inst.Err() != nil {
+		return inst.Err()
 	}
 	templateString, err = formatCUEString(importString + templateString)
 	if err != nil {
@@ -410,11 +412,10 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
 			return err
 		}
-	} else if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {
-		return err
+	} else if val := cuectx.CompileString(templateString + "\n" + velacue.BaseTemplate); val.Err() != nil {
+		return val.Err()
 	}
-	val := inst.Value()
-	return def.FromCUE(&val, templateString)
+	return def.FromCUE(&inst, templateString)
 }
 
 // ValidDefinitionTypes return the list of valid definition types

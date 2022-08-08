@@ -201,7 +201,11 @@ func (ctx *templateContext) BaseContextFile() (string, error) {
 	}
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf(model.OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
+		base, err := ctx.base.String()
+		if err != nil {
+			return "", err
+		}
+		buff += fmt.Sprintf(model.OutputFieldName+": %s\n", structMarshal(base))
 	}
 
 	if ctx.components != nil {
@@ -215,7 +219,11 @@ func (ctx *templateContext) BaseContextFile() (string, error) {
 	if len(ctx.auxiliaries) > 0 {
 		var auxLines []string
 		for _, auxiliary := range ctx.auxiliaries {
-			auxLines = append(auxLines, fmt.Sprintf("\"%s\": %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			aux, err := auxiliary.Ins.String()
+			if err != nil {
+				return "", err
+			}
+			auxLines = append(auxLines, fmt.Sprintf("\"%s\": %s", auxiliary.Name, structMarshal(aux)))
 		}
 		if len(auxLines) > 0 {
 			buff += fmt.Sprintf(model.OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))

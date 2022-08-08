@@ -65,7 +65,7 @@ import (
 #ApplyComponentRemaining: #Steps & {
 	// exceptions specify the resources not to apply.
 	exceptions: [...string]
-	_exceptions: {for c in exceptions {"\(c)": true}}
+	exceptions_: {for c in exceptions {"\(c)": true}}
 	component: string
 
 	load:   oam.#LoadComponets @step(1)
@@ -77,7 +77,7 @@ import (
 			value: rendered.output
 		}
 		for name, c in rendered.outputs {
-			if _exceptions[name] == _|_ {
+			if exceptions_[name] == _|_ {
 				"\(name)": kube.#Apply & {
 					value: c
 				}
@@ -89,12 +89,12 @@ import (
 #ApplyRemaining: #Steps & {
 	// exceptions specify the resources not to apply.
 	exceptions: [...string]
-	_exceptions: {for c in exceptions {"\(c)": true}}
+	exceptions_: {for c in exceptions {"\(c)": true}}
 
 	load:       oam.#LoadComponets @step(1)
 	components: #Steps & {
 		for name, c in load.value {
-			if _exceptions[name] == _|_ {
+			if exceptions_[name] == _|_ {
 				"\(name)": oam.#ApplyComponent & {
 					value: c
 				}

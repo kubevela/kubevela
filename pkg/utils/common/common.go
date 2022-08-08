@@ -32,7 +32,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
@@ -71,6 +70,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -234,27 +234,11 @@ func HTTPGetKubernetesObjects(ctx context.Context, url string) ([]*unstructured.
 
 // GetCUEParameterValue converts definitions to cue format
 func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Value, error) {
-	var template *cue.Instance
-	var err error
-	if pd != nil {
-		bi := build.NewContext().NewInstance("", nil)
-		err := bi.AddFile("-", cueStr+velacue.BaseTemplate)
-		if err != nil {
-			return cue.Value{}, err
-		}
-
-		template, err = pd.ImportPackagesAndBuildInstance(bi)
-		if err != nil {
-			return cue.Value{}, err
-		}
-	} else {
-		r := cue.Runtime{}
-		template, err = r.Compile("", cueStr+velacue.BaseTemplate)
-		if err != nil {
-			return cue.Value{}, err
-		}
+	template, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
+	if err != nil {
+		return cue.Value{}, err
 	}
-	tempStruct, err := template.Value().Struct()
+	tempStruct, err := template.CueValue().Struct()
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -277,7 +261,13 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 }
 
 // GenOpenAPI generates OpenAPI json schema from cue.Instance
-func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
+func GenOpenAPI(inst *cue.Instance) (b []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("invalid cue definition to generate open api: %v", r)
+			return
+		}
+	}()
 	if inst.Err != nil {
 		return nil, inst.Err
 	}
@@ -285,8 +275,8 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultConfig := &openapi.Config{}
-	b, err := openapi.Gen(paramOnlyIns, defaultConfig)
+	defaultConfig := &openapi.Config{ExpandReferences: true}
+	b, err = openapi.Gen(paramOnlyIns, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -296,8 +286,9 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 }
 
 // extractParameterDefinitionNodeFromInstance extracts the `#parameter` ast.Node from root instance, if failed fall back to `parameter` by LookUpDef
+// nolint:staticcheck
 func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
-	opts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
+	opts := []cue.Option{cue.Docs(true), cue.InlineImports(true)}
 	node := inst.Value().Syntax(opts...)
 	if fileNode, ok := node.(*ast.File); ok {
 		for _, decl := range fileNode.Decls {
@@ -313,13 +304,14 @@ func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 }
 
 // RefineParameterInstance refines cue instance to merely include `parameter` identifier
+// nolint:staticcheck
 func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	r := cue.Runtime{}
-	paramVal := inst.LookupDef(model.ParameterFieldName)
+	paramVal := inst.Lookup(model.ParameterFieldName)
 	var paramOnlyStr string
 	switch k := paramVal.IncompleteKind(); k {
 	case cue.StructKind, cue.ListKind:
-		paramSyntax, _ := format.Node(extractParameterDefinitionNodeFromInstance(inst))
+		paramSyntax, _ := format.Node(paramVal.Value().Syntax(cue.Docs(true), cue.ResolveReferences(true)))
 		paramOnlyStr = fmt.Sprintf("#%s: %s\n", model.ParameterFieldName, string(paramSyntax))
 	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
 		paramOnlyStr = fmt.Sprintf("#%s: %v", model.ParameterFieldName, paramVal)

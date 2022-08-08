@@ -169,7 +169,7 @@ func TestConvertString(t *testing.T) {
 		},
 		"fail": {
 			from:        `bt: 123`,
-			expectedErr: errors.New("bt: cannot use value 123 (type int) as string|bytes"),
+			expectedErr: errors.New("bt: cannot use value 123 (type int) as (string|bytes)"),
 		},
 	}
 

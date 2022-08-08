@@ -93,7 +93,7 @@ template: {
 						}
 
 						if parameter["volumes"] != _|_ {
-							volumeMounts: [ for v in parameter.volumes {
+							volumeMounts: [ if parameter.volumes != _|_ for v in parameter.volumes {
 								{
 									mountPath: v.mountPath
 									name:      v.name
@@ -102,7 +102,7 @@ template: {
 					}]
 
 					if parameter["volumes"] != _|_ {
-						volumes: [ for v in parameter.volumes {
+						volumes: [ if parameter.volumes != _|_ for v in parameter.volumes {
 							{
 								name: v.name
 								if v.type == "pvc" {
@@ -133,7 +133,7 @@ template: {
 					}
 
 					if parameter["imagePullSecrets"] != _|_ {
-						imagePullSecrets: [ for v in parameter.imagePullSecrets {
+						imagePullSecrets: [ if parameter.imagePullSecrets != _|_ for v in parameter.imagePullSecrets {
 							name: v
 						},
 						]
@@ -206,8 +206,8 @@ template: {
 		volumes?: [...{
 			name:      string
 			mountPath: string
-			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir"
-			type: "pvc" | "configMap" | "secret" | "emptyDir"
+			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir", default to emptyDir
+			type: *"emptyDir" | "pvc" | "configMap" | "secret"
 			if type == "pvc" {
 				claimName: string
 			}

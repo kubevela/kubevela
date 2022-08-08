@@ -122,6 +122,7 @@ func (ref *ParseReference) formatTableString(s string) string {
 }
 
 // prepareConsoleParameter prepares the table content for each property
+// nolint:staticcheck
 func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) ConsoleReference {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
@@ -152,7 +153,7 @@ func (ref *ParseReference) prepareConsoleParameter(tableName string, parameterLi
 
 // parseParameters parses every parameter
 // TODO(wonderflowe2e/plugin/plugin_test.go:122): refactor the code to reduce the complexity
-//nolint:gocyclo
+// nolint:staticcheck,gocyclo
 func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, paramKey string, depth int, containSuffix bool) (string, []ConsoleReference, error) {
 	var doc string
 	var console []ConsoleReference
@@ -206,9 +207,17 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			case cue.StructKind:
 				if subField, err := val.Struct(); err == nil && subField.Len() == 0 { // err cannot be not nil,so ignore it
 					if mapValue, ok := val.Elem(); ok {
-						source, converted := mapValue.Source().(*ast.Ident)
-						if converted && len(source.Name) != 0 {
-							param.PrintableType = fmt.Sprintf("map[string]:%s", source.Name)
+						var ident *ast.Ident
+						if source, ok := mapValue.Source().(*ast.Ident); ok {
+							ident = source
+						}
+						if source, ok := mapValue.Source().(*ast.Field); ok {
+							if v, ok := source.Value.(*ast.Ident); ok {
+								ident = v
+							}
+						}
+						if ident != nil && len(ident.Name) != 0 {
+							param.PrintableType = fmt.Sprintf("map[string]:%s", ident.Name)
 						} else {
 							param.PrintableType = fmt.Sprintf("map[string]:%s", mapValue.IncompleteKind().String())
 						}

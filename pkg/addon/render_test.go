@@ -97,7 +97,7 @@ myref: {
 		},
 	}
 	app, _, err := render.renderApp()
-	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+	assert.Equal(t, err.Error(), `load app template with CUE files: output.spec.components: reference "myref" not found`)
 	assert.Nil(t, app)
 
 	addon.CUETemplates = []ElementFile{{Data: "package main\n" + resourceComponent1}}
@@ -114,7 +114,7 @@ myref: {
 	assert.Equal(t, len(app.Spec.Policies), 2)
 	str, err = json.Marshal(app.Spec.Policies)
 	assert.NoError(t, err)
-	assert.True(t, strings.Contains(string(str), `"clusterLabelSelector":{}`))
+	assert.Contains(t, string(str), `"clusterLabelSelector":{}`)
 
 	addon.Parameters = "package newp\n" + paraDefined
 	addon.CUETemplates = []ElementFile{{Data: "package newp\n" + resourceComponent1}}
@@ -133,13 +133,13 @@ myref: {
 	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
 	addon.AppCueTemplate = ElementFile{Data: "package main\n" + appTemplate}
 	_, _, err = render.renderApp()
-	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+	assert.Equal(t, err.Error(), `load app template with CUE files: output.spec.components: reference "myref" not found`)
 
 	addon.CUETemplates = []ElementFile{{Data: "package hello\n" + resourceComponent1}}
 	addon.Parameters = paraDefined
 	addon.AppCueTemplate = ElementFile{Data: appTemplate}
 	_, _, err = render.renderApp()
-	assert.Equal(t, err.Error(), `load app template with CUE files: reference "myref" not found`)
+	assert.Equal(t, err.Error(), `load app template with CUE files: output.spec.components: reference "myref" not found`)
 
 }
 

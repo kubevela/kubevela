@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -121,17 +121,8 @@ spec:
 		t.Error(err)
 		return
 	}
-	var r cue.Runtime
-	inst, err := r.Compile("-", temp.TemplateStr)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	instDest, err := r.Compile("-", cueTemplate)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	inst := cuecontext.New().CompileString(temp.TemplateStr)
+	instDest := cuecontext.New().CompileString(cueTemplate)
 	s1, _ := inst.Value().String()
 	s2, _ := instDest.Value().String()
 	if s1 != s2 {
@@ -226,17 +217,8 @@ spec:
 		t.Error(err)
 		return
 	}
-	var r cue.Runtime
-	inst, err := r.Compile("-", temp.TemplateStr)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	instDest, err := r.Compile("-", cueTemplate)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	inst := cuecontext.New().CompileString(temp.TemplateStr)
+	instDest := cuecontext.New().CompileString(cueTemplate)
 	s1, _ := inst.Value().String()
 	s2, _ := instDest.Value().String()
 	if s1 != s2 {
@@ -345,17 +327,8 @@ spec:
 		t.Error(err)
 		return
 	}
-	var r cue.Runtime
-	inst, err := r.Compile("-", temp.TemplateStr)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	instDest, err := r.Compile("-", cueTemplate)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	inst := cuecontext.New().CompileString(temp.TemplateStr)
+	instDest := cuecontext.New().CompileString(cueTemplate)
 	s1, _ := inst.Value().String()
 	s2, _ := instDest.Value().String()
 	if s1 != s2 {

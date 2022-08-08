@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 const (
@@ -133,6 +134,10 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "load app template with CUE files")
 	}
+	if v.Error() != nil {
+		return nil, nil, errors.Wrap(v.Error(), "load app template with CUE files")
+	}
+
 	outputContent, err := v.LookupValue(renderOutputCuePath)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "render app from output field from CUE")
@@ -144,7 +149,7 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 	auxiliaryContent, err := v.LookupValue(renderAuxiliaryOutputsPath)
 	if err != nil {
 		// no outputs defined in app template, return normal data
-		if isErrorCueRenderPathNotFound(err, renderAuxiliaryOutputsPath) {
+		if verrors.IsCuePathNotFound(err) {
 			return &app, res, nil
 		}
 		return nil, nil, errors.Wrap(err, "render app from output field from CUE")

@@ -18,10 +18,9 @@ package sets
 import (
 	"testing"
 
-	"cuelang.org/go/cue/format"
-
-	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
@@ -56,8 +55,8 @@ if true {
 }
 lacy: string
 `,
-			expected: `foo:  int
-lacy: string
+			expected: `lacy: string
+foo:  int
 `},
 		{
 			s: ` 
@@ -72,11 +71,9 @@ if foo > 5 {
 }
 `},
 	}
-	var r cue.Runtime
 	for _, tcase := range testCases {
-		inst, err := r.Compile("-", tcase.s)
-		assert.NilError(t, err)
-		str, err := ToString(inst.Value())
+		inst := cuecontext.New().CompileString(tcase.s)
+		str, err := ToString(inst)
 		assert.NilError(t, err)
 		assert.Equal(t, str, tcase.expected)
 	}
@@ -122,16 +119,17 @@ abc
 `,
 			expected: `foo: int
 lacy: """
-        abc
-        123
-        """
+	abc
+	123
+	"""
 `},
 	}
 
-	var r cue.Runtime
+	var r = cuecontext.New()
 	for _, tcase := range testCases {
-		inst, err := r.Compile("-", tcase.s)
+		file, err := parser.ParseFile("-", tcase.s)
 		assert.NilError(t, err)
+		inst := r.BuildFile(file)
 		str, err := ToString(inst.Value(), OptBytesToString)
 		assert.NilError(t, err)
 		assert.Equal(t, str, tcase.expected)
@@ -227,21 +225,20 @@ wait: {
 		},
 	}
 
-	var r cue.Runtime
+	var r = cuecontext.New()
 	for _, tCase := range testCases {
 		f, err := parser.ParseFile("-", tCase.src)
 		assert.NilError(t, err)
 		err = PreprocessBuiltinFunc(f, "script", doScript)
 		assert.NilError(t, err)
-		inst, err := r.CompileFile(f)
-		assert.NilError(t, err)
+		inst := r.BuildFile(f)
 		bt, _ := inst.Value().MarshalJSON()
 		assert.Equal(t, string(bt), tCase.expectJson)
 	}
 }
 
 func TestOpenBasicLit(t *testing.T) {
-	s, err := OpenBaiscLit(`
+	f, err := OpenBaiscLit(cuecontext.New().CompileString(`
 a: 10
 a1: int
 b: "foo"
@@ -251,7 +248,10 @@ c1: bool
 arr: [1,2]
 top: _
 bottom: _|_
-`)
+`))
+	assert.NilError(t, err)
+	val := cuecontext.New().BuildFile(f)
+	s, err := toString(val)
 	assert.NilError(t, err)
 	assert.Equal(t, s, `a:      *10 | _
 a1:     int
@@ -261,7 +261,7 @@ c:      *true | _
 c1:     bool
 arr:    *[1, 2] | [...]
 top:    _
-bottom: _|_
+bottom: _|_ // explicit error (_|_ literal) in source
 `)
 }
 

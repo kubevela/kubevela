@@ -305,6 +305,7 @@ name
 	}
 }
 
+// nolint:staticcheck
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
 		targetSchemaFile string
@@ -445,6 +446,7 @@ variable "mapVar" {
 	assert.True(t, intVarExisted)
 }
 
+// nolint:staticcheck
 func TestRefineParameterInstance(t *testing.T) {
 	// test #parameter exists: mock issues in #1939 & #2062
 	s := `parameter: #parameter

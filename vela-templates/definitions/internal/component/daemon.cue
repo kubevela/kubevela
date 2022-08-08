@@ -78,7 +78,7 @@ daemon: {
 template: {
 	mountsArray: {
 		pvc: *[
-			for v in parameter.volumeMounts.pvc {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 				{
 					mountPath: v.mountPath
 					name:      v.name
@@ -87,7 +87,7 @@ template: {
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 				{
 					mountPath: v.mountPath
 					name:      v.name
@@ -96,7 +96,7 @@ template: {
 		] | []
 
 		secret: *[
-			for v in parameter.volumeMounts.secret {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 				{
 					mountPath: v.mountPath
 					name:      v.name
@@ -105,7 +105,7 @@ template: {
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 				{
 					mountPath: v.mountPath
 					name:      v.name
@@ -114,7 +114,7 @@ template: {
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 				{
 					mountPath: v.mountPath
 					if v.mountPropagation != _|_ {
@@ -131,7 +131,7 @@ template: {
 
 	volumesArray: {
 		pvc: *[
-			for v in parameter.volumeMounts.pvc {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 				{
 					name: v.name
 					persistentVolumeClaim: claimName: v.claimName
@@ -140,7 +140,7 @@ template: {
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 				{
 					name: v.name
 					configMap: {
@@ -155,7 +155,7 @@ template: {
 		] | []
 
 		secret: *[
-			for v in parameter.volumeMounts.secret {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 				{
 					name: v.name
 					secret: {
@@ -170,7 +170,7 @@ template: {
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 				{
 					name: v.name
 					emptyDir: medium: v.medium
@@ -179,7 +179,7 @@ template: {
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 				{
 					name: v.name
 					hostPath: {
@@ -343,7 +343,7 @@ template: {
 	}
 
 	exposePorts: [
-		for v in parameter.ports if v.expose == true {
+		if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
 			port:       v.port
 			targetPort: v.port
 			if v.name != _|_ {
@@ -498,8 +498,8 @@ template: {
 		volumes?: [...{
 			name:      string
 			mountPath: string
-			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir"
-			type: "pvc" | "configMap" | "secret" | "emptyDir"
+			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir", default to emptyDir
+			type: *"emptyDir" | "pvc" | "configMap" | "secret"
 			if type == "pvc" {
 				claimName: string
 			}

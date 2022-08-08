@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/parser"
 
 	"cuelang.org/go/cue"
 	"gotest.tools/assert"
@@ -28,22 +30,25 @@ import (
 func TestGetPackages(t *testing.T) {
 	pkgs, err := GetPackages()
 	assert.NilError(t, err)
-	var r cue.Runtime
+	cuectx := cuecontext.New()
 	for path, content := range pkgs {
-		_, err := r.Compile(path, content)
+		file, err := parser.ParseFile(path, content)
 		assert.NilError(t, err)
+		_ = cuectx.BuildFile(file)
 	}
 
-	builder := &build.Instance{}
-	builder.AddFile("-", `
+	file, err := parser.ParseFile("-", `
 import "vela/custom"
 out: custom.context`)
+	assert.NilError(t, err)
+	builder := &build.Instance{}
+	err = builder.AddSyntax(file)
+	assert.NilError(t, err)
 	err = AddImportsFor(builder, "context: id: \"xxx\"")
 	assert.NilError(t, err)
 
-	insts := cue.Build([]*build.Instance{builder})
-	assert.Equal(t, len(insts), 1)
-	str, err := insts[0].Lookup("out", "id").String()
+	inst := cuectx.BuildInstance(builder)
+	str, err := inst.LookupPath(cue.ParsePath("out.id")).String()
 	assert.NilError(t, err)
 	assert.Equal(t, str, "xxx")
 }

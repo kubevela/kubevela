@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"cuelang.org/go/cue/parser"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -154,7 +152,13 @@ func extractFuncName(expr ast.Expr) (string, []ast.Expr) {
 func getPaths(node ast.Expr) []string {
 	switch v := node.(type) {
 	case *ast.SelectorExpr:
-		return append(getPaths(v.X), v.Sel.Name)
+		var sel string
+		if l, ok := v.Sel.(*ast.Ident); ok {
+			sel = l.Name
+		} else {
+			sel = fmt.Sprint(v.Sel)
+		}
+		return append(getPaths(v.X), sel)
 	case *ast.Ident:
 		return []string{v.Name}
 	case *ast.BasicLit:
@@ -199,9 +203,9 @@ func labelStr(label ast.Label) string {
 	return ""
 }
 
+// nolint:staticcheck
 func toString(v cue.Value, opts ...func(node ast.Node) ast.Node) (string, error) {
-	v = v.Eval()
-	syopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
+	syopts := []cue.Option{cue.All(), cue.ResolveReferences(true), cue.DisallowCycles(true), cue.Docs(true), cue.Attributes(true)}
 
 	var w bytes.Buffer
 	useSep := false
@@ -296,14 +300,41 @@ func OptBytesToString(node ast.Node) ast.Node {
 }
 
 // OpenBaiscLit make that the basicLit can be modified.
-func OpenBaiscLit(s string) (string, error) {
-	f, err := parser.ParseFile("-", s, parser.ParseComments)
+// nolint:staticcheck
+func OpenBaiscLit(val cue.Value) (*ast.File, error) {
+	f, err := ToFile(val.Syntax(cue.Docs(true), cue.ResolveReferences(true)))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	openBaiscLit(f)
-	b, err := format.Node(f)
-	return string(b), err
+	return f, err
+}
+
+// nolint:staticcheck
+func openListLit(val cue.Value) (*ast.File, error) {
+	f, err := ToFile(val.Syntax(cue.Docs(true), cue.ResolveReferences(true)))
+	if err != nil {
+		return nil, err
+	}
+	ast.Walk(f, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if ok {
+			v := field.Value
+			switch lit := v.(type) {
+			case *ast.ListLit:
+				if len(lit.Elts) > 0 {
+					if _, ok := lit.Elts[len(lit.Elts)-1].(*ast.Ellipsis); ok {
+						break
+					}
+				}
+				newList := lit.Elts
+				newList = append(newList, &ast.Ellipsis{})
+				field.Value = ast.NewList(newList...)
+			}
+		}
+		return true
+	}, nil)
+	return f, nil
 }
 
 func openBaiscLit(root ast.Node) {

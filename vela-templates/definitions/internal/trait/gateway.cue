@@ -9,11 +9,11 @@ gateway: {
 
 		status: {
 			customStatus: #"""
-				let igs = context.outputs.ingress.status.loadBalancer.ingress
-				if igs == _|_ {
+				if context.outputs.ingress.status.loadBalancer.ingress == _|_ {
 				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
-				if len(igs) > 0 {
+				if context.outputs.ingress.status.loadBalancer.ingress != _|_ {
+					let igs = context.outputs.ingress.status.loadBalancer.ingress
 				  if igs[0].ip != _|_ {
 				  	if igs[0].host != _|_ {
 					    message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + igs[0].ip

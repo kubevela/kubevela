@@ -44,7 +44,9 @@ func TestComponent(t *testing.T) {
 	_, ok := components["server"]
 	r.Equal(ok, true)
 
-	r.Equal(cmf.Workload.String(), `apiVersion: "v1"
+	s, err := cmf.Workload.String()
+	r.NoError(err)
+	r.Equal(s, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
 	labels: {
@@ -53,32 +55,34 @@ metadata: {
 }
 spec: {
 	containers: [{
-		name: "main"
 		env: [{
 			name:  "APP"
 			value: "nginx"
-		}, ...]
+		}]
 		image:           "nginx:1.14.2"
 		imagePullPolicy: "IfNotPresent"
+		name:            "main"
 		ports: [{
 			containerPort: 8080
 			protocol:      "TCP"
-		}, ...]
-	}, ...]
+		}]
+	}]
 }
 `)
 	r.Equal(len(cmf.Auxiliaries), 1)
-	r.Equal(cmf.Auxiliaries[0].String(), `apiVersion: "v1"
+	s, err = cmf.Auxiliaries[0].String()
+	r.NoError(err)
+	r.Equal(s, `apiVersion: "v1"
 kind:       "Service"
 metadata: {
 	name: "my-service"
 }
 spec: {
 	ports: [{
-		protocol:   "TCP"
 		port:       80
+		protocol:   "TCP"
 		targetPort: 8080
-	}, ...]
+	}]
 	selector: {
 		app: "nginx"
 	}
@@ -96,7 +100,9 @@ env:[{name: "ClusterIP",value: "1.1.1.1"}]}]
 
 	cmf, err = wfCtx.GetComponent("server")
 	r.NoError(err)
-	r.Equal(cmf.Workload.String(), `apiVersion: "v1"
+	s, err = cmf.Workload.String()
+	r.NoError(err)
+	r.Equal(s, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
 	labels: {
@@ -105,7 +111,6 @@ metadata: {
 }
 spec: {
 	containers: [{
-		name: "main"
 		// +patchKey=name
 		env: [{
 			name:  "APP"
@@ -116,11 +121,12 @@ spec: {
 		}, ...]
 		image:           "nginx:1.14.2"
 		imagePullPolicy: "IfNotPresent"
+		name:            "main"
 		ports: [{
 			containerPort: 8080
 			protocol:      "TCP"
 		}, ...]
-	}, ...]
+	}]
 }
 `)
 
@@ -201,7 +207,7 @@ result: 101
 	conflictV, err := value.NewValue(`score: 101`, nil, "")
 	r.NoError(err)
 	err = wfCtx.SetVar(conflictV, "football")
-	r.Equal(err.Error(), "football.result: conflicting values 100 and 101")
+	r.Equal(err.Error(), "football.score: conflicting values 101 and 100")
 }
 
 func TestRefObj(t *testing.T) {

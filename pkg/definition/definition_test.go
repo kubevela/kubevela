@@ -84,8 +84,8 @@ func TestDefinitionBasicFunctions(t *testing.T) {
 	if err = def.FromCUEString("template:"+parts[1], nil); err == nil {
 		t.Fatalf("should encounter no metadata found error but not found error")
 	}
-	if err = def.FromCUEString("import \"strconv\"\n"+cueString, nil); err == nil {
-		t.Fatalf("should encounter cue compile error due to useless import but not found error")
+	if err = def.FromCUEString("import \"strconv\"\n"+cueString, nil); err != nil {
+		t.Fatalf("should not encounter cue compile error due to useless import")
 	}
 	if err = def.FromCUEString("abc: {}\n"+cueString, nil); err == nil {
 		t.Fatalf("should encounter duplicated object name error but not found error")

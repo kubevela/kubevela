@@ -47,11 +47,7 @@ func (p *provider) PatchK8sObject(ctx wfContext.Context, v *value.Value, act typ
 	if err != nil {
 		return err
 	}
-	patcher, err := model.NewOther(pv.CueValue())
-	if err != nil {
-		return err
-	}
-	if err = base.Unify(patcher); err != nil {
+	if err = base.Unify(pv.CueValue()); err != nil {
 		return v.FillObject(err, "err")
 	}
 

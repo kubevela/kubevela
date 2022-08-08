@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
@@ -252,7 +253,7 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 			err = prd.ListResourcesInApp(nil, newV, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=app) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 		})
 	})
 
@@ -392,14 +393,14 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 			err = prd.SearchEvents(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=value) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			optWithoutCluster := `value: {}`
 			v, err = value.NewValue(optWithoutCluster, nil, "")
 			Expect(err).Should(BeNil())
 			err = prd.SearchEvents(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(Equal("var(path=cluster) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			optWithWrongValue := `value: {}
 cluster: "test"`
@@ -424,20 +425,20 @@ cluster: "test"`
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=cluster) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"`, nil, "")
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=namespace) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"`, nil, "")
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=pod) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"
@@ -445,7 +446,7 @@ pod: "hello-world"`, nil, "")
 			Expect(err).Should(Succeed())
 			err = prd.CollectLogsInPod(nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("var(path=options) not exist"))
+			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"

@@ -22,7 +22,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/cuecontext"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 )
@@ -190,7 +190,10 @@ func strategyPatchHandle() interceptor {
 				paths := append(ctx.Pos(), labelStr(field.Label))
 				baseSubNode, err := lookUp(baseNode, paths...)
 				if err != nil {
-					return
+					if errors.Is(err, notFoundErr) {
+						return
+					}
+					baseSubNode = ast.NewList()
 				}
 				baselist, ok := baseSubNode.(*ast.ListLit)
 				if !ok {
@@ -256,69 +259,60 @@ func IsJSONPatch(patcher cue.Value) bool {
 }
 
 // StrategyUnify unify the objects by the strategy
-func StrategyUnify(base, patch string, options ...UnifyOption) (ret string, err error) {
+func StrategyUnify(base, patch cue.Value, options ...UnifyOption) (ret cue.Value, err error) {
 	params := newUnifyParams(options...)
 	var patchOpts []interceptor
 	if params.PatchStrategy == StrategyJSONMergePatch || params.PatchStrategy == StrategyJSONPatch {
-		base, err = OpenBaiscLit(base)
+		_, err := OpenBaiscLit(base)
 		if err != nil {
 			return base, err
 		}
 	} else {
 		patchOpts = []interceptor{strategyPatchHandle()}
 	}
-	baseFile, err := parser.ParseFile("-", base, parser.ParseComments)
-	if err != nil {
-		return "", errors.WithMessage(err, "invalid base cue file")
-	}
-	patchFile, err := parser.ParseFile("-", patch, parser.ParseComments)
-	if err != nil {
-		return "", errors.WithMessage(err, "invalid patch cue file")
-	}
-
-	return strategyUnify(baseFile, patchFile, params, patchOpts...)
+	return strategyUnify(base, patch, params, patchOpts...)
 }
 
-func strategyUnify(baseFile *ast.File, patchFile *ast.File, params *UnifyParams, patchOpts ...interceptor) (string, error) {
+// nolint:staticcheck
+func strategyUnify(base cue.Value, patch cue.Value, params *UnifyParams, patchOpts ...interceptor) (val cue.Value, err error) {
+	if params.PatchStrategy == StrategyJSONMergePatch {
+		return jsonMergePatch(base, patch)
+	} else if params.PatchStrategy == StrategyJSONPatch {
+		return jsonPatch(base, patch.LookupPath(cue.ParsePath("operations")))
+	}
+	openBase, err := openListLit(base)
+	if err != nil {
+		return cue.Value{}, errors.Wrapf(err, "failed to open list it for merge")
+	}
+	patchFile, err := ToFile(patch.Syntax(cue.Docs(true), cue.ResolveReferences(true)))
+	if err != nil {
+		return cue.Value{}, err
+	}
 	for _, option := range patchOpts {
-		if err := option(baseFile, patchFile); err != nil {
-			return "", errors.WithMessage(err, "process patchOption")
+		if err := option(openBase, patchFile); err != nil {
+			return cue.Value{}, errors.WithMessage(err, "process patchOption")
 		}
 	}
 
-	var r cue.Runtime
+	baseInst := cuecontext.New().BuildFile(openBase)
+	patchInst := cuecontext.New().BuildFile(patchFile)
 
-	baseInst, err := r.CompileFile(baseFile)
+	ret := baseInst.Unify(patchInst)
+
+	_, err = toString(ret, removeTmpVar)
 	if err != nil {
-		return "", errors.WithMessage(err, "compile base file")
-	}
-	patchInst, err := r.CompileFile(patchFile)
-	if err != nil {
-		return "", errors.WithMessage(err, "compile patch file")
-	}
-
-	if params.PatchStrategy == StrategyJSONMergePatch {
-		return jsonMergePatch(baseInst.Value(), patchInst.Value())
-	} else if params.PatchStrategy == StrategyJSONPatch {
-		return jsonPatch(baseInst.Value(), patchInst.Lookup("operations"))
-	}
-
-	ret := baseInst.Value().Unify(patchInst.Value())
-
-	rv, err := toString(ret, removeTmpVar)
-	if err != nil {
-		return rv, errors.WithMessage(err, " format result toString")
+		return ret, errors.WithMessage(err, " format result toString")
 	}
 
 	if err := ret.Err(); err != nil {
-		return rv, errors.WithMessage(err, "result check err")
+		return ret, errors.WithMessage(err, "result check err")
 	}
 
 	if err := ret.Validate(cue.All()); err != nil {
-		return rv, errors.WithMessage(err, "result validate")
+		return ret, errors.WithMessage(err, "result validate")
 	}
 
-	return rv, nil
+	return ret, nil
 }
 
 func findCommentTag(commentGroup []*ast.CommentGroup) map[string]string {
@@ -348,47 +342,51 @@ func findCommentTag(commentGroup []*ast.CommentGroup) map[string]string {
 	return kval
 }
 
-func jsonMergePatch(base cue.Value, patch cue.Value) (string, error) {
+func jsonMergePatch(base cue.Value, patch cue.Value) (cue.Value, error) {
+	ctx := cuecontext.New()
 	baseJSON, err := base.MarshalJSON()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to marshal base value")
+		return cue.Value{}, errors.Wrapf(err, "failed to marshal base value")
 	}
 	patchJSON, err := patch.MarshalJSON()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to marshal patch value")
+		return cue.Value{}, errors.Wrapf(err, "failed to marshal patch value")
 	}
 	merged, err := jsonpatch.MergePatch(baseJSON, patchJSON)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to merge base value and patch value by JsonMergePatch")
+		return cue.Value{}, errors.Wrapf(err, "failed to merge base value and patch value by JsonMergePatch")
 	}
-	output, err := OpenBaiscLit(string(merged))
+	val := ctx.CompileBytes(merged)
+	output, err := OpenBaiscLit(val)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
+		return cue.Value{}, errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
-	return output, nil
+	return ctx.BuildFile(output), nil
 }
 
-func jsonPatch(base cue.Value, patch cue.Value) (string, error) {
+func jsonPatch(base cue.Value, patch cue.Value) (cue.Value, error) {
+	ctx := cuecontext.New()
 	baseJSON, err := base.MarshalJSON()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to marshal base value")
+		return cue.Value{}, errors.Wrapf(err, "failed to marshal base value")
 	}
 	patchJSON, err := patch.MarshalJSON()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to marshal patch value")
+		return cue.Value{}, errors.Wrapf(err, "failed to marshal patch value")
 	}
 	decodedPatch, err := jsonpatch.DecodePatch(patchJSON)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to decode patch")
+		return cue.Value{}, errors.Wrapf(err, "failed to decode patch")
 	}
 
 	merged, err := decodedPatch.Apply(baseJSON)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to apply json patch")
+		return cue.Value{}, errors.Wrapf(err, "failed to apply json patch")
 	}
-	output, err := OpenBaiscLit(string(merged))
+	val := ctx.CompileBytes(merged)
+	output, err := OpenBaiscLit(val)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
+		return cue.Value{}, errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
-	return output, nil
+	return ctx.BuildFile(output), nil
 }

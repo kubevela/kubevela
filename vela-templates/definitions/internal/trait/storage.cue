@@ -10,7 +10,7 @@ storage: {
 }
 template: {
 	pvcVolumesList: *[
-			for v in parameter.pvc {
+			if parameter.pvc != _|_ for v in parameter.pvc {
 			{
 				name: "pvc-" + v.name
 				persistentVolumeClaim: claimName: v.name
@@ -19,7 +19,7 @@ template: {
 	] | []
 
 	configMapVolumesList: *[
-				for v in parameter.configMap if v.mountPath != _|_ {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name: "configmap-" + v.name
 				configMap: {
@@ -34,7 +34,7 @@ template: {
 	] | []
 
 	secretVolumesList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name: "secret-" + v.name
 				secret: {
@@ -49,7 +49,7 @@ template: {
 	] | []
 
 	emptyDirVolumesList: *[
-				for v in parameter.emptyDir {
+				if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name: "emptydir-" + v.name
 				emptyDir: {
@@ -60,7 +60,7 @@ template: {
 	] | []
 
 	pvcVolumeMountsList: *[
-				for v in parameter.pvc {
+				if parameter.pvc != _|_ for v in parameter.pvc {
 			if v.volumeMode == "Filesystem" {
 				{
 					name:      "pvc-" + v.name
@@ -74,7 +74,7 @@ template: {
 	] | []
 
 	configMapVolumeMountsList: *[
-					for v in parameter.configMap if v.mountPath != _|_ {
+					if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
@@ -86,7 +86,7 @@ template: {
 	] | []
 
 	configMapEnvMountsList: *[
-				for v in parameter.configMap if v.mountToEnv != _|_ {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnv != _|_ {
 			{
 				name: v.mountToEnv.envName
 				valueFrom: configMapKeyRef: {
@@ -98,7 +98,7 @@ template: {
 	] | []
 
 	configMountToEnvsList: *[
-				for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
 				name: k.envName
 				valueFrom: configMapKeyRef: {
@@ -110,7 +110,7 @@ template: {
 	] | []
 
 	secretVolumeMountsList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
@@ -122,7 +122,7 @@ template: {
 	] | []
 
 	secretEnvMountsList: *[
-				for v in parameter.secret if v.mountToEnv != _|_ {
+				if parameter.secret != _|_ if parameter.secret != _|_ for v in parameter.secret if v.mountToEnv != _|_ {
 			{
 				name: v.mountToEnv.envName
 				valueFrom: secretKeyRef: {
@@ -134,7 +134,7 @@ template: {
 	] | []
 
 	secretMountToEnvsList: *[
-				for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
 				name: k.envName
 				valueFrom: secretKeyRef: {
@@ -146,7 +146,7 @@ template: {
 	] | []
 
 	emptyDirVolumeMountsList: *[
-					for v in parameter.emptyDir {
+					if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name:      "emptydir-" + v.name
 				mountPath: v.mountPath
@@ -158,7 +158,7 @@ template: {
 	] | []
 
 	volumeDevicesList: *[
-				for v in parameter.pvc if v.volumeMode == "Block" {
+				if parameter.pvc != _|_ for v in parameter.pvc if v.volumeMode == "Block" {
 			{
 				name:       "pvc-" + v.name
 				devicePath: v.mountPath
@@ -199,7 +199,7 @@ template: {
 	}
 
 	outputs: {
-		for v in parameter.pvc {
+		if parameter.pvc != _|_ for v in parameter.pvc {
 			if v.mountOnly == false {
 				"pvc-\(v.name)": {
 					apiVersion: "v1"
@@ -240,7 +240,7 @@ template: {
 			}
 		}
 
-		for v in parameter.configMap {
+		if parameter.configMap != _|_ for v in parameter.configMap {
 			if v.mountOnly == false {
 				"configmap-\(v.name)": {
 					apiVersion: "v1"
@@ -253,7 +253,7 @@ template: {
 			}
 		}
 
-		for v in parameter.secret {
+		if parameter.secret != _|_ for v in parameter.secret {
 			if v.mountOnly == false {
 				"secret-\(v.name)": {
 					apiVersion: "v1"

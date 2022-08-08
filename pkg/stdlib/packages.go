@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/parser"
 	"k8s.io/klog/v2"
 )
 
@@ -88,7 +89,11 @@ func AddImportsFor(inst *build.Instance, tagTempl string) error {
 			PkgName:    filepath.Base("vela/custom"),
 			ImportPath: "vela/custom",
 		}
-		if err := p.AddFile("-", tagTempl); err != nil {
+		file, err := parser.ParseFile("-", tagTempl, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		if err := p.AddSyntax(file); err != nil {
 			return err
 		}
 		inst.Imports = append(inst.Imports, p)
@@ -107,7 +112,11 @@ func initBuiltinImports() ([]*build.Instance, error) {
 			PkgName:    filepath.Base(path),
 			ImportPath: path,
 		}
-		if err := p.AddFile("-", content); err != nil {
+		file, err := parser.ParseFile("-", content, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		if err := p.AddSyntax(file); err != nil {
 			return nil, err
 		}
 		imports = append(imports, p)

@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 func init() {
@@ -55,8 +56,8 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 			Timeout:   time.Second * 3,
 		}
 	)
-	if obj := meta.Obj.Lookup("request"); obj.Exists() {
-		if v := obj.Lookup("body"); v.Exists() {
+	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {
+		if v := obj.LookupPath(value.FieldPath("body")); v.Exists() {
 			r, err = v.Reader()
 			if err != nil {
 				return nil, err
@@ -84,13 +85,13 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	req.Header = header
 	req.Trailer = trailer
 
-	if tlsConfig := meta.Obj.Lookup("tls_config"); tlsConfig.Exists() {
+	if tlsConfig := meta.Obj.LookupPath(value.FieldPath("tls_config")); tlsConfig.Exists() {
 		tr := &http.Transport{
 			TLSClientConfig: &tls.Config{
 				NextProtos: []string{"http/1.1"},
 			},
 		}
-		ca := tlsConfig.Lookup("ca")
+		ca := tlsConfig.LookupPath(value.FieldPath("ca"))
 		if caCrt, err := ca.String(); err != nil {
 			return nil, errors.WithMessage(err, "parse ca")
 		} else {
@@ -99,8 +100,8 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 			tr.TLSClientConfig.RootCAs = pool
 		}
 
-		cert := tlsConfig.Lookup("client_crt")
-		key := tlsConfig.Lookup("client_key")
+		cert := tlsConfig.LookupPath(value.FieldPath("client_crt"))
+		key := tlsConfig.LookupPath(value.FieldPath("client_key"))
 		if cert.Exists() && key.Exists() {
 			crtData, err := cert.String()
 			if err != nil {
@@ -136,7 +137,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 }
 
 func parseHeaders(obj cue.Value, label string) (http.Header, error) {
-	m := obj.Lookup(label)
+	m := obj.LookupPath(value.FieldPath(label))
 	if !m.Exists() {
 		return nil, nil
 	}

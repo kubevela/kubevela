@@ -238,6 +238,7 @@ func (cmd *InitCmd) createURLComponent() error {
 }
 
 // toCUEResourceString formats object to CUE string used in addons
+// nolint:staticcheck
 func toCUEResourceString(obj interface{}) (string, error) {
 	r := cue.Runtime{}
 	v, err := gocodec.New(&r, nil).Decode(obj)

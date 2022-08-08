@@ -34,8 +34,8 @@ template: {
 	// +patchStrategy=retainKeys
 	patch: spec: template: spec: serviceAccountName: parameter.name
 
-	_clusterPrivileges: [ for p in parameter.privileges if p.scope == "cluster" {p}]
-	_namespacePrivileges: [ for p in parameter.privileges if p.scope == "namespace" {p}]
+	_clusterPrivileges: [ if parameter.privileges != _|_ for p in parameter.privileges if p.scope == "cluster" {p}]
+	_namespacePrivileges: [ if parameter.privileges != _|_ for p in parameter.privileges if p.scope == "namespace" {p}]
 	outputs: {
 		if parameter.create {
 			"service-account": {
