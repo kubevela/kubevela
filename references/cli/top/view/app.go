@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"k8s.io/client-go/rest"

@@ -19,11 +19,11 @@ func TestInfo_ClusterNum(t *testing.T) {
 }
 
 func TestInfo_VelaCLIVersion(t *testing.T) {
-	assert.Equal(t, VelaCLIVersion() == "UNKNOWN", true)
+	assert.NotEmpty(t, VelaCLIVersion())
 }
 
 func TestInfo_VelaCoreVersion(t *testing.T) {
-	assert.Equal(t, VelaCoreVersion() != "UNKNOWN", true)
+	assert.NotEmpty(t, VelaCoreVersion())
 }
 
 func TestInfo_GOLangVersion(t *testing.T) {

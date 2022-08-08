@@ -1,9 +1,10 @@
 package view
 
 import (
+	"testing"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestTable(t *testing.T) {

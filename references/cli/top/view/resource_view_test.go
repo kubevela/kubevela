@@ -1,8 +1,9 @@
 package view
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResourceView(t *testing.T) {

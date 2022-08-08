@@ -2,17 +2,16 @@ package cli
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/cli/top/view"
 )
 
+// NewTopCommand will create command `top` for displaying system information and resource status of application
 func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "top",
@@ -38,7 +37,7 @@ func launchUI(c common.Args, _ *cobra.Command) error {
 	}
 	restConfig, err := c.GetConfig()
 	if err != nil {
-		return errors.Wrapf(err, "failed to get kube config, You can set KUBECONFIG env or make file ~/.kube/config")
+		return err
 	}
 	app := view.NewApp(k8sClient, restConfig)
 	app.Init()

@@ -2,10 +2,10 @@ package view
 
 import (
 	"context"
-	"github.com/rivo/tview"
 	"testing"
 	"time"
 
+	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"

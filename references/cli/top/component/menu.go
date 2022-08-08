@@ -5,10 +5,9 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-
 	"github.com/rivo/tview"
 
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 

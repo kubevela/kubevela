@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/oam-dev/cluster-gateway/pkg/config"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/config"
 )
 
 // Cluster is cluster resource struct

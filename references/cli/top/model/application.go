@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"

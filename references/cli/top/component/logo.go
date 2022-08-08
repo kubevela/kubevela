@@ -3,9 +3,9 @@ package component
 import (
 	"fmt"
 
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-
 	"github.com/rivo/tview"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
 )
 
 var velaLogo = []string{

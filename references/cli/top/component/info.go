@@ -1,10 +1,11 @@
 package component
 
 import (
-	"github.com/oam-dev/kubevela/references/cli/top/config"
-	"github.com/oam-dev/kubevela/references/cli/top/model"
 	"github.com/rivo/tview"
 	"k8s.io/client-go/rest"
+
+	"github.com/oam-dev/kubevela/references/cli/top/config"
+	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
 // InfoBoard a component which display system info

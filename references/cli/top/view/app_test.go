@@ -1,10 +1,10 @@
 package view
 
 import (
-	"github.com/gdamore/tcell/v2"
 	"testing"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"

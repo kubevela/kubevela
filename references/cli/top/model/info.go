@@ -45,6 +45,7 @@ func (i *Info) CurrentContext() string {
 	return Unknown
 }
 
+// ClusterNum return cluster number
 func (i *Info) ClusterNum() string {
 	if i.config != nil {
 		return strconv.Itoa(len(i.config.Clusters))
