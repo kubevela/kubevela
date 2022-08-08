@@ -48,6 +48,8 @@ type provider struct {
 	renderer    oamProvider.WorkloadRenderer
 }
 
+// ReadPlacementDecisions
+// Deprecated
 func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
@@ -67,6 +69,8 @@ func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value,
 	return v.FillObject(map[string]interface{}{}, "outputs")
 }
 
+// MakePlacementDecisions
+// Deprecated
 func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
@@ -123,6 +127,8 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	return v.FillObject(map[string]interface{}{"decisions": decisions}, "outputs")
 }
 
+// PatchApplication
+// Deprecated
 func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	env, err := v.GetString("inputs", "envName")
 	if err != nil {

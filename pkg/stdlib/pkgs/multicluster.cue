@@ -1,3 +1,4 @@
+// deprecated
 #Placement: {
 	clusterSelector?: {
 		labels?: [string]: string
@@ -9,11 +10,13 @@
 	}
 }
 
+// deprecated
 #PlacementDecision: {
 	namespace?: string
 	cluster?:   string
 }
 
+// deprecated
 #Component: {
 	name?: string
 	type?: string
@@ -27,6 +30,7 @@
 	dependsOn?: [...string]
 }
 
+// deprecated
 #ReadPlacementDecisions: {
 	#provider: "multicluster"
 	#do:       "read-placement-decisions"
@@ -41,6 +45,7 @@
 	}
 }
 
+// deprecated
 #MakePlacementDecisions: {
 	#provider: "multicluster"
 	#do:       "make-placement-decisions"
@@ -56,6 +61,7 @@
 	}
 }
 
+// deprecated
 #PatchApplication: {
 	#provider: "multicluster"
 	#do:       "patch-application"
@@ -70,6 +76,7 @@
 	...
 }
 
+// deprecated
 #LoadEnvBindingEnv: #Steps & {
 	inputs: {
 		env:    string
@@ -101,6 +108,7 @@
 	}
 }
 
+// deprecated
 #PrepareEnvBinding: #Steps & {
 	inputs: {
 		env:    string
@@ -143,6 +151,7 @@
 	}
 }
 
+// deprecated
 #ApplyComponentsToEnv: #Steps & {
 	inputs: {
 		decisions: [...#PlacementDecision]
@@ -170,6 +179,7 @@
 	} @step(2)
 }
 
+// deprecated
 #ApplyEnvBindApp: {
 	#do: "steps"
 
