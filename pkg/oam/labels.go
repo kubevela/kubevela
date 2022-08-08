@@ -201,7 +201,7 @@ const (
 	// AnnotationWorkloadName indicates the managed workload's name by trait
 	AnnotationWorkloadName = "trait.oam.dev/workload-name"
 
-	// AnnotationControllerRequirement indicates the controller version that can process the application.
+	// AnnotationControllerRequirement indicates the controller version that can process the application/definition.
 	AnnotationControllerRequirement = "app.oam.dev/controller-version-require"
 
 	// AnnotationApplicationServiceAccountName indicates the name of the ServiceAccount to use to apply Components and run Workflow.
