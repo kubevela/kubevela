@@ -39,11 +39,11 @@ type Logo struct {
 
 // NewLogo return logo ui component
 func NewLogo() *Logo {
-	l := Logo{
+	l := &Logo{
 		TextView: tview.NewTextView(),
 	}
 	l.init()
-	return &l
+	return l
 }
 
 func (l *Logo) init() {

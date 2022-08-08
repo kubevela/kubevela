@@ -27,13 +27,13 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/view"
 )
 
-// NewTopCommand will create command `top` for displaying system information and resource status of application
+// NewTopCommand will create command `top` for displaying the platform overview
 func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "top",
-		Short: "Launch UI to display system performance.",
-		Long:  "Launch UI to display system information and resource status of application.",
-		Example: `  # Launch UI to display system information and resource status of application
+		Short: "Launch UI to display the platform overview.",
+		Long:  "Launch UI to display platform overview information and diagnose the status for any specific application.",
+		Example: `  # Launch UI to display platform overview information and diagnose the status for any specific application
   vela top`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return launchUI(c, cmd)

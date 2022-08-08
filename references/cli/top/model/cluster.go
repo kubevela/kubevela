@@ -21,9 +21,10 @@ import (
 	"strings"
 
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/cluster-gateway/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
 
 // Cluster is cluster resource struct
@@ -70,7 +71,7 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 
 	for _, svc := range app.Status.AppliedResources {
 		if svc.Cluster == "" {
-			clusterSet["local"] = struct{}{}
+			clusterSet[multicluster.ClusterLocalName] = struct{}{}
 		} else {
 			clusterSet[svc.Cluster] = struct{}{}
 		}
