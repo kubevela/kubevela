@@ -482,10 +482,16 @@ func produceDefConflictError(conflictDefs map[string]string) error {
 // checkBondComponentExistt will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
 // if the target component not exist, return false.
 func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Application) bool {
-	comp, existKey := u.GetAnnotations()[oam.AnnotationIgnoreWithoutCompKey]
+	var comp string
+	var existKey bool
+	comp, existKey = u.GetAnnotations()[oam.AnnotationAddonDefinitionBondCompKey]
 	if !existKey {
-		// if an object(def or auxiliary outputs ) binding no components return true
-		return true
+		// this is compatibility logic for deprecated annotation
+		comp, existKey = u.GetAnnotations()[oam.AnnotationIgnoreWithoutCompKey]
+		if !existKey {
+			// if an object(def or auxiliary outputs ) binding no components return true
+			return true
+		}
 	}
 	for _, component := range app.Spec.Components {
 		if component.Name == comp {
