@@ -171,7 +171,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 			klog.Errorf("fetch object for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
 			continue
 		}
-		rootStatus, err := checkResourceStatus(*rootObject)
+		rootStatus, err := CheckResourceStatus(*rootObject)
 		if err != nil {
 			klog.Errorf("check status for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
 			continue
