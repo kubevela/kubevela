@@ -34,19 +34,35 @@ func NewTopCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *co
 		Short: "Launch UI to display the platform overview.",
 		Long:  "Launch UI to display platform overview information and diagnose the status for any specific application.",
 		Example: `  # Launch UI to display platform overview information and diagnose the status for any specific application
-  vela top`,
+  vela top
+  
+  # Show applications which are in <vela-namespace> namespace
+  vela top -n <vela-namespace>
+  
+  # Show applications which are in all namespaces
+  vela top -A
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return launchUI(c, cmd)
+			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			if err != nil {
+				return err
+			}
+			if AllNamespace {
+				namespace = ""
+			}
+			return launchUI(c, namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
 			types.TagCommandType:  types.TypeApp,
 		},
 	}
+	addNamespaceAndEnvArg(cmd)
+	cmd.Flags().BoolVarP(&AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
 	return cmd
 }
 
-func launchUI(c common.Args, _ *cobra.Command) error {
+func launchUI(c common.Args, namespace string) error {
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return fmt.Errorf("cannot get k8s client: %w", err)
@@ -55,7 +71,7 @@ func launchUI(c common.Args, _ *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	app := view.NewApp(k8sClient, restConfig)
+	app := view.NewApp(k8sClient, restConfig, namespace)
 	app.Init()
 
 	return app.Run()

@@ -36,19 +36,22 @@ type App struct {
 	config  config.Config
 	command *Command
 	content *PageStack
+	ctx     context.Context
 }
 
 // NewApp return a new app object
-func NewApp(c client.Client, restConfig *rest.Config) *App {
+func NewApp(c client.Client, restConfig *rest.Config, namespace string) *App {
 	a := &App{
 		App:    component.NewApp(),
 		client: c,
 		config: config.Config{
 			RestConfig: restConfig,
 		},
+		ctx: context.Background(),
 	}
 	a.command = NewCommand(a)
 	a.content = NewPageStack(a)
+	a.ctx = context.WithValue(a.ctx, &model.CtxKeyNamespace, namespace)
 	return a
 }
 
@@ -125,9 +128,7 @@ func (a *App) inject(c model.Component) {
 
 // defaultView is the first view of running application
 func (a *App) defaultView(event *tcell.EventKey) *tcell.EventKey {
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	a.command.run(ctx, "app")
+	a.command.run(a.ctx, "app")
 	return event
 }
 

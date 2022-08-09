@@ -39,7 +39,7 @@ func TestApp(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
+	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components), 4)
 
 	t.Run("init", func(t *testing.T) {
