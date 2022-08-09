@@ -139,8 +139,9 @@ func TestResourceCacheExistenceCheck(t *testing.T) {
 	createResource := func(appName, appNs, sharedBy string) *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]interface{}{
 			"metadata": map[string]interface{}{
-				"labels":      map[string]interface{}{oam.LabelAppName: appName, oam.LabelAppNamespace: appNs},
-				"annotations": map[string]interface{}{oam.AnnotationAppSharedBy: sharedBy},
+				"labels":          map[string]interface{}{oam.LabelAppName: appName, oam.LabelAppNamespace: appNs},
+				"annotations":     map[string]interface{}{oam.AnnotationAppSharedBy: sharedBy},
+				"resourceVersion": "-",
 			},
 		}}
 	}
