@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	goflag "flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -148,9 +149,10 @@ func main() {
 	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
-	flag.Parse()
 	// setup logging
 	klog.InitFlags(nil)
+	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+	flag.Parse()
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
 	}
