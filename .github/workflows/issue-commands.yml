@@ -30,7 +30,7 @@ jobs:
           configPath: issue-commands
 
   backport:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/backport')
     steps:
       - name: Extract Command
@@ -65,11 +65,11 @@ jobs:
             })
             console.log("Added '" + label + "' label.")
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Open Backport PR
-        uses: zeebe-io/backport-action@v0.0.6
+        uses: zeebe-io/backport-action@v0.0.8
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}
