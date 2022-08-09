@@ -995,12 +995,8 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(addon *InstallPackage) error {
-	var app v1beta1.Application
 	for _, dep := range addon.Dependencies {
-		err := h.cli.Get(h.ctx, client.ObjectKey{
-			Namespace: types.DefaultKubeVelaNS,
-			Name:      addonutil.Addon2AppName(dep.Name),
-		}, &app)
+		_, err := FetchAddonRelatedApp(h.ctx, h.cli, dep.Name)
 		if err == nil {
 			continue
 		}
