@@ -18,6 +18,8 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -25,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,6 +37,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -165,6 +169,40 @@ var _ = Describe("Test apply", func() {
 				return err != nil && strings.Contains(err.Error(), "is managed by other application")
 			}))
 			Expect(rawClient.Delete(ctx, cm2)).Should(Succeed())
+		})
+
+		It("Test apply resources with external modifier", func() {
+			deploy.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind("Deployment"))
+			originalDeploy := deploy.DeepCopy()
+			bs, err := json.Marshal(deploy)
+			Expect(err).Should(Succeed())
+			deploy.SetAnnotations(map[string]string{oam.AnnotationLastAppliedConfig: string(bs)})
+			modifiedDeploy := deploy.DeepCopy()
+			modifiedDeploy.Spec.Template.Spec.Containers = append(modifiedDeploy.Spec.Template.Spec.Containers, corev1.Container{
+				Name:  "added-by-external-modifier",
+				Image: "busybox",
+			})
+			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
+
+			By("Test patch")
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByUpdate))).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
+			copy1 := originalDeploy.DeepCopy()
+			copy1.SetResourceVersion(deploy.ResourceVersion)
+			Expect(k8sApplicator.Apply(ctx, copy1)).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
+			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(2))
+
+			By("Test update")
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.ApplyResourceByUpdate))).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
+			copy2 := originalDeploy.DeepCopy()
+			copy2.SetResourceVersion(deploy.ResourceVersion)
+			Expect(k8sApplicator.Apply(ctx, copy2)).Should(Succeed())
+			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
+			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(1))
+
+			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByUpdate))).Should(Succeed())
 		})
 	})
 })

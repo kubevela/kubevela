@@ -43,6 +43,17 @@ const (
 	// DisableReferObjectsFromURL if set, the url ref objects will be disallowed
 	DisableReferObjectsFromURL featuregate.Feature = "DisableReferObjectsFromURL"
 
+	// ApplyResourceByUpdate enforces the modification of resource through update requests.
+	// If not set, the resource modification will use patch requests (three-way-strategy-merge-patch).
+	// The side effect of enabling this feature is that the request traffic will increase due to
+	// the increase of bytes transferred and the more frequent resource mutation failure due to the
+	// potential conflicts.
+	// If set, KubeVela controller will enforce strong restriction on the managed resource that external
+	// system would be unable to make modifications to the KubeVela managed resource. In other words,
+	// no merge for modifications from multiple sources. Only KubeVela keeps the Source-of-Truth for the
+	// resource.
+	ApplyResourceByUpdate featuregate.Feature = "ApplyResourceByUpdate"
+
 	// Edge Features
 
 	// AuthenticateApplication enable the authentication for application
@@ -58,6 +69,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
 	DisableReferObjectsFromURL:    {Default: false, PreRelease: featuregate.Alpha},
+	ApplyResourceByUpdate:         {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 }
 
