@@ -83,7 +83,6 @@ func ApplyMockServerConfig() error {
 		if !apierrors.IsAlreadyExists(err) {
 			return err
 		}
-		return err
 	}
 	otherRegistry.SetNamespace("test-vela")
 	if err := k8sClient.Create(ctx, otherRegistry); err != nil {
