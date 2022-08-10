@@ -76,17 +76,20 @@ func ApplyMockServerConfig() error {
 	} else {
 		cm.ResourceVersion = originCm.ResourceVersion
 		if err = k8sClient.Update(ctx, &cm); err != nil {
-			fmt.Println("print errr------")
-			fmt.Println(err)
 			return err
 		}
 	}
 	if err := k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-vela"}}); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 		return err
 	}
 	otherRegistry.SetNamespace("test-vela")
 	if err := k8sClient.Create(ctx, otherRegistry); err != nil {
-		return err
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 	return nil
 }
