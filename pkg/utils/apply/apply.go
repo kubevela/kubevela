@@ -170,15 +170,26 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return nil
 	}
 
-	loggingApply("patching object", desired)
-	patch, err := a.patcher.patch(existing, desired, applyAct)
-	if err != nil {
-		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
+	switch {
+	case utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByUpdate) && isUpdatableResource(desired):
+		loggingApply("updating object", desired)
+		desired.SetResourceVersion(existing.GetResourceVersion())
+		var options []client.UpdateOption
+		if applyAct.dryRun {
+			options = append(options, client.DryRunAll)
+		}
+		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
+	default:
+		loggingApply("patching object", desired)
+		patch, err := a.patcher.patch(existing, desired, applyAct)
+		if err != nil {
+			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
+		}
+		if applyAct.dryRun {
+			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
+		}
+		return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 	}
-	if applyAct.dryRun {
-		return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
-	}
-	return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 }
 
 func generateRenderHash(desired client.Object) (string, error) {
@@ -396,4 +407,15 @@ func DryRunAll() ApplyOption {
 		a.dryRun = true
 		return nil
 	}
+}
+
+// isUpdatableResource check whether the resource is updatable
+// Resource like v1.Service cannot unset the spec field (the ip spec is filled by service controller)
+func isUpdatableResource(desired client.Object) bool {
+	// nolint
+	switch desired.GetObjectKind().GroupVersionKind() {
+	case corev1.SchemeGroupVersion.WithKind("Service"):
+		return false
+	}
+	return true
 }
