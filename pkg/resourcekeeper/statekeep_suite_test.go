@@ -276,6 +276,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 					"metadata": map[string]interface{}{
 						"name":      name,
 						"namespace": "default",
+						"labels":    map[string]interface{}{oam.LabelAppComponent: name},
 					},
 					"spec": map[string]interface{}{
 						"replicas": value,
