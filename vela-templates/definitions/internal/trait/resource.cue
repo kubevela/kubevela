@@ -1,9 +1,6 @@
 resource: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Add resource requests and limits on K8s pod for your workload which follows the pod spec in path 'spec.template.'"
 	attributes: {
 		podDisruptive: true
