@@ -5,8 +5,6 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Add labels on your workload. if it generates pod, add same label for generated pods.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: labels
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

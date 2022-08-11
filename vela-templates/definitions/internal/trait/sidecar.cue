@@ -1,9 +1,6 @@
 sidecar: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Inject a sidecar container to K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
