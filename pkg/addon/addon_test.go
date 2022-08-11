@@ -955,6 +955,31 @@ func TestCheckSemVer(t *testing.T) {
 			require: ">=1.5.0",
 			res:     false,
 		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0-beta.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0-rc.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.1",
+			require: ">=1.5.0-alpha.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.4.0",
+			res:     true,
+		},
 	}
 	for _, testCase := range testCases {
 		result, err := checkSemVer(testCase.actual, testCase.require)
