@@ -36,8 +36,10 @@ import (
 var _ = Describe("Test kubeapi datastore driver", func() {
 
 	It("Test add function", func() {
-		err := kubeStore.Add(context.TODO(), &model.Application{Name: "kubevela-app", Description: "default"})
+		app := &model.Application{Name: "kubevela-app", Description: "default"}
+		err := kubeStore.Add(context.TODO(), app)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(app.CreateTime.IsZero()).Should(BeFalse())
 	})
 
 	It("Test batch add function", func() {

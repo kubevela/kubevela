@@ -224,7 +224,7 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 		fmt.Println()
 		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
 		fmt.Println()
-		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Kind: Service | Name: velaux" from the prompt.`)
+		fmt.Println(`Select "local | velaux | velaux" from the prompt.`)
 		fmt.Println()
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
