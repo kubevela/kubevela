@@ -1,9 +1,6 @@
 "init-container": {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "add an init container and use shared volume with pod"
 	attributes: {
 		podDisruptive: true
