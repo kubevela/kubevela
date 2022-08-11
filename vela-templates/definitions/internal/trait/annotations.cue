@@ -1,9 +1,6 @@
 annotations: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Add annotations on your workload. if it generates pod, add same annotations for generated pods."
 	attributes: {
 		podDisruptive: true
