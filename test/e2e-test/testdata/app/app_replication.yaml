@@ -5,7 +5,7 @@ metadata:
 spec:
   components:
     - name: hello-rep
-      type: webservice
+      type: replica-webservice
       properties:
         image: crccheck/hello-world
       traits:
@@ -22,6 +22,14 @@ spec:
             port: [8001]
 
   policies:
+    - name: comp-to-replicate
+      type: override
+      properties:
+        selector: [ "hello-rep" ]
+    - name: comp-not-replicate
+      type: override
+      properties:
+        selector: [ "hello-no-rep" ]
     - name: target-default
       type: topology
       properties:
@@ -37,8 +45,8 @@ spec:
       - name: deploy-with-rep
         type: deploy
         properties:
-          policies: ["target-default","replication-default"]
+          policies: ["comp-to-replicate","target-default","replication-default"]
       - name: deploy-without-rep
         type: deploy
         properties:
-          policies: ["target-default"]
+          policies: ["comp-not-replicate","target-default"]

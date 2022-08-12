@@ -988,11 +988,3 @@ func (accessor *applicationResourceNamespaceAccessor) Namespace() string {
 func NewApplicationResourceNamespaceAccessor(appNs, overrideNs string) NamespaceAccessor {
 	return &applicationResourceNamespaceAccessor{applicationNamespace: appNs, overrideNamespace: overrideNs}
 }
-
-// ComponentNameWithReplicaKey helps generate component name with replica key
-func ComponentNameWithReplicaKey(componentName, replicaKey string) string {
-	if replicaKey == "" {
-		return componentName
-	}
-	return fmt.Sprintf("%s-%s", componentName, replicaKey)
-}

@@ -46,7 +46,8 @@ func TestReplicateComponents(t *testing.T) {
 		"nil selector, don't replicate": {
 			Components: baseComponents,
 			Selectors:  nil,
-			Output:     baseComponents,
+			Output:     nil,
+			WantErr:    fmt.Errorf("no component selected to replicate"),
 		},
 		"select all, replicate all": {
 			Components: baseComponents,
@@ -96,7 +97,7 @@ func TestGetReplicationComponents(t *testing.T) {
 		WantErr    error
 		WantComps  []common.ApplicationComponent
 	}{
-		"no replication policy, filtered all components": {
+		"no replication policy, all components remain unchanged": {
 			Policies: []v1beta1.AppPolicy{
 				{
 					Name:       PolicyName,
@@ -107,7 +108,7 @@ func TestGetReplicationComponents(t *testing.T) {
 			Components: baseComps,
 			WantComps:  baseComps,
 		},
-		"one replication policy, filter some components": {
+		"one replication policy, replicate those components": {
 			Policies: []v1beta1.AppPolicy{
 				{
 					Name: PolicyName,
@@ -120,7 +121,9 @@ func TestGetReplicationComponents(t *testing.T) {
 			},
 			Components: baseComps,
 			WantComps: []common.ApplicationComponent{
-				{Name: "comp1"},
+				{Name: "comp2"},
+				{Name: "comp1", ReplicaKey: "replica-1"},
+				{Name: "comp1", ReplicaKey: "replica-2"},
 			},
 		},
 		"replicate non-exist component": {
@@ -139,7 +142,8 @@ func TestGetReplicationComponents(t *testing.T) {
 		},
 		"invalid-override-policy": {
 			Policies: []v1beta1.AppPolicy{
-				{Name: PolicyName,
+				{
+					Name:       PolicyName,
 					Type:       "replication",
 					Properties: &runtime.RawExtension{Raw: []byte(`{bad value}`)},
 				},

@@ -30,7 +30,7 @@ import (
 func selectReplicateComponents(components []common.ApplicationComponent, selectors []string) ([]common.ApplicationComponent, error) {
 	var compToReplicate = make([]common.ApplicationComponent, 0)
 	for _, comp := range components {
-		for slice.ContainsString(selectors, comp.Name, nil) {
+		if slice.ContainsString(selectors, comp.Name, nil) {
 			compToReplicate = append(compToReplicate, comp)
 		}
 	}

@@ -435,12 +435,21 @@ var _ = Describe("Application Normal tests", func() {
 	})
 
 	It("Test app with replication policy", func() {
+		By("Apply replica-webservice definition")
+		var compDef v1beta1.ComponentDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/replica-webservice.yaml", &compDef)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, compDef.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+
 		By("Creating an application")
 		applyApp("app_replication.yaml")
 
 		By("Checking the replication & application status")
 		verifyWorkloadRunningExpected("hello-rep-beijing", 1, "crccheck/hello-world")
 		verifyWorkloadRunningExpected("hello-rep-hangzhou", 1, "crccheck/hello-world")
+		By("Checking the component not replicated & application status")
+		verifyWorkloadRunningExpected("hello-no-rep", 1, "crccheck/hello-world")
 
 		var svc corev1.Service
 		By("Verify Service running as expected")
@@ -453,5 +462,9 @@ var _ = Describe("Application Normal tests", func() {
 		}
 		verifySeriveDispatched("hello-rep-beijing")
 		verifySeriveDispatched("hello-rep-hangzhou")
+
+		By("Checking the services not replicated & application status")
+		verifyWorkloadRunningExpected("hello-no-rep", 1, "crccheck/hello-world")
+
 	})
 })

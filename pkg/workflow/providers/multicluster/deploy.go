@@ -76,7 +76,6 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	}
 
 	// Dealing with topology, override and replication policies in order.
-	// If override.selector and replication.selector are both specified, the components will be selected using AND logic
 	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, executor.cli, executor.af.Namespace, policies, resourcekeeper.AllowCrossNamespaceResource)
 	if err != nil {
 		return false, "", err

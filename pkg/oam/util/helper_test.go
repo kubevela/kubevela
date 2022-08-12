@@ -1992,26 +1992,3 @@ func TestConvertDefinitionRevName(t *testing.T) {
 		}
 	}
 }
-
-func TestComponentNameWithReplicaKey(t *testing.T) {
-	testCases := []struct {
-		componentName     string
-		replicaKey        string
-		wantComponentName string
-	}{
-		{
-			componentName:     "mycomp",
-			replicaKey:        "replica-1",
-			wantComponentName: "mycomp-replica-1",
-		},
-		{
-			componentName:     "mycomp",
-			replicaKey:        "",
-			wantComponentName: "mycomp",
-		},
-	}
-	for _, tc := range testCases {
-		componentName := util.ComponentNameWithReplicaKey(tc.componentName, tc.replicaKey)
-		assert.Equal(t, tc.wantComponentName, componentName)
-	}
-}
