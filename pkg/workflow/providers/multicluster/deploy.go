@@ -85,11 +85,11 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	replicas, components, err := pkgpolicy.GetReplicationComponents(policies, components)
+	components, err = pkgpolicy.GetReplicationComponents(policies, components)
 	if err != nil {
 		return false, "", err
 	}
-	return applyComponents(executor.apply, executor.healthCheck, components, placements, replicas, parallelism)
+	return applyComponents(executor.apply, executor.healthCheck, components, placements, parallelism)
 }
 
 func selectPolicies(policies []v1beta1.AppPolicy, policyNames []string) ([]v1beta1.AppPolicy, error) {
@@ -147,9 +147,8 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 }
 
 type applyTask struct {
-	component  common.ApplicationComponent
-	placement  v1alpha1.PlacementDecision
-	replicaKey string
+	component common.ApplicationComponent
+	placement v1alpha1.PlacementDecision
 }
 
 func (t *applyTask) key() string {
@@ -169,32 +168,15 @@ type applyTaskResult struct {
 	err     error
 }
 
-func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, replicas []v1alpha1.ReplicationDecision, parallelism int) (bool, string, error) {
+func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
-	if replicas == nil {
-		for _, comp := range components {
-			for _, pl := range placements {
-				tasks = append(tasks, &applyTask{component: comp, placement: pl})
-			}
-		}
-	} else {
-		compMap := make(map[string]common.ApplicationComponent)
-		for _, comp := range components {
-			compMap[comp.Name] = comp
-		}
-		for _, rep := range replicas {
-			for _, comp := range rep.Components {
-				for _, pl := range placements {
-					for _, key := range rep.Keys {
-						tasks = append(tasks, &applyTask{component: compMap[comp], placement: pl, replicaKey: key})
-					}
-				}
-			}
+	for _, comp := range components {
+		for _, pl := range placements {
+			tasks = append(tasks, &applyTask{component: comp, placement: pl})
 		}
 	}
-
 	healthCheckResults := parallel.Run(func(task *applyTask) *applyTaskResult {
-		healthy, err := healthCheck(task.component, nil, task.placement.Cluster, task.placement.Namespace, task.replicaKey, "")
+		healthy, err := healthCheck(task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 		return &applyTaskResult{healthy: healthy, err: err}
 	}, tasks, parallelism).([]*applyTaskResult)
 	taskHealthyMap := map[string]bool{}
@@ -224,7 +206,7 @@ func applyComponents(apply oamProvider.ComponentApply, healthCheck oamProvider.C
 	var results []*applyTaskResult
 	if len(todoTasks) > 0 {
 		results = parallel.Run(func(task *applyTask) *applyTaskResult {
-			_, _, healthy, err := apply(task.component, nil, task.placement.Cluster, task.placement.Namespace, task.replicaKey, "")
+			_, _, healthy, err := apply(task.component, nil, task.placement.Cluster, task.placement.Namespace, "")
 			return &applyTaskResult{healthy: healthy, err: err}
 		}, todoTasks, parallelism).([]*applyTaskResult)
 	}

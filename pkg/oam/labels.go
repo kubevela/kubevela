@@ -27,6 +27,8 @@ const (
 	LabelAppDeployment = "app.oam.dev/appDeployment"
 	// LabelAppComponent records the name of Component
 	LabelAppComponent = "app.oam.dev/component"
+	// LabelReplicaKey records the replica key of Component
+	LabelReplicaKey = "app.oam.dev/replica-key"
 	// LabelAppComponentRevision records the revision name of Component
 	LabelAppComponentRevision = "app.oam.dev/revision"
 	// LabelOAMResourceType whether a CR is workload or trait

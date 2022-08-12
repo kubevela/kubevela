@@ -85,9 +85,3 @@ type ReplicationPolicySpec struct {
 	Keys     []string `json:"keys,omitempty"`
 	Selector []string `json:"selector,omitempty"`
 }
-
-// ReplicationDecision describe replication of one application components
-type ReplicationDecision struct {
-	Keys       []string `json:"keys"`
-	Components []string `json:"components"`
-}

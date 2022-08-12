@@ -42,13 +42,13 @@ const (
 )
 
 // ComponentApply apply oam component.
-type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+type ComponentApply func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
 
 // ComponentRender render oam component.
-type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
+type ComponentRender func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)
 
 // ComponentHealthCheck health check oam component.
-type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (bool, error)
+type ComponentHealthCheck func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error)
 
 // WorkloadRenderer renderer to render application component into workload
 type WorkloadRenderer func(comp common.ApplicationComponent) (*appfile.Workload, error)
@@ -67,7 +67,7 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 	if err != nil {
 		return err
 	}
-	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, "", env)
+	workload, traits, err := p.render(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfT
 	if err != nil {
 		return err
 	}
-	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, "", env)
+	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
 	}

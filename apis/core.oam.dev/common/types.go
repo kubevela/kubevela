@@ -492,6 +492,8 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+
+	ReplicaKey string `json:"-"`
 }
 
 // StepOutputs defines output variable of WorkflowStep

@@ -525,7 +525,6 @@ func (p *Parser) convertTemplate2Workload(name, typ string, props *runtime.RawEx
 		Traits:             []*Trait{},
 		ScopeDefinition:    []*v1beta1.ScopeDefinition{},
 		Name:               name,
-		ResourceName:       name,
 		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,

@@ -77,9 +77,7 @@ const (
 
 // Workload is component
 type Workload struct {
-	Name string
-	// ResourceName is the name of the dispatched resource
-	ResourceName       string
+	Name               string
 	Type               string
 	ExternalRevision   string
 	CapabilityCategory types.CapabilityCategory
@@ -283,7 +281,6 @@ func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*process.
 	if mutate != nil {
 		mutate(&ctxData)
 	}
-	patchWorkloadForReplication(wl, ctxData.ReplicaKey)
 	// generate context here to avoid nil pointer panic
 	wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	switch wl.CapabilityCategory {
@@ -529,7 +526,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	if err != nil {
 		return nil, err
 	}
-	compManifest.Name = wl.ResourceName
+	compManifest.Name = wl.Name
 	compManifest.Namespace = ns
 	// we record the external revision name in ExternalRevision field
 	compManifest.ExternalRevision = wl.ExternalRevision
@@ -955,9 +952,4 @@ func (af *Appfile) LoadDynamicComponent(ctx context.Context, cli client.Client, 
 	}
 	_comp.Properties = &runtime.RawExtension{Raw: bs}
 	return _comp, nil
-}
-
-// patchWorkloadForReplication will add a replication key suffix to workload's resource name.
-func patchWorkloadForReplication(wl *Workload, replicaKey string) {
-	wl.ResourceName = util.ComponentNameWithReplicaKey(wl.Name, replicaKey)
 }

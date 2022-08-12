@@ -240,7 +240,7 @@ var _ = Describe("Test Application workflow generator", func() {
 				},
 			},
 		}
-		_, _, err = renderFunc(comp, nil, "", "", "", "")
+		_, _, err = renderFunc(comp, nil, "", "", "")
 		Expect(err).Should(BeNil())
 	})
 

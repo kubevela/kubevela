@@ -214,7 +214,7 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 }
 
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentRender {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 
 		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
@@ -226,10 +226,10 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, appRev *v1be
 }
 
 func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentHealthCheck {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (bool, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
-		ctx = contextWithReplicaKey(ctx, replicaKey)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -257,13 +257,13 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1beta1.ApplicationRevision, af *appfile.Appfile) oamProvider.ComponentApply {
-	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, replicaKey string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 		t := time.Now()
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
 
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
-		ctx = contextWithReplicaKey(ctx, replicaKey)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)

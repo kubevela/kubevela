@@ -18,69 +18,78 @@ package policy
 
 import (
 	"github.com/pkg/errors"
+	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/policy/utils"
 	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // selectReplicateComponents will replicate the components
-func selectReplicateComponents(components []common.ApplicationComponent, selectors []string) ([]string, error) {
-	var compToReplicate []string
+func selectReplicateComponents(components []common.ApplicationComponent, selectors []string) ([]common.ApplicationComponent, error) {
+	var compToReplicate = make([]common.ApplicationComponent, 0)
 	for _, comp := range components {
-		compToReplicate = append(compToReplicate, comp.Name)
+		for slice.ContainsString(selectors, comp.Name, nil) {
+			compToReplicate = append(compToReplicate, comp)
+		}
 	}
-
-	// Select the components to replicate
-	compToReplicate = utils.FilterComponents(compToReplicate, selectors)
-
 	if len(compToReplicate) == 0 {
 		return nil, errors.New("no component selected to replicate")
 	}
-
 	return compToReplicate, nil
 }
 
 // GetReplicationComponents will filter the components to replicate, return the replication decisions
-func GetReplicationComponents(policies []v1beta1.AppPolicy, components []common.ApplicationComponent) ([]v1alpha1.ReplicationDecision, []common.ApplicationComponent, error) {
+func GetReplicationComponents(policies []v1beta1.AppPolicy, components []common.ApplicationComponent) ([]common.ApplicationComponent, error) {
 	var (
-		err                  error
-		replicationDecisions []v1alpha1.ReplicationDecision
-		compToRep            []string
-		compToKeep           = make(map[string]bool)
+		compToRemove = make(map[string]bool)
+		compToAdd    = make([]common.ApplicationComponent, 0)
 	)
 	existReplicationPolicy := false
 	for _, policy := range policies {
 		if policy.Type == v1alpha1.ReplicationPolicyType {
 			existReplicationPolicy = true
 			replicateSpec := &v1alpha1.ReplicationPolicySpec{}
+			if policy.Properties == nil {
+				continue
+			}
 			if err := pkgutils.StrictUnmarshal(policy.Properties.Raw, replicateSpec); err != nil {
-				return nil, nil, errors.Wrapf(err, "failed to parse replicate policy %s", policy.Name)
+				return nil, errors.Wrapf(err, "failed to parse replicate policy %s", policy.Name)
 			}
-			compToRep, err = selectReplicateComponents(components, replicateSpec.Selector)
+			compToRep, err := selectReplicateComponents(components, replicateSpec.Selector)
 			if err != nil {
-				return nil, nil, errors.Wrapf(err, "failed to apply replicate policy %s", policy.Name)
+				return nil, errors.Wrapf(err, "failed to apply replicate policy %s", policy.Name)
 			}
-			replicationDecisions = append(replicationDecisions, v1alpha1.ReplicationDecision{
-				Keys:       replicateSpec.Keys,
-				Components: compToRep,
-			})
+			compToAdd = append(compToAdd, replicateComponents(compToRep, replicateSpec.Keys)...)
 			for _, comp := range compToRep {
-				compToKeep[comp] = true
+				compToRemove[comp.Name] = true
 			}
+
 		}
 	}
 
 	if !existReplicationPolicy {
-		return nil, components, nil
+		return components, nil
 	}
-	filteredComps := make([]common.ApplicationComponent, 0, len(components))
+	compsAfterReplicate := make([]common.ApplicationComponent, 0, len(components))
 	for _, comp := range components {
-		if _, found := compToKeep[comp.Name]; found {
-			filteredComps = append(filteredComps, comp)
+		if !compToRemove[comp.Name] {
+			compsAfterReplicate = append(compsAfterReplicate, comp)
 		}
 	}
-	return replicationDecisions, filteredComps, nil
+	compsAfterReplicate = append(compsAfterReplicate, compToAdd...)
+	return compsAfterReplicate, nil
+}
+
+func replicateComponents(comps []common.ApplicationComponent, keys []string) []common.ApplicationComponent {
+	compsAfterReplicate := make([]common.ApplicationComponent, 0, len(comps)*len(keys))
+	for _, comp := range comps {
+		for _, key := range keys {
+			compAfterReplicate := comp.DeepCopy()
+			compAfterReplicate.ReplicaKey = key
+			compsAfterReplicate = append(compsAfterReplicate, *compAfterReplicate)
+		}
+	}
+	return compsAfterReplicate
 }

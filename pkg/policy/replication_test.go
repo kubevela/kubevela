@@ -31,40 +31,42 @@ import (
 )
 
 func TestReplicateComponents(t *testing.T) {
+	comp1 := common.ApplicationComponent{Name: "comp1"}
+	comp2 := common.ApplicationComponent{Name: "comp2"}
 	baseComponents := []common.ApplicationComponent{
-		{Name: "comp1"},
-		{Name: "comp2"},
+		comp1,
+		comp2,
 	}
 	testCases := map[string]struct {
 		Components []common.ApplicationComponent
 		Selectors  []string
-		Output     []string
+		Output     []common.ApplicationComponent
 		WantErr    error
 	}{
-		"nil selector, replicate all": {
+		"nil selector, don't replicate": {
 			Components: baseComponents,
 			Selectors:  nil,
-			Output:     []string{"comp1", "comp2"},
+			Output:     baseComponents,
 		},
 		"select all, replicate all": {
 			Components: baseComponents,
 			Selectors:  []string{"comp1", "comp2"},
-			Output:     []string{"comp1", "comp2"},
+			Output:     baseComponents,
 		},
 		"replicate part": {
 			Components: baseComponents,
 			Selectors:  []string{"comp1"},
-			Output:     []string{"comp1"},
+			Output:     []common.ApplicationComponent{comp1},
 		},
 		"part invalid selector": {
 			Components: baseComponents,
 			Selectors:  []string{"comp1", "comp3"},
-			Output:     []string{"comp1"},
+			Output:     []common.ApplicationComponent{comp1},
 		},
 		"no component selected": {
 			Components: baseComponents,
 			Selectors:  []string{"comp3"},
-			Output:     []string{},
+			Output:     []common.ApplicationComponent{},
 			WantErr:    fmt.Errorf("no component selected for replicate"),
 		},
 	}
@@ -89,11 +91,10 @@ func TestGetReplicationComponents(t *testing.T) {
 	}
 	PolicyName := "test-policy"
 	testCases := map[string]struct {
-		Policies       []v1beta1.AppPolicy
-		Components     []common.ApplicationComponent
-		WantErr        error
-		WantComps      []common.ApplicationComponent
-		WantReplicaDes []v1alpha1.ReplicationDecision
+		Policies   []v1beta1.AppPolicy
+		Components []common.ApplicationComponent
+		WantErr    error
+		WantComps  []common.ApplicationComponent
 	}{
 		"no replication policy, filtered all components": {
 			Policies: []v1beta1.AppPolicy{
@@ -103,9 +104,8 @@ func TestGetReplicationComponents(t *testing.T) {
 					Properties: nil,
 				},
 			},
-			Components:     baseComps,
-			WantComps:      baseComps,
-			WantReplicaDes: nil,
+			Components: baseComps,
+			WantComps:  baseComps,
 		},
 		"one replication policy, filter some components": {
 			Policies: []v1beta1.AppPolicy{
@@ -121,12 +121,6 @@ func TestGetReplicationComponents(t *testing.T) {
 			Components: baseComps,
 			WantComps: []common.ApplicationComponent{
 				{Name: "comp1"},
-			},
-			WantReplicaDes: []v1alpha1.ReplicationDecision{
-				{
-					Keys:       []string{"replica-1", "replica-2"},
-					Components: []string{"comp1"},
-				},
 			},
 		},
 		"replicate non-exist component": {
@@ -156,14 +150,13 @@ func TestGetReplicationComponents(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			rds, comps, err := GetReplicationComponents(tc.Policies, tc.Components)
+			comps, err := GetReplicationComponents(tc.Policies, tc.Components)
 			if tc.WantErr != nil {
 				assert2.Error(t, err)
 				assert2.Contains(t, err.Error(), tc.WantErr.Error())
 			} else {
 				assert.NilError(t, err)
 				assert.DeepEqual(t, comps, tc.WantComps)
-				assert.DeepEqual(t, rds, tc.WantReplicaDes)
 			}
 		})
 	}
