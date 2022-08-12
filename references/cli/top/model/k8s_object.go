@@ -21,7 +21,6 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 )
 
@@ -55,6 +54,28 @@ func (l *K8SObjectList) Body() [][]string {
 	return data
 }
 
+// FilterCluster filter out objects that belong to the target cluster
+func (l *K8SObjectList) FilterCluster(cluster string) {
+	data := make([]K8SObject, 0)
+	for _, app := range l.data {
+		if app.cluster == cluster {
+			data = append(data, K8SObject{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
+		}
+	}
+	l.data = data
+}
+
+// FilterClusterNamespace filter out objects that belong to the target namespace
+func (l *K8SObjectList) FilterClusterNamespace(clusterNS string) {
+	data := make([]K8SObject, 0)
+	for _, app := range l.data {
+		if app.namespace == clusterNS {
+			data = append(data, K8SObject{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
+		}
+	}
+	l.data = data
+}
+
 // ListObjects return k8s object resource list
 func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 	list := &K8SObjectList{
@@ -62,15 +83,13 @@ func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 	}
 	name := ctx.Value(&CtxKeyAppName).(string)
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
-	cluster := ctx.Value(&CtxKeyCluster).(string)
 
 	opt := query.Option{
 		Name:      name,
 		Namespace: namespace,
+		Filter:    query.FilterOption{},
 	}
-	if cluster != multicluster.ClusterLocalName {
-		opt.Filter = query.FilterOption{Cluster: cluster}
-	}
+
 	collector := query.NewAppCollector(c, opt)
 	appResList, err := collector.CollectResourceFromApp()
 
@@ -80,6 +99,15 @@ func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 
 	for _, resource := range appResList {
 		list.data = append(list.data, LoadObjectDetail(resource))
+	}
+
+	cluster, ok := ctx.Value(&CtxKeyCluster).(string)
+	if ok && cluster != "" {
+		list.FilterCluster(cluster)
+	}
+	clusterNamespace, ok := ctx.Value(&CtxKeyClusterNamespace).(string)
+	if ok && clusterNamespace != "" {
+		list.FilterClusterNamespace(clusterNamespace)
 	}
 
 	return list

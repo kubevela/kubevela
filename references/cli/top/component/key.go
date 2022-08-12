@@ -29,10 +29,71 @@ const (
 	KeySpace = 32
 )
 
+// Defines char keystrokes.
+const (
+	KeyA tcell.Key = iota + 97
+	KeyB
+	KeyC
+	KeyD
+	KeyE
+	KeyF
+	KeyG
+	KeyH
+	KeyI
+	KeyJ
+	KeyK
+	KeyL
+	KeyM
+	KeyN
+	KeyO
+	KeyP
+	KeyQ
+	KeyR
+	KeyS
+	KeyT
+	KeyU
+	KeyV
+	KeyW
+	KeyX
+	KeyY
+	KeyZ
+)
+
 func init() {
 	tcell.KeyNames[tcell.Key(KeyHelp)] = "?"
 	tcell.KeyNames[tcell.Key(KeySlash)] = "/"
 	tcell.KeyNames[tcell.Key(KeySpace)] = "space"
+
+	initStdKeys()
+}
+
+func initStdKeys() {
+	tcell.KeyNames[KeyA] = "a"
+	tcell.KeyNames[KeyB] = "b"
+	tcell.KeyNames[KeyC] = "c"
+	tcell.KeyNames[KeyD] = "d"
+	tcell.KeyNames[KeyE] = "e"
+	tcell.KeyNames[KeyF] = "f"
+	tcell.KeyNames[KeyG] = "g"
+	tcell.KeyNames[KeyH] = "h"
+	tcell.KeyNames[KeyI] = "i"
+	tcell.KeyNames[KeyJ] = "j"
+	tcell.KeyNames[KeyK] = "k"
+	tcell.KeyNames[KeyL] = "l"
+	tcell.KeyNames[KeyM] = "m"
+	tcell.KeyNames[KeyN] = "n"
+	tcell.KeyNames[KeyO] = "o"
+	tcell.KeyNames[KeyP] = "p"
+	tcell.KeyNames[KeyQ] = "q"
+	tcell.KeyNames[KeyR] = "r"
+	tcell.KeyNames[KeyS] = "s"
+	tcell.KeyNames[KeyT] = "t"
+	tcell.KeyNames[KeyU] = "u"
+	tcell.KeyNames[KeyV] = "v"
+	tcell.KeyNames[KeyW] = "w"
+	tcell.KeyNames[KeyX] = "x"
+	tcell.KeyNames[KeyY] = "y"
+	tcell.KeyNames[KeyZ] = "z"
 }
 
 // StandardizeKey standardized combined key event and return corresponding key

@@ -80,6 +80,7 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 	}
 }
 
+// Title return table title of application view
 func (v *ApplicationView) Title() string {
 	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
 	if namespace == "" {
@@ -101,14 +102,14 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.objectView, Visible: true, Shared: true},
-		tcell.KeyTAB:      model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.k8sObjectView, Visible: true, Shared: true},
+		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
 
-func (v *ApplicationView) objectView(event *tcell.EventKey) *tcell.EventKey {
+func (v *ApplicationView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
@@ -117,7 +118,6 @@ func (v *ApplicationView) objectView(event *tcell.EventKey) *tcell.EventKey {
 
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, "")
 
 	v.app.command.run(v.ctx, "k8s")
 	return event

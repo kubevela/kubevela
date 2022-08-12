@@ -19,26 +19,32 @@ package model
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strconv"
 	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Namespace is namespace struct
 type Namespace struct {
 	Name   string
 	Status string
 	Age    string
 }
+
+// NamespaceList is namespace list
 type NamespaceList struct {
 	title []string
 	data  []Namespace
 }
 
+// AllNamespace is the key which represents all namespaces
 const AllNamespace = "all"
 
-func ListNamespaces(ctx context.Context, c client.Reader) ResourceList {
+// ListNamespaces return all namespaces
+func ListNamespaces(ctx context.Context, c client.Reader) *NamespaceList {
 	list := &NamespaceList{title: []string{"Name", "Status", "Age"}, data: []Namespace{{Name: AllNamespace, Status: "*", Age: "*"}}}
 	var nsList v1.NamespaceList
 	if err := c.List(ctx, &nsList); err != nil {
@@ -54,10 +60,12 @@ func ListNamespaces(ctx context.Context, c client.Reader) ResourceList {
 	return list
 }
 
+// Header generate header of table in namespace view
 func (l *NamespaceList) Header() []string {
 	return l.title
 }
 
+// Body generate body of table in namespace view
 func (l *NamespaceList) Body() [][]string {
 	data := make([][]string, 0)
 	for _, ns := range l.data {
@@ -66,11 +74,12 @@ func (l *NamespaceList) Body() [][]string {
 	return data
 }
 
+// timeFormat format time data of `time.Duration` type to string type
 func timeFormat(t time.Duration) string {
 	str := t.String()
 	// remove "."
 	tmp := strings.Split(str, ".")
-	tmp[0] = tmp[0] + "s"
+	tmp[0] += "s"
 
 	tmp = strings.Split(tmp[0], "h")
 	// hour num

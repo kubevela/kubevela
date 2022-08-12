@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-func TestK8SView(t *testing.T) {
+func TestClusterNamespaceView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -46,46 +45,22 @@ func TestK8SView(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "")
-
-	view := NewK8SView(ctx, app)
-	k8sView, ok := (view).(*K8SView)
+	cnsView, ok := NewClusterNamespaceView(ctx, app).(*ClusterNamespaceView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
-		k8sView.Init()
-		assert.Equal(t, k8sView.Table.GetTitle(), "[ K8S-Object (all/all) ]")
-		assert.Equal(t, k8sView.GetCell(0, 0).Text, "Name")
-	})
-
-	t.Run("colorize text", func(t *testing.T) {
-		testData := [][]string{
-			{"app", "ns", "", "", "", "Healthy"},
-			{"app", "ns", "", "", "", "UnHealthy"},
-			{"app", "ns", "", "", "", "Progressing"},
-			{"app", "ns", "", "", "", "UnKnown"}}
-		for i := 0; i < len(testData); i++ {
-			for j := 0; j < len(testData[i]); j++ {
-				k8sView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
-			}
-		}
-		k8sView.ColorizeStatusText(4)
-		assert.Equal(t, k8sView.GetCell(1, 5).Text, "[green::]Healthy")
-		assert.Equal(t, k8sView.GetCell(2, 5).Text, "[red::]UnHealthy")
-		assert.Equal(t, k8sView.GetCell(3, 5).Text, "[blue::]Progressing")
-		assert.Equal(t, k8sView.GetCell(4, 5).Text, "[gray::]UnKnown")
+		cnsView.Init()
+		assert.Equal(t, cnsView.GetTitle(), "[ ClusterNamespace ]")
+		assert.Equal(t, cnsView.GetCell(0, 0).Text, "Name")
+		assert.Equal(t, cnsView.GetCell(1, 0).Text, "all")
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(k8sView.Hint()), 4)
+		assert.Equal(t, len(cnsView.Hint()), 3)
 	})
 
-	t.Run("select cluster", func(t *testing.T) {
-		assert.Empty(t, k8sView.clusterView(nil))
+	t.Run("object view", func(t *testing.T) {
+		cnsView.Table.Table.Table = cnsView.Table.Select(1, 1)
+		assert.Empty(t, cnsView.k8sObjectView(nil))
 	})
-
-	t.Run("select cluster namespace", func(t *testing.T) {
-		assert.Empty(t, k8sView.clusterNamespaceView(nil))
-	})
-
 }

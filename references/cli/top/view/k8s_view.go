@@ -46,7 +46,7 @@ func NewK8SView(ctx context.Context, app *App) model.Component {
 // Init k8s view
 func (v *K8SView) Init() {
 	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Name())
+	title := fmt.Sprintf("[ %s ]", v.Title())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
 
 	resourceList := v.ListK8SObjects()
@@ -59,6 +59,19 @@ func (v *K8SView) Init() {
 // ListK8SObjects return kubernetes objects of the aimed application
 func (v *K8SView) ListK8SObjects() model.ResourceList {
 	return model.ListObjects(v.ctx, v.app.client)
+}
+
+// Title return the table title of k8s object view
+func (v *K8SView) Title() string {
+	namespace, ok := v.ctx.Value(&model.CtxKeyCluster).(string)
+	if !ok || namespace == "" {
+		namespace = "all"
+	}
+	clusterNS, ok := v.ctx.Value(&model.CtxKeyClusterNamespace).(string)
+	if !ok || clusterNS == "" {
+		clusterNS = "all"
+	}
+	return fmt.Sprintf("K8S-Object"+" (%s/%s)", namespace, clusterNS)
 }
 
 // Name return k8s view name
@@ -93,7 +106,23 @@ func (v *K8SView) ColorizeStatusText(rowNum int) {
 func (v *K8SView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
+		component.KeyC:    model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
+		component.KeyN:    model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
+}
+
+// clusterView switch k8s object view to the cluster view
+func (v *K8SView) clusterView(event *tcell.EventKey) *tcell.EventKey {
+	v.app.content.PopComponent()
+	v.app.command.run(v.ctx, "cluster")
+	return event
+}
+
+// clusterView switch k8s object view to the cluster Namespace view
+func (v *K8SView) clusterNamespaceView(event *tcell.EventKey) *tcell.EventKey {
+	v.app.content.PopComponent()
+	v.app.command.run(v.ctx, "cns")
+	return event
 }

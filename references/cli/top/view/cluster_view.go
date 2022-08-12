@@ -77,13 +77,17 @@ func (v *ClusterView) bindKeys() {
 	})
 }
 
-// k8sObjectView switch app main view to k8s object view
+// k8sObjectView switch cluster view to k8s object view
 func (v *ClusterView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
 	}
+	v.app.content.PopComponent()
 	clusterName := v.GetCell(row, 0).Text
+	if clusterName == model.AllCluster {
+		clusterName = ""
+	}
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, clusterName)
 	v.app.command.run(v.ctx, "k8s")
 	return event

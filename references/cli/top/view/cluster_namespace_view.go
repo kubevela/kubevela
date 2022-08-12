@@ -27,68 +27,68 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-// NamespaceView is namespace view struct
-type NamespaceView struct {
+// ClusterNamespaceView is the cluster namespace, which display the namespace info of application's resource
+type ClusterNamespaceView struct {
 	*ResourceView
 	ctx context.Context
 }
 
-// NewNamespaceView return a new namespace view
-func NewNamespaceView(ctx context.Context, app *App) model.Component {
-	v := &NamespaceView{
+// NewClusterNamespaceView return a new cluster namespace view
+func NewClusterNamespaceView(ctx context.Context, app *App) model.Component {
+	v := &ClusterNamespaceView{
 		ResourceView: NewResourceView(app),
 		ctx:          ctx,
 	}
 	return v
 }
 
-// Init a namespace view
-func (v *NamespaceView) Init() {
+// Init the cluster namespace view
+func (v *ClusterNamespaceView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
 
-	resourceList := v.ListNamespaces()
+	resourceList := v.ListClusterNamespaces()
 	v.ResourceView.Init(resourceList)
 
 	v.bindKeys()
 }
 
-// ListNamespaces return all namespaces
-func (v *NamespaceView) ListNamespaces() model.ResourceList {
-	return model.ListNamespaces(v.ctx, v.app.client)
+// ListClusterNamespaces return the namespace of application's resource
+func (v *ClusterNamespaceView) ListClusterNamespaces() model.ResourceList {
+	return model.ListClusterNamespaces(v.ctx, v.app.client)
 }
 
-// Hint return key action menu hints of the k8s view
-func (v *NamespaceView) Hint() []model.MenuHint {
+// Hint return key action menu hints of the cluster namespace view
+func (v *ClusterNamespaceView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
 }
 
-// Name return k8s view name
-func (v *NamespaceView) Name() string {
-	return "Namespace"
+// Name return cluster namespace view name
+func (v *ClusterNamespaceView) Name() string {
+	return "ClusterNamespace"
 }
 
-func (v *NamespaceView) bindKeys() {
+func (v *ClusterNamespaceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.applicationView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.k8sObjectView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
 
-func (v *NamespaceView) applicationView(event *tcell.EventKey) *tcell.EventKey {
+// k8sObjectView switch cluster namespace view to k8s object view
+func (v *ClusterNamespaceView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
 	}
 	v.app.content.PopComponent()
-	ns := v.Table.GetCell(row, 0).Text
-	if ns == model.AllNamespace {
-		ns = ""
+	clusterNamespace := v.GetCell(row, 0).Text
+	if clusterNamespace == model.AllClusterNamespace {
+		clusterNamespace = ""
 	}
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, ns)
-	v.app.command.run(v.ctx, "app")
-
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, clusterNamespace)
+	v.app.command.run(v.ctx, "k8s")
 	return event
 }

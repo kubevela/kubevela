@@ -60,6 +60,7 @@ func (l *ClusterList) Body() [][]string {
 func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 	list := &ClusterList{
 		title: []string{"Name", "Alias", "Type", "EndPoint", "Labels"},
+		data:  []Cluster{{"all", "*", "*", "*", "*"}},
 	}
 	name := ctx.Value(&CtxKeyAppName).(string)
 	ns := ctx.Value(&CtxKeyNamespace).(string)

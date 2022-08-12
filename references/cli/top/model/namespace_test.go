@@ -19,10 +19,12 @@ package model
 import (
 	"context"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNamespaceList_Header(t *testing.T) {
@@ -54,6 +56,11 @@ func TestTimeFormat(t *testing.T) {
 var _ = Describe("test namespace", func() {
 	ctx := context.Background()
 	It("list namespace", func() {
-		fmt.Println(ListNamespaces(ctx, k8sClient))
+		nsList := ListNamespaces(ctx, k8sClient)
+		Expect(len(nsList.Header())).To(Equal(3))
+		Expect(nsList.Header()).To(Equal([]string{"Name", "Status", "Age"}))
+		fmt.Println(nsList.Body())
+		Expect(len(nsList.Body())).To(Equal(5))
+		Expect(nsList.Body()[0]).To(Equal([]string{"all", "*", "*"}))
 	})
 })
