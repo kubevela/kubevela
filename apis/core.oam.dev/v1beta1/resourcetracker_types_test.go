@@ -18,18 +18,21 @@ package v1beta1
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	v12 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	v13 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/compression"
 	"github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -111,10 +114,10 @@ func TestManagedResourceKeys(t *testing.T) {
 	input := ManagedResource{
 		ClusterObjectReference: common.ClusterObjectReference{
 			Cluster: "cluster",
-			ObjectReference: v1.ObjectReference{
+			ObjectReference: corev1.ObjectReference{
 				Namespace:  "namespace",
 				Name:       "name",
-				APIVersion: v12.SchemeGroupVersion.String(),
+				APIVersion: appsv1.SchemeGroupVersion.String(),
 				Kind:       "Deployment",
 			},
 		},
@@ -128,7 +131,7 @@ func TestManagedResourceKeys(t *testing.T) {
 	r.Equal("apps/Deployment/cluster/namespace/name", input.ResourceKey())
 	r.Equal("env/component", input.ComponentKey())
 	r.Equal("Deployment name (Cluster: cluster, Namespace: namespace)", input.DisplayName())
-	var deploy1, deploy2 v12.Deployment
+	var deploy1, deploy2 appsv1.Deployment
 	deploy1.Spec.Replicas = pointer.Int32(5)
 	bs, err := json.Marshal(deploy1)
 	r.NoError(err)
@@ -155,13 +158,13 @@ func TestManagedResourceKeys(t *testing.T) {
 func TestResourceTracker_ManagedResource(t *testing.T) {
 	r := require.New(t)
 	input := &ResourceTracker{}
-	deploy1 := v12.Deployment{ObjectMeta: v13.ObjectMeta{Name: "deploy1"}}
+	deploy1 := appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "deploy1"}}
 	input.AddManagedResource(&deploy1, true, false, "")
 	r.Equal(1, len(input.Spec.ManagedResources))
-	cm2 := v1.ConfigMap{ObjectMeta: v13.ObjectMeta{Name: "cm2"}}
+	cm2 := corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cm2"}}
 	input.AddManagedResource(&cm2, false, false, "")
 	r.Equal(2, len(input.Spec.ManagedResources))
-	pod3 := v1.Pod{ObjectMeta: v13.ObjectMeta{Name: "pod3"}}
+	pod3 := corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod3"}}
 	input.AddManagedResource(&pod3, false, false, "")
 	r.Equal(3, len(input.Spec.ManagedResources))
 	deploy1.Spec.Replicas = pointer.Int32(5)
@@ -176,9 +179,43 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 	r.Equal(1, len(input.Spec.ManagedResources))
 	input.DeleteManagedResource(&pod3, true)
 	r.Equal(0, len(input.Spec.ManagedResources))
-	secret4 := v1.Secret{ObjectMeta: v13.ObjectMeta{Name: "secret4"}}
+	secret4 := corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "secret4"}}
 	input.DeleteManagedResource(&secret4, true)
 	r.Equal(0, len(input.Spec.ManagedResources))
 	input.DeleteManagedResource(&secret4, false)
 	r.Equal(1, len(input.Spec.ManagedResources))
+}
+
+func TestResourceTrackerCompression(t *testing.T) {
+	size := 1000
+	r := require.New(t)
+	rt := &ResourceTracker{}
+	for i := 0; i < size; i++ {
+		rt.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
+		rt.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
+	}
+	rt.Spec.Compression.Type = compression.Gzip
+	t0 := time.Now()
+	bs, err := json.Marshal(rt)
+	r.NoError(err)
+	afterElapsed := time.Since(t0).Nanoseconds()
+	r.Contains(string(bs), `"type":"gzip","data":`)
+	_rt := &ResourceTracker{}
+	r.NoError(json.Unmarshal(bs, _rt))
+	r.Equal(size*2, len(_rt.Spec.ManagedResources))
+	for i, rsc := range _rt.Spec.ManagedResources {
+		r.Equal(i%2 == 1, rsc.Data == nil)
+	}
+
+	_rt.Spec.Compression.Type = compression.Uncompressed
+	t0 = time.Now()
+	_bs, err := json.Marshal(_rt)
+	beforeElapsed := time.Since(t0)
+	r.NoError(err)
+	before, after := len(_bs), len(bs)
+	r.Less(after, before)
+	fmt.Printf("Compression Size:\n  before: %d\n  after:  %d\n  rate:   %.2f%%\n",
+		before, after, float64(after)*100.0/float64(before))
+	fmt.Printf("Compression Time:\n  before: %d ns\n  after:  %d ns\n  rate:   %.2f%%\n",
+		beforeElapsed, afterElapsed, float64(afterElapsed)*100.0/float64(beforeElapsed))
 }
