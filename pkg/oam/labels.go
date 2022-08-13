@@ -39,6 +39,8 @@ const (
 	LabelAppCluster = "app.oam.dev/cluster"
 	// LabelAppUID records the uid of Application
 	LabelAppUID = "app.oam.dev/uid"
+	// LabelAppSharding records which sharding of controller handle the application cr
+	LabelAppSharding = "app.oam.dev/sharding"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
