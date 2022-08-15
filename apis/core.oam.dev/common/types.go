@@ -493,8 +493,8 @@ type ApplicationComponent struct {
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
 
-	// ReplicaKey is not empty means the component is replicated. This field can't be specified in application directly.
-	// Instead, this will be filled when using replication policy.
+	// ReplicaKey is not empty means the component is replicated. This field is designed so that it can't be specified in application directly.
+	// So we set the json tag as "-". Instead, this will be filled when using replication policy.
 	ReplicaKey string `json:"-"`
 }
 
