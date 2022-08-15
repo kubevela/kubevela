@@ -41,7 +41,7 @@ func TestClusterView(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
+	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")

@@ -47,6 +47,12 @@ var ResourceMap = map[string]ResourceViewer{
 	"k8s": {
 		viewFunc: NewK8SView,
 	},
+	"ns": {
+		viewFunc: NewNamespaceView,
+	},
+	"cns": {
+		viewFunc: NewClusterNamespaceView,
+	},
 }
 
 // NewResourceView return a new resource view

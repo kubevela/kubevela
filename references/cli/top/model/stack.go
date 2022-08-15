@@ -112,6 +112,13 @@ func (s *Stack) Empty() bool {
 	return len(s.components) == 0
 }
 
+// Clear out the stack
+func (s *Stack) Clear() {
+	for !s.Empty() {
+		s.PopComponent()
+	}
+}
+
 func (s *Stack) notifyListener(action int, component Component) {
 	for _, listener := range s.listeners {
 		switch action {

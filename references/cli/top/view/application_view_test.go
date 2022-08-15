@@ -41,7 +41,7 @@ func TestApplicationView(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
+	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
@@ -51,7 +51,7 @@ func TestApplicationView(t *testing.T) {
 
 	t.Run("init", func(t *testing.T) {
 		appView.Init()
-		assert.Equal(t, appView.Table.GetTitle(), "[ Application ]")
+		assert.Equal(t, appView.Table.GetTitle(), "[ Application (all) ]")
 		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
 	})
 
@@ -70,12 +70,12 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 3)
+		assert.Equal(t, len(appView.Hint()), 4)
 	})
 
-	t.Run("cluster view", func(t *testing.T) {
+	t.Run("object view", func(t *testing.T) {
 		appView.Table.Table.Table = appView.Table.Select(1, 1)
-		assert.Empty(t, appView.clusterView(nil))
+		assert.Empty(t, appView.k8sObjectView(nil))
 	})
 
 }
