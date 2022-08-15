@@ -92,7 +92,7 @@ func createResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.
 	} else {
 		rt.Spec.ApplicationGeneration = 0
 	}
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.CompressResourceTracker) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.GzipResourceTracker) {
 		rt.Spec.Compression.Type = compression.Gzip
 	}
 	if err := cli.Create(ctx, rt); err != nil {

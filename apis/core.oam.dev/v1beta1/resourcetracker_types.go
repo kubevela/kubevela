@@ -82,7 +82,9 @@ type ResourceTrackerCompression struct {
 	Data string           `json:"data,omitempty"`
 }
 
-// MarshalJSON .
+// MarshalJSON will encode ResourceTrackerSpec according to the compression type. If type specified,
+// it will encode data to compression data.
+// Note: this is not the standard json Marshal process but re-use the framework function.
 func (in *ResourceTrackerSpec) MarshalJSON() ([]byte, error) {
 	type Alias ResourceTrackerSpec
 	tmp := &struct{ *Alias }{}
@@ -104,7 +106,9 @@ func (in *ResourceTrackerSpec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(tmp.Alias)
 }
 
-// UnmarshalJSON .
+// UnmarshalJSON will decode ResourceTrackerSpec according to the compression type. If type specified,
+// it will decode data from compression data.
+// Note: this is not the standard json Unmarshal process but re-use the framework function.
 func (in *ResourceTrackerSpec) UnmarshalJSON(src []byte) error {
 	type Alias ResourceTrackerSpec
 	tmp := &struct{ *Alias }{}

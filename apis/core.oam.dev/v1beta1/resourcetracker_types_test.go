@@ -230,4 +230,5 @@ func TestResourceTrackerInvalidMarshal(t *testing.T) {
 	r.True(strings.Contains(err.Error(), "invalid"))
 	r.ErrorIs(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"invalid"}}}`), rt), compression.NewUnsupportedCompressionTypeError("invalid"))
 	r.NotNil(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"gzip","data":"xxx"}}}`), rt))
+	r.NotNil(json.Unmarshal([]byte(`{"spec":["invalid"]}`), rt))
 }
