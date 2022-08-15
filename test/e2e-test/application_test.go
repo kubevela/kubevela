@@ -448,6 +448,11 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking the replication & application status")
 		verifyWorkloadRunningExpected("hello-rep-beijing", 1, "crccheck/hello-world")
 		verifyWorkloadRunningExpected("hello-rep-hangzhou", 1, "crccheck/hello-world")
+		By("Checking the origin component are not be dispatched")
+		var workload v1.Deployment
+		err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "hello-rep"}, &workload)
+		Expect(err).Should(Satisfy(util.NotFoundMatcher{}))
+
 		By("Checking the component not replicated & application status")
 		verifyWorkloadRunningExpected("hello-no-rep", 1, "crccheck/hello-world")
 
