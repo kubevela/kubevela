@@ -8,18 +8,16 @@ spec:
       type: replica-webservice
       properties:
         image: crccheck/hello-world
-      traits:
-        - type: expose
-          properties:
-            port: [8000]
+        ports:
+          - port: 80
+            expose: true
     - name: hello-no-rep
       type: webservice
       properties:
         image: crccheck/hello-world
-      traits:
-        - type: expose
-          properties:
-            port: [8001]
+        ports:
+          - port: 80
+            expose: true
 
   policies:
     - name: comp-to-replicate

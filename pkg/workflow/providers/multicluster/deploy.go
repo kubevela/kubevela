@@ -84,7 +84,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
-	components, err = pkgpolicy.GetReplicationComponents(policies, components)
+	components, err = pkgpolicy.ReplicateComponents(policies, components)
 	if err != nil {
 		return false, "", err
 	}

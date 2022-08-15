@@ -81,9 +81,9 @@ func (in SharedResourcePolicySpec) FindStrategy(manifest *unstructured.Unstructu
 }
 
 // ReplicationPolicySpec defines the spec of replication policy
-// Override policy should be used together with replication policy to select the deploy target components
-// ReplicationPolicySpec.Selector is the subset of selected components which will be replicated.
+// Override policy should be used together with replication policy to select the deployment target components
 type ReplicationPolicySpec struct {
-	Keys     []string `json:"keys,omitempty"`
+	Keys []string `json:"keys,omitempty"`
+	// Selector is the subset of selected components which will be replicated.
 	Selector []string `json:"selector,omitempty"`
 }

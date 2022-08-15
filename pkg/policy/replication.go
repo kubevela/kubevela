@@ -40,8 +40,8 @@ func selectReplicateComponents(components []common.ApplicationComponent, selecto
 	return compToReplicate, nil
 }
 
-// GetReplicationComponents will filter the components to replicate, return the replication decisions
-func GetReplicationComponents(policies []v1beta1.AppPolicy, components []common.ApplicationComponent) ([]common.ApplicationComponent, error) {
+// ReplicateComponents will filter the components to replicate, return the replication decisions
+func ReplicateComponents(policies []v1beta1.AppPolicy, components []common.ApplicationComponent) ([]common.ApplicationComponent, error) {
 	var (
 		compToRemove = make(map[string]bool)
 		compToAdd    = make([]common.ApplicationComponent, 0)

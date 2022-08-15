@@ -154,7 +154,7 @@ func TestGetReplicationComponents(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			comps, err := GetReplicationComponents(tc.Policies, tc.Components)
+			comps, err := ReplicateComponents(tc.Policies, tc.Components)
 			if tc.WantErr != nil {
 				assert2.Error(t, err)
 				assert2.Contains(t, err.Error(), tc.WantErr.Error())

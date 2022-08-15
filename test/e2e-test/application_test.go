@@ -440,7 +440,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(common.ReadYamlToObject("testdata/definition/replica-webservice.yaml", &compDef)).Should(BeNil())
 		Eventually(func() error {
 			return k8sClient.Create(ctx, compDef.DeepCopy())
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
+		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
 
 		By("Creating an application")
 		applyApp("app_replication.yaml")
