@@ -110,8 +110,10 @@ optimize:
   enableResourceTrackerDeleteOnlyTrigger: true
 
 ##@param featureGates.enableLegacyComponentRevision if disabled, only component with rollout trait will create component revisions
+##@param featureGates.compressResourceTracker if enabled, resourceTracker will be compressed before stored
 featureGates:
   enableLegacyComponentRevision: false
+  compressResourceTracker: false
 
 ## @section MultiCluster parameters
 

@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -218,4 +219,15 @@ func TestResourceTrackerCompression(t *testing.T) {
 		before, after, float64(after)*100.0/float64(before))
 	fmt.Printf("Compression Time:\n  before: %d ns\n  after:  %d ns\n  rate:   %.2f%%\n",
 		beforeElapsed, afterElapsed, float64(afterElapsed)*100.0/float64(beforeElapsed))
+}
+
+func TestResourceTrackerInvalidMarshal(t *testing.T) {
+	r := require.New(t)
+	rt := &ResourceTracker{}
+	rt.Spec.Compression.Type = "invalid"
+	_, err := json.Marshal(rt)
+	r.ErrorIs(err, compression.NewUnsupportedCompressionTypeError("invalid"))
+	r.True(strings.Contains(err.Error(), "invalid"))
+	r.ErrorIs(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"invalid"}}}`), rt), compression.NewUnsupportedCompressionTypeError("invalid"))
+	r.NotNil(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"gzip","data":"xxx"}}}`), rt))
 }
