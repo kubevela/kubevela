@@ -22,6 +22,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
@@ -361,7 +362,7 @@ func jsonMergePatch(base cue.Value, patch cue.Value) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to merge base value and patch value by JsonMergePatch")
 	}
-	output, err := OpenBaiscLit(string(merged))
+	output, err := openJSON(string(merged))
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
@@ -386,9 +387,38 @@ func jsonPatch(base cue.Value, patch cue.Value) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to apply json patch")
 	}
-	output, err := OpenBaiscLit(string(merged))
+	output, err := openJSON(string(merged))
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
 	return output, nil
+}
+
+func openJSON(data string) (string, error) {
+	f, err := parser.ParseFile("-", data, parser.ParseComments)
+	if err != nil {
+		return "", err
+	}
+	ast.Walk(f, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if ok {
+			v := field.Value
+			switch lit := v.(type) {
+			case *ast.StructLit:
+				lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+			case *ast.ListLit:
+				lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+			}
+		}
+		return true
+	}, nil)
+	if len(f.Decls) > 0 {
+		if emb, ok := f.Decls[0].(*ast.EmbedDecl); ok {
+			if s, _ok := emb.Expr.(*ast.StructLit); _ok {
+				f.Decls = s.Elts
+			}
+		}
+	}
+	b, err := format.Node(f)
+	return string(b), err
 }
