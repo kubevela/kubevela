@@ -1,9 +1,7 @@
-# Replication
-
 ### Background
 
 In KubeVela, we can dispatch resources across the clusters. But projects like [OpenYurt](https://openyurt.io) have finer-grained division like node pool.
-This requires to dispatch some similar resources to the same cluster. These resources are called replication. Back to the example of OpenYurt, it can 
+This requires to dispatch some similar resources to the same cluster. These resources are called replication. Back to the example of OpenYurt, it can
 integrate KubeVela and replicate the resources then dispatch them to the different node pool.
 
 ### Usage
@@ -11,7 +9,7 @@ integrate KubeVela and replicate the resources then dispatch them to the differe
 Replication is an internal policy. It can be only used with `deploy` workflow step. When using replication policy. A new field `replicaKey` will be added to context.
 User can use definitions that make use of `context.replicaKey`. For example, apply a replica-webservice ComponentDefinition.
 
-In this ComponentDefinition, we can use `context.replicaKey` to distinguish the name of Deployment and Service. 
+In this ComponentDefinition, we can use `context.replicaKey` to distinguish the name of Deployment and Service.
 
 > **NOTE**: ComponentDefinition below is trimmed for brevity. See complete YAML in [replication.yaml](https://github.com/kubevela/kubevela/tree/master/test/e2e-test/testdata/definition/replication.yaml)
 
