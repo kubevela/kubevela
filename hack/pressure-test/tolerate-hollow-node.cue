@@ -9,9 +9,9 @@
 template: {
 	patch: spec: template: spec: {
 		tolerations: [{
-			key:      "node.kubernetes.io/network-unavailable"
+			key: "node.kubernetes.io/network-unavailable"
 			operator: "Exists"
-			effect:   "NoSchedule"
+			effect: "NoSchedule"
 		}]
 	}
 	parameter: {}
