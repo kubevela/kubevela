@@ -262,7 +262,7 @@ func TestResourceTrackerCompression(t *testing.T) {
 	r.Less(after, before)
 
 	fmt.Printf(`Compressed Size:
-  uncompressed: %d bytes
+  uncompressed: %d bytes	100.00%%
   gzip:         %d bytes	%.2f%%
   zstd:         %d bytes	%.2f%%
 `,
@@ -270,8 +270,8 @@ func TestResourceTrackerCompression(t *testing.T) {
 		gzipSize, float64(gzipSize)*100.0/float64(uncmpSize),
 		zstdSize, float64(zstdSize)*100.0/float64(uncmpSize))
 
-	fmt.Printf(`Compression Time:
-  no compression: %d ns
+	fmt.Printf(`Marshal Time:
+  no compression: %d ns	1.00x
   gzip:           %d ns	%.2fx
   zstd:           %d ns	%.2fx
 `,
