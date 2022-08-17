@@ -95,6 +95,7 @@ func createResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.GzipResourceTracker) {
 		rt.Spec.Compression.Type = compression.Gzip
 	}
+	// zstd compressor will have higher priority when both gzip and zstd are enabled.
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ZstdResourceTracker) {
 		rt.Spec.Compression.Type = compression.Zstd
 	}

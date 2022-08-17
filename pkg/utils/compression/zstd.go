@@ -23,9 +23,26 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// Create a writer that caches compressors.
-// For this operation type we supply a nil Reader.
-var encoder, _ = zstd.NewWriter(nil)
+// Create a writer that caches compressors. For this operation type we supply a nil Reader.
+var encoder, _ = zstd.NewWriter(nil,
+	// We use the fastest level here because we are dealing with highly-compressible
+	// JSON string. We would not gain much compression ratio when going for the
+	// slower levels. Instead, we will almost get double the performance comparing
+	// Fastest and Default.
+	//
+	// file                        level   insize      outsize     millis  mb/s
+	// github-june-2days-2019.json     1   6273951764  697439532   9789    611.17
+	// github-june-2days-2019.json     2   6273951764  610876538   18553   322.49
+	// github-june-2days-2019.json     3   6273951764  517662858   44186   135.41
+	// github-june-2days-2019.json     4   6273951764  464617114   165373  36.18
+	zstd.WithEncoderLevel(zstd.SpeedFastest),
+	// TODO(charlie0129): give a dictionary to compressor to get even more improvements.
+	//
+	// Since we are dealing with highly-specialized small JSON data, a dictionary will
+	// give massive improvements, around 3x both (de)compression speed and size reduction,
+	// according to Facebook https://github.com/facebook/zstd#the-case-for-small-data-compression.
+	// zstd.WithEncoderDict(),
+)
 
 // Create a reader that caches decompressors.
 var decoder, _ = zstd.NewReader(nil)

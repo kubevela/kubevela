@@ -189,7 +189,7 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 
 func TestResourceTrackerCompression(t *testing.T) {
 	size := 1000
-	count := 10
+	count := 30
 	r := require.New(t)
 
 	// Gzip
