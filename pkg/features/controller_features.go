@@ -58,10 +58,13 @@ const (
 
 	// AuthenticateApplication enable the authentication for application
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
-	// GzipResourceTracker enable the gzip compression for ResourceTracker. It can be useful if you have large
+	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
 	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
 	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
 	GzipResourceTracker featuregate.Feature = "GzipResourceTracker"
+	// ZstdResourceTracker enables the zstd compression for ResourceTracker. It is similar to GzipResourceTracker,
+	// but faster and more efficient.
+	ZstdResourceTracker featuregate.Feature = "ZstdResourceTracker"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -76,6 +79,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ApplyResourceByUpdate:         {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
+	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

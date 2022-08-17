@@ -188,37 +188,98 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 }
 
 func TestResourceTrackerCompression(t *testing.T) {
-	size := 1000
+	// Make the test size similar to fluxcd
+	size := 1024
+	count := 10
 	r := require.New(t)
-	rt := &ResourceTracker{}
-	for i := 0; i < size; i++ {
-		rt.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
-		rt.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
-	}
-	rt.Spec.Compression.Type = compression.Gzip
-	t0 := time.Now()
-	bs, err := json.Marshal(rt)
-	r.NoError(err)
-	afterElapsed := time.Since(t0).Nanoseconds()
-	r.Contains(string(bs), `"type":"gzip","data":`)
-	_rt := &ResourceTracker{}
-	r.NoError(json.Unmarshal(bs, _rt))
-	r.Equal(size*2, len(_rt.Spec.ManagedResources))
-	for i, rsc := range _rt.Spec.ManagedResources {
-		r.Equal(i%2 == 1, rsc.Data == nil)
+
+	// Gzip
+	var (
+		gzipCompressTime int64
+		gzipSize         int
+		gzipBs           []byte
+	)
+	for c := 0; c < count; c++ {
+		var err error
+		rtGzip := &ResourceTracker{}
+		for i := 0; i < size; i++ {
+			rtGzip.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
+			rtGzip.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
+		}
+		rtGzip.Spec.Compression.Type = compression.Gzip
+		// Compress
+		t0 := time.Now()
+		gzipBs, err = json.Marshal(rtGzip)
+		elapsed := time.Since(t0).Nanoseconds()
+		gzipCompressTime = (elapsed + gzipCompressTime) / 2
+		gzipSize = (len(gzipBs) + gzipSize) / 2
+		r.NoError(err)
+		r.Contains(string(gzipBs), `"type":"gzip","data":`)
 	}
 
-	_rt.Spec.Compression.Type = compression.Uncompressed
-	t0 = time.Now()
-	_bs, err := json.Marshal(_rt)
-	beforeElapsed := time.Since(t0)
+	// Zstd
+	var (
+		zstdCompressTime int64
+		zstdSize         int
+		zstdBs           []byte
+	)
+	for c := 0; c < count; c++ {
+		var err error
+		rtZstd := &ResourceTracker{}
+		for i := 0; i < size; i++ {
+			rtZstd.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
+			rtZstd.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
+		}
+		rtZstd.Spec.Compression.Type = compression.Zstd
+		t0 := time.Now()
+		zstdBs, err = json.Marshal(rtZstd)
+		elapsed := time.Since(t0).Nanoseconds()
+		zstdCompressTime = (elapsed + zstdCompressTime) / 2
+		zstdSize = (len(zstdBs) + zstdSize) / 2
+		r.NoError(err)
+		r.Contains(string(zstdBs), `"type":"zstd","data":`)
+	}
+
+	rtUncmp := &ResourceTracker{}
+	r.NoError(json.Unmarshal(gzipBs, rtUncmp))
+	r.Equal(size*2, len(rtUncmp.Spec.ManagedResources))
+	for i, rsc := range rtUncmp.Spec.ManagedResources {
+		r.Equal(i%2 == 1, rsc.Data == nil)
+	}
+	r.NoError(json.Unmarshal(zstdBs, rtUncmp))
+	r.Equal(size*2, len(rtUncmp.Spec.ManagedResources))
+	for i, rsc := range rtUncmp.Spec.ManagedResources {
+		r.Equal(i%2 == 1, rsc.Data == nil)
+	}
+	rtUncmp.Spec.Compression.Type = compression.Uncompressed
+	t0 := time.Now()
+	_bs, err := json.Marshal(rtUncmp)
+	uncmpCpmpressTime := time.Since(t0)
+	uncmpSize := len(_bs)
 	r.NoError(err)
-	before, after := len(_bs), len(bs)
+	before, after := len(_bs), len(zstdBs)
 	r.Less(after, before)
-	fmt.Printf("Compression Size:\n  before: %d\n  after:  %d\n  rate:   %.2f%%\n",
-		before, after, float64(after)*100.0/float64(before))
-	fmt.Printf("Compression Time:\n  before: %d ns\n  after:  %d ns\n  rate:   %.2f%%\n",
-		beforeElapsed, afterElapsed, float64(afterElapsed)*100.0/float64(beforeElapsed))
+	before, after = len(_bs), len(gzipBs)
+	r.Less(after, before)
+
+	fmt.Printf(`Compressed Size:
+  uncompressed: %d bytes
+  gzip:         %d bytes	%.2f%%
+  zstd:         %d bytes	%.2f%%
+`,
+		uncmpSize,
+		gzipSize, float64(gzipSize)*100.0/float64(uncmpSize),
+		zstdSize, float64(zstdSize)*100.0/float64(uncmpSize))
+
+	fmt.Printf(`Compression Time:
+  no compression: %d ns
+  gzip:           %d ns	%.2fx
+  zstd:           %d ns	%.2fx
+`,
+		uncmpCpmpressTime,
+		gzipCompressTime, float64(gzipCompressTime)/float64(uncmpCpmpressTime),
+		zstdCompressTime, float64(zstdCompressTime)/float64(uncmpCpmpressTime),
+	)
 }
 
 func TestResourceTrackerInvalidMarshal(t *testing.T) {
