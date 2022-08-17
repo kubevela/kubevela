@@ -94,7 +94,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.disableResourceApplyDoubleCheck`        | Optimize workflow by ignoring resource double check after apply.                                                                                  | `false` |
 | `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                               | `true`  |
 | `featureGates.enableLegacyComponentRevision`      | if disabled, only component with rollout trait will create component revisions                                                                    | `false` |
-| `featureGates.gzipResourceTracker`                | if enabled, resourceTracker will be compressed before stored                                                                                      | `false` |
+| `featureGates.gzipResourceTracker`                | if enabled, resourceTracker will be compressed using gzip before being stored                                                                     | `false` |
+| `featureGates.zstdResourceTracker`                | if enabled, resourceTracker will be compressed using zstd before being stored                                                                     | `false` |
 
 
 ### MultiCluster parameters

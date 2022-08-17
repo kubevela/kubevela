@@ -188,8 +188,7 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 }
 
 func TestResourceTrackerCompression(t *testing.T) {
-	// Make the test size similar to fluxcd
-	size := 1024
+	size := 1000
 	count := 10
 	r := require.New(t)
 

@@ -24,6 +24,6 @@ const (
 	Uncompressed Type = ""
 	// Gzip compresses data using gzip and encodes it using base64
 	Gzip Type = "gzip"
-	// Zstd compresses data using zstd and encodes it using ascii85
+	// Zstd compresses data using zstd and encodes it using base64
 	Zstd Type = "zstd"
 )
