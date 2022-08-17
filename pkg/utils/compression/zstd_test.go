@@ -17,6 +17,7 @@ limitations under the License.
 package compression
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,4 +35,16 @@ func TestZstdCompression(t *testing.T) {
 	err = UnZstdStringToObject(str, &objOut)
 	assert.NoError(t, err)
 	assert.Equal(t, obj, objOut)
+
+	// Invalid obj
+	_, err = ZstdObjectToString(math.Inf(1))
+	assert.Error(t, err)
+
+	// Invalid base64 string
+	err = UnZstdStringToObject(".dew;.3234", &objOut)
+	assert.Error(t, err)
+
+	// Invalid zstd binary data
+	err = UnZstdStringToObject("MTIzNDUK", &objOut)
+	assert.Error(t, err)
 }
