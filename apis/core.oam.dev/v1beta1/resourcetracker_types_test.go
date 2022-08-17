@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
@@ -188,9 +189,34 @@ func TestResourceTracker_ManagedResource(t *testing.T) {
 }
 
 func TestResourceTrackerCompression(t *testing.T) {
-	size := 1000
-	count := 30
+	count := 20
 	r := require.New(t)
+
+	// Load some real CRDs, and other test data to simulate real use-cases.
+	// The user must have some large resourcetrackers if they use compression,
+	// so we load some large CRDs.
+	var data []string
+	paths := []string{
+		"../../../charts/vela-core/crds/core.oam.dev_applicationrevisions.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_applications.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_definitionrevisions.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_healthscopes.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml",
+		"../../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml",
+		"../../../charts/vela-core/crds/standard.oam.dev_rollouts.yaml",
+		"../../../charts/vela-core/templates/addon/fluxcd.yaml",
+		"../../../charts/vela-core/templates/kubevela-controller.yaml",
+		"../../../charts/vela-core/README.md",
+		"../../../pkg/velaql/providers/query/testdata/machinelearning.seldon.io_seldondeployments.yaml",
+		"../../../legacy/charts/vela-core-legacy/crds/standard.oam.dev_podspecworkloads.yaml",
+	}
+	for _, p := range paths {
+		b, err := ioutil.ReadFile(p)
+		r.NoError(err)
+		data = append(data, string(b))
+	}
+	size := len(data)
 
 	// Gzip
 	var (
@@ -202,7 +228,7 @@ func TestResourceTrackerCompression(t *testing.T) {
 		var err error
 		rtGzip := &ResourceTracker{}
 		for i := 0; i < size; i++ {
-			rtGzip.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
+			rtGzip.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}, Data: map[string]string{"1": data[i]}}, false, false, "")
 			rtGzip.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
 		}
 		rtGzip.Spec.Compression.Type = compression.Gzip
@@ -210,8 +236,16 @@ func TestResourceTrackerCompression(t *testing.T) {
 		t0 := time.Now()
 		gzipBs, err = json.Marshal(rtGzip)
 		elapsed := time.Since(t0).Nanoseconds()
-		gzipCompressTime = (elapsed + gzipCompressTime) / 2
-		gzipSize = (len(gzipBs) + gzipSize) / 2
+		if gzipCompressTime == 0 {
+			gzipCompressTime = elapsed
+		} else {
+			gzipCompressTime = (elapsed + gzipCompressTime) / 2
+		}
+		if gzipSize == 0 {
+			gzipSize = len(gzipBs)
+		} else {
+			gzipSize = (len(gzipBs) + gzipSize) / 2
+		}
 		r.NoError(err)
 		r.Contains(string(gzipBs), `"type":"gzip","data":`)
 	}
@@ -226,15 +260,23 @@ func TestResourceTrackerCompression(t *testing.T) {
 		var err error
 		rtZstd := &ResourceTracker{}
 		for i := 0; i < size; i++ {
-			rtZstd.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}}, false, false, "")
+			rtZstd.AddManagedResource(&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("cm%d", i)}, Data: map[string]string{"1": data[i]}}, false, false, "")
 			rtZstd.AddManagedResource(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("secret%d", i)}}, true, false, "")
 		}
 		rtZstd.Spec.Compression.Type = compression.Zstd
 		t0 := time.Now()
 		zstdBs, err = json.Marshal(rtZstd)
 		elapsed := time.Since(t0).Nanoseconds()
-		zstdCompressTime = (elapsed + zstdCompressTime) / 2
-		zstdSize = (len(zstdBs) + zstdSize) / 2
+		if zstdCompressTime == 0 {
+			zstdCompressTime = elapsed
+		} else {
+			zstdCompressTime = (elapsed + zstdCompressTime) / 2
+		}
+		if zstdSize == 0 {
+			zstdSize = len(zstdBs)
+		} else {
+			zstdSize = (len(zstdBs) + zstdSize) / 2
+		}
 		r.NoError(err)
 		r.Contains(string(zstdBs), `"type":"zstd","data":`)
 	}
@@ -250,16 +292,31 @@ func TestResourceTrackerCompression(t *testing.T) {
 	for i, rsc := range rtUncmp.Spec.ManagedResources {
 		r.Equal(i%2 == 1, rsc.Data == nil)
 	}
+	// No compression
+	var (
+		uncmpTime int64
+		uncmpSize int
+	)
 	rtUncmp.Spec.Compression.Type = compression.Uncompressed
-	t0 := time.Now()
-	_bs, err := json.Marshal(rtUncmp)
-	uncmpCpmpressTime := time.Since(t0)
-	uncmpSize := len(_bs)
-	r.NoError(err)
-	before, after := len(_bs), len(zstdBs)
-	r.Less(after, before)
-	before, after = len(_bs), len(gzipBs)
-	r.Less(after, before)
+	for c := 0; c < count; c++ {
+		t0 := time.Now()
+		_bs, err := json.Marshal(rtUncmp)
+		if uncmpTime == 0 {
+			uncmpTime = time.Since(t0).Nanoseconds()
+		} else {
+			uncmpTime = (time.Since(t0).Nanoseconds() + uncmpTime) / 2
+		}
+		if uncmpSize == 0 {
+			uncmpSize = len(_bs)
+		} else {
+			uncmpSize = (len(_bs) + uncmpSize) / 2
+		}
+		r.NoError(err)
+		before, after := len(_bs), len(zstdBs)
+		r.Less(after, before)
+		before, after = len(_bs), len(gzipBs)
+		r.Less(after, before)
+	}
 
 	fmt.Printf(`Compressed Size:
   uncompressed: %d bytes	100.00%%
@@ -275,9 +332,9 @@ func TestResourceTrackerCompression(t *testing.T) {
   gzip:           %d ns	%.2fx
   zstd:           %d ns	%.2fx
 `,
-		uncmpCpmpressTime,
-		gzipCompressTime, float64(gzipCompressTime)/float64(uncmpCpmpressTime),
-		zstdCompressTime, float64(zstdCompressTime)/float64(uncmpCpmpressTime),
+		uncmpTime,
+		gzipCompressTime, float64(gzipCompressTime)/float64(uncmpTime),
+		zstdCompressTime, float64(zstdCompressTime)/float64(uncmpTime),
 	)
 }
 

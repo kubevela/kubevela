@@ -25,17 +25,41 @@ import (
 
 // Create a writer that caches compressors. For this operation type we supply a nil Reader.
 var encoder, _ = zstd.NewWriter(nil,
-	// We use the fastest level here because we are dealing with highly-compressible
-	// JSON string. We would not gain much compression ratio when going for the
-	// slower levels. Instead, we will almost get double the performance comparing
-	// Fastest and Default.
+	// We use the default levels here because we got pretty good results.
+	// It is almost as fast as no compression at all when the object is large enough.
+	// Even with small objects, it is still very fast and efficient.
 	//
-	// file                        level   insize      outsize     millis  mb/s
-	// github-june-2days-2019.json     1   6273951764  697439532   9789    611.17
-	// github-june-2days-2019.json     2   6273951764  610876538   18553   322.49
-	// github-june-2days-2019.json     3   6273951764  517662858   44186   135.41
-	// github-june-2days-2019.json     4   6273951764  464617114   165373  36.18
-	zstd.WithEncoderLevel(zstd.SpeedFastest),
+	// Tests are here: /apis/core.oam.dev/v1beta1/resourcetracker_types_test.go
+	//
+	// Here are results:
+	// zstd.SpeedFastest:
+	//    Compressed Size:
+	//      uncompressed: 2131455 bytes   100.00%
+	//      gzip:         273057 bytes    12.81%
+	//      zstd:         191737 bytes    9.00%
+	//    Marshal Time:
+	//      no compression: 37740514 ns   1.00x
+	//      gzip:           97389702 ns   2.58x
+	//      zstd:           39866808 ns   1.06x
+	// zstd.SpeedDefault:
+	//    Compressed Size:
+	//      uncompressed: 2131455 bytes   100.00%
+	//      gzip:         273057 bytes    12.81%
+	//      zstd:         171577 bytes    8.05%
+	//    Marshal Time:
+	//      no compression: 42272142 ns   1.00x
+	//      gzip:           90474722 ns   2.14x
+	//      zstd:           39070416 ns   0.92x
+	// zstd.SpeedBetterCompression:
+	//    Compressed Size:
+	//      uncompressed: 2131455 bytes   100.00%
+	//      gzip:         273057 bytes    12.81%
+	//      zstd:         149061 bytes    6.99%
+	//    Marshal Time:
+	//      no compression: 38826717 ns   1.00x
+	//      gzip:           94855264 ns   2.44x
+	//      zstd:           48524197 ns   1.25x
+	zstd.WithEncoderLevel(zstd.SpeedDefault),
 	// TODO(charlie0129): give a dictionary to compressor to get even more improvements.
 	//
 	// Since we are dealing with highly-specialized small JSON data, a dictionary will

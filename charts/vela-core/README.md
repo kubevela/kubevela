@@ -95,7 +95,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `optimize.enableResourceTrackerDeleteOnlyTrigger` | Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted.                                                                                                  | `true`  |
 | `featureGates.enableLegacyComponentRevision`      | if disabled, only component with rollout trait will create component revisions                                                                                                       | `false` |
 | `featureGates.gzipResourceTracker`                | if enabled, resourceTracker will be compressed using gzip before being stored                                                                                                        | `false` |
-| `featureGates.zstdResourceTracker`                | if enabled, resourceTracker will be compressed using zstd before being stored. It is both faster and more efficient than gzip. If both gzip and zstd are enabled, zstd will be used. | `false` |
+| `featureGates.zstdResourceTracker`                | if enabled, resourceTracker will be compressed using zstd before being stored. It is much faster and more efficient than gzip. If both gzip and zstd are enabled, zstd will be used. | `false` |
 
 
 ### MultiCluster parameters
