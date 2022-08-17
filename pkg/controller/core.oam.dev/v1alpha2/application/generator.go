@@ -229,6 +229,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -262,6 +263,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
@@ -332,6 +334,9 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *process.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
+		}
+		if rk := replicaKeyFromContext(ctx); rk != "" {
+			ctxData.ReplicaKey = rk
 		}
 	})
 	if err != nil {

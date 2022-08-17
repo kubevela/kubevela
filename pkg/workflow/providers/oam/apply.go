@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"sync"
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/pkg/errors"
@@ -65,7 +64,7 @@ type provider struct {
 
 // RenderComponent render component
 func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, nil)
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
@@ -92,19 +91,15 @@ func (p *provider) RenderComponent(ctx wfContext.Context, v *value.Value, act wf
 	return nil
 }
 
-func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTypes.Action, mu *sync.Mutex) error {
-	comp, patcher, clusterName, overrideNamespace, env, err := lookUpValues(v, mu)
+// ApplyComponent apply component.
+func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	comp, patcher, clusterName, overrideNamespace, env, err := lookUpCompInfo(v)
 	if err != nil {
 		return err
 	}
 	workload, traits, healthy, err := p.apply(*comp, patcher, clusterName, overrideNamespace, env)
 	if err != nil {
 		return err
-	}
-
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
 	}
 
 	if workload != nil {
@@ -130,20 +125,10 @@ func (p *provider) applyComponent(_ wfContext.Context, v *value.Value, act wfTyp
 	if waitHealthy && !healthy {
 		act.Wait("wait healthy")
 	}
-
 	return nil
 }
 
-// ApplyComponent apply component.
-func (p *provider) ApplyComponent(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	return p.applyComponent(ctx, v, act, nil)
-}
-
-func lookUpValues(v *value.Value, mu *sync.Mutex) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
-	}
+func lookUpCompInfo(v *value.Value) (*common.ApplicationComponent, *value.Value, string, string, string, error) {
 	compSettings, err := v.LookupValue("value")
 	if err != nil {
 		return nil, nil, "", "", "", err

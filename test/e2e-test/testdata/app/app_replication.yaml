@@ -1,0 +1,50 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-replication-policy
+spec:
+  components:
+    - name: hello-rep
+      type: replica-webservice
+      properties:
+        image: crccheck/hello-world
+        ports:
+          - port: 80
+            expose: true
+    - name: hello-no-rep
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        ports:
+          - port: 80
+            expose: true
+
+  policies:
+    - name: comp-to-replicate
+      type: override
+      properties:
+        selector: [ "hello-rep" ]
+    - name: comp-not-replicate
+      type: override
+      properties:
+        selector: [ "hello-no-rep" ]
+    - name: target-default
+      type: topology
+      properties:
+        clusters: [ "local" ]
+    - name: replication-default
+      type: replication
+      properties:
+        keys: ["beijing","hangzhou"]
+        selector: ["hello-rep"]
+
+  workflow:
+    steps:
+      - name: deploy-with-rep
+        type: deploy
+        properties:
+          policies: ["comp-to-replicate","target-default","replication-default"]
+      - name: deploy-without-rep
+        type: deploy
+        properties:
+          policies: ["comp-not-replicate","target-default"]

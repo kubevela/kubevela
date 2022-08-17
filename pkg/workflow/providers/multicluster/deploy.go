@@ -74,11 +74,17 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
+
+	// Dealing with topology, override and replication policies in order.
 	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, executor.cli, executor.af.Namespace, policies, resourcekeeper.AllowCrossNamespaceResource)
 	if err != nil {
 		return false, "", err
 	}
 	components, err = overrideConfiguration(policies, components)
+	if err != nil {
+		return false, "", err
+	}
+	components, err = pkgpolicy.ReplicateComponents(policies, components)
 	if err != nil {
 		return false, "", err
 	}

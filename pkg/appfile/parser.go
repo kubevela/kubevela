@@ -419,6 +419,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.ReplicationPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		case v1alpha1.OverridePolicyType:

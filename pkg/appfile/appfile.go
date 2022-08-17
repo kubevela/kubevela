@@ -511,7 +511,7 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 			}
 		}
 	}
-	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
+	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +559,7 @@ func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component manifest
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*types.ComponentManifest, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*types.ComponentManifest, error) {
 	compManifest := &types.ComponentManifest{}
 	workload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
@@ -573,7 +573,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
-			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
+			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, wl.Name, appName)
 		}
 		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
 		if assist.Name != "" {

@@ -396,6 +396,9 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 			commonLabels[oam.LabelAppComponent] = v
 		case model.ContextAppRevision:
 			commonLabels[oam.LabelAppRevision] = v
+		case model.ContextReplicaKey:
+			commonLabels[oam.LabelReplicaKey] = v
+
 		}
 	}
 	return commonLabels

@@ -87,7 +87,7 @@ metadata: {
 func TestRenderComponent(t *testing.T) {
 	r := require.New(t)
 	p := &provider{
-		render: func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		render: func(comp common.ApplicationComponent, patcher *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			return &unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"apiVersion": "apps/v1",
@@ -238,7 +238,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 
 var testHealthy bool
 
-func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _ string, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	workload := new(unstructured.Unstructured)
 	workload.UnmarshalJSON([]byte(`{
   "apiVersion": "v1",

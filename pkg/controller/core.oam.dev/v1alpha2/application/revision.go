@@ -74,6 +74,8 @@ const (
 	ComponentNamespaceContextKey = contextKey("component-namespace")
 	// ComponentContextKey is the key in context that records the component
 	ComponentContextKey = contextKey("component")
+	// ReplicaKeyContextKey is the key in context that records the replica key
+	ReplicaKeyContextKey = contextKey("replica-key")
 )
 
 const rolloutTraitName = "rollout"
@@ -115,6 +117,15 @@ func contextWithComponentNamespace(ctx context.Context, ns string) context.Conte
 func componentNamespaceFromContext(ctx context.Context) string {
 	ns, _ := ctx.Value(ComponentNamespaceContextKey).(string)
 	return ns
+}
+
+func contextWithReplicaKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, ReplicaKeyContextKey, key)
+}
+
+func replicaKeyFromContext(ctx context.Context) string {
+	key, _ := ctx.Value(ReplicaKeyContextKey).(string)
+	return key
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
