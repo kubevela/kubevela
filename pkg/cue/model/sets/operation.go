@@ -394,6 +394,11 @@ func jsonPatch(base cue.Value, patch cue.Value) (string, error) {
 	return output, nil
 }
 
+func isEllipsis(elt ast.Node) bool {
+	_, ok := elt.(*ast.Ellipsis)
+	return ok
+}
+
 func openJSON(data string) (string, error) {
 	f, err := parser.ParseFile("-", data, parser.ParseComments)
 	if err != nil {
@@ -405,9 +410,13 @@ func openJSON(data string) (string, error) {
 			v := field.Value
 			switch lit := v.(type) {
 			case *ast.StructLit:
-				lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				if len(lit.Elts) == 0 || !isEllipsis(lit.Elts[len(lit.Elts)-1]) {
+					lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				}
 			case *ast.ListLit:
-				lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				if len(lit.Elts) == 0 || !isEllipsis(lit.Elts[len(lit.Elts)-1]) {
+					lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				}
 			}
 		}
 		return true

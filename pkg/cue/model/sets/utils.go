@@ -182,7 +182,8 @@ func peelCloseExpr(node ast.Node) ast.Node {
 
 func lookField(node ast.Node, key string) ast.Node {
 	if field, ok := node.(*ast.Field); ok {
-		if strings.Trim(labelStr(field.Label), `"`) == key {
+		// Note: the trim here has side effect: "\(v)" will be trimmed to \(v), only used for comparing fields
+		if strings.Trim(labelStr(field.Label), `"`) == strings.Trim(key, `"`) {
 			return field.Value
 		}
 	}

@@ -659,5 +659,23 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "another"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
 			})
 		})
+
+		It("Test Application with env in webservice and labels & storage trait", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-labels-storage.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			deploy := &appsv1.Deployment{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "test"}, deploy)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
+			Expect(deploy.GetLabels()["key"]).Should(Equal("val"))
+			Expect(len(deploy.Spec.Template.Spec.Containers[0].Env)).Should(Equal(1))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Name).Should(Equal("testKey"))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("testValue"))
+			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
+		})
 	})
 })
