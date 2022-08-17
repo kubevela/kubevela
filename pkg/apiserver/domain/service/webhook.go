@@ -170,7 +170,7 @@ func (c *webhookServiceImpl) HandleApplicationWebhook(ctx context.Context, token
 }
 
 func (c *webhookServiceImpl) patchComponentProperties(ctx context.Context, component *model.ApplicationComponent, patch *runtime.RawExtension) error {
-	merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), patch)
+	merge, err := envbinding.MergeRawExtension(component.Properties.RawExtension(), patch, nil)
 	if err != nil {
 		return err
 	}

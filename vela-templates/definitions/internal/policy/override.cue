@@ -15,6 +15,8 @@ template: {
 		type?: string
 		// +usage=Specify the properties to override.
 		properties?: {...}
+		// +usage=Specify the array patch behaivor.
+		mode?: *"override" | "overwrite"
 		// +usage=Specify the traits to override.
 		traits?: [...{
 			// +usage=Specify the type of the trait to be patched.
@@ -23,6 +25,8 @@ template: {
 			properties?: {...}
 			// +usage=Specify if the trait should be remove, default false
 			disable: *false | bool
+			// +usage=Specify the array patch behaivor.
+			mode?: *"override" | "overwrite"
 		}]
 	}
 

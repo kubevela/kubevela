@@ -35,7 +35,7 @@ import (
 )
 
 // MergeRawExtension merge two raw extension
-func MergeRawExtension(base *runtime.RawExtension, patch *runtime.RawExtension) (*runtime.RawExtension, error) {
+func MergeRawExtension(base *runtime.RawExtension, patch *runtime.RawExtension, mode *v1alpha1.ArrayPathchMode) (*runtime.RawExtension, error) {
 	patchParameter, err := util.RawExtension2Map(patch)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to convert patch parameters to map")
@@ -47,10 +47,19 @@ func MergeRawExtension(base *runtime.RawExtension, patch *runtime.RawExtension) 
 	if baseParameter == nil {
 		baseParameter = make(map[string]interface{})
 	}
-	err = mergo.Merge(&baseParameter, patchParameter, mergo.WithOverride)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to do merge with override")
+
+	if mode != nil && *mode == v1alpha1.OverwritePatchMode {
+		err = mergo.Merge(&baseParameter, patchParameter, mergo.WithSliceDeepCopy, mergo.WithAppendSlice)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to do merge with override")
+		}
+	} else {
+		err = mergo.Merge(&baseParameter, patchParameter, mergo.WithOverride)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to do merge with override")
+		}
 	}
+
 	bs, err := json.Marshal(baseParameter)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to marshal merged properties")
@@ -64,7 +73,7 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 	var err error
 
 	// merge component properties
-	newComponent.Properties, err = MergeRawExtension(base.Properties, patch.Properties)
+	newComponent.Properties, err = MergeRawExtension(base.Properties, patch.Properties, patch.Mode)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to merge component properties")
 	}
@@ -90,7 +99,7 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 				delete(traitMaps, trait.Type)
 				continue
 			}
-			baseTrait.Properties, err = MergeRawExtension(baseTrait.Properties, trait.Properties)
+			baseTrait.Properties, err = MergeRawExtension(baseTrait.Properties, trait.Properties, trait.Mode)
 			if err != nil {
 				errs = append(errs, errors.Wrapf(err, "failed to merge trait %s", trait.Type))
 			}

@@ -22,14 +22,23 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
+// ArrayPathchMode defines difference patch behavior
+type ArrayPathchMode string
+
 const (
 	// EnvBindingPolicyType refers to the type of EnvBinding
 	EnvBindingPolicyType = "env-binding"
+
+	// OverridePatchMode replace the previous value
+	OverridePatchMode ArrayPathchMode = "override"
+	// OverwritePatchMode Overwrite the new value over the old value
+	OverwritePatchMode ArrayPathchMode = "overwrite"
 )
 
 // EnvTraitPatch is the patch to trait
 type EnvTraitPatch struct {
 	Type       string                `json:"type"`
+	Mode       *ArrayPathchMode      `json:"mode,omitempty"`
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 	Disable    bool                  `json:"disable,omitempty"`
 }
@@ -48,6 +57,7 @@ type EnvComponentPatch struct {
 	Name             string                `json:"name"`
 	Type             string                `json:"type"`
 	Properties       *runtime.RawExtension `json:"properties,omitempty"`
+	Mode             *ArrayPathchMode      `json:"mode,omitempty"`
 	Traits           []EnvTraitPatch       `json:"traits,omitempty"`
 	ExternalRevision string                `json:"externalRevision,omitempty"`
 }
