@@ -5,7 +5,12 @@ e2e-setup-core-pre-hook:
 .PHONY: e2e-setup-core-post-hook
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
-	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
+	helm upgrade --install                               \
+	    --namespace vela-system                          \
+	    --wait oam-rollout                               \
+	    --set image.repository=vela-runtime-rollout-test \
+	    --set image.tag=$(GIT_COMMIT)                    \
+	    ./runtime/rollout/charts
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
@@ -21,8 +26,7 @@ e2e-setup-core-wo-auth:
 	    --set applicationRevisionLimit=5            \
 	    --set dependCheckWait=10s                   \
 	    --set image.tag=$(GIT_COMMIT)               \
-	    --wait kubevela ./charts/vela-core          \
-	    --set featureGates.gzipResourceTracker=true
+	    --wait kubevela ./charts/vela-core
 
 .PHONY: e2e-setup-core-w-auth
 e2e-setup-core-w-auth:
@@ -49,14 +53,35 @@ e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-cor
 
 .PHONY: setup-runtime-e2e-cluster
 setup-runtime-e2e-cluster:
-	helm upgrade --install --create-namespace --namespace vela-system --kubeconfig=$(RUNTIME_CLUSTER_CONFIG) --set image.pullPolicy=IfNotPresent --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) --wait vela-rollout ./runtime/rollout/charts
+	helm upgrade --install                               \
+	    --create-namespace                               \
+	    --namespace vela-system                          \
+	    --kubeconfig=$(RUNTIME_CLUSTER_CONFIG)           \
+	    --set image.pullPolicy=IfNotPresent              \
+	    --set image.repository=vela-runtime-rollout-test \
+	    --set image.tag=$(GIT_COMMIT)                    \
+	    --wait vela-rollout                              \
+	    ./runtime/rollout/charts
 
 .PHONY: e2e-setup
 e2e-setup:
 	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
 	sh ./hack/e2e/modify_charts.sh
-	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set dependCheckWait=10s --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
-	helm upgrade --install --namespace vela-system --wait oam-rollout --set image.repository=vela-runtime-rollout-test --set image.tag=$(GIT_COMMIT) ./runtime/rollout/charts
+	helm upgrade --install                    \
+	    --create-namespace                    \
+	    --namespace vela-system               \
+	    --set image.pullPolicy=IfNotPresent   \
+	    --set image.repository=vela-core-test \
+	    --set applicationRevisionLimit=5      \
+	    --set dependCheckWait=10s             \
+	    --set image.tag=$(GIT_COMMIT)         \
+	    --wait kubevela ./charts/vela-core
+	helm upgrade --install                               \
+	    --namespace vela-system                          \
+	    --wait oam-rollout                               \
+	    --set image.repository=vela-runtime-rollout-test \
+	    --set image.tag=$(GIT_COMMIT)                    \
+	    ./runtime/rollout/charts
 
 	go run ./e2e/addon/mock &
 	sleep 15
