@@ -168,7 +168,7 @@ func (u systemInfoServiceImpl) Init(ctx context.Context) error {
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
-		PlatformID:                  info.InstallID,
+		// PlatformID:                  info.InstallID,
 		EnableCollection:            info.EnableCollection,
 		LoginType:                   info.LoginType,
 		InstallTime:                 info.CreateTime,
