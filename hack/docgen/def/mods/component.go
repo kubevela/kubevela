@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/klog/v2"
 	"os"
 	"strings"
 	"time"
@@ -88,6 +89,12 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 	}
 	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
 
+	dm, err := c.GetDiscoveryMapper()
+	if err != nil {
+		klog.ErrorS(err, "failed to get discovery mapper")
+		return
+	}
+	ref.DiscoveryMapper = dm
 	if *path != "" {
 		ref.I18N = &docgen.En
 		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {

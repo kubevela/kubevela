@@ -19,6 +19,7 @@ package docgen
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ type MarkdownReference struct {
 	Filter          func(types.Capability) bool
 	AllInOne        bool
 	CustomDocHeader string
+	DiscoveryMapper discoverymapper.DiscoveryMapper
 	ParseReference
 }
 
@@ -140,13 +142,16 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c types.Capability, pd *packages.PackageDiscover, containSuffix bool) (string, error) {
 	var (
 		description   string
+		base          string
 		sample        string
 		specification string
 		generatedDoc  string
+		baseDoc       string
 		err           error
 	)
-	if c.Type != types.TypeWorkload && c.Type != types.TypeComponentDefinition && c.Type != types.TypeTrait &&
-		c.Type != types.TypeWorkflowStep && c.Type != types.TypePolicy {
+	switch c.Type {
+	case types.TypeWorkload, types.TypeComponentDefinition, types.TypeTrait, types.TypeWorkflowStep, types.TypePolicy:
+	default:
 		return "", fmt.Errorf("type(%s) of the capability(%s) is not supported for now", c.Type, c.Name)
 	}
 
@@ -163,6 +168,10 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 		generatedDoc, _, err = ref.parseParameters(capName, cueValue, Specification, defaultDepth, containSuffix)
 		if err != nil {
 			return "", err
+		}
+		baseDoc, err = GetBaseResourceKinds(c.CueTemplate, pd, ref.DiscoveryMapper)
+		if err != nil {
+			klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, err)
 		}
 	case types.HelmCategory, types.KubeCategory:
 		properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &c)
@@ -203,11 +212,13 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 
 	var sharp = "##"
 	exampleTitle := lang.Get(Examples)
+	baseTitle := lang.Get(Base)
 	specificationTitle := lang.Get(Specification)
 	if ref.AllInOne {
 		sharp = "###"
 		exampleTitle += " (" + capName + ")"
 		specificationTitle += " (" + capName + ")"
+		baseTitle += " (" + capName + ")"
 	}
 	description = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, lang.Get(Description), strings.TrimSpace(lang.Get(descriptionI18N)))
 	if !strings.HasSuffix(description, lang.Get(".")) {
@@ -238,9 +249,12 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(ctx context.Context, c type
 	if sampleContent != "" {
 		sample = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, exampleTitle, sampleContent)
 	}
+	if c.Category == types.CUECategory && baseDoc != "" {
+		base = fmt.Sprintf("\n\n%s %s\n\n%s", sharp, baseTitle, baseDoc)
+	}
 	specification = fmt.Sprintf("\n\n%s %s\n%s", sharp, specificationTitle, parameterDoc)
 
-	return title + description + sample + specification, nil
+	return title + description + base + sample + specification, nil
 }
 
 func (ref *MarkdownReference) makeReadableTitle(title string) string {

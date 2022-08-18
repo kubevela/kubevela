@@ -61,7 +61,7 @@ func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string 
 	return result
 }
 
-// GenMarkdownTreeForIndex will generate the markdown doc for vela index
+// GenMarkdownTreeForIndex will generate the Markdown doc for vela index
 func GenMarkdownTreeForIndex(cmd *cobra.Command, dir string) error {
 	basename := strings.Replace(cmd.CommandPath(), " ", "_", -1) + ".md"
 	filename := filepath.Join(dir, basename)

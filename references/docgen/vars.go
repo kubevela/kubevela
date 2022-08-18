@@ -30,4 +30,6 @@ const (
 	Description = "Description"
 	// Examples marks the title of example in reference doc
 	Examples = "Examples"
+	// Base is the title of base in reference doc
+	Base = "Base on Kubernetes resource kind(s)"
 )

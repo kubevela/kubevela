@@ -20,7 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/fs"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"os"
 	"path/filepath"
 	"sort"
@@ -636,4 +639,33 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	for _, schema := range schemas {
 		WalkParameterSchema(schema.Schemas, schema.Name, depth+1)
 	}
+}
+
+func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discoverymapper.DiscoveryMapper) (string, error) {
+	t, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
+	tmpl := t.CueValue()
+
+	kindValue := tmpl.LookupPath(cue.ParsePath("output.kind"))
+	kind, err := kindValue.String()
+	if err != nil {
+		return "", err
+	}
+	apiVersionValue := tmpl.LookupPath(cue.ParsePath("output.apiVersion"))
+	apiVersion, err := apiVersionValue.String()
+	if err != nil {
+		return "", err
+	}
+	GroupAndVersion := strings.Split(apiVersion, "/")
+	if len(GroupAndVersion) == 1 {
+		GroupAndVersion = append([]string{""}, GroupAndVersion...)
+	}
+	gvr, err := dm.ResourcesFor(schema.GroupVersionKind{
+		Group:   GroupAndVersion[0],
+		Version: GroupAndVersion[1],
+		Kind:    kind,
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Version), nil
 }
