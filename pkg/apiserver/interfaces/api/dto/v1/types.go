@@ -19,10 +19,10 @@ package v1
 import (
 	"time"
 
-	"helm.sh/helm/v3/pkg/repo"
-
 	"github.com/getkin/kin-openapi/openapi3"
 	registryv1 "github.com/google/go-containerregistry/pkg/v1"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -669,8 +669,8 @@ type ComponentBase struct {
 	Creator       string                        `json:"creator,omitempty"`
 	CreateTime    time.Time                     `json:"createTime"`
 	UpdateTime    time.Time                     `json:"updateTime"`
-	Inputs        common.StepInputs             `json:"inputs,omitempty"`
-	Outputs       common.StepOutputs            `json:"outputs,omitempty"`
+	Inputs        workflowv1alpha1.StepInputs   `json:"inputs,omitempty"`
+	Outputs       workflowv1alpha1.StepOutputs  `json:"outputs,omitempty"`
 	Traits        []*ApplicationTrait           `json:"traits"`
 	WorkloadType  common.WorkloadTypeDescriptor `json:"workloadType,omitempty"`
 }
@@ -690,8 +690,8 @@ type CreateComponentRequest struct {
 	ComponentType string                           `json:"componentType" validate:"checkname"`
 	Properties    string                           `json:"properties,omitempty"`
 	DependsOn     []string                         `json:"dependsOn" optional:"true"`
-	Inputs        common.StepInputs                `json:"inputs,omitempty" optional:"true"`
-	Outputs       common.StepOutputs               `json:"outputs,omitempty" optional:"true"`
+	Inputs        workflowv1alpha1.StepInputs      `json:"inputs,omitempty" optional:"true"`
+	Outputs       workflowv1alpha1.StepOutputs     `json:"outputs,omitempty" optional:"true"`
 	Traits        []*CreateApplicationTraitRequest `json:"traits,omitempty" optional:"true"`
 }
 
@@ -967,14 +967,14 @@ type UpdateWorkflowRequest struct {
 // WorkflowStep workflow step config
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name        string             `json:"name" validate:"checkname"`
-	Alias       string             `json:"alias" validate:"checkalias" optional:"true"`
-	Type        string             `json:"type" validate:"checkname"`
-	Description string             `json:"description" optional:"true"`
-	DependsOn   []string           `json:"dependsOn" optional:"true"`
-	Properties  string             `json:"properties,omitempty"`
-	Inputs      common.StepInputs  `json:"inputs,omitempty" optional:"true"`
-	Outputs     common.StepOutputs `json:"outputs,omitempty" optional:"true"`
+	Name        string                       `json:"name" validate:"checkname"`
+	Alias       string                       `json:"alias" validate:"checkalias" optional:"true"`
+	Type        string                       `json:"type" validate:"checkname"`
+	Description string                       `json:"description" optional:"true"`
+	DependsOn   []string                     `json:"dependsOn" optional:"true"`
+	Properties  string                       `json:"properties,omitempty"`
+	Inputs      workflowv1alpha1.StepInputs  `json:"inputs,omitempty" optional:"true"`
+	Outputs     workflowv1alpha1.StepOutputs `json:"outputs,omitempty" optional:"true"`
 }
 
 // DetailWorkflowResponse detail workflow response

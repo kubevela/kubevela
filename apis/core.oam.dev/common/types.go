@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -268,33 +270,6 @@ type RawComponent struct {
 	Raw runtime.RawExtension `json:"raw"`
 }
 
-// StepStatus record the base status of workflow step, which could be workflow step or subStep
-type StepStatus struct {
-	ID    string            `json:"id"`
-	Name  string            `json:"name,omitempty"`
-	Type  string            `json:"type,omitempty"`
-	Phase WorkflowStepPhase `json:"phase,omitempty"`
-	// A human readable message indicating details about why the workflowStep is in this state.
-	Message string `json:"message,omitempty"`
-	// A brief CamelCase message indicating details about why the workflowStep is in this state.
-	Reason string `json:"reason,omitempty"`
-	// FirstExecuteTime is the first time this step execution.
-	FirstExecuteTime metav1.Time `json:"firstExecuteTime,omitempty"`
-	// LastExecuteTime is the last time this step execution.
-	LastExecuteTime metav1.Time `json:"lastExecuteTime,omitempty"`
-}
-
-// WorkflowStepStatus record the status of a workflow step, include step status and subStep status
-type WorkflowStepStatus struct {
-	StepStatus     `json:",inline"`
-	SubStepsStatus []WorkflowSubStepStatus `json:"subSteps,omitempty"`
-}
-
-// WorkflowSubStepStatus record the status of a workflow subStep
-type WorkflowSubStepStatus struct {
-	StepStatus `json:",inline"`
-}
-
 // AppStatus defines the observed state of Application
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -337,94 +312,25 @@ type PolicyStatus struct {
 	Status *runtime.RawExtension `json:"status,omitempty"`
 }
 
-// WorkflowStep defines how to execute a workflow step.
-type WorkflowStep struct {
-	// Name is the unique name of the workflow step.
-	Name string `json:"name"`
-
-	Type string `json:"type"`
-
-	Meta *WorkflowStepMeta `json:"meta,omitempty"`
-
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties *runtime.RawExtension `json:"properties,omitempty"`
-
-	SubSteps []WorkflowSubStep `json:"subSteps,omitempty"`
-
-	If string `json:"if,omitempty"`
-
-	Timeout string `json:"timeout,omitempty"`
-
-	DependsOn []string `json:"dependsOn,omitempty"`
-
-	Inputs StepInputs `json:"inputs,omitempty"`
-
-	Outputs StepOutputs `json:"outputs,omitempty"`
-}
-
-// WorkflowStepMeta contains the meta data of a workflow step
-type WorkflowStepMeta struct {
-	Alias string `json:"alias,omitempty"`
-}
-
-// WorkflowSubStep defines how to execute a workflow subStep.
-type WorkflowSubStep struct {
-	// Name is the unique name of the workflow step.
-	Name string `json:"name"`
-
-	Type string `json:"type"`
-
-	Meta *WorkflowStepMeta `json:"meta,omitempty"`
-
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties *runtime.RawExtension `json:"properties,omitempty"`
-
-	If string `json:"if,omitempty"`
-
-	Timeout string `json:"timeout,omitempty"`
-
-	DependsOn []string `json:"dependsOn,omitempty"`
-
-	Inputs StepInputs `json:"inputs,omitempty"`
-
-	Outputs StepOutputs `json:"outputs,omitempty"`
-}
-
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
-	AppRevision string       `json:"appRevision,omitempty"`
-	Mode        WorkflowMode `json:"mode"`
-	Message     string       `json:"message,omitempty"`
+	AppRevision string                            `json:"appRevision,omitempty"`
+	Mode        string                            `json:"mode"`
+	Phase       workflowv1alpha1.WorkflowRunPhase `json:"status,omitempty"`
+	Message     string                            `json:"message,omitempty"`
 
+	Suspend      bool   `json:"suspend"`
 	SuspendState string `json:"suspendState,omitempty"`
 
-	Suspend    bool `json:"suspend"`
 	Terminated bool `json:"terminated"`
 	Finished   bool `json:"finished"`
 
-	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
-	Steps          []WorkflowStepStatus    `json:"steps,omitempty"`
+	ContextBackend *corev1.ObjectReference               `json:"contextBackend,omitempty"`
+	Steps          []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
+	EndTime   metav1.Time `json:"endTime,omitempty"`
 }
-
-// WorkflowStepPhase describes the phase of a workflow step.
-type WorkflowStepPhase string
-
-const (
-	// WorkflowStepPhaseSucceeded will make the controller run the next step.
-	WorkflowStepPhaseSucceeded WorkflowStepPhase = "succeeded"
-	// WorkflowStepPhaseFailed will report error in `message`.
-	WorkflowStepPhaseFailed WorkflowStepPhase = "failed"
-	// WorkflowStepPhaseSkipped will make the controller skip the step.
-	WorkflowStepPhaseSkipped WorkflowStepPhase = "skipped"
-	// WorkflowStepPhaseStopped will make the controller stop the workflow.
-	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
-	// WorkflowStepPhaseRunning will make the controller continue the workflow.
-	WorkflowStepPhaseRunning WorkflowStepPhase = "running"
-	// WorkflowStepPhasePending will make the controller wait for the step to run.
-	WorkflowStepPhasePending WorkflowStepPhase = "pending"
-)
 
 // DefinitionType describes the type of DefinitionRevision.
 // +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep
@@ -442,16 +348,6 @@ const (
 
 	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
 	WorkflowStepType DefinitionType = "WorkflowStep"
-)
-
-// WorkflowMode describes the mode of workflow
-type WorkflowMode string
-
-const (
-	// WorkflowModeDAG describes the DAG mode of workflow
-	WorkflowModeDAG WorkflowMode = "DAG"
-	// WorkflowModeStep describes the step by step mode of workflow
-	WorkflowModeStep WorkflowMode = "StepByStep"
 )
 
 // AppRolloutStatus defines the observed state of AppRollout
@@ -483,9 +379,9 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
-	DependsOn []string    `json:"dependsOn,omitempty"`
-	Inputs    StepInputs  `json:"inputs,omitempty"`
-	Outputs   StepOutputs `json:"outputs,omitempty"`
+	DependsOn []string                     `json:"dependsOn,omitempty"`
+	Inputs    workflowv1alpha1.StepInputs  `json:"inputs,omitempty"`
+	Outputs   workflowv1alpha1.StepOutputs `json:"outputs,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
@@ -498,22 +394,6 @@ type ApplicationComponent struct {
 	// ReplicaKey is not empty means the component is replicated. This field is designed so that it can't be specified in application directly.
 	// So we set the json tag as "-". Instead, this will be filled when using replication policy.
 	ReplicaKey string `json:"-"`
-}
-
-// StepOutputs defines output variable of WorkflowStep
-type StepOutputs []outputItem
-
-// StepInputs defines variable input of WorkflowStep
-type StepInputs []inputItem
-
-type inputItem struct {
-	ParameterKey string `json:"parameterKey"`
-	From         string `json:"from"`
-}
-
-type outputItem struct {
-	ValueFrom string `json:"valueFrom"`
-	Name      string `json:"name"`
 }
 
 // ClusterSelector defines the rules to select a Cluster resource.
@@ -542,16 +422,13 @@ type ClusterPlacement struct {
 	Distribution Distribution `json:"distribution,omitempty"`
 }
 
-// ResourceCreatorRole defines the resource creator.
-type ResourceCreatorRole string
-
 const (
 	// PolicyResourceCreator create the policy resource.
-	PolicyResourceCreator ResourceCreatorRole = "policy"
+	PolicyResourceCreator string = "policy"
 	// WorkflowResourceCreator create the resource in workflow.
-	WorkflowResourceCreator ResourceCreatorRole = "workflow"
+	WorkflowResourceCreator string = "workflow"
 	// DebugResourceCreator create the debug resource.
-	DebugResourceCreator ResourceCreatorRole = "debug"
+	DebugResourceCreator string = "debug"
 )
 
 // OAMObjectReference defines the object reference for an oam resource
@@ -598,8 +475,8 @@ func NewOAMObjectReferenceFromObject(obj client.Object) OAMObjectReference {
 
 // ClusterObjectReference defines the object reference with cluster.
 type ClusterObjectReference struct {
-	Cluster                string              `json:"cluster,omitempty"`
-	Creator                ResourceCreatorRole `json:"creator,omitempty"`
+	Cluster                string `json:"cluster,omitempty"`
+	Creator                string `json:"creator,omitempty"`
 	corev1.ObjectReference `json:",inline"`
 }
 

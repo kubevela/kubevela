@@ -18,40 +18,56 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/executor"
+	"github.com/kubevela/workflow/pkg/generator"
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+	"github.com/kubevela/workflow/pkg/providers"
+	"github.com/kubevela/workflow/pkg/providers/kube"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/assemble"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
+	"github.com/oam-dev/kubevela/pkg/workflow"
 	multiclusterProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/multicluster"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
 	terraformProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/terraform"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
+
+func init() {
+	if err := stdlib.SetupBuiltinImports(); err != nil {
+		klog.ErrorS(err, "Unable to set up builtin imports on package initialization")
+		os.Exit(1)
+	}
+}
 
 var (
 	// DisableResourceApplyDoubleCheck optimize applyComponentFunc by disable post resource existing check after dispatch
@@ -64,15 +80,20 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	app *v1beta1.Application,
 	appParser *appfile.Parser,
 	af *appfile.Appfile,
-	appRev *v1beta1.ApplicationRevision) ([]wfTypes.TaskRunner, error) {
+	appRev *v1beta1.ApplicationRevision) (*wfTypes.WorkflowInstance, []wfTypes.TaskRunner, error) {
 
 	handlerProviders := providers.NewProviders()
-	kube.Install(handlerProviders, app, h.r.Client, h.Dispatch, h.Delete)
+	kube.Install(handlerProviders, h.r.Client,
+		map[string]string{
+			oam.LabelAppName:      app.Name,
+			oam.LabelAppNamespace: app.Namespace,
+		}, &kube.Handlers{
+			Apply:  h.Dispatch,
+			Delete: h.Delete,
+		})
 	oamProvider.Install(handlerProviders, app, af, h.r.Client, h.applyComponentFunc(
 		appParser, appRev, af), h.renderComponentFunc(appParser, appRev, af))
-	http.Install(handlerProviders, h.r.Client, app.Namespace)
-	pCtx := process.NewContext(generateContextDataFromApp(app, appRev.Name))
-	taskDiscover := tasks.NewTaskDiscoverFromRevision(ctx, handlerProviders, h.r.pd, appRev, h.r.dm, pCtx)
+	pCtx := velaprocess.NewContext(generateContextDataFromApp(app, appRev.Name))
 	multiclusterProvider.Install(handlerProviders, h.r.Client, app, af,
 		h.applyComponentFunc(appParser, appRev, af),
 		h.checkComponentHealth(appParser, appRev, af),
@@ -83,84 +104,114 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
-	query.Install(handlerProviders, h.r.Client, nil, func() context.Context {
-		return auth.ContextWithUserInfo(ctx, h.app)
+	query.Install(handlerProviders, h.r.Client, nil)
+
+	instance, err := generateWorkflowInstance(af, app, appRev.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	executor.InitializeWorkflowInstance(instance)
+	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
+		Providers:       handlerProviders,
+		PackageDiscover: h.r.pd,
+		ProcessCtx:      pCtx,
+		TemplateLoader:  template.NewWorkflowStepTemplateRevisionLoader(appRev, h.r.dm),
+		Client:          h.r.Client,
+		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
+			wfTypes.WorkflowStepTypeApplyComponent: func(lstep workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error) {
+				copierStep := lstep.DeepCopy()
+				if err := convertStepProperties(copierStep, app); err != nil {
+					return lstep, errors.WithMessage(err, "convert [apply-component]")
+				}
+				copierStep.Type = wfTypes.WorkflowStepTypeBuiltinApplyComponent
+				return *copierStep, nil
+			},
+		},
 	})
-
-	var tasks []wfTypes.TaskRunner
-	for _, step := range af.WorkflowSteps {
-		task, err := generateStep(ctx, app, step, taskDiscover, h.r.pd, pCtx, "")
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, task)
+	if err != nil {
+		return nil, nil, err
 	}
-	return tasks, nil
+	return instance, runners, nil
 }
 
-func generateStep(ctx context.Context,
-	app *v1beta1.Application,
-	step v1beta1.WorkflowStep,
-	taskDiscover wfTypes.TaskDiscover,
-	pd *packages.PackageDiscover,
-	pCtx process.Context,
-	parentStepName string) (wfTypes.TaskRunner, error) {
-	options := &wfTypes.GeneratorOptions{
-		ID:              generateStepID(step.Name, app.Status.Workflow, parentStepName),
-		PackageDiscover: pd,
-		ProcessContext:  pCtx,
-	}
-	generatorName := step.Type
-	switch {
-	case generatorName == wfTypes.WorkflowStepTypeApplyComponent:
-		generatorName = wfTypes.WorkflowStepTypeBuiltinApplyComponent
-		options.StepConvertor = func(lstep v1beta1.WorkflowStep) (v1beta1.WorkflowStep, error) {
-			copierStep := lstep.DeepCopy()
-			if err := convertStepProperties(copierStep, app); err != nil {
-				return lstep, errors.WithMessage(err, "convert [apply-component]")
-			}
-			return *copierStep, nil
-		}
-	case generatorName == wfTypes.WorkflowStepTypeStepGroup:
-		var subTaskRunners []wfTypes.TaskRunner
-		for _, subStep := range step.SubSteps {
-			workflowStep := v1beta1.WorkflowStep{
-				Name:       subStep.Name,
-				Type:       subStep.Type,
-				Properties: subStep.Properties,
-				DependsOn:  subStep.DependsOn,
-				Inputs:     subStep.Inputs,
-				Outputs:    subStep.Outputs,
-				If:         subStep.If,
-				Timeout:    subStep.Timeout,
-				Meta:       subStep.Meta,
-			}
-			subTask, err := generateStep(ctx, app, workflowStep, taskDiscover, pd, pCtx, step.Name)
-			if err != nil {
-				return nil, err
-			}
-			subTaskRunners = append(subTaskRunners, subTask)
-		}
-		options.SubTaskRunners = subTaskRunners
-		options.ExecuteMode = common.WorkflowModeDAG
-		if app.Spec.Workflow != nil && app.Spec.Workflow.Mode != nil {
-			options.ExecuteMode = app.Spec.Workflow.Mode.SubSteps
-		}
-	}
-
-	genTask, err := taskDiscover.GetTaskGenerator(ctx, generatorName)
+func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, appRev string) (*wfTypes.WorkflowInstance, error) {
+	revAndSpecHash, err := workflow.ComputeWorkflowRevisionHash(appRev, app)
 	if err != nil {
 		return nil, err
 	}
-
-	task, err := genTask(step, options)
-	if err != nil {
-		return nil, err
+	anno := make(map[string]string)
+	if af.Debug {
+		anno[wfTypes.AnnotationWorkflowRunDebug] = "true"
 	}
-	return task, nil
+	instance := &wfTypes.WorkflowInstance{
+		WorkflowMeta: wfTypes.WorkflowMeta{
+			Name:        af.Name,
+			Namespace:   af.Namespace,
+			Annotations: app.Annotations,
+			Labels:      app.Labels,
+			ChildOwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: v1beta1.SchemeGroupVersion.String(),
+					Kind:       v1beta1.ApplicationKind,
+					Name:       app.Name,
+					UID:        app.GetUID(),
+					Controller: pointer.BoolPtr(true),
+				},
+			},
+		},
+		Debug: af.Debug,
+		Steps: af.WorkflowSteps,
+		Mode:  af.WorkflowMode,
+	}
+	if app.Status.Workflow == nil || app.Status.Workflow.AppRevision != revAndSpecHash {
+		// clean recorded resources info.
+		app.Status.Services = nil
+		app.Status.AppliedResources = nil
+
+		// clean conditions after render
+		var reservedConditions []condition.Condition
+		for i, cond := range app.Status.Conditions {
+			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+			if err == nil {
+				if condTpy <= common.RenderCondition {
+					reservedConditions = append(reservedConditions, app.Status.Conditions[i])
+				}
+			}
+		}
+		app.Status.Conditions = reservedConditions
+		app.Status.Workflow = &common.WorkflowStatus{
+			AppRevision: revAndSpecHash,
+		}
+		return instance, nil
+	}
+	status := app.Status.Workflow
+	instance.Status = workflowv1alpha1.WorkflowRunStatus{
+		Mode:           *af.WorkflowMode,
+		Phase:          status.Phase,
+		Message:        status.Message,
+		Suspend:        status.Suspend,
+		SuspendState:   status.SuspendState,
+		Terminated:     status.Terminated,
+		Finished:       status.Finished,
+		ContextBackend: status.ContextBackend,
+		Steps:          status.Steps,
+		StartTime:      status.StartTime,
+		EndTime:        status.EndTime,
+	}
+	switch app.Status.Phase {
+	case common.ApplicationRunning:
+		instance.Status.Phase = workflowv1alpha1.WorkflowStateSucceeded
+	case common.ApplicationWorkflowSuspending:
+		instance.Status.Phase = workflowv1alpha1.WorkflowStateSuspending
+	case common.ApplicationWorkflowTerminated:
+		instance.Status.Phase = workflowv1alpha1.WorkflowStateTerminated
+	default:
+		instance.Status.Phase = workflowv1alpha1.WorkflowStateExecuting
+	}
+	return instance, nil
 }
 
-func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application) error {
+func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.Application) error {
 	o := struct {
 		Component string `json:"component"`
 	}{}
@@ -333,7 +384,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
 	wl.Patch = patcher
-	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *process.ContextData) {
+	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
 		}
@@ -414,46 +465,8 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 	return workload, traits, nil
 }
 
-func getStepID(stepName string, stepsStatus []common.StepStatus) string {
-	for _, status := range stepsStatus {
-		if status.Name == stepName {
-			return status.ID
-		}
-	}
-	return ""
-}
-
-func generateStepID(stepName string, workflowStatus *common.WorkflowStatus, parentStepName string) string {
-	var id string
-	if workflowStatus != nil {
-		workflowStepsStatus := workflowStatus.Steps
-		if parentStepName != "" {
-			for _, status := range workflowStepsStatus {
-				if status.Name == parentStepName {
-					var stepsStatus []common.StepStatus
-					for _, status := range status.SubStepsStatus {
-						stepsStatus = append(stepsStatus, status.StepStatus)
-					}
-					id = getStepID(stepName, stepsStatus)
-				}
-			}
-		} else {
-			var stepsStatus []common.StepStatus
-			for _, status := range workflowStepsStatus {
-				stepsStatus = append(stepsStatus, status.StepStatus)
-			}
-			id = getStepID(stepName, stepsStatus)
-		}
-	}
-
-	if id == "" {
-		id = utils.RandomString(10)
-	}
-	return id
-}
-
-func generateContextDataFromApp(app *v1beta1.Application, appRev string) process.ContextData {
-	data := process.ContextData{
+func generateContextDataFromApp(app *v1beta1.Application, appRev string) velaprocess.ContextData {
+	data := velaprocess.ContextData{
 		Namespace:       app.Namespace,
 		AppName:         app.Name,
 		CompName:        app.Name,

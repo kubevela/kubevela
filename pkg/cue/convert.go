@@ -23,10 +23,11 @@ import (
 
 	"cuelang.org/go/cue"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 // ErrParameterNotExist represents the parameter field is not exist in CUE template
@@ -47,7 +48,7 @@ func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Pa
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == model.ParameterFieldName {
+		if paraDef.Name == process.ParameterFieldName {
 			found = true
 			break
 		}

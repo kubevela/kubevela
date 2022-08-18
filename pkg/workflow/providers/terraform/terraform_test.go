@@ -23,12 +23,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/mock"
+
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
 
 func fakeWorkloadRenderer(comp apicommon.ApplicationComponent) (*appfile.Workload, error) {
@@ -67,7 +68,7 @@ func TestLoadTerraformComponents(t *testing.T) {
 		act := &mock.Action{}
 		v, err := value.NewValue("", nil, "")
 		r.NoError(err)
-		err = p.LoadTerraformComponents(nil, v, act)
+		err = p.LoadTerraformComponents(nil, nil, v, act)
 		if testCase.HasError {
 			r.Error(err)
 			continue
@@ -132,7 +133,7 @@ func TestGetConnectionStatus(t *testing.T) {
 		if testCase.ComponentName != "" {
 			r.NoError(v.FillObject(map[string]string{"componentName": testCase.ComponentName}, "inputs"))
 		}
-		err = p.GetConnectionStatus(nil, v, act)
+		err = p.GetConnectionStatus(nil, nil, v, act)
 		if testCase.Error != "" {
 			r.Error(err)
 			r.Contains(err.Error(), testCase.Error)

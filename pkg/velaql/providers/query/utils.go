@@ -22,7 +22,8 @@ import (
 	cuejson "cuelang.org/go/pkg/encoding/json"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 

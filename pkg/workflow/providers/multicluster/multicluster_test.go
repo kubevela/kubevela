@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/mock"
 	clusterv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
@@ -34,10 +36,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
 )
 
 func TestReadPlacementDecisions(t *testing.T) {
@@ -106,7 +106,7 @@ func TestReadPlacementDecisions(t *testing.T) {
 				Status: &runtime.RawExtension{Raw: bs},
 			}}
 		}
-		err = p.ReadPlacementDecisions(nil, v, act)
+		err = p.ReadPlacementDecisions(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
@@ -297,7 +297,7 @@ func TestMakePlacementDecisions(t *testing.T) {
 				Status: &runtime.RawExtension{Raw: bs},
 			}}
 		}
-		err = p.MakePlacementDecisions(nil, v, act)
+		err = p.MakePlacementDecisions(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
@@ -447,7 +447,7 @@ func TestPatchApplication(t *testing.T) {
 		v, err := value.NewValue("", nil, "")
 		r.NoError(err)
 		r.NoError(v.FillObject(testCase.InputVal, "inputs"))
-		err = p.PatchApplication(nil, v, act)
+		err = p.PatchApplication(nil, nil, v, act)
 		if testCase.ExpectError == "" {
 			r.NoError(err)
 		} else {
@@ -502,7 +502,7 @@ func TestListClusters(t *testing.T) {
 	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
-	r.NoError(p.ListClusters(nil, v, act))
+	r.NoError(p.ListClusters(nil, nil, v, act))
 	outputs, err := v.LookupValue("outputs")
 	r.NoError(err)
 	obj := struct {

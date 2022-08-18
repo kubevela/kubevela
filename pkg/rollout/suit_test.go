@@ -44,8 +44,9 @@ import (
 
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )

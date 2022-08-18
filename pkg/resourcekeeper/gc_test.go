@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -263,7 +264,7 @@ func TestCheckDependentComponent(t *testing.T) {
 				Components: []apicommon.ApplicationComponent{
 					{
 						Name: "comp-1",
-						Outputs: apicommon.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{
 								Name: "output-1",
 							},
@@ -271,7 +272,7 @@ func TestCheckDependentComponent(t *testing.T) {
 					},
 					{
 						Name: "comp-2",
-						Outputs: apicommon.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{
 								Name: "output-2",
 							},
@@ -279,7 +280,7 @@ func TestCheckDependentComponent(t *testing.T) {
 					},
 					{
 						Name: "comp-3",
-						Inputs: apicommon.StepInputs{
+						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From: "output-1",
 							},

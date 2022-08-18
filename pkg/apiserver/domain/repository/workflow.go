@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -502,7 +503,7 @@ func createOverrideConfigForTerraformComponent(env *model.Env, target *model.Tar
 
 // GenEnvWorkflowStepsAndPolicies will generate workflow steps and policies for an env and application
 func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Client, ds datastore.DataStore, env *model.Env, app *model.Application) ([]model.WorkflowStep, []datastore.Entity) {
-	var workflowSteps []v1beta1.WorkflowStep
+	var workflowSteps []workflowv1alpha1.WorkflowStep
 	var policies []datastore.Entity
 	components, err := ds.List(ctx, &model.ApplicationComponent{AppPrimaryKey: app.PrimaryKey()}, nil)
 	if err != nil {
@@ -534,13 +535,15 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 		// gen workflow step and policies for all targets
 		for i := range targets {
 			target := targets[i].(*model.Target)
-			step := v1beta1.WorkflowStep{
-				Name: target.Name + "-cloud-resource",
-				Type: DeployCloudResource,
-				Properties: util.Object2RawExtension(map[string]string{
-					"policy": genPolicyName(env.Name),
-					"env":    genPolicyEnvName(target.Name),
-				}),
+			step := workflowv1alpha1.WorkflowStep{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name: target.Name + "-cloud-resource",
+					Type: DeployCloudResource,
+					Properties: util.Object2RawExtension(map[string]string{
+						"policy": genPolicyName(env.Name),
+						"env":    genPolicyEnvName(target.Name),
+					}),
+				},
 			}
 			workflowSteps = append(workflowSteps, step)
 			envs = append(envs, createOverrideConfigForTerraformComponent(env, target, terraformComponents))
@@ -562,12 +565,14 @@ func GenEnvWorkflowStepsAndPolicies(ctx context.Context, kubeClient client.Clien
 			if target.Cluster == nil {
 				continue
 			}
-			step := v1beta1.WorkflowStep{
-				Name: target.Name,
-				Type: step.DeployWorkflowStep,
-				Properties: util.Object2RawExtension(map[string]interface{}{
-					"policies": []string{target.Name},
-				}),
+			step := workflowv1alpha1.WorkflowStep{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name: target.Name,
+					Type: step.DeployWorkflowStep,
+					Properties: util.Object2RawExtension(map[string]interface{}{
+						"policies": []string{target.Name},
+					}),
+				},
 			}
 			workflowSteps = append(workflowSteps, step)
 			appPolicy := &model.ApplicationPolicy{

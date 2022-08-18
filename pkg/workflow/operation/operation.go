@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/pkg/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,8 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/rollout"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
-
-	"github.com/pkg/errors"
 )
 
 // WorkflowOperator is opratior handler for workflow's resume/rollback/restart

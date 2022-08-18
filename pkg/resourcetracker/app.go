@@ -30,7 +30,6 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -224,7 +223,7 @@ func RecordManifestsInResourceTracker(
 	manifests []*unstructured.Unstructured,
 	metaOnly bool,
 	skipGC bool,
-	creator common.ResourceCreatorRole) error {
+	creator string) error {
 	if len(manifests) != 0 {
 		updated := false
 		for _, manifest := range manifests {

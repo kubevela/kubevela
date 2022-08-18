@@ -64,7 +64,9 @@ var _ = Describe("Addon test", func() {
 				return err
 			}
 			appPatch := client.MergeFrom(checkApp.DeepCopy())
-			checkApp.Status.Workflow = &common.WorkflowStatus{Suspend: true}
+			checkApp.Status.Workflow = &common.WorkflowStatus{
+				Suspend: true,
+			}
 			if err := k8sClient.Status().Patch(ctx, checkApp, appPatch); err != nil {
 				return err
 			}
@@ -111,7 +113,10 @@ var _ = Describe("Addon test", func() {
 				return err
 			}
 			appPatch := client.MergeFrom(checkApp.DeepCopy())
-			checkApp.Status.Workflow = &common.WorkflowStatus{Message: "someMessage", AppRevision: "test-revision"}
+			checkApp.Status.Workflow = &common.WorkflowStatus{
+				Message:     "someMessage",
+				AppRevision: "test-revision",
+			}
 			checkApp.Status.Phase = common.ApplicationRunning
 			if err := k8sClient.Status().Patch(ctx, checkApp, appPatch); err != nil {
 				return err

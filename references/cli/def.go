@@ -45,12 +45,13 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
@@ -122,9 +123,9 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	}
 	yamlStrings := regexp.MustCompile(`\n---[^\n]*\n`).Split(string(templateYAMLBytes), -1)
 	templateObject := map[string]interface{}{
-		model.OutputFieldName:    map[string]interface{}{},
-		model.OutputsFieldName:   map[string]interface{}{},
-		model.ParameterFieldName: map[string]interface{}{},
+		process.OutputFieldName:    map[string]interface{}{},
+		process.OutputsFieldName:   map[string]interface{}{},
+		process.ParameterFieldName: map[string]interface{}{},
 	}
 	for index, yamlString := range yamlStrings {
 		var yamlObject map[string]interface{}
@@ -132,13 +133,13 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 			return errors.Wrapf(err, "failed to unmarshal template yaml file")
 		}
 		if index == 0 {
-			templateObject[model.OutputFieldName] = yamlObject
+			templateObject[process.OutputFieldName] = yamlObject
 		} else {
 			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
 			if name == "" {
 				name = fmt.Sprintf("output-%d", index)
 			}
-			templateObject[model.OutputsFieldName].(map[string]interface{})[name] = yamlObject
+			templateObject[process.OutputsFieldName].(map[string]interface{})[name] = yamlObject
 		}
 	}
 	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})

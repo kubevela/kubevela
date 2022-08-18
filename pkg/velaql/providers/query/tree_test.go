@@ -21,17 +21,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	types3 "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/helm-controller/api/v2beta1"
+	"github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,12 +34,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/fluxcd/helm-controller/api/v2beta1"
-	"github.com/fluxcd/source-controller/api/v1beta2"
-	"github.com/stretchr/testify/assert"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	types3 "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 func TestPodStatus(t *testing.T) {
@@ -1363,7 +1363,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
 
-		prd := provider{cli: k8sClient, ctxFactory: context.Background}
+		prd := provider{cli: k8sClient}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
@@ -1371,7 +1371,8 @@ var _ = Describe("unit-test to e2e test", func() {
 			}`
 		v, err := value.NewValue(opt, nil, "")
 		Expect(err).Should(BeNil())
-		Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}
@@ -1417,7 +1418,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		// clear after test
 		objectList = append(objectList, &badRuleConfigMap)
 
-		prd := provider{cli: k8sClient, ctxFactory: context.Background}
+		prd := provider{cli: k8sClient}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
@@ -1426,7 +1427,8 @@ var _ = Describe("unit-test to e2e test", func() {
 		v, err := value.NewValue(opt, nil, "")
 
 		Expect(err).Should(BeNil())
-		Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
 		type Res struct {
 			List []types.AppliedResource `json:"list"`
 		}

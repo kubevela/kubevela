@@ -22,8 +22,8 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 )
 
 // NewViewContext new view context

@@ -82,7 +82,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
 	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
@@ -110,7 +110,7 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 }
 
 // Delete delete manifests from k8s.
-func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+func (h *AppHandler) Delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
 	manifests := multicluster.ResourcesWithClusterName(cluster, manifest)
 	if err := h.resourceKeeper.Delete(ctx, manifests); err != nil {
 		return err

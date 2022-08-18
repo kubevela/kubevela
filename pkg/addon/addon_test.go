@@ -383,7 +383,9 @@ func TestGetAddonStatus(t *testing.T) {
 		case "addon-suspend":
 			o := obj.(*v1beta1.Application)
 			app := &v1beta1.Application{}
-			app.Status.Workflow = &common.WorkflowStatus{Suspend: true}
+			app.Status.Workflow = &common.WorkflowStatus{
+				Suspend: true,
+			}
 			*o = *app
 		case "addon-enabled":
 			o := obj.(*v1beta1.Application)

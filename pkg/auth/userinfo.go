@@ -29,6 +29,8 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/utils/strings/slices"
 
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -45,6 +47,14 @@ func ContextWithUserInfo(ctx context.Context, app *v1beta1.Application) context.
 		return ctx
 	}
 	return request.WithUser(ctx, GetUserInfoInAnnotation(&app.ObjectMeta))
+}
+
+// MonitorContextWithUserInfo inject username & group from app annotations into monitor context
+func MonitorContextWithUserInfo(ctx monitorContext.Context, app *v1beta1.Application) monitorContext.Context {
+	_ctx := ctx.GetContext()
+	authCtx := ContextWithUserInfo(_ctx, app)
+	ctx.SetContext(authCtx)
+	return ctx
 }
 
 // ContextClearUserInfo clear user info in context

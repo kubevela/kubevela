@@ -43,7 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -753,7 +753,7 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 				Kind:       "Rollout",
 			},
 			Spec: v1alpha1.RolloutSpec{
-				TargetRevisionName: model.ComponentRevisionPlaceHolder,
+				TargetRevisionName: process.ComponentRevisionPlaceHolder,
 			},
 		}
 		u, err := util.Object2Unstructured(rollout)
@@ -774,7 +774,7 @@ var _ = Describe("Test ReplaceComponentRevisionContext func", func() {
 				Kind:       "Rollout",
 			},
 			Spec: v1alpha1.RolloutSpec{
-				TargetRevisionName: model.ComponentRevisionPlaceHolder,
+				TargetRevisionName: process.ComponentRevisionPlaceHolder,
 			},
 		}
 		u, err := util.Object2Unstructured(rollout)

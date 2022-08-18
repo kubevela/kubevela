@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -45,7 +44,7 @@ type DispatchOption interface {
 type dispatchConfig struct {
 	rtConfig
 	metaOnly bool
-	creator  common.ResourceCreatorRole
+	creator  string
 }
 
 func newDispatchConfig(options ...DispatchOption) *dispatchConfig {

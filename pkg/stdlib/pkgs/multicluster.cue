@@ -85,6 +85,7 @@
 
 	loadPolicies: oam.#LoadPolicies @step(1)
 	policy_:      string
+	envBindingPolicies: []
 	if inputs.policy == "" && loadPolicies.value != _|_ {
 		envBindingPolicies: [ for k, v in loadPolicies.value if v.type == "env-binding" {k}]
 		policy_: envBindingPolicies[0]
