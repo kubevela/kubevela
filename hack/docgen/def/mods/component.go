@@ -87,7 +87,7 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 		},
 		CustomDocHeader: CustomComponentHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Local = &docgen.FromLocal{Path: ComponentDefDir}
 
 	dm, err := c.GetDiscoveryMapper()
 	if err != nil {

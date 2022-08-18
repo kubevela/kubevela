@@ -253,8 +253,8 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					}
 				}
 			case cue.ListKind:
-				elem, success := val.Elem()
-				if !success {
+				elem := val.LookupPath(cue.MakePath(cue.AnyIndex))
+				if !elem.Exists() {
 					// fail to get elements, use the value of ListKind to be the type
 					param.Type = val.Kind()
 					param.PrintableType = val.IncompleteKind().String()
@@ -667,5 +667,5 @@ func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discov
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Version), nil
+	return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group), nil
 }
