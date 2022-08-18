@@ -20,10 +20,11 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/klog/v2"
 	"os"
 	"strings"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"

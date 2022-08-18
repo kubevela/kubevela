@@ -19,12 +19,13 @@ package docgen
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	"k8s.io/klog/v2"
 

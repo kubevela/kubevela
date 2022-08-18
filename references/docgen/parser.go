@@ -20,15 +20,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"io/fs"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -641,8 +643,12 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	}
 }
 
+// GetBaseResourceKinds helps get resource.group string of components' base resource
 func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discoverymapper.DiscoveryMapper) (string, error) {
 	t, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
+	if err != nil {
+		return "", errors.Wrap(err, "failed to parse base template")
+	}
 	tmpl := t.CueValue()
 
 	kindValue := tmpl.LookupPath(cue.ParsePath("output.kind"))
