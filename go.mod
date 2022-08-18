@@ -48,6 +48,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.12
+	github.com/klauspost/compress v1.15.9
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/kubevela/prism v1.4.1-0.20220613123457-94f1190f87c2
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -64,6 +65,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/rogpeppe/go-internal v1.8.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
@@ -128,8 +130,6 @@ require (
 	github.com/gdamore/tcell/v2 v2.5.2
 	github.com/rivo/tview v0.0.0-20220709181631-73bf2902b59a
 )
-
-require github.com/rogpeppe/go-internal v1.8.1
 
 require (
 	cloud.google.com/go/compute v1.7.0 // indirect
@@ -225,7 +225,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.15.4 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/kr/text v0.2.0 // indirect

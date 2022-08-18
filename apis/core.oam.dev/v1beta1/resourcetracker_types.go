@@ -100,6 +100,15 @@ func (in *ResourceTrackerSpec) MarshalJSON() ([]byte, error) {
 		cpy.ManagedResources = nil
 		cpy.Compression.Data = data
 		tmp.Alias = (*Alias)(cpy)
+	case compression.Zstd:
+		cpy := in.DeepCopy()
+		data, err := compression.ZstdObjectToString(in.ManagedResources)
+		if err != nil {
+			return nil, err
+		}
+		cpy.ManagedResources = nil
+		cpy.Compression.Data = data
+		tmp.Alias = (*Alias)(cpy)
 	default:
 		return nil, compression.NewUnsupportedCompressionTypeError(string(in.Compression.Type))
 	}
@@ -121,6 +130,12 @@ func (in *ResourceTrackerSpec) UnmarshalJSON(src []byte) error {
 	case compression.Gzip:
 		tmp.ManagedResources = []ManagedResource{}
 		if err := compression.GunzipStringToObject(tmp.Compression.Data, &tmp.ManagedResources); err != nil {
+			return err
+		}
+		tmp.Compression.Data = ""
+	case compression.Zstd:
+		tmp.ManagedResources = []ManagedResource{}
+		if err := compression.UnZstdStringToObject(tmp.Compression.Data, &tmp.ManagedResources); err != nil {
 			return err
 		}
 		tmp.Compression.Data = ""

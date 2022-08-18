@@ -20,8 +20,10 @@ package compression
 type Type string
 
 const (
-	// Uncompressed .
+	// Uncompressed does not compress or encode data
 	Uncompressed Type = ""
-	// Gzip .
+	// Gzip compresses data using gzip and encodes it using base64
 	Gzip Type = "gzip"
+	// Zstd compresses data using zstd and encodes it using base64
+	Zstd Type = "zstd"
 )
