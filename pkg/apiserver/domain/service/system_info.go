@@ -63,6 +63,7 @@ func (u systemInfoServiceImpl) Get(ctx context.Context) (*model.SystemInfo, erro
 		}
 		return info, nil
 	}
+	info.SignedKey = rand.String(32)
 	installID := rand.String(16)
 	info.InstallID = installID
 	info.EnableCollection = true
@@ -159,7 +160,7 @@ func (u systemInfoServiceImpl) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	signedKey = info.InstallID
+	signedKey = info.SignedKey
 	_, err = initDexConfig(ctx, u.KubeClient, "http://velaux.com")
 	return err
 }

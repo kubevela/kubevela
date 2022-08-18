@@ -32,6 +32,7 @@ const (
 // SystemInfo systemInfo model
 type SystemInfo struct {
 	BaseModel
+	SignedKey        string        `json:"signedKey"`
 	InstallID        string        `json:"installID"`
 	EnableCollection bool          `json:"enableCollection"`
 	LoginType        string        `json:"loginType"`
