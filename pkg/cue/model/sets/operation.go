@@ -23,6 +23,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/parser"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 )
@@ -356,8 +357,7 @@ func jsonMergePatch(base cue.Value, patch cue.Value) (cue.Value, error) {
 	if err != nil {
 		return cue.Value{}, errors.Wrapf(err, "failed to merge base value and patch value by JsonMergePatch")
 	}
-	val := ctx.CompileBytes(merged)
-	output, err := OpenBaiscLit(val)
+	output, err := openJSON(string(merged))
 	if err != nil {
 		return cue.Value{}, errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
@@ -383,10 +383,46 @@ func jsonPatch(base cue.Value, patch cue.Value) (cue.Value, error) {
 	if err != nil {
 		return cue.Value{}, errors.Wrapf(err, "failed to apply json patch")
 	}
-	val := ctx.CompileBytes(merged)
-	output, err := OpenBaiscLit(val)
+	output, err := openJSON(string(merged))
 	if err != nil {
 		return cue.Value{}, errors.Wrapf(err, "failed to parse open basic lit for merged result")
 	}
 	return ctx.BuildFile(output), nil
+}
+
+func isEllipsis(elt ast.Node) bool {
+	_, ok := elt.(*ast.Ellipsis)
+	return ok
+}
+
+func openJSON(data string) (*ast.File, error) {
+	f, err := parser.ParseFile("-", data, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+	ast.Walk(f, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if ok {
+			v := field.Value
+			switch lit := v.(type) {
+			case *ast.StructLit:
+				if len(lit.Elts) == 0 || !isEllipsis(lit.Elts[len(lit.Elts)-1]) {
+					lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				}
+			case *ast.ListLit:
+				if len(lit.Elts) == 0 || !isEllipsis(lit.Elts[len(lit.Elts)-1]) {
+					lit.Elts = append(lit.Elts, &ast.Ellipsis{})
+				}
+			}
+		}
+		return true
+	}, nil)
+	if len(f.Decls) > 0 {
+		if emb, ok := f.Decls[0].(*ast.EmbedDecl); ok {
+			if s, _ok := emb.Expr.(*ast.StructLit); _ok {
+				f.Decls = s.Elts
+			}
+		}
+	}
+	return f, nil
 }
