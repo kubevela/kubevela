@@ -673,5 +673,5 @@ func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discov
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group), nil
+	return fmt.Sprintf("- %s.%s", gvr.Resource, gvr.Group), nil
 }
