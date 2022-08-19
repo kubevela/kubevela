@@ -623,5 +623,35 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("testValue"))
 			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
+
+		FIt("Test application with collect-service-endpoint and export-data", func() {
+			By("create application")
+			bs, err := ioutil.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+
+				if app.Status.Phase == common.ApplicationRunningWorkflow {
+					bs, _ := json.Marshal(app.Status.Workflow)
+					fmt.Printf("RunningWorkflow: %s\n", string(bs))
+				}
+
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 10*time.Minute, 10*time.Second).Should(Succeed())
+
+			By("test dispatched resource")
+			svc := &corev1.Service{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())
+			host := "busybox." + testNamespace
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
+			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
+		})
 	})
 })

@@ -228,6 +228,16 @@
 	}
 }
 
+#GetPlacementsFromTopologyPolicies: {
+	#provider: "multicluster"
+	#do:       "get-placements-from-topology-policies"
+	policies: [...string]
+	placements: [...{
+		cluster:   string
+		namespace: string
+	}]
+}
+
 #Deploy: {
 	#provider: "multicluster"
 	#do:       "deploy"

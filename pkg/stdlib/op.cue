@@ -30,6 +30,8 @@ import (
 
 #Delete: kube.#Delete
 
+#GetPlacementsFromTopologyPolicies: multicluster.#GetPlacementsFromTopologyPolicies
+
 #Deploy: multicluster.#Deploy
 
 #ApplyApplication: #Steps & {
