@@ -27,11 +27,6 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -40,6 +35,7 @@ import (
 	"github.com/rogpeppe/go-internal/modfile"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -49,8 +45,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
