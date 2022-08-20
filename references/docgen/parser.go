@@ -35,6 +35,7 @@ import (
 	"github.com/rogpeppe/go-internal/modfile"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -44,8 +45,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/terraform"
@@ -250,8 +253,8 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 					}
 				}
 			case cue.ListKind:
-				elem, success := val.Elem()
-				if !success {
+				elem := val.LookupPath(cue.MakePath(cue.AnyIndex))
+				if !elem.Exists() {
 					// fail to get elements, use the value of ListKind to be the type
 					param.Type = val.Kind()
 					param.PrintableType = val.IncompleteKind().String()
@@ -636,4 +639,37 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	for _, schema := range schemas {
 		WalkParameterSchema(schema.Schemas, schema.Name, depth+1)
 	}
+}
+
+// GetBaseResourceKinds helps get resource.group string of components' base resource
+func GetBaseResourceKinds(cueStr string, pd *packages.PackageDiscover, dm discoverymapper.DiscoveryMapper) (string, error) {
+	t, err := value.NewValue(cueStr+velacue.BaseTemplate, pd, "")
+	if err != nil {
+		return "", errors.Wrap(err, "failed to parse base template")
+	}
+	tmpl := t.CueValue()
+
+	kindValue := tmpl.LookupPath(cue.ParsePath("output.kind"))
+	kind, err := kindValue.String()
+	if err != nil {
+		return "", err
+	}
+	apiVersionValue := tmpl.LookupPath(cue.ParsePath("output.apiVersion"))
+	apiVersion, err := apiVersionValue.String()
+	if err != nil {
+		return "", err
+	}
+	GroupAndVersion := strings.Split(apiVersion, "/")
+	if len(GroupAndVersion) == 1 {
+		GroupAndVersion = append([]string{""}, GroupAndVersion...)
+	}
+	gvr, err := dm.ResourcesFor(schema.GroupVersionKind{
+		Group:   GroupAndVersion[0],
+		Version: GroupAndVersion[1],
+		Kind:    kind,
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("- %s.%s", gvr.Resource, gvr.Group), nil
 }
