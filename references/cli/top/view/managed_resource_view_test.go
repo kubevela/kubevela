@@ -42,19 +42,19 @@ func TestK8SView(t *testing.T) {
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
-	assert.Equal(t, len(app.Components), 4)
+	assert.Equal(t, len(app.Components()), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "")
 
-	view := NewK8SView(ctx, app)
-	k8sView, ok := (view).(*K8SView)
+	view := NewManagedResourceView(ctx, app)
+	k8sView, ok := (view).(*ManagedResourceView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
 		k8sView.Init()
-		assert.Equal(t, k8sView.Table.GetTitle(), "[ K8S-Object (all/all) ]")
+		assert.Equal(t, k8sView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
 		assert.Equal(t, k8sView.GetCell(0, 0).Text, "Name")
 	})
 

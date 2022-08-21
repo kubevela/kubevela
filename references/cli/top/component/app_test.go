@@ -28,7 +28,7 @@ import (
 func TestApp(t *testing.T) {
 	app := NewApp()
 	assert.Equal(t, len(app.actions), 0)
-	assert.Equal(t, len(app.Components), 4)
+	assert.Equal(t, len(app.Components()), 4)
 	t.Run("app init", func(t *testing.T) {
 		app.Init()
 		app.QueueUpdateDraw(func() {})

@@ -20,9 +20,10 @@ import (
 	"context"
 	"strings"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
@@ -57,7 +58,7 @@ func (l *ClusterList) Body() [][]string {
 }
 
 // ListClusters list clusters where application deploys resource
-func ListClusters(ctx context.Context, c client.Client) *ClusterList {
+func ListClusters(ctx context.Context, c client.Client) (*ClusterList, error) {
 	list := &ClusterList{
 		title: []string{"Name", "Alias", "Type", "EndPoint", "Labels"},
 		data:  []Cluster{{"all", "*", "*", "*", "*"}},
@@ -66,7 +67,7 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 	ns := ctx.Value(&CtxKeyNamespace).(string)
 	app, err := LoadApplication(c, name, ns)
 	if err != nil {
-		return list
+		return list, err
 	}
 	clusterSet := make(map[string]interface{})
 
@@ -98,5 +99,5 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 			list.data = append(list.data, clusterInfo)
 		}
 	}
-	return list
+	return list, nil
 }

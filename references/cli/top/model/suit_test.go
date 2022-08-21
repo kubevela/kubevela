@@ -23,6 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -102,6 +106,7 @@ var _ = BeforeSuite(func(done Done) {
 	err = k8sClient.Create(context.TODO(), testApp)
 	Expect(err).Should(BeNil())
 	testApp.Status = common2.AppStatus{
+		Phase: common2.ApplicationRunning,
 		AppliedResources: []common2.ClusterObjectReference{
 			{
 				Cluster: "",
@@ -216,6 +221,49 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	Expect(k8sClient.Create(context.TODO(), rt)).Should(BeNil())
+
+	err = k8sClient.Create(context.TODO(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: types.DefaultKubeVelaNS,
+		},
+	})
+	Expect(err).Should(BeNil())
+
+	quantityLimitsCPU, _ := resource.ParseQuantity("10m")
+	quantityLimitsMemory, _ := resource.ParseQuantity("10Mi")
+	quantityRequestsCPU, _ := resource.ParseQuantity("10m")
+	quantityRequestsMemory, _ := resource.ParseQuantity("10Mi")
+	//quantityUsageCPU, _ := resource.ParseQuantity("8m")
+	//quantityUsageMemory, _ := resource.ParseQuantity("20Mi")
+
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "vela-core", Namespace: "vela-system", Labels: map[string]string{"app.kubernetes.io/name": "vela-core"}},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{
+			{
+				Name:  "vela-core-1",
+				Image: "vela",
+				Resources: corev1.ResourceRequirements{
+					Requests: map[corev1.ResourceName]resource.Quantity{"memory": quantityRequestsMemory, "cpu": quantityRequestsCPU},
+					Limits:   map[corev1.ResourceName]resource.Quantity{"memory": quantityLimitsMemory, "cpu": quantityLimitsCPU},
+				},
+			},
+		}},
+	}
+	Expect(k8sClient.Create(context.TODO(), pod1)).Should(BeNil())
+	pod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "vela-core-cluster-gateway", Namespace: "vela-system", Labels: map[string]string{"app.kubernetes.io/name": "vela-core-cluster-gateway"}},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{
+			{
+				Name:  "vela-core-cluster-gateway-1",
+				Image: "vela",
+				Resources: corev1.ResourceRequirements{
+					Requests: map[corev1.ResourceName]resource.Quantity{"memory": quantityRequestsMemory, "cpu": quantityRequestsCPU},
+					Limits:   map[corev1.ResourceName]resource.Quantity{"memory": quantityLimitsMemory, "cpu": quantityLimitsCPU},
+				},
+			},
+		}},
+	}
+	Expect(k8sClient.Create(context.TODO(), pod2)).Should(BeNil())
 
 	close(done)
 }, 240)

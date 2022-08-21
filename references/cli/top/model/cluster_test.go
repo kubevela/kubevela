@@ -42,7 +42,8 @@ var _ = Describe("test cluster", func() {
 	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
 
 	It("list clusters", func() {
-		clusterList := ListClusters(ctx, k8sClient)
+		clusterList, err := ListClusters(ctx, k8sClient)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(len(clusterList.Header())).To(Equal(5))
 		Expect(clusterList.Header()).To(Equal([]string{"Name", "Alias", "Type", "EndPoint", "Labels"}))
 		Expect(len(clusterList.Body())).To(Equal(2))

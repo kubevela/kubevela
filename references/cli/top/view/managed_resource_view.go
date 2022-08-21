@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -28,41 +29,45 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-// K8SView is a view which displays info of kubernetes objects which are generated when application deployed
-type K8SView struct {
+// ManagedResourceView is a view which displays info of application's managed resource including CRDs and k8s objects
+type ManagedResourceView struct {
 	*ResourceView
 	ctx context.Context
 }
 
-// NewK8SView return a new k8s view
-func NewK8SView(ctx context.Context, app *App) model.Component {
-	v := &K8SView{
+// NewManagedResourceView return a new managed resource view
+func NewManagedResourceView(ctx context.Context, app *App) model.Component {
+	v := &ManagedResourceView{
 		ResourceView: NewResourceView(app),
 		ctx:          ctx,
 	}
 	return v
 }
 
-// Init k8s view
-func (v *K8SView) Init() {
+// Init managed resource view
+func (v *ManagedResourceView) Init() {
 	// set title of view
 	title := fmt.Sprintf("[ %s ]", v.Title())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
 
-	resourceList := v.ListK8SObjects()
+	resourceList := v.ListManagedResources()
 	v.ResourceView.Init(resourceList)
 
 	v.ColorizeStatusText(len(resourceList.Body()))
 	v.bindKeys()
 }
 
-// ListK8SObjects return kubernetes objects of the aimed application
-func (v *K8SView) ListK8SObjects() model.ResourceList {
-	return model.ListObjects(v.ctx, v.app.client)
+// ListManagedResources return managed resource of the aimed application
+func (v *ManagedResourceView) ListManagedResources() model.ResourceList {
+	list, err := model.ListManagedResource(v.ctx, v.app.client)
+	if err != nil {
+		log.Println(err)
+	}
+	return list
 }
 
-// Title return the table title of k8s object view
-func (v *K8SView) Title() string {
+// Title return the table title of managed resource view
+func (v *ManagedResourceView) Title() string {
 	namespace, ok := v.ctx.Value(&model.CtxKeyCluster).(string)
 	if !ok || namespace == "" {
 		namespace = "all"
@@ -71,21 +76,21 @@ func (v *K8SView) Title() string {
 	if !ok || clusterNS == "" {
 		clusterNS = "all"
 	}
-	return fmt.Sprintf("K8S-Object"+" (%s/%s)", namespace, clusterNS)
+	return fmt.Sprintf("Managed Resource"+" (%s/%s)", namespace, clusterNS)
 }
 
-// Name return k8s view name
-func (v *K8SView) Name() string {
-	return "K8S-Object"
+// Name return managed resource view name
+func (v *ManagedResourceView) Name() string {
+	return "Managed Resource"
 }
 
-// Hint return key action menu hints of the k8s view
-func (v *K8SView) Hint() []model.MenuHint {
+// Hint return key action menu hints of the managed resource view
+func (v *ManagedResourceView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
 }
 
 // ColorizeStatusText colorize the status column text
-func (v *K8SView) ColorizeStatusText(rowNum int) {
+func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 	for i := 1; i < rowNum+1; i++ {
 		status := v.Table.GetCell(i, 5).Text
 		switch querytypes.HealthStatusCode(status) {
@@ -103,7 +108,7 @@ func (v *K8SView) ColorizeStatusText(rowNum int) {
 	}
 }
 
-func (v *K8SView) bindKeys() {
+func (v *ManagedResourceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
 		component.KeyC:    model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
@@ -113,15 +118,15 @@ func (v *K8SView) bindKeys() {
 	})
 }
 
-// clusterView switch k8s object view to the cluster view
-func (v *K8SView) clusterView(event *tcell.EventKey) *tcell.EventKey {
+// clusterView switch managed resource view to the cluster view
+func (v *ManagedResourceView) clusterView(event *tcell.EventKey) *tcell.EventKey {
 	v.app.content.PopComponent()
 	v.app.command.run(v.ctx, "cluster")
 	return event
 }
 
-// clusterView switch k8s object view to the cluster Namespace view
-func (v *K8SView) clusterNamespaceView(event *tcell.EventKey) *tcell.EventKey {
+// clusterView switch managed resource view to the cluster Namespace view
+func (v *ManagedResourceView) clusterNamespaceView(event *tcell.EventKey) *tcell.EventKey {
 	v.app.content.PopComponent()
 	v.app.command.run(v.ctx, "cns")
 	return event

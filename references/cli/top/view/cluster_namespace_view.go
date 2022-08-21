@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -55,7 +56,11 @@ func (v *ClusterNamespaceView) Init() {
 
 // ListClusterNamespaces return the namespace of application's resource
 func (v *ClusterNamespaceView) ListClusterNamespaces() model.ResourceList {
-	return model.ListClusterNamespaces(v.ctx, v.app.client)
+	list, err := model.ListClusterNamespaces(v.ctx, v.app.client)
+	if err != nil {
+		log.Println(err)
+	}
+	return list
 }
 
 // Hint return key action menu hints of the cluster namespace view
@@ -71,14 +76,14 @@ func (v *ClusterNamespaceView) Name() string {
 func (v *ClusterNamespaceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.k8sObjectView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Select", Action: v.managedResourceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
 
-// k8sObjectView switch cluster namespace view to k8s object view
-func (v *ClusterNamespaceView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
+// managedResourceView switch cluster namespace view to managed resource view
+func (v *ClusterNamespaceView) managedResourceView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
@@ -89,6 +94,6 @@ func (v *ClusterNamespaceView) k8sObjectView(event *tcell.EventKey) *tcell.Event
 		clusterNamespace = ""
 	}
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, clusterNamespace)
-	v.app.command.run(v.ctx, "k8s")
+	v.app.command.run(v.ctx, "resource")
 	return event
 }

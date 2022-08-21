@@ -24,8 +24,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 )
 
-// K8SObject is k8s resource struct
-type K8SObject struct {
+// ManagedResource is managed resource of application
+type ManagedResource struct {
 	name       string
 	namespace  string
 	kind       string
@@ -34,19 +34,19 @@ type K8SObject struct {
 	status     string
 }
 
-// K8SObjectList is k8s struct resource list
-type K8SObjectList struct {
+// ManagedResourceList is k8s struct resource list
+type ManagedResourceList struct {
 	title []string
-	data  []K8SObject
+	data  []ManagedResource
 }
 
 // Header generate header of table in k8s object view
-func (l *K8SObjectList) Header() []string {
+func (l *ManagedResourceList) Header() []string {
 	return l.title
 }
 
 // Body generate header of table in k8s object view
-func (l *K8SObjectList) Body() [][]string {
+func (l *ManagedResourceList) Body() [][]string {
 	data := make([][]string, 0)
 	for _, app := range l.data {
 		data = append(data, []string{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
@@ -55,30 +55,30 @@ func (l *K8SObjectList) Body() [][]string {
 }
 
 // FilterCluster filter out objects that belong to the target cluster
-func (l *K8SObjectList) FilterCluster(cluster string) {
-	data := make([]K8SObject, 0)
+func (l *ManagedResourceList) FilterCluster(cluster string) {
+	data := make([]ManagedResource, 0)
 	for _, app := range l.data {
 		if app.cluster == cluster {
-			data = append(data, K8SObject{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
+			data = append(data, ManagedResource{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
 		}
 	}
 	l.data = data
 }
 
 // FilterClusterNamespace filter out objects that belong to the target namespace
-func (l *K8SObjectList) FilterClusterNamespace(clusterNS string) {
-	data := make([]K8SObject, 0)
+func (l *ManagedResourceList) FilterClusterNamespace(clusterNS string) {
+	data := make([]ManagedResource, 0)
 	for _, app := range l.data {
 		if app.namespace == clusterNS {
-			data = append(data, K8SObject{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
+			data = append(data, ManagedResource{app.name, app.namespace, app.kind, app.apiVersion, app.cluster, app.status})
 		}
 	}
 	l.data = data
 }
 
-// ListObjects return k8s object resource list
-func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
-	list := &K8SObjectList{
+// ListManagedResource return managed resources of application
+func ListManagedResource(ctx context.Context, c client.Client) (*ManagedResourceList, error) {
+	list := &ManagedResourceList{
 		title: []string{"Name", "Namespace", "Kind", "APIVersion", "Cluster", "Status"},
 	}
 	name := ctx.Value(&CtxKeyAppName).(string)
@@ -94,11 +94,11 @@ func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 	appResList, err := collector.CollectResourceFromApp()
 
 	if err != nil {
-		return list
+		return list, err
 	}
 
 	for _, resource := range appResList {
-		list.data = append(list.data, LoadObjectDetail(resource))
+		list.data = append(list.data, LoadResourceDetail(resource))
 	}
 
 	cluster, ok := ctx.Value(&CtxKeyCluster).(string)
@@ -110,12 +110,12 @@ func ListObjects(ctx context.Context, c client.Client) *K8SObjectList {
 		list.FilterClusterNamespace(clusterNamespace)
 	}
 
-	return list
+	return list, nil
 }
 
-// LoadObjectDetail return the aim k8s object detail info
-func LoadObjectDetail(resource query.Resource) K8SObject {
-	object := K8SObject{
+// LoadResourceDetail return the aim resource detail info
+func LoadResourceDetail(resource query.Resource) ManagedResource {
+	object := ManagedResource{
 		name:       resource.Object.GetName(),
 		namespace:  resource.Object.GetNamespace(),
 		kind:       resource.Object.GetKind(),

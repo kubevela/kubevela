@@ -23,9 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func TestApplicationList_Header(t *testing.T) {
@@ -40,15 +37,25 @@ func TestApplicationList_Body(t *testing.T) {
 }
 
 var _ = Describe("test Application", func() {
-	var err error
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &CtxKeyNamespace, "")
 
-	It("list applications", func() {
-		k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	It("application num", func() {
+		num, err := applicationNum(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
-
-		applicationsList := ListApplications(ctx, k8sClient)
+		Expect(num).To(Equal(1))
+	})
+	It("running application num", func() {
+		num, err := runningApplicationNum(ctx, k8sClient)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(num).To(Equal(1))
+	})
+	It("application running ratio", func() {
+		num := ApplicationRunningNum(cfg)
+		Expect(num).To(Equal("1/1"))
+	})
+	It("list applications", func() {
+		applicationsList, err := ListApplications(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(applicationsList.Header()).To(Equal([]string{"Name", "Namespace", "Phase", "CreateTime"}))
 		Expect(len(applicationsList.Body())).To(Equal(1))
