@@ -41,7 +41,7 @@ func TestClusterNamespaceView(t *testing.T) {
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
-	assert.Equal(t, len(app.Components), 4)
+	assert.Equal(t, len(app.Components()), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
@@ -61,6 +61,6 @@ func TestClusterNamespaceView(t *testing.T) {
 
 	t.Run("object view", func(t *testing.T) {
 		cnsView.Table.Table.Table = cnsView.Table.Select(1, 1)
-		assert.Empty(t, cnsView.k8sObjectView(nil))
+		assert.Empty(t, cnsView.managedResourceView(nil))
 	})
 }

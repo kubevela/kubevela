@@ -18,7 +18,6 @@ package model
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -59,8 +58,7 @@ var _ = Describe("test namespace", func() {
 		nsList := ListNamespaces(ctx, k8sClient)
 		Expect(len(nsList.Header())).To(Equal(3))
 		Expect(nsList.Header()).To(Equal([]string{"Name", "Status", "Age"}))
-		fmt.Println(nsList.Body())
-		Expect(len(nsList.Body())).To(Equal(5))
+		Expect(len(nsList.Body())).To(Equal(6))
 		Expect(nsList.Body()[0]).To(Equal([]string{"all", "*", "*"}))
 	})
 })

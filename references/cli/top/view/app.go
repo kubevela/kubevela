@@ -18,6 +18,8 @@ package view
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -31,23 +33,32 @@ import (
 
 // App application object
 type App struct {
+	// ui
 	*component.App
-	client  client.Client
-	config  config.Config
-	command *Command
-	content *PageStack
-	ctx     context.Context
+	// client is the k8s client
+	client client.Client
+	config config.Config
+	// command abstract interface action to a command
+	command    *Command
+	content    *PageStack
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
+
+const (
+	delay = time.Second * 10
+)
 
 // NewApp return a new app object
 func NewApp(c client.Client, restConfig *rest.Config, namespace string) *App {
+	conf := config.Config{
+		RestConfig: restConfig,
+	}
 	a := &App{
 		App:    component.NewApp(),
 		client: c,
-		config: config.Config{
-			RestConfig: restConfig,
-		},
-		ctx: context.Background(),
+		config: conf,
+		ctx:    context.Background(),
 	}
 	a.command = NewCommand(a)
 	a.content = NewPageStack(a)
@@ -69,6 +80,7 @@ func (a *App) Init() {
 	a.SetInputCapture(a.keyboard)
 
 	a.defaultView(nil)
+
 }
 
 func (a *App) layout() {
@@ -82,12 +94,12 @@ func (a *App) layout() {
 }
 
 func (a *App) buildHeader() tview.Primitive {
-	header := tview.NewFlex()
-	header.SetDirection(tview.FlexColumn)
 	info := a.InfoBoard()
 	info.Init(a.config.RestConfig)
-	header.AddItem(info, config.InfoColumnNum, 1, false)
-	header.AddItem(a.Menu(), 0, 2, false)
+	header := tview.NewFlex()
+	header.SetDirection(tview.FlexColumn)
+	header.AddItem(info, 0, 1, false)
+	header.AddItem(a.Menu(), 0, 1, false)
 	header.AddItem(a.Logo(), config.LogoColumnNum, 1, false)
 	return header
 }
@@ -99,11 +111,38 @@ func (a *App) Run() error {
 			a.Main.SwitchToPage("main")
 		})
 	}()
-	err := a.Application.Run()
-	if err != nil {
+	a.Refresh()
+	if err := a.Application.Run(); err != nil {
 		return err
 	}
 	return nil
+}
+
+// Refresh will refresh the ui after the delay time
+func (a *App) Refresh() {
+	ctx := context.Background()
+	ctx, a.cancelFunc = context.WithCancel(ctx)
+	// system info board component
+	board := a.Components()["info"].(*component.InfoBoard)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("SystemInfo updater canceled!")
+				return
+			case <-time.After(delay):
+				a.QueueUpdateDraw(func() {
+					board.UpdateInfo(a.config.RestConfig)
+				})
+			}
+		}
+	}()
+}
+
+// inject add a new component to the app's main view to refresh the content of the main view
+func (a *App) inject(c model.Component) {
+	c.Init()
+	a.content.PushComponent(c)
 }
 
 func (a *App) bindKeys() {
@@ -118,12 +157,6 @@ func (a *App) keyboard(event *tcell.EventKey) *tcell.EventKey {
 		return action.Action(event)
 	}
 	return event
-}
-
-// inject add a new component to the app's main view to refresh the content of the main view
-func (a *App) inject(c model.Component) {
-	c.Init()
-	a.content.PushComponent(c)
 }
 
 // defaultView is the first view of running application

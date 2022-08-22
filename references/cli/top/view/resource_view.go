@@ -44,8 +44,8 @@ var ResourceMap = map[string]ResourceViewer{
 	"cluster": {
 		viewFunc: NewClusterView,
 	},
-	"k8s": {
-		viewFunc: NewK8SView,
+	"resource": {
+		viewFunc: NewManagedResourceView,
 	},
 	"ns": {
 		viewFunc: NewNamespaceView,
@@ -97,7 +97,7 @@ func (v *ResourceView) buildTableBody(body [][]string) {
 	}
 }
 
-// Name return view name
+// Name return the name of view
 func (v *ResourceView) Name() string {
 	return "Resource"
 }

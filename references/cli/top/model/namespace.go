@@ -34,12 +34,6 @@ type Namespace struct {
 	Age    string
 }
 
-// NamespaceList is namespace list
-type NamespaceList struct {
-	title []string
-	data  []Namespace
-}
-
 // AllNamespace is the key which represents all namespaces
 const AllNamespace = "all"
 

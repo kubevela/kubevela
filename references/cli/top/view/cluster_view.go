@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -55,7 +56,11 @@ func (v *ClusterView) Init() {
 
 // ListClusters list clusters where application deployed
 func (v *ClusterView) ListClusters() model.ResourceList {
-	return model.ListClusters(v.ctx, v.app.client)
+	list, err := model.ListClusters(v.ctx, v.app.client)
+	if err != nil {
+		log.Println(err)
+	}
+	return list
 }
 
 // Name return cluster view name
@@ -71,14 +76,14 @@ func (v *ClusterView) Hint() []model.MenuHint {
 func (v *ClusterView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.k8sObjectView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
 
-// k8sObjectView switch cluster view to k8s object view
-func (v *ClusterView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
+// managedResourceView switch cluster view to managed resource view
+func (v *ClusterView) managedResourceView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
@@ -89,6 +94,6 @@ func (v *ClusterView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
 		clusterName = ""
 	}
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, clusterName)
-	v.app.command.run(v.ctx, "k8s")
+	v.app.command.run(v.ctx, "resource")
 	return event
 }

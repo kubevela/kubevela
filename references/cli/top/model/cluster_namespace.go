@@ -25,8 +25,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// NamespaceList is namespace list
+type NamespaceList struct {
+	title []string
+	data  []Namespace
+}
+
 // ListClusterNamespaces return namespace of application's resource
-func ListClusterNamespaces(ctx context.Context, c client.Client) ResourceList {
+func ListClusterNamespaces(ctx context.Context, c client.Client) (*NamespaceList, error) {
 	list := &NamespaceList{
 		title: []string{"Name", "Status", "Age"},
 		data:  []Namespace{{"all", "*", "*"}},
@@ -35,7 +41,7 @@ func ListClusterNamespaces(ctx context.Context, c client.Client) ResourceList {
 	ns := ctx.Value(&CtxKeyNamespace).(string)
 	app, err := LoadApplication(c, name, ns)
 	if err != nil {
-		return list
+		return list, err
 	}
 	clusterNSSet := make(map[string]interface{})
 	for _, svc := range app.Status.AppliedResources {
@@ -45,24 +51,25 @@ func ListClusterNamespaces(ctx context.Context, c client.Client) ResourceList {
 	}
 
 	for clusterNS := range clusterNSSet {
-		namespaceInfo := LoadNamespaceDetail(ctx, c, clusterNS)
-		if namespaceInfo != nil {
-			list.data = append(list.data, Namespace{
-				Name:   namespaceInfo.Name,
-				Status: string(namespaceInfo.Status.Phase),
-				Age:    timeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
-			})
+		namespaceInfo, err := LoadNamespaceDetail(ctx, c, clusterNS)
+		if err != nil {
+			continue
 		}
+		list.data = append(list.data, Namespace{
+			Name:   namespaceInfo.Name,
+			Status: string(namespaceInfo.Status.Phase),
+			Age:    timeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
+		})
 	}
 
-	return list
+	return list, nil
 }
 
 // LoadNamespaceDetail query detail info of a namespace by name
-func LoadNamespaceDetail(ctx context.Context, c client.Client, namespace string) *v1.Namespace {
+func LoadNamespaceDetail(ctx context.Context, c client.Client, namespace string) (*v1.Namespace, error) {
 	ns := new(v1.Namespace)
 	if err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
-		return nil
+		return nil, err
 	}
-	return ns
+	return ns, nil
 }

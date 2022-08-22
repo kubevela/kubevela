@@ -17,18 +17,27 @@ limitations under the License.
 package model
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
+	"github.com/oam-dev/kubevela/references/cli/top/utils"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -40,6 +49,12 @@ type Info struct {
 const (
 	// Unknown info
 	Unknown = "UNKNOWN"
+	// VelaSystemNS is the namespace of vela-system, which is the namespace of vela-core and vela-cluster-gateway
+	VelaSystemNS = "vela-system"
+	// VelaCoreAppName is the app name of vela-core
+	VelaCoreAppName = "app.kubernetes.io/name=vela-core"
+	// ClusterGatewayAppName is the app name of vela-core
+	ClusterGatewayAppName = "app.kubernetes.io/name=vela-core-cluster-gateway"
 )
 
 // NewInfo return a new info struct
@@ -70,12 +85,12 @@ func (i *Info) ClusterNum() string {
 }
 
 // K8SVersion return k8s version info
-func K8SVersion(config *rest.Config) string {
-	client, err := kubernetes.NewForConfig(config)
+func K8SVersion(cfg *rest.Config) string {
+	c, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		return Unknown
 	}
-	serverVersion, err := client.ServerVersion()
+	serverVersion, err := c.ServerVersion()
 	if err != nil {
 		return Unknown
 	}
@@ -105,4 +120,128 @@ func VelaCoreVersion() string {
 // GOLangVersion return golang version info
 func GOLangVersion() string {
 	return runtime.Version()
+}
+
+// ApplicationRunningNum return the num of running application
+func ApplicationRunningNum(cfg *rest.Config) string {
+	ctx := context.Background()
+	c, err := client.New(cfg, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return utils.NA
+	}
+	appNum, err := applicationNum(ctx, c)
+	if err != nil {
+		return utils.NA
+	}
+	runningAppNum, err := runningApplicationNum(ctx, c)
+	if err != nil {
+		return utils.NA
+	}
+	return fmt.Sprintf("%d/%d", runningAppNum, appNum)
+}
+
+func velaCorePodUsage(cfg *rest.Config) (*v1beta1.PodMetrics, error) {
+	ctx := context.Background()
+	c, err := metrics.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	metricsList, err := c.MetricsV1beta1().PodMetricses(VelaSystemNS).List(ctx, metav1.ListOptions{LabelSelector: VelaCoreAppName})
+	if err != nil {
+		return nil, err
+	}
+	if len(metricsList.Items) != 1 {
+		return nil, errors.New("the num of vela core container isn't right")
+	}
+	return &metricsList.Items[0], nil
+}
+
+func velaCorePod(cfg *rest.Config) (*v1.Pod, error) {
+	ctx := context.Background()
+	pods := v1.PodList{}
+	c, err := client.New(cfg, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return nil, err
+	}
+	opts := []client.ListOption{
+		client.InNamespace(VelaSystemNS),
+		client.MatchingLabels{"app.kubernetes.io/name": "vela-core"},
+	}
+	err = c.List(ctx, &pods, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if len(pods.Items) != 1 {
+		return nil, errors.New("the num of vela core container isn't right")
+	}
+	return &pods.Items[0], nil
+}
+
+// VelaCoreRatio return the usage condition of vela-core pod
+func VelaCoreRatio(cfg *rest.Config) (string, string, string, string) {
+	mtx, err := velaCorePodUsage(cfg)
+	if err != nil {
+		return utils.NA, utils.NA, utils.NA, utils.NA
+	}
+	pod, err := velaCorePod(cfg)
+	if err != nil {
+		return utils.NA, utils.NA, utils.NA, utils.NA
+	}
+	c, r := utils.GatherPodMX(pod, mtx)
+	cpuLRatio, memLRatio := utils.ToPercentageStr(c.CPU, r.Lcpu), utils.ToPercentageStr(c.Mem, r.Lmem)
+	cpuRRatio, memRRatio := utils.ToPercentageStr(c.CPU, r.CPU), utils.ToPercentageStr(c.Mem, r.Mem)
+	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
+}
+
+func velaCLusterGatewayPodUsage(cfg *rest.Config) (*v1beta1.PodMetrics, error) {
+	ctx := context.Background()
+	c, err := metrics.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	metricsList, err := c.MetricsV1beta1().PodMetricses(VelaSystemNS).List(ctx, metav1.ListOptions{LabelSelector: ClusterGatewayAppName})
+	if err != nil {
+		return nil, err
+	}
+	if len(metricsList.Items) != 1 || len(metricsList.Items[0].Containers) != 1 {
+		return nil, errors.New("the num of vela core cluster gateway container isn't right")
+	}
+	return &metricsList.Items[0], nil
+}
+
+func velaCLusterGatewayPod(cfg *rest.Config) (*v1.Pod, error) {
+	ctx := context.Background()
+	pods := v1.PodList{}
+	c, err := client.New(cfg, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return nil, err
+	}
+	opts := []client.ListOption{
+		client.InNamespace(VelaSystemNS),
+		client.MatchingLabels{"app.kubernetes.io/name": "vela-core-cluster-gateway"},
+	}
+	err = c.List(ctx, &pods, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if len(pods.Items) != 1 || len(pods.Items[0].Spec.Containers) != 1 {
+		return nil, errors.New("the num of vela core cluster gateway container isn't right")
+	}
+	return &pods.Items[0], nil
+}
+
+// CLusterGatewayRatio return the usage condition of vela-core cluster gateway pod
+func CLusterGatewayRatio(cfg *rest.Config) (string, string, string, string) {
+	mtx, err := velaCLusterGatewayPodUsage(cfg)
+	if err != nil {
+		return utils.NA, utils.NA, utils.NA, utils.NA
+	}
+	pod, err := velaCLusterGatewayPod(cfg)
+	if err != nil {
+		return utils.NA, utils.NA, utils.NA, utils.NA
+	}
+	c, r := utils.GatherPodMX(pod, mtx)
+	cpuLRatio, memLRatio := utils.ToPercentageStr(c.CPU, r.Lcpu), utils.ToPercentageStr(c.Mem, r.Lmem)
+	cpuRRatio, memRRatio := utils.ToPercentageStr(c.CPU, r.CPU), utils.ToPercentageStr(c.Mem, r.Mem)
+	return cpuLRatio, memLRatio, cpuRRatio, memRRatio
 }

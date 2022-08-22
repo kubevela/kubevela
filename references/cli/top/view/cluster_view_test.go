@@ -42,7 +42,7 @@ func TestClusterView(t *testing.T) {
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
-	assert.Equal(t, len(app.Components), 4)
+	assert.Equal(t, len(app.Components()), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
@@ -67,6 +67,6 @@ func TestClusterView(t *testing.T) {
 		}
 		assert.Equal(t, clusterView.GetCell(1, 0).Text, "local")
 		clusterView.Table.Table.Table = clusterView.Table.Select(1, 1)
-		assert.Empty(t, clusterView.k8sObjectView(nil))
+		assert.Empty(t, clusterView.managedResourceView(nil))
 	})
 }

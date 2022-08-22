@@ -42,7 +42,7 @@ func TestApplicationView(t *testing.T) {
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
-	assert.Equal(t, len(app.Components), 4)
+	assert.Equal(t, len(app.Components()), 4)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
 	view := NewApplicationView(ctx, app)
@@ -75,7 +75,7 @@ func TestApplicationView(t *testing.T) {
 
 	t.Run("object view", func(t *testing.T) {
 		appView.Table.Table.Table = appView.Table.Select(1, 1)
-		assert.Empty(t, appView.k8sObjectView(nil))
+		assert.Empty(t, appView.managedResourceView(nil))
 	})
 
 }

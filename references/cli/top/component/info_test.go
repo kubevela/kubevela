@@ -35,7 +35,7 @@ func TestInfo(t *testing.T) {
 	assert.NoError(t, err)
 	info := NewInfo()
 	info.Init(cfg)
-	assert.Equal(t, info.GetColumnCount(), 2)
+	assert.Equal(t, info.GetColumnCount(), 7)
 	assert.Equal(t, info.GetRowCount(), 6)
 	assert.Equal(t, info.GetCell(0, 0).Text, "Context:")
 }

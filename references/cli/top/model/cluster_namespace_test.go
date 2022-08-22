@@ -28,15 +28,16 @@ var _ = Describe("test cluster namespace", func() {
 	ctx = context.WithValue(ctx, &CtxKeyAppName, "first-vela-app")
 	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
 	It("list cluster namespace", func() {
-		cnsList := ListClusterNamespaces(ctx, k8sClient)
+		cnsList, err := ListClusterNamespaces(ctx, k8sClient)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(len(cnsList.Header())).To(Equal(3))
 		Expect(cnsList.Header()).To(Equal([]string{"Name", "Status", "Age"}))
-
 		Expect(len(cnsList.Body())).To(Equal(2))
 		Expect(cnsList.Body()[1][0]).To(Equal("default"))
 	})
 	It("load cluster namespace detail info", func() {
-		ns := LoadNamespaceDetail(ctx, k8sClient, "default")
+		ns, err := LoadNamespaceDetail(ctx, k8sClient, "default")
+		Expect(err).NotTo(HaveOccurred())
 		Expect(string(ns.Status.Phase)).To(Equal("Active"))
 	})
 })

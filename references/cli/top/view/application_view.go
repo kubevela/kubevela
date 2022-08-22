@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -58,7 +59,11 @@ func (v *ApplicationView) Init() {
 
 // ListApplications list all applications
 func (v *ApplicationView) ListApplications() model.ResourceList {
-	return model.ListApplications(v.ctx, v.app.client)
+	list, err := model.ListApplications(v.ctx, v.app.client)
+	if err != nil {
+		log.Println(err)
+	}
+	return list
 }
 
 // ColorizeStatusText colorize the status column text
@@ -102,24 +107,23 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.k8sObjectView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
 		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
 }
 
-func (v *ApplicationView) k8sObjectView(event *tcell.EventKey) *tcell.EventKey {
+func (v *ApplicationView) managedResourceView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
 	}
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
-
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
 
-	v.app.command.run(v.ctx, "k8s")
+	v.app.command.run(v.ctx, "resource")
 	return event
 }
 

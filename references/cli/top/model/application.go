@@ -21,6 +21,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -53,18 +54,18 @@ func (l *ApplicationList) Body() [][]string {
 }
 
 // ListApplications list all apps in all namespaces
-func ListApplications(ctx context.Context, c client.Reader) *ApplicationList {
+func ListApplications(ctx context.Context, c client.Reader) (*ApplicationList, error) {
 	list := &ApplicationList{title: []string{"Name", "Namespace", "Phase", "CreateTime"}}
 	apps := v1beta1.ApplicationList{}
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
 
 	if err := c.List(ctx, &apps, client.InNamespace(namespace)); err != nil {
-		return list
+		return list, err
 	}
 	for _, app := range apps.Items {
 		list.data = append(list.data, Application{app.Name, app.Namespace, string(app.Status.Phase), app.CreationTimestamp.String()})
 	}
-	return list
+	return list, nil
 }
 
 // LoadApplication load the corresponding application according to name and namespace
@@ -78,4 +79,28 @@ func LoadApplication(c client.Client, name, ns string) (*v1beta1.Application, er
 		return nil, err
 	}
 	return app, nil
+}
+
+// applicationNum return the num of application
+func applicationNum(ctx context.Context, c client.Client) (int, error) {
+	apps := v1beta1.ApplicationList{}
+	if err := c.List(ctx, &apps); err != nil {
+		return 0, err
+	}
+	return len(apps.Items), nil
+}
+
+// runningApplicationNum return the num of running application
+func runningApplicationNum(ctx context.Context, c client.Client) (int, error) {
+	num := 0
+	apps := v1beta1.ApplicationList{}
+	if err := c.List(ctx, &apps); err != nil {
+		return num, err
+	}
+	for _, app := range apps.Items {
+		if app.Status.Phase == common.ApplicationRunning {
+			num++
+		}
+	}
+	return num, nil
 }
