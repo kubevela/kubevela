@@ -204,7 +204,7 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
 
-			prd := provider{cli: k8sClient}
+			prd := provider{cli: k8sClient, ctxFactory: context.Background}
 			opt := `app: {
 				name: "test"
 				namespace: "test"
@@ -248,7 +248,7 @@ var _ = Describe("Test Query Provider", func() {
 
 		It("Test list resource with incomplete parameter", func() {
 			optWithoutApp := ""
-			prd := provider{cli: k8sClient}
+			prd := provider{cli: k8sClient, ctxFactory: context.Background}
 			newV, err := value.NewValue(optWithoutApp, nil, "")
 			Expect(err).Should(BeNil())
 			err = prd.ListResourcesInApp(nil, newV, nil)
@@ -329,7 +329,7 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			err := k8sClient.Create(context.TODO(), rt)
 			Expect(err).Should(BeNil())
-			prd := provider{cli: k8sClient}
+			prd := provider{cli: k8sClient, ctxFactory: context.Background}
 			opt := `app: {
 				name: "test-applied"
 				namespace: "default"
@@ -388,7 +388,7 @@ var _ = Describe("Test Query Provider", func() {
 	Context("Test search event from k8s object", func() {
 		It("Test search event with incomplete parameter", func() {
 			emptyOpt := ""
-			prd := provider{cli: k8sClient}
+			prd := provider{cli: k8sClient, ctxFactory: context.Background}
 			v, err := value.NewValue(emptyOpt, nil, "")
 			Expect(err).Should(BeNil())
 			err = prd.SearchEvents(nil, v, nil)
@@ -413,7 +413,7 @@ cluster: "test"`
 
 	Context("Test CollectLogsInPod", func() {
 		It("Test CollectLogsInPod with specified container", func() {
-			prd := provider{cli: k8sClient, cfg: cfg}
+			prd := provider{cli: k8sClient, cfg: cfg, ctxFactory: context.Background}
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "default"},
 				Spec: corev1.PodSpec{
@@ -477,7 +477,7 @@ options: {
 
 	It("Test install provider", func() {
 		p := providers.NewProviders()
-		Install(p, k8sClient, cfg)
+		Install(p, k8sClient, cfg, nil)
 		h, ok := p.GetHandler("query", "listResourcesInApp")
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
@@ -926,9 +926,7 @@ options: {
 		}`
 		v, err := value.NewValue(opt, nil, "")
 		Expect(err).Should(BeNil())
-		pr := &provider{
-			cli: k8sClient,
-		}
+		pr := &provider{cli: k8sClient, ctxFactory: context.Background}
 		err = pr.GeneratorServiceEndpoints(nil, v, nil)
 		Expect(err).Should(BeNil())
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)

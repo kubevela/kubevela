@@ -225,9 +225,7 @@ var _ = Describe("Test Query Provider", func() {
 		}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			pr := &provider{
-				cli: k8sClient,
-			}
+			pr := &provider{cli: k8sClient, ctxFactory: context.Background}
 			err = pr.GeneratorServiceEndpoints(nil, v, nil)
 			Expect(err).Should(BeNil())
 

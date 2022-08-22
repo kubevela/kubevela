@@ -1,3 +1,4 @@
+```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -44,3 +45,4 @@ spec:
         inputs:
           - from: host
             parameterKey: data.host
+```

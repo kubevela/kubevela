@@ -47,7 +47,7 @@ import (
 // such as webservice or helm
 // it can not support the cloud service component currently
 func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.Value, act types.Action) error {
-	ctx := context.Background()
+	ctx := h.ctxFactory()
 
 	val, err := v.LookupValue("app")
 	if err != nil {
@@ -65,7 +65,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app, opt.WithTree)
+	resources, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
 	if err != nil {
 		return err
 	}

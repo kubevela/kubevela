@@ -53,8 +53,7 @@ func NewAppCollector(cli client.Client, opt Option) *AppCollector {
 const velaVersionNumberToUpgradeVelaQL = "v1.2.0-rc.1"
 
 // CollectResourceFromApp collect resources created by application
-func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
-	ctx := context.Background()
+func (c *AppCollector) CollectResourceFromApp(ctx context.Context) ([]Resource, error) {
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: c.opt.Name, Namespace: c.opt.Namespace}
 	if err := c.k8sClient.Get(ctx, appKey, app); err != nil {
@@ -67,22 +66,21 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 	velaVersionToUpgradeVelaQL, _ := version.NewVersion(velaVersionNumberToUpgradeVelaQL)
 	currentVersion, err := version.NewVersion(currentVersionNumber)
 	if err != nil {
-		resources, err := c.FindResourceFromResourceTrackerSpec(app)
+		resources, err := c.FindResourceFromResourceTrackerSpec(ctx, app)
 		if err != nil {
-			return c.FindResourceFromAppliedResourcesField(app)
+			return c.FindResourceFromAppliedResourcesField(ctx, app)
 		}
 		return resources, nil
 	}
 
 	if velaVersionToUpgradeVelaQL.GreaterThan(currentVersion) {
-		return c.FindResourceFromAppliedResourcesField(app)
+		return c.FindResourceFromAppliedResourcesField(ctx, app)
 	}
-	return c.FindResourceFromResourceTrackerSpec(app)
+	return c.FindResourceFromResourceTrackerSpec(ctx, app)
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryTree bool) ([]*types.AppliedResource, error) {
-	ctx := context.Background()
+func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application, queryTree bool) ([]*types.AppliedResource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
@@ -195,8 +193,7 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application, queryT
 }
 
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
-func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Application) ([]Resource, error) {
-	ctx := context.Background()
+func (c *AppCollector) FindResourceFromResourceTrackerSpec(ctx context.Context, app *v1beta1.Application) ([]Resource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		klog.Errorf("query the resourcetrackers failure %s", err.Error())
@@ -218,7 +215,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 					if err != nil || c.opt.WithStatus {
 						// For the application with apply once policy, there is no data in RT.
 						// IF the WithStatus is true, get the object from cluster
-						_, obj, err = getObjectCreatedByComponent(c.k8sClient, managedResource.ObjectReference, managedResource.Cluster)
+						_, obj, err = getObjectCreatedByComponent(ctx, c.k8sClient, managedResource.ObjectReference, managedResource.Cluster)
 						if err != nil {
 							klog.Errorf("get obj from the cluster failure %s", err.Error())
 							continue
@@ -242,7 +239,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 }
 
 // FindResourceFromAppliedResourcesField find resources from AppliedResources field
-func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Application) ([]Resource, error) {
+func (c *AppCollector) FindResourceFromAppliedResourcesField(ctx context.Context, app *v1beta1.Application) ([]Resource, error) {
 	resources := make([]Resource, 0, len(app.Spec.Components))
 	for _, res := range app.Status.AppliedResources {
 		if !isResourceInTargetCluster(c.opt.Filter, res) {
@@ -251,7 +248,7 @@ func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Applic
 		if !isResourceMatchKindAndVersion(c.opt.Filter, res.APIVersion, res.Kind) {
 			continue
 		}
-		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, res.ObjectReference, res.Cluster)
+		compName, obj, err := getObjectCreatedByComponent(ctx, c.k8sClient, res.ObjectReference, res.Cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -271,8 +268,8 @@ func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Applic
 }
 
 // getObjectCreatedByComponent get k8s obj created by components
-func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
+func getObjectCreatedByComponent(ctx context.Context, cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
+	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	obj := new(unstructured.Unstructured)
 	obj.SetGroupVersionKind(objRef.GroupVersionKind())
 	obj.SetNamespace(objRef.Namespace)

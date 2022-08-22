@@ -624,7 +624,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
 
-		FIt("Test application with collect-service-endpoint and export-data", func() {
+		It("Test application with collect-service-endpoint and export-data", func() {
 			By("create application")
 			bs, err := ioutil.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
 			Expect(err).Should(Succeed())
@@ -634,14 +634,8 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
-
-				if app.Status.Phase == common.ApplicationRunningWorkflow {
-					bs, _ := json.Marshal(app.Status.Workflow)
-					fmt.Printf("RunningWorkflow: %s\n", string(bs))
-				}
-
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
-			}, 10*time.Minute, 10*time.Second).Should(Succeed())
+			}, 20*time.Second).Should(Succeed())
 
 			By("test dispatched resource")
 			svc := &corev1.Service{}
