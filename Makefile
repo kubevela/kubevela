@@ -85,7 +85,7 @@ endif
 # load docker image to the kind cluster
 kind-load: kind-load-runtime-cluster
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
-	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+	k3d image import $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 kind-load-runtime-cluster:
 	/bin/sh hack/e2e/build_runtime_rollout.sh
