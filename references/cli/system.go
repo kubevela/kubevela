@@ -17,10 +17,12 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
 
+	"github.com/gosuri/uitable"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -40,8 +42,8 @@ import (
 const (
 	// FlagSpecify specifies the deployment name
 	FlagSpecify = "specify"
-	// FlagDeploymentNamespace specifies the namespace of deployment
-	FlagDeploymentNamespace = "namespace"
+	// FlagOutputFormat specifies the output format. One of: (wide | yaml)
+	FlagOutputFormat = "output"
 )
 
 // NewSystemCommand print system detail info
@@ -79,10 +81,21 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get deployment name flag")
 			}
-			namespace, err := cmd.Flags().GetString(FlagDeploymentNamespace)
+			// Get output format from flag
+			outputFormat, err := cmd.Flags().GetString(FlagOutputFormat)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get deployment namespace flag")
+				return errors.Wrapf(err, "failed to get output format flag")
 			}
+			if outputFormat != "" {
+				outputFormatOptions := map[string]struct{}{
+					"wide": struct{}{},
+					"yaml": struct{}{},
+				}
+				if _, exist := outputFormatOptions[outputFormat]; !exist {
+					return errors.Errorf("Outputformat must in wide | yaml !")
+				}
+			}
+			// Get kube config
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -92,67 +105,58 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			mc, err := metrics.NewForConfig(config)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			// Get deploymentsClient in all namespace
+			deployments, err := clientset.AppsV1().Deployments(metav1.NamespaceAll).List(
+				ctx,
+				metav1.ListOptions{
+					LabelSelector: "app.kubernetes.io/name=vela-core",
+				},
+			)
 			if err != nil {
 				return err
 			}
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			if deployName != "" {
-				// DeployName is not empty, print the specified deployment's information in yaml type
-				if namespace == "" {
-					return errors.Errorf("An empty namespace can not be set when a resource name is provided. Use -n to specify the namespace.")
+				// DeployName is not empty, print the specified deployment's information
+				found := false
+				for _, deployment := range deployments.Items {
+					if deployment.Name == deployName {
+						table := SpecifiedFormatPrinter(deployment)
+						cmd.Println(table.String())
+						found = true
+						break
+					}
 				}
-				// Get specified deployment in specified namespace
-				deployment, err := clientset.AppsV1().Deployments(namespace).Get(
-					ctx,
-					deployName,
-					metav1.GetOptions{},
-				)
-				if err != nil {
-					return err
+				if !found {
+					return errors.Errorf("deployment \"%s\" not found", deployName)
 				}
-				// Set ManagedFields to nil because it's too long to read
-				deployment.ManagedFields = nil
-				deploymentYaml, _ := yaml.Marshal(deployment)
-				if err != nil {
-					return err
-				}
-				cmd.Println(string(deploymentYaml))
 			} else {
-				// DeployName is empty, print all deployment's partial args
-				// Get deploymentsClient in all namespace
-				deployments, err := clientset.AppsV1().Deployments(metav1.NamespaceAll).List(
-					ctx,
-					metav1.ListOptions{
-						LabelSelector: "app.kubernetes.io/name=vela-core",
-					},
-				)
+				// Get metrics clientset
+				mc, err := metrics.NewForConfig(config)
 				if err != nil {
 					return err
 				}
-				podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
-					ctx,
-					metav1.ListOptions{},
-				)
-				if err != nil {
-					return err
+				switch outputFormat {
+				case "":
+					table, err := NormalFormatPrinter(ctx, deployments, mc)
+					if err != nil {
+						return err
+					}
+					cmd.Println(table.String())
+				case "wide":
+					table, err := WideFormatPrinter(ctx, deployments, mc)
+					if err != nil {
+						return err
+					}
+					cmd.Println(table.String())
+				case "yaml":
+					str, err := YamlFormatPrinter(deployments)
+					if err != nil {
+						return err
+					}
+					cmd.Println(str)
 				}
-				table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS", "ENVS")
-				cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
-				for _, deploy := range deployments.Items {
-					table.AddRow(
-						deploy.Name,
-						deploy.Namespace,
-						fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
-						deploy.Spec.Template.Spec.Containers[0].Image,
-						fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
-						fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
-						limitStringLength(strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "), 50),
-						limitStringLength(GetEnvVariable(deploy.Spec.Template.Spec.Containers[0].Env), 50),
-					)
-				}
-				cmd.Println(table.String())
 			}
 			return nil
 		},
@@ -161,8 +165,110 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(FlagSpecify, "s", "", "Specify the name of the deployment to check detail information. If empty, it will print all deployments information. Default to be empty.")
-	cmd.Flags().StringP(FlagDeploymentNamespace, "n", "", "Specify the namespace of the deployment to check detail information. If empty, it will prints deployments information of all namespaces. Default to be empty. An empty namespace may not be can when a resource name is provided. ")
+	cmd.Flags().StringP(FlagOutputFormat, "o", "", "Specifies the output format. One of: (wide | yaml)")
 	return cmd
+}
+
+// SpecifiedFormatPrinter prints the specified deployment's information
+func SpecifiedFormatPrinter(deployment v1.Deployment) *uitable.Table {
+	table := newUITable().
+		AddRow("Name:", deployment.Name).
+		AddRow("Namespace:", deployment.Namespace).
+		AddRow("CreationTimestamp:", deployment.CreationTimestamp).
+		AddRow("Labels:", Map2Str(deployment.Labels)).
+		AddRow("Annotations:", Map2Str(deployment.Annotations)).
+		AddRow("Selector:", Map2Str(deployment.Spec.Selector.MatchLabels)).
+		AddRow("Image:", deployment.Spec.Template.Spec.Containers[0].Image).
+		AddRow("Args:", strings.Join(deployment.Spec.Template.Spec.Containers[0].Args, "\n")).
+		AddRow("Envs:", GetEnvVariable(deployment.Spec.Template.Spec.Containers[0].Env)).
+		AddRow("Limits:", CpuMem(deployment.Spec.Template.Spec.Containers[0].Resources.Limits)).
+		AddRow("Requests:", CpuMem(deployment.Spec.Template.Spec.Containers[0].Resources.Requests))
+	table.MaxColWidth = 120
+	return table
+}
+
+func CpuMem(resourceList corev1.ResourceList) string {
+	b := new(bytes.Buffer)
+	fmt.Fprintf(b, "cpu=%s\n", resourceList.Cpu())
+	fmt.Fprintf(b, "memory=%s", resourceList.Memory())
+	return b.String()
+}
+
+// Map2Str converts map to string
+func Map2Str(m map[string]string) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=%s\n", key, value)
+	}
+	if len(b.String()) > 1 {
+		return b.String()[:len(b.String())-1]
+	}
+	return b.String()
+}
+
+// NormalFormatPrinter prints information in format of normal
+func NormalFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *metrics.Clientset) (*uitable.Table, error) {
+	podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
+		ctx,
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)")
+	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
+	for _, deploy := range deployments.Items {
+		table.AddRow(
+			deploy.Name,
+			deploy.Namespace,
+			fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
+			deploy.Spec.Template.Spec.Containers[0].Image,
+			fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
+			fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
+		)
+	}
+	return table, nil
+}
+
+// WideFormatPrinter prints information in format of wide
+func WideFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *metrics.Clientset) (*uitable.Table, error) {
+	podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
+		ctx,
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS", "ENVS")
+	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
+	for _, deploy := range deployments.Items {
+		table.AddRow(
+			deploy.Name,
+			deploy.Namespace,
+			fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
+			deploy.Spec.Template.Spec.Containers[0].Image,
+			fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
+			fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
+			limitStringLength(strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "), 180),
+			limitStringLength(GetEnvVariable(deploy.Spec.Template.Spec.Containers[0].Env), 180),
+		)
+	}
+	return table, nil
+}
+
+// YamlFormatPrinter prints information in format of yaml
+func YamlFormatPrinter(deployments *v1.DeploymentList) (string, error) {
+	str := ""
+	for _, deployment := range deployments.Items {
+		// Set ManagedFields to nil because it's too long to read
+		deployment.ManagedFields = nil
+		deploymentYaml, err := yaml.Marshal(deployment)
+		if err != nil {
+			return "", err
+		}
+		str += string(deploymentYaml)
+	}
+	return str, nil
 }
 
 // ComputeMetricByDeploymentName computes cpu and memory metric of deployment
