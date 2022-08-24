@@ -57,7 +57,8 @@ const (
 	GrantTypeRefresh = "refresh"
 )
 
-var signedKey = ""
+// signedKey is the signed key of JWT
+var signedKey string
 
 // AuthenticationService is the service of authentication
 type AuthenticationService interface {
