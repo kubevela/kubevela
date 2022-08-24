@@ -1363,7 +1363,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		Expect(k8sClient.Create(ctx, &app)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &rt)).Should(BeNil())
 
-		prd := provider{cli: k8sClient}
+		prd := provider{cli: k8sClient, ctxFactory: context.Background}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"
@@ -1417,7 +1417,7 @@ var _ = Describe("unit-test to e2e test", func() {
 		// clear after test
 		objectList = append(objectList, &badRuleConfigMap)
 
-		prd := provider{cli: k8sClient}
+		prd := provider{cli: k8sClient, ctxFactory: context.Background}
 		opt := `app: {
 				name: "app"
 				namespace: "test-namespace"

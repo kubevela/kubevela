@@ -83,7 +83,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
 	})
-	query.Install(handlerProviders, h.r.Client, nil)
+	query.Install(handlerProviders, h.r.Client, nil, func() context.Context {
+		return auth.ContextWithUserInfo(ctx, h.app)
+	})
 
 	var tasks []wfTypes.TaskRunner
 	for _, step := range af.WorkflowSteps {

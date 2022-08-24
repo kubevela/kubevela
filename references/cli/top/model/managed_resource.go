@@ -91,7 +91,7 @@ func ListManagedResource(ctx context.Context, c client.Client) (*ManagedResource
 	}
 
 	collector := query.NewAppCollector(c, opt)
-	appResList, err := collector.CollectResourceFromApp()
+	appResList, err := collector.CollectResourceFromApp(ctx)
 
 	if err != nil {
 		return list, err

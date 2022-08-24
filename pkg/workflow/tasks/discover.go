@@ -336,7 +336,7 @@ func NewViewTaskDiscover(pd *packages.PackageDiscover, cli client.Client, cfg *r
 	handlerProviders := providers.NewProviders()
 
 	// install builtin provider
-	query.Install(handlerProviders, cli, cfg)
+	query.Install(handlerProviders, cli, cfg, nil)
 	timeprovider.Install(handlerProviders)
 	kube.Install(handlerProviders, nil, cli, apply, delete)
 	http.Install(handlerProviders, cli, viewNs)

@@ -56,8 +56,9 @@ const (
 )
 
 type provider struct {
-	cli client.Client
-	cfg *rest.Config
+	cli        client.Client
+	cfg        *rest.Config
+	ctxFactory func() context.Context
 }
 
 // Resource refer to an object with cluster info
@@ -101,7 +102,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 		return err
 	}
 	collector := NewAppCollector(h.cli, opt)
-	appResList, err := collector.CollectResourceFromApp()
+	appResList, err := collector.CollectResourceFromApp(h.ctxFactory())
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -113,6 +114,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
 func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	_ctx := h.ctxFactory()
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -124,10 +126,10 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
+	if err = h.cli.Get(_ctx, appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(_ctx, app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -138,6 +140,7 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 }
 
 func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
+	_ctx := h.ctxFactory()
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -149,10 +152,10 @@ func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act t
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(context.Background(), appKey, app); err != nil {
+	if err = h.cli.Get(h.ctxFactory(), appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(_ctx, app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -164,7 +167,7 @@ func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act t
 			var object unstructured.Unstructured
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := h.cli.Get(context.Background(), apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := h.cli.Get(h.ctxFactory(), apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
 				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
@@ -193,7 +196,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 		return err
 	}
 
-	listCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	listCtx := multicluster.ContextWithClusterName(h.ctxFactory(), cluster)
 	fieldSelector := getEventFieldSelector(obj)
 	eventList := corev1.EventList{}
 	listOpts := []client.ListOption{
@@ -229,7 +232,7 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 	if err = val.UnmarshalTo(opts); err != nil {
 		return errors.Wrapf(err, "invalid log options content")
 	}
-	cliCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
+	cliCtx := multicluster.ContextWithClusterName(h.ctxFactory(), cluster)
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create kubernetes client")
@@ -293,10 +296,14 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client, cfg *rest.Config) {
+func Install(p providers.Providers, cli client.Client, cfg *rest.Config, ctxFactory func() context.Context) {
 	prd := &provider{
-		cli: cli,
-		cfg: cfg,
+		cli:        cli,
+		cfg:        cfg,
+		ctxFactory: ctxFactory,
+	}
+	if prd.ctxFactory == nil {
+		prd.ctxFactory = context.Background
 	}
 
 	p.Register(ProviderName, map[string]providers.Handler{
