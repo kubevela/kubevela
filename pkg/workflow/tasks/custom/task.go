@@ -477,8 +477,11 @@ func (exec *executor) doSteps(ctx wfContext.Context, v *value.Value) error {
 	}
 	return v.StepByFields(func(fieldName string, in *value.Value) (bool, error) {
 		if in.CueValue().IncompleteKind() == cue.BottomKind {
-			// continue if the field is incomplete
-			return false, nil
+			errInfo, err := sets.ToString(in.CueValue())
+			if err != nil {
+				errInfo = "value is _|_"
+			}
+			return true, errors.New(errInfo + "(bottom kind)")
 		}
 		if retErr := in.CueValue().Err(); retErr != nil {
 			errInfo, err := sets.ToString(in.CueValue())

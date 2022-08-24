@@ -1,0 +1,50 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: workflow-custom-if
+  namespace: default
+spec:
+  components:
+  - name: comp-custom-if
+    type: webservice
+    properties:
+      image: crccheck/hello-world
+      port: 8000
+    traits:
+  workflow:
+    steps:
+    - name: apply
+      type: apply-component
+      properties:
+        component: comp-custom-if
+      outputs:
+        - name: comp-output
+          valueFrom: context.name
+    - name: notification
+      type: notification
+      inputs:
+        - from: comp-output
+          parameterKey: slack.message.text
+      if: inputs["comp-output"] == "custom-if"
+      properties:
+        slack:
+          url:
+            value: https://kubevela.io
+    - name: notification-skip
+      type: notification
+      if: status.notification.failed
+      properties:
+        slack:
+          url:
+            value: https://kubevela.io
+          message:
+            text: skip
+    - name: notification-succeeded
+      type: notification
+      if: status.notification.succeeded
+      properties:
+        slack:
+          url:
+            value: https://kubevela.io
+          message:
+            text: succeeded
