@@ -5,9 +5,7 @@ import (
 "export-data": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Export data to clusters specified by topology."
 }
 template: {

@@ -5,8 +5,6 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Collect service endpoints for the application.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: collect-service-endpoints
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
@@ -36,12 +34,28 @@ spec:
         	}
         } @step(1)
         outputs: {
-        	endpoints: *[] | [...]
+        	eps: *[] | [...]
         	if parameter.port == _|_ {
-        		endpoints: collect.list
+        		eps: collect.list
         	}
         	if parameter.port != _|_ {
-        		endpoints: [ for ep in collect.list if parameter.port == ep.endpoint.port {ep}]
+        		eps: [ for ep in collect.list if parameter.port == ep.endpoint.port {ep}]
+        	}
+        	endpoints: *[] | [...]
+        	if parameter.outer != _|_ {
+        		tmps: [ for ep in eps {
+        			ep
+        			if ep.endpoint.inner == _|_ {
+        				outer: true
+        			}
+        			if ep.endpoint.inner != _|_ {
+        				outer: !ep.endpoint.inner
+        			}
+        		}]
+        		endpoints: [ for ep in tmps if (!parameter.outer || ep.outer) {ep}]
+        	}
+        	if parameter.outer == _|_ {
+        		endpoints: eps
         	}
         }
         wait: op.#ConditionalWait & {
@@ -61,5 +75,7 @@ spec:
         	components?: [...string]
         	// +usage=Filter the port of the endpoints
         	port?: int
+        	// +usage=Filter the endpoint that are only outer
+        	outer?: bool
         }
 

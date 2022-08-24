@@ -6,9 +6,7 @@ import (
 "collect-service-endpoints": {
 	type: "workflow-step"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
+	labels: {}
 	description: "Collect service endpoints for the application."
 }
 template: {
@@ -31,12 +29,28 @@ template: {
 	} @step(1)
 
 	outputs: {
-		endpoints: *[] | [...]
+		eps: *[] | [...]
 		if parameter.port == _|_ {
-			endpoints: collect.list
+			eps: collect.list
 		}
 		if parameter.port != _|_ {
-			endpoints: [ for ep in collect.list if parameter.port == ep.endpoint.port {ep}]
+			eps: [ for ep in collect.list if parameter.port == ep.endpoint.port {ep}]
+		}
+		endpoints: *[] | [...]
+		if parameter.outer != _|_ {
+			tmps: [ for ep in eps {
+				ep
+				if ep.endpoint.inner == _|_ {
+					outer: true
+				}
+				if ep.endpoint.inner != _|_ {
+					outer: !ep.endpoint.inner
+				}
+			}]
+			endpoints: [ for ep in tmps if (!parameter.outer || ep.outer) {ep}]
+		}
+		if parameter.outer == _|_ {
+			endpoints: eps
 		}
 	}
 
@@ -59,5 +73,7 @@ template: {
 		components?: [...string]
 		// +usage=Filter the port of the endpoints
 		port?: int
+		// +usage=Filter the endpoint that are only outer
+		outer?: bool
 	}
 }
