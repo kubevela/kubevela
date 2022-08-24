@@ -181,13 +181,14 @@ func SpecifiedFormatPrinter(deployment v1.Deployment) *uitable.Table {
 		AddRow("Image:", deployment.Spec.Template.Spec.Containers[0].Image).
 		AddRow("Args:", strings.Join(deployment.Spec.Template.Spec.Containers[0].Args, "\n")).
 		AddRow("Envs:", GetEnvVariable(deployment.Spec.Template.Spec.Containers[0].Env)).
-		AddRow("Limits:", CpuMem(deployment.Spec.Template.Spec.Containers[0].Resources.Limits)).
-		AddRow("Requests:", CpuMem(deployment.Spec.Template.Spec.Containers[0].Resources.Requests))
+		AddRow("Limits:", CPUMem(deployment.Spec.Template.Spec.Containers[0].Resources.Limits)).
+		AddRow("Requests:", CPUMem(deployment.Spec.Template.Spec.Containers[0].Resources.Requests))
 	table.MaxColWidth = 120
 	return table
 }
 
-func CpuMem(resourceList corev1.ResourceList) string {
+// CPUMem returns the upsage of cpu and memory
+func CPUMem(resourceList corev1.ResourceList) string {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "cpu=%s\n", resourceList.Cpu())
 	fmt.Fprintf(b, "memory=%s", resourceList.Memory())
