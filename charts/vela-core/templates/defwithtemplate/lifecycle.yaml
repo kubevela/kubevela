@@ -5,13 +5,14 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Add lifecycle hooks for every container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: lifecycle
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   appliesToWorkloads:
-    - '*'
+    - deployments.apps
+    - statefulsets.apps
+    - daemonsets.apps
+    - jobs.batch
   podDisruptive: true
   schematic:
     cue:

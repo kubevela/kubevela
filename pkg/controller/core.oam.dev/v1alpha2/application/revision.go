@@ -54,6 +54,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 type contextKey string
@@ -73,6 +74,8 @@ const (
 	ComponentNamespaceContextKey = contextKey("component-namespace")
 	// ComponentContextKey is the key in context that records the component
 	ComponentContextKey = contextKey("component")
+	// ReplicaKeyContextKey is the key in context that records the replica key
+	ReplicaKeyContextKey = contextKey("replica-key")
 )
 
 const rolloutTraitName = "rollout"
@@ -114,6 +117,15 @@ func contextWithComponentNamespace(ctx context.Context, ns string) context.Conte
 func componentNamespaceFromContext(ctx context.Context) string {
 	ns, _ := ctx.Value(ComponentNamespaceContextKey).(string)
 	return ns
+}
+
+func contextWithReplicaKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, ReplicaKeyContextKey, key)
+}
+
+func replicaKeyFromContext(ctx context.Context) string {
+	key, _ := ctx.Value(ReplicaKeyContextKey).(string)
+	return key
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
@@ -625,7 +637,7 @@ func (h *AppHandler) handleComponentRevisionNameUnspecified(ctx context.Context,
 
 	crList := &appsv1.ControllerRevisionList{}
 	listOpts := []client.ListOption{client.MatchingLabels{
-		oam.LabelControllerRevisionComponent: comp.Name,
+		oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(comp.Name),
 	}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 	if err := h.r.List(auth.ContextWithUserInfo(ctx, h.app), crList, listOpts...); err != nil {
 		return err
@@ -732,10 +744,10 @@ func (h *AppHandler) createControllerRevision(ctx context.Context, cm *types.Com
 			Name:      cm.RevisionName,
 			Namespace: h.getComponentRevisionNamespace(ctx),
 			Labels: map[string]string{
-				oam.LabelAppComponent:                cm.Name,
+				oam.LabelAppComponent:                pkgutils.EscapeResourceNameToLabelValue(cm.Name),
 				oam.LabelAppCluster:                  multicluster.ClusterNameInContext(ctx),
 				oam.LabelAppEnv:                      envbinding.EnvNameInContext(ctx),
-				oam.LabelControllerRevisionComponent: cm.Name,
+				oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(cm.Name),
 				oam.LabelComponentRevisionHash:       cm.RevisionHash,
 			},
 		},
@@ -962,7 +974,7 @@ func cleanUpWorkflowComponentRevision(ctx context.Context, h *AppHandler) error 
 	for _, curComp := range h.app.Status.AppliedResources {
 		crList := &appsv1.ControllerRevisionList{}
 		listOpts := []client.ListOption{client.MatchingLabels{
-			oam.LabelControllerRevisionComponent: curComp.Name,
+			oam.LabelControllerRevisionComponent: pkgutils.EscapeResourceNameToLabelValue(curComp.Name),
 		}, client.InNamespace(h.getComponentRevisionNamespace(ctx))}
 		_ctx := multicluster.ContextWithClusterName(ctx, curComp.Cluster)
 		if err := h.r.List(_ctx, crList, listOpts...); err != nil {
@@ -1004,7 +1016,7 @@ func (h historiesByComponentRevision) Less(i, j int) bool {
 
 // UpdateApplicationRevisionStatus update application revision status
 func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev *v1beta1.ApplicationRevision, succeed bool, wfStatus *common.WorkflowStatus) {
-	if appRev == nil {
+	if appRev == nil || DisableAllApplicationRevision {
 		return
 	}
 	appRev.Status.Succeeded = succeed

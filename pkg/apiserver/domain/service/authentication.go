@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -57,7 +58,8 @@ const (
 	GrantTypeRefresh = "refresh"
 )
 
-var signedKey = ""
+// signedKey is the signed key of JWT
+var signedKey string
 
 // AuthenticationService is the service of authentication
 type AuthenticationService interface {
@@ -68,10 +70,12 @@ type AuthenticationService interface {
 }
 
 type authenticationServiceImpl struct {
-	SysService  SystemInfoService   `inject:""`
-	UserService UserService         `inject:""`
-	Store       datastore.DataStore `inject:"datastore"`
-	KubeClient  client.Client       `inject:"kubeClient"`
+	SysService        SystemInfoService   `inject:""`
+	UserService       UserService         `inject:""`
+	ProjectService    ProjectService      `inject:""`
+	SystemInfoService SystemInfoService   `inject:""`
+	Store             datastore.DataStore `inject:"datastore"`
+	KubeClient        client.Client       `inject:"kubeClient"`
 }
 
 // NewAuthenticationService new authentication service
@@ -84,8 +88,10 @@ type authHandler interface {
 }
 
 type dexHandlerImpl struct {
-	idToken *oidc.IDToken
-	Store   datastore.DataStore
+	idToken           *oidc.IDToken
+	Store             datastore.DataStore
+	projectService    ProjectService
+	systemInfoService SystemInfoService
 }
 
 type localHandlerImpl struct {
@@ -124,8 +130,10 @@ func (a *authenticationServiceImpl) newDexHandler(ctx context.Context, req apisv
 		return nil, err
 	}
 	return &dexHandlerImpl{
-		idToken: idToken,
-		Store:   a.Store,
+		idToken:           idToken,
+		Store:             a.Store,
+		projectService:    a.ProjectService,
+		systemInfoService: a.SystemInfoService,
 	}, nil
 }
 
@@ -150,13 +158,13 @@ func (a *authenticationServiceImpl) Login(ctx context.Context, loginReq apisv1.L
 	}
 	loginType := sysInfo.LoginType
 
-	switch loginType {
-	case model.LoginTypeDex:
+	switch {
+	case loginType == model.LoginTypeDex || (loginReq.Code != "" && loginReq.Username == ""):
 		handler, err = a.newDexHandler(ctx, loginReq)
 		if err != nil {
 			return nil, err
 		}
-	case model.LoginTypeLocal:
+	case loginType == model.LoginTypeLocal:
 		handler, err = a.newLocalHandler(loginReq)
 		if err != nil {
 			return nil, err
@@ -282,6 +290,11 @@ func generateDexConfig(ctx context.Context, kubeClient client.Client, update *mo
 	if len(update.StaticPasswords) > 0 {
 		dexConfig.StaticPasswords = update.StaticPasswords
 	}
+	// This is the title that the dex login page.
+	// It will be: Log in to KubeVela
+	if dexConfig.Frontend.Issuer == "" {
+		dexConfig.Frontend.Issuer = "KubeVela"
+	}
 	config, err := model.NewJSONStructByStruct(dexConfig)
 	if err != nil {
 		return err
@@ -317,7 +330,7 @@ func initDexConfig(ctx context.Context, kubeClient client.Client, velaAddress st
 		StaticClients: []model.DexStaticClient{
 			{
 				ID:           "velaux",
-				Name:         "Vela UX",
+				Name:         "VelaUX",
 				Secret:       "velaux-secret",
 				RedirectURIs: []string{fmt.Sprintf("%s/callback", velaAddress)},
 			},
@@ -397,9 +410,13 @@ func getDexConfig(ctx context.Context, kubeClient client.Client) (*model.DexConf
 		Namespace: velatypes.DefaultKubeVelaNS,
 	}, dexConfigSecret); err != nil {
 		if kerrors.IsNotFound(err) {
-			return nil, bcode.ErrDexConfigNotFound
+			dexConfigSecret, err = initDexConfig(ctx, kubeClient, "http://velaux.com")
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	if dexConfigSecret.Data == nil {
 		return nil, bcode.ErrInvalidDexConfig
@@ -433,31 +450,71 @@ func (a *authenticationServiceImpl) GetLoginType(ctx context.Context) (*apisv1.G
 func (d *dexHandlerImpl) login(ctx context.Context) (*apisv1.UserBase, error) {
 	var claims struct {
 		Email string `json:"email"`
-		Name  string `json:"name"`
+		// Name End-User's full name in displayable form including all name parts, possibly including titles and suffixes, ordered according to the End-User's locale and preferences.
+		Name string `json:"name"`
+		// Subject - Identifier for the End-User at the Issuer.
+		Sub string `json:"sub"`
 	}
 	if err := d.idToken.Claims(&claims); err != nil {
 		return nil, err
 	}
-
-	user := &model.User{Email: claims.Email}
-	userBase := &apisv1.UserBase{Email: claims.Email, Name: claims.Name}
-	users, err := d.Store.List(ctx, user, &datastore.ListOptions{})
-	if err != nil {
-		return nil, err
+	var users []datastore.Entity
+	var err error
+	if claims.Email != "" {
+		user := &model.User{Email: claims.Email}
+		users, err = d.Store.List(ctx, user, &datastore.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
 	}
+	if len(users) == 0 && claims.Sub != "" {
+		// Support query the user by the subject
+		user := &model.User{DexSub: claims.Sub}
+		users, err = d.Store.List(ctx, user, &datastore.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	var userBase *apisv1.UserBase
 	if len(users) > 0 {
 		u := users[0].(*model.User)
 		u.LastLoginTime = time.Now()
+		u.DexSub = claims.Sub
 		if err := d.Store.Put(ctx, u); err != nil {
 			return nil, err
 		}
-		userBase.Name = u.Name
-	} else if err := d.Store.Add(ctx, &model.User{
-		Email:         claims.Email,
-		Name:          claims.Name,
-		LastLoginTime: time.Now(),
-	}); err != nil {
-		return nil, err
+		userBase = convertUserBase(u)
+	} else {
+		systemInfo, err := d.systemInfoService.GetSystemInfo(ctx)
+		if err != nil {
+			log.Logger.Errorf("failed to get the system info %s", err.Error())
+		}
+		user := &model.User{
+			Email:         claims.Email,
+			Name:          strings.ToLower(claims.Sub),
+			DexSub:        claims.Sub,
+			Alias:         claims.Name,
+			LastLoginTime: time.Now(),
+		}
+		if systemInfo != nil {
+			user.UserRoles = systemInfo.DexUserDefaultPlatformRoles
+		}
+		if err := d.Store.Add(ctx, user); err != nil {
+			log.Logger.Errorf("failed to save the user from the dex: %s", err.Error())
+			return nil, err
+		}
+		if systemInfo != nil {
+			for _, project := range systemInfo.DexUserDefaultProjects {
+				_, err := d.projectService.AddProjectUser(ctx, project.Name, apisv1.AddProjectUserRequest{
+					UserName:  strings.ToLower(claims.Sub),
+					UserRoles: project.Roles,
+				})
+				if err != nil {
+					log.Logger.Errorf("failed to add a user to project %s", err.Error())
+				}
+			}
+		}
+		userBase = convertUserBase(user)
 	}
 
 	return userBase, nil

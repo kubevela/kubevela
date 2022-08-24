@@ -31,7 +31,7 @@ import (
 // NewDeleteCommand Delete App
 func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "delete APP_NAME",
+		Use:                   "delete APP_NAME1 [APP_NAME2 APP_NAME3...]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete an application",
 		Long:                  "Delete an application.",
@@ -61,11 +61,6 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 		if len(args) < 1 {
 			return errors.New("must specify name for the app")
 		}
-		o.AppName = args[0]
-		svcname, err := cmd.Flags().GetString(Service)
-		if err != nil {
-			return err
-		}
 		wait, err := cmd.Flags().GetBool("wait")
 		if err != nil {
 			return err
@@ -76,31 +71,23 @@ func NewDeleteCommand(c common2.Args, order string, ioStreams cmdutil.IOStreams)
 			return err
 		}
 		o.ForceDelete = force
-		userInput := NewUserInput()
-		if svcname == "" {
-			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
-			if !userConfirmation {
-				return fmt.Errorf("stopping Deleting")
+		for _, app := range args {
+			o.AppName = app
+			userInput := NewUserInput()
+			if !assumeYes {
+				userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the application %s from namespace %s", o.AppName, o.Namespace), &UserInputOptions{assumeYes})
+				if !userConfirmation {
+					return fmt.Errorf("stopping Deleting")
+				}
 			}
 			if err = o.DeleteApp(ioStreams); err != nil {
 				return err
 			}
 			ioStreams.Info(green.Sprintf("app \"%s\" deleted from namespace \"%s\"", o.AppName, o.Namespace))
-		} else {
-			userConfirmation := userInput.AskBool(fmt.Sprintf("Do you want to delete the component %s from application %s in namespace %s", svcname, o.AppName, o.Namespace), &UserInputOptions{assumeYes})
-			if !userConfirmation {
-				return fmt.Errorf("stopping Deleting")
-			}
-			o.CompName = svcname
-			if err = o.DeleteComponent(ioStreams); err != nil {
-				return err
-			}
-			ioStreams.Info(green.Sprintf("component \"%s\" deleted from \"%s\"", o.CompName, o.AppName))
 		}
 		return nil
 	}
 
-	cmd.PersistentFlags().StringP(Service, "", "", "delete only the specified service in this app")
 	cmd.PersistentFlags().BoolVarP(&o.Wait, "wait", "w", false, "wait util the application is deleted completely")
 	cmd.PersistentFlags().BoolVarP(&o.ForceDelete, "force", "f", false, "force to delete the application")
 	addNamespaceAndEnvArg(cmd)

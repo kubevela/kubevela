@@ -19,6 +19,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -29,8 +30,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -52,9 +51,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	utils2 "github.com/oam-dev/kubevela/pkg/utils"
+	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	commonutil "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // PolicyType build-in policy type
@@ -84,7 +83,7 @@ type ApplicationService interface {
 	ListPolicies(ctx context.Context, app *model.Application) ([]*apisv1.PolicyBase, error)
 	CreatePolicy(ctx context.Context, app *model.Application, policy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error)
 	DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error)
-	DeletePolicy(ctx context.Context, app *model.Application, policyName string) error
+	DeletePolicy(ctx context.Context, app *model.Application, policyName string, force bool) error
 	UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policy apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error)
 	CreateApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, req apisv1.CreateApplicationTraitRequest) (*apisv1.ApplicationTrait, error)
 	DeleteApplicationTrait(ctx context.Context, app *model.Application, component *model.ApplicationComponent, traitType string) error
@@ -93,7 +92,7 @@ type ApplicationService interface {
 	DetailRevision(ctx context.Context, appName, revisionName string) (*apisv1.DetailRevisionResponse, error)
 	Statistics(ctx context.Context, app *model.Application) (*apisv1.ApplicationStatisticsResponse, error)
 	ListRecords(ctx context.Context, appName string) (*apisv1.ListWorkflowRecordsResponse, error)
-	CompareAppWithLatestRevision(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
+	CompareApp(ctx context.Context, app *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error)
 	ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error)
 	DryRunAppOrRevision(ctx context.Context, app *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error)
 	CreateApplicationTrigger(ctx context.Context, app *model.Application, req apisv1.CreateApplicationTriggerRequest) (*apisv1.ApplicationTriggerBase, error)
@@ -127,7 +126,7 @@ func listApp(ctx context.Context, ds datastore.DataStore, listOptions apisv1.Lis
 	if listOptions.Env != "" || listOptions.TargetName != "" {
 		envBinding, err = repository.ListFullEnvBinding(ctx, ds, repository.EnvListOption{})
 		if err != nil {
-			log.Logger.Errorf("list envbinding for list application in env %s err %v", utils2.Sanitize(listOptions.Env), err)
+			log.Logger.Errorf("list envbinding for list application in env %s err %v", pkgUtils.Sanitize(listOptions.Env), err)
 			return nil, err
 		}
 	}
@@ -196,7 +195,7 @@ func (c *applicationServiceImpl) ListApplications(ctx context.Context, listOptio
 		return []*apisv1.ApplicationBase{}, nil
 	}
 	if len(listOptions.Projects) > 0 {
-		if !utils2.SliceIncludeSlice(availableProjectNames, listOptions.Projects) {
+		if !pkgUtils.SliceIncludeSlice(availableProjectNames, listOptions.Projects) {
 			return []*apisv1.ApplicationBase{}, nil
 		}
 	}
@@ -263,7 +262,6 @@ func (c *applicationServiceImpl) DetailApplication(ctx context.Context, app *mod
 	for _, e := range envBindings {
 		envBindingNames = append(envBindingNames, e.Name)
 	}
-
 	var detail = &apisv1.DetailApplicationResponse{
 		ApplicationBase: *base,
 		Policies:        policyNames,
@@ -282,7 +280,11 @@ func (c *applicationServiceImpl) GetApplicationStatus(ctx context.Context, appmo
 	if err != nil {
 		return nil, err
 	}
-	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: appmodel.GetAppNameForSynced()}, &app)
+	envBinding, err := c.EnvBindingService.GetEnvBinding(ctx, appmodel, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: envBinding.AppDeployName}, &app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
@@ -295,36 +297,45 @@ func (c *applicationServiceImpl) GetApplicationStatus(ctx context.Context, appmo
 	return &app.Status, nil
 }
 
+// GetApplicationStatus get application CR from controller cluster
+func (c *applicationServiceImpl) GetApplicationCRInEnv(ctx context.Context, appmodel *model.Application, envName string) (*v1beta1.Application, error) {
+	var app v1beta1.Application
+	env, err := c.EnvService.GetEnv(ctx, envName)
+	if err != nil {
+		return nil, err
+	}
+	envBinding, err := c.EnvBindingService.GetEnvBinding(ctx, appmodel, envName)
+	if err != nil {
+		return nil, err
+	}
+	err = c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.Namespace, Name: envBinding.AppDeployName}, &app)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &app, nil
+}
+
 // GetApplicationCR get application CR in cluster
-func (c *applicationServiceImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) (*v1beta1.ApplicationList, error) {
-	var apps v1beta1.ApplicationList
-	if appModel.IsSynced() {
+func (c *applicationServiceImpl) GetApplicationCR(ctx context.Context, appModel *model.Application) ([]v1beta1.Application, error) {
+	var apps []v1beta1.Application
+	envbindings, err := c.EnvBindingService.GetEnvBindings(ctx, appModel)
+	if err != nil {
+		return nil, err
+	}
+	for _, env := range envbindings {
 		var app v1beta1.Application
-		err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: appModel.GetAppNamespaceForSynced(), Name: appModel.GetAppNameForSynced()}, &app)
+		err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: env.AppDeployNamespace, Name: env.AppDeployName}, &app)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 		if err == nil {
-			apps.Items = append(apps.Items, app)
-			return &apps, nil
+			apps = append(apps, app)
 		}
 	}
-	selector := labels.NewSelector()
-	re, err := labels.NewRequirement(oam.AnnotationAppName, selection.Equals, []string{appModel.GetAppNameForSynced()})
-	if err != nil {
-		return nil, err
-	}
-	selector = selector.Add(*re)
-	err = c.KubeClient.List(ctx, &apps, &client.ListOptions{
-		LabelSelector: selector,
-	})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return &apps, nil
-		}
-		return nil, err
-	}
-	return &apps, nil
+	return apps, nil
 }
 
 // PublishApplicationTemplate publish app template
@@ -494,6 +505,21 @@ func (c *applicationServiceImpl) UpdateApplication(ctx context.Context, app *mod
 	}
 	app.Alias = req.Alias
 	app.Description = req.Description
+
+	// Some built-in labels can not be updated
+	if app.Labels != nil && req.Labels != nil {
+		if _, exist := app.Labels[model.LabelSyncNamespace]; exist {
+			req.Labels[model.LabelSyncNamespace] = app.Labels[model.LabelSyncNamespace]
+		}
+
+		if _, exist := app.Labels[model.LabelSourceOfTruth]; exist {
+			req.Labels[model.LabelSourceOfTruth] = app.Labels[model.LabelSourceOfTruth]
+		}
+
+		if _, exist := app.Labels[model.LabelSyncGeneration]; exist {
+			req.Labels[model.LabelSyncGeneration] = app.Labels[model.LabelSyncGeneration]
+		}
+	}
 	app.Labels = req.Labels
 	app.Icon = req.Icon
 	if err := c.Store.Put(ctx, app); err != nil {
@@ -523,7 +549,6 @@ func (c *applicationServiceImpl) ListRecords(ctx context.Context, appName string
 			return nil, err
 		}
 	}
-
 	resp := &apisv1.ListWorkflowRecordsResponse{
 		Records: []apisv1.WorkflowRecord{},
 	}
@@ -565,7 +590,6 @@ func (c *applicationServiceImpl) ListComponents(ctx context.Context, app *model.
 }
 
 // DetailComponent detail app component
-// TODO: Add status data about the component.
 func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model.Application, compName string) (*apisv1.DetailComponentResponse, error) {
 	var component = model.ApplicationComponent{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -577,7 +601,7 @@ func (c *applicationServiceImpl) DetailComponent(ctx context.Context, app *model
 	}
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: component.Type, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(component.Type), err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(component.Type), err.Error())
 	}
 
 	return &apisv1.DetailComponentResponse{
@@ -600,7 +624,6 @@ func (c *applicationServiceImpl) ListPolicies(ctx context.Context, app *model.Ap
 }
 
 // DetailPolicy detail app policy
-// TODO: Add status data about the policy.
 func (c *applicationServiceImpl) DetailPolicy(ctx context.Context, app *model.Application, policyName string) (*apisv1.DetailPolicyResponse, error) {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
@@ -610,8 +633,13 @@ func (c *applicationServiceImpl) DetailPolicy(ctx context.Context, app *model.Ap
 	if err != nil {
 		return nil, err
 	}
+	wlb, err := c.findAllBindingPolicyWorkflowStep(ctx, app, policyName)
+	if err != nil {
+		return nil, err
+	}
 	return &apisv1.DetailPolicyResponse{
-		PolicyBase: *assembler.ConvertPolicyModelToBase(&policy),
+		PolicyBase:             *assembler.ConvertPolicyModelToBase(&policy),
+		WorkflowPolicyBindings: wlb,
 	}, nil
 }
 
@@ -629,7 +657,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	// TODO: rollback to handle all the error case
 	// step1: Render oam application
 	version := utils.GenerateVersion("")
-	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, version)
+	oamApp, err := c.renderOAMApplication(ctx, app, req.WorkflowName, "", version)
 	if err != nil {
 		return nil, err
 	}
@@ -681,6 +709,7 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 	var appRevision = &model.ApplicationRevision{
 		AppPrimaryKey:  app.PrimaryKey(),
 		Version:        version,
+		RevisionCRName: version,
 		ApplyAppConfig: string(configByte),
 		Status:         model.RevisionStatusInit,
 		DeployUser:     userName,
@@ -727,6 +756,15 @@ func (c *applicationServiceImpl) Deploy(ctx context.Context, app *model.Applicat
 		log.Logger.Warnf("update app revision failure %s", err.Error())
 	}
 
+	// step7: change the source of trust
+	if app.Labels == nil {
+		app.Labels = make(map[string]string)
+	}
+	app.Labels[model.LabelSourceOfTruth] = model.FromUX
+	if err := c.Store.Put(ctx, app); err != nil {
+		log.Logger.Warnf("failed to update app %s", err.Error())
+	}
+
 	return &apisv1.ApplicationDeployResponse{
 		ApplicationRevisionBase: c.convertRevisionModelToBase(ctx, appRevision),
 	}, nil
@@ -770,7 +808,7 @@ func (c *applicationServiceImpl) syncConfigs4Application(ctx context.Context, ap
 	return nil
 }
 
-func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, version string) (*v1beta1.Application, error) {
+func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appModel *model.Application, reqWorkflowName, envName, version string) (*v1beta1.Application, error) {
 	// Priority 1 uses the requested workflow as release .
 	// Priority 2 uses the default workflow as release .
 	var workflow *model.Workflow
@@ -786,14 +824,16 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 			return nil, err
 		}
 	}
-	if workflow == nil || workflow.EnvName == "" {
-		return nil, bcode.ErrWorkflowNotExist
+	if workflow != nil && envName == "" {
+		envName = workflow.EnvName
 	}
-	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, workflow.EnvName)
+
+	env, err := c.EnvService.GetEnv(ctx, envName)
 	if err != nil {
 		return nil, err
 	}
-	env, err := c.EnvService.GetEnv(ctx, workflow.EnvName)
+
+	envbinding, err := c.EnvBindingService.GetEnvBinding(ctx, appModel, envName)
 	if err != nil {
 		return nil, err
 	}
@@ -896,25 +936,25 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 		}
 		app.Spec.Policies = append(app.Spec.Policies, appPolicy)
 	}
-
-	app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
-	var steps []v1beta1.WorkflowStep
-	for _, step := range workflow.Steps {
-		var workflowStep = v1beta1.WorkflowStep{
-			Name:    step.Name,
-			Type:    step.Type,
-			Inputs:  step.Inputs,
-			Outputs: step.Outputs,
+	if workflow != nil {
+		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
+		var steps []v1beta1.WorkflowStep
+		for _, step := range workflow.Steps {
+			var workflowStep = v1beta1.WorkflowStep{
+				Name:    step.Name,
+				Type:    step.Type,
+				Inputs:  step.Inputs,
+				Outputs: step.Outputs,
+			}
+			if step.Properties != nil {
+				workflowStep.Properties = step.Properties.RawExtension()
+			}
+			steps = append(steps, workflowStep)
 		}
-		if step.Properties != nil {
-			workflowStep.Properties = step.Properties.RawExtension()
+		app.Spec.Workflow = &v1beta1.Workflow{
+			Steps: steps,
 		}
-		steps = append(steps, workflowStep)
 	}
-	app.Spec.Workflow = &v1beta1.Workflow{
-		Steps: steps,
-	}
-
 	return app, nil
 }
 
@@ -932,7 +972,7 @@ func (c *applicationServiceImpl) DeleteApplication(ctx context.Context, app *mod
 	if err != nil {
 		return err
 	}
-	if len(crs.Items) > 0 {
+	if len(crs) > 0 {
 		return bcode.ErrApplicationRefusedDelete
 	}
 	// query all components to deleted
@@ -1045,7 +1085,7 @@ func (c *applicationServiceImpl) UpdateComponent(ctx context.Context, app *model
 func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model.Application, com apisv1.CreateComponentRequest, main bool) (*apisv1.ComponentBase, error) {
 	var cd v1beta1.ComponentDefinition
 	if err := c.KubeClient.Get(ctx, types.NamespacedName{Name: com.ComponentType, Namespace: velatypes.DefaultKubeVelaNS}, &cd); err != nil {
-		log.Logger.Warnf("component definition %s get failure. %s", utils2.Sanitize(com.ComponentType), err.Error())
+		log.Logger.Warnf("component definition %s get failure. %s", pkgUtils.Sanitize(com.ComponentType), err.Error())
 		return nil, bcode.ErrComponentTypeNotSupport
 	}
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
@@ -1100,7 +1140,7 @@ func (c *applicationServiceImpl) createComponent(ctx context.Context, app *model
 		if errors.Is(err, datastore.ErrRecordExist) {
 			return nil, bcode.ErrApplicationComponentExist
 		}
-		log.Logger.Warnf("add component for app %s failure %s", utils2.Sanitize(app.PrimaryKey()), err.Error())
+		log.Logger.Warnf("add component for app %s failure %s", pkgUtils.Sanitize(app.PrimaryKey()), err.Error())
 		return nil, err
 	}
 	// update the env workflow, the automatically generated workflow is determined by the component type.
@@ -1150,16 +1190,18 @@ func (c *applicationServiceImpl) DeleteComponent(ctx context.Context, app *model
 	return nil
 }
 
-func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Application, createpolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
+func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Application, createPolicy apisv1.CreatePolicyRequest) (*apisv1.PolicyBase, error) {
 	userName, _ := ctx.Value(&apisv1.CtxKeyUser).(string)
 	policyModel := model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
-		Description:   createpolicy.Description,
+		Description:   createPolicy.Description,
 		Creator:       userName,
-		Name:          createpolicy.Name,
-		Type:          createpolicy.Type,
+		Name:          createPolicy.Name,
+		Type:          createPolicy.Type,
+		EnvName:       createPolicy.EnvName,
+		Alias:         createPolicy.Alias,
 	}
-	properties, err := model.NewJSONStructByString(createpolicy.Properties)
+	properties, err := model.NewJSONStructByString(createPolicy.Properties)
 	if err != nil {
 		return nil, bcode.ErrInvalidProperties
 	}
@@ -1171,13 +1213,25 @@ func (c *applicationServiceImpl) CreatePolicy(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("add policy for app %s failure %s", app.PrimaryKey(), err.Error())
 		return nil, err
 	}
+	if err = c.handlePolicyBindingWorkflowStep(ctx, app, createPolicy.Name, createPolicy.WorkflowPolicyBindings); err != nil {
+		return nil, err
+	}
 	return assembler.ConvertPolicyModelToBase(&policyModel), nil
 }
 
-func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string) error {
+func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Application, policyName string, force bool) error {
 	var policy = model.ApplicationPolicy{
 		AppPrimaryKey: app.PrimaryKey(),
 		Name:          policyName,
+	}
+	if !force {
+		used, err := c.checkPolicyUsedByWorkflow(ctx, app, policyName)
+		if err != nil {
+			return err
+		}
+		if used {
+			return bcode.ErrApplicationPolicyIsBeingUsed
+		}
 	}
 	if err := c.Store.Delete(ctx, &policy); err != nil {
 		if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -1186,7 +1240,7 @@ func (c *applicationServiceImpl) DeletePolicy(ctx context.Context, app *model.Ap
 		log.Logger.Warnf("delete app policy %s failure %s", app.PrimaryKey(), err.Error())
 		return err
 	}
-	return nil
+	return c.handlePolicyBindingWorkflowStep(ctx, app, policyName, nil)
 }
 
 func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Application, policyName string, policyUpdate apisv1.UpdatePolicyRequest) (*apisv1.DetailPolicyResponse, error) {
@@ -1209,8 +1263,13 @@ func (c *applicationServiceImpl) UpdatePolicy(ctx context.Context, app *model.Ap
 	}
 	policy.Properties = properties
 	policy.Description = policyUpdate.Description
+	policy.Alias = policyUpdate.Alias
+	policy.EnvName = policyUpdate.EnvName
 
 	if err := c.Store.Put(ctx, &policy); err != nil {
+		return nil, err
+	}
+	if err = c.handlePolicyBindingWorkflowStep(ctx, app, policyName, policyUpdate.WorkflowPolicyBindings); err != nil {
 		return nil, err
 	}
 	return &apisv1.DetailPolicyResponse{
@@ -1378,50 +1437,101 @@ func (c *applicationServiceImpl) Statistics(ctx context.Context, app *model.Appl
 	}, nil
 }
 
-// CompareAppWithLatestRevision compare application with last revision
-func (c *applicationServiceImpl) CompareAppWithLatestRevision(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
-	var reqWorkflowName string
-	if compareReq.Env != "" {
-		reqWorkflowName = repository.ConvertWorkflowName(compareReq.Env)
-	}
-	newApp, err := c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
-	if err != nil {
-		return nil, err
-	}
-	ignoreSomeParams(newApp)
-	newAppBytes, err := yaml.Marshal(newApp)
-	if err != nil {
-		return nil, err
+// CompareApp compare application
+func (c *applicationServiceImpl) CompareApp(ctx context.Context, appModel *model.Application, compareReq apisv1.AppCompareReq) (*apisv1.AppCompareResponse, error) {
+	var base, compareTarget *v1beta1.Application
+	var err error
+	var envNameByRevision string
+	switch {
+	case compareReq.CompareLatestWithRunning != nil:
+		base, err = c.renderOAMApplication(ctx, appModel, "", compareReq.CompareLatestWithRunning.Env, "")
+		if err != nil {
+			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			break
+		}
+	case compareReq.CompareRevisionWithRunning != nil || compareReq.CompareRevisionWithLatest != nil:
+		var revision = ""
+		if compareReq.CompareRevisionWithRunning != nil {
+			revision = compareReq.CompareRevisionWithRunning.Revision
+		}
+		if compareReq.CompareRevisionWithLatest != nil {
+			revision = compareReq.CompareRevisionWithLatest.Revision
+		}
+		base, envNameByRevision, err = c.getAppModelFromRevision(ctx, appModel.Name, revision)
+		if err != nil {
+			log.Logger.Errorf("failed to get the app model from the revision %s", err.Error())
+			break
+		}
 	}
 
-	oldApp, err := c.getAppFromLatestRevision(ctx, appModel.Name, compareReq.Env, "")
-	if err != nil {
-		if errors.Is(err, bcode.ErrApplicationRevisionNotExist) {
-			return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes)}, nil
+	switch {
+	case compareReq.CompareLatestWithRunning != nil || compareReq.CompareRevisionWithRunning != nil:
+		var envName string
+		if compareReq.CompareLatestWithRunning != nil {
+			envName = compareReq.CompareLatestWithRunning.Env
 		}
-		return nil, err
+		if compareReq.CompareRevisionWithRunning != nil {
+			envName = envNameByRevision
+		}
+		if envName == "" {
+			break
+		}
+		compareTarget, err = c.GetApplicationCRInEnv(ctx, appModel, envName)
+		if err != nil {
+			log.Logger.Errorf("failed to query the application CR %s", err.Error())
+			break
+		}
+	case compareReq.CompareRevisionWithLatest != nil:
+		compareTarget, err = c.renderOAMApplication(ctx, appModel, "", envNameByRevision, "")
+		if err != nil {
+			log.Logger.Errorf("failed to build the latest application %s", err.Error())
+			break
+		}
 	}
-	ignoreSomeParams(oldApp)
-	oldAppBytes, err := yaml.Marshal(oldApp)
-	if err != nil {
-		return nil, err
+
+	var baseAppBytes, targetAppBytes []byte
+
+	if base != nil {
+		ignoreSomeParams(base)
+		baseAppBytes, err = yaml.Marshal(base)
+		if err != nil {
+			return nil, err
+		}
 	}
-	args := common2.Args{
-		Schema: common2.Scheme,
+
+	if compareTarget != nil {
+		ignoreSomeParams(compareTarget)
+		targetAppBytes, err = yaml.Marshal(compareTarget)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	compareResponse := &apisv1.AppCompareResponse{IsDiff: true, BaseAppYAML: string(baseAppBytes), TargetAppYAML: string(targetAppBytes)}
+
+	if base == nil || compareTarget == nil {
+		return compareResponse, nil
+	}
+
+	args := commonutil.Args{
+		Schema: commonutil.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
-	diffResult, buff, err := compare(ctx, args, newApp, oldApp)
+	diffResult, buff, err := compare(ctx, args, compareTarget, base)
 	if err != nil {
 		log.Logger.Errorf("fail to compare the app %s", err.Error())
-		return &apisv1.AppCompareResponse{IsDiff: false, NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, err
+		compareResponse.IsDiff = false
+		return compareResponse, nil
 	}
-	return &apisv1.AppCompareResponse{IsDiff: diffResult.DiffType != "", DiffReport: buff.String(), NewAppYAML: string(newAppBytes), OldAppYAML: string(oldAppBytes)}, nil
+	compareResponse.IsDiff = diffResult.DiffType != ""
+	compareResponse.DiffReport = buff.String()
+	return compareResponse, nil
 }
 
 // ResetAppToLatestRevision reset app's component to last revision
 func (c *applicationServiceImpl) ResetAppToLatestRevision(ctx context.Context, appName string) (*apisv1.AppResetResponse, error) {
-	targetApp, err := c.getAppFromLatestRevision(ctx, appName, "", "")
+	targetApp, _, err := c.getAppModelFromRevision(ctx, appName, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1432,31 +1542,35 @@ func (c *applicationServiceImpl) ResetAppToLatestRevision(ctx context.Context, a
 func (c *applicationServiceImpl) DryRunAppOrRevision(ctx context.Context, appModel *model.Application, dryRunReq apisv1.AppDryRunReq) (*apisv1.AppDryRunResponse, error) {
 	var app *v1beta1.Application
 	var err error
-	if dryRunReq.DryRunType == "APP" {
-		var reqWorkflowName string
-		if dryRunReq.Env != "" {
-			reqWorkflowName = repository.ConvertWorkflowName(dryRunReq.Env)
-		}
-		app, err = c.renderOAMApplication(ctx, appModel, reqWorkflowName, "")
+	switch dryRunReq.DryRunType {
+	case "APP":
+		app, err = c.renderOAMApplication(ctx, appModel, dryRunReq.Workflow, dryRunReq.Env, "")
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		app, err = c.getAppFromLatestRevision(ctx, dryRunReq.AppName, dryRunReq.Env, dryRunReq.Version)
+	case "REVISION":
+		app, _, err = c.getAppModelFromRevision(ctx, appModel.Name, dryRunReq.Version)
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, bcode.ErrApplicationDryRunFailed.SetMessage("The dry run type is not supported")
 	}
-	args := common2.Args{
-		Schema: common2.Scheme,
+	args := commonutil.Args{
+		Schema: commonutil.Scheme,
 	}
 	_ = args.SetConfig(c.KubeConfig)
 	args.SetClient(c.KubeClient)
+	res := &apisv1.AppDryRunResponse{}
 	dryRunResult, err := dryRunApplication(ctx, args, app)
 	if err != nil {
-		return nil, err
+		res.Success = false
+		res.Message = err.Error()
+	} else {
+		res.Success = true
 	}
-	return &apisv1.AppDryRunResponse{YAML: dryRunResult.String()}, nil
+	res.YAML = dryRunResult.String()
+	return res, nil
 }
 
 func genWebhookToken() string {
@@ -1470,33 +1584,16 @@ func genWebhookToken() string {
 	return string(b)
 }
 
-func (c *applicationServiceImpl) getAppFromLatestRevision(ctx context.Context, appName string, envName string, version string) (*v1beta1.Application, error) {
-
-	ar := &model.ApplicationRevision{AppPrimaryKey: appName}
-	if envName != "" {
-		ar.EnvName = envName
-	}
-	if version != "" {
-		ar.Version = version
-	}
-	revisions, err := c.Store.List(ctx, ar, &datastore.ListOptions{
-		Page:     1,
-		PageSize: 1,
-		SortBy:   []datastore.SortOption{{Key: "createTime", Order: datastore.SortOrderDescending}},
-	})
-	if err != nil || len(revisions) == 0 {
-		return nil, bcode.ErrApplicationRevisionNotExist
-	}
-	latestRevisionRaw := revisions[0]
-	latestRevision, ok := latestRevisionRaw.(*model.ApplicationRevision)
-	if !ok {
-		return nil, errors.New("convert application revision error")
+func (c *applicationServiceImpl) getAppModelFromRevision(ctx context.Context, appName string, version string) (*v1beta1.Application, string, error) {
+	latestRevision, err := repository.GetApplicationRevision(ctx, c.Store, appName, version)
+	if err != nil {
+		return nil, "", err
 	}
 	oldApp := &v1beta1.Application{}
 	if err := yaml.Unmarshal([]byte(latestRevision.ApplyAppConfig), oldApp); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return oldApp, nil
+	return oldApp, latestRevision.EnvName, nil
 }
 
 func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta1.Application) (*apisv1.AppResetResponse, error) {
@@ -1519,7 +1616,7 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 		targetCompNames = append(targetCompNames, comp.Name)
 	}
 
-	readyToUpdate, readyToDelete, readyToAdd := utils2.ThreeWaySliceCompare(originCompNames, targetCompNames)
+	readyToUpdate, readyToDelete, readyToAdd := pkgUtils.ThreeWaySliceCompare(originCompNames, targetCompNames)
 
 	// delete new app's components
 	for _, compName := range readyToDelete {
@@ -1551,11 +1648,11 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 				if errors.Is(err, datastore.ErrRecordExist) {
 					err := c.Store.Put(ctx, &compModel)
 					if err != nil {
-						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+						log.Logger.Warnf("update comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 					}
 					return &apisv1.AppResetResponse{IsReset: true}, err
 				}
-				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, utils2.Sanitize(appPrimaryKey), err.Error())
+				log.Logger.Warnf("add comp %s  for app %s failure %s", comp.Name, pkgUtils.Sanitize(appPrimaryKey), err.Error())
 				return &apisv1.AppResetResponse{}, err
 			}
 		}
@@ -1563,8 +1660,17 @@ func (c *applicationServiceImpl) resetApp(ctx context.Context, targetApp *v1beta
 	return &apisv1.AppResetResponse{IsReset: true}, nil
 }
 
-func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Application) (bytes.Buffer, error) {
+func dryRunApplication(ctx context.Context, c commonutil.Args, app *v1beta1.Application) (bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
+	if _, err := fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
+		return buff, fmt.Errorf("fail to write to buff %w", err)
+	}
+	result, err := yaml.Marshal(app)
+	if err != nil {
+		return buff, fmt.Errorf("marshal app: %w", err)
+	}
+	buff.Write(result)
+
 	newClient, err := c.GetClient()
 	if err != nil {
 		return buff, err
@@ -1582,20 +1688,11 @@ func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Applica
 	if err != nil {
 		return buff, err
 	}
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objects, true)
 	comps, policies, err := dryRunOpt.ExecuteDryRun(ctx, app)
 	if err != nil {
-		return buff, fmt.Errorf("generate OAM objects %w", err)
+		return buff, err
 	}
-	if _, err = fmt.Fprintf(&buff, "---\n# Application(%s) \n---\n\n", app.Name); err != nil {
-		return buff, fmt.Errorf("fail to write to buff %w", err)
-	}
-	result, err := yaml.Marshal(app)
-	if err != nil {
-		return buff, fmt.Errorf("marshal app: %w", err)
-	}
-	buff.Write(result)
-	buff.WriteString("\n---\n")
 	if err = dryRunOpt.PrintDryRun(&buff, app.Name, comps, policies); err != nil {
 		return buff, err
 	}
@@ -1605,21 +1702,23 @@ func dryRunApplication(ctx context.Context, c common2.Args, app *v1beta1.Applica
 // ignoreSomeParams ignore some parameters before comparing the app changes.
 // ignore the workflow spec
 func ignoreSomeParams(o *v1beta1.Application) {
-	// set default
-	o.ResourceVersion = ""
-	o.Spec.Workflow = nil
-	newAnnotations := map[string]string{}
-	annotations := o.GetAnnotations()
-	for k, v := range annotations {
-		if k == oam.AnnotationDeployVersion || k == oam.AnnotationPublishVersion || k == "kubectl.kubernetes.io/last-applied-configuration" {
-			continue
-		}
-		newAnnotations[k] = v
-	}
-	o.SetAnnotations(newAnnotations)
+	var defaultApplication = v1beta1.Application{}
+	// only compare the spec without the workflow
+	defaultApplication.Spec = o.Spec
+	defaultApplication.Spec.Workflow = nil
+	defaultApplication.Name = o.Name
+	defaultApplication.Namespace = o.Namespace
+
+	sort.Slice(defaultApplication.Spec.Policies, func(i, j int) bool {
+		return defaultApplication.Spec.Policies[i].Name < defaultApplication.Spec.Policies[j].Name
+	})
+	sort.Slice(defaultApplication.Spec.Components, func(i, j int) bool {
+		return defaultApplication.Spec.Components[i].Name < defaultApplication.Spec.Components[j].Name
+	})
+	*o = defaultApplication
 }
 
-func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, oldApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
+func compare(ctx context.Context, c commonutil.Args, targetApp *v1beta1.Application, baseApp *v1beta1.Application) (*dryrun.DiffEntry, bytes.Buffer, error) {
 	var buff = bytes.Buffer{}
 	_, err := c.GetClient()
 	if err != nil {
@@ -1643,7 +1742,7 @@ func compare(ctx context.Context, c common2.Args, newApp *v1beta1.Application, o
 		return nil, buff, err
 	}
 	liveDiffOption := dryrun.NewLiveDiffOption(client, config, dm, pd, objs)
-	diffResult, err := liveDiffOption.DiffApps(ctx, newApp, oldApp)
+	diffResult, err := liveDiffOption.DiffApps(ctx, baseApp, targetApp)
 	if err != nil {
 		return nil, buff, err
 	}
@@ -1702,4 +1801,104 @@ func NewTestApplicationService(ds datastore.DataStore, c client.Client, cfg *res
 		ProjectService:    projectService,
 		UserService:       userService,
 	}
+}
+
+// handlePolicyBindingWorkflowStep handle every operation(create/update) against policy, if this policy is bind to a workflow step, will recorde in workflow step.
+func (c *applicationServiceImpl) handlePolicyBindingWorkflowStep(ctx context.Context, app *model.Application, policyName string, wfBindings []apisv1.WorkflowPolicyBinding) error {
+	const pattern string = "%s-%s"
+	bindings := map[string]bool{}
+	for _, binding := range wfBindings {
+		for _, s := range binding.Steps {
+			bindings[fmt.Sprintf(pattern, binding.Name, s)] = true
+		}
+	}
+
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return err
+	}
+	needUpdate := false
+	for _, w := range workflows {
+		for i, step := range w.Steps {
+			p := step.Properties
+			policies, properties, err := extractPolicyListAndProperty(p)
+			if err != nil {
+				return err
+			}
+			if policies == nil || properties == nil {
+				policies = []string{}
+				properties = map[string]interface{}{}
+			}
+			var added, deleted bool
+			if ok := bindings[fmt.Sprintf(pattern, w.Name, step.Name)]; ok {
+				policies, added = guaranteePolicyExist(policies, policyName)
+			} else {
+				policies, deleted = guaranteePolicyNotExist(policies, policyName)
+			}
+			if added || deleted {
+				properties["policies"] = policies
+				pStr, err := json.Marshal(properties)
+				if err != nil {
+					return err
+				}
+				w.Steps[i].Properties = string(pStr)
+				needUpdate = true
+			}
+		}
+		if needUpdate {
+			_, err := c.WorkflowService.UpdateWorkflow(ctx,
+				&model.Workflow{
+					BaseModel:     model.BaseModel{CreateTime: w.CreateTime, UpdateTime: time.Now()},
+					Description:   w.Description,
+					Name:          w.Name,
+					Alias:         w.Alias,
+					Default:       &w.Default,
+					AppPrimaryKey: app.Name,
+					EnvName:       w.EnvName,
+				}, apisv1.UpdateWorkflowRequest{Steps: w.Steps, Description: w.Description})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// checkPolicyUsedByWorkflow check a policy whether used by any workflow step
+func (c *applicationServiceImpl) checkPolicyUsedByWorkflow(ctx context.Context, app *model.Application, policyName string) (bool, error) {
+	wlb, err := c.findAllBindingPolicyWorkflowStep(ctx, app, policyName)
+	if err != nil {
+		return false, err
+	}
+	return len(wlb) != 0, nil
+}
+
+func (c *applicationServiceImpl) findAllBindingPolicyWorkflowStep(ctx context.Context, app *model.Application, policyName string) ([]apisv1.WorkflowPolicyBinding, error) {
+	var res []apisv1.WorkflowPolicyBinding
+	workflows, err := c.WorkflowService.ListApplicationWorkflow(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range workflows {
+		var wlb apisv1.WorkflowPolicyBinding
+		have := false
+		for _, step := range w.Steps {
+			p := step.Properties
+			policies, _, err := extractPolicyListAndProperty(p)
+			if err != nil {
+				return nil, err
+			}
+			for _, policy := range policies {
+				if policy == policyName {
+					wlb.Steps = append(wlb.Steps, step.Name)
+					have = true
+				}
+			}
+		}
+		if have {
+			wlb.Name = w.Name
+			res = append(res, wlb)
+		}
+	}
+	return res, nil
 }

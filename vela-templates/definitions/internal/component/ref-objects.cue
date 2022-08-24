@@ -55,12 +55,18 @@
 }
 template: {
 	#K8sObject: {
-		apiVersion: string
-		kind:       string
-		metadata: {
-			name: string
-			...
-		}
+		// +usage=The resource type for the Kubernetes objects
+		resource?: string
+		// +usage=The group name for the Kubernetes objects
+		group?: string
+		// +usage=If specified, fetch the Kubernetes objects with the name, exclusive to labelSelector
+		name?: string
+		// +usage=If specified, fetch the Kubernetes objects from the namespace. Otherwise, fetch from the application's namespace.
+		namespace?: string
+		// +usage=If specified, fetch the Kubernetes objects from the cluster. Otherwise, fetch from the local cluster.
+		cluster?: string
+		// +usage=If specified, fetch the Kubernetes objects according to the label selector, exclusive to name
+		labelSelector?: [string]: string
 		...
 	}
 
@@ -79,6 +85,9 @@ template: {
 		}
 	}
 	parameter: {
-		objects: [...#K8sObject]
+		// +usage=If specified, application will fetch native Kubernetes objects according to the object description
+		objects?: [...#K8sObject]
+		// +usage=If specified, the objects in the urls will be loaded.
+		urls?: [...string]
 	}
 }

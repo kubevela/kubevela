@@ -39,7 +39,7 @@ func InitEvent(cfg config.Config) []interface{} {
 		Duration: cfg.LeaderConfig.Duration,
 	}
 	application := &sync.ApplicationSync{
-		Queue: workqueue.New(),
+		Queue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 	collect := &collect.InfoCalculateCronJob{}
 	workers = append(workers, workflow, application, collect)

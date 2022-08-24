@@ -97,6 +97,7 @@ type EnvSelector struct {
 }
 
 // EnvConfig is the configuration for different environments.
+// Deprecated
 type EnvConfig struct {
 	Name      string       `json:"name"`
 	Placement EnvPlacement `json:"placement,omitempty"`
@@ -105,6 +106,7 @@ type EnvConfig struct {
 }
 
 // EnvBindingSpec defines a list of envs
+// Deprecated This spec is deprecated and replaced by Topology/Override Policy
 type EnvBindingSpec struct {
 	Envs []EnvConfig `json:"envs"`
 }
@@ -124,18 +126,21 @@ func (in PlacementDecision) String() string {
 }
 
 // EnvStatus records the status of one env
+// Deprecated
 type EnvStatus struct {
 	Env        string              `json:"env"`
 	Placements []PlacementDecision `json:"placements"`
 }
 
 // ClusterConnection records the connection with clusters and the last active app revision when they are active (still be used)
+// Deprecated
 type ClusterConnection struct {
 	ClusterName        string `json:"clusterName"`
 	LastActiveRevision string `json:"lastActiveRevision"`
 }
 
 // EnvBindingStatus records the status of all env
+// Deprecated
 type EnvBindingStatus struct {
 	Envs               []EnvStatus         `json:"envs"`
 	ClusterConnections []ClusterConnection `json:"clusterConnections"`

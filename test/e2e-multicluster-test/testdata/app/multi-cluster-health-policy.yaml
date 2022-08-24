@@ -9,7 +9,9 @@ spec:
       type: webservice
       properties:
         image: crccheck/hello-world
-        port: 8000
+        ports: 
+        - port: 8000
+          expose: true
         type: webservice
       traits:
         - type: rollout

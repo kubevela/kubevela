@@ -117,13 +117,15 @@ var _ = Describe("Test Workflow Provider Kube", func() {
 		component, err := ctx.GetComponent("server")
 		Expect(err).ToNot(HaveOccurred())
 
+		s, err := component.Workload.String()
+		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
 value:{
 	%s
 	metadata: name: "app"
 }
 cluster: ""
-`, component.Workload.String()), nil, "")
+`, s), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -136,13 +138,15 @@ cluster: ""
 			}, workload)
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 
+		s, err = component.Workload.String()
+		Expect(err).ToNot(HaveOccurred())
 		v, err = value.NewValue(fmt.Sprintf(`
 value: {
 %s
 metadata: name: "app"
 }
 cluster: ""
-`, component.Workload.String()), nil, "")
+`, s), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Read(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -179,10 +183,12 @@ cluster: ""
 
 		component, err := ctx.GetComponent("server")
 		Expect(err).ToNot(HaveOccurred())
+		s, err := component.Workload.String()
+		Expect(err).ToNot(HaveOccurred())
 		v, err := value.NewValue(fmt.Sprintf(`
 value: {%s}
 cluster: ""
-patch: metadata: name: "test-app-1"`, component.Workload.String()), nil, "")
+patch: metadata: name: "test-app-1"`, s), nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		err = p.Apply(ctx, v, nil)
 		Expect(err).ToNot(HaveOccurred())

@@ -2,9 +2,9 @@
 
 ## General
 
-- list all configuration types
+- list all configuration types. Note before vela v1.5, the key is "custom.definition.oam.dev/catalog.config.oam.dev"
 ```shell
-$ vela components --label custom.definition.oam.dev/catalog.config.oam.dev=velacore-config
+$ vela components --label catalog.config.oam.dev=velacore-config
 NAME                  	DEFINITION
 config-dex-connector  	autodetects.core.oam.dev
 config-helm-repository	autodetects.core.oam.dev

@@ -163,7 +163,7 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 			}
 			// Step4: apply new CRDs
 			if err := upgradeCRDs(cmd.Context(), kubeClient, chart); err != nil {
-				return errors.New(fmt.Sprintf("upgrade CRD failure %s", err.Error()))
+				return fmt.Errorf("upgrade CRD failure %w", err)
 			}
 			// Step5: Install or upgrade helm release
 			release, err := installArgs.helmHelper.UpgradeChart(chart, kubeVelaReleaseName, installArgs.Namespace, values,

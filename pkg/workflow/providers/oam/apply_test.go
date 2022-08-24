@@ -42,7 +42,7 @@ func TestParser(t *testing.T) {
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
 	err = p.ApplyComponent(nil, v, act)
-	r.Equal(err.Error(), "var(path=value) not exist")
+	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
 	v.FillObject(map[string]interface{}{}, "value")
 	err = p.ApplyComponent(nil, v, act)
 	r.NoError(err)
@@ -53,10 +53,10 @@ func TestParser(t *testing.T) {
 	r.Equal(outStr, `apiVersion: "v1"
 kind:       "Pod"
 metadata: {
-	name: "rss-site"
 	labels: {
 		app: "web"
 	}
+	name: "rss-site"
 }
 `)
 
@@ -68,10 +68,10 @@ metadata: {
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
-		name: "service"
 		labels: {
 			"trait.oam.dev/resource": "service"
 		}
+		name: "service"
 	}
 }
 `)
@@ -87,7 +87,7 @@ metadata: {
 func TestRenderComponent(t *testing.T) {
 	r := require.New(t)
 	p := &provider{
-		render: func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		render: func(comp common.ApplicationComponent, patcher *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			return &unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"apiVersion": "apps/v1",
@@ -238,7 +238,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 
 var testHealthy bool
 
-func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _ string, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	workload := new(unstructured.Unstructured)
 	workload.UnmarshalJSON([]byte(`{
   "apiVersion": "v1",

@@ -1,0 +1,15 @@
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "toplogy-json",
+    "namespace": "vela-system",
+    "labels": {
+      "rules.oam.dev/resources": "true",
+      "rules.oam.dev/resource-format": "json"
+    }
+  },
+  "data": {
+    "rules": "[{\"parentResourceType\":{\"group\":\"clickhouse.altinity.com\",\"kind\":\"ClickHouseInstallation\"},\"childrenResourceType\":[{\"apiVersion\":\"apps/v1\",\"kind\":\"StatefulSet\"},{\"apiVersion\":\"v1\",\"kind\":\"Service\"}]},{\"parentResourceType\":{\"group\":\"machinelearning.seldon.io\",\"kind\":\"SeldonDeployment\"},\"childrenResourceType\":[{\"apiVersion\":\"v1\",\"kind\":\"Service\"}]}]"
+  }
+}

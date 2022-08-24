@@ -1,13 +1,10 @@
 sidecar: {
 	type: "trait"
 	annotations: {}
-	labels: {
-		"ui-hidden": "true"
-	}
 	description: "Inject a sidecar container to K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: true
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 template: {
@@ -76,6 +73,11 @@ template: {
 					name: string
 					// +usage=The key of the config map to select from. Must be a valid secret key
 					key: string
+				}
+				// +usage=Specify the field reference for env
+				fieldRef?: {
+					// +usage=Specify the field path for env
+					fieldPath: string
 				}
 			}
 		}]

@@ -20,12 +20,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/load"
@@ -175,6 +177,52 @@ func TestHTTPGetWithOption(t *testing.T) {
 
 }
 
+func TestHttpGetCaFile(t *testing.T) {
+	type want struct {
+		data string
+	}
+	var ctx = context.Background()
+	testServer := &http.Server{Addr: ":10443"}
+
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Write([]byte("this is https server"))
+		writer.WriteHeader(200)
+	})
+
+	go func() {
+		err := testServer.ListenAndServeTLS("./testdata/server.crt", "./testdata/server.key")
+		assert.NoError(t, err)
+	}()
+	time.Sleep(time.Millisecond)
+	caFile, err := ioutil.ReadFile("./testdata/server.crt")
+	assert.NoError(t, err)
+
+	cases := map[string]struct {
+		opts *HTTPOption
+		url  string
+		want want
+	}{
+		"with caFile": {
+			opts: &HTTPOption{CaFile: string(caFile)},
+			url:  "https://127.0.0.1:10443",
+			want: want{
+				data: "this is https server",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := HTTPGetWithOption(ctx, tc.url, tc.opts)
+			assert.NoError(t, err)
+
+			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
+				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.want.data, diff)
+			}
+		})
+	}
+}
+
 func TestGetCUEParameterValue(t *testing.T) {
 	type want struct {
 		err error
@@ -257,6 +305,7 @@ name
 	}
 }
 
+// nolint:staticcheck
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
 		targetSchemaFile string
@@ -397,6 +446,7 @@ variable "mapVar" {
 	assert.True(t, intVarExisted)
 }
 
+// nolint:staticcheck
 func TestRefineParameterInstance(t *testing.T) {
 	// test #parameter exists: mock issues in #1939 & #2062
 	s := `parameter: #parameter

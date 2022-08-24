@@ -44,7 +44,7 @@ var (
 func main() {
 	err := utils.ApplyMockServerConfig()
 	if err != nil {
-		log.Fatal("Apply mock server config to ConfigMap fail")
+		log.Fatal(err)
 	}
 	http.HandleFunc("/", ossHandler)
 	http.HandleFunc("/helm/", helmHandler)

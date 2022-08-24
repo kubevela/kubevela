@@ -23,12 +23,15 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/cuecontext"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
@@ -62,8 +65,8 @@ const (
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
-	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error)
+	HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error)
+	Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error)
 }
 
 type def struct {
@@ -88,7 +91,7 @@ func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) Abstra
 // Complete do workload definition's rendering
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", abstractTemplate); err != nil {
+	if err := value.AddFile(bi, "-", renderTemplate(abstractTemplate)); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
 	var paramFile = model.ParameterFieldName + ": {}"
@@ -101,7 +104,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			paramFile = fmt.Sprintf("%s: %s", model.ParameterFieldName, string(bt))
 		}
 	}
-	if err := bi.AddFile(model.ParameterFieldName, paramFile); err != nil {
+	if err := value.AddFile(bi, model.ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
@@ -109,19 +112,19 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err != nil {
 		return err
 	}
-	if err := bi.AddFile("-", c); err != nil {
+	if err := value.AddFile(bi, "context", c); err != nil {
 		return err
 	}
 
-	inst, err := wd.pd.ImportPackagesAndBuildInstance(bi)
+	val, err := wd.pd.ImportPackagesAndBuildValue(bi)
 	if err != nil {
 		return err
 	}
 
-	if err := inst.Value().Validate(); err != nil {
+	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
 	}
-	output := inst.Lookup(OutputFieldName)
+	output := val.LookupPath(value.FieldPath(OutputFieldName))
 	base, err := model.NewBase(output)
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
@@ -131,7 +134,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
-	outputs := inst.Lookup(OutputsFieldName)
+	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if !outputs.Exists() {
 		return nil
 	}
@@ -155,7 +158,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	return nil
 }
 
-func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 
 	var root = initRoot(ctx.BaseContextLabels())
 	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
@@ -166,7 +169,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		return nil, err
 	}
 	// workload main resource will have a unique label("app.oam.dev/resourceType"="WORKLOAD") in per component/app level
-	object, err := getResourceFromObj(ctx.GetCtx(), componentWorkload, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+	object, err := getResourceFromObj(ctx.GetCtx(), componentWorkload, cli, accessor.For(componentWorkload), util.MergeMapOverrideWithDst(map[string]string{
 		oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
 	}, commonLabels), "")
 	if err != nil {
@@ -186,7 +189,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 			return nil, err
 		}
 		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: AuxiliaryWorkload,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -201,11 +204,8 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 }
 
 // HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
-	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
+	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}
@@ -213,18 +213,17 @@ func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, ns st
 }
 
 func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string) (bool, error) {
+	if healthPolicyTemplate == "" {
+		return true, nil
+	}
 	bt, err := json.Marshal(templateContext)
 	if err != nil {
 		return false, errors.WithMessage(err, "json marshal template context")
 	}
 
 	var buff = "context: " + string(bt) + "\n" + healthPolicyTemplate
-	var r cue.Runtime
-	inst, err := r.Compile("-", buff)
-	if err != nil {
-		return false, errors.WithMessage(err, "compile health template")
-	}
-	healthy, err := inst.Lookup(HealthCheckPolicy).Bool()
+	val := cuecontext.New().CompileString(buff)
+	healthy, err := val.LookupPath(value.FieldPath(HealthCheckPolicy)).Bool()
 	if err != nil {
 		return false, errors.WithMessage(err, "evaluate health status")
 	}
@@ -232,11 +231,8 @@ func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 }
 
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
-	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+func (wd *workloadDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
+	templateContext, err := wd.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
@@ -244,15 +240,16 @@ func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string,
 }
 
 func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	bi := build.NewContext().NewInstance("", nil)
-	var ctxBuff string
+	if customStatusTemplate == "" {
+		return "", nil
+	}
 	var paramBuff = "parameter: {}\n"
 
 	bt, err := json.Marshal(templateContext)
 	if err != nil {
 		return "", errors.WithMessage(err, "json marshal template context")
 	}
-	ctxBuff = "context: " + string(bt) + "\n"
+	ctxBuff := "context: " + string(bt) + "\n"
 
 	bt, err = json.Marshal(parameter)
 	if err != nil {
@@ -262,15 +259,12 @@ func getStatusMessage(pd *packages.PackageDiscover, templateContext map[string]i
 		paramBuff = "parameter: " + string(bt) + "\n"
 	}
 	var buff = customStatusTemplate + "\n" + ctxBuff + paramBuff
-	if err := bi.AddFile("-", buff); err != nil {
-		return "", errors.WithMessagef(err, "invalid cue template of customStatus")
-	}
 
-	inst, err := pd.ImportPackagesAndBuildInstance(bi)
+	val, err := value.NewValue(buff, pd, "")
 	if err != nil {
-		return "", errors.WithMessage(err, "compile customStatus template")
+		return "", errors.WithMessage(err, "compile status template")
 	}
-	message, err := inst.Lookup(CustomMessage).String()
+	message, err := val.CueValue().LookupPath(value.FieldPath(CustomMessage)).String()
 	if err != nil {
 		return "", errors.WithMessage(err, "evaluate customStatus.message")
 	}
@@ -292,47 +286,43 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 }
 
 // Complete do trait definition's rendering
+// nolint:gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", abstractTemplate); err != nil {
-		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
-	}
-	var paramFile = model.ParameterFieldName + ": {}"
+	buff := abstractTemplate + "\n"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", model.ParameterFieldName, string(bt))
+			buff += fmt.Sprintf("%s: %s\n", model.ParameterFieldName, string(bt))
 		}
-	}
-	if err := bi.AddFile(model.ParameterFieldName, paramFile); err != nil {
-		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
 	}
 	c, err := ctx.ExtendedContextFile()
 	if err != nil {
 		return err
 	}
-	if err := bi.AddFile("context", c); err != nil {
+	buff += c
+	if err := value.AddFile(bi, "-", buff); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
 
-	inst, err := td.pd.ImportPackagesAndBuildInstance(bi)
+	val, err := td.pd.ImportPackagesAndBuildValue(bi)
 	if err != nil {
 		return err
 	}
 
-	if err := inst.Value().Validate(); err != nil {
+	if err := val.Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
 	}
-	processing := inst.Lookup("processing")
+	processing := val.LookupPath(value.FieldPath("processing"))
 	if processing.Exists() {
-		if inst, err = task.Process(inst); err != nil {
+		if val, err = task.Process(val); err != nil {
 			return errors.WithMessagef(err, "invalid process of trait %s", td.name)
 		}
 	}
-	outputs := inst.Lookup(OutputsFieldName)
+	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if outputs.Exists() {
 		st, err := outputs.Struct()
 		if err != nil {
@@ -353,34 +343,28 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 	}
 
-	patcher := inst.Lookup(PatchFieldName)
+	patcher := val.LookupPath(value.FieldPath(PatchFieldName))
 	base, auxiliaries := ctx.Output()
-	if patcher.Exists() {
-		p, err := model.NewOther(patcher)
-		if err != nil {
-			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
-		}
-		if err := base.Unify(p, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
+	if base != nil && patcher.Exists() {
+		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 	}
-	outputsPatcher := inst.Lookup(PatchOutputsFieldName)
-	if outputsPatcher.Exists() {
+	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
+	if base != nil && outputsPatcher.Exists() {
 		for _, auxiliary := range auxiliaries {
-			target := outputsPatcher.Lookup(auxiliary.Name)
-			if target.Exists() {
-				t, err := model.NewOther(target)
-				if err != nil {
-					return errors.WithMessagef(err, "trait=%s, to=%s, invalid trait patch", td.name, auxiliary.Name)
-				}
-				if err := auxiliary.Ins.Unify(t); err != nil {
-					return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
-				}
+			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
+			if !target.Exists() {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+			}
+			patcher := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
+			if err := auxiliary.Ins.Unify(patcher); err != nil {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
 	}
 
-	errs := inst.Lookup(ErrsFieldName)
+	errs := val.LookupPath(value.FieldPath(ErrsFieldName))
 	if errs.Exists() {
 		if err := parseErrors(errs); err != nil {
 			return err
@@ -412,6 +396,9 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 			commonLabels[oam.LabelAppComponent] = v
 		case model.ContextAppRevision:
 			commonLabels[oam.LabelAppRevision] = v
+		case model.ContextReplicaKey:
+			commonLabels[oam.LabelReplicaKey] = v
+
 		}
 	}
 	return commonLabels
@@ -425,7 +412,14 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 	return root
 }
 
-func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+func renderTemplate(templ string) string {
+	return templ + `
+context: _
+parameter: _
+`
+}
+
+func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	var root = initRoot(ctx.BaseContextLabels())
 	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
@@ -439,7 +433,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 		if err != nil {
 			return nil, err
 		}
-		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+		object, err := getResourceFromObj(ctx.GetCtx(), traitRef, cli, accessor.For(traitRef), util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: assist.Type,
 		}, commonLabels), assist.Name)
 		if err != nil {
@@ -454,11 +448,8 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
-	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+func (td *traitDef) Status(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, customStatusTemplate string, parameter interface{}) (string, error) {
+	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return "", errors.WithMessage(err, "get template context")
 	}
@@ -466,11 +457,8 @@ func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, cu
 }
 
 // HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
-	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor, healthPolicyTemplate string) (bool, error) {
+	templateContext, err := td.getTemplateContext(ctx, cli, accessor)
 	if err != nil {
 		return false, errors.WithMessage(err, "get template context")
 	}

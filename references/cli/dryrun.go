@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -54,8 +55,13 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
 		Short:                 "Dry Run an application, and output the K8s resources as result to stdout",
-		Long:                  "Dry-run application locally, render the Kubernetes resources as result to stdout.",
-		Example:               "vela dry-run",
+		Long: `Dry-run application locally, render the Kubernetes resources as result to stdout.
+	vela dry-run -d /definition/directory/or/file/ -f /path/to/app.yaml
+
+You can also specify a remote url for app:
+	vela dry-run -d /definition/directory/or/file/ -f https://remote-host/app.yaml
+`,
+		Example: "vela dry-run",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
@@ -67,7 +73,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 					return err
 				}
 
-				// Set the namespace to default to match behaviour of `GetFlagNamespaceOrEnv`
+				// Set the namespace to default to match behavior of `GetFlagNamespaceOrEnv`
 				namespace = "default"
 			}
 
@@ -127,7 +133,7 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 		return buff, err
 	}
 
-	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs)
+	dryRunOpt := dryrun.NewDryRunOption(newClient, config, dm, pd, objs, false)
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 
 	// Perform validation only if not in offline mode
@@ -194,8 +200,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 }
 
 func readApplicationFromFile(filename string) (*corev1beta1.Application, error) {
-
-	fileContent, err := os.ReadFile(filepath.Clean(filename))
+	fileContent, err := utils.ReadRemoteOrLocalPath(filename, true)
 	if err != nil {
 		return nil, err
 	}

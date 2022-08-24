@@ -69,10 +69,10 @@ func TestResourceKeeperDispatchAndDelete(t *testing.T) {
 	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm1, cm2, cm3}, nil))
 	r.NotNil(rk._rootRT)
 	r.NotNil(rk._currentRT)
-	r.Equal(1, len(rk._rootRT.Spec.ManagedResources))
+	r.Equal(2, len(rk._rootRT.Spec.ManagedResources))
 	r.Equal(1, len(rk._currentRT.Spec.ManagedResources))
 	r.NoError(rk.Delete(context.Background(), []*unstructured.Unstructured{cm1, cm2, cm3}))
-	r.Equal(1, len(rk._rootRT.Spec.ManagedResources))
+	r.Equal(2, len(rk._rootRT.Spec.ManagedResources))
 	r.Equal(1, len(rk._currentRT.Spec.ManagedResources))
 }
 

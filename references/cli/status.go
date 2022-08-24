@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -43,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	types2 "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -94,11 +97,29 @@ const (
 // NewAppStatusCommand creates `status` command for showing status
 func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
+	var outputFormat string
 	cmd := &cobra.Command{
-		Use:     "status APP_NAME",
-		Short:   "Show status of an application.",
-		Long:    "Show status of vela application.",
-		Example: `vela status APP_NAME`,
+		Use:   "status APP_NAME",
+		Short: "Show status of an application.",
+		Long:  "Show status of vela application.",
+		Example: `  # Get basic app info
+  vela status APP_NAME
+
+  # Show detailed info in tree
+  vela status first-vela-app --tree --detail --detail-format list
+
+  # Show pod list
+  vela status first-vela-app --pod
+  vela status first-vela-app --pod --component express-server --cluster local
+
+  # Show endpoint list
+  vela status first-vela-app --endpoint
+
+  # Get raw Application yaml (without managedFields)
+  vela status first-vela-app -o yaml
+
+  # Get raw Application status using jsonpath
+  vela status first-vela-app -o jsonpath='{.status}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// check args
 			argsLength := len(args)
@@ -114,17 +135,31 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
 				return printApplicationTree(c, cmd, appName, namespace)
 			}
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
+			if printPod, err := cmd.Flags().GetBool("pod"); err == nil && printPod {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				f := Filter{
+					Component: component,
+					Cluster:   cluster,
+				}
+				return printAppPods(appName, namespace, f, c)
 			}
 			showEndpoints, err := cmd.Flags().GetBool("endpoint")
 			if showEndpoints && err == nil {
 				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
 				f := Filter{
 					Component: component,
+					Cluster:   cluster,
 				}
 				return printAppEndpoints(ctx, appName, namespace, f, c, false)
+			}
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			if outputFormat != "" {
+				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, namespace, cmd, c)
 		},
@@ -135,10 +170,13 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	}
 	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.Flags().BoolP("endpoint", "p", false, "show all service endpoints of the application")
-	cmd.Flags().StringP("component", "c", "", "filter service endpoints by component name")
+	cmd.Flags().StringP("component", "c", "", "filter the endpoints or pods by component name")
+	cmd.Flags().StringP("cluster", "", "", "filter the endpoints or pods by cluster name")
 	cmd.Flags().BoolP("tree", "t", false, "display the application resources into tree structure")
-	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources")
-	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details. Can be one of inline (default), wide, list, table, raw.")
+	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
+	cmd.Flags().BoolP("detail", "d", false, "display the realtime details of application resources, must be used with --tree")
+	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -162,6 +200,22 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	return loopCheckStatus(c, ioStreams, appName, namespace)
 }
 
+func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
+	var result [][]string
+	result = append(result, []string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint", "Inner"})
+
+	for _, endpoint := range endpoints {
+		if endpoint.Cluster == "" {
+			endpoint.Cluster = multicluster.ClusterLocalName
+		}
+		if endpoint.Component == "" {
+			endpoint.Component = "-"
+		}
+		result = append(result, []string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String(), fmt.Sprintf("%v", endpoint.Endpoint.Inner)})
+	}
+	return result
+}
+
 func printAppEndpoints(ctx context.Context, appName string, namespace string, f Filter, velaC common.Args, skipEmptyTable bool) error {
 	config, err := velaC.GetConfig()
 	if err != nil {
@@ -171,21 +225,22 @@ func printAppEndpoints(ctx context.Context, appName string, namespace string, f 
 	if err != nil {
 		return err
 	}
-	endpoints, err := GetServiceEndpoints(ctx, client, appName, namespace, velaC, f)
+	velaC.SetClient(client)
+	endpoints, err := GetServiceEndpoints(ctx, appName, namespace, velaC, f)
 	if err != nil {
 		return err
 	}
 	if skipEmptyTable && len(endpoints) == 0 {
 		return nil
 	}
+	fmt.Printf("Please access %s from the following endpoints:\n", appName)
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
-	table.SetHeader([]string{"Cluster", "Component", "Ref(Kind/Namespace/Name)", "Endpoint"})
-	for _, endpoint := range endpoints {
-		if endpoint.Cluster == "" {
-			endpoint.Cluster = multicluster.ClusterLocalName
-		}
-		table.Append([]string{endpoint.Cluster, endpoint.Component, fmt.Sprintf("%s/%s/%s", endpoint.Ref.Kind, endpoint.Ref.Namespace, endpoint.Ref.Name), endpoint.String()})
+
+	printablePoints := formatEndpoints(endpoints)
+	table.SetHeader(printablePoints[0])
+	for i := 1; i < len(printablePoints); i++ {
+		table.Append(printablePoints[i])
 	}
 	table.Render()
 	return nil
@@ -223,11 +278,11 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 		ioStreams.Infof("  Terminated: %t\n", workflowStatus.Terminated)
 		ioStreams.Info("  Steps")
 		for _, step := range workflowStatus.Steps {
-			ioStreams.Infof("  - id:%s\n", step.ID)
-			ioStreams.Infof("    name:%s\n", step.Name)
-			ioStreams.Infof("    type:%s\n", step.Type)
-			ioStreams.Infof("    phase:%s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
-			ioStreams.Infof("    message:%s\n", step.Message)
+			ioStreams.Infof("  - id: %s\n", step.ID)
+			ioStreams.Infof("    name: %s\n", step.Name)
+			ioStreams.Infof("    type: %s\n", step.Type)
+			ioStreams.Infof("    phase: %s \n", getWfStepColor(step.Phase).Sprint(step.Phase))
+			ioStreams.Infof("    message: %s\n", step.Message)
 		}
 		ioStreams.Infof("\n")
 	}
@@ -429,4 +484,35 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	}
 	options.PrintResourceTree(cmd.OutOrStdout(), placements, currentRT, historyRTs)
 	return nil
+}
+
+// printRawApplication prints raw Application in yaml/json/jsonpath (without managedFields).
+func printRawApplication(ctx context.Context, c common.Args, format string, out io.Writer, ns, appName string) error {
+	var err error
+	app := &v1beta1.Application{}
+
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return fmt.Errorf("cannot get k8s client: %w", err)
+	}
+
+	err = k8sClient.Get(ctx, pkgtypes.NamespacedName{
+		Namespace: ns,
+		Name:      appName,
+	}, app)
+	if err != nil {
+		return fmt.Errorf("cannot get application %s in namespace %s: %w", appName, ns, err)
+	}
+
+	// Set GVK, we need it
+	// because the object returned from client.Get() has empty GVK
+	// (since the type info is inherent in the typed object, so GVK is empty)
+	app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
+	str, err := formatApplicationString(format, app)
+	if err != nil {
+		return err
+	}
+
+	_, err = out.Write([]byte(str))
+	return err
 }

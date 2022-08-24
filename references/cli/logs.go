@@ -24,19 +24,20 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/wercker/stern/stern"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -48,15 +49,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		Short: "Tail logs for application.",
 		Long:  "Tail logs for vela application.",
 		Args:  cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			config, err := c.GetConfig()
-			if err != nil {
-				return err
-			}
-			largs.Args = c
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
@@ -64,10 +56,6 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 				return err
 			}
 			app, err := appfile.LoadApplication(largs.Namespace, args[0], c)
-			if err != nil {
-				return err
-			}
-			largs.Namespace, err = GetFlagNamespaceOrEnv(cmd, c)
 			if err != nil {
 				return err
 			}
@@ -85,26 +73,78 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 	}
 
 	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
-	cmd.Flags().StringVarP(&largs.Container, "container", "c", "", "specify container name for output")
-	cmd.Flags().StringVar(&largs.Name, "name", "", "specify resource name for output")
+	cmd.Flags().StringVarP(&largs.ComponentName, "component", "c", "", "filter the pod by the component name")
+	cmd.Flags().StringVarP(&largs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
+	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "specify the pod name")
+	cmd.Flags().StringVarP(&largs.ContainerName, "container", "", "", "specify the container name")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
 
 // Args creates arguments for `logs` command
 type Args struct {
-	Output    string
-	Args      common.Args
-	Namespace string
-	Container string
-	Name      string
-	App       *v1beta1.Application
+	Output        string
+	Args          common.Args
+	Namespace     string
+	ContainerName string
+	PodName       string
+	ClusterName   string
+	ComponentName string
+	App           *v1beta1.Application
 }
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
-	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
-	labelSelector := labels.Everything()
+	pods, err := GetApplicationPods(ctx, l.App.Name, l.App.Namespace, l.Args, Filter{
+		Component: l.ComponentName,
+		Cluster:   l.ClusterName,
+	})
+	if err != nil {
+		return err
+	}
+	var selectPod *querytypes.PodBase
+	if l.PodName != "" {
+		for i, pod := range pods {
+			if pod.Metadata.Name == l.PodName {
+				selectPod = &pods[i]
+				break
+			}
+		}
+		if selectPod == nil {
+			fmt.Println("The Pod you specified does not exist, please select it from the list.")
+		}
+	}
+	if selectPod == nil {
+		selectPod, err = AskToChooseOnePod(pods)
+		if err != nil {
+			return err
+		}
+	}
+
+	if selectPod == nil {
+		return nil
+	}
+
+	if selectPod.Cluster != "" {
+		ctx = multicluster.ContextWithClusterName(ctx, selectPod.Cluster)
+	}
+	pod, err := regexp.Compile(selectPod.Metadata.Name + ".*")
+	if err != nil {
+		return fmt.Errorf("fail to compile '%s' for logs query", selectPod.Metadata.Name+".*")
+	}
+	container := regexp.MustCompile(".*")
+	if l.ContainerName != "" {
+		container = regexp.MustCompile(l.ContainerName + ".*")
+	}
+	namespace := selectPod.Metadata.Namespace
+	selector := labels.NewSelector()
+	for k, v := range selectPod.Metadata.Labels {
+		req, _ := labels.NewRequirement(k, selection.Equals, []string{v})
+		if req != nil {
+			selector = selector.Add(*req)
+		}
+	}
+
 	config, err := l.Args.GetConfig()
 	if err != nil {
 		return err
@@ -113,36 +153,14 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	selectedRes, err := common.AskToChooseOneEnvResource(l.App, l.Name)
-	if err != nil {
-		return err
-	}
-	if selectedRes.Kind == "Configuration" {
-		selectedRes.Cluster = "local"
-		if l.App.DeletionTimestamp == nil {
-			selectedRes.Name += "-apply"
-			labelSelector = labels.SelectorFromSet(map[string]string{
-				"job-name": selectedRes.Name,
-			})
-		}
-		// TODO(zzxwill) : We should also support showing logs when the terraform is destroying resources.
-		// But currently, when deleting an application, it won't hold on its deletion. So `vela logs` miss application
-		// parameter and is unable to display any logs.
-	}
-
-	if selectedRes.Cluster != "" && selectedRes.Cluster != "local" {
-		ctx = multicluster.ContextWithClusterName(ctx, selectedRes.Cluster)
-	}
-	pod, err := regexp.Compile(selectedRes.Name + "-.*")
-	if err != nil {
-		return fmt.Errorf("fail to compile '%s' for logs query", selectedRes.Name+".*")
-	}
-	container := regexp.MustCompile(".*")
-	if l.Container != "" {
-		container = regexp.MustCompile(l.Container + ".*")
-	}
-	namespace := selectedRes.Namespace
-	added, removed, err := stern.Watch(ctx, clientSet.CoreV1().Pods(namespace), pod, container, nil, []stern.ContainerState{stern.RUNNING, stern.TERMINATED}, labelSelector)
+	added, removed, err := stern.Watch(ctx,
+		clientSet.CoreV1().Pods(namespace),
+		pod,
+		container,
+		nil,
+		[]stern.ContainerState{stern.RUNNING, stern.TERMINATED},
+		selector,
+	)
 	if err != nil {
 		return err
 	}
@@ -164,9 +182,9 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	switch l.Output {
 	case "default":
 		if color.NoColor {
-			t = "{{.PodName}} {{.ContainerName}} {{.Message}}"
+			t = "{{.ContainerName}} {{.Message}}"
 		} else {
-			t = "{{color .PodColor .PodName}} {{color .ContainerColor .ContainerName}} {{.Message}}"
+			t = "{{color .ContainerColor .ContainerName}} {{.Message}}"
 		}
 	case "raw":
 		t = "{{.Message}}"

@@ -7,7 +7,6 @@ data:
   template: |
     import (
       "vela/ql"
-      "vela/op"
     )
 
     parameter: {
@@ -18,7 +17,7 @@ data:
       clusterNs?: string
     }
 
-    application: ql.#ListResourcesInApp & {
+    result: ql.#CollectPods & {
       app: {
         name:      parameter.appName
         namespace: parameter.appNs
@@ -36,63 +35,41 @@ data:
       }
     }
 
-    if application.err != _|_ {
-      status: error: application.err
+    if result.err == _|_ {
+      status: {
+        podList: [ for pod in result.list if pod.object != _|_ {
+          cluster:   pod.cluster
+          workload:  pod.workload
+          component: pod.component
+          metadata: {
+            name:         pod.object.metadata.name
+            namespace:    pod.object.metadata.namespace
+            creationTime: pod.object.metadata.creationTimestamp
+            labels:       pod.object.metadata.labels
+            version: {
+              if pod.publishVersion != _|_ {
+                publishVersion: pod.publishVersion
+              }
+              if pod.deployVersion != _|_ {
+                deployVersion: pod.deployVersion
+              }
+            }
+          }
+          status: {
+            phase: pod.object.status.phase
+            // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+            if phase != "Pending" && phase != "Unknown" {
+              podIP:    pod.object.status.podIP
+              hostIP:   pod.object.status.hostIP
+              nodeName: pod.object.spec.nodeName
+            }
+          }
+        }]
+      }
     }
 
-    if application.err == _|_ {
-      resources: application.list
-
-      podsMap: op.#Steps & {
-        for i, resource in resources {
-          "\(i)": ql.#CollectPods & {
-            value:   resource.object
-            cluster: resource.cluster
-          }
-        }
-      }
-
-      podsWithCluster: [ for i, pods in podsMap for podObj in pods.list {
-        cluster: pods.cluster
-        obj:     podObj
-      }]
-
-      podStatus: op.#Steps & {
-        for i, pod in podsWithCluster {
-          "\(i)": op.#Steps & {
-            name: pod.obj.metadata.name
-            containers: {for container in pod.obj.status.containerStatuses {
-              "\(container.name)": {
-                image: container.image
-                state: container.state
-              }
-            }}
-            events: ql.#SearchEvents & {
-              value:   pod.obj
-              cluster: pod.cluster
-            }
-            metrics: ql.#Read & {
-              cluster: pod.cluster
-              value: {
-                apiVersion: "metrics.k8s.io/v1beta1"
-                kind:       "PodMetrics"
-                metadata: {
-                  name:      pod.obj.metadata.name
-                  namespace: pod.obj.metadata.namespace
-                }
-              }
-            }
-          }
-        }
-      }
-
+    if result.err != _|_ {
       status: {
-        podList: [ for podInfo in podStatus {
-          name: podInfo.name
-          containers: [ for containerName, container in podInfo.containers {
-            containerName
-          }]
-          events: podInfo.events.list
-        }]
+        error: result.err
       }
     }

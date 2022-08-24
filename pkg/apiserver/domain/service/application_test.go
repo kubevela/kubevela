@@ -18,6 +18,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -370,7 +371,7 @@ var _ = Describe("Test application service function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(appModel.Project, testProject)).Should(BeEmpty())
-		err = appService.DeletePolicy(context.TODO(), appModel, overridePolicyName)
+		err = appService.DeletePolicy(context.TODO(), appModel, overridePolicyName, false)
 		Expect(err).Should(BeNil())
 	})
 
@@ -478,8 +479,12 @@ var _ = Describe("Test application service function", func() {
 		Expect(resp.Total).Should(Equal(int64(3)))
 	})
 
-	It("Test CompareAppWithLatestRevision function", func() {
-
+	It("Test CompareApp function", func() {
+		check := func(compareResponse *v1.AppCompareResponse, isDiff bool) {
+			Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
+			Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).ShouldNot(BeEmpty())
+			Expect(cmp.Diff(compareResponse.IsDiff, isDiff)).Should(BeEmpty())
+		}
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
 		_, err = appService.Deploy(context.TODO(), appModel, v1.ApplicationDeployRequest{WorkflowName: repository.ConvertWorkflowName("app-dev")})
@@ -488,23 +493,40 @@ var _ = Describe("Test application service function", func() {
 		Expect(err).Should(BeNil())
 
 		By("compare when app not change, should return false")
-		compareResponse, err := appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err := appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithRunning: &v1.CompareRevisionWithRunningOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		check(compareResponse, false)
 
-		By("compare when app not change and env not empty, should return false")
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{Env: "app-dev"})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithLatest: &v1.CompareRevisionWithLatestOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		check(compareResponse, false)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, false)
 
 		By("compare when app add env, not change, should return false")
 		_, err = envService.CreateEnv(context.TODO(), v1.CreateEnvRequest{Name: "app-prod", Namespace: "envnsprod", Targets: []string{defaultTarget}, Project: "app-prod"})
 		Expect(err).Should(BeNil())
 		_, err = envBindingService.CreateEnvBinding(context.TODO(), appModel, v1.CreateApplicationEnvbindingRequest{EnvBinding: v1.EnvBinding{Name: "app-prod"}})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-prod",
+			},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, false)).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.TargetAppYAML, "")).Should(BeEmpty())
+		Expect(cmp.Diff(compareResponse.BaseAppYAML, "")).ShouldNot(BeEmpty())
 
 		By("compare when app's env add target, should return true")
 		_, err = targetService.CreateTarget(context.TODO(), v1.CreateTargetRequest{Name: "dev-target1", Project: appModel.Project, Cluster: &v1.ClusterTarget{ClusterName: "local", Namespace: "dev-target1"}})
@@ -515,9 +537,13 @@ var _ = Describe("Test application service function", func() {
 				Targets:     []string{defaultTarget, "dev-target1"},
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-dev",
+			},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		check(compareResponse, true)
 
 		By("compare when update app's trait, should return true")
 		// reset app config
@@ -529,11 +555,21 @@ var _ = Describe("Test application service function", func() {
 			Description: "description",
 		})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithLatest: &v1.CompareRevisionWithLatestOption{},
+		})
 		Expect(err).Should(BeNil())
 		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
 
-		By("compare when update component's target after app deployed ,should return ture")
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+
+		By("compare when update component's target after app deployed ,should return true")
 		// reset app config
 		_, err = appService.ResetAppToLatestRevision(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
@@ -545,9 +581,49 @@ var _ = Describe("Test application service function", func() {
 				Properties: &newProperties,
 			})
 		Expect(err).Should(BeNil())
-		compareResponse, err = appService.CompareAppWithLatestRevision(context.TODO(), appModel, v1.AppCompareReq{})
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithLatest: &v1.CompareRevisionWithLatestOption{},
+		})
 		Expect(err).Should(BeNil())
-		Expect(cmp.Diff(compareResponse.IsDiff, true)).Should(BeEmpty())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithRunning: &v1.CompareRevisionWithRunningOption{},
+		})
+
+		Expect(err).Should(BeNil())
+		check(compareResponse, false)
+
+		By("compare when changed the application CR, should return true")
+
+		appCR, err := appService.GetApplicationCRInEnv(context.TODO(), appModel, "app-dev")
+		Expect(err).Should(BeNil())
+		appCR.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte("{\"exposeType\":\"NodePort\",\"image\":\"nginx:222\",\"imagePullPolicy\":\"Always\"}")}
+		err = k8sClient.Update(context.TODO(), appCR)
+		Expect(err).Should(BeNil())
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareRevisionWithRunning: &v1.CompareRevisionWithRunningOption{},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
+		compareResponse, err = appService.CompareApp(context.TODO(), appModel, v1.AppCompareReq{
+			CompareLatestWithRunning: &v1.CompareLatestWithRunningOption{
+				Env: "app-dev",
+			},
+		})
+		Expect(err).Should(BeNil())
+		check(compareResponse, true)
+
 		err = envBindingService.ApplicationEnvRecycle(context.TODO(), &model.Application{Name: testApp}, &model.EnvBinding{Name: "app-dev"})
 		Expect(err).Should(BeNil())
 	})
@@ -576,7 +652,7 @@ var _ = Describe("Test application service function", func() {
 	It("Test DryRun with env revision function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision", Env: "app-dev"})
+		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "REVISION", Env: "app-dev"})
 		Expect(err).Should(BeNil())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
@@ -585,7 +661,7 @@ var _ = Describe("Test application service function", func() {
 	It("Test DryRun with last revision function", func() {
 		appModel, err := appService.GetApplication(context.TODO(), testApp)
 		Expect(err).Should(BeNil())
-		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "Revision"})
+		resetResponse, err := appService.DryRunAppOrRevision(context.TODO(), appModel, v1.AppDryRunReq{DryRunType: "REVISION"})
 		Expect(err).Should(BeNil())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app)")).Should(BeTrue())
 		Expect(strings.Contains(resetResponse.YAML, "# Application(test-app) -- Component(component-name)")).Should(BeTrue())
@@ -715,6 +791,193 @@ var _ = Describe("Test application component service function", func() {
 		Expect(err).Should(BeNil())
 		Expect(app).ShouldNot(BeNil())
 		Expect(len(app.Traits)).Should(BeEquivalentTo(1))
+	})
+})
+
+var _ = Describe("Test apiserver policy rest api", func() {
+	var (
+		appService     *applicationServiceImpl
+		projectService *projectServiceImpl
+		envService     *envServiceImpl
+		testApp        string
+		testProject    string
+		ctx            context.Context
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		ds, err := NewDatastore(datastore.Config{Type: "kubeapi", Database: "app-test-kubevela"})
+		Expect(ds).ToNot(BeNil())
+		Expect(err).Should(BeNil())
+		rbacService := &rbacServiceImpl{Store: ds}
+		projectService = &projectServiceImpl{Store: ds, K8sClient: k8sClient, RbacService: rbacService}
+		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
+		workflowService := &workflowServiceImpl{Store: ds, EnvService: envService}
+		envBindingService := &envBindingServiceImpl{Store: ds, EnvService: envService, WorkflowService: workflowService, KubeClient: k8sClient}
+
+		appService = &applicationServiceImpl{
+			Store:             ds,
+			Apply:             apply.NewAPIApplicator(k8sClient),
+			KubeClient:        k8sClient,
+			ProjectService:    projectService,
+			WorkflowService:   workflowService,
+			EnvBindingService: envBindingService,
+			EnvService:        envService,
+		}
+		testApp = "app-policy-workflow-binding"
+		testProject = "project-policy-workflow-binding"
+	})
+
+	It("Test add policy", func() {
+		_, err := projectService.CreateProject(context.TODO(), v1.CreateProjectRequest{Name: testProject})
+		Expect(err).Should(BeNil())
+		_, err = appService.CreateApplication(context.TODO(), v1.CreateApplicationRequest{Name: testApp, Project: testProject})
+		Expect(err).Should(BeNil())
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+
+		workflow := v1.CreateWorkflowRequest{
+			Name:    "default",
+			EnvName: "default",
+			Steps: []v1.WorkflowStep{
+				{
+					Name:       "default",
+					Type:       "deploy",
+					Properties: `{"policies":["local"]}`,
+				},
+				{
+					Name:       "suspend",
+					Type:       "suspend",
+					Properties: `{"duration": "10m"}`,
+				},
+				{
+					Name:       "second",
+					Type:       "deploy",
+					Properties: `{"policies":["cluster1"]}`,
+				},
+			},
+		}
+		_, err = appService.WorkflowService.CreateOrUpdateWorkflow(ctx, appModel, workflow)
+		Expect(err).Should(BeNil())
+
+		workflow2 := v1.CreateWorkflowRequest{
+			Name:    "second",
+			EnvName: "default",
+			Steps: []v1.WorkflowStep{
+				{
+					Name:       "second",
+					Type:       "deploy",
+					Properties: `{"policies":["cluster3"]}`,
+				},
+			},
+		}
+		_, err = appService.WorkflowService.CreateOrUpdateWorkflow(ctx, appModel, workflow2)
+		Expect(err).Should(BeNil())
+
+		policyReq := v1.CreatePolicyRequest{
+			Name:       "override1",
+			Type:       "override",
+			Properties: `{"components": [{"image": "busybox","cmd":["sleep", "1000"],"lives": "3","enemies": "alien"}]}`,
+			WorkflowPolicyBindings: []v1.WorkflowPolicyBinding{
+				{
+					Name:  "default",
+					Steps: []string{"default"},
+				},
+			},
+		}
+		_, err = appService.CreatePolicy(ctx, appModel, policyReq)
+		Expect(err).Should(BeNil())
+
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local","override1"]}`))
+
+		// guarantee the suspend workflow step shouldn't be changed
+		suspendStep := checkWorkflow.Steps[1]
+		Expect(suspendStep.Name).Should(BeEquivalentTo("suspend"))
+		Expect(suspendStep.Type).Should(BeEquivalentTo("suspend"))
+		suspendPropertyStr, err := json.Marshal(suspendStep.Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(suspendPropertyStr)).Should(BeEquivalentTo(`{"duration":"10m"}`))
+	})
+
+	It("Update policy to more workflow Step", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+		policyRes, err := appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		propertyStr, err := json.Marshal(policyRes.Properties)
+		Expect(err).Should(BeNil())
+		updatePolicyReq := v1.UpdatePolicyRequest{
+			Description: policyRes.Description,
+			Type:        policyRes.Type,
+			Properties:  string(propertyStr),
+			WorkflowPolicyBindings: []v1.WorkflowPolicyBinding{
+				{
+					Name:  "second",
+					Steps: []string{"second"},
+				},
+			},
+		}
+		_, err = appService.UpdatePolicy(ctx, appModel, policyName, updatePolicyReq)
+		Expect(err).Should(BeNil())
+
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local"]}`))
+
+		checkWorkflow, err = appService.WorkflowService.GetWorkflow(ctx, appModel, "second")
+		Expect(err).Should(BeNil())
+		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3","override1"]}`))
+
+		policyRes, err = appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		Expect(policyRes.WorkflowPolicyBindings).Should(BeEquivalentTo([]v1.WorkflowPolicyBinding{
+			{
+				Name:  "second",
+				Steps: []string{"second"},
+			},
+		}))
+	})
+
+	It("Exist binding will block policy delete operation", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+		_, err = appService.DetailPolicy(ctx, appModel, policyName)
+		Expect(err).Should(BeNil())
+		err = appService.DeletePolicy(ctx, appModel, policyName, false)
+		Expect(err).ShouldNot(BeNil())
+	})
+
+	It("Force delete policy will delete policy workflow binding", func() {
+		appModel, err := appService.GetApplication(context.TODO(), testApp)
+		Expect(err).Should(BeNil())
+		policyName := "override1"
+
+		// try delete again
+		err = appService.DeletePolicy(ctx, appModel, policyName, true)
+		Expect(err).Should(BeNil())
+
+		// check workflow bindings and policy has been removed
+		checkWorkflow, err := appService.WorkflowService.GetWorkflow(ctx, appModel, "default")
+		Expect(err).Should(BeNil())
+		checkRes, err := json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["local"]}`))
+
+		checkWorkflow, err = appService.WorkflowService.GetWorkflow(ctx, appModel, "second")
+		Expect(err).Should(BeNil())
+		checkRes, err = json.Marshal(checkWorkflow.Steps[0].Properties)
+		Expect(err).Should(BeNil())
+		Expect(string(checkRes)).Should(BeEquivalentTo(`{"policies":["cluster3"]}`))
 	})
 })
 

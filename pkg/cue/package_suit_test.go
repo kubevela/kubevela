@@ -45,6 +45,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -99,7 +100,7 @@ var _ = Describe("Package discovery resources for definition from K8s APIServer"
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
-		err := bi.AddFile("-", `
+		err := value.AddFile(bi, "-", `
 import (
 	kube	"kube/networking.k8s.io/v1beta1"
 )
@@ -132,9 +133,9 @@ parameter: {
 	}
 }`)
 		Expect(err).ToNot(HaveOccurred())
-		inst, err := pd.ImportPackagesAndBuildInstance(bi)
+		inst, err := pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err := model.NewBase(inst.Lookup("output"))
+		base, err := model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err := base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -158,7 +159,7 @@ parameter: {
 		})).Should(BeEquivalentTo(""))
 		By("test Invalid Import path")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	kube	"kube/networking.k8s.io/v1"
 )
@@ -179,15 +180,16 @@ parameter: {
 	name:  "myapp"
 	image: "nginx"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
 		Expect(err).Should(BeNil())
-		_, err = model.NewBase(inst.Lookup("output"))
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
+		Expect(err).Should(BeNil())
+		_, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\""))
 
 		By("test Deployment in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	kube	"kube/apps/v1"
 )
@@ -207,9 +209,10 @@ parameter: {
 	name:  "myapp"
 	image: "nginx"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
+		Expect(err).Should(BeNil())
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -229,7 +232,7 @@ parameter: {
 
 		By("test Secret in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	kube "kube/v1"
 )
@@ -243,9 +246,10 @@ output: {
 parameter: {
 	name:  "myapp"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
+		Expect(err).Should(BeNil())
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -257,7 +261,7 @@ parameter: {
 
 		By("test Service in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	kube "kube/v1"
 )
@@ -271,9 +275,10 @@ output: {
 parameter: {
 	name:  "myapp"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
+		Expect(err).Should(BeNil())
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -360,7 +365,7 @@ parameter: {
 		}, time.Second*30, time.Millisecond*300).Should(BeNil())
 
 		bi = build.NewContext().NewInstance("", nil)
-		err = bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	kv1 "kube/example.com/v1"
 )
@@ -371,9 +376,9 @@ output: {
 }
 `)
 		Expect(err).Should(BeNil())
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -392,7 +397,7 @@ output: {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
-		err := bi.AddFile("-", `
+		err := value.AddFile(bi, "-", `
 import (
 	network "k8s.io/networking/v1beta1"
 )
@@ -423,9 +428,9 @@ parameter: {
 	}
 }`)
 		Expect(err).ToNot(HaveOccurred())
-		inst, err := pd.ImportPackagesAndBuildInstance(bi)
+		inst, err := pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err := model.NewBase(inst.Lookup("output"))
+		base, err := model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err := base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -449,7 +454,7 @@ parameter: {
 		})).Should(BeEquivalentTo(""))
 		By("test Invalid Import path")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		value.AddFile(bi, "-", `
 import (
 	"k8s.io/networking/v1"
 )
@@ -470,15 +475,15 @@ parameter: {
 	name:  "myapp"
 	image: "nginx"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		_, err = model.NewBase(inst.Lookup("output"))
+		_, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).ShouldNot(BeNil())
 		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\""))
 
 		By("test Deployment in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		value.AddFile(bi, "-", `
 import (
 	apps "k8s.io/apps/v1"
 )
@@ -498,9 +503,9 @@ parameter: {
 	name:  "myapp"
 	image: "nginx"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -520,7 +525,7 @@ parameter: {
 
 		By("test Secret in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		value.AddFile(bi, "-", `
 import (
 	"k8s.io/core/v1"
 )
@@ -534,9 +539,9 @@ output: {
 parameter: {
 	name:  "myapp"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -548,7 +553,7 @@ parameter: {
 
 		By("test Service in kube package")
 		bi = build.NewContext().NewInstance("", nil)
-		bi.AddFile("-", `
+		value.AddFile(bi, "-", `
 import (
 	"k8s.io/core/v1"
 )
@@ -562,9 +567,9 @@ output: {
 parameter: {
 	name:  "myapp"
 }`)
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())
@@ -651,7 +656,7 @@ parameter: {
 		}, time.Second*30, time.Millisecond*300).Should(BeNil())
 
 		bi = build.NewContext().NewInstance("", nil)
-		err = bi.AddFile("-", `
+		err = value.AddFile(bi, "-", `
 import (
 	ev1 "example.com/v1"
 )
@@ -662,9 +667,9 @@ output: {
 }
 `)
 		Expect(err).Should(BeNil())
-		inst, err = pd.ImportPackagesAndBuildInstance(bi)
+		inst, err = pd.ImportPackagesAndBuildValue(bi)
 		Expect(err).Should(BeNil())
-		base, err = model.NewBase(inst.Lookup("output"))
+		base, err = model.NewBase(inst.LookupPath(value.FieldPath("output")))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
 		Expect(err).Should(BeNil())

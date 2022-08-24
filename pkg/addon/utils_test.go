@@ -23,19 +23,17 @@ import (
 	"strings"
 	"testing"
 
-	"helm.sh/helm/v3/pkg/chartutil"
-
-	"github.com/stretchr/testify/assert"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -111,9 +109,13 @@ var _ = Describe("Test definition check", func() {
 		Expect(yaml.Unmarshal([]byte(testApp3Yaml), &app3)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &app3)).Should(BeNil())
 
+		app4 := v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(testApp4Yaml), &app4)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &app4)).Should(BeNil())
+
 		usedApps, err := checkAddonHasBeenUsed(ctx, k8sClient, "my-addon", addonApp, cfg)
 		Expect(err).Should(BeNil())
-		Expect(len(usedApps)).Should(BeEquivalentTo(3))
+		Expect(len(usedApps)).Should(BeEquivalentTo(4))
 	})
 
 	It("check fetch lagacy addon definitions", func() {
@@ -213,7 +215,7 @@ func TestIsAddonDir(t *testing.T) {
 	assert.Equal(t, isAddonDir, false)
 	assert.Contains(t, err.Error(), "addon version is empty")
 
-	// No template.yaml
+	// No metadata.yaml
 	meta = &Meta{
 		Name:    "name",
 		Version: "1.0.0",
@@ -233,8 +235,19 @@ func TestIsAddonDir(t *testing.T) {
 	assert.Equal(t, isAddonDir, false)
 	assert.Contains(t, err.Error(), "missing")
 
+	// Empty template.cue
+	err = os.WriteFile(filepath.Join("testdata", "testaddon", AppTemplateCueFileName), []byte{}, 0644)
+	assert.NoError(t, err)
+	isAddonDir, err = IsAddonDir(filepath.Join("testdata", "testaddon"))
+	assert.Equal(t, isAddonDir, false)
+	assert.Contains(t, err.Error(), renderOutputCuePath)
+
 	// Pass all checks
-	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon2"))
+	cmd := InitCmd{
+		Path:      filepath.Join("testdata", "testaddon2"),
+		AddonName: "testaddon2",
+	}
+	err = cmd.CreateScaffold()
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll(filepath.Join("testdata", "testaddon2"))
@@ -252,7 +265,11 @@ func TestMakeChart(t *testing.T) {
 	assert.Contains(t, err.Error(), "not an addon dir")
 
 	// Valid addon dir
-	err = CreateAddonSample("testaddon2", filepath.Join("testdata", "testaddon"))
+	cmd := InitCmd{
+		Path:      filepath.Join("testdata", "testaddon"),
+		AddonName: "testaddon",
+	}
+	err = cmd.CreateScaffold()
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.RemoveAll(filepath.Join("testdata", "testaddon"))
@@ -269,6 +286,47 @@ func TestMakeChart(t *testing.T) {
 	isChartDir, err = chartutil.IsChartDir(filepath.Join("testdata", "testaddon"))
 	assert.NoError(t, err)
 	assert.Equal(t, isChartDir, true)
+}
+
+func TestCheckObjectBindingComponent(t *testing.T) {
+	existingBindingDef := unstructured.Unstructured{}
+	existingBindingDef.SetAnnotations(map[string]string{oam.AnnotationAddonDefinitionBondCompKey: "kustomize"})
+
+	emptyAnnoDef := unstructured.Unstructured{}
+	emptyAnnoDef.SetAnnotations(map[string]string{"test": "onlyForTest"})
+
+	legacyAnnoDef := unstructured.Unstructured{}
+	legacyAnnoDef.SetAnnotations(map[string]string{oam.AnnotationIgnoreWithoutCompKey: "kustomize"})
+	testCases := map[string]struct {
+		object unstructured.Unstructured
+		app    v1beta1.Application
+		res    bool
+	}{
+		"bindingExist": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true},
+		"NotExisting": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "helm"}}}},
+			res: false},
+		"NoBidingAnnotation": {object: emptyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true},
+		"EmptyApp": {object: existingBindingDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{}}},
+			res: false},
+		"LegacyApp": {object: legacyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{Name: "kustomize"}}}},
+			res: true,
+		},
+		"LegacyAppWithoutComp": {object: legacyAnnoDef,
+			app: v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{}}}},
+			res: false,
+		},
+	}
+	for _, s := range testCases {
+		result := checkBondComponentExist(s.object, s.app)
+		assert.Equal(t, result, s.res)
+	}
 }
 
 const (
@@ -307,6 +365,7 @@ metadata:
     addon.oam.dev/componentDefinitions: "my-comp"
     addon.oam.dev/traitDefinitions: "my-trait"
     addon.oam.dev/workflowStepDefinitions: "my-wfstep"
+    addon.oam.dev/policyDefinitions: "my-policy"
   name: addon-myaddon
   namespace: vela-system
 spec:
@@ -355,6 +414,22 @@ spec:
     - type: my-wfstep
       name: deploy
 `
+	testApp4Yaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-4
+  namespace: test-ns
+spec:
+  components:
+    - name: podinfo
+      type: webservice
+
+  policies:
+    - type: my-policy
+      name: topology
+`
+
 	registryCmYaml = `
 apiVersion: v1
 data:

@@ -62,6 +62,12 @@ func TestParseOverridePolicyRelatedDefinitions(t *testing.T) {
 			Policy: v1beta1.AppPolicy{Properties: &runtime.RawExtension{Raw: []byte(`{"components":[{"type":"comp","traits":[{"type":"trait-404"}]}]}`)}},
 			Error:  "failed to get trait definition",
 		},
+		"empty-policy": {
+			Policy:        v1beta1.AppPolicy{Properties: nil},
+			ComponentDefs: nil,
+			TraitDefs:     nil,
+			Error:         "have empty properties",
+		},
 	}
 	for name, tt := range testCases {
 		t.Run(name, func(t *testing.T) {

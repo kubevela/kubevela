@@ -30,23 +30,19 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-	"github.com/oam-dev/kubevela/references/apis"
-	"github.com/oam-dev/kubevela/references/plugins"
-
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/apis"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 // NewRegistryCommand Manage Capability Center
@@ -745,33 +741,5 @@ func ParseCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types
 	if err != nil {
 		return types.Capability{}, err
 	}
-	switch obj.GetKind() {
-	case "ComponentDefinition":
-		var cd v1beta1.ComponentDefinition
-		err = yaml.Unmarshal(data, &cd)
-		if err != nil {
-			return types.Capability{}, err
-		}
-		var workloadDefinitionRef string
-		if cd.Spec.Workload.Type != "" {
-			workloadDefinitionRef = cd.Spec.Workload.Type
-		} else {
-			ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
-			if err != nil {
-				return types.Capability{}, err
-			}
-			workloadDefinitionRef = ref.Name
-		}
-		return plugins.HandleDefinition(cd.Name, workloadDefinitionRef, cd.Annotations, cd.Labels, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic, nil)
-	case "TraitDefinition":
-		var td v1beta1.TraitDefinition
-		err = yaml.Unmarshal(data, &td)
-		if err != nil {
-			return types.Capability{}, err
-		}
-		return plugins.HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Labels, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic, nil)
-	case "ScopeDefinition":
-		// TODO(wonderflow): support scope definition here.
-	}
-	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
+	return docgen.ParseCapabilityFromUnstructured(mapper, nil, obj)
 }

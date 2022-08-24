@@ -4,9 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Add annotations on K8s pod for your workload which follows the pod spec in path 'spec.template'.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
+    definition.oam.dev/description: Add annotations on your workload. if it generates pod, add same annotations for generated pods.
   name: annotations
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

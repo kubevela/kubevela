@@ -27,6 +27,8 @@ const (
 	DebugPolicyType = "debug"
 	// SharedResourcePolicyType refers to the type of shared resource policy
 	SharedResourcePolicyType = "shared-resource"
+	// ReplicationPolicyType refers to the type of replication policy
+	ReplicationPolicyType = "replication"
 )
 
 // TopologyPolicySpec defines the spec of topology policy
@@ -76,4 +78,12 @@ func (in SharedResourcePolicySpec) FindStrategy(manifest *unstructured.Unstructu
 		}
 	}
 	return false
+}
+
+// ReplicationPolicySpec defines the spec of replication policy
+// Override policy should be used together with replication policy to select the deployment target components
+type ReplicationPolicySpec struct {
+	Keys []string `json:"keys,omitempty"`
+	// Selector is the subset of selected components which will be replicated.
+	Selector []string `json:"selector,omitempty"`
 }

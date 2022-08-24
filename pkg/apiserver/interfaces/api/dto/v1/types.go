@@ -362,10 +362,10 @@ type ApplicationBase struct {
 
 // AppCompareResponse application compare result
 type AppCompareResponse struct {
-	IsDiff     bool   `json:"isDiff"`
-	DiffReport string `json:"diffReport"`
-	NewAppYAML string `json:"newAppYAML"`
-	OldAppYAML string `json:"oldAppYAML"`
+	IsDiff        bool   `json:"isDiff"`
+	DiffReport    string `json:"diffReport"`
+	BaseAppYAML   string `json:"baseAppYAML"`
+	TargetAppYAML string `json:"targetAppYAML"`
 }
 
 // AppResetResponse application reset result
@@ -375,20 +375,41 @@ type AppResetResponse struct {
 
 // AppCompareReq  application compare req
 type AppCompareReq struct {
-	Env string `json:"env"`
+	CompareRevisionWithRunning *CompareRevisionWithRunningOption `json:"compareRevisionWithRunning,omitempty"`
+	CompareRevisionWithLatest  *CompareRevisionWithLatestOption  `json:"compareRevisionWithLatest,omitempty"`
+	CompareLatestWithRunning   *CompareLatestWithRunningOption   `json:"compareLatestWithRunning,omitempty"`
+}
+
+// CompareRevisionWithRunningOption means compare the specified version with the application in cluster.
+type CompareRevisionWithRunningOption struct {
+	// Revision, If not specified, means use the latest revision.
+	Revision string `json:"revision" optional:"true"`
+}
+
+// CompareRevisionWithLatestOption means compare the the specified version with the latest application configuration
+type CompareRevisionWithLatestOption struct {
+	// Revision, If not specified, means use the latest revision.
+	Revision string `json:"revision" optional:"true"`
+}
+
+// CompareLatestWithRunningOption means compare the latest configuration with the app in cluster.
+type CompareLatestWithRunningOption struct {
+	Env string `json:"env" validate:"required"`
 }
 
 // AppDryRunReq application dry-run req
 type AppDryRunReq struct {
-	AppName    string `json:"appName"`
-	DryRunType string `json:"dryRunType"`
+	DryRunType string `json:"dryRunType" validate:"oneof=APP REVISION"`
 	Env        string `json:"env"`
+	Workflow   string `json:"workflow"`
 	Version    string `json:"version"`
 }
 
 // AppDryRunResponse application dry-run result
 type AppDryRunResponse struct {
-	YAML string `json:"yaml"`
+	YAML    string `json:"yaml"`
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
 }
 
 // ApplicationStatusResponse application status response body
@@ -794,6 +815,9 @@ type CreateEnvRequest struct {
 	// Targets defines the name of delivery target that belongs to this env
 	// In one project, a delivery target can only belong to one env.
 	Targets []string `json:"targets,omitempty"  optional:"true"`
+
+	// AllowTargetConflict means allow binding the targets that belong to other envs
+	AllowTargetConflict bool `json:"allowTargetConflict,omitempty"  optional:"true"`
 }
 
 // UpdateEnvRequest defines the data of Env for update
@@ -852,28 +876,42 @@ type DefinitionBase struct {
 // CreatePolicyRequest create app policy
 type CreatePolicyRequest struct {
 	// Name is the unique name of the policy.
-	Name string `json:"name" validate:"checkname"`
-
-	Description string `json:"description"`
-
-	Type string `json:"type" validate:"checkname"`
-
-	// Properties json data
-	Properties string `json:"properties"`
-}
-
-// UpdatePolicyRequest update policy
-type UpdatePolicyRequest struct {
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias"`
+	EnvName     string `json:"envName"`
 	Description string `json:"description"`
 	Type        string `json:"type" validate:"checkname"`
 	// Properties json data
 	Properties string `json:"properties"`
+
+	// Bind this policy to workflow
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
+}
+
+// WorkflowPolicyBinding define the relation binding relationShip between policy and workflowStep
+type WorkflowPolicyBinding struct {
+	Name  string   `json:"name"`
+	Steps []string `json:"steps"`
+}
+
+// UpdatePolicyRequest update policy
+type UpdatePolicyRequest struct {
+	Alias       string `json:"alias"`
+	EnvName     string `json:"envName"`
+	Description string `json:"description"`
+	Type        string `json:"type" validate:"checkname"`
+	// Properties json data
+	Properties string `json:"properties"`
+
+	// Bind this policy to workflow
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind"`
 }
 
 // PolicyBase application policy base info
 type PolicyBase struct {
 	// Name is the unique name of the policy.
 	Name        string `json:"name"`
+	Alias       string `json:"alias"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Creator     string `json:"creator"`
@@ -887,6 +925,8 @@ type PolicyBase struct {
 // DetailPolicyResponse app policy detail model
 type DetailPolicyResponse struct {
 	PolicyBase
+	// Binding relationShip
+	WorkflowPolicyBindings []WorkflowPolicyBinding `json:"workflowPolicyBind,omitempty"`
 }
 
 // ListApplicationPolicy list app policies
@@ -1154,10 +1194,12 @@ type SystemInfoResponse struct {
 
 // SystemInfo system info
 type SystemInfo struct {
-	PlatformID       string    `json:"platformID"`
-	EnableCollection bool      `json:"enableCollection"`
-	LoginType        string    `json:"loginType"`
-	InstallTime      time.Time `json:"installTime,omitempty"`
+	PlatformID                  string             `json:"platformID"`
+	EnableCollection            bool               `json:"enableCollection"`
+	LoginType                   string             `json:"loginType" validate:"oneof=dex local"`
+	InstallTime                 time.Time          `json:"installTime,omitempty"`
+	DexUserDefaultProjects      []model.ProjectRef `json:"dexUserDefaultProjects,omitempty"`
+	DexUserDefaultPlatformRoles []string           `json:"dexUserDefaultPlatformRoles,omitempty"`
 }
 
 // StatisticInfo generated by cronJob running in backend
@@ -1174,9 +1216,10 @@ type StatisticInfo struct {
 
 // SystemInfoRequest request by update SystemInfo
 type SystemInfoRequest struct {
-	EnableCollection bool   `json:"enableCollection"`
-	LoginType        string `json:"loginType"`
-	VelaAddress      string `json:"velaAddress,omitempty"`
+	EnableCollection       bool               `json:"enableCollection"`
+	LoginType              string             `json:"loginType"`
+	VelaAddress            string             `json:"velaAddress,omitempty"`
+	DexUserDefaultProjects []model.ProjectRef `json:"dexUserDefaultProjects,omitempty"`
 }
 
 // SystemVersion contains KubeVela version
@@ -1233,6 +1276,7 @@ type DetailUserResponse struct {
 // ProjectUserBase project user base
 type ProjectUserBase struct {
 	UserName   string    `json:"name"`
+	UserAlias  string    `json:"alias"`
 	UserRoles  []string  `json:"userRoles"`
 	CreateTime time.Time `json:"createTime"`
 	UpdateTime time.Time `json:"updateTime"`

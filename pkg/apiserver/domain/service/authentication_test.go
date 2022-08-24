@@ -19,9 +19,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/agiledragon/gomonkey/v2"
@@ -45,10 +47,11 @@ import (
 
 var _ = Describe("Test authentication service functions", func() {
 	var (
-		authService *authenticationServiceImpl
-		userService *userServiceImpl
-		sysService  *systemInfoServiceImpl
-		ds          datastore.DataStore
+		authService    *authenticationServiceImpl
+		userService    *userServiceImpl
+		sysService     *systemInfoServiceImpl
+		projectService ProjectService
+		ds             datastore.DataStore
 	)
 
 	BeforeEach(func() {
@@ -59,42 +62,93 @@ var _ = Describe("Test authentication service functions", func() {
 		authService = &authenticationServiceImpl{KubeClient: k8sClient, Store: ds}
 		sysService = &systemInfoServiceImpl{Store: ds, KubeClient: k8sClient}
 		userService = &userServiceImpl{Store: ds, SysService: sysService}
+		projectService = NewTestProjectService(ds, k8sClient)
 	})
 	It("Test Dex login", func() {
 		testIDToken := &oidc.IDToken{}
+		sub := "248289761001Abv"
 		patch := ApplyMethod(reflect.TypeOf(testIDToken), "Claims", func(_ *oidc.IDToken, v interface{}) error {
-			return json.Unmarshal([]byte(`{"email":"test@test.com","name":"test"}`), v)
+			return json.Unmarshal([]byte(fmt.Sprintf(`{"email":"test@test.com", "name":"show name", "sub": "%s"}`, sub)), v)
 		})
 		defer patch.Reset()
+
+		err := sysService.Init(context.TODO())
+		Expect(err).Should(BeNil())
+		err = userService.Init(context.TODO())
+		Expect(err).Should(BeNil())
+		err = projectService.Init(context.TODO())
+		Expect(err).Should(BeNil())
+
+		info, err := sysService.Get(context.TODO())
+		Expect(err).Should(BeNil())
+		info.DexUserDefaultProjects = []model.ProjectRef{{
+			Name:  "default",
+			Roles: []string{"app-developer"},
+		}}
+		info.DexUserDefaultPlatformRoles = []string{"admin"}
+		err = ds.Put(context.TODO(), info)
+		Expect(err).Should(BeNil())
+
 		dexHandler := dexHandlerImpl{
-			idToken: testIDToken,
-			Store:   ds,
+			idToken:           testIDToken,
+			Store:             ds,
+			projectService:    projectService,
+			systemInfoService: sysService,
 		}
 		resp, err := dexHandler.login(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(resp.Email).Should(Equal("test@test.com"))
-		Expect(resp.Name).Should(Equal("test"))
+		Expect(resp.Name).Should(Equal(strings.ToLower(sub)))
+		Expect(resp.Alias).Should(Equal("show name"))
+
+		newUser, err := userService.GetUser(context.TODO(), resp.Name)
+		Expect(err).Should(BeNil())
+		Expect(newUser.DexSub).Should(Equal(sub))
+		Expect(newUser.UserRoles).Should(Equal([]string{"admin"}))
+
+		projects, err := projectService.ListUserProjects(context.TODO(), sub)
+		Expect(err).Should(BeNil())
+		Expect(len(projects)).Should(Equal(1))
 
 		user := &model.User{
-			Name: "test",
+			Name: sub,
 		}
 		err = ds.Get(context.Background(), user)
 		Expect(err).Should(BeNil())
 		Expect(user.Email).Should(Equal("test@test.com"))
 
 		existUser := &model.User{
-			Name: "test",
+			Name: sub,
 		}
 		err = ds.Delete(context.Background(), existUser)
 		Expect(err).Should(BeNil())
-		existUser.Name = "exist-user"
-		existUser.Email = "test@test.com"
+
+		existUser = &model.User{
+			Name:  "exist-user",
+			Email: "test@test.com",
+		}
 		err = ds.Add(context.Background(), existUser)
 		Expect(err).Should(BeNil())
 		resp, err = dexHandler.login(context.Background())
 		Expect(err).Should(BeNil())
 		Expect(resp.Email).Should(Equal("test@test.com"))
 		Expect(resp.Name).Should(Equal("exist-user"))
+
+		err = ds.Delete(context.Background(), existUser)
+		Expect(err).Should(BeNil())
+
+		existUser = &model.User{
+			Name:   "zhangsan",
+			Email:  "test2@test.com",
+			DexSub: sub,
+		}
+		err = ds.Add(context.Background(), existUser)
+		Expect(err).Should(BeNil())
+		resp, err = dexHandler.login(context.Background())
+		Expect(err).Should(BeNil())
+		Expect(resp.Email).Should(Equal("test2@test.com"))
+		Expect(resp.Name).Should(Equal("zhangsan"))
+
 	})
 
 	It("Test local login", func() {

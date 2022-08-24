@@ -47,6 +47,7 @@ import (
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -57,11 +58,19 @@ import (
 var paths = []string{
 	"example/metadata.yaml",
 	"example/readme.md",
-	"example/template.yaml",
+	"example/template.cue",
 	"example/definitions/helm.yaml",
 	"example/resources/configmap.cue",
-	"example/resources/parameter.cue",
+	"example/parameter.cue",
 	"example/resources/service/source-controller.yaml",
+
+	"example-legacy/metadata.yaml",
+	"example-legacy/readme.md",
+	"example-legacy/template.yaml",
+	"example-legacy/definitions/helm.yaml",
+	"example-legacy/resources/configmap.cue",
+	"example-legacy/resources/parameter.cue",
+	"example-legacy/resources/service/source-controller.yaml",
 
 	"terraform/metadata.yaml",
 	"terraform-alibaba/metadata.yaml",
@@ -158,11 +167,25 @@ func testReaderFunc(t *testing.T, reader AsyncReader) {
 	assert.True(t, uiData.Parameters != "")
 	assert.True(t, len(uiData.Definitions) > 0)
 
+	testAddonName = "example-legacy"
+	for _, m := range registryMeta {
+		if m.Name == testAddonName {
+			testAddonMeta = m
+			break
+		}
+	}
+	assert.NoError(t, err)
+	uiData, err = GetUIDataFromReader(reader, &testAddonMeta, UIMetaOptions)
+	assert.NoError(t, err)
+	assert.Equal(t, uiData.Name, testAddonName)
+	assert.True(t, uiData.Parameters != "")
+	assert.True(t, len(uiData.Definitions) > 0)
+
 	// test get ui data
 	rName := "KubeVela"
 	uiDataList, err := ListAddonUIDataFromReader(reader, registryMeta, rName, UIMetaOptions)
-	assert.True(t, strings.Contains(err.Error(), "#parameter.example: preference mark not allowed at this position"))
-	assert.Equal(t, 4, len(uiDataList))
+	assert.True(t, strings.Contains(err.Error(), "preference mark not allowed at this position"))
+	assert.Equal(t, 5, len(uiDataList))
 	assert.Equal(t, uiDataList[0].RegistryName, rName)
 
 	// test get install package
@@ -258,7 +281,7 @@ func TestRender(t *testing.T) {
 
 func TestRenderApp(t *testing.T) {
 	addon := baseAddon
-	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	// definition should not be rendered
 	assert.Equal(t, len(app.Spec.Components), 1)
@@ -267,7 +290,7 @@ func TestRenderApp(t *testing.T) {
 func TestRenderAppWithNeedNamespace(t *testing.T) {
 	addon := baseAddon
 	addon.NeedNamespace = append(addon.NeedNamespace, types.DefaultKubeVelaNS, "test-ns2")
-	app, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addon, nil, map[string]interface{}{})
 	assert.NoError(t, err, "render app fail")
 	assert.Equal(t, len(app.Spec.Components), 2)
 	for _, c := range app.Spec.Components {
@@ -288,12 +311,11 @@ func TestRenderDeploy2RuntimeAddon(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
-	steps := app.Spec.Workflow.Steps
-	assert.True(t, len(steps) >= 2)
-	assert.Equal(t, steps[len(steps)-2].Type, "apply-application")
-	assert.Equal(t, steps[len(steps)-1].Type, "deploy2runtime")
+	policies := app.Spec.Policies
+	assert.True(t, len(policies) == 1)
+	assert.Equal(t, policies[0].Type, v1alpha1.TopologyPolicyType)
 }
 
 func TestRenderDefinitions(t *testing.T) {
@@ -309,7 +331,7 @@ func TestRenderDefinitions(t *testing.T) {
 	assert.Equal(t, def.GetAPIVersion(), "core.oam.dev/v1beta1")
 	assert.Equal(t, def.GetKind(), "TraitDefinition")
 
-	app, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonDeployToRuntime, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	// addon which app work on no-runtime-cluster mode workflow is nil
 	assert.Nil(t, app.Spec.Workflow)
@@ -346,7 +368,7 @@ func TestRenderK8sObjects(t *testing.T) {
 		RuntimeCluster:      false,
 	}
 
-	app, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
+	app, _, err := RenderApp(ctx, &addonMultiYaml, nil, map[string]interface{}{})
 	assert.NoError(t, err)
 	assert.Equal(t, len(app.Spec.Components), 1)
 	comp := app.Spec.Components[0]
@@ -517,6 +539,7 @@ var baseAddon = InstallPackage{
 	Meta: Meta{
 		Name:          "test-render-cue-definition-addon",
 		NeedNamespace: []string{"test-ns"},
+		DeployTo:      &DeployTo{RuntimeCluster: true},
 	},
 	CUEDefinitions: []ElementFile{
 		{
@@ -757,84 +780,6 @@ status: {
 
 `
 
-func TestRenderApp4Observability(t *testing.T) {
-	k8sClient := fake.NewClientBuilder().Build()
-	testcases := []struct {
-		addon       InstallPackage
-		args        map[string]interface{}
-		application string
-		err         error
-	}{
-		{
-			addon: InstallPackage{
-				Meta: Meta{
-					Name: "observability",
-				},
-			},
-			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":null}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application"}]}},"status":{}}`,
-		},
-	}
-	for _, tc := range testcases {
-		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
-			assert.Equal(t, tc.err, err)
-			if app != nil {
-				data, err := json.Marshal(app)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.application, string(data))
-			}
-		})
-	}
-}
-
-// TestRenderApp4ObservabilityWithEnvBinding tests the case of RenderApp for Addon Observability with some Kubernetes data
-func TestRenderApp4ObservabilityWithK8sData(t *testing.T) {
-	k8sClient := fake.NewClientBuilder().Build()
-	ctx := context.Background()
-	secret1 := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-secret",
-			Labels: map[string]string{
-				clustercommon.LabelKeyClusterCredentialType: string(v1alpha12.CredentialTypeX509Certificate),
-			},
-		},
-		Data: map[string][]byte{
-			"test-key": []byte("test-value"),
-		},
-	}
-	err := k8sClient.Create(ctx, secret1)
-	assert.NoError(t, err)
-
-	testcases := []struct {
-		addon       InstallPackage
-		args        map[string]interface{}
-		application string
-		err         error
-	}{
-		{
-			addon: InstallPackage{
-				Meta: Meta{
-					Name: "observability",
-				},
-			},
-			args:        map[string]interface{}{},
-			application: `{"kind":"Application","apiVersion":"core.oam.dev/v1beta1","metadata":{"name":"addon-observability","namespace":"vela-system","creationTimestamp":null,"labels":{"addons.oam.dev/name":"observability","addons.oam.dev/version":""}},"spec":{"components":[],"policies":[{"name":"domain","type":"env-binding","properties":{"envs":[{"name":"test-secret","placement":{"clusterSelector":{"name":"test-secret"}}}]}}],"workflow":{"steps":[{"name":"deploy-control-plane","type":"apply-application-in-parallel"},{"name":"test-secret","type":"deploy2env","properties":{"env":"test-secret","parallel":true,"policy":"domain"}}]}},"status":{}}`,
-		},
-	}
-	for _, tc := range testcases {
-		t.Run("", func(t *testing.T) {
-			app, err := RenderApp(ctx, &tc.addon, k8sClient, tc.args)
-			assert.Equal(t, tc.err, err)
-			if app != nil {
-				data, err := json.Marshal(app)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.application, string(data))
-			}
-		})
-	}
-}
-
 func TestGetPatternFromItem(t *testing.T) {
 	ossR, err := NewAsyncReader("http://ep.beijing", "some-bucket", "", "some-sub-path", "", ossType)
 	assert.NoError(t, err)
@@ -999,6 +944,41 @@ func TestCheckSemVer(t *testing.T) {
 			actual:  "1.2.4-beta.2",
 			require: ">=v1.2.4-beta.3",
 			res:     false,
+		},
+		{
+			actual:  "1.5.0-beta.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
+		{
+			actual:  "1.5.0-alpha.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0-beta.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0-rc.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.1",
+			require: ">=1.5.0-alpha.1",
+			res:     true,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.5.0",
+			res:     false,
+		},
+		{
+			actual:  "1.5.0-rc.2",
+			require: ">=1.4.0",
+			res:     true,
 		},
 	}
 	for _, testCase := range testCases {
@@ -1199,10 +1179,14 @@ func TestReadViewFile(t *testing.T) {
 func TestRenderCUETemplate(t *testing.T) {
 	fileDate, err := os.ReadFile("./testdata/example/resources/configmap.cue")
 	assert.NoError(t, err)
-	component, err := renderCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, "{\"example\": \"\"}", map[string]interface{}{
+	addon := &InstallPackage{
+		Meta: Meta{
+			Version: "1.0.1",
+		},
+		Parameters: "{\"example\": \"\"}",
+	}
+	component, err := renderCompAccordingCUETemplate(ElementFile{Data: string(fileDate), Name: "configmap.cue"}, addon, map[string]interface{}{
 		"example": "render",
-	}, Meta{
-		Version: "1.0.1",
 	})
 	assert.NoError(t, err)
 	assert.True(t, component.Type == "raw")
@@ -1224,13 +1208,13 @@ func TestCheckEnableAddonErrorWhenMissMatch(t *testing.T) {
 func TestPackageAddon(t *testing.T) {
 	pwd, _ := os.Getwd()
 
-	validAddonDict := "./testdata/example"
+	validAddonDict := "./testdata/example-legacy"
 	archiver, err := PackageAddon(validAddonDict)
 	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(pwd, "example-1.0.1.tgz"), archiver)
+	assert.Equal(t, filepath.Join(pwd, "example-legacy-1.0.1.tgz"), archiver)
 	// Remove generated package after tests
 	defer func() {
-		_ = os.RemoveAll(filepath.Join(pwd, "example-1.0.1.tgz"))
+		_ = os.RemoveAll(filepath.Join(pwd, "example-legacy-1.0.1.tgz"))
 	}()
 
 	invalidAddonDict := "./testdata"
@@ -1259,4 +1243,113 @@ func TestGenerateAnnotation(t *testing.T) {
 	res = generateAnnotation(&meta)
 	assert.Equal(t, res[velaSystemRequirement], "")
 	assert.Equal(t, res[kubernetesSystemRequirement], ">=1.20.1")
+}
+
+func TestMergeAddonInstallArgs(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	ctx := context.Background()
+
+	testcases := []struct {
+		name        string
+		legacyArgs  string
+		args        map[string]interface{}
+		mergedArgs  string
+		application string
+		err         error
+	}{
+		{
+			name:       "addon1",
+			legacyArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+			args: map[string]interface{}{
+				"serviceType": "NodePort",
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			name:       "addon2",
+			legacyArgs: "{\"clusters\":[\"\"]}",
+			args: map[string]interface{}{
+				"repo":             "hub.vela.com",
+				"serviceType":      "NodePort",
+				"imagePullSecrets": []string{"test-hub"},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			name:       "addon3",
+			legacyArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+			args: map[string]interface{}{
+				"imagePullSecrets": []string{"test-hub-2"},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"imagePullSecrets\":[\"test-hub-2\"],\"repo\":\"hub.vela.com\",\"serviceType\":\"NodePort\"}",
+		},
+		{
+			// merge nested parameters
+			name:       "addon4",
+			legacyArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+			args: map[string]interface{}{
+				"p1": map[string]interface{}{
+					"p12": "p12-v2",
+					"p13": "p13-v1",
+				},
+			},
+			mergedArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v2\",\"p13\":\"p13-v1\"}}",
+		},
+		{
+			// there is not legacyArgs
+			name:       "addon5",
+			legacyArgs: "",
+			args: map[string]interface{}{
+				"p1": map[string]interface{}{
+					"p12": "p12-v2",
+					"p13": "p13-v1",
+				},
+			},
+			mergedArgs: "{\"p1\":{\"p12\":\"p12-v2\",\"p13\":\"p13-v1\"}}",
+		},
+		{
+			// there is not new args
+			name:       "addon6",
+			legacyArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+			args:       nil,
+			mergedArgs: "{\"clusters\":[\"\"],\"p1\":{\"p11\":\"p11-v1\",\"p12\":\"p12-v1\"}}",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run("", func(t *testing.T) {
+			if len(tc.legacyArgs) != 0 {
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      addonutil.Addon2SecName(tc.name),
+						Namespace: types.DefaultKubeVelaNS,
+					},
+					Data: map[string][]byte{
+						AddonParameterDataKey: []byte(tc.legacyArgs),
+					},
+				}
+				err := k8sClient.Create(ctx, secret)
+				assert.NoError(t, err)
+			}
+
+			addonArgs, err := MergeAddonInstallArgs(ctx, k8sClient, tc.name, tc.args)
+			assert.NoError(t, err)
+			args, err := json.Marshal(addonArgs)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.mergedArgs, string(args), tc.name)
+		})
+	}
+
+}
+
+func TestGenerateConflictError(t *testing.T) {
+	confictAddon := map[string]string{
+		"helm":      "definition: helm already exist and not belong to any addon \n",
+		"kustomize": "definition: kustomize in this addon already exist in fluxcd \n",
+	}
+	err := produceDefConflictError(confictAddon)
+	assert.Error(t, err)
+	strings.Contains(err.Error(), "in this addon already exist in fluxcd")
+
+	assert.NoError(t, produceDefConflictError(map[string]string{}))
 }

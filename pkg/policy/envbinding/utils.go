@@ -28,13 +28,15 @@ type contextKey string
 
 const (
 	// EnvNameContextKey is the name of env
+	// Deprecated
 	EnvNameContextKey = contextKey("EnvName")
 )
 
 // GetEnvBindingPolicy extract env-binding policy with given policy name, if policy name is empty, the first env-binding policy will be used
+// Deprecated
 func GetEnvBindingPolicy(app *v1beta1.Application, policyName string) (*v1alpha1.EnvBindingSpec, error) {
 	for _, policy := range app.Spec.Policies {
-		if (policy.Name == policyName || policyName == "") && policy.Type == v1alpha1.EnvBindingPolicyType {
+		if (policy.Name == policyName || policyName == "") && policy.Type == v1alpha1.EnvBindingPolicyType && policy.Properties != nil {
 			envBindingSpec := &v1alpha1.EnvBindingSpec{}
 			err := json.Unmarshal(policy.Properties.Raw, envBindingSpec)
 			return envBindingSpec, err
@@ -44,6 +46,7 @@ func GetEnvBindingPolicy(app *v1beta1.Application, policyName string) (*v1alpha1
 }
 
 // GetEnvBindingPolicyStatus extract env-binding policy status with given policy name, if policy name is empty, the first env-binding policy will be used
+// Deprecated
 func GetEnvBindingPolicyStatus(app *v1beta1.Application, policyName string) (*v1alpha1.EnvBindingStatus, error) {
 	for _, policyStatus := range app.Status.PolicyStatus {
 		if (policyStatus.Name == policyName || policyName == "") && policyStatus.Type == v1alpha1.EnvBindingPolicyType {
@@ -59,6 +62,7 @@ func GetEnvBindingPolicyStatus(app *v1beta1.Application, policyName string) (*v1
 }
 
 // EnvNameInContext extract env name from context
+// Deprecated
 func EnvNameInContext(ctx context.Context) string {
 	envName := ctx.Value(EnvNameContextKey)
 	if envName != nil {
@@ -68,6 +72,7 @@ func EnvNameInContext(ctx context.Context) string {
 }
 
 // ContextWithEnvName wraps context with envName
+// Deprecated
 func ContextWithEnvName(ctx context.Context, envName string) context.Context {
 	return context.WithValue(ctx, EnvNameContextKey, envName)
 }

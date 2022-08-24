@@ -18,6 +18,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -40,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -76,10 +79,7 @@ type KubeApplyOptions struct {
 }
 
 // Complete .
-func (opt *KubeApplyOptions) Complete(f velacmd.Factory, cmd *cobra.Command) error {
-	opt.namespace = velacmd.GetNamespace(f, cmd)
-	opt.clusters = velacmd.GetClusters(cmd)
-
+func (opt *KubeApplyOptions) Complete(ctx context.Context) error {
 	var paths []string
 	for _, file := range opt.files {
 		path := strings.TrimSpace(file)
@@ -88,7 +88,7 @@ func (opt *KubeApplyOptions) Complete(f velacmd.Factory, cmd *cobra.Command) err
 		}
 	}
 	for _, path := range paths {
-		data, err := utils.LoadDataFromPath(cmd.Context(), path, utils.IsJSONOrYAMLFile)
+		data, err := utils.LoadDataFromPath(ctx, path, utils.IsJSONYAMLorCUEFile)
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ func (opt *KubeApplyOptions) Complete(f velacmd.Factory, cmd *cobra.Command) err
 	return nil
 }
 
-// Validate .
+// Validate will not only validate the args but also read from files and generate the objects
 func (opt *KubeApplyOptions) Validate() error {
 	if len(opt.files) == 0 {
 		return fmt.Errorf("at least one file should be specified with the --file flag")
@@ -105,21 +105,61 @@ func (opt *KubeApplyOptions) Validate() error {
 	if len(opt.filesData) == 0 {
 		return fmt.Errorf("not file found")
 	}
+	if len(opt.clusters) == 0 {
+		opt.clusters = []string{"local"}
+	}
+	jsonObj := func(data []byte, path string) (*unstructured.Unstructured, error) {
+		obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
+		err := json.Unmarshal(data, &obj.Object)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode object in %s: %w", path, err)
+		}
+		if opt.namespace != "" {
+			obj.SetNamespace(opt.namespace)
+		} else if obj.GetNamespace() == "" {
+			obj.SetNamespace(metav1.NamespaceDefault)
+		}
+		return obj, nil
+	}
+
 	for _, fileData := range opt.filesData {
-		decoder := yaml.NewDecoder(bytes.NewReader(fileData.Data))
-		for {
-			obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-			err := decoder.Decode(obj.Object)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
+		switch {
+		case strings.HasSuffix(fileData.Path, ".yaml"), strings.HasSuffix(fileData.Path, ".yml"):
+			decoder := yaml.NewDecoder(bytes.NewReader(fileData.Data))
+			for {
+				obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
+				err := decoder.Decode(obj.Object)
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					return fmt.Errorf("failed to decode object in %s: %w", fileData.Path, err)
 				}
+				if opt.namespace != "" {
+					obj.SetNamespace(opt.namespace)
+				} else if obj.GetNamespace() == "" {
+					obj.SetNamespace(metav1.NamespaceDefault)
+				}
+				opt.objects = append(opt.objects, obj)
+			}
+		case strings.HasSuffix(fileData.Path, ".json"):
+			obj, err := jsonObj(fileData.Data, fileData.Path)
+			if err != nil {
+				return err
+			}
+			opt.objects = append(opt.objects, obj)
+		case strings.HasSuffix(fileData.Path, ".cue"):
+			val, err := value.NewValue(string(fileData.Data), nil, "")
+			if err != nil {
 				return fmt.Errorf("failed to decode object in %s: %w", fileData.Path, err)
 			}
-			if opt.namespace != "" {
-				obj.SetNamespace(opt.namespace)
-			} else if obj.GetNamespace() == "" {
-				obj.SetNamespace(metav1.NamespaceDefault)
+			data, err := val.CueValue().MarshalJSON()
+			if err != nil {
+				return fmt.Errorf("failed to marhsal to json for CUE object in %s: %w", fileData.Path, err)
+			}
+			obj, err := jsonObj(data, fileData.Path)
+			if err != nil {
+				return err
 			}
 			opt.objects = append(opt.objects, obj)
 		}
@@ -127,8 +167,8 @@ func (opt *KubeApplyOptions) Validate() error {
 	return nil
 }
 
-// Run .
-func (opt *KubeApplyOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
+// Run will apply objects to clusters
+func (opt *KubeApplyOptions) Run(ctx context.Context, cli client.Client) error {
 	if opt.dryRun {
 		for i, obj := range opt.objects {
 			if i > 0 {
@@ -147,7 +187,7 @@ func (opt *KubeApplyOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 			_, _ = fmt.Fprintf(opt.Out, "\n")
 		}
 		_, _ = fmt.Fprintf(opt.Out, "Apply objects in cluster %s.\n", cluster)
-		ctx := multicluster.ContextWithClusterName(cmd.Context(), cluster)
+		ctx := multicluster.ContextWithClusterName(ctx, cluster)
 		for _, obj := range opt.objects {
 			copiedObj := &unstructured.Unstructured{}
 			bs, err := obj.MarshalJSON()
@@ -157,7 +197,7 @@ func (opt *KubeApplyOptions) Run(f velacmd.Factory, cmd *cobra.Command) error {
 			if err = copiedObj.UnmarshalJSON(bs); err != nil {
 				return err
 			}
-			res, err := utils.CreateOrUpdate(ctx, f.Client(), copiedObj)
+			res, err := utils.CreateOrUpdate(ctx, cli, copiedObj)
 			if err != nil {
 				return err
 			}
@@ -173,23 +213,35 @@ var (
 		Apply Kubernetes objects in clusters
 
 		Apply Kubernetes objects in multiple clusters. Use --clusters to specify which clusters to
-		apply. If -n/--namespace is used, the original object namespace will be overrode.
+		apply. If -n/--namespace is used, the original object namespace will be overridden.
 
-		You can use -f/--file to specify the object file to apply. Multiple file inputs are allowed.
-		Directory input and web url input is supported as well.`))
+		You can use -f/--file to specify the object file/folder to apply. Multiple file inputs are allowed.
+		Directory input and web url input is supported as well.
+		File format can be in YAML, JSON or CUE.
+`))
 
 	kubeApplyExample = templates.Examples(i18n.T(`
 		# Apply single object file in managed cluster
 		vela kube apply -f my.yaml --cluster cluster-1
-		
+
+		# Apply object in CUE, the whole CUE file MUST follow the kubernetes API and contain only one object.
+		vela kube apply -f my.cue --cluster cluster-1
+
+		# Apply object in JSON, the whole JSON file MUST follow the kubernetes API and contain only one object.
+		vela kube apply -f my.json --cluster cluster-1
+
 		# Apply multiple object files in multiple managed clusters
-		vela kube apply -f my-1.yaml -f my-2.yaml --cluster cluster-1 --cluster cluster-2
+		vela kube apply -f my-1.yaml -f my-2.cue --cluster cluster-1 --cluster cluster-2
 
 		# Apply object file with web url in control plane
 		vela kube apply -f https://raw.githubusercontent.com/kubevela/kubevela/master/docs/examples/app-with-probe/app-with-probe.yaml
 		
 		# Apply object files in directory to specified namespace in managed clusters 
-		vela kube apply -f ./resources -n demo --cluster cluster-1 --cluster cluster-2`))
+		vela kube apply -f ./resources -n demo --cluster cluster-1 --cluster cluster-2
+
+		# Use dry-run to see what will be rendered out in YAML
+		vela kube apply -f my.cue --cluster cluster-1 --dry-run
+`))
 )
 
 // NewKubeApplyCommand kube apply command
@@ -205,13 +257,16 @@ func NewKubeApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comma
 		},
 		Args: cobra.ExactValidArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(o.Complete(f, cmd))
+			o.namespace = velacmd.GetNamespace(f, cmd)
+			o.clusters = velacmd.GetClusters(cmd)
+
+			cmdutil.CheckErr(o.Complete(cmd.Context()))
 			cmdutil.CheckErr(o.Validate())
-			cmdutil.CheckErr(o.Run(f, cmd))
+			cmdutil.CheckErr(o.Run(cmd.Context(), f.Client()))
 		},
 	}
 	cmd.Flags().StringSliceVarP(&o.files, "file", "f", o.files, "Files that include native Kubernetes objects to apply.")
-	cmd.Flags().BoolVarP(&o.dryRun, "dryrun", "", o.dryRun, "Setting this flag will not apply resources in clusters. It will print out the resource to be applied.")
+	cmd.Flags().BoolVarP(&o.dryRun, FlagDryRun, "", o.dryRun, "Setting this flag will not apply resources in clusters. It will print out the resource to be applied.")
 	return velacmd.NewCommandBuilder(f, cmd).
 		WithNamespaceFlag(
 			velacmd.NamespaceFlagDisableEnvOption{},

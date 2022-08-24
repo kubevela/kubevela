@@ -18,6 +18,7 @@ package api
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 
@@ -268,6 +269,7 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Param(ws.PathParameter("appName", "identifier of the application").DataType("string")).
 		Param(ws.PathParameter("policyName", "identifier of the application policy").DataType("string")).
 		Metadata(restfulspec.KeyOpenAPITags, tags).
+		Param(ws.QueryParameter("force", "Force delete the policy and all references").DataType("boolean").Required(false)).
 		Returns(200, "OK", apis.EmptyResponse{}).
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.EmptyResponse{}))
@@ -549,8 +551,8 @@ func (c *applicationAPIInterface) GetWebServiceRoute() *restful.WebService {
 		Returns(400, "Bad Request", bcode.Bcode{}).
 		Writes(apis.ListWorkflowRecordsResponse{}))
 
-	ws.Route(ws.POST("/{appName}/compare").To(c.compareAppWithLatestRevision).
-		Doc("compare application with env latest revision").
+	ws.Route(ws.POST("/{appName}/compare").To(c.compareApp).
+		Doc("compare application").
 		Metadata(restfulspec.KeyOpenAPITags, tags).
 		Filter(c.RbacService.CheckPerm("application", "compare")).
 		Filter(c.appCheckFilter).
@@ -878,7 +880,9 @@ func (c *applicationAPIInterface) detailApplicationPolicy(req *restful.Request, 
 
 func (c *applicationAPIInterface) deleteApplicationPolicy(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
-	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"))
+	forceParam := req.QueryParameter("force")
+	force, _ := strconv.ParseBool(forceParam)
+	err := c.ApplicationService.DeletePolicy(req.Request.Context(), app, req.PathParameter("policyName"), force)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -1184,7 +1188,7 @@ func (c *applicationAPIInterface) listApplicationRecords(req *restful.Request, r
 	}
 }
 
-func (c *applicationAPIInterface) compareAppWithLatestRevision(req *restful.Request, res *restful.Response) {
+func (c *applicationAPIInterface) compareApp(req *restful.Request, res *restful.Response) {
 	app := req.Request.Context().Value(&apis.CtxKeyApplication).(*model.Application)
 	// Verify the validity of parameters
 	var compareReq apis.AppCompareReq
@@ -1197,7 +1201,7 @@ func (c *applicationAPIInterface) compareAppWithLatestRevision(req *restful.Requ
 		return
 	}
 
-	base, err := c.ApplicationService.CompareAppWithLatestRevision(req.Request.Context(), app, compareReq)
+	base, err := c.ApplicationService.CompareApp(req.Request.Context(), app, compareReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)
 		return
@@ -1234,10 +1238,6 @@ func (c *applicationAPIInterface) dryRunAppOrRevision(req *restful.Request, res 
 		bcode.ReturnError(req, res, err)
 		return
 	}
-	if dryRunReq.AppName == "" {
-		dryRunReq.AppName = app.Name
-	}
-
 	base, err := c.ApplicationService.DryRunAppOrRevision(req.Request.Context(), app, dryRunReq)
 	if err != nil {
 		bcode.ReturnError(req, res, err)

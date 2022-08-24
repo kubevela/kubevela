@@ -1,0 +1,46 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: community-load-test-app-{{ .Env.APP_ID }}
+spec:
+  components:
+    - name: example-component-first-{{ .Env.APP_ID }}-1
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: tolerate-hollow-node
+        - type: sidecar
+          properties:
+            name: example-sidecar
+            image: busybox
+            cmd:
+              - sleep
+              - '1000000'
+        - type: scaler
+          properties:
+            replicas: 3
+        - type: ingress
+          properties:
+            domain: testsvc-{{ .Env.APP_ID }}.example.com
+            http:
+              "/": 8000
+    - name: example-component-second-{{ .Env.APP_ID }}
+      type: worker
+      properties:
+        image: crccheck/hello-world
+      traits:
+        - type: tolerate-hollow-node
+        - type: scaler
+          properties:
+            replicas: 3
+        - type: configmap
+          properties:
+            volumes:
+              - name: example-data-{{ .Env.APP_ID }}
+                mountPath: /example-data
+                readOnly: true
+                data:
+                  key1: value1
+                  key2: value2

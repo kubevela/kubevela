@@ -24,21 +24,21 @@ import (
 	"path/filepath"
 	"strings"
 
+	errors "github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
-	"sigs.k8s.io/yaml"
-
-	errors "github.com/pkg/errors"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	rest "k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -46,13 +46,22 @@ const (
 	compDefAnnotation         = "addon.oam.dev/componentDefinitions"
 	traitDefAnnotation        = "addon.oam.dev/traitDefinitions"
 	workflowStepDefAnnotation = "addon.oam.dev/workflowStepDefinitions"
+	policyDefAnnotation       = "addon.oam.dev/policyDefinitions"
 	defKeytemplate            = "addon-%s-%s"
+	compMapKey                = "comp"
+	traitMapKey               = "trait"
+	wfStepMapKey              = "wfStep"
+	policyMapKey              = "policy"
 )
 
 // parse addon's created x-defs in addon-app's annotation, this will be used to check whether app still using it while disabling.
 func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Application) error {
-	var comps, traits, workflowSteps []string
+	var comps, traits, workflowSteps, policies []string
 	for _, def := range defs {
+		if !checkBondComponentExist(*def, *app) {
+			// if the definition binding a component, and the component not exist, skip recording.
+			continue
+		}
 		switch def.GetObjectKind().GroupVersionKind().Kind {
 		case v1beta1.ComponentDefinitionKind:
 			comps = append(comps, def.GetName())
@@ -60,6 +69,8 @@ func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Appl
 			traits = append(traits, def.GetName())
 		case v1beta1.WorkflowStepDefinitionKind:
 			workflowSteps = append(workflowSteps, def.GetName())
+		case v1beta1.PolicyDefinitionKind:
+			policies = append(policies, def.GetName())
 		default:
 			return fmt.Errorf("cannot handle definition types %s, name %s", def.GetObjectKind().GroupVersionKind().Kind, def.GetName())
 		}
@@ -72,6 +83,9 @@ func passDefInAppAnnotation(defs []*unstructured.Unstructured, app *v1beta1.Appl
 	}
 	if len(workflowSteps) != 0 {
 		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{workflowStepDefAnnotation: strings.Join(workflowSteps, ",")}))
+	}
+	if len(policies) != 0 {
+		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(), map[string]string{policyDefAnnotation: strings.Join(policies, ",")}))
 	}
 	return nil
 }
@@ -90,7 +104,7 @@ func checkAddonHasBeenUsed(ctx context.Context, k8sClient client.Client, name st
 	createdDefs := make(map[string]bool)
 	for key, defNames := range addonApp.GetAnnotations() {
 		switch key {
-		case compDefAnnotation, traitDefAnnotation, workflowStepDefAnnotation:
+		case compDefAnnotation, traitDefAnnotation, workflowStepDefAnnotation, policyDefAnnotation:
 			merge2DefMap(key, defNames, createdDefs)
 		}
 	}
@@ -105,25 +119,34 @@ func checkAddonHasBeenUsed(ctx context.Context, k8sClient client.Client, name st
 CHECKNEXT:
 	for _, app := range apps.Items {
 		for _, component := range app.Spec.Components {
-			if createdDefs[fmt.Sprintf(defKeytemplate, "comp", component.Type)] {
+			if createdDefs[fmt.Sprintf(defKeytemplate, compMapKey, component.Type)] {
 				res = append(res, app)
 				// this app has used this addon, there is no need check other components
 				continue CHECKNEXT
 			}
 			for _, trait := range component.Traits {
-				if createdDefs[fmt.Sprintf(defKeytemplate, "trait", trait.Type)] {
+				if createdDefs[fmt.Sprintf(defKeytemplate, traitMapKey, trait.Type)] {
 					res = append(res, app)
 					continue CHECKNEXT
 				}
 			}
 		}
-		if app.Spec.Workflow == nil || len(app.Spec.Workflow.Steps) == 0 {
-			return res, nil
+
+		if app.Spec.Workflow != nil && len(app.Spec.Workflow.Steps) != 0 {
+			for _, s := range app.Spec.Workflow.Steps {
+				if createdDefs[fmt.Sprintf(defKeytemplate, wfStepMapKey, s.Type)] {
+					res = append(res, app)
+					continue CHECKNEXT
+				}
+			}
 		}
-		for _, s := range app.Spec.Workflow.Steps {
-			if createdDefs[fmt.Sprintf(defKeytemplate, "wfStep", s.Type)] {
-				res = append(res, app)
-				continue CHECKNEXT
+
+		if app.Spec.Policies != nil && len(app.Spec.Policies) != 0 {
+			for _, p := range app.Spec.Policies {
+				if createdDefs[fmt.Sprintf(defKeytemplate, policyMapKey, p.Type)] {
+					res = append(res, app)
+					continue CHECKNEXT
+				}
 			}
 		}
 	}
@@ -137,11 +160,13 @@ func merge2DefMap(defType string, defNames string, defMap map[string]bool) {
 	for _, defName := range list {
 		switch defType {
 		case compDefAnnotation:
-			defMap[fmt.Sprintf(template, "comp", defName)] = true
+			defMap[fmt.Sprintf(template, compMapKey, defName)] = true
 		case traitDefAnnotation:
-			defMap[fmt.Sprintf(template, "trait", defName)] = true
+			defMap[fmt.Sprintf(template, traitMapKey, defName)] = true
 		case workflowStepDefAnnotation:
-			defMap[fmt.Sprintf(template, "wfStep", defName)] = true
+			defMap[fmt.Sprintf(template, wfStepMapKey, defName)] = true
+		case policyDefAnnotation:
+			defMap[fmt.Sprintf(template, policyMapKey, defName)] = true
 		}
 	}
 }
@@ -176,8 +201,9 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 			} else {
 				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
-					Username: registry.Helm.Username,
-					Password: registry.Helm.Password,
+					Username:        registry.Helm.Username,
+					Password:        registry.Helm.Password,
+					InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
 				})
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {
@@ -212,6 +238,8 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 			defs[fmt.Sprintf(defKeytemplate, "trait", defObject.GetName())] = true
 		case v1beta1.WorkflowStepDefinitionKind:
 			defs[fmt.Sprintf(defKeytemplate, "wfStep", defObject.GetName())] = true
+		case v1beta1.PolicyDefinitionKind:
+
 		}
 	}
 	return nil
@@ -242,6 +270,11 @@ type InstallOption func(installer *Installer)
 // SkipValidateVersion means skip validating system version
 func SkipValidateVersion(installer *Installer) {
 	installer.skipVersionValidate = true
+}
+
+// OverrideDefinitions menas override definitions within this addon if some of them already exist
+func OverrideDefinitions(installer *Installer) {
+	installer.overrideDefs = true
 }
 
 // IsAddonDir validates an addon directory.
@@ -278,23 +311,46 @@ func IsAddonDir(dirName string) (bool, error) {
 		return false, errors.Errorf("addon version is empty")
 	}
 
-	// Load template.yaml
-	templateYaml := filepath.Join(dirName, TemplateFileName)
-	if _, err := os.Stat(templateYaml); os.IsNotExist(err) {
-		return false, errors.Errorf("no %s exists in directory %q", TemplateFileName, dirName)
+	// Load template.yaml/cue
+	var errYAML error
+	var errCUE error
+	templateYAML := filepath.Join(dirName, TemplateFileName)
+	templateCUE := filepath.Join(dirName, AppTemplateCueFileName)
+	_, errYAML = os.Stat(templateYAML)
+	_, errCUE = os.Stat(templateCUE)
+	if os.IsNotExist(errYAML) && os.IsNotExist(errCUE) {
+		return false, fmt.Errorf("no %s or %s exists in directory %q", TemplateFileName, AppTemplateCueFileName, dirName)
 	}
-	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYaml))
+	if errYAML != nil && errCUE != nil {
+		return false, errors.Errorf("cannot stat %s or %s", TemplateFileName, AppTemplateCueFileName)
+	}
+
+	// template.cue have higher priority
+	if errCUE == nil {
+		templateContent, err := ioutil.ReadFile(filepath.Clean(templateCUE))
+		if err != nil {
+			return false, fmt.Errorf("cannot read %s: %w", AppTemplateCueFileName, err)
+		}
+		// Just look for `output` field is enough.
+		// No need to load the whole addon package to render the Application.
+		if !strings.Contains(string(templateContent), renderOutputCuePath) {
+			return false, fmt.Errorf("no %s field in %s", renderOutputCuePath, AppTemplateCueFileName)
+		}
+		return true, nil
+	}
+
+	// then check template.yaml
+	templateYamlContent, err := ioutil.ReadFile(filepath.Clean(templateYAML))
 	if err != nil {
 		return false, errors.Errorf("cannot read %s in directory %q", TemplateFileName, dirName)
 	}
-
 	// Check template.yaml contents
-	templateContent := new(v1beta1.Application)
-	if err := yaml.Unmarshal(templateYamlContent, &templateContent); err != nil {
+	template := new(v1beta1.Application)
+	if err := yaml.Unmarshal(templateYamlContent, &template); err != nil {
 		return false, err
 	}
-	if templateContent == nil {
-		return false, errors.Errorf("chart metadata (%s) missing", TemplateFileName)
+	if template == nil {
+		return false, errors.Errorf("template (%s) missing", TemplateFileName)
 	}
 
 	return true, nil
@@ -383,4 +439,61 @@ func generateAnnotation(meta *Meta) map[string]string {
 		}
 	}
 	return res
+}
+
+func checkConflictDefs(ctx context.Context, k8sClient client.Client, defs []*unstructured.Unstructured, appName string) (map[string]string, error) {
+	res := map[string]string{}
+	for _, def := range defs {
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(def), def)
+		if err == nil {
+			owner := metav1.GetControllerOf(def)
+			if owner == nil || owner.Kind != v1beta1.ApplicationKind {
+				res[def.GetName()] = fmt.Sprintf("definition: %s already exist and not belong to any addon \n", def.GetName())
+				continue
+			}
+			if owner.Name != appName {
+				// if addon not belong to an addon or addon name is another one, we should put them in result
+				res[def.GetName()] = fmt.Sprintf("definition: %s in this addon already exist in %s \n", def.GetName(), addon.AppName2Addon(appName))
+			}
+		}
+		if err != nil && !errors2.IsNotFound(err) {
+			return nil, errors.Wrapf(err, "check definition %s", def.GetName())
+		}
+	}
+	return res, nil
+}
+
+func produceDefConflictError(conflictDefs map[string]string) error {
+	if len(conflictDefs) == 0 {
+		return nil
+	}
+	var errorInfo string
+	for _, s := range conflictDefs {
+		errorInfo += s
+	}
+	errorInfo += "if you want override them, please use argument '--override-definitions' to enable \n"
+	return errors.New(errorInfo)
+}
+
+// checkBondComponentExistt will check the ready-to-apply object(def or auxiliary outputs) whether bind to a component
+// if the target component not exist, return false.
+func checkBondComponentExist(u unstructured.Unstructured, app v1beta1.Application) bool {
+	var comp string
+	var existKey bool
+	comp, existKey = u.GetAnnotations()[oam.AnnotationAddonDefinitionBondCompKey]
+	if !existKey {
+		// this is compatibility logic for deprecated annotation
+		comp, existKey = u.GetAnnotations()[oam.AnnotationIgnoreWithoutCompKey]
+		if !existKey {
+			// if an object(def or auxiliary outputs ) binding no components return true
+			return true
+		}
+	}
+	for _, component := range app.Spec.Components {
+		if component.Name == comp {
+			// the bond component exists, return ture
+			return true
+		}
+	}
+	return false
 }

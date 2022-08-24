@@ -18,9 +18,13 @@ package value
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
+
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 )
 
@@ -99,13 +103,13 @@ step3: {
 	prefix: 101
 	value:  102
 }
-step4: {
-	prefix: 102
-	value:  103
-}
 step5: {
 	prefix: 103
 	value:  104
+}
+step4: {
+	prefix: 102
+	value:  103
 }
 `},
 
@@ -202,6 +206,8 @@ step3: "3"
 }
 
 func TestStepWithTag(t *testing.T) {
+	// TODO(@FogDong): add if condition test cases back.
+	// refer to issue: https://github.com/cue-lang/cue/issues/1826
 	testCases := []struct {
 		base     string
 		expected string
@@ -211,9 +217,6 @@ step1: {}
 step2: {prefix: step1.value}
 step3: {prefix: step2.value}
 step4: {prefix: step3.value}
-if step4.value > 100 {
-        step5: {}
-}
 step5: {
 	value:  *100|int
 }
@@ -239,9 +242,7 @@ step5: {
 `}, {base: `
 step1: {}
 step2: {prefix: step1.value}
-if step2.value > 100 {
-        step2_3: {prefix: step2.value}
-}
+step2_3: {prefix: step2.value}
 step3: {prefix: step2.value}
 step4: {prefix: step3.value}
 `,
@@ -268,9 +269,7 @@ step4: {
 step2: {prefix: step1.value} @step(2)
 step1: {} @step(1)
 step3: {prefix: step2.value} @step(4)
-if step2.value > 100 {
-        step2_3: {prefix: step2.value} @step(3)
-}
+step2_3: {prefix: step2.value} @step(3)
 `,
 			expected: `step2: {
 	prefix: 100
@@ -292,9 +291,7 @@ step2_3: {
 		{base: `
 step2: {prefix: step1.value} 
 step1: {} @step(-1)
-if step2.value > 100 {
-        step2_3: {prefix: step2.value}
-}
+step2_3: {prefix: step2.value}
 step3: {prefix: step2.value}
 `,
 			expected: `step2: {
@@ -314,9 +311,10 @@ step3: {
 } @step(3)
 `}}
 
-	for _, tCase := range testCases {
+	for i, tCase := range testCases {
+		r := require.New(t)
 		val, err := NewValue(tCase.base, nil, "", TagFieldOrder)
-		assert.NilError(t, err)
+		r.NoError(err)
 		number := 99
 		err = val.StepByFields(func(name string, in *Value) (bool, error) {
 			number++
@@ -324,10 +322,10 @@ step3: {
 				"value": number,
 			})
 		})
-		assert.NilError(t, err)
-		str, err := val.String()
-		assert.NilError(t, err)
-		assert.Equal(t, str, tCase.expected)
+		r.NoError(err)
+		str, err := sets.ToString(val.CueValue())
+		r.NoError(err)
+		r.Equal(str, tCase.expected, fmt.Sprintf("testPatch for case(no:%d) %s", i, str))
 	}
 }
 
@@ -371,7 +369,7 @@ func TestStepByList(t *testing.T) {
 	var i int64
 	err = v.StepByList(func(name string, in *Value) (bool, error) {
 		i++
-		num, err := in.CueValue().Lookup("step").Int64()
+		num, err := in.CueValue().LookupPath(FieldPath("step")).Int64()
 		assert.NilError(t, err)
 		assert.Equal(t, num, i)
 		return false, nil
@@ -409,8 +407,8 @@ func TestValue(t *testing.T) {
 provider: xxx
 `
 	val, err := NewValue(caseError, nil, "")
-	assert.Equal(t, err != nil, true)
-	assert.Equal(t, val == nil, true)
+	assert.NilError(t, err)
+	assert.Equal(t, val.Error() != nil, true)
 
 	val, err = NewValue(":", nil, "")
 	assert.Equal(t, err != nil, true)
@@ -428,6 +426,8 @@ do: "apply"
 	_, err = val.MakeValue(caseError)
 	assert.Equal(t, err != nil, true)
 	_, err = val.MakeValue(":")
+	assert.Equal(t, err != nil, true)
+	_, err = val.MakeValue("test: _|_")
 	assert.Equal(t, err != nil, true)
 	err = val.FillRaw(caseError)
 	assert.Equal(t, err != nil, true)
@@ -448,8 +448,8 @@ close({provider: int})
 	cv, err = val.MakeValue(caseClose)
 	assert.NilError(t, err)
 	err = val.FillObject(cv)
-	assert.Equal(t, err != nil, true)
-	assert.Equal(t, originCue, val.CueValue())
+	assert.NilError(t, err)
+	assert.Equal(t, val.Error() != nil, true)
 
 	_, err = val.LookupValue("abc")
 	assert.Equal(t, err != nil, true)
@@ -476,6 +476,84 @@ x: #X & {
 	assert.NilError(t, err)
 }
 
+func TestLookupValue(t *testing.T) {
+	testCases := []struct {
+		name  string
+		str   string
+		paths []string
+	}{
+		{
+			name: "def",
+			str: `
+#x: "v"
+`,
+			paths: []string{"#x"},
+		},
+		{
+			name: "def in def",
+			str: `
+#x: {
+	#y: "v"
+}
+`,
+			paths: []string{"#x", "#y"},
+		},
+		{
+			name: "num",
+			str: `
+"1": {
+	"2": "v"
+}
+`,
+			paths: []string{"1", "2"},
+		},
+		{
+			name: "invalid",
+			str: `
+"a-b": {
+	"b-c": "v"
+}
+`,
+			paths: []string{"a-b", "b-c"},
+		},
+		{
+			name: "concrete path",
+			str: `
+a: {
+	"b-c": "v"
+}
+`,
+			paths: []string{`a["b-c"]`},
+		},
+		{
+			name: "concrete path with num",
+			str: `
+a: [
+	{
+		key: "v"
+	}
+]
+`,
+			paths: []string{`a[0].key`},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := require.New(t)
+			v, err := NewValue(tc.str, nil, "")
+			r.NoError(err)
+			result, err := v.LookupValue(tc.paths...)
+			r.NoError(err)
+			r.NoError(result.Error())
+			s, err := sets.ToString(result.v)
+			r.Equal(s, `"v"
+`)
+			r.NoError(err)
+		})
+	}
+}
+
 func TestValueError(t *testing.T) {
 	caseOk := `
 provider: "kube"
@@ -485,8 +563,7 @@ do: "apply"
 	assert.NilError(t, err)
 	err = val.FillRaw(`
 provider: "conflict"`)
-	assert.NilError(t, err)
-	assert.Equal(t, val.Error() != nil, true)
+	assert.Equal(t, err != nil, true)
 
 	val, err = NewValue(caseOk, nil, "")
 	assert.NilError(t, err)
@@ -658,7 +735,7 @@ strings.Join(apply.arr,".")+"$"`,
 		{
 			src: `
    op: string 
-   op: 12
+   op: "help"
 `,
 			script: `op(1`,
 			err:    "parse script: expected ')', found 'EOF'",
@@ -669,7 +746,7 @@ strings.Join(apply.arr,".")+"$"`,
    op: "help"
 `,
 			script: `oss`,
-			err:    "zz_output__: reference \"oss\" not found",
+			err:    "failed to lookup value: var(path=oss) not exist",
 		},
 	}
 
@@ -718,10 +795,10 @@ func TestImports(t *testing.T) {
 context: stepSessionID: "3w9qkdgn5w"`
 	v, err := NewValue(`
 import (
-	"vela/op"
+	"vela/custom"
 )
 
-id: op.context.stepSessionID 
+id: custom.context.stepSessionID 
 
 `+cont, nil, cont)
 	assert.NilError(t, err)
@@ -869,7 +946,7 @@ func TestFillByScript(t *testing.T) {
 			raw:  `a: b: [{x: y:[{name: "key"}]}]`,
 			path: "a.b[0].x.y[0].name",
 			v:    `"foo"`,
-			err:  "a.b.0.x.y.0.name: conflicting values \"key\" and \"foo\"",
+			err:  "remake value: a.b.0.x.y.0.name: conflicting values \"foo\" and \"key\"",
 		},
 		{
 			name: "filled value with wrong cue format",

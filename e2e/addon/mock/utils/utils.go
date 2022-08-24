@@ -80,11 +80,15 @@ func ApplyMockServerConfig() error {
 		}
 	}
 	if err := k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-vela"}}); err != nil {
-		return err
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 	otherRegistry.SetNamespace("test-vela")
 	if err := k8sClient.Create(ctx, otherRegistry); err != nil {
-		return err
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 	return nil
 }

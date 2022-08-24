@@ -58,11 +58,11 @@ stepID: "success"
 		},
 		"no-step-id": {
 			from:        ``,
-			expectedErr: errors.New("var(path=stepID) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=stepID) not exist"),
 		},
 		"no-sender": {
 			from:        `stepID:"no-sender"`,
-			expectedErr: errors.New("var(path=from) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=from) not exist"),
 		},
 		"no-receiver": {
 			from: `
@@ -75,7 +75,7 @@ port: 465
 }
 stepID: "no-receiver"
 `,
-			expectedErr: errors.New("var(path=to) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=to) not exist"),
 		},
 		"no-content": {
 			from: `
@@ -89,7 +89,7 @@ port: 465
 to: ["user1@gmail.com", "user2@gmail.com"]
 stepID: "no-content"
 `,
-			expectedErr: errors.New("var(path=content) not exist"),
+			expectedErr: errors.New("failed to lookup value: var(path=content) not exist"),
 		},
 		"send-fail": {
 			from: `

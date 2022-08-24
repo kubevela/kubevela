@@ -56,4 +56,6 @@ const (
 	ComponentRevisionPlaceHolder = "KUBEVELA_COMPONENT_REVISION_PLACEHOLDER"
 	// ContextDataArtifacts is used to store unstructured resources of components
 	ContextDataArtifacts = "artifacts"
+	// ContextReplicaKey is the key of replication in context
+	ContextReplicaKey = "replicaKey"
 )

@@ -189,6 +189,7 @@ func ConvertWorkflowBase(workflow *model.Workflow) apisv1.WorkflowBase {
 func ConvertPolicyModelToBase(policy *model.ApplicationPolicy) *apisv1.PolicyBase {
 	pb := &apisv1.PolicyBase{
 		Name:        policy.Name,
+		Alias:       policy.Alias,
 		Type:        policy.Type,
 		Properties:  policy.Properties,
 		Description: policy.Description,

@@ -74,11 +74,17 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context, policyNa
 	if err != nil {
 		return false, "", err
 	}
+
+	// Dealing with topology, override and replication policies in order.
 	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, executor.cli, executor.af.Namespace, policies, resourcekeeper.AllowCrossNamespaceResource)
 	if err != nil {
 		return false, "", err
 	}
 	components, err = overrideConfiguration(policies, components)
+	if err != nil {
+		return false, "", err
+	}
+	components, err = pkgpolicy.ReplicateComponents(policies, components)
 	if err != nil {
 		return false, "", err
 	}
@@ -126,6 +132,9 @@ func overrideConfiguration(policies []v1beta1.AppPolicy, components []common.App
 	var err error
 	for _, policy := range policies {
 		if policy.Type == v1alpha1.OverridePolicyType {
+			if policy.Properties == nil {
+				return nil, fmt.Errorf("override policy %s must not have empty properties", policy.Name)
+			}
 			overrideSpec := &v1alpha1.OverridePolicySpec{}
 			if err := utils.StrictUnmarshal(policy.Properties.Raw, overrideSpec); err != nil {
 				return nil, errors.Wrapf(err, "failed to parse override policy %s", policy.Name)

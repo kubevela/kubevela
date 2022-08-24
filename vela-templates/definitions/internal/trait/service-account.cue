@@ -5,7 +5,7 @@
 	description: "Specify serviceAccount for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
 		podDisruptive: false
-		appliesToWorkloads: ["*"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 	}
 }
 template: {
@@ -34,8 +34,8 @@ template: {
 	// +patchStrategy=retainKeys
 	patch: spec: template: spec: serviceAccountName: parameter.name
 
-	_clusterPrivileges: [ for p in parameter.privileges if p.scope == "cluster" {p}]
-	_namespacePrivileges: [ for p in parameter.privileges if p.scope == "namespace" {p}]
+	_clusterPrivileges: [ if parameter.privileges != _|_ for p in parameter.privileges if p.scope == "cluster" {p}]
+	_namespacePrivileges: [ if parameter.privileges != _|_ for p in parameter.privileges if p.scope == "namespace" {p}]
 	outputs: {
 		if parameter.create {
 			"service-account": {
@@ -59,7 +59,7 @@ template: {
 							resources: p.resources
 						}
 						if p.resourceNames != _|_ {
-							resources: p.resourceNames
+							resourceNames: p.resourceNames
 						}
 						if p.nonResourceURLs != _|_ {
 							nonResourceURLs: p.nonResourceURLs
@@ -96,7 +96,7 @@ template: {
 							resources: p.resources
 						}
 						if p.resourceNames != _|_ {
-							resources: p.resourceNames
+							resourceNames: p.resourceNames
 						}
 						if p.nonResourceURLs != _|_ {
 							nonResourceURLs: p.nonResourceURLs

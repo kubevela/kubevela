@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/features"
 	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -350,6 +352,9 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 			}
 			af.ReferredObjects = component.AppendUnstructuredObjects(af.ReferredObjects, objs...)
 		}
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableReferObjectsFromURL) && len(spec.URLs) > 0 {
+			return fmt.Errorf("referring objects from url is disabled")
+		}
 		for _, url := range spec.URLs {
 			objs, err := utilscommon.HTTPGetKubernetesObjects(ctx, url)
 			if err != nil {
@@ -376,6 +381,9 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		return err
 	}
 	for _, policy := range af.Policies {
+		if policy.Properties == nil && policy.Type != v1alpha1.DebugPolicyType {
+			return fmt.Errorf("policy %s named %s must not have empty properties", policy.Type, policy.Name)
+		}
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
@@ -402,12 +410,16 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		return err
 	}
 	for _, policy := range af.Policies {
+		if policy.Properties == nil && policy.Type != v1alpha1.DebugPolicyType {
+			return fmt.Errorf("policy %s named %s must not have empty properties", policy.Type, policy.Name)
+		}
 		switch policy.Type {
 		case v1alpha1.GarbageCollectPolicyType:
 		case v1alpha1.ApplyOncePolicyType:
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.ReplicationPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		case v1alpha1.OverridePolicyType:

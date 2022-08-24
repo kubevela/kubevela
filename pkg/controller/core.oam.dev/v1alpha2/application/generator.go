@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
 	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/http"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/kube"
@@ -81,6 +82,9 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	)
 	terraformProvider.Install(handlerProviders, app, func(comp common.ApplicationComponent) (*appfile.Workload, error) {
 		return appParser.ParseWorkloadFromRevision(comp, appRev)
+	})
+	query.Install(handlerProviders, h.r.Client, nil, func() context.Context {
+		return auth.ContextWithUserInfo(ctx, h.app)
 	})
 
 	var tasks []wfTypes.TaskRunner
@@ -181,7 +185,7 @@ func convertStepProperties(step *v1beta1.WorkflowStep, app *v1beta1.Application)
 			step.Inputs = append(step.Inputs, c.Inputs...)
 			for index := range step.Inputs {
 				parameterKey := strings.TrimSpace(step.Inputs[index].ParameterKey)
-				if !strings.HasPrefix(parameterKey, "properties") && !strings.HasPrefix(parameterKey, "traits[") {
+				if parameterKey != "" && !strings.HasPrefix(parameterKey, "properties") && !strings.HasPrefix(parameterKey, "traits[") {
 					parameterKey = "properties." + parameterKey
 				}
 				step.Inputs[index].ParameterKey = parameterKey
@@ -227,6 +231,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, appRev *v1b
 	return func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, env string) (bool, error) {
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
 		if err != nil {
@@ -260,6 +265,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, appRev *v1bet
 
 		ctx := multicluster.ContextWithClusterName(context.Background(), clusterName)
 		ctx = contextWithComponentNamespace(ctx, overrideNamespace)
+		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 		ctx = envbinding.ContextWithEnvName(ctx, env)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, appRev, patcher, af)
@@ -330,6 +336,9 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *process.ContextData) {
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
+		}
+		if rk := replicaKeyFromContext(ctx); rk != "" {
+			ctxData.ReplicaKey = rk
 		}
 	})
 	if err != nil {

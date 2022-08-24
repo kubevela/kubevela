@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -379,20 +380,22 @@ func TestMustBeControlledByApp(t *testing.T) {
 			hasError: false,
 		},
 		"old app has no label": {
-			existing: &appsv1.Deployment{},
-			hasError: false,
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{ResourceVersion: "-"}},
+			hasError: true,
 		},
 		"old app has no app label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{},
+				Labels:          map[string]string{},
+				ResourceVersion: "-",
 			}},
-			hasError: false,
+			hasError: true,
 		},
 		"old app has no app ns label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{oam.LabelAppName: "app"},
+				Labels:          map[string]string{oam.LabelAppName: "app"},
+				ResourceVersion: "-",
 			}},
-			hasError: false,
+			hasError: true,
 		},
 		"old app has correct label": {
 			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
@@ -411,6 +414,18 @@ func TestMustBeControlledByApp(t *testing.T) {
 				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "ns"},
 			}},
 			hasError: true,
+		},
+		"old app has no resource version but with bad app key": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "ns"},
+			}},
+			hasError: true,
+		},
+		"old app has no resource version": {
+			existing: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{},
+			}},
+			hasError: false,
 		},
 	}
 	for name, tc := range testCases {
@@ -558,8 +573,10 @@ func TestFilterSpecialAnn(t *testing.T) {
 	var cm = &corev1.ConfigMap{}
 	var sc = &corev1.Secret{}
 	var dp = &appsv1.Deployment{}
+	var crd = &v1.CustomResourceDefinition{}
 	assert.Equal(t, false, filterRecordForSpecial(cm))
 	assert.Equal(t, false, filterRecordForSpecial(sc))
+	assert.Equal(t, false, filterRecordForSpecial(crd))
 	assert.Equal(t, true, filterRecordForSpecial(dp))
 
 	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "-"}

@@ -19,20 +19,33 @@ package stdlib
 import (
 	"embed"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/parser"
+	"k8s.io/klog/v2"
 )
+
+func init() {
+	var err error
+	BuiltinImports, err = initBuiltinImports()
+	if err != nil {
+		klog.ErrorS(err, "Unable to init builtin imports")
+		os.Exit(1)
+	}
+}
 
 var (
 	//go:embed pkgs op.cue ql.cue
 	fs embed.FS
+	// BuiltinImports is the builtin imports for cue
+	BuiltinImports []*build.Instance
 )
 
 // GetPackages Get Stdlib packages
-func GetPackages(tagTempl string) (map[string]string, error) {
-
+func GetPackages() (map[string]string, error) {
 	files, err := fs.ReadDir("pkgs")
 	if err != nil {
 		return nil, err
@@ -63,26 +76,50 @@ func GetPackages(tagTempl string) (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"vela/op": opContent + "\n" + tagTempl,
-		"vela/ql": qlContent + "\n" + tagTempl,
+		"vela/op": opContent,
+		"vela/ql": qlContent,
 	}, nil
 }
 
 // AddImportsFor install imports for build.Instance.
 func AddImportsFor(inst *build.Instance, tagTempl string) error {
-	pkgs, err := GetPackages(tagTempl)
+	inst.Imports = append(inst.Imports, BuiltinImports...)
+	if tagTempl != "" {
+		p := &build.Instance{
+			PkgName:    filepath.Base("vela/custom"),
+			ImportPath: "vela/custom",
+		}
+		file, err := parser.ParseFile("-", tagTempl, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		if err := p.AddSyntax(file); err != nil {
+			return err
+		}
+		inst.Imports = append(inst.Imports, p)
+	}
+	return nil
+}
+
+func initBuiltinImports() ([]*build.Instance, error) {
+	imports := make([]*build.Instance, 0)
+	pkgs, err := GetPackages()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for path, content := range pkgs {
 		p := &build.Instance{
 			PkgName:    filepath.Base(path),
 			ImportPath: path,
 		}
-		if err := p.AddFile("-", content); err != nil {
-			return err
+		file, err := parser.ParseFile("-", content, parser.ParseComments)
+		if err != nil {
+			return nil, err
 		}
-		inst.Imports = append(inst.Imports, p)
+		if err := p.AddSyntax(file); err != nil {
+			return nil, err
+		}
+		imports = append(imports, p)
 	}
-	return nil
+	return imports, nil
 }

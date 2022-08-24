@@ -17,9 +17,11 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,12 +34,14 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 
 	common3 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -177,7 +181,7 @@ func removeDir(dirname string, t *testing.T) {
 }
 
 func TestNewDefinitionCommandGroup(t *testing.T) {
-	cmd := DefinitionCommandGroup(common2.Args{}, "")
+	cmd := DefinitionCommandGroup(common2.Args{}, "", util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	initCommand(cmd)
 	cmd.SetArgs([]string{"-h"})
 	if err := cmd.Execute(); err != nil {
@@ -394,7 +398,7 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	cmd := NewDefinitionGetCommand(c)
 	initCommand(cmd)
 	traitName := createTrait(c, t)
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n" + VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing get command: %v", err)
 	}
@@ -413,11 +417,51 @@ func TestNewDefinitionGetCommand(t *testing.T) {
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expect found no trait error, but not found")
 	}
+
+	// Load test DefinitionRevisions files into client
+	dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
+	testFiles, err := ioutil.ReadDir(dir)
+	assert.NoError(t, err, "read testdata failed")
+	for _, file := range testFiles {
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		content, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+		assert.NoError(t, err)
+		def := &v1beta1.DefinitionRevision{}
+		err = yaml.Unmarshal(content, def)
+		assert.NoError(t, err)
+		client, err := c.GetClient()
+		assert.NoError(t, err)
+		err = client.Create(context.TODO(), def)
+		assert.NoError(t, err, "cannot create "+file.Name())
+	}
+
+	// test get revision list
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revisions", "--namespace=rev-test-ns"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+
+	// test get a non-existent revision
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revision=3"})
+	err = cmd.Execute()
+	assert.NotNil(t, err, "should have not found error")
+
+	// test get a revision
+	cmd = NewDefinitionGetCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{"webservice", "--revision=1", "--namespace=rev-test-ns"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
 }
 
 func TestNewDefinitionGenDocCommand(t *testing.T) {
 	c := initArgs()
-	cmd := NewDefinitionGenDocCommand(c)
+	cmd := NewDefinitionGenDocCommand(c, util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	assert.NotNil(t, cmd.Execute())
 
 	cmd.SetArgs([]string{"alibaba-xxxxxxx"})
@@ -459,7 +503,7 @@ func TestNewDefinitionEditCommand(t *testing.T) {
 	if err := os.Setenv("EDITOR", "sed -i -e 's/test-trait/TestTrait/g'"); err != nil {
 		t.Fatalf("failed to set editor env: %v", err)
 	}
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n", VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing edit command: %v", err)
 	}
@@ -516,8 +560,9 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 
 func TestNewDefinitionApplyCommand(t *testing.T) {
 	c := initArgs()
+	ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
 	// dry-run test
-	cmd := NewDefinitionApplyCommand(c)
+	cmd := NewDefinitionApplyCommand(c, ioStreams)
 	initCommand(cmd)
 	_, traitFilename := createLocalTrait(t)
 	defer removeFile(traitFilename, t)
@@ -526,7 +571,7 @@ func TestNewDefinitionApplyCommand(t *testing.T) {
 		t.Fatalf("unexpeced error when executing apply command: %v", err)
 	}
 	// normal test and reapply
-	cmd = NewDefinitionApplyCommand(c)
+	cmd = NewDefinitionApplyCommand(c, ioStreams)
 	initCommand(cmd)
 	cmd.SetArgs([]string{traitFilename})
 	for i := 0; i < 2; i++ {
@@ -543,7 +588,7 @@ func TestNewDefinitionDelCommand(t *testing.T) {
 	traitName := createTrait(c, t)
 	reader := strings.NewReader("yes\n")
 	cmd.SetIn(reader)
-	cmd.SetArgs([]string{traitName})
+	cmd.SetArgs([]string{traitName, "-n", VelaTestNamespace})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpeced error when executing del command: %v", err)
 	}

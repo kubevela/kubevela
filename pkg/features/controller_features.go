@@ -37,11 +37,39 @@ const (
 	EnableSuspendOnFailure featuregate.Feature = "EnableSuspendOnFailure"
 	// LegacyComponentRevision if enabled, create component revision even no rollout trait attached
 	LegacyComponentRevision featuregate.Feature = "LegacyComponentRevision"
+	// LegacyResourceOwnerValidation if enabled, the resource dispatch will allow existing resource not to have owner
+	// application and the current application will take over it
+	LegacyResourceOwnerValidation featuregate.Feature = "LegacyResourceOwnerValidation"
+	// DisableReferObjectsFromURL if set, the url ref objects will be disallowed
+	DisableReferObjectsFromURL featuregate.Feature = "DisableReferObjectsFromURL"
+
+	// ApplyResourceByUpdate enforces the modification of resource through update requests.
+	// If not set, the resource modification will use patch requests (three-way-strategy-merge-patch).
+	// The side effect of enabling this feature is that the request traffic will increase due to
+	// the increase of bytes transferred and the more frequent resource mutation failure due to the
+	// potential conflicts.
+	// If set, KubeVela controller will enforce strong restriction on the managed resource that external
+	// system would be unable to make modifications to the KubeVela managed resource. In other words,
+	// no merge for modifications from multiple sources. Only KubeVela keeps the Source-of-Truth for the
+	// resource.
+	ApplyResourceByUpdate featuregate.Feature = "ApplyResourceByUpdate"
 
 	// Edge Features
 
 	// AuthenticateApplication enable the authentication for application
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
+	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
+	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
+	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
+	GzipResourceTracker featuregate.Feature = "GzipResourceTracker"
+	// ZstdResourceTracker enables the zstd compression for ResourceTracker.
+	// Refer to GzipResourceTracker for its use-cases. It is much faster and more
+	// efficient than gzip, about 2x faster and compresses to smaller size.
+	// If you are dealing with very large ResourceTrackers (1MB or so), it should
+	// have almost NO performance penalties compared to no compression at all.
+	// If dealing with smaller ResourceTrackers (10KB - 1MB), the performance
+	// penalties are minimal.
+	ZstdResourceTracker featuregate.Feature = "ZstdResourceTracker"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -51,7 +79,12 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
 	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
 	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
+	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
+	DisableReferObjectsFromURL:    {Default: false, PreRelease: featuregate.Alpha},
+	ApplyResourceByUpdate:         {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
+	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
+	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

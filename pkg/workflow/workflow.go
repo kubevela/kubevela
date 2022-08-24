@@ -237,17 +237,14 @@ func (w *workflow) restartWorkflow(ctx monitorContext.Context, revAndSpecHash st
 
 func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow, wfStatus *common.WorkflowStatus) *engine {
 	stepStatus := make(map[string]common.StepStatus)
-	for _, ss := range wfStatus.Steps {
-		setStepStatus(stepStatus, ss.StepStatus)
-		for _, sss := range ss.SubStepsStatus {
-			setStepStatus(stepStatus, sss.StepStatus)
-		}
-	}
+	setStepStatus(stepStatus, wfStatus.Steps)
 	stepDependsOn := make(map[string][]string)
 	if w.app.Spec.Workflow != nil {
 		for _, step := range w.app.Spec.Workflow.Steps {
+			hooks.SetAdditionalNameInStatus(stepStatus, step.Name, step.Properties, stepStatus[step.Name])
 			stepDependsOn[step.Name] = append(stepDependsOn[step.Name], step.DependsOn...)
 			for _, sub := range step.SubSteps {
+				hooks.SetAdditionalNameInStatus(stepStatus, sub.Name, sub.Properties, stepStatus[step.Name])
 				stepDependsOn[sub.Name] = append(stepDependsOn[sub.Name], sub.DependsOn...)
 			}
 		}
@@ -270,12 +267,12 @@ func newEngine(ctx monitorContext.Context, wfCtx wfContext.Context, w *workflow,
 	}
 }
 
-func setStepStatus(statusMap map[string]common.StepStatus, status common.StepStatus) {
-	statusMap[status.Name] = common.StepStatus{
-		Phase:            status.Phase,
-		ID:               status.ID,
-		Reason:           status.Reason,
-		FirstExecuteTime: status.FirstExecuteTime,
+func setStepStatus(statusMap map[string]common.StepStatus, status []common.WorkflowStepStatus) {
+	for _, ss := range status {
+		statusMap[ss.Name] = ss.StepStatus
+		for _, sss := range ss.SubStepsStatus {
+			statusMap[sss.Name] = sss.StepStatus
+		}
 	}
 }
 
@@ -296,12 +293,7 @@ func (w *workflow) GetSuspendBackoffWaitTime() time.Duration {
 		return 0
 	}
 	stepStatus := make(map[string]common.StepStatus)
-	for _, ss := range w.app.Status.Workflow.Steps {
-		setStepStatus(stepStatus, ss.StepStatus)
-		for _, sss := range ss.SubStepsStatus {
-			setStepStatus(stepStatus, sss.StepStatus)
-		}
-	}
+	setStepStatus(stepStatus, w.app.Status.Workflow.Steps)
 	max := time.Duration(1<<63 - 1)
 	min := max
 	for _, step := range w.app.Spec.Workflow.Steps {
@@ -431,14 +423,14 @@ func (w *workflow) setMetadataToContext(wfCtx wfContext.Context) error {
 	return wfCtx.SetVar(metadata, wfTypes.ContextKeyMetadata)
 }
 
-func (e *engine) getBackoffTimes(stepID string) (success bool, backoffTimes int) {
+func (e *engine) getBackoffTimes(stepID string) int {
 	if v, ok := e.wfCtx.GetValueInMemory(wfTypes.ContextPrefixBackoffTimes, stepID); ok {
 		times, ok := v.(int)
 		if ok {
-			return true, times
+			return times
 		}
 	}
-	return false, 0
+	return -1
 }
 
 func (e *engine) getBackoffWaitTime() int {
@@ -446,17 +438,19 @@ func (e *engine) getBackoffWaitTime() int {
 	minTimes := 15
 	found := false
 	for _, step := range e.status.Steps {
-		success, backoffTimes := e.getBackoffTimes(step.ID)
-		if success && backoffTimes < minTimes {
-			minTimes = backoffTimes
+		if backoffTimes := e.getBackoffTimes(step.ID); backoffTimes > 0 {
 			found = true
+			if backoffTimes < minTimes {
+				minTimes = backoffTimes
+			}
 		}
 		if step.SubStepsStatus != nil {
 			for _, subStep := range step.SubStepsStatus {
-				success, backoffTimes := e.getBackoffTimes(subStep.ID)
-				if success && backoffTimes < minTimes {
-					minTimes = backoffTimes
+				if backoffTimes := e.getBackoffTimes(subStep.ID); backoffTimes > 0 {
 					found = true
+					if backoffTimes < minTimes {
+						minTimes = backoffTimes
+					}
 				}
 			}
 		}
@@ -529,7 +523,7 @@ func (e *engine) setNextExecuteTime() {
 	e.wfCtx.SetValueInMemory(next, wfTypes.ContextKeyNextExecuteTime)
 }
 
-func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
+func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner, pendingRunners bool) error {
 	var (
 		todoTasks    []wfTypes.TaskRunner
 		pendingTasks []wfTypes.TaskRunner
@@ -545,9 +539,15 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 		}
 		if !finish {
 			done = false
-			if tRunner.Pending(wfCtx, e.stepStatus) {
+			if pending, status := tRunner.Pending(wfCtx, e.stepStatus); pending {
+				if pendingRunners {
+					wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+					e.updateStepStatus(status)
+				}
 				pendingTasks = append(pendingTasks, tRunner)
 				continue
+			} else if status.Phase == common.WorkflowStepPhasePending {
+				wfCtx.DeleteValueInMemory(wfTypes.ContextPrefixBackoffTimes, stepID)
 			}
 			todoTasks = append(todoTasks, tRunner)
 		} else {
@@ -569,7 +569,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 		}
 
 		if len(pendingTasks) > 0 {
-			return e.runAsDAG(pendingTasks)
+			return e.runAsDAG(pendingTasks, true)
 		}
 	}
 	return nil
@@ -579,7 +579,7 @@ func (e *engine) runAsDAG(taskRunners []wfTypes.TaskRunner) error {
 func (e *engine) Run(taskRunners []wfTypes.TaskRunner, dag bool) error {
 	var err error
 	if dag {
-		err = e.runAsDAG(taskRunners)
+		err = e.runAsDAG(taskRunners, false)
 	} else {
 		err = e.steps(taskRunners, dag)
 	}
@@ -610,6 +610,14 @@ func (e *engine) steps(taskRunners []wfTypes.TaskRunner, dag bool) error {
 			if wfTypes.IsStepFinish(status.Phase, status.Reason) {
 				continue
 			}
+		}
+		if pending, status := runner.Pending(wfCtx, e.stepStatus); pending {
+			wfCtx.IncreaseCountValueInMemory(wfTypes.ContextPrefixBackoffTimes, status.ID)
+			e.updateStepStatus(status)
+			if dag {
+				continue
+			}
+			return nil
 		}
 		options := e.generateRunOptions(e.findDependPhase(taskRunners, index, dag))
 

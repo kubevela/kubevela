@@ -23,25 +23,29 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/filters"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"cuelang.org/go/tools/fix"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
 
 const (
@@ -51,6 +55,12 @@ const (
 	AliasKey = "definition.oam.dev/alias"
 	// UserPrefix defines the prefix of user customized label or annotation
 	UserPrefix = "custom.definition.oam.dev/"
+	// DefinitionAlias is alias of definition
+	DefinitionAlias = "alias.config.oam.dev"
+	// DefinitionType marks definition's usage type, like image-registry
+	DefinitionType = "type.config.oam.dev"
+	// ConfigCatalog marks definition is a catalog
+	ConfigCatalog = "catalog.config.oam.dev"
 )
 
 var (
@@ -64,6 +74,24 @@ var (
 		"workload":      v1beta1.WorkloadDefinitionKind,
 		"scope":         v1beta1.ScopeDefinitionKind,
 		"workflow-step": v1beta1.WorkflowStepDefinitionKind,
+	}
+	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
+	StringToDefinitionType = map[string]common.DefinitionType{
+		// component
+		"component": common.ComponentType,
+		// trait
+		"trait": common.TraitType,
+		// policy
+		"policy": common.PolicyType,
+		// workflow-step
+		"workflow-step": common.WorkflowStepType,
+	}
+	// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
+	DefinitionKindToNameLabel = map[common.DefinitionType]string{
+		common.ComponentType:    oam.LabelComponentDefinitionName,
+		common.TraitType:        oam.LabelTraitDefinitionName,
+		common.PolicyType:       oam.LabelPolicyDefinitionName,
+		common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
 	}
 )
 
@@ -103,6 +131,7 @@ func (def *Definition) SetType(t string) error {
 }
 
 // ToCUE converts Definition to CUE value (with predefined Definition's cue format)
+// nolint:staticcheck
 func (def *Definition) ToCUE() (*cue.Value, string, error) {
 	annotations := map[string]string{}
 	for key, val := range def.GetAnnotations() {
@@ -194,7 +223,7 @@ func (def *Definition) ToCUEString() (string, error) {
 }
 
 // FromCUE converts CUE value (predefined Definition's cue format) to Definition
-// nolint:gocyclo
+// nolint:gocyclo,staticcheck
 func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	if def.Object == nil {
 		def.Object = map[string]interface{}{}
@@ -263,7 +292,11 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 					return err
 				}
 				for _k, _v := range _annotations {
-					annotations[UserPrefix+_k] = _v
+					if strings.Contains(_k, "oam.dev") {
+						annotations[_k] = _v
+					} else {
+						annotations[UserPrefix+_k] = _v
+					}
 				}
 			case "labels":
 				var _labels map[string]string
@@ -271,7 +304,11 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 					return err
 				}
 				for _k, _v := range _labels {
-					labels[UserPrefix+_k] = _v
+					if strings.Contains(_k, "oam.dev") {
+						labels[_k] = _v
+					} else {
+						labels[UserPrefix+_k] = _v
+					}
 				}
 			case "attributes":
 				if err := codec.Encode(_value, &spec); err != nil {
@@ -301,9 +338,14 @@ func encodeDeclsToString(decls []ast.Decl) (string, error) {
 	return s, nil
 }
 
+// FromYAML converts yaml into Definition
+func (def *Definition) FromYAML(data []byte) error {
+	return yaml.Unmarshal(data, def)
+}
+
 // FromCUEString converts cue string into Definition
 func (def *Definition) FromCUEString(cueString string, config *rest.Config) error {
-	r := &cue.Runtime{}
+	cuectx := cuecontext.New()
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return err
@@ -353,9 +395,9 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		return errors.Wrapf(err, "failed to encode template decls to string")
 	}
 
-	inst, err := r.Compile("-", metadataString)
-	if err != nil {
-		return err
+	inst := cuectx.CompileString(metadataString)
+	if inst.Err() != nil {
+		return inst.Err()
 	}
 	templateString, err = formatCUEString(importString + templateString)
 	if err != nil {
@@ -370,11 +412,10 @@ func (def *Definition) FromCUEString(cueString string, config *rest.Config) erro
 		if _, err = value.NewValue(templateString+"\n"+velacue.BaseTemplate, pd, ""); err != nil {
 			return err
 		}
-	} else if _, err = r.Compile("-", templateString+"\n"+velacue.BaseTemplate); err != nil {
-		return err
+	} else if val := cuectx.CompileString(templateString + "\n" + velacue.BaseTemplate); val.Err() != nil {
+		return val.Err()
 	}
-	val := inst.Value()
-	return def.FromCUE(&val, templateString)
+	return def.FromCUE(&inst, templateString)
 }
 
 // ValidDefinitionTypes return the list of valid definition types
@@ -423,6 +464,104 @@ func SearchDefinition(c client.Client, definitionType, namespace string, additio
 		definitions = append(definitions, filteredList.Items...)
 	}
 	return definitions, nil
+}
+
+// SearchDefinitionRevisions finds DefinitionRevisions.
+// Use defName to filter DefinitionRevisions using the name of the underlying Definition.
+// Empty defName will keep everything.
+// Use defType to only keep DefinitionRevisions of the specified DefinitionType.
+// Empty defType will search every possible type.
+// Use rev to only keep the revision you want. rev=0 will keep every revision.
+func SearchDefinitionRevisions(ctx context.Context, c client.Client, namespace string,
+	defName string, defType common.DefinitionType, rev int64) ([]v1beta1.DefinitionRevision, error) {
+	var nameLabels []string
+
+	if defName == "" {
+		// defName="" means we don't care about the underlying definition names.
+		// So, no need to add name labels, just use anything to let the loop run once.
+		nameLabels = append(nameLabels, "")
+	} else {
+		// Since different definitions have different labels for its name, we need to
+		// find the corresponding label for definition names, to match names later.
+		// Empty defType will give all possible name labels of DefinitionRevisions,
+		// so that we can search for DefinitionRevisions of all Definition types.
+		for k, v := range DefinitionKindToNameLabel {
+			if defType != "" && defType != k {
+				continue
+			}
+			nameLabels = append(nameLabels, v)
+		}
+	}
+
+	var defRev []v1beta1.DefinitionRevision
+
+	// Search DefinitionRevisions using each possible label
+	for _, l := range nameLabels {
+		var listOptions []client.ListOption
+		if namespace != "" {
+			listOptions = append(listOptions, client.InNamespace(namespace))
+		}
+		// Using name label to find DefinitionRevisions with specified name.
+		if defName != "" {
+			listOptions = append(listOptions, client.MatchingLabels{
+				l: defName,
+			})
+		}
+
+		objs := v1beta1.DefinitionRevisionList{}
+		objs.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    v1beta1.DefinitionRevisionKind,
+		})
+
+		// Search for DefinitionRevisions
+		if err := c.List(ctx, &objs, listOptions...); err != nil {
+			return nil, errors.Wrapf(err, "failed to list DefinitionRevisions of %s", defName)
+		}
+
+		for _, dr := range objs.Items {
+			// Keep only the specified type
+			if defType != "" && defType != dr.Spec.DefinitionType {
+				continue
+			}
+			// Only give the revision that the user wants
+			if rev != 0 && rev != dr.Spec.Revision {
+				continue
+			}
+			defRev = append(defRev, dr)
+		}
+	}
+
+	return defRev, nil
+}
+
+// GetDefinitionFromDefinitionRevision will extract the underlying Definition from a DefinitionRevision.
+func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Definition, error) {
+	var def *Definition
+	var u map[string]interface{}
+	var err error
+
+	switch rev.Spec.DefinitionType {
+	case common.ComponentType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.ComponentDefinition)
+	case common.TraitType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.TraitDefinition)
+	case common.PolicyType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.PolicyDefinition)
+	case common.WorkflowStepType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.WorkflowStepDefinition)
+	default:
+		return nil, fmt.Errorf("unsupported definition type: %s", rev.Spec.DefinitionType)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	def = &Definition{Unstructured: unstructured.Unstructured{Object: u}}
+
+	return def, nil
 }
 
 // GetDefinitionDefaultSpec returns the default spec of Definition with given kind. This may be implemented with cue in the future.

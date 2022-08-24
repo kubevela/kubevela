@@ -8,11 +8,8 @@ on:
   workflow_dispatch: {}
 
 env:
-  BUCKET: ${{ secrets.OSS_BUCKET }}
-  ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
   ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
   ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
-  ARTIFACT_HUB_REPOSITORY_ID: ${{ secrets.ARTIFACT_HUB_REPOSITORY_ID }}
 
 jobs:
   publish-core-images:
@@ -170,109 +167,6 @@ jobs:
             docker.io/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ghcr.io/${{ github.repository_owner }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
             ${{ secrets.ACR_DOMAIN }}/oamdev/vela-rollout:${{ steps.get_version.outputs.VERSION }}
-      
-      - uses: docker/build-push-action@v2
-        name: Build & Pushing CloudShell for Dockerhub, GHCR and ACR
-        with:
-          context: .
-          file: Dockerfile.cloudshell
-          labels: |-
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          build-args: |
-            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
-            VERSION=${{ steps.get_version.outputs.VERSION }}
-            GOPROXY=https://proxy.golang.org
-          tags: |-
-            docker.io/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
-            ${{ secrets.ACR_DOMAIN }}/oamdev/cloudshell:${{ steps.get_version.outputs.VERSION }}
-
-  publish-charts:
-    env:
-      HELM_CHARTS_DIR: charts
-      HELM_CHART: charts/vela-core
-      MINIMAL_HELM_CHART: charts/vela-minimal
-      LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
-      VELA_ROLLOUT_HELM_CHART: runtime/rollout/charts
-      LOCAL_OSS_DIRECTORY: .oss/
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@master
-      - name: Get git revision
-        id: vars
-        shell: bash
-        run: |
-          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
-      - name: Install Helm
-        uses: azure/setup-helm@v1
-        with:
-          version: v3.4.0
-      - name: Setup node
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-      - name: Generate helm doc
-        run: |
-          make helm-doc-gen
-      - name: Prepare legacy chart
-        run: |
-          rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
-          rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
-      - name: Prepare vela chart
-        run: |
-          rsync -r $VELA_ROLLOUT_HELM_CHART $HELM_CHARTS_DIR
-      - uses: oprypin/find-latest-tag@v1
-        with:
-          repository: oam-dev/kubevela
-          releases-only: true
-        id: latest_tag
-      - name: Tag helm chart image
-        run: |
-          latest_repo_tag=${{ steps.latest_tag.outputs.tag }}
-          sub="."
-          major="$(cut -d"$sub" -f1 <<<"$latest_repo_tag")"
-          minor="$(cut -d"$sub" -f2 <<<"$latest_repo_tag")"
-          patch="0"
-          current_repo_tag="$major.$minor.$patch"
-          image_tag=${GITHUB_REF#refs/tags/}
-          chart_version=$latest_repo_tag
-          if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
-            image_tag=latest
-            chart_version=${current_repo_tag}-nightly-build
-          fi
-          sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $MINIMAL_HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $LEGACY_HELM_CHART/values.yaml
-          sed -i "s/latest/${image_tag}/g" $VELA_ROLLOUT_HELM_CHART/values.yaml
-          chart_smever=${chart_version#"v"}
-          sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $MINIMAL_HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_smever/g" $VELA_ROLLOUT_HELM_CHART/Chart.yaml
-      - name: Install ossutil
-        run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
-      - name: Configure Alibaba Cloud OSSUTIL
-        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
-      - name: sync cloud to local
-        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
-      - name: add artifacthub stuff to the repo
-        run: |
-          rsync $HELM_CHART/README.md $LEGACY_HELM_CHART/README.md
-          rsync $HELM_CHART/README.md $VELA_ROLLOUT_HELM_CHART/README.md
-          sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
-          rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
-      - name: Package helm charts
-        run: |
-          helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $MINIMAL_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm package $VELA_ROLLOUT_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
-          helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
-      - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
 
   publish-capabilities:
     env:

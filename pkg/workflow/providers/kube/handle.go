@@ -30,6 +30,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/model"
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/pkg/workflow/types"
@@ -67,11 +69,7 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 			return err
 		}
 
-		patcher, err := model.NewOther(pv)
-		if err != nil {
-			return err
-		}
-		if err := base.Unify(patcher); err != nil {
+		if err := base.Unify(pv); err != nil {
 			return err
 		}
 		workload, err = base.Unstructured()
@@ -90,6 +88,12 @@ func (h *provider) Apply(ctx wfContext.Context, v *value.Value, act types.Action
 	}
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	deployCtx = auth.ContextWithUserInfo(deployCtx, h.app)
+	if h.app != nil {
+		util.AddLabels(workload, map[string]string{
+			oam.LabelAppName:      h.app.Name,
+			oam.LabelAppNamespace: h.app.Namespace,
+		})
+	}
 	if err := h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workload); err != nil {
 		return err
 	}
@@ -126,7 +130,7 @@ func (h *provider) ApplyInParallel(ctx wfContext.Context, v *value.Value, act ty
 	deployCtx := multicluster.ContextWithClusterName(context.Background(), cluster)
 	deployCtx = auth.ContextWithUserInfo(deployCtx, h.app)
 	if err = h.apply(deployCtx, cluster, common.WorkflowResourceCreator, workloads...); err != nil {
-		return v.FillObject(err, "err")
+		return err
 	}
 	return nil
 }

@@ -19,10 +19,12 @@ package convert
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -85,6 +87,7 @@ func FromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creator stri
 
 // FromCRWorkflow converts Application CR Workflow section into velaux data store workflow
 func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
+	var defaultWorkflow = true
 	dataWf := model.Workflow{
 		AppPrimaryKey: appPrimaryKey,
 		// every namespace has a synced env
@@ -93,6 +96,7 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 		Name:        model.AutoGenWorkflowNamePrefix + appPrimaryKey,
 		Alias:       model.AutoGenWorkflowNamePrefix + app.Name,
 		Description: model.AutoGenDesc,
+		Default:     &defaultWorkflow,
 	}
 	if app.Spec.Workflow == nil {
 		return dataWf, nil, nil
@@ -129,14 +133,14 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 }
 
 // FromCRTargets converts deployed Cluster/Namespace from Application CR Status into velaux data store
-func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, existTargets []datastore.Entity, project string) ([]*model.Target, []string) {
+func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Application, existTargets []datastore.Entity, project string) ([]*model.Target, map[string]string) {
 	existTarget := make(map[string]*model.Target)
 	for i := range existTargets {
 		t := existTargets[i].(*model.Target)
 		existTarget[fmt.Sprintf("%s-%s", t.Cluster.ClusterName, t.Cluster.Namespace)] = t
 	}
 	var targets []*model.Target
-	var targetNames []string
+	var targetNames = map[string]string{}
 	nc := make(map[string]struct{})
 	// read the target from the topology policies
 	placements, err := policy.GetPlacementsFromTopologyPolicies(ctx, cli, targetApp.Namespace, targetApp.Spec.Policies, true)
@@ -160,9 +164,9 @@ func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Ap
 		}
 		nc[name] = struct{}{}
 		if target, ok := existTarget[fmt.Sprintf("%s-%s", placement.Cluster, placement.Namespace)]; ok {
-			targetNames = append(targetNames, target.Name)
+			targetNames[target.Name] = target.Project
 		} else {
-			targetNames = append(targetNames, name)
+			targetNames[name] = project
 			targets = append(targets, &model.Target{
 				Name:    name,
 				Project: project,
@@ -174,4 +178,61 @@ func FromCRTargets(ctx context.Context, cli client.Client, targetApp *v1beta1.Ap
 		}
 	}
 	return targets, targetNames
+}
+
+// FromCRWorkflowRecord convert the workflow status to workflow record
+func FromCRWorkflowRecord(app *v1beta1.Application, workflow model.Workflow, revision *model.ApplicationRevision) *model.WorkflowRecord {
+	if app.Status.Workflow == nil || app.Status.Workflow.AppRevision == "" || revision == nil {
+		return nil
+	}
+	steps := make([]model.WorkflowStepStatus, len(workflow.Steps))
+	for i, step := range workflow.Steps {
+		steps[i] = model.WorkflowStepStatus{
+			Name:  step.Name,
+			Alias: step.Alias,
+			Type:  step.Type,
+		}
+	}
+	return &model.WorkflowRecord{
+		WorkflowName:       workflow.Name,
+		WorkflowAlias:      workflow.Alias,
+		AppPrimaryKey:      workflow.AppPrimaryKey,
+		Name:               strings.Replace(app.Status.Workflow.AppRevision, ":", "-", 1),
+		Namespace:          app.Namespace,
+		Finished:           model.UnFinished,
+		RevisionPrimaryKey: revision.Version,
+		Steps:              steps,
+		Status:             model.RevisionStatusRunning,
+	}
+}
+
+// FromCRApplicationRevision convert the application revision to the revision in the data store
+func FromCRApplicationRevision(ctx context.Context, cli client.Client, app *v1beta1.Application, workflow model.Workflow, envName string) *model.ApplicationRevision {
+	if app.Status.Workflow == nil || app.Status.Workflow.AppRevision == "" {
+		return nil
+	}
+	versions := strings.Split(app.Status.Workflow.AppRevision, ":")
+	versionName := versions[0]
+	var appRevision v1beta1.ApplicationRevision
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+	if err := cli.Get(ctxTimeout, types.NamespacedName{Namespace: app.Namespace, Name: versionName}, &appRevision); err != nil {
+		log.Logger.Errorf("failed to get the application revision %s", err.Error())
+		return nil
+	}
+	configByte, _ := yaml.Marshal(appRevision.Spec.Application)
+	return &model.ApplicationRevision{
+		BaseModel: model.BaseModel{
+			CreateTime: appRevision.CreationTimestamp.Time,
+			UpdateTime: time.Now(),
+		},
+		AppPrimaryKey:  workflow.AppPrimaryKey,
+		RevisionCRName: appRevision.Name,
+		WorkflowName:   workflow.Name,
+		Version:        versionName,
+		ApplyAppConfig: string(configByte),
+		TriggerType:    "SyncFromCR",
+		EnvName:        envName,
+		Status:         model.RevisionStatusRunning,
+	}
 }

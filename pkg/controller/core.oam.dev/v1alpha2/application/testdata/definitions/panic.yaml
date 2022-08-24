@@ -1,0 +1,56 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations: {}
+  name: panic
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        pvcVolumesList: *[
+                        for v in parameter.pvc if v.mountPath != _|_ {
+                        {
+                                name: "pvc-" + v.name
+                                persistentVolumeClaim: claimName: v.name
+                        }
+                },
+        ] | []
+        configMapVolumesList: *[
+                                for v in parameter.configMap if v.mountPath != _|_ {
+                        {
+                                name: "configmap-" + v.name
+                                configMap: name: v.name
+                        }
+                },
+        ] | []
+        volumesList: pvcVolumesList + configMapVolumesList
+        deDupVolumesArray: [
+                for val in [
+                        for i, vi in volumesList {
+                                for j, vj in volumesList if j < i && vi.name == vj.name {
+                                        ignore: true
+                                }
+                                vi
+                        },
+                ] if val.ignore == _|_ {
+                        val
+                },
+        ]
+        patch: spec: template: spec: {
+                // +patchKey=name
+                volumes: deDupVolumesArray
+        }
+        parameter: {
+                // +usage=Declare pvc type storage
+                pvc?: [...{
+                        name:       string
+                        mountPath?: string
+                }]
+
+                // +usage=Declare config map type storage
+                configMap?: [...{
+                        name:       string
+                        mountPath?: string
+                }]
+        }

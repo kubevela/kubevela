@@ -1,0 +1,41 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: HTTPRoute
+metadata:
+  annotations:
+    oam.dev/kubevela-version: v1.5.0-alpha.2
+  labels:
+    addons.oam.dev/name: velaux
+    addons.oam.dev/registry: KubeVela
+    addons.oam.dev/version: v1.5.0-alpha.3
+    app.oam.dev/app-revision-hash: 33e813ddfe9a34be
+    app.oam.dev/appRevision: addon-velaux-v36
+    app.oam.dev/cluster: ""
+    app.oam.dev/component: velaux
+    app.oam.dev/name: addon-velaux
+    app.oam.dev/namespace: vela-system
+    app.oam.dev/resourceType: TRAIT
+    app.oam.dev/revision: velaux-v16
+    oam.dev/render-hash: 2e8aa179bec2b4ec
+    trait.oam.dev/resource: httpsRoute
+    trait.oam.dev/type: https-route
+  name: velaux-ssl
+  namespace: default
+spec:
+  hostnames:
+  - demo.kubevela.net
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: velaux-gateway-tls
+    namespace: vela-system
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: velaux
+      port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /

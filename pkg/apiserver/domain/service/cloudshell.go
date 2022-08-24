@@ -75,6 +75,7 @@ const (
 type CloudShellService interface {
 	Prepare(ctx context.Context) (*apisv1.CloudShellPrepareResponse, error)
 	GetCloudShellEndpoint(ctx context.Context) (string, error)
+	Destroy(ctx context.Context) error
 }
 
 // GenerateKubeConfig generate the kubeconfig for the cloudshell
@@ -89,6 +90,7 @@ type cloudShellServiceImpl struct {
 	TargetService      TargetService  `inject:""`
 	EnvService         EnvService     `inject:""`
 	GenerateKubeConfig GenerateKubeConfig
+	CACert             []byte
 }
 
 // NewCloudShellService create the instance of the cloud shell service
@@ -156,6 +158,32 @@ func (c *cloudShellServiceImpl) Prepare(ctx context.Context) (*apisv1.CloudShell
 	return res, nil
 }
 
+// Destroy destroy the cloud shell environment
+func (c *cloudShellServiceImpl) Destroy(ctx context.Context) error {
+	var userName string
+	if user := ctx.Value(&apisv1.CtxKeyUser); user != nil {
+		if u, ok := user.(string); ok {
+			userName = u
+		}
+	}
+	if userName == "" {
+		return bcode.ErrUnauthorized
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+	var cloudShell v1alpha1.CloudShell
+	if err := c.KubeClient.Get(ctx, types.NamespacedName{Namespace: kubevelatypes.DefaultKubeVelaNS, Name: makeUserCloudShellName(userName)}, &cloudShell); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if meta.IsNoMatchError(err) {
+			return bcode.ErrCloudShellAddonNotEnabled
+		}
+		return err
+	}
+	return c.KubeClient.Delete(ctx, &cloudShell)
+}
+
 func (c *cloudShellServiceImpl) GetCloudShellEndpoint(ctx context.Context) (string, error) {
 	var userName string
 	if user := ctx.Value(&apisv1.CtxKeyUser); user != nil {
@@ -181,7 +209,7 @@ func (c *cloudShellServiceImpl) GetCloudShellEndpoint(ctx context.Context) (stri
 	return cloudShell.Status.AccessURL, nil
 }
 
-// prepareKubeConfig prepare the user's kubeconfig
+// prepareKubeConfig prepare the user's kube config
 func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 	var userName string
 	if user := ctx.Value(&apisv1.CtxKeyUser); user != nil {
@@ -211,8 +239,12 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 			readOnly = checkReadOnly(p.Name, permissions)
 		}
 		if readOnly {
-			if err := c.managePrivilegesForUser(ctx, p.Name, true, userName, false); err != nil {
+			groupName, err := c.managePrivilegesForProjectRead(ctx, p.Name, true)
+			if err != nil {
 				log.Logger.Errorf("failed to privileges the user %s", err.Error())
+			}
+			if groupName != "" {
+				groups = append(groups, groupName)
 			}
 		} else {
 			groups = append(groups, utils.KubeVelaProjectGroupPrefix+p.Name)
@@ -232,14 +264,17 @@ func (c *cloudShellServiceImpl) prepareKubeConfig(ctx context.Context) error {
 		return err
 	}
 	if len(cfg.Clusters) == 0 {
-		caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
-		if err != nil {
-			log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
-			return err
+		if len(c.CACert) == 0 {
+			caFromServiceAccount, err := os.ReadFile(CAFilePathInCluster)
+			if err != nil {
+				log.Logger.Errorf("failed to read the ca file from the service account dir,%s", err.Error())
+				return err
+			}
+			c.CACert = caFromServiceAccount
 		}
 		cfg.Clusters = map[string]*api.Cluster{
 			"local": {
-				CertificateAuthorityData: caFromServiceAccount,
+				CertificateAuthorityData: c.CACert,
 				Server:                   ServerAddressInCluster,
 			},
 		}
@@ -340,9 +375,8 @@ func checkReadOnly(projectName string, permissions []*model.Permission) bool {
 	return !ra.Match(permissions)
 }
 
-// managePrivilegesForUser grant or revoke privileges for a user
-func (c *cloudShellServiceImpl) managePrivilegesForUser(ctx context.Context, projectName string, readOnly bool, userName string, revoke bool) error {
-
+// managePrivilegesForProjectRead grant the read privileges for a project
+func (c *cloudShellServiceImpl) managePrivilegesForProjectRead(ctx context.Context, projectName string, readOnly bool) (string, error) {
 	targets, err := c.TargetService.ListTargets(ctx, 0, 0, projectName)
 	if err != nil {
 		log.Logger.Infof("failed to list the targets by the project name %s :%s", projectName, err.Error())
@@ -358,16 +392,12 @@ func (c *cloudShellServiceImpl) managePrivilegesForUser(ctx context.Context, pro
 	for _, e := range envs.Envs {
 		authPDs = append(authPDs, &auth.ApplicationPrivilege{Cluster: kubevelatypes.ClusterLocalName, Namespace: e.Namespace, ReadOnly: readOnly})
 	}
-
-	identity := &auth.Identity{User: userName}
+	groupName := utils.KubeVelaProjectReadGroupPrefix + projectName
+	identity := &auth.Identity{Groups: []string{groupName}}
 	writer := &bytes.Buffer{}
-	f, msg := auth.GrantPrivileges, "GrantPrivileges"
-	if revoke {
-		f, msg = auth.RevokePrivileges, "RevokePrivileges"
+	if err := auth.GrantPrivileges(ctx, c.KubeClient, authPDs, identity, writer, auth.WithReplace); err != nil {
+		return "", err
 	}
-	if err := f(ctx, c.KubeClient, authPDs, identity, writer); err != nil {
-		return err
-	}
-	log.Logger.Debugf("%s: %s", msg, writer.String())
-	return nil
+	log.Logger.Debugf("GrantPrivileges: %s", writer.String())
+	return groupName, nil
 }

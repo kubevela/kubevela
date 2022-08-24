@@ -54,9 +54,11 @@ func StoreProject(ctx context.Context, name string, ds datastore.DataStore, proj
 
 // StoreAppMeta will sync application metadata from CR to datastore
 func StoreAppMeta(ctx context.Context, app *model.DataStoreApp, ds datastore.DataStore) error {
-	err := ds.Get(ctx, &model.Application{Name: app.AppMeta.Name})
+	oldApp := &model.Application{Name: app.AppMeta.Name}
+	err := ds.Get(ctx, oldApp)
 	if err == nil {
 		// it means the record already exists
+		app.AppMeta.CreateTime = oldApp.CreateTime
 		return ds.Put(ctx, app.AppMeta)
 	}
 	if !errors.Is(err, datastore.ErrRecordNotExist) {
@@ -75,6 +77,7 @@ func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataSto
 		if utils.EqualSlice(curEnv.Targets, app.Env.Targets) {
 			return nil
 		}
+		app.Env.CreateTime = curEnv.CreateTime
 		return ds.Put(ctx, app.Env)
 	}
 	if !errors.Is(err, datastore.ErrRecordNotExist) {
@@ -82,12 +85,13 @@ func StoreEnv(ctx context.Context, app *model.DataStoreApp, ds datastore.DataSto
 		return err
 	}
 	_, err = envService.CreateEnv(ctx, v1.CreateEnvRequest{
-		Name:        app.Env.Name,
-		Alias:       app.Env.Alias,
-		Description: app.Env.Description,
-		Project:     app.Env.Project,
-		Namespace:   app.Env.Namespace,
-		Targets:     app.Env.Targets,
+		Name:                app.Env.Name,
+		Alias:               app.Env.Alias,
+		Description:         app.Env.Description,
+		Project:             app.Env.Project,
+		Namespace:           app.Env.Namespace,
+		Targets:             app.Env.Targets,
+		AllowTargetConflict: true,
 	})
 	if err != nil && !errors.Is(err, bcode.ErrEnvAlreadyExists) {
 		return err
@@ -118,9 +122,11 @@ func StoreComponents(ctx context.Context, appPrimaryKey string, expComps []*mode
 		return err
 	}
 	var originCompNames []string
-	for _, entity := range originComps {
-		comp := entity.(*model.ApplicationComponent)
+	var existComponentMap = make(map[string]*model.ApplicationComponent)
+	for i := range originComps {
+		comp := originComps[i].(*model.ApplicationComponent)
 		originCompNames = append(originCompNames, comp.Name)
+		existComponentMap[comp.Name] = comp
 	}
 
 	var targetCompNames []string
@@ -153,6 +159,9 @@ func StoreComponents(ctx context.Context, appPrimaryKey string, expComps []*mode
 		if utils.StringsContain(readyToAdd, comp.Name) {
 			err = ds.Add(ctx, comp)
 		} else {
+			if old := existComponentMap[comp.Name]; old != nil {
+				comp.CreateTime = old.CreateTime
+			}
 			err = ds.Put(ctx, comp)
 		}
 		if err != nil {
@@ -171,9 +180,11 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 		return err
 	}
 	var originPolicyNames []string
-	for _, entity := range originPolicies {
-		plc := entity.(*model.ApplicationPolicy)
+	var policyMap = make(map[string]*model.ApplicationPolicy)
+	for i := range originPolicies {
+		plc := originPolicies[i].(*model.ApplicationPolicy)
 		originPolicyNames = append(originPolicyNames, plc.Name)
+		policyMap[plc.Name] = plc
 	}
 
 	var targetPLCNames []string
@@ -208,6 +219,9 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 		if utils.StringsContain(readyToAdd, plc.Name) {
 			err = ds.Add(ctx, plc)
 		} else {
+			if existPolicy := policyMap[plc.Name]; existPolicy != nil {
+				plc.CreateTime = existPolicy.CreateTime
+			}
 			err = ds.Put(ctx, plc)
 		}
 		if err != nil {
@@ -220,8 +234,10 @@ func StorePolicy(ctx context.Context, appPrimaryKey string, expPolicies []*model
 
 // StoreWorkflow will sync workflow application CR to datastore, it updates the only one workflow from the application with specified name
 func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
-	err := ds.Get(ctx, &model.Workflow{AppPrimaryKey: dsApp.AppMeta.Name, Name: dsApp.Workflow.Name})
+	old := &model.Workflow{AppPrimaryKey: dsApp.AppMeta.Name, Name: dsApp.Workflow.Name}
+	err := ds.Get(ctx, old)
 	if err == nil {
+		dsApp.Workflow.CreateTime = old.CreateTime
 		// it means the record already exists, update it
 		return ds.Put(ctx, dsApp.Workflow)
 	}
@@ -230,6 +246,40 @@ func StoreWorkflow(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.
 		return err
 	}
 	return ds.Add(ctx, dsApp.Workflow)
+}
+
+// StoreWorkflowRecord will sync workflow status to datastore.
+func StoreWorkflowRecord(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+	if dsApp.Record == nil {
+		return nil
+	}
+	records, err := ds.List(ctx, &model.WorkflowRecord{AppPrimaryKey: dsApp.AppMeta.Name, Name: dsApp.Record.Name}, nil)
+	if err == nil && len(records) > 0 {
+		return nil
+	}
+	if err != nil {
+		// other database error, return it
+		return err
+	}
+	return ds.Add(ctx, dsApp.Record)
+}
+
+// StoreApplicationRevision will sync the application revision to datastore.
+func StoreApplicationRevision(ctx context.Context, dsApp *model.DataStoreApp, ds datastore.DataStore) error {
+	if dsApp.Revision == nil {
+		return nil
+	}
+	old := &model.ApplicationRevision{AppPrimaryKey: dsApp.AppMeta.Name, Version: dsApp.Revision.Version}
+	err := ds.Get(ctx, old)
+	if err == nil {
+		dsApp.Revision.CreateTime = old.CreateTime
+		return ds.Put(ctx, dsApp.Revision)
+	}
+	if !errors.Is(err, datastore.ErrRecordNotExist) {
+		// other database error, return it
+		return err
+	}
+	return ds.Add(ctx, dsApp.Revision)
 }
 
 // StoreTargets will sync targets from application CR to datastore

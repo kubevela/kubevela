@@ -20,8 +20,10 @@ import (
 	"encoding/json"
 
 	cuejson "cuelang.org/go/pkg/encoding/json"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
 // fillQueryResult help fill query result which contains k8s object to *value.Value
@@ -34,5 +36,36 @@ func fillQueryResult(v *value.Value, res interface{}, paths ...string) error {
 	if err != nil {
 		return v.FillObject(err, "err")
 	}
-	return v.FillObject(expr, paths...)
+	err = v.FillObject(expr, paths...)
+	if err != nil {
+		return err
+	}
+	return v.Error()
+}
+
+func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes.ResourceTreeNode, kind string, apiVersion string) (pods []querytypes.ResourceItem) {
+	if node.LeafNodes != nil {
+		for _, subNode := range node.LeafNodes {
+			pods = append(pods, buildResourceArray(res, node, subNode, kind, apiVersion)...)
+		}
+	} else if node.Kind == kind && node.APIVersion == apiVersion {
+		pods = append(pods, buildResourceItem(res, querytypes.Workload{
+			APIVersion: parent.APIVersion,
+			Kind:       parent.Kind,
+			Name:       parent.Name,
+			Namespace:  parent.Namespace,
+		}, node.Object))
+	}
+	return
+}
+
+func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object unstructured.Unstructured) querytypes.ResourceItem {
+	return querytypes.ResourceItem{
+		Cluster:        res.Cluster,
+		Workload:       workload,
+		Component:      res.Component,
+		Object:         object,
+		PublishVersion: res.PublishVersion,
+		DeployVersion:  res.DeployVersion,
+	}
 }

@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: a-static-website
+spec:
+  components:
+    - name: create-bucket
+      type: alibaba-oss-website
+      properties:
+        bucket: oss-website-20220302-2135
+        acl: public-read
+        index_document: index.html
+        error_document: error/index.html
+        writeConnectionSecretToRef:
+          name: oss-website-conn
+      outputs:
+        - name: bucket
+          valueFrom: output.status.apply.outputs.BUCKET_NAME.value
+        - name: endpoint
+          valueFrom: output.status.apply.outputs.EXTERNAL_ENDPOINT.value
+        - name: index_document
+          valueFrom: properties.index_document
+#          valueFrom: output.spec.variable.index_document
+
+    - name: deploy-website
+      type: deploy-website
+      inputs:
+        - from: bucket
+          parameterKey: properties.bucket
+        - from: endpoint
+          parameterKey: properties.endpoint
+        - from: index_document
+          parameterKey: properties.index_document
+      properties:
+        static_web_url: "https://github.com/cloudacademy/static-website-example.git"
+
+
+

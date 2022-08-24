@@ -165,6 +165,7 @@ type Capability struct {
 	Center         string             `json:"center,omitempty"`
 	Status         string             `json:"status,omitempty"`
 	Description    string             `json:"description,omitempty"`
+	Example        string             `json:"example,omitempty"`
 	Labels         map[string]string  `json:"labels,omitempty"`
 	Category       CapabilityCategory `json:"category,omitempty"`
 

@@ -9,20 +9,19 @@ spec:
       type: webservice
       properties:
         image: crccheck/hello-world
-        port: 8000
+        ports: 
+        - port: 8000
+          expose: true
   policies:
     - name: env-policy
-      type: env-binding
+      type: topology
       properties:
-        envs:
-          - name: test
-            placement:
-              clusterSelector:
-                name: cluster-worker
+        clusters: 
+        - cluster-worker
   workflow:
     steps:
       - name: deploy-test
-        type: deploy2env
+        type: deploy
         properties:
-          policy: env-policy
-          env: test
+          policies: 
+          - env-policy

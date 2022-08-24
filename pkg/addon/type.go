@@ -33,10 +33,11 @@ type UIData struct {
 	// Detail is README.md in an addon
 	Detail string `json:"detail,omitempty"`
 
-	Definitions    []ElementFile `json:"definitions"`
-	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
-	Parameters     string        `json:"parameters"`
-	RegistryName   string        `json:"registryName"`
+	Definitions      []ElementFile `json:"definitions"`
+	CUEDefinitions   []ElementFile `json:"CUEDefinitions"`
+	Parameters       string        `json:"parameters"`
+	GlobalParameters string        `json:"globalParameters"`
+	RegistryName     string        `json:"registryName"`
 
 	AvailableVersions []string `json:"availableVersions"`
 }
@@ -57,9 +58,10 @@ type InstallPackage struct {
 	Parameters string `json:"parameters"`
 
 	// CUETemplates and YAMLTemplates are resources needed to be installed in managed clusters
-	CUETemplates  []ElementFile        `json:"CUETemplates"`
-	YAMLTemplates []ElementFile        `json:"YAMLTemplates,omitempty"`
-	AppTemplate   *v1beta1.Application `json:"appTemplate"`
+	CUETemplates   []ElementFile        `json:"CUETemplates"`
+	YAMLTemplates  []ElementFile        `json:"YAMLTemplates,omitempty"`
+	AppTemplate    *v1beta1.Application `json:"appTemplate"`
+	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon
@@ -92,7 +94,7 @@ type Meta struct {
 // DeployTo defines where the addon to deploy to
 type DeployTo struct {
 	// This field keep the compatible for older case
-	LegacyRuntimeCluster bool `json:"runtime_cluster"`
+	LegacyRuntimeCluster bool `json:"runtime_cluster,omitempty"`
 	DisableControlPlane  bool `json:"disableControlPlane"`
 	RuntimeCluster       bool `json:"runtimeCluster"`
 }

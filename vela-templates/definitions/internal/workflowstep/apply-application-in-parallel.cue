@@ -6,7 +6,8 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
+		"deprecated": "true"
 	}
 	description: "Apply components of an application in parallel for your workflow steps"
 }

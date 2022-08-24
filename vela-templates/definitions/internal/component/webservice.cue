@@ -54,46 +54,61 @@ webservice: {
 template: {
 	mountsArray: {
 		pvc: *[
-			for v in parameter.volumeMounts.pvc {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
 
 		secret: *[
-			for v in parameter.volumeMounts.secret {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 				{
 					mountPath: v.mountPath
-					name:      v.name
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
+					name: v.name
 				}
 			},
 		] | []
@@ -101,7 +116,7 @@ template: {
 
 	volumesArray: {
 		pvc: *[
-			for v in parameter.volumeMounts.pvc {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.pvc != _|_ for v in parameter.volumeMounts.pvc {
 				{
 					name: v.name
 					persistentVolumeClaim: claimName: v.claimName
@@ -110,7 +125,7 @@ template: {
 		] | []
 
 		configMap: *[
-				for v in parameter.volumeMounts.configMap {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.configMap != _|_ for v in parameter.volumeMounts.configMap {
 				{
 					name: v.name
 					configMap: {
@@ -125,7 +140,7 @@ template: {
 		] | []
 
 		secret: *[
-			for v in parameter.volumeMounts.secret {
+			if parameter.volumeMounts != _|_ && parameter.volumeMounts.secret != _|_ for v in parameter.volumeMounts.secret {
 				{
 					name: v.name
 					secret: {
@@ -140,7 +155,7 @@ template: {
 		] | []
 
 		emptyDir: *[
-				for v in parameter.volumeMounts.emptyDir {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.emptyDir != _|_ for v in parameter.volumeMounts.emptyDir {
 				{
 					name: v.name
 					emptyDir: medium: v.medium
@@ -149,7 +164,7 @@ template: {
 		] | []
 
 		hostPath: *[
-				for v in parameter.volumeMounts.hostPath {
+				if parameter.volumeMounts != _|_ && parameter.volumeMounts.hostPath != _|_ for v in parameter.volumeMounts.hostPath {
 				{
 					name: v.name
 					hostPath: {
@@ -159,6 +174,20 @@ template: {
 			},
 		] | []
 	}
+
+	volumesList: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+	deDupVolumesArray: [
+		for val in [
+			for i, vi in volumesList {
+				for j, vj in volumesList if j < i && vi.name == vj.name {
+					ignore: true
+				}
+				vi
+			},
+		] if val.ignore == _|_ {
+			val
+		},
+	]
 
 	output: {
 		apiVersion: "apps/v1"
@@ -305,7 +334,7 @@ template: {
 					}
 
 					if parameter["volumeMounts"] != _|_ {
-						volumes: volumesArray.pvc + volumesArray.configMap + volumesArray.secret + volumesArray.emptyDir + volumesArray.hostPath
+						volumes: deDupVolumesArray
 					}
 				}
 			}
@@ -313,7 +342,7 @@ template: {
 	}
 
 	exposePorts: [
-		for v in parameter.ports if v.expose == true {
+		if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
 			port:       v.port
 			targetPort: v.port
 			if v.name != _|_ {
@@ -375,8 +404,8 @@ template: {
 		}]
 
 		// +ignore
-		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer", "ExternalName"
-		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer" | "ExternalName"
+		// +usage=Specify what kind of Service you want. options: "ClusterIP", "NodePort", "LoadBalancer"
+		exposeType: *"ClusterIP" | "NodePort" | "LoadBalancer"
 
 		// +ignore
 		// +usage=If addRevisionLabel is true, the revision label will be added to the underlying pods
@@ -421,6 +450,7 @@ template: {
 			pvc?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				// +usage=The name of the PVC
 				claimName: string
 			}]
@@ -428,6 +458,7 @@ template: {
 			configMap?: [...{
 				name:        string
 				mountPath:   string
+				subPath?:    string
 				defaultMode: *420 | int
 				cmName:      string
 				items?: [...{
@@ -440,6 +471,7 @@ template: {
 			secret?: [...{
 				name:        string
 				mountPath:   string
+				subPath?:    string
 				defaultMode: *420 | int
 				secretName:  string
 				items?: [...{
@@ -452,12 +484,14 @@ template: {
 			emptyDir?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				medium:    *"" | "Memory"
 			}]
 			// +usage=Mount HostPath type volume
 			hostPath?: [...{
 				name:      string
 				mountPath: string
+				subPath?:  string
 				path:      string
 			}]
 		}
@@ -466,8 +500,8 @@ template: {
 		volumes?: [...{
 			name:      string
 			mountPath: string
-			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir"
-			type: "pvc" | "configMap" | "secret" | "emptyDir"
+			// +usage=Specify volume type, options: "pvc","configMap","secret","emptyDir", default to emptyDir
+			type: *"emptyDir" | "pvc" | "configMap" | "secret"
 			if type == "pvc" {
 				claimName: string
 			}

@@ -40,6 +40,9 @@ var (
 
 	// ErrRegistryNotExist means registry not exists
 	ErrRegistryNotExist = NewAddonError("registry does not exist")
+
+	// ErrBothCueAndYamlTmpl means yaml and cue app template are exist in addon
+	ErrBothCueAndYamlTmpl = NewAddonError("yaml and cue app template are exist in addon, should only keep one of them")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

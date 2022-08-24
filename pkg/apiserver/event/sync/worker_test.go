@@ -67,7 +67,7 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 			KubeClient:         k8sClient,
 			KubeConfig:         cfg,
 			Store:              ds,
-			Queue:              workqueue.New(),
+			Queue:              workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 			ProjectService:     crux.projectService,
 			ApplicationService: crux.applicationService,
 			TargetService:      crux.targetService,
@@ -88,6 +88,7 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 
 		comp1 := model.ApplicationComponent{AppPrimaryKey: app1.Name, Name: "nginx"}
 		Expect(ds.Get(ctx, &comp1)).Should(BeNil())
+		Expect(comp1.CreateTime.IsZero()).Should(BeFalse())
 		Expect(comp1.Properties).Should(BeEquivalentTo(&model.JSONStruct{"image": "nginx"}))
 
 		comp2 := model.ApplicationComponent{AppPrimaryKey: app1.Name, Name: "nginx2"}
@@ -96,10 +97,12 @@ var _ = Describe("Test Worker CR sync to datastore", func() {
 
 		env := model.Env{Project: appNS1, Name: model.AutoGenEnvNamePrefix + appNS1}
 		Expect(ds.Get(ctx, &env)).Should(BeNil())
+		Expect(env.CreateTime.IsZero()).Should(BeFalse())
 		Expect(len(env.Targets)).Should(Equal(2))
 
 		appPlc1 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-beijing-demo"}
 		Expect(ds.Get(ctx, &appPlc1)).Should(BeNil())
+		Expect(appPlc1.CreateTime.IsZero()).Should(BeFalse())
 		appPlc2 := model.ApplicationPolicy{AppPrimaryKey: app1.Name, Name: "topology-local"}
 		Expect(ds.Get(ctx, &appPlc2)).Should(BeNil())
 		appwf1 := model.Workflow{AppPrimaryKey: app1.Name, Name: model.AutoGenWorkflowNamePrefix + app1.Name}

@@ -19,10 +19,11 @@ package process
 import (
 	"testing"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/bmizerany/assert"
 
 	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 func TestContext(t *testing.T) {
@@ -30,13 +31,8 @@ func TestContext(t *testing.T) {
 image: "myserver"
 `
 
-	var r cue.Runtime
-	inst, err := r.Compile("-", baseTemplate)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	base, err := model.NewBase(inst.Value())
+	inst := cuecontext.New().CompileString(baseTemplate)
+	base, err := model.NewBase(inst)
 	if err != nil {
 		t.Error(err)
 		return
@@ -47,13 +43,9 @@ image: "myserver"
     kind:       "ConfigMap"
 `
 
-	svcInst, err := r.Compile("-", serviceTemplate)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	svcInst := cuecontext.New().CompileString(serviceTemplate)
 
-	svcIns, err := model.NewOther(svcInst.Value())
+	svcIns, err := model.NewOther(svcInst)
 	if err != nil {
 		t.Error(err)
 		return
@@ -120,61 +112,57 @@ image: "myserver"
 		t.Error(err)
 		return
 	}
-	ctxInst, err := r.Compile("-", c)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	ctxInst := cuecontext.New().CompileString(c)
 
-	gName, err := ctxInst.Lookup("context", model.ContextName).String()
+	gName, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextName)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "mycomp", gName)
 
-	myAppName, err := ctxInst.Lookup("context", model.ContextAppName).String()
+	myAppName, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextAppName)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp", myAppName)
 
-	myAppRevision, err := ctxInst.Lookup("context", model.ContextAppRevision).String()
+	myAppRevision, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextAppRevision)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp-v1", myAppRevision)
 
-	myAppRevisionNum, err := ctxInst.Lookup("context", model.ContextAppRevisionNum).Int64()
+	myAppRevisionNum, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextAppRevisionNum)).Int64()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(1), myAppRevisionNum)
 
-	myWorkflowName, err := ctxInst.Lookup("context", model.ContextWorkflowName).String()
+	myWorkflowName, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextWorkflowName)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myworkflow", myWorkflowName)
 
-	myPublishVersion, err := ctxInst.Lookup("context", model.ContextPublishVersion).String()
+	myPublishVersion, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextPublishVersion)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "mypublishversion", myPublishVersion)
 
-	inputJs, err := ctxInst.Lookup("context", model.OutputFieldName).MarshalJSON()
+	inputJs, err := ctxInst.LookupPath(value.FieldPath("context", model.OutputFieldName)).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))
 
-	outputsJs, err := ctxInst.Lookup("context", model.OutputsFieldName, "service").MarshalJSON()
+	outputsJs, err := ctxInst.LookupPath(value.FieldPath("context", model.OutputsFieldName, "service")).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\"}", string(outputsJs))
 
-	outputsJs, err = ctxInst.Lookup("context", model.OutputsFieldName, "service-1").MarshalJSON()
+	outputsJs, err = ctxInst.LookupPath(value.FieldPath("context", model.OutputsFieldName, "service-1")).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\"}", string(outputsJs))
 
-	ns, err := ctxInst.Lookup("context", model.ContextNamespace).String()
+	ns, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextNamespace)).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myns", ns)
 
-	params, err := ctxInst.Lookup("context", model.ParameterFieldName).MarshalJSON()
+	params, err := ctxInst.LookupPath(value.FieldPath("context", model.ParameterFieldName)).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"parameter1\":\"string\",\"parameter2\":{\"key1\":\"value1\",\"key2\":\"value2\"},\"parameter3\":[\"item1\",\"item2\"]}", string(params))
 
-	artifacts, err := ctxInst.Lookup("context", model.ContextDataArtifacts).MarshalJSON()
+	artifacts, err := ctxInst.LookupPath(value.FieldPath("context", model.ContextDataArtifacts)).MarshalJSON()
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(artifacts))
+	assert.Equal(t, "{\"bool\":false,\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"],\"string\":\"mytxt\"}", string(artifacts))
 
-	arbitraryData, err := ctxInst.Lookup("context", "arbitraryData").MarshalJSON()
+	arbitraryData, err := ctxInst.LookupPath(value.FieldPath("context", "arbitraryData")).MarshalJSON()
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "{\"bool\":false,\"string\":\"mytxt\",\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"]}", string(arbitraryData))
+	assert.Equal(t, "{\"bool\":false,\"int\":10,\"map\":{\"key\":\"value\"},\"slice\":[\"str1\",\"str2\",\"str3\"],\"string\":\"mytxt\"}", string(arbitraryData))
 }

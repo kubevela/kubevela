@@ -86,6 +86,7 @@ func (i *versionedRegistry) GetAddonUIData(ctx context.Context, addonName, versi
 		Detail:            wholePackage.Detail,
 		Definitions:       wholePackage.Definitions,
 		AvailableVersions: wholePackage.AvailableVersions,
+		CUEDefinitions:    wholePackage.CUEDefinitions,
 	}, nil
 }
 
@@ -232,7 +233,7 @@ func chooseVersion(specifiedVersion string, versions []*repo.ChartVersion) (*rep
 				continue
 			}
 			addonVersion = v
-			log.Logger.Infof("Not specified any version, so use the latest version %s", v.Version)
+			log.Logger.Infof("Use the latest version %s by default, you can use --version to speicify", v.Version)
 		}
 	}
 	return addonVersion, availableVersions

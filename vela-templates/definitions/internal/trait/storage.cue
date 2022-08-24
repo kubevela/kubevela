@@ -4,13 +4,13 @@ storage: {
 	labels: {}
 	description: "Add storages on K8s pod for your workload which follows the pod spec in path 'spec.template'."
 	attributes: {
-		appliesToWorkloads: ["deployments.apps"]
+		appliesToWorkloads: ["deployments.apps", "statefulsets.apps", "daemonsets.apps", "jobs.batch"]
 		podDisruptive: true
 	}
 }
 template: {
 	pvcVolumesList: *[
-			for v in parameter.pvc {
+			if parameter.pvc != _|_ for v in parameter.pvc {
 			{
 				name: "pvc-" + v.name
 				persistentVolumeClaim: claimName: v.name
@@ -19,7 +19,7 @@ template: {
 	] | []
 
 	configMapVolumesList: *[
-				for v in parameter.configMap if v.mountPath != _|_ {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name: "configmap-" + v.name
 				configMap: {
@@ -34,7 +34,7 @@ template: {
 	] | []
 
 	secretVolumesList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name: "secret-" + v.name
 				secret: {
@@ -49,7 +49,7 @@ template: {
 	] | []
 
 	emptyDirVolumesList: *[
-				for v in parameter.emptyDir {
+				if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name: "emptydir-" + v.name
 				emptyDir: {
@@ -60,27 +60,33 @@ template: {
 	] | []
 
 	pvcVolumeMountsList: *[
-				for v in parameter.pvc {
+				if parameter.pvc != _|_ for v in parameter.pvc {
 			if v.volumeMode == "Filesystem" {
 				{
 					name:      "pvc-" + v.name
 					mountPath: v.mountPath
+					if v.subPath != _|_ {
+						subPath: v.subPath
+					}
 				}
 			}
 		},
 	] | []
 
 	configMapVolumeMountsList: *[
-					for v in parameter.configMap if v.mountPath != _|_ {
+					if parameter.configMap != _|_ for v in parameter.configMap if v.mountPath != _|_ {
 			{
 				name:      "configmap-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
 
 	configMapEnvMountsList: *[
-				for v in parameter.configMap if v.mountToEnv != _|_ {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnv != _|_ {
 			{
 				name: v.mountToEnv.envName
 				valueFrom: configMapKeyRef: {
@@ -92,7 +98,7 @@ template: {
 	] | []
 
 	configMountToEnvsList: *[
-				for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+				if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
 				name: k.envName
 				valueFrom: configMapKeyRef: {
@@ -104,16 +110,19 @@ template: {
 	] | []
 
 	secretVolumeMountsList: *[
-				for v in parameter.secret if v.mountPath != _|_ {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
 			{
 				name:      "secret-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
 
 	secretEnvMountsList: *[
-				for v in parameter.secret if v.mountToEnv != _|_ {
+				if parameter.secret != _|_ if parameter.secret != _|_ for v in parameter.secret if v.mountToEnv != _|_ {
 			{
 				name: v.mountToEnv.envName
 				valueFrom: secretKeyRef: {
@@ -125,7 +134,7 @@ template: {
 	] | []
 
 	secretMountToEnvsList: *[
-				for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
+				if parameter.secret != _|_ for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
 				name: k.envName
 				valueFrom: secretKeyRef: {
@@ -137,26 +146,46 @@ template: {
 	] | []
 
 	emptyDirVolumeMountsList: *[
-					for v in parameter.emptyDir {
+					if parameter.emptyDir != _|_ for v in parameter.emptyDir {
 			{
 				name:      "emptydir-" + v.name
 				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
 
 	volumeDevicesList: *[
-				for v in parameter.pvc if v.volumeMode == "Block" {
+				if parameter.pvc != _|_ for v in parameter.pvc if v.volumeMode == "Block" {
 			{
 				name:       "pvc-" + v.name
 				devicePath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
+				}
 			}
 		},
 	] | []
 
+	volumesList: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+	deDupVolumesArray: [
+		for val in [
+			for i, vi in volumesList {
+				for j, vj in volumesList if j < i && vi.name == vj.name {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]
+
 	patch: spec: template: spec: {
 		// +patchKey=name
-		volumes: pvcVolumesList + configMapVolumesList + secretVolumesList + emptyDirVolumesList
+		volumes: deDupVolumesArray
 
 		containers: [{
 			// +patchKey=name
@@ -170,7 +199,7 @@ template: {
 	}
 
 	outputs: {
-		for v in parameter.pvc {
+		if parameter.pvc != _|_ for v in parameter.pvc {
 			if v.mountOnly == false {
 				"pvc-\(v.name)": {
 					apiVersion: "v1"
@@ -211,7 +240,7 @@ template: {
 			}
 		}
 
-		for v in parameter.configMap {
+		if parameter.configMap != _|_ for v in parameter.configMap {
 			if v.mountOnly == false {
 				"configmap-\(v.name)": {
 					apiVersion: "v1"
@@ -224,7 +253,7 @@ template: {
 			}
 		}
 
-		for v in parameter.secret {
+		if parameter.secret != _|_ for v in parameter.secret {
 			if v.mountOnly == false {
 				"secret-\(v.name)": {
 					apiVersion: "v1"
@@ -248,6 +277,7 @@ template: {
 			name:              string
 			mountOnly:         *false | bool
 			mountPath:         string
+			subPath?:          string
 			volumeMode:        *"Filesystem" | string
 			volumeName?:       string
 			accessModes:       *["ReadWriteOnce"] | [...string]
@@ -289,6 +319,7 @@ template: {
 				configMapKey: string
 			}]
 			mountPath?:  string
+			subPath?:    string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			data?: {...}
@@ -312,6 +343,7 @@ template: {
 				secretKey: string
 			}]
 			mountPath?:  string
+			subPath?:    string
 			defaultMode: *420 | int
 			readOnly:    *false | bool
 			stringData?: {...}
@@ -327,6 +359,7 @@ template: {
 		emptyDir?: [...{
 			name:      string
 			mountPath: string
+			subPath?:  string
 			medium:    *"" | "Memory"
 		}]
 	}

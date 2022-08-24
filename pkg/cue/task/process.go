@@ -25,24 +25,21 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/builtin"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
+	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 // Process processing the http task
-func Process(inst *cue.Instance) (*cue.Instance, error) {
-	taskVal := inst.Lookup("processing", "http")
+func Process(val cue.Value) (cue.Value, error) {
+	taskVal := val.LookupPath(value.FieldPath("processing", "http"))
 	if !taskVal.Exists() {
-		return inst, errors.New("there is no http in processing")
+		return val, errors.New("there is no http in processing")
 	}
 	resp, err := exec(taskVal)
 	if err != nil {
-		return nil, fmt.Errorf("fail to exec http task, %w", err)
+		return val, fmt.Errorf("fail to exec http task, %w", err)
 	}
 
-	appInst, err := inst.Fill(resp, "processing", "output")
-	if err != nil {
-		return nil, fmt.Errorf("fail to fill output from http, %w", err)
-	}
-	return appInst, nil
+	return val.FillPath(value.FieldPath("processing", "output"), resp), nil
 }
 
 func exec(v cue.Value) (map[string]interface{}, error) {

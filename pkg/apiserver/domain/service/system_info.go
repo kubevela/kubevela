@@ -63,6 +63,7 @@ func (u systemInfoServiceImpl) Get(ctx context.Context) (*model.SystemInfo, erro
 		}
 		return info, nil
 	}
+	info.SignedKey = rand.String(32)
 	installID := rand.String(16)
 	info.InstallID = installID
 	info.EnableCollection = true
@@ -113,7 +114,9 @@ func (u systemInfoServiceImpl) UpdateSystemInfo(ctx context.Context, sysInfo v1.
 			CreateTime: info.CreateTime,
 			UpdateTime: time.Now(),
 		},
-		StatisticInfo: info.StatisticInfo,
+		StatisticInfo:               info.StatisticInfo,
+		DexUserDefaultProjects:      sysInfo.DexUserDefaultProjects,
+		DexUserDefaultPlatformRoles: info.DexUserDefaultPlatformRoles,
 	}
 
 	if sysInfo.LoginType == model.LoginTypeDex {
@@ -159,16 +162,18 @@ func (u systemInfoServiceImpl) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	signedKey = info.InstallID
+	signedKey = info.SignedKey
 	_, err = initDexConfig(ctx, u.KubeClient, "http://velaux.com")
 	return err
 }
 
 func convertInfoToBase(info *model.SystemInfo) v1.SystemInfo {
 	return v1.SystemInfo{
-		PlatformID:       info.InstallID,
-		EnableCollection: info.EnableCollection,
-		LoginType:        info.LoginType,
-		InstallTime:      info.CreateTime,
+		PlatformID:                  info.InstallID,
+		EnableCollection:            info.EnableCollection,
+		LoginType:                   info.LoginType,
+		InstallTime:                 info.CreateTime,
+		DexUserDefaultProjects:      info.DexUserDefaultProjects,
+		DexUserDefaultPlatformRoles: info.DexUserDefaultPlatformRoles,
 	}
 }

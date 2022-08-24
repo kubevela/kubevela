@@ -324,10 +324,12 @@ type AppStatus struct {
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
 
 	// PolicyStatus records the status of policy
+	// Deprecated This field is only used by EnvBinding Policy which is deprecated.
 	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
 }
 
 // PolicyStatus records the status of policy
+// Deprecated
 type PolicyStatus struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
@@ -420,6 +422,8 @@ const (
 	WorkflowStepPhaseStopped WorkflowStepPhase = "stopped"
 	// WorkflowStepPhaseRunning will make the controller continue the workflow.
 	WorkflowStepPhaseRunning WorkflowStepPhase = "running"
+	// WorkflowStepPhasePending will make the controller wait for the step to run.
+	WorkflowStepPhasePending WorkflowStepPhase = "pending"
 )
 
 // DefinitionType describes the type of DefinitionRevision.
@@ -490,6 +494,10 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+
+	// ReplicaKey is not empty means the component is replicated. This field is designed so that it can't be specified in application directly.
+	// So we set the json tag as "-". Instead, this will be filled when using replication policy.
+	ReplicaKey string `json:"-"`
 }
 
 // StepOutputs defines output variable of WorkflowStep

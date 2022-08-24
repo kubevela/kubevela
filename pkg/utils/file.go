@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +43,14 @@ type FileData struct {
 // If path is a file, fetch the data from the file
 // If path is a dir, fetch the data from all the files inside the dir that passes the pathFilter
 func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) bool) ([]FileData, error) {
+	if path == "-" {
+		bs, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get data from stdin: %w", err)
+		}
+		return []FileData{{Path: path, Data: bs}}, nil
+	}
+
 	if IsValidURL(path) {
 		bs, err := common.HTTPGetWithOption(ctx, path, nil)
 		if err != nil {
@@ -77,11 +86,12 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 	return []FileData{{Path: path, Data: bs}}, nil
 }
 
-// IsJSONOrYAMLFile check if the path is a json or yaml file
-func IsJSONOrYAMLFile(path string) bool {
+// IsJSONYAMLorCUEFile check if the path is a json or yaml file
+func IsJSONYAMLorCUEFile(path string) bool {
 	return strings.HasSuffix(path, ".json") ||
 		strings.HasSuffix(path, ".yaml") ||
-		strings.HasSuffix(path, ".yml")
+		strings.HasSuffix(path, ".yml") ||
+		strings.HasSuffix(path, ".cue")
 }
 
 // IsEmptyDir checks if a given path is an empty directory
@@ -102,4 +112,23 @@ func IsEmptyDir(path string) (bool, error) {
 	}
 
 	return false, err
+}
+
+// GetFilenameFromLocalOrRemote returns the filename of a local path or a URL.
+// It doesn't guarantee that the file or URL actually exists.
+func GetFilenameFromLocalOrRemote(path string) (string, error) {
+	if !IsValidURL(path) {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs)), nil
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSuffix(filepath.Base(u.Path), filepath.Ext(u.Path)), nil
 }

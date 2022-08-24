@@ -23,11 +23,8 @@ import (
 	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -39,42 +36,8 @@ type applicationMetricsWatcher struct {
 	stepPhaseCounter map[string]int
 	phaseDirty       map[string]struct{}
 	stepPhaseDirty   map[string]struct{}
-	informer         cache.SharedIndexInformer
+	informer         ctrlcache.Informer
 	stopCh           chan struct{}
-}
-
-func newApplicationMetricsWatcher(cfg *rest.Config) (*applicationMetricsWatcher, error) {
-	dc, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	f := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dc, 0, metav1.NamespaceAll, nil)
-	informer := f.ForResource(v1beta1.SchemeGroupVersion.WithResource("applications")).Informer()
-	watcher := &applicationMetricsWatcher{
-		phaseCounter:     map[string]int{},
-		stepPhaseCounter: map[string]int{},
-		phaseDirty:       map[string]struct{}{},
-		stepPhaseDirty:   map[string]struct{}{},
-		informer:         informer,
-		stopCh:           make(chan struct{}, 1),
-	}
-	watcher.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			app := watcher.getApp(obj)
-			watcher.inc(app, 1)
-		},
-		UpdateFunc: func(oldObj, obj interface{}) {
-			oldApp := watcher.getApp(oldObj)
-			app := watcher.getApp(obj)
-			watcher.inc(oldApp, -1)
-			watcher.inc(app, 1)
-		},
-		DeleteFunc: func(obj interface{}) {
-			app := watcher.getApp(obj)
-			watcher.inc(app, -1)
-		},
-	})
-	return watcher, nil
 }
 
 func (watcher *applicationMetricsWatcher) getApp(obj interface{}) *v1beta1.Application {
@@ -114,7 +77,7 @@ func (watcher *applicationMetricsWatcher) report() {
 		metrics.ApplicationPhaseCounter.WithLabelValues(phase).Set(float64(watcher.phaseCounter[phase]))
 	}
 	for stepPhase := range watcher.stepPhaseDirty {
-		metrics.WorkflowStepPhaseGauge.WithLabelValues(strings.Split(stepPhase, "/")...).Set(float64(watcher.stepPhaseCounter[stepPhase]))
+		metrics.WorkflowStepPhaseGauge.WithLabelValues(strings.Split(stepPhase, "/")[:2]...).Set(float64(watcher.stepPhaseCounter[stepPhase]))
 	}
 	watcher.phaseDirty = map[string]struct{}{}
 	watcher.stepPhaseDirty = map[string]struct{}{}
@@ -132,15 +95,33 @@ func (watcher *applicationMetricsWatcher) run() {
 			}
 		}
 	}()
-	go watcher.informer.Run(watcher.stopCh)
 }
 
 // StartApplicationMetricsWatcher start metrics watcher for reporting application stats
-func StartApplicationMetricsWatcher(cfg *rest.Config) error {
-	watcher, err := newApplicationMetricsWatcher(cfg)
-	if err != nil {
-		return err
+func StartApplicationMetricsWatcher(informer ctrlcache.Informer) {
+	watcher := &applicationMetricsWatcher{
+		phaseCounter:     map[string]int{},
+		stepPhaseCounter: map[string]int{},
+		phaseDirty:       map[string]struct{}{},
+		stepPhaseDirty:   map[string]struct{}{},
+		informer:         informer,
+		stopCh:           make(chan struct{}, 1),
 	}
+	watcher.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			app := watcher.getApp(obj)
+			watcher.inc(app, 1)
+		},
+		UpdateFunc: func(oldObj, obj interface{}) {
+			oldApp := watcher.getApp(oldObj)
+			app := watcher.getApp(obj)
+			watcher.inc(oldApp, -1)
+			watcher.inc(app, 1)
+		},
+		DeleteFunc: func(obj interface{}) {
+			app := watcher.getApp(obj)
+			watcher.inc(app, -1)
+		},
+	})
 	watcher.run()
-	return nil
 }

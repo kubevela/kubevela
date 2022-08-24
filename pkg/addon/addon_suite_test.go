@@ -26,6 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -307,7 +308,7 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		args := map[string]interface{}{
 			"clusters": []string{"add-c1", "ne"},
 		}
-		_, err := RenderApp(ctx, i, k8sClient, args)
+		_, _, err := RenderApp(ctx, i, k8sClient, args)
 		Expect(err.Error()).Should(BeEquivalentTo("cluster ne not exist"))
 	})
 	It("test render normal addon with specified clusters", func() {
@@ -317,9 +318,9 @@ var _ = Describe("Test render addon with specified clusters", func() {
 		args := map[string]interface{}{
 			"clusters": []string{"add-c1", "add-c2"},
 		}
-		ap, err := RenderApp(ctx, i, k8sClient, args)
+		ap, _, err := RenderApp(ctx, i, k8sClient, args)
 		Expect(err).Should(BeNil())
-		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: "specified-addon-clusters",
+		Expect(ap.Spec.Policies).Should(BeEquivalentTo([]v1beta1.AppPolicy{{Name: specifyAddonClustersTopologyPolicy,
 			Type:       v1alpha12.TopologyPolicyType,
 			Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["add-c1","add-c2","local"]}`)}}}))
 	})
@@ -393,6 +394,60 @@ var _ = Describe("test enable addon which applies the views independently", func
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-view"}, &app)).Should(BeNil())
 		configMap := v1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "pod-view"}, &configMap)).Should(BeNil())
+	})
+})
+
+var _ = Describe("test override defs of addon", func() {
+	It("test compDef exist", func() {
+		ctx := context.Background()
+		comp := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
+		Expect(yaml.Unmarshal([]byte(helmCompDefYaml), &comp)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
+
+		comp2 := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
+		Expect(yaml.Unmarshal([]byte(kustomizeCompDefYaml), &comp2)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp2)).Should(BeNil())
+		app := v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "addon-fluxcd"}}
+
+		comp3 := v1beta1.ComponentDefinition{TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}}
+		Expect(yaml.Unmarshal([]byte(kustomizeCompDefYaml1), &comp3)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &comp3)).Should(BeNil())
+
+		compUnstructured, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp)
+		Expect(err).Should(BeNil())
+		u := unstructured.Unstructured{Object: compUnstructured}
+		u.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u.SetKind(v1beta1.ComponentDefinitionKind)
+		c, err := checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(1))
+
+		u.SetName("rollout")
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(0))
+
+		u.SetKind("NotExistKind")
+		_, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
+		Expect(err).ShouldNot(BeNil())
+
+		compUnstructured2, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp2)
+		Expect(err).Should(BeNil())
+		u2 := &unstructured.Unstructured{Object: compUnstructured2}
+		u2.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u2.SetKind(v1beta1.ComponentDefinitionKind)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u2}, app.GetName())
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(1))
+
+		compUnstructured3, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&comp3)
+		Expect(err).Should(BeNil())
+		u3 := &unstructured.Unstructured{Object: compUnstructured3}
+		u3.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
+		u3.SetKind(v1beta1.ComponentDefinitionKind)
+		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{u3}, app.GetName())
+		Expect(err).Should(BeNil())
+		Expect(len(c)).Should(BeEquivalentTo(0))
 	})
 })
 
@@ -491,5 +546,49 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 8000
+`
+	helmCompDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: helm
+  namespace: vela-system
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Application
+    name: addon-fluxcd-helm
+    uid: 73c47933-002e-4182-a673-6da6a9dcf080
+spec:
+  schematic:
+    cue:
+`
+	kustomizeCompDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kustomize
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+`
+	kustomizeCompDefYaml1 = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kustomize-another
+  namespace: vela-system
+  ownerReferences:
+  - apiVersion: core.oam.dev/v1beta1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Application
+    name: addon-fluxcd
+    uid: 73c47933-002e-4182-a673-6da6a9dcf080
+spec:
+  schematic:
+    cue:
 `
 )

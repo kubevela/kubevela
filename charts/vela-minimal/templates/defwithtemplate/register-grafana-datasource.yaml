@@ -6,6 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Add a datasource to Grafana
   labels:
+    custom.definition.oam.dev/deprecated: "true"
     custom.definition.oam.dev/ui-hidden: "true"
   name: register-grafana-datasource
   namespace: {{ include "systemDefinitionNamespace" . }}

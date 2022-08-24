@@ -1,4 +1,4 @@
-# Binaries for programs and plugins
+# Binaries for programs and docgen
 *.exe
 *.exe~
 *.dll
@@ -51,3 +51,4 @@ git-page/
 
 # e2e rollout runtime image build
 runtime/rollout/e2e/tmp
+vela.json

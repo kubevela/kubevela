@@ -118,13 +118,20 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 		}
 
 		// debug workflow steps
-		rawValue, err := d.getDebugRawValue(ctx, cli, pd, app)
+		rawValue, data, err := d.getDebugRawValue(ctx, cli, pd, app)
 		if err != nil {
+			if data != "" {
+				ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+				ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+				return nil
+			}
 			return err
 		}
 
 		if err := d.handleCueSteps(rawValue, ioStreams); err != nil {
-			return err
+			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+			ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+			return nil
 		}
 	} else {
 		// dry run components
@@ -132,7 +139,7 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 		if err != nil {
 			return err
 		}
-		dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{})
+		dryRunOpt := dryrun.NewDryRunOption(cli, config, dm, pd, []oam.Object{}, false)
 		comps, _, err := dryRunOpt.ExecuteDryRun(ctx, app)
 		if err != nil {
 			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
@@ -252,20 +259,20 @@ func unwrapStepName(step string) string {
 	return step
 }
 
-func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, error) {
+func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, string, error) {
 	debugCM := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(app.Name, d.step), Namespace: app.Namespace}, debugCM); err != nil {
-		return nil, fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
+		return nil, "", fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
 	}
 
 	if debugCM.Data == nil || debugCM.Data["debug"] == "" {
-		return nil, fmt.Errorf("debug configmap is empty")
+		return nil, "", fmt.Errorf("debug configmap is empty")
 	}
 	v, err := value.NewValue(debugCM.Data["debug"], pd, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse debug configmap: %w", err)
+		return nil, debugCM.Data["debug"], fmt.Errorf("failed to parse debug configmap: %w", err)
 	}
-	return v, nil
+	return v, debugCM.Data["debug"], nil
 }
 
 func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) error {

@@ -1,0 +1,59 @@
+apiVersion: core.oam.dev/v1beta1
+kind: DefinitionRevision
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    custom.definition.oam.dev/ui-hidden: 'true'
+    trait.oam.dev/name: affinity
+  name: affinity-v1
+  namespace: rev-test-custom-ns
+spec:
+  componentDefinition:
+    metadata: {}
+    spec:
+      workload:
+        definition:
+          apiVersion: ''
+          kind: ''
+    status: {}
+  definitionType: Trait
+  policyDefinition:
+    metadata: {}
+    spec:
+      definitionRef:
+        name: ''
+    status: {}
+  revision: 1
+  revisionHash: 9db54dd8da7e4bd5
+  traitDefinition:
+    apiVersion: core.oam.dev/v1beta1
+    kind: TraitDefinition
+    metadata:
+      annotations:
+        definition.oam.dev/description: >-
+          affinity specify affinity and tolerationon K8s pod for your workload
+          which follows the pod spec in path 'spec.template'.
+      name: affinity
+      namespace: rev-test-custom-ns
+    spec:
+      appliesToWorkloads:
+        - '*'
+      definitionRef:
+        name: ''
+      podDisruptive: true
+      schematic:
+        cue:
+          template: |
+            parameter: {
+            	// +usage=Specify the number of workload
+            	replicas: *1 | int
+            }
+            // +patchStrategy=retainKeys
+            patch: spec: replicas: parameter.replicas
+    status: {}
+  workflowStepDefinition:
+    metadata: {}
+    spec:
+      definitionRef:
+        name: ''
+    status: {}

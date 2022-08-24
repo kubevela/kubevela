@@ -1537,10 +1537,12 @@ var _ = Describe("Test Workflow", func() {
 			Expect(interval).Should(BeEquivalentTo(int(0.05 * math.Pow(2, float64(i+5)))))
 		}
 
-		_, err = wf.ExecuteSteps(ctx, revision, runners)
-		Expect(err).ToNot(HaveOccurred())
-		interval = e.getBackoffWaitTime()
-		Expect(interval).Should(BeEquivalentTo(wfTypes.MaxWorkflowWaitBackoffTime))
+		for i := 0; i < 10; i++ {
+			_, err = wf.ExecuteSteps(ctx, revision, runners)
+			Expect(err).ToNot(HaveOccurred())
+			interval = e.getBackoffWaitTime()
+			Expect(interval).Should(BeEquivalentTo(wfTypes.MaxWorkflowWaitBackoffTime))
+		}
 
 		By("Test get backoff time after clean")
 		wfContext.CleanupMemoryStore(app.Name, app.Namespace)
@@ -2030,19 +2032,27 @@ var _ = Describe("Test Workflow", func() {
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
 			Message:     string(common.WorkflowStateExecuting),
-			Steps: []common.WorkflowStepStatus{{
-				StepStatus: common.StepStatus{
-					Name:  "s1",
-					Type:  "success",
-					Phase: common.WorkflowStepPhaseSucceeded,
+			Steps: []common.WorkflowStepStatus{
+				{
+					StepStatus: common.StepStatus{
+						Name:  "s1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s3",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2",
+						Type:  "pending",
+						Phase: common.WorkflowStepPhasePending,
+					},
 				},
-			}, {
-				StepStatus: common.StepStatus{
-					Name:  "s3",
-					Type:  "success",
-					Phase: common.WorkflowStepPhaseSucceeded,
-				},
-			}},
+			},
 		})).Should(BeEquivalentTo(""))
 
 		state, err = wf.ExecuteSteps(ctx, revision, runners)
@@ -2059,25 +2069,27 @@ var _ = Describe("Test Workflow", func() {
 			AppRevision: app.Status.Workflow.AppRevision,
 			Mode:        common.WorkflowModeDAG,
 			Message:     string(common.WorkflowStateSucceeded),
-			Steps: []common.WorkflowStepStatus{{
-				StepStatus: common.StepStatus{
-					Name:  "s1",
-					Type:  "success",
-					Phase: common.WorkflowStepPhaseSucceeded,
+			Steps: []common.WorkflowStepStatus{
+				{
+					StepStatus: common.StepStatus{
+						Name:  "s1",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s3",
+						Type:  "success",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
+				}, {
+					StepStatus: common.StepStatus{
+						Name:  "s2",
+						Type:  "pending",
+						Phase: common.WorkflowStepPhaseSucceeded,
+					},
 				},
-			}, {
-				StepStatus: common.StepStatus{
-					Name:  "s3",
-					Type:  "success",
-					Phase: common.WorkflowStepPhaseSucceeded,
-				},
-			}, {
-				StepStatus: common.StepStatus{
-					Name:  "s2",
-					Type:  "pending",
-					Phase: common.WorkflowStepPhaseSucceeded,
-				},
-			}},
+			},
 		})).Should(BeEquivalentTo(""))
 	})
 
@@ -2246,14 +2258,18 @@ func makeRunner(step oamcore.WorkflowStep, subTaskRunners []wfTypes.TaskRunner) 
 	return &testTaskRunner{
 		step: step,
 		run:  run,
-		checkPending: func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
+		checkPending: func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
 			if step.Type != "pending" {
-				return false
+				return false, common.StepStatus{}
 			}
 			if pending == true {
-				return true
+				return true, common.StepStatus{
+					Phase: common.WorkflowStepPhasePending,
+					Name:  step.Name,
+					Type:  step.Type,
+				}
 			}
-			return false
+			return false, common.StepStatus{}
 		},
 	}
 }
@@ -2277,7 +2293,7 @@ metadata:
 type testTaskRunner struct {
 	step         oamcore.WorkflowStep
 	run          func(ctx wfContext.Context, options *wfTypes.TaskRunOptions) (common.StepStatus, *wfTypes.Operation, error)
-	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool
+	checkPending func(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus)
 }
 
 // Name return step name.
@@ -2317,7 +2333,7 @@ func (tr *testTaskRunner) Run(ctx wfContext.Context, options *wfTypes.TaskRunOpt
 }
 
 // Pending check task should be executed or not.
-func (tr *testTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) bool {
+func (tr *testTaskRunner) Pending(ctx wfContext.Context, stepStatus map[string]common.StepStatus) (bool, common.StepStatus) {
 	return tr.checkPending(ctx, stepStatus)
 }
 

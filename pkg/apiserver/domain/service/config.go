@@ -42,9 +42,6 @@ import (
 )
 
 const (
-	definitionAlias = definition.UserPrefix + "alias.config.oam.dev"
-	definitionType  = definition.UserPrefix + "type.config.oam.dev"
-
 	configIsReady           = "Ready"
 	configIsNotReady        = "Not ready"
 	terraformProviderAlias  = "Terraform Cloud Provider"
@@ -74,20 +71,41 @@ type configServiceImpl struct {
 func (u *configServiceImpl) ListConfigTypes(ctx context.Context, query string) ([]*apis.ConfigType, error) {
 	defs := &v1beta1.ComponentDefinitionList{}
 	if err := u.KubeClient.List(ctx, defs, client.InNamespace(types.DefaultKubeVelaNS),
-		client.MatchingLabels{definition.UserPrefix + "catalog.config.oam.dev": types.VelaCoreConfig}); err != nil {
+		client.MatchingLabels{
+			definition.ConfigCatalog: types.VelaCoreConfig,
+		}); err != nil {
 		return nil, err
 	}
 
+	var items []v1beta1.ComponentDefinition
+	items = append(items, defs.Items...)
+
+	// for compatibility of the config catalog key
+	defsLegacy := &v1beta1.ComponentDefinitionList{}
+	if err := u.KubeClient.List(ctx, defsLegacy, client.InNamespace(types.DefaultKubeVelaNS),
+		client.MatchingLabels{
+			// leave here as the legacy format to test the compatibility
+			definition.UserPrefix + definition.ConfigCatalog: types.VelaCoreConfig,
+		}); err != nil {
+		return nil, err
+	}
+	// filter repeated config,due to new labels that exist at the same time
+	for _, legacy := range defsLegacy.Items {
+		if legacy.Labels[definition.ConfigCatalog] == types.VelaCoreConfig {
+			continue
+		}
+		items = append(items, legacy)
+	}
 	var tfDefs []v1beta1.ComponentDefinition
 	var configTypes []*apis.ConfigType
 
-	for _, d := range defs.Items {
-		if d.Labels[definitionType] == types.TerraformProvider {
+	for _, d := range items {
+		if DefinitionType(d.Labels) == types.TerraformProvider {
 			tfDefs = append(tfDefs, d)
 			continue
 		}
 		configTypes = append(configTypes, &apis.ConfigType{
-			Alias:       d.Annotations[definitionAlias],
+			Alias:       DefinitionAlias(d.Annotations),
 			Name:        d.Name,
 			Definitions: []string{d.Name},
 			Description: d.Annotations[types.AnnoDefinitionDescription],
@@ -119,7 +137,7 @@ func (u *configServiceImpl) GetConfigType(ctx context.Context, configType string
 	}
 
 	t := &apis.ConfigType{
-		Alias:       d.Annotations[definitionAlias],
+		Alias:       DefinitionAlias(d.Annotations),
 		Name:        configType,
 		Description: d.Annotations[types.AnnoDefinitionDescription],
 	}

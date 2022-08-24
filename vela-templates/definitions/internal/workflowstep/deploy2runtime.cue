@@ -6,7 +6,8 @@ import (
 	type: "workflow-step"
 	annotations: {}
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
+		"deprecated": "true"
 	}
 	description: "Deploy application to runtime clusters"
 }
@@ -14,9 +15,9 @@ template: {
 	app: op.#Steps & {
 		load: op.#Load @step(1)
 		clusters: [...string]
+		listClusters: op.#ListClusters @step(2)
 		if parameter.clusters == _|_ {
-			listClusters: op.#ListClusters @step(2)
-			clusters:     listClusters.outputs.clusters
+			clusters: listClusters.outputs.clusters
 		}
 		if parameter.clusters != _|_ {
 			clusters: parameter.clusters

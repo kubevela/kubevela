@@ -42,13 +42,19 @@ import (
 )
 
 type PodStatus struct {
-	Name       string      `json:"name"`
-	Containers []string    `json:"containers"`
-	Events     interface{} `json:"events"`
+	Cluster   string                 `json:"cluster"`
+	Component string                 `json:"component"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	Workload  map[string]interface{} `json:"workload"`
 }
 type Status struct {
 	PodList []PodStatus `json:"podList,omitempty"`
 	Error   string      `json:"error,omitempty"`
+}
+
+type Services struct {
+	Services []types2.ResourceItem `json:"services,omitempty"`
+	Error    string                `json:"error,omitempty"`
 }
 
 var _ = Describe("Test velaQL rest api", func() {
@@ -66,6 +72,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		Expect(common.ReadYamlToObject("./testdata/example-app.yaml", &app)).Should(BeNil())
 		app.Spec.Components[0].Name = component1Name
 		app.Spec.Components[1].Name = component2Name
+		app.Name = appName
 
 		req := apiv1.ApplicationRequest{
 			Components: app.Spec.Components,
@@ -79,11 +86,11 @@ var _ = Describe("Test velaQL rest api", func() {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if len(oldApp.Status.AppliedResources) != 2 {
-				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
+			if len(oldApp.Status.AppliedResources) != 3 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 3, len(oldApp.Status.AppliedResources))
 			}
 			return nil
-		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
+		}).WithTimeout(time.Minute * 1).WithPolling(3 * time.Second).Should(BeNil())
 
 		queryRes := get(fmt.Sprintf("/query?velaql=%s{name=%s,namespace=%s}.%s", "read-view", appName, namespace, "output.value.spec"))
 		var appSpec v1beta1.ApplicationSpec
@@ -100,27 +107,33 @@ var _ = Describe("Test velaQL rest api", func() {
 		Expect(queryRes.StatusCode).Should(Equal(400))
 	})
 
-	It("Test query application component view", func() {
+	It("Test query application pod and service view", func() {
 		componentView := new(corev1.ConfigMap)
+		serviceView := new(corev1.ConfigMap)
 		Expect(common.ReadYamlToObject("./testdata/component-pod-view.yaml", componentView)).Should(BeNil())
+		Expect(common.ReadYamlToObject("./testdata/component-service-view.yaml", serviceView)).Should(BeNil())
+		Expect(k8sClient.Delete(context.Background(), componentView)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		Expect(k8sClient.Create(context.Background(), componentView)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(context.Background(), serviceView)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		oldApp := new(v1beta1.Application)
 		Eventually(func() error {
 			if err := k8sClient.Get(context.Background(), client.ObjectKey{Name: appName, Namespace: namespace}, oldApp); err != nil {
 				return err
 			}
-			if len(oldApp.Status.AppliedResources) != 2 {
-				return errors.Errorf("expect the applied resources number is %d, but get %d", 2, len(oldApp.Status.AppliedResources))
+			if len(oldApp.Status.AppliedResources) != 3 {
+				return errors.Errorf("expect the applied resources number is %d, but get %d", 3, len(oldApp.Status.AppliedResources))
 			}
 			return nil
-		}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
+		}).WithTimeout(time.Minute * 2).WithPolling(3 * time.Second).Should(BeNil())
 
-		queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"))
-		status := new(Status)
-		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
-		Expect(len(status.PodList)).Should(Equal(1))
-		Expect(status.PodList[0].Containers[0]).Should(Equal(component1Name))
+		Eventually(func(g Gomega) {
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component1Name, "status"))
+			status := new(Status)
+			g.Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
+			g.Expect(len(status.PodList)).Should(Equal(1))
+			g.Expect(status.PodList[0].Component).Should(Equal(component1Name))
+		}, time.Minute*3, 3*time.Second).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes1 := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appName, namespace, component2Name, "status"))
@@ -136,11 +149,19 @@ var _ = Describe("Test velaQL rest api", func() {
 			if len(status1.PodList) != 1 {
 				return errors.New("pod number is zero")
 			}
-			if status1.PodList[0].Containers[0] != component2Name {
+			if status1.PodList[0].Component != component2Name {
 				return errors.New("container name is not correct")
 			}
 			return nil
-		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, time.Minute*1, 3*time.Second).Should(BeNil())
+
+		Eventually(func(g Gomega) {
+			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-service-view", appName, namespace, component1Name, "status"))
+			status := new(Services)
+			g.Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
+			g.Expect(len(status.Services)).Should(Equal(1))
+			g.Expect(status.Services[0].Component).Should(Equal(component1Name))
+		}, time.Minute*1, 3*time.Second).Should(BeNil())
 	})
 
 	It("Test collect pod from cronJob", func() {
@@ -162,7 +183,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return err
 			}
 			return nil
-		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(time.Minute * 1).Should(BeNil())
 
 		newApp := new(v1beta1.Application)
 		Eventually(func() error {
@@ -180,12 +201,12 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("fail to apply cronjob")
 			}
 			return nil
-		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(time.Minute).Should(BeNil())
 
 		newWorkload := new(batchv1beta1.CronJob)
 		Eventually(func() error {
 			return k8sClient.Get(context.Background(), client.ObjectKey{Name: component2Name, Namespace: namespace}, newWorkload)
-		}, 10*time.Second, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(time.Minute).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s}.%s", "test-component-pod-view", appName, namespace, "status"))
@@ -202,7 +223,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("pod list is 0")
 			}
 			return nil
-		}, 2*time.Minute, 3*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 	})
 
 	PIt("Test collect pod from helmRelease", func() {
@@ -211,11 +232,9 @@ var _ = Describe("Test velaQL rest api", func() {
 		req := apiv1.ApplicationRequest{
 			Components: appWithHelm.Spec.Components,
 		}
-		Eventually(func(g Gomega) {
-			res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name), req)
-			g.Expect(res).ShouldNot(BeNil())
-			g.Expect(res.StatusCode).Should(Equal(200))
-		}, 1*time.Minute).Should(Succeed())
+		res := post(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithHelm.Name), req)
+		Expect(res).ShouldNot(BeNil())
+		Expect(res.StatusCode).Should(Equal(200))
 
 		newApp := new(v1beta1.Application)
 		Eventually(func() error {
@@ -226,7 +245,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("application is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithHelm.Name, namespace, "podinfo", "status"))
@@ -247,7 +266,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("pod list is 0")
 			}
 			return nil
-		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 	})
 
 	It("Test collect legacy resources from application", func() {
@@ -270,7 +289,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("application is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"))
@@ -291,7 +310,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("pod is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		appWithGC.Spec.Components[0].Name = "new-express-server"
 		updateReq := apiv1.ApplicationRequest{
@@ -310,7 +329,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("application is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 1*time.Second).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "express-server", "status"))
@@ -331,7 +350,7 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("pod is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		Eventually(func() error {
 			queryRes := get(fmt.Sprintf("/query?velaql=%s{appName=%s,appNs=%s,name=%s}.%s", "test-component-pod-view", appWithGC.Name, namespace, "new-express-server", "status"))
@@ -352,7 +371,10 @@ var _ = Describe("Test velaQL rest api", func() {
 				return errors.New("pod is not ready")
 			}
 			return nil
-		}, 2*time.Minute, 300*time.Microsecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
+
+		res = delete(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appWithGC.Name))
+		Expect(res).ShouldNot(BeNil())
 	})
 
 	It("Test query logs in pod", func() {
@@ -377,7 +399,7 @@ var _ = Describe("Test velaQL rest api", func() {
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)).Should(Succeed())
 			g.Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
-		}, 30*time.Second).Should(Succeed())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(Succeed())
 		queryRes := get(fmt.Sprintf("/query?velaql=%s{cluster=%s,namespace=%s,pod=%s,container=%s}.%s", "test-collect-logs", "local", "default", podName, containerName, "status"))
 		status := &struct {
 			Logs string `json:"logs"`
@@ -400,10 +422,10 @@ var _ = Describe("Test velaQL rest api", func() {
 				return err
 			}
 			if len(status.Resources) != 1 {
-				return fmt.Errorf("applied resource velaql error")
+				return fmt.Errorf("applied resource velaql error, expect to be 1 but %d", len(status.Resources))
 			}
 			return nil
-		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		// test app resource tree velaql
 		Eventually(func() error {
@@ -426,9 +448,14 @@ var _ = Describe("Test velaQL rest api", func() {
 				return fmt.Errorf("replciaset not ready")
 			}
 			return nil
-		}, 30*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second).WithTimeout(3 * time.Minute).Should(BeNil())
 
 		Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
+	})
+
+	It("delete the test application", func() {
+		res := delete(fmt.Sprintf("/v1/namespaces/%s/applications/%s", namespace, appName))
+		Expect(res).ShouldNot(BeNil())
 	})
 })
 

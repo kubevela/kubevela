@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -91,5 +93,65 @@ func TestListProviders(t *testing.T) {
 				assert.Contains(t, err.Error(), tc.want.errMsg)
 			}
 		})
+	}
+}
+
+func TestGetProviderTypes(t *testing.T) {
+	s := runtime.NewScheme()
+	v1beta1.AddToScheme(s)
+	corev1.AddToScheme(s)
+	terraformapi.AddToScheme(s)
+
+	p1 := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p1",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels:    map[string]string{definition.DefinitionType: types.TerraformProvider},
+		},
+	}
+	p2 := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p2",
+			Namespace: types.DefaultKubeVelaNS,
+			Labels:    map[string]string{definition.UserPrefix + definition.DefinitionType: types.TerraformProvider},
+		},
+	}
+	testCases := map[string]struct {
+		objects  []client.Object
+		gotTypes map[string]bool
+		wantErr  error
+	}{
+		"success": {
+			objects: []client.Object{p1},
+			gotTypes: map[string]bool{
+				"p1": true,
+			},
+		},
+		"success with legacy provider": {
+			objects: []client.Object{p2},
+			gotTypes: map[string]bool{
+				"p2": true,
+			},
+		},
+		"not found": {
+			objects: []client.Object{},
+			wantErr: errors.New("no Terraform Cloud Provider ComponentDefinition found"),
+		},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+		k8sClient = fake.NewClientBuilder().WithScheme(s).WithObjects(tc.objects...).Build()
+		providerTypes, err := getTerraformProviderTypes(ctx, k8sClient)
+		if tc.wantErr != nil {
+			assert.Contains(t, err.Error(), tc.wantErr.Error())
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, len(tc.gotTypes), len(providerTypes))
+			for _, gotType := range providerTypes {
+				_, found := tc.gotTypes[gotType.Name]
+				assert.True(t, found)
+			}
+		}
 	}
 }

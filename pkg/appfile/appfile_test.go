@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"testing"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -814,7 +814,7 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 
 		args := appArgs{
 			wl: &Workload{
-				Name: "sample-db",
+				Name: compName,
 				FullTemplate: &Template{
 					Terraform: &common.Terraform{
 						Configuration: `
@@ -891,7 +891,7 @@ variable "password" {
 			AppRevisionName: args.revision,
 		}, args.wl.Name)
 		pCtx := NewBasicContext(ctxData, args.wl.Params)
-		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
+		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
 		Expect(err).Should(BeNil())
@@ -1178,33 +1178,32 @@ spec:
 			CapabilityCategory: oamtypes.KubeCategory,
 		},
 		expectData: `
-output: { 
-apiVersion: "apps/v1"
-kind:       "Deployment"
-spec: {
-	selector: {
-		matchLabels: {
-			app: "nginx"
-		}
-	}
-	template: {
-		spec: {
-			containers: [{
-				name:  "nginx"
-				image: "nginx:1.14.0"
-			}]
-			ports: [{
-				containerPort: 80
-			}]
-		}
-		metadata: {
-			labels: {
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	spec: {
+		selector: {
+			matchLabels: {
 				app: "nginx"
 			}
 		}
+		template: {
+			metadata: {
+				labels: {
+					app: "nginx"
+				}
+			}
+			spec: {
+				containers: [{
+					image: "nginx:1.14.0"
+					name:  "nginx"
+				}]
+				ports: [{
+					containerPort: 80
+				}]
+			}
+		}
 	}
-}
- 
 }`,
 		hasError: false,
 	}, "Kube workload with wrong template": {
@@ -1297,14 +1296,14 @@ output: {
 		errInfo:  "unexpected GroupVersion string: app@//v1",
 	}}
 
-	for _, tc := range testcases {
+	for i, tc := range testcases {
 		template, err := GenerateCUETemplate(tc.workload)
 		assert.Equal(t, err != nil, tc.hasError)
 		if tc.hasError {
 			assert.Equal(t, tc.errInfo, err.Error())
 			continue
 		}
-		assert.Equal(t, tc.expectData, template)
+		assert.Equal(t, tc.expectData, template, i)
 	}
 }
 
@@ -1395,11 +1394,9 @@ func TestBaseGenerateComponent(t *testing.T) {
 		}
 	}
 `
-	var r cue.Runtime
-	inst, err := r.Compile("-", base)
-	assert.NilError(t, err)
+	inst := cuecontext.New().CompileString(base)
 	bs, _ := model.NewBase(inst.Value())
-	err = pContext.SetBase(bs)
+	err := pContext.SetBase(bs)
 	assert.NilError(t, err)
 	tr := &Trait{
 		Name:   traitName,

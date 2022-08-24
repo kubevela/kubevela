@@ -28,7 +28,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -46,7 +45,7 @@ type ApplicationSync struct {
 	ApplicationService service.ApplicationService `inject:""`
 	TargetService      service.TargetService      `inject:""`
 	EnvService         service.EnvService         `inject:""`
-	Queue              workqueue.Interface
+	Queue              workqueue.RateLimitingInterface
 }
 
 // Start prepares watchers and run their controllers, then waits for process termination signals
@@ -93,24 +92,31 @@ func (a *ApplicationSync) Start(ctx context.Context, errorChan chan error) {
 		}
 	}()
 
+	addOrUpdateHandler := func(obj interface{}) {
+		app := getApp(obj)
+		if app.DeletionTimestamp == nil {
+			a.Queue.Add(app)
+			log.Logger.Infof("watched update/add app event, namespace: %s, name: %s", app.Namespace, app.Name)
+		}
+	}
+
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			app := getApp(obj)
-			klog.Infof("watched add app event, namespace: %s, name: %s", app.Namespace, app.Name)
-			a.Queue.Add(app)
+			addOrUpdateHandler(obj)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
-			app := getApp(obj)
-			klog.Infof("watched update app event, namespace: %s, name: %s", app.Namespace, app.Name)
-			a.Queue.Add(app)
+			addOrUpdateHandler(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			app := getApp(obj)
-			klog.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			log.Logger.Infof("watched delete app event, namespace: %s, name: %s", app.Namespace, app.Name)
+			a.Queue.Forget(app)
+			a.Queue.Done(app)
 			err = cu.DeleteApp(ctx, app)
 			if err != nil {
 				log.Logger.Errorf("Application %-30s Deleted Sync to db err %v", color.WhiteString(app.Namespace+"/"+app.Name), err)
 			}
+			log.Logger.Infof("delete the application (%s/%s) metadata successfully", app.Namespace, app.Name)
 		},
 	}
 	informer.AddEventHandler(handlers)

@@ -190,6 +190,19 @@ func UnMarshalStringToTraitDefinition(s string) (*v1beta1.TraitDefinition, error
 	return obj, nil
 }
 
+// UnMarshalStringToPolicyDefinition parse a string to a policyDefinition object
+func UnMarshalStringToPolicyDefinition(s string) (*v1beta1.PolicyDefinition, error) {
+	obj := &v1beta1.PolicyDefinition{}
+	_body, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(_body, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 // CheckAppRevision check if appRevision list is right
 func CheckAppRevision(revs []v1beta1.ApplicationRevision, collection []int) (bool, error) {
 	if len(revs) != len(collection) {

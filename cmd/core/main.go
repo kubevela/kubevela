@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	goflag "flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
@@ -138,6 +140,7 @@ func main() {
 	flag.DurationVar(&clusterMetricsInterval, "cluster-metrics-interval", 15*time.Second, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	flag.BoolVar(&controllerArgs.EnableCompatibility, "enable-asi-compatibility", false, "enable compatibility for asi")
 	flag.BoolVar(&controllerArgs.IgnoreAppWithoutControllerRequirement, "ignore-app-without-controller-version", false, "If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
+	flag.BoolVar(&controllerArgs.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", false, "If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
 	standardcontroller.AddOptimizeFlags()
 	standardcontroller.AddAdmissionFlags()
 	flag.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
@@ -146,9 +149,10 @@ func main() {
 	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
-	flag.Parse()
 	// setup logging
 	klog.InitFlags(nil)
+	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+	flag.Parse()
 	if logDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
 	}
@@ -324,10 +328,11 @@ func main() {
 	klog.InfoS("Use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
 	klog.Info("Start the vela application monitor")
-	if err := watcher.StartApplicationMetricsWatcher(restConfig); err != nil {
-		klog.ErrorS(err, "Unable to start application metrics watcher")
-		os.Exit(1)
+	informer, err := mgr.GetCache().GetInformer(context.Background(), &v1beta1.Application{})
+	if err != nil {
+		klog.ErrorS(err, "Unable to get informer for application")
 	}
+	watcher.StartApplicationMetricsWatcher(informer)
 
 	klog.Info("Start the vela controller manager")
 

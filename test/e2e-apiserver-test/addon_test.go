@@ -101,6 +101,9 @@ var _ = Describe("Test addon rest api", func() {
 			var addon apisv1.DetailAddonResponse
 			Expect(decodeResponseBody(res, &addon)).Should(Succeed())
 			Expect(addon.Name).Should(BeEquivalentTo("mock-addon"))
+			Expect(addon.Detail).Should(BeEquivalentTo("Test addon readme.md file"))
+			Expect(len(addon.Definitions)).Should(BeEquivalentTo(1))
+			Expect(addon.Definitions[0].Name).Should(BeEquivalentTo("kustomize-json-patch-mock-adddon"))
 		})
 
 		It("enable addon ", func() {
@@ -143,20 +146,23 @@ var _ = Describe("Test addon rest api", func() {
 					"testkey": "new-testvalue",
 				},
 			}
-			res := put("/addons/mock-addon/update", req)
-			defer res.Body.Close()
-			var addonStatus apisv1.AddonStatusResponse
-			Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
-			Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
-			Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
-			Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+			Eventually(func(g Gomega) {
+				res := put("/addons/mock-addon/update", req)
+				defer res.Body.Close()
+				var addonStatus apisv1.AddonStatusResponse
+				g.Expect(decodeResponseBody(res, &addonStatus)).Should(Succeed())
+				g.Expect(addonStatus.Name).Should(BeEquivalentTo("mock-addon"))
+				g.Expect(len(addonStatus.Args)).Should(BeEquivalentTo(1))
+				g.Expect(addonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
 
-			status := get("/addons/mock-addon/status")
-			var newaddonStatus apisv1.AddonStatusResponse
-			Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
-			Expect(newaddonStatus.Name).Should(BeEquivalentTo("mock-addon"))
-			Expect(len(newaddonStatus.Args)).Should(BeEquivalentTo(1))
-			Expect(newaddonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+				status := get("/addons/mock-addon/status")
+				var newaddonStatus apisv1.AddonStatusResponse
+				g.Expect(decodeResponseBody(status, &newaddonStatus)).Should(Succeed())
+				g.Expect(newaddonStatus.Name).Should(BeEquivalentTo("mock-addon"))
+				g.Expect(len(newaddonStatus.Args)).Should(BeEquivalentTo(1))
+				g.Expect(newaddonStatus.Args["testkey"]).Should(BeEquivalentTo("new-testvalue"))
+			}, 15*time.Second).Should(Succeed())
+
 		})
 
 		It("list enabled addon", func() {

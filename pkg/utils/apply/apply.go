@@ -23,15 +23,18 @@ import (
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -54,6 +57,7 @@ type applyAction struct {
 	isShared         bool
 	skipUpdate       bool
 	updateAnnotation bool
+	dryRun           bool
 }
 
 // ApplyOption is called before applying state to the object.
@@ -118,13 +122,16 @@ func filterRecordForSpecial(desired client.Object) bool {
 	gp, kd := gvk.Group, gvk.Kind
 	if gp == "" {
 		// group is empty means it's Kubernetes core API, we won't record annotation for Secret and Configmap
-		if kd == "Secret" || kd == "ConfigMap" {
+		if kd == "Secret" || kd == "ConfigMap" || kd == "CustomResourceDefinition" {
 			return false
 		}
 		if _, ok := desired.(*corev1.ConfigMap); ok {
 			return false
 		}
 		if _, ok := desired.(*corev1.Secret); ok {
+			return false
+		}
+		if _, ok := desired.(*v1.CustomResourceDefinition); ok {
 			return false
 		}
 	}
@@ -163,12 +170,26 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return nil
 	}
 
-	loggingApply("patching object", desired)
-	patch, err := a.patcher.patch(existing, desired, applyAct)
-	if err != nil {
-		return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
+	switch {
+	case utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByUpdate) && isUpdatableResource(desired):
+		loggingApply("updating object", desired)
+		desired.SetResourceVersion(existing.GetResourceVersion())
+		var options []client.UpdateOption
+		if applyAct.dryRun {
+			options = append(options, client.DryRunAll)
+		}
+		return errors.Wrapf(a.c.Update(ctx, desired, options...), "cannot update object")
+	default:
+		loggingApply("patching object", desired)
+		patch, err := a.patcher.patch(existing, desired, applyAct)
+		if err != nil {
+			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
+		}
+		if applyAct.dryRun {
+			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
+		}
+		return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 	}
-	return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 }
 
 func generateRenderHash(desired client.Object) (string, error) {
@@ -207,6 +228,9 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 			}
 		}
 		loggingApply("creating object", desired)
+		if act.dryRun {
+			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
+		}
 		return nil, errors.Wrap(c.Create(ctx, desired), "cannot create object")
 	}
 
@@ -286,8 +310,14 @@ func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
 			return nil
 		}
 		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
+		// if the existing object has no resource version, it means this resource is an API response not directly from
+		// an etcd object but from some external services, such as vela-prism. Then the response does not necessarily
+		// contain the owner
+		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) && existing.GetResourceVersion() != "" {
+			return fmt.Errorf("%s %s/%s exists but not managed by any application now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+		}
 		if controlledBy != "" && controlledBy != appKey {
-			return fmt.Errorf("existing object is managed by other application %s", controlledBy)
+			return fmt.Errorf("existing object %s %s/%s is managed by other application %s", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName(), controlledBy)
 		}
 		return nil
 	}
@@ -369,4 +399,23 @@ func SharedByApp(app *v1beta1.Application) ApplyOption {
 		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
 		return nil
 	}
+}
+
+// DryRunAll executing all validation, etc without persisting the change to storage.
+func DryRunAll() ApplyOption {
+	return func(a *applyAction, existing, _ client.Object) error {
+		a.dryRun = true
+		return nil
+	}
+}
+
+// isUpdatableResource check whether the resource is updatable
+// Resource like v1.Service cannot unset the spec field (the ip spec is filled by service controller)
+func isUpdatableResource(desired client.Object) bool {
+	// nolint
+	switch desired.GetObjectKind().GroupVersionKind() {
+	case corev1.SchemeGroupVersion.WithKind("Service"):
+		return false
+	}
+	return true
 }

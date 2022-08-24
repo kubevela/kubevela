@@ -18,6 +18,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,6 +77,8 @@ var verboseStatus bool
 
 var skipValidate bool
 
+var overrideDefs bool
+
 // NewAddonCommand create `addon` command
 func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -84,7 +87,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		Long:  "Manage addons for extension.",
 		Annotations: map[string]string{
 			types.TagCommandOrder: order,
-			types.TagCommandType:  types.TypeExtension,
+			types.TagCommandType:  types.TypeApp,
 		},
 	}
 	cmd.AddCommand(
@@ -95,7 +98,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonRegistryCommand(c, ioStreams),
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
-		NewAddonCreateCommand(),
+		NewAddonInitCommand(),
 		NewAddonPushCommand(c),
 	)
 	return cmd
@@ -130,12 +133,16 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Use:   "enable",
 		Short: "enable an addon",
 		Long:  "enable an addon in cluster.",
-		Example: `Enable addon by:
+		Example: `  Enable addon by:
 	vela addon enable <addon-name>
-Enable addon with specify version:
+  Enable addon with specify version:
 	vela addon enable <addon-name> --version <addon-version>
-Enable addon for specific clusters, (local means control plane):
+  Enable addon for specific clusters, (local means control plane):
 	vela addon enable <addon-name> --clusters={local,cluster1,cluster2}
+  Enable addon locally:
+	vela addon enable <your-local-addon-path>
+  Enable addon with specified args (the args should be defined in addon's parameters):
+	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -146,7 +153,10 @@ Enable addon for specific clusters, (local means control plane):
 			if err != nil {
 				return err
 			}
-			addonArgs[types.ClustersArg] = transClusters(addonClusters)
+			clusterArgs := transClusters(addonClusters)
+			if len(clusterArgs) != 0 {
+				addonArgs[types.ClustersArg] = clusterArgs
+			}
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -195,12 +205,12 @@ Enable addon for specific clusters, (local means control plane):
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to enable")
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to enable")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	return cmd
 }
 
 // AdditionalEndpointPrinter will print endpoints
 func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient client.Client, name string, isUpgrade bool) {
-	fmt.Printf("Please access %s from the following endpoints:\n", name)
 	err := printAppEndpoints(ctx, addonutil.Addon2AppName(name), types.DefaultKubeVelaNS, Filter{}, c, true)
 	if err != nil {
 		fmt.Println("Get application endpoints error:", err)
@@ -208,11 +218,14 @@ func AdditionalEndpointPrinter(ctx context.Context, c common.Args, k8sClient cli
 	}
 	if name == "velaux" {
 		if !isUpgrade {
-			fmt.Printf("Initialized admin username and password: admin / %s \n", service.InitAdminPassword)
+			fmt.Printf("\nInitialized admin username and password: admin / %s \n\n", service.InitAdminPassword)
 		}
 		fmt.Println(`To open the dashboard directly by port-forward:`)
+		fmt.Println()
 		fmt.Println(`    vela port-forward -n vela-system addon-velaux 9082:80`)
-		fmt.Println(`Select "Cluster: local | Namespace: vela-system | Kind: Service | Name: velaux" from the prompt.`)
+		fmt.Println()
+		fmt.Println(`Select "local | velaux | velaux" from the prompt.`)
+		fmt.Println()
 		fmt.Println(`Please refer to https://kubevela.io/docs/reference/addons/velaux for more VelaUX addon installation and visiting method.`)
 	}
 }
@@ -225,12 +238,18 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 		Short: "upgrade an addon",
 		Long:  "upgrade an addon in cluster.",
 		Example: `
-Upgrade addon by:
+  Upgrade addon by:
 	vela addon upgrade <addon-name>
-Upgrade addon with specify version:
+  Upgrade addon with specify version:
 	vela addon upgrade <addon-name> --version <addon-version>
-Upgrade addon for specific clusters, (local means control plane):
+  Upgrade addon for specific clusters, (local means control plane):
 	vela addon upgrade <addon-name> --clusters={local,cluster1,cluster2}
+  Upgrade addon locally:
+	vela addon upgrade <your-local-addon-path>
+  Upgrade addon with specified args (the args should be defined in addon's parameters):
+	vela addon upgrade <addon-name> <my-parameter-of-addon>=<my-value>
+  The specified args will be merged with legacy args, what user specified in 'vela addon enable', and non-empty legacy arg will be overridden by
+non-empty new arg
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -248,11 +267,14 @@ Upgrade addon for specific clusters, (local means control plane):
 			if err != nil {
 				return err
 			}
-			addonArgs, err := parseAddonArgsToMap(args[1:])
+			addonInputArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
 				return err
 			}
-			addonArgs[types.ClustersArg] = transClusters(addonClusters)
+			clusterArgs := transClusters(addonClusters)
+			if len(clusterArgs) != 0 {
+				addonInputArgs[types.ClustersArg] = clusterArgs
+			}
 			addonOrDir := args[0]
 			var name string
 			if file, err := os.Stat(addonOrDir); err == nil {
@@ -270,6 +292,10 @@ Upgrade addon for specific clusters, (local means control plane):
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				if err != nil {
+					return err
+				}
 				err = enableAddonByLocal(ctx, name, addonOrDir, k8sClient, dc, config, addonArgs)
 				if err != nil {
 					return err
@@ -282,6 +308,10 @@ Upgrade addon for specific clusters, (local means control plane):
 				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+				}
+				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
+				if err != nil {
+					return err
 				}
 				err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
 				if err != nil {
@@ -296,6 +326,7 @@ Upgrade addon for specific clusters, (local means control plane):
 	}
 	cmd.Flags().StringVarP(&addonVersion, "version", "v", "", "specify the addon version to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
+	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	return cmd
 }
 
@@ -364,33 +395,28 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	return cmd
 }
 
-// NewAddonCreateCommand creates an addon scaffold
-func NewAddonCreateCommand() *cobra.Command {
-	var helmRepoURL string
-	var chartName string
-	var chartVersion string
+// NewAddonInitCommand creates an addon scaffold
+func NewAddonInitCommand() *cobra.Command {
 	var path string
+	initCmd := pkgaddon.InitCmd{}
 
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "create an addon scaffold",
-		Long:  "Create an addon scaffold for quick starting. A Helm Component is generated if you provide Chart-related parameters.",
-		Example: `	vela addon init mongodb --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
-will create something like this:
-	mongodb/
-	├── definitions
-	├── metadata.yaml
-	├── readme.md
-	├── resources
-	│   └── mongodb.cue
-	├── schemas
-	└── template.yaml
+		Long:  "Create an addon scaffold for quick starting.",
+		Example: `  Store the scaffold in a different directory:
+	vela addon init mongodb -p path/to/addon
 
-If you want to store the scaffold in a different directory, you can use the -p/--path flag:
-	vela addon init mongodb -p ./some/repo --helm-repo-url=https://marketplace.azurecr.io/helm/v1/repo --chart=mongodb --version=12.1.16
+  Add a Helm component:
+	vela addon init mongodb --helm-repo https://marketplace.azurecr.io/helm/v1/repo --chart mongodb --chart-version 12.1.16
 
-If you don't want the Helm component, just omit the three Chart-related parameters. We will create an empty scaffold for you.
-	vela addon init mongodb`,
+  Add resources from URL using ref-objects component
+	vela addon init my-addon --url https://domain.com/resource.yaml
+
+  Use --no-samples options to skip creating sample files
+	vela addon init my-addon --no-sample
+
+  You can combine all the options together.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("an addon name is required")
@@ -409,19 +435,21 @@ If you don't want the Helm component, just omit the three Chart-related paramete
 				return fmt.Errorf("addon name or path should not be empty")
 			}
 
-			// If the user specified all Chart-related info, use the addon template with a Chart in it.
-			if helmRepoURL != "" && chartName != "" && chartVersion != "" {
-				return pkgaddon.CreateAddonFromHelmChart(args[0], addonPath, helmRepoURL, chartName, chartVersion)
-			}
+			initCmd.AddonName = addonName
+			initCmd.Path = addonPath
 
-			return pkgaddon.CreateAddonSample(addonName, addonPath)
+			return initCmd.CreateScaffold()
 		},
 	}
 
-	cmd.Flags().StringVar(&helmRepoURL, "helm-repo-url", "", "URL that points to a Helm repo")
-	cmd.Flags().StringVar(&chartName, "chart", "", "Helm Chart name")
-	cmd.Flags().StringVar(&chartVersion, "version", "", "version of the Chart")
-	cmd.Flags().StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+	f := cmd.Flags()
+	f.StringVar(&initCmd.HelmRepoURL, "helm-repo", "", "URL that points to a Helm repo")
+	f.StringVar(&initCmd.HelmChartName, "chart", "", "Helm Chart name")
+	f.StringVar(&initCmd.HelmChartVersion, "chart-version", "", "version of the Chart")
+	f.StringVarP(&path, "path", "p", "", "path to the addon directory (default is ./<addon-name>)")
+	f.StringArrayVarP(&initCmd.RefObjURLs, "url", "u", []string{}, "add URL resources using ref-object component")
+	f.BoolVarP(&initCmd.NoSamples, "no-samples", "", false, "do not generate sample files")
+	f.BoolVarP(&initCmd.Overwrite, "force", "f", false, "overwrite existing addon files")
 
 	return cmd
 }
@@ -511,6 +539,9 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		if skipValidate {
 			opts = append(opts, pkgaddon.SkipValidateVersion)
 		}
+		if overrideDefs {
+			opts = append(opts, pkgaddon.OverrideDefinitions)
+		}
 		err = pkgaddon.EnableAddon(ctx, name, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, opts...)
 		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
@@ -545,6 +576,9 @@ func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient 
 	var opts []pkgaddon.InstallOption
 	if skipValidate {
 		opts = append(opts, pkgaddon.SkipValidateVersion)
+	}
+	if overrideDefs {
+		opts = append(opts, pkgaddon.OverrideDefinitions)
 	}
 	if err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...); err != nil {
 		return err
@@ -753,12 +787,13 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 		}
 		required := required[propKey]
 
+		// Extra indentation on nested objects
+		addedIndent := addIndent(indent)
+
 		var currentValue string
 		thisParam, hasParam := currentParams[propKey]
 		if hasParam {
-			// Only show default parameter when it is a string, int, float, or bool
-			// We don't care about object's default values (they have no defaults anyway).
-			currentValue = fmt.Sprint(thisParam)
+			currentValue = fmt.Sprintf("%#v", thisParam)
 			switch thisParam.(type) {
 			case int:
 			case int64:
@@ -768,12 +803,11 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 			case string:
 			case bool:
 			default:
-				currentValue = ""
+				if js, err := json.MarshalIndent(thisParam, "", "  "); err == nil {
+					currentValue = strings.ReplaceAll(string(js), "\n", "\n\t         "+addedIndent)
+				}
 			}
 		}
-
-		// Extra indentation on nested objects
-		addedIndent := addIndent(indent)
 
 		// Header: addon: description
 		ret += addedIndent
@@ -783,8 +817,8 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 
 		// Show current value
 		if currentValue != "" {
-			ret += addIndent(indent)
-			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%#v\n", currentValue)
+			ret += addedIndent
+			ret += "\tcurrent: " + color.New(color.FgGreen).Sprintf("%s\n", currentValue)
 		}
 		// Show default value
 		if defaultValue != "" {
@@ -876,7 +910,11 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 				continue
 			}
 		} else {
-			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{Username: r.Helm.Username, Password: r.Helm.Password})
+			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
+				Username:        r.Helm.Username,
+				Password:        r.Helm.Password,
+				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
+			})
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
 				continue
@@ -938,8 +976,15 @@ func waitApplicationRunning(k8sClient client.Client, addonName string) error {
 			return client.IgnoreNotFound(err)
 		}
 		phase := app.Status.Phase
-		if phase == common2.ApplicationRunning {
+		switch app.Status.Phase {
+		case common2.ApplicationRunning:
 			return nil
+		case common2.ApplicationWorkflowSuspending:
+			fmt.Printf("Enabling suspend, please run \"vela workflow resume %s -n vela-system\" to continue", addonutil.Addon2AppName(addonName))
+			return nil
+		case common2.ApplicationWorkflowTerminated:
+			return errors.Errorf("Enabling failed, please run \"vela status %s -n vela-system\" to check the status of the addon", addonutil.Addon2AppName(addonName))
+		default:
 		}
 		timeConsumed := int(time.Since(start).Seconds())
 		applySpinnerNewSuffix(spinner, fmt.Sprintf("Waiting addon application running. It is now in phase: %s (timeout %d/%d seconds)...",
@@ -1027,6 +1072,9 @@ func hasAddon(addons []*pkgaddon.UIData, name string) bool {
 }
 
 func transClusters(cstr string) []string {
+	if len(cstr) == 0 {
+		return nil
+	}
 	cstr = strings.TrimPrefix(strings.TrimSuffix(cstr, "}"), "{")
 	var clusterL []string
 	clusterList := strings.Split(cstr, ",")

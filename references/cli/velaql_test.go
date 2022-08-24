@@ -28,9 +28,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	networkv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -75,7 +77,7 @@ export: "status"
 		cmd := NewCommand()
 		var buff = bytes.NewBufferString("")
 		cmd.SetOut(buff)
-		Expect(queryFromView(context.TODO(), k8sClient, arg, name, cmd)).Should(BeNil())
+		Expect(queryFromView(context.TODO(), arg, name, cmd)).Should(BeNil())
 		Expect(strings.TrimSpace(buff.String())).Should(BeEquivalentTo("my-value"))
 	})
 })
@@ -139,17 +141,19 @@ var _ = Describe("Test velaQL", func() {
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						Kind:      "Service",
-						Namespace: "default",
-						Name:      "nodeport",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "nodeport",
+						APIVersion: "v1",
 					},
 				},
 				{
 					Cluster: "",
 					ObjectReference: corev1.ObjectReference{
-						Kind:      "Service",
-						Namespace: "default",
-						Name:      "loadbalancer",
+						Kind:       "Service",
+						Namespace:  "default",
+						Name:       "loadbalancer",
+						APIVersion: "v1",
 					},
 				},
 				{
@@ -424,7 +428,7 @@ var _ = Describe("Test velaQL", func() {
 		Expect(err).Should(BeNil())
 		err = k8sClient.Create(context.Background(), &cm)
 		Expect(err).Should(BeNil())
-		endpoints, err := GetServiceEndpoints(context.TODO(), k8sClient, appName, namespace, arg, Filter{})
+		endpoints, err := GetServiceEndpoints(context.TODO(), appName, namespace, arg, Filter{})
 		Expect(err).Should(BeNil())
 		urls := []string{
 			"http://ingress.domain",
@@ -443,5 +447,80 @@ var _ = Describe("Test velaQL", func() {
 		for i, endpoint := range endpoints {
 			Expect(endpoint.String()).Should(BeEquivalentTo(urls[i]))
 		}
+	})
+})
+
+func getViewConfigMap(name string) (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: types.DefaultKubeVelaNS,
+		},
+	}
+
+	err := k8sClient.Get(context.TODO(), pkgtypes.NamespacedName{
+		Namespace: cm.GetNamespace(),
+		Name:      cm.GetName(),
+	}, cm)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cm, nil
+}
+
+var _ = Describe("test NewQLApplyCommand", func() {
+	var c common2.Args
+	var cmd *cobra.Command
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+		cmd = NewQLApplyCommand(c)
+	})
+
+	It("no parameter provided", func() {
+		cmd.SetArgs([]string{})
+		err := cmd.Execute()
+		Expect(err).ToNot(Succeed())
+		Expect(err.Error()).To(ContainSubstring("no cue"))
+	})
+
+	Context("from stdin", func() {
+		It("no view name specified", func() {
+			cmd.SetArgs([]string{"-f", "-"})
+			err := cmd.Execute()
+			Expect(err).ToNot(Succeed())
+			Expect(err.Error()).To(ContainSubstring("no view name"))
+		})
+	})
+
+	Context("from file", func() {
+		It("no view name specified, inferred from filename", func() {
+			cueStr := "something: {}\nstatus: something"
+			filename := "test-view" + strconv.FormatInt(time.Now().UnixNano(), 10) + ".cue"
+			err := ioutil.WriteFile(filename, []byte(cueStr), 0600)
+			Expect(err).Should(Succeed())
+			defer os.RemoveAll(filename)
+			cmd.SetArgs([]string{"-f", filename})
+			err = cmd.Execute()
+			Expect(err).To(Succeed())
+			_, err = getViewConfigMap(strings.TrimSuffix(filename, ".cue"))
+			Expect(err).To(Succeed())
+		})
+	})
+
+	Context("from URL", func() {
+		It("invalid name inferred", func() {
+			cmd.SetArgs([]string{"-f", "https://some.com"})
+			err := cmd.Execute()
+			Expect(err).ToNot(Succeed())
+			Expect(err.Error()).To(ContainSubstring("view name should only"))
+		})
 	})
 })

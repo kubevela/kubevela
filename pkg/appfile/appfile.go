@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -98,21 +98,21 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 }
 
 // EvalStatus eval workload status
-func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
+func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (string, error) {
 	// if the  standard workload is managed by trait always return empty message
 	if wl.SkipApplyWorkload {
 		return "", nil
 	}
-	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus, wl.Params)
+	return wl.engine.Status(ctx, cli, accessor, wl.FullTemplate.CustomStatus, wl.Params)
 }
 
 // EvalHealth eval workload health check
-func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
+func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
 	// if health of template is not set or standard workload is managed by trait always return true
-	if wl.FullTemplate.Health == "" || wl.SkipApplyWorkload {
+	if wl.SkipApplyWorkload {
 		return true, nil
 	}
-	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
+	return wl.engine.HealthCheck(ctx, client, accessor, wl.FullTemplate.Health)
 }
 
 // Scope defines the scope of workload
@@ -146,16 +146,13 @@ func (trait *Trait) EvalContext(ctx process.Context) error {
 }
 
 // EvalStatus eval trait status
-func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat, trait.Params)
+func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (string, error) {
+	return trait.engine.Status(ctx, cli, accessor, trait.CustomStatusFormat, trait.Params)
 }
 
 // EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	if trait.FullTemplate.Health == "" {
-		return true, nil
-	}
-	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
+func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, accessor util.NamespaceAccessor) (bool, error) {
+	return trait.engine.HealthCheck(ctx, client, accessor, trait.HealthCheckPolicy)
 }
 
 // Appfile describes application
@@ -502,27 +499,19 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	if patcher := wl.Patch; patcher != nil {
 		workload, auxiliaries := pCtx.Output()
 		if p, err := patcher.LookupValue("workload"); err == nil {
-			pi, err := model.NewOther(p.CueValue())
-			if err != nil {
-				return nil, errors.WithMessage(err, "patch workload")
-			}
-			if err := workload.Unify(pi); err != nil {
+			if err := workload.Unify(p.CueValue()); err != nil {
 				return nil, errors.WithMessage(err, "patch workload")
 			}
 		}
 		for _, aux := range auxiliaries {
 			if p, err := patcher.LookupByScript(fmt.Sprintf("traits[\"%s\"]", aux.Name)); err == nil && p.CueValue().Err() == nil {
-				pi, err := model.NewOther(p.CueValue())
-				if err != nil {
-					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
-				}
-				if err := aux.Ins.Unify(pi); err != nil {
+				if err := aux.Ins.Unify(p.CueValue()); err != nil {
 					return nil, errors.WithMessagef(err, "patch outputs.%s", aux.Name)
 				}
 			}
 		}
 	}
-	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
+	compManifest, err := evalWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +559,7 @@ func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component manifest
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*types.ComponentManifest, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*types.ComponentManifest, error) {
 	compManifest := &types.ComponentManifest{}
 	workload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
 	if err != nil {
@@ -584,7 +573,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
-			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
+			return nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, wl.Name, appName)
 		}
 		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
 		if assist.Name != "" {
@@ -621,20 +610,20 @@ func GenerateCUETemplate(wl *Workload) (string, error) {
 		if err != nil {
 			return templateStr, errors.Wrap(err, "cannot marshal kube object")
 		}
-		ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
+		cuectx := cuecontext.New()
+		expr, err := json2cue.Extract("", objRaw)
 		if err != nil {
-			return templateStr, errors.Wrap(err, "cannot decode object into CUE")
+			return templateStr, errors.Wrap(err, "cannot extract object into CUE")
 		}
-		cueRaw, err := format.Node(ins.Value().Syntax())
+		v := cuectx.BuildExpr(expr)
+		cueRaw, err := format.Node(v.Syntax())
 		if err != nil {
 			return templateStr, errors.Wrap(err, "cannot format CUE")
 		}
 
 		// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
 		templateStr = fmt.Sprintf(`
-output: { 
-%s 
-}`, string(cueRaw))
+output: %s`, string(cueRaw))
 	case types.HelmCategory:
 		gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.Definition.APIVersion)
 		if err != nil {

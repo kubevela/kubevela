@@ -383,9 +383,28 @@ func (p *projectServiceImpl) ListProjectUser(ctx context.Context, projectName st
 	if err != nil {
 		return nil, err
 	}
+	var usernames []string
+	for _, entity := range entities {
+		usernames = append(usernames, entity.(*model.ProjectUser).Username)
+	}
+	var userMap = make(map[string]*model.User, len(usernames))
+	if len(usernames) > 0 {
+		users, _ := p.Store.List(ctx, &model.User{}, &datastore.ListOptions{
+			FilterOptions: datastore.FilterOptions{
+				In: []datastore.InQueryOption{
+					{Key: "name", Values: usernames},
+				},
+			},
+		})
+		for i := range users {
+			user := users[i].(*model.User)
+			userMap[user.Name] = user
+		}
+	}
 	var res apisv1.ListProjectUsersResponse
 	for _, entity := range entities {
-		res.Users = append(res.Users, ConvertProjectUserModel2Base(entity.(*model.ProjectUser)))
+		projectUser := entity.(*model.ProjectUser)
+		res.Users = append(res.Users, ConvertProjectUserModel2Base(projectUser, userMap[projectUser.Username]))
 	}
 	count, err := p.Store.Count(ctx, &projectUser, nil)
 	if err != nil {
@@ -400,7 +419,7 @@ func (p *projectServiceImpl) AddProjectUser(ctx context.Context, projectName str
 	if err != nil {
 		return nil, err
 	}
-	_, err = p.UserService.GetUser(ctx, req.UserName)
+	user, err := p.UserService.GetUser(ctx, req.UserName)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +447,7 @@ func (p *projectServiceImpl) AddProjectUser(ctx context.Context, projectName str
 		}
 		return nil, err
 	}
-	return ConvertProjectUserModel2Base(&projectUser), nil
+	return ConvertProjectUserModel2Base(&projectUser, user), nil
 }
 
 func (p *projectServiceImpl) DeleteProjectUser(ctx context.Context, projectName string, userName string) error {
@@ -451,6 +470,10 @@ func (p *projectServiceImpl) DeleteProjectUser(ctx context.Context, projectName 
 
 func (p *projectServiceImpl) UpdateProjectUser(ctx context.Context, projectName string, userName string, req apisv1.UpdateProjectUserRequest) (*apisv1.ProjectUserBase, error) {
 	project, err := p.GetProject(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	user, err := p.UserService.GetUser(ctx, userName)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +504,7 @@ func (p *projectServiceImpl) UpdateProjectUser(ctx context.Context, projectName 
 	if err := p.Store.Put(ctx, &projectUser); err != nil {
 		return nil, err
 	}
-	return ConvertProjectUserModel2Base(&projectUser), nil
+	return ConvertProjectUserModel2Base(&projectUser, user), nil
 }
 
 func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, configType string) ([]*apisv1.Config, error) {
@@ -568,7 +591,7 @@ func (p *projectServiceImpl) GetConfigs(ctx context.Context, projectName, config
 			if err != nil {
 				klog.InfoS("failed to get component definition", "ComponentDefinition", configType, "err", err)
 			} else {
-				configs[i].ConfigTypeAlias = d.Annotations[definitionAlias]
+				configs[i].ConfigTypeAlias = DefinitionAlias(d.Annotations)
 			}
 		}
 	}
@@ -592,12 +615,15 @@ func ConvertProjectModel2Base(project *model.Project, owner *model.User) *apisv1
 }
 
 // ConvertProjectUserModel2Base convert project user model to base struct
-func ConvertProjectUserModel2Base(user *model.ProjectUser) *apisv1.ProjectUserBase {
+func ConvertProjectUserModel2Base(user *model.ProjectUser, userModel *model.User) *apisv1.ProjectUserBase {
 	base := &apisv1.ProjectUserBase{
 		UserName:   user.Username,
 		UserRoles:  user.UserRoles,
 		CreateTime: user.CreateTime,
 		UpdateTime: user.UpdateTime,
+	}
+	if userModel != nil {
+		base.UserAlias = userModel.Alias
 	}
 	return base
 }

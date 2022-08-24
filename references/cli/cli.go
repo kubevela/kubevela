@@ -86,14 +86,15 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Manage Apps
-		NewQlCommand(commandArgs, "10", ioStream),
-		NewListCommand(commandArgs, "9", ioStream),
-		NewAppStatusCommand(commandArgs, "8", ioStream),
+		NewTopCommand(commandArgs, "11", ioStream),
+		NewListCommand(commandArgs, "10", ioStream),
+		NewAppStatusCommand(commandArgs, "9", ioStream),
 		NewDeleteCommand(commandArgs, "7", ioStream),
 		NewExecCommand(commandArgs, "6", ioStream),
 		NewPortForwardCommand(commandArgs, "5", ioStream),
 		NewLogsCommand(commandArgs, "4", ioStream),
-		NewLiveDiffCommand(commandArgs, "3", ioStream),
+		NewQlCommand(commandArgs, "3", ioStream),
+		NewLiveDiffCommand(commandArgs, "2", ioStream),
 		NewDryRunCommand(commandArgs, ioStream),
 		RevisionCommandGroup(commandArgs),
 
@@ -107,7 +108,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// Extension
 		NewAddonCommand(commandArgs, "9", ioStream),
 		NewUISchemaCommand(commandArgs, "8", ioStream),
-		DefinitionCommandGroup(commandArgs, "7"),
+		DefinitionCommandGroup(commandArgs, "7", ioStream),
 		NewRegistryCommand(ioStream, "6"),
 		NewTraitCommand(commandArgs, ioStream),
 		NewComponentsCommand(commandArgs, ioStream),
@@ -128,7 +129,6 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewHelpCommand(),
 
 		// hide
-		NewTemplateCommand(ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 	)
 

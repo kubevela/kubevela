@@ -20,28 +20,19 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/bmizerany/assert"
 )
 
 func TestContext(t *testing.T) {
-	var r cue.Runtime
-
 	lpV := `test: "just a test"`
-	inst, err := r.Compile("lp", lpV)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	ctx := Meta{Obj: inst.Value()}
+	inst := cuecontext.New().CompileString(lpV)
+	ctx := Meta{Obj: inst}
 	val := ctx.Lookup("test")
 	assert.Equal(t, true, val.Exists())
 
 	intV := `iTest: 64`
-	iInst, err := r.Compile("int", intV)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	iInst := cuecontext.New().CompileString(intV)
 	iCtx := Meta{Obj: iInst.Value()}
 	iVal := iCtx.Int64("iTest")
 	assert.Equal(t, int64(64), iVal)

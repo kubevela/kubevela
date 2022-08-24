@@ -27,11 +27,13 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -98,22 +100,13 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 	if name == DefaultEnvNamespace {
 		return &types.EnvMeta{Name: DefaultEnvNamespace, Namespace: DefaultEnvNamespace}, nil
 	}
-	clt, err := common.GetClient()
+	namespace, err := getEnvNamespaceByName(name)
 	if err != nil {
 		return nil, err
-	}
-	ctx := context.Background()
-	var nsList v1.NamespaceList
-	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelNamespaceOfEnvName: name})
-	if err != nil {
-		return nil, err
-	}
-	if len(nsList.Items) < 1 {
-		return nil, errors.Errorf("Env %s not exist", name)
 	}
 	return &types.EnvMeta{
 		Name:      name,
-		Namespace: nsList.Items[0].Name,
+		Namespace: namespace.Name,
 	}, nil
 }
 
@@ -237,6 +230,50 @@ func SetCurrentEnv(meta *types.EnvMeta) error {
 	//nolint:gosec
 	if err = os.WriteFile(currentEnvPath, data, 0644); err != nil {
 		return err
+	}
+	return nil
+}
+
+// getEnvNamespaceByName get v1.Namespace object by env name
+func getEnvNamespaceByName(name string) (*v1.Namespace, error) {
+	clt, err := common.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+	var nsList v1.NamespaceList
+	err = clt.List(ctx, &nsList, client.MatchingLabels{oam.LabelNamespaceOfEnvName: name})
+	if err != nil {
+		return nil, err
+	}
+	if len(nsList.Items) < 1 {
+		return nil, errors.Errorf("Env %s not exist", name)
+	}
+
+	return &nsList.Items[0], nil
+}
+
+// SetEnvLabels set labels for namespace
+func SetEnvLabels(envArgs *types.EnvMeta) error {
+	c, err := common.GetClient()
+	if err != nil {
+		return err
+	}
+
+	namespace, err := getEnvNamespaceByName(envArgs.Name)
+	if err != nil {
+		return err
+	}
+	labels, err := labels.ConvertSelectorToLabelsMap(envArgs.Labels)
+	if err != nil {
+		return err
+	}
+
+	namespace.Labels = util.MergeMapOverrideWithDst(namespace.GetLabels(), labels)
+
+	err = c.Update(context.Background(), namespace)
+	if err != nil {
+		return errors.Wrapf(err, "fail to set env labels")
 	}
 	return nil
 }

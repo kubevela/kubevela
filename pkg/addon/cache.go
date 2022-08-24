@@ -107,8 +107,9 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		}
 	} else {
 		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-			Username: r.Helm.Username,
-			Password: r.Helm.Password,
+			Username:        r.Helm.Username,
+			Password:        r.Helm.Password,
+			InsecureSkipTLS: r.Helm.InsecureSkipTLS,
 		})
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
@@ -315,8 +316,9 @@ func (u *Cache) listUIDataAndCache(r Registry) ([]*UIData, error) {
 
 func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error) {
 	versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-		Username: r.Helm.Username,
-		Password: r.Helm.Password,
+		Username:        r.Helm.Username,
+		Password:        r.Helm.Password,
+		InsecureSkipTLS: r.Helm.InsecureSkipTLS,
 	})
 	uiDatas, err := versionedRegistry.ListAddon()
 	if err != nil {

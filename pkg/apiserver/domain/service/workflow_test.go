@@ -26,9 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -48,6 +46,7 @@ var _ = Describe("Test workflow service functions", func() {
 		appService      *applicationServiceImpl
 		projectService  *projectServiceImpl
 		envService      *envServiceImpl
+		envBinding      *envBindingServiceImpl
 		testProject     = "workflow-project"
 		ds              datastore.DataStore
 	)
@@ -60,7 +59,7 @@ var _ = Describe("Test workflow service functions", func() {
 		rbacService := &rbacServiceImpl{Store: ds}
 		projectService = &projectServiceImpl{Store: ds, RbacService: rbacService}
 		envService = &envServiceImpl{Store: ds, KubeClient: k8sClient, ProjectService: projectService}
-		envBinding := &envBindingServiceImpl{
+		envBinding = &envBindingServiceImpl{
 			Store:           ds,
 			WorkflowService: workflowService,
 			EnvService:      envService,
@@ -278,28 +277,36 @@ var _ = Describe("Test workflow service functions", func() {
 
 		By("create another revision to test sync workflow record")
 		var anotherRevision = &model.ApplicationRevision{
-			AppPrimaryKey: appName,
-			Version:       "1111",
-			Status:        model.RevisionStatusInit,
-			DeployUser:    "test-user",
-			WorkflowName:  "test-workflow-2",
+			AppPrimaryKey:  appName,
+			Version:        "1111",
+			Status:         model.RevisionStatusInit,
+			DeployUser:     "test-user",
+			WorkflowName:   "test-workflow-2",
+			RevisionCRName: "1111-v1",
 		}
 		err = workflowService.createTestApplicationRevision(context.TODO(), anotherRevision)
 		Expect(err).Should(BeNil())
 
-		By("create one controller revision to test sync workflow record")
+		By("create one application revision to test sync workflow record")
+
+		appWithRevision := &v1beta1.Application{}
+		err = json.Unmarshal(raw, appWithRevision)
 		Expect(err).Should(BeNil())
-		cr := &appsv1.ControllerRevision{
+		var appRevision = &v1beta1.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "record-app-workflow-test-workflow-2-111",
+				Name:      "1111-v1",
 				Namespace: "default",
 				Labels:    map[string]string{"vela.io/wf-revision": "test-workflow-2-111"},
 			},
-			Data: runtime.RawExtension{Raw: raw},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: *appWithRevision,
+			},
 		}
-		err = workflowService.KubeClient.Create(ctx, cr)
+		err = workflowService.KubeClient.Create(ctx, appRevision)
 		Expect(err).Should(BeNil())
-
+		appRevision.Status.Workflow = appWithRevision.Status.Workflow
+		err = workflowService.KubeClient.Status().Update(ctx, appRevision)
+		Expect(err).Should(BeNil())
 		err = workflowService.SyncWorkflowRecord(ctx)
 		Expect(err).Should(BeNil())
 
@@ -348,6 +355,8 @@ var _ = Describe("Test workflow service functions", func() {
 
 		_, err := envService.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "resume"})
 		Expect(err).Should(BeNil())
+		_, err = envBinding.CreateEnvBinding(context.TODO(), &model.Application{Name: appName}, apisv1.CreateApplicationEnvbindingRequest{EnvBinding: apisv1.EnvBinding{Name: "resume"}})
+		Expect(err).Should(BeNil())
 		ResumeWorkflow := "resume-workflow"
 		req := apisv1.CreateWorkflowRequest{
 			Name:        ResumeWorkflow,
@@ -370,9 +379,10 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(err).Should(BeNil())
 
 		err = workflowService.createTestApplicationRevision(ctx, &model.ApplicationRevision{
-			AppPrimaryKey: appName,
-			Version:       "revision-resume1",
-			Status:        model.RevisionStatusRunning,
+			AppPrimaryKey:  appName,
+			Version:        "revision-resume1",
+			RevisionCRName: "revision-resume1",
+			Status:         model.RevisionStatusRunning,
 		})
 		Expect(err).Should(BeNil())
 
@@ -390,6 +400,8 @@ var _ = Describe("Test workflow service functions", func() {
 		ctx := context.TODO()
 
 		_, err := envService.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "terminate"})
+		Expect(err).Should(BeNil())
+		_, err = envBinding.CreateEnvBinding(context.TODO(), &model.Application{Name: appName}, apisv1.CreateApplicationEnvbindingRequest{EnvBinding: apisv1.EnvBinding{Name: "terminate"}})
 		Expect(err).Should(BeNil())
 		workflowName := "terminate-workflow"
 		req := apisv1.CreateWorkflowRequest{
@@ -432,6 +444,8 @@ var _ = Describe("Test workflow service functions", func() {
 	It("Test RollbackRecord function", func() {
 		ctx := context.TODO()
 		_, err := envService.CreateEnv(context.TODO(), apisv1.CreateEnvRequest{Name: "rollback"})
+		Expect(err).Should(BeNil())
+		_, err = envBinding.CreateEnvBinding(context.TODO(), &model.Application{Name: appName}, apisv1.CreateApplicationEnvbindingRequest{EnvBinding: apisv1.EnvBinding{Name: "rollback"}})
 		Expect(err).Should(BeNil())
 		workflowName := "rollback-workflow"
 		req := apisv1.CreateWorkflowRequest{

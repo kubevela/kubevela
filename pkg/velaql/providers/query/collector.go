@@ -18,21 +18,13 @@ package query
 
 import (
 	"context"
-	"reflect"
-	"sync"
 
 	"github.com/hashicorp/go-version"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
@@ -62,8 +53,7 @@ func NewAppCollector(cli client.Client, opt Option) *AppCollector {
 const velaVersionNumberToUpgradeVelaQL = "v1.2.0-rc.1"
 
 // CollectResourceFromApp collect resources created by application
-func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
-	ctx := context.Background()
+func (c *AppCollector) CollectResourceFromApp(ctx context.Context) ([]Resource, error) {
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: c.opt.Name, Namespace: c.opt.Namespace}
 	if err := c.k8sClient.Get(ctx, appKey, app); err != nil {
@@ -76,36 +66,39 @@ func (c *AppCollector) CollectResourceFromApp() ([]Resource, error) {
 	velaVersionToUpgradeVelaQL, _ := version.NewVersion(velaVersionNumberToUpgradeVelaQL)
 	currentVersion, err := version.NewVersion(currentVersionNumber)
 	if err != nil {
-		resources, err := c.FindResourceFromResourceTrackerSpec(app)
+		resources, err := c.FindResourceFromResourceTrackerSpec(ctx, app)
 		if err != nil {
-			return c.FindResourceFromAppliedResourcesField(app)
+			return c.FindResourceFromAppliedResourcesField(ctx, app)
 		}
 		return resources, nil
 	}
 
 	if velaVersionToUpgradeVelaQL.GreaterThan(currentVersion) {
-		return c.FindResourceFromAppliedResourcesField(app)
+		return c.FindResourceFromAppliedResourcesField(ctx, app)
 	}
-	return c.FindResourceFromResourceTrackerSpec(app)
+	return c.FindResourceFromResourceTrackerSpec(ctx, app)
 }
 
 // ListApplicationResources list application applied resources from tracker
-func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*types.AppliedResource, error) {
-	ctx := context.Background()
+func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application, queryTree bool) ([]*types.AppliedResource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, err
 	}
-
 	var managedResources []*types.AppliedResource
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
-					isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion) {
+					(queryTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
 					managedResources = append(managedResources, &types.AppliedResource{
-						Cluster:         managedResource.Cluster,
+						Cluster: func() string {
+							if managedResource.Cluster != "" {
+								return managedResource.Cluster
+							}
+							return "local"
+						}(),
 						Kind:            managedResource.Kind,
 						Component:       managedResource.Component,
 						Trait:           managedResource.Trait,
@@ -129,12 +122,78 @@ func (c *AppCollector) ListApplicationResources(app *v1beta1.Application) ([]*ty
 			}
 		}
 	}
-	return managedResources, nil
+
+	if !queryTree {
+		return managedResources, nil
+	}
+
+	// merge user defined customize rule before every request.
+	err = mergeCustomRules(ctx, c.k8sClient)
+	if err != nil {
+		return managedResources, err
+	}
+
+	filter := func(node types.ResourceTreeNode) bool {
+		return isResourceMatchKindAndVersion(c.opt.Filter, node.Kind, node.APIVersion)
+	}
+	var matchedResources []*types.AppliedResource
+	// error from leaf nodes won't block the results
+	for i := range managedResources {
+		resource := managedResources[i]
+		root := types.ResourceTreeNode{
+			Cluster:    resource.Cluster,
+			APIVersion: resource.APIVersion,
+			Kind:       resource.Kind,
+			Namespace:  resource.Namespace,
+			Name:       resource.Name,
+			UID:        resource.UID,
+		}
+		root.LeafNodes, err = iterateListSubResources(ctx, resource.Cluster, c.k8sClient, root, 1, filter)
+		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			klog.Errorf("query leaf node resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		if !filter(root) && len(root.LeafNodes) == 0 {
+			continue
+		}
+		rootObject, err := fetchObjectWithResourceTreeNode(ctx, resource.Cluster, c.k8sClient, root)
+		if err != nil {
+			// if the resource has been deleted, continue access next appliedResource don't break the whole request
+			if kerrors.IsNotFound(err) {
+				continue
+			}
+			klog.Errorf("fetch object for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		rootStatus, err := CheckResourceStatus(*rootObject)
+		if err != nil {
+			klog.Errorf("check status for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		root.HealthStatus = *rootStatus
+		addInfo, err := additionalInfo(*rootObject)
+		if err != nil {
+			klog.Errorf("check additionalInfo for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", root.APIVersion, root.Kind, root.Namespace, root.Name, err.Error())
+			continue
+		}
+		root.AdditionalInfo = addInfo
+		root.CreationTimestamp = rootObject.GetCreationTimestamp().Time
+		if !rootObject.GetDeletionTimestamp().IsZero() {
+			root.DeletionTimestamp = rootObject.GetDeletionTimestamp().Time
+		}
+		root.Object = *rootObject
+		resource.ResourceTree = &root
+		matchedResources = append(matchedResources, resource)
+	}
+	return matchedResources, nil
 }
 
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
-func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Application) ([]Resource, error) {
-	ctx := context.Background()
+func (c *AppCollector) FindResourceFromResourceTrackerSpec(ctx context.Context, app *v1beta1.Application) ([]Resource, error) {
 	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		klog.Errorf("query the resourcetrackers failure %s", err.Error())
@@ -156,7 +215,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 					if err != nil || c.opt.WithStatus {
 						// For the application with apply once policy, there is no data in RT.
 						// IF the WithStatus is true, get the object from cluster
-						_, obj, err = getObjectCreatedByComponent(c.k8sClient, managedResource.ObjectReference, managedResource.Cluster)
+						_, obj, err = getObjectCreatedByComponent(ctx, c.k8sClient, managedResource.ObjectReference, managedResource.Cluster)
 						if err != nil {
 							klog.Errorf("get obj from the cluster failure %s", err.Error())
 							continue
@@ -180,7 +239,7 @@ func (c *AppCollector) FindResourceFromResourceTrackerSpec(app *v1beta1.Applicat
 }
 
 // FindResourceFromAppliedResourcesField find resources from AppliedResources field
-func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Application) ([]Resource, error) {
+func (c *AppCollector) FindResourceFromAppliedResourcesField(ctx context.Context, app *v1beta1.Application) ([]Resource, error) {
 	resources := make([]Resource, 0, len(app.Spec.Components))
 	for _, res := range app.Status.AppliedResources {
 		if !isResourceInTargetCluster(c.opt.Filter, res) {
@@ -189,7 +248,7 @@ func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Applic
 		if !isResourceMatchKindAndVersion(c.opt.Filter, res.APIVersion, res.Kind) {
 			continue
 		}
-		compName, obj, err := getObjectCreatedByComponent(c.k8sClient, res.ObjectReference, res.Cluster)
+		compName, obj, err := getObjectCreatedByComponent(ctx, c.k8sClient, res.ObjectReference, res.Cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -209,8 +268,8 @@ func (c *AppCollector) FindResourceFromAppliedResourcesField(app *v1beta1.Applic
 }
 
 // getObjectCreatedByComponent get k8s obj created by components
-func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
+func getObjectCreatedByComponent(ctx context.Context, cli client.Client, objRef corev1.ObjectReference, cluster string) (string, *unstructured.Unstructured, error) {
+	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	obj := new(unstructured.Unstructured)
 	obj.SetGroupVersionKind(objRef.GroupVersionKind())
 	obj.SetNamespace(objRef.Namespace)
@@ -223,275 +282,6 @@ func getObjectCreatedByComponent(cli client.Client, objRef corev1.ObjectReferenc
 	}
 	componentName := obj.GetLabels()[oam.LabelAppComponent]
 	return componentName, obj, nil
-}
-
-var standardWorkloads = []schema.GroupVersionKind{
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.ReplicaSet{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
-	appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.DaemonSet{}).Name()),
-	batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
-	kruise.SchemeGroupVersion.WithKind(reflect.TypeOf(kruise.CloneSet{}).Name()),
-}
-
-var podCollectorMap = map[schema.GroupVersionKind]PodCollector{
-	batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.CronJob{}).Name()):           cronJobPodCollector,
-	batchv1beta1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1beta1.CronJob{}).Name()): cronJobPodCollector,
-}
-
-// PodCollector collector pod created by workload
-type PodCollector func(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error)
-
-// NewPodCollector create a PodCollector
-func NewPodCollector(gvk schema.GroupVersionKind) PodCollector {
-	for _, workload := range standardWorkloads {
-		if gvk == workload {
-			return standardWorkloadPodCollector
-		}
-	}
-	if collector, ok := podCollectorMap[gvk]; ok {
-		return collector
-	}
-	return velaComponentPodCollector
-}
-
-// standardWorkloadPodCollector collect pods created by standard workload
-func standardWorkloadPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	selectorPath := []string{"spec", "selector", "matchLabels"}
-	labels, found, err := unstructured.NestedStringMap(obj.UnstructuredContent(), selectorPath...)
-
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, errors.Errorf("fail to find matchLabels from %s %s", obj.GroupVersionKind().String(), klog.KObj(obj))
-	}
-
-	listOpts := []client.ListOption{
-		client.MatchingLabels(labels),
-		client.InNamespace(obj.GetNamespace()),
-	}
-
-	podList := corev1.PodList{}
-	if err := cli.List(ctx, &podList, listOpts...); err != nil {
-		return nil, err
-	}
-
-	pods := make([]*unstructured.Unstructured, len(podList.Items))
-	for i := range podList.Items {
-		pod, err := oamutil.Object2Unstructured(podList.Items[i])
-		if err != nil {
-			return nil, err
-		}
-		pod.SetGroupVersionKind(
-			corev1.SchemeGroupVersion.WithKind(
-				reflect.TypeOf(corev1.Pod{}).Name(),
-			),
-		)
-		pods[i] = pod
-	}
-	return pods, nil
-}
-
-// cronJobPodCollector collect pods created by cronjob
-func cronJobPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-
-	jobList := new(batchv1.JobList)
-	if err := cli.List(ctx, jobList, client.InNamespace(obj.GetNamespace())); err != nil {
-		return nil, err
-	}
-
-	uid := obj.GetUID()
-	var jobs []batchv1.Job
-	for _, job := range jobList.Items {
-		for _, owner := range job.GetOwnerReferences() {
-			if owner.Kind == reflect.TypeOf(batchv1.CronJob{}).Name() && owner.UID == uid {
-				jobs = append(jobs, job)
-			}
-		}
-	}
-	var pods []*unstructured.Unstructured
-	podGVK := corev1.SchemeGroupVersion.WithKind(reflect.TypeOf(corev1.Pod{}).Name())
-	for _, job := range jobs {
-		labels := job.Spec.Selector.MatchLabels
-		listOpts := []client.ListOption{
-			client.MatchingLabels(labels),
-			client.InNamespace(job.GetNamespace()),
-		}
-		podList := corev1.PodList{}
-		if err := cli.List(ctx, &podList, listOpts...); err != nil {
-			return nil, err
-		}
-
-		items := make([]*unstructured.Unstructured, len(podList.Items))
-		for i := range podList.Items {
-			pod, err := oamutil.Object2Unstructured(podList.Items[i])
-			if err != nil {
-				return nil, err
-			}
-			pod.SetGroupVersionKind(podGVK)
-			items[i] = pod
-		}
-		pods = append(pods, items...)
-	}
-	return pods, nil
-}
-
-// HelmReleaseCollector HelmRelease resources collector
-type HelmReleaseCollector struct {
-	matchLabels  map[string]string
-	workloadsGVK []schema.GroupVersionKind
-	cli          client.Client
-}
-
-// NewHelmReleaseCollector create a HelmRelease collector
-func NewHelmReleaseCollector(cli client.Client, hr *unstructured.Unstructured) *HelmReleaseCollector {
-	return &HelmReleaseCollector{
-		// matchLabels for resources created by HelmRelease refer to
-		// https://github.com/fluxcd/helm-controller/blob/main/internal/runner/post_renderer_origin_labels.go#L31
-		matchLabels: map[string]string{
-			"helm.toolkit.fluxcd.io/name":      hr.GetName(),
-			"helm.toolkit.fluxcd.io/namespace": hr.GetNamespace(),
-		},
-		workloadsGVK: []schema.GroupVersionKind{
-			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.Deployment{}).Name()),
-			appsv1.SchemeGroupVersion.WithKind(reflect.TypeOf(appsv1.StatefulSet{}).Name()),
-			batchv1.SchemeGroupVersion.WithKind(reflect.TypeOf(batchv1.Job{}).Name()),
-		},
-		cli: cli,
-	}
-}
-
-// CollectWorkloads collect workloads of HelmRelease
-func (c *HelmReleaseCollector) CollectWorkloads(cluster string) ([]unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	workloadsList := make([][]unstructured.Unstructured, len(c.workloadsGVK))
-	wg := sync.WaitGroup{}
-	wg.Add(len(c.workloadsGVK))
-
-	for i, workloadGVK := range c.workloadsGVK {
-		go func(index int, gvk schema.GroupVersionKind) {
-			defer wg.Done()
-			unstructuredObjList := &unstructured.UnstructuredList{}
-			unstructuredObjList.SetGroupVersionKind(gvk)
-			if err := c.cli.List(ctx, unstructuredObjList, listOptions...); err != nil {
-				return
-			}
-			workloadsList[index] = unstructuredObjList.Items
-		}(i, workloadGVK)
-	}
-	wg.Wait()
-
-	var workloads []unstructured.Unstructured
-	for i := range workloadsList {
-		workloads = append(workloads, workloadsList[i]...)
-	}
-	return workloads, nil
-}
-
-// CollectServices collect service of HelmRelease
-func (c *HelmReleaseCollector) CollectServices(ctx context.Context, cluster string) ([]corev1.Service, error) {
-	cctx := multicluster.ContextWithClusterName(ctx, cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	var services corev1.ServiceList
-	if err := c.cli.List(cctx, &services, listOptions...); err != nil {
-		return nil, err
-	}
-	return services.Items, nil
-}
-
-// CollectIngress collect ingress of HelmRelease
-func (c *HelmReleaseCollector) CollectIngress(ctx context.Context, cluster string) ([]unstructured.Unstructured, error) {
-	clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
-	listOptions := []client.ListOption{
-		client.MatchingLabels(c.matchLabels),
-	}
-	var ingresses = new(unstructured.UnstructuredList)
-	ingresses.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "networking.k8s.io",
-		Version: "v1beta1",
-		Kind:    "IngressList",
-	})
-	if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
-		if meta.IsNoMatchError(err) {
-			ingresses.SetGroupVersionKind(schema.GroupVersionKind{
-				Group:   "networking.k8s.io",
-				Version: "v1",
-				Kind:    "IngressList",
-			})
-			if err := c.cli.List(clusterCTX, ingresses, listOptions...); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-	return ingresses.Items, nil
-}
-
-// helmReleasePodCollector collect pods created by helmRelease
-func helmReleasePodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	hc := NewHelmReleaseCollector(cli, obj)
-	workloads, err := hc.CollectWorkloads(cluster)
-	if err != nil {
-		return nil, err
-	}
-	podsList := make([][]*unstructured.Unstructured, len(workloads))
-	wg := sync.WaitGroup{}
-	wg.Add(len(workloads))
-	for i := range workloads {
-		go func(index int) {
-			defer wg.Done()
-			collector := NewPodCollector(workloads[index].GroupVersionKind())
-			pods, err := collector(cli, &workloads[index], cluster)
-			if err != nil {
-				return
-			}
-			podsList[index] = pods
-		}(i)
-	}
-	wg.Wait()
-	var collectedPods []*unstructured.Unstructured
-	for i := range podsList {
-		collectedPods = append(collectedPods, podsList[i]...)
-	}
-	return collectedPods, nil
-}
-
-func velaComponentPodCollector(cli client.Client, obj *unstructured.Unstructured, cluster string) ([]*unstructured.Unstructured, error) {
-	ctx := multicluster.ContextWithClusterName(context.Background(), cluster)
-
-	listOpts := []client.ListOption{
-		client.MatchingLabels(map[string]string{"app.oam.dev/component": obj.GetName()}),
-		client.InNamespace(obj.GetNamespace()),
-	}
-
-	podList := corev1.PodList{}
-	if err := cli.List(ctx, &podList, listOpts...); err != nil {
-		return nil, err
-	}
-
-	pods := make([]*unstructured.Unstructured, len(podList.Items))
-	for i := range podList.Items {
-		pod, err := oamutil.Object2Unstructured(podList.Items[i])
-		if err != nil {
-			return nil, err
-		}
-		pod.SetGroupVersionKind(
-			corev1.SchemeGroupVersion.WithKind(
-				reflect.TypeOf(corev1.Pod{}).Name(),
-			),
-		)
-		pods[i] = pod
-	}
-	return pods, nil
 }
 
 func getEventFieldSelector(obj *unstructured.Unstructured) fields.Selector {
@@ -514,7 +304,7 @@ func isResourceInTargetCluster(opt FilterOption, resource common.ClusterObjectRe
 }
 
 func isResourceInTargetComponent(opt FilterOption, componentName string) bool {
-	if len(opt.Components) == 0 && len(componentName) != 0 {
+	if len(opt.Components) == 0 {
 		return true
 	}
 	for _, component := range opt.Components {

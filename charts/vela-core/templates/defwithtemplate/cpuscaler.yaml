@@ -5,13 +5,12 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Automatically scale the component based on CPU usage.
-  labels:
-    custom.definition.oam.dev/ui-hidden: "true"
   name: cpuscaler
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   appliesToWorkloads:
     - deployments.apps
+    - statefulsets.apps
   schematic:
     cue:
       template: |

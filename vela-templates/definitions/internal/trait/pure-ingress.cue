@@ -1,7 +1,6 @@
 "pure-ingress": {
-	annotations: {}
 	attributes: {
-		appliesToWorkloads: []
+		appliesToWorkloads: ["*"]
 		conflictsWith: []
 		podDisruptive: false
 		status: {
@@ -24,7 +23,8 @@
 	}
 	description: "Enable public web traffic for the component without creating a Service."
 	labels: {
-		"ui-hidden": "true"
+		"ui-hidden":  "true"
+		"deprecated": "true"
 	}
 	type: "trait"
 }

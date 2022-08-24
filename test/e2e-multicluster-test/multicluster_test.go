@@ -365,60 +365,6 @@ var _ = Describe("Test multicluster scenario", func() {
 			}, time.Minute).Should(Succeed())
 		})
 
-		It("Test helm addon relied feature", func() {
-			By("apply application")
-			app := &v1beta1.Application{}
-			bs, err := ioutil.ReadFile("./testdata/app/app-apply-in-order.yaml")
-			Expect(err).Should(Succeed())
-			Expect(yaml.Unmarshal([]byte(bs), app)).Should(Succeed())
-			app.SetNamespace(testNamespace)
-			err = k8sClient.Create(hubCtx, app)
-			Expect(err).Should(Succeed())
-			By("wait application resource ready")
-			targetNamespace := "test-addon-namespace"
-			Eventually(func() error {
-				// check deployments in clusters
-				ns := corev1.Namespace{}
-				if err := k8sClient.Get(hubCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
-					return err
-				}
-				svc := corev1.Service{}
-				if err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
-					return err
-				}
-				return nil
-			}, 20*time.Minute).Should(Succeed())
-
-			Eventually(func() error {
-				// check deployments in clusters
-				ns := corev1.Namespace{}
-				if err := k8sClient.Get(workerCtx, types.NamespacedName{Name: targetNamespace}, &ns); err != nil {
-					return err
-				}
-				svc := corev1.Service{}
-				if err := k8sClient.Get(workerCtx, types.NamespacedName{Namespace: targetNamespace, Name: "addon-fluxcd-service"}, &svc); err != nil {
-					return err
-				}
-				return nil
-			}, 20*time.Minute).Should(Succeed())
-
-			checkApp := v1beta1.Application{}
-			Eventually(func() error {
-				err := k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: app.Name}, &checkApp)
-				if err != nil {
-					return err
-				}
-				if checkApp.Status.Phase != common.ApplicationRunning {
-					return fmt.Errorf("application not running")
-				}
-				return nil
-			}, 30*time.Minute, 500*time.Millisecond).Should(BeNil())
-
-			By("test delete env")
-			err = k8sClient.Delete(hubCtx, &checkApp)
-			Expect(err).Should(BeNil())
-		})
-
 		It("Test deploy multi-cluster application with target", func() {
 			By("apply application")
 			app := &v1beta1.Application{
@@ -569,6 +515,137 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "shared"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "non-shared-app3"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
 			}, 10*time.Second).Should(Succeed())
+		})
+
+		It("Test applications with bad resource", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-bad-resource.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			ctx := context.Background()
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+				g.Expect(len(app.Status.Workflow.Steps) > 0).Should(BeTrue())
+				g.Expect(app.Status.Workflow.Steps[0].Message).Should(ContainSubstring("is invalid"))
+			}, 20*time.Second).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Satisfy(kerrors.IsNotFound))
+			}, 10*time.Second).Should(Succeed())
+		})
+
+		It("Test applications with env and storage trait", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-and-storage.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+		})
+
+		It("Test applications with gc policy change (onAppUpdate -> never)", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-gc-policy-change.yaml")
+			Expect(err).Should(Succeed())
+			appYaml := strings.ReplaceAll(string(bs), "TEST_NAMESPACE", testNamespace)
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal([]byte(appYaml), app)).Should(Succeed())
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+
+			By("update gc policy to never")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app))
+				gcPolicy := &v1alpha1.GarbageCollectPolicySpec{}
+				g.Expect(json.Unmarshal(app.Spec.Policies[0].Properties.Raw, gcPolicy)).Should(Succeed())
+				gcPolicy.Rules[0].Strategy = v1alpha1.GarbageCollectStrategyNever
+				bs, err = json.Marshal(gcPolicy)
+				g.Expect(err).Should(Succeed())
+				app.Spec.Policies[0].Properties = &runtime.RawExtension{Raw: bs}
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}, 10*time.Second).Should(Succeed())
+
+			By("check app updated and resource still exists")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.ObservedGeneration).Should(Equal(int64(2)))
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "gc-policy-test"}, &corev1.ConfigMap{})).Should(Succeed())
+			}, 20*time.Second).Should(Succeed())
+
+			By("update app to new object")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app))
+				app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"another"},"data":{"key":"new-val"}}]}`)}
+				g.Expect(k8sClient.Update(hubCtx, app)).Should(Succeed())
+			}).Should(Succeed())
+
+			By("check app updated and resource still exists")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.ObservedGeneration).Should(Equal(int64(3)))
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "gc-policy-test"}, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "another"}, &corev1.ConfigMap{})).Should(Succeed())
+			}, 20*time.Second).Should(Succeed())
+
+			By("delete app and check resource")
+			Eventually(func(g Gomega) {
+				g.Expect(client.IgnoreNotFound(k8sClient.Delete(hubCtx, app))).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "gc-policy-test"}, &corev1.ConfigMap{})).Should(Succeed())
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "another"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
+			})
+		})
+
+		It("Test Application with env in webservice and labels & storage trait", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-labels-storage.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			deploy := &appsv1.Deployment{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "test"}, deploy)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
+			Expect(deploy.GetLabels()["key"]).Should(Equal("val"))
+			Expect(len(deploy.Spec.Template.Spec.Containers[0].Env)).Should(Equal(1))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Name).Should(Equal("testKey"))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("testValue"))
+			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
+		})
+
+		It("Test application with collect-service-endpoint and export-data", func() {
+			By("create application")
+			bs, err := ioutil.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+
+			By("test dispatched resource")
+			svc := &corev1.Service{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())
+			host := "busybox." + testNamespace
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
+			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
 		})
 	})
 })
