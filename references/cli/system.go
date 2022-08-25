@@ -241,6 +241,7 @@ func WideFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *
 		return nil, err
 	}
 	table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS", "ENVS")
+	table.MaxColWidth = 100
 	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
 	for _, deploy := range deployments.Items {
 		table.AddRow(
@@ -250,7 +251,7 @@ func WideFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *
 			deploy.Spec.Template.Spec.Containers[0].Image,
 			fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
 			fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
-			limitStringLength(strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "), 180),
+			strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "),
 			limitStringLength(GetEnvVariable(deploy.Spec.Template.Spec.Containers[0].Env), 180),
 		)
 	}
