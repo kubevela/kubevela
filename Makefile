@@ -92,7 +92,7 @@ kind-load-runtime-cluster:
 	docker build -t $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) -f runtime/rollout/e2e/Dockerfile.e2e runtime/rollout/e2e/
 	rm -rf runtime/rollout/e2e/tmp
 	k3d image import $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
-	k3d image import $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --cluster=$(RUNTIME_CLUSTER_NAME)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
+	k3d cluster get $(RUNTIME_CLUSTER_NAME) && k3d image import $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --cluster=$(RUNTIME_CLUSTER_NAME) || echo "no worker cluster"
 
 # Run tests
 core-test:
