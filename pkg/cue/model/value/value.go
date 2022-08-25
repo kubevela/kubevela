@@ -575,6 +575,9 @@ func (iter *stepsIterator) assemble() {
 	}
 	var addFields []*field
 	for i := 0; i < st.Len(); i++ {
+		if st.Field(i).Value.IncompleteKind() == cue.TopKind {
+			continue
+		}
 		name := st.Field(i).Name
 		attr := st.Field(i).Value.Attribute("step")
 		no, err := attr.Int(0)

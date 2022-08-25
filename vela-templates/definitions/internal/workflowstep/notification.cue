@@ -18,14 +18,14 @@ template: {
 			url: {
 				// +usage=the url address content in string
 				value: string
-			} | {
+			} | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
 					// +usage=key is the key in the secret
 					key: string
 				}
-			}
+			})
 			// +usage=Specify the message that you want to sent, refer to [Lark messaging](https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#8b0f2a1b).
 			message: {
 				// +usage=msg_type can be text, post, image, interactive, share_chat, share_user, audio, media, file, sticker
@@ -40,56 +40,56 @@ template: {
 			url: {
 				// +usage=the url address content in string
 				value: string
-			} | {
+			} | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
 					// +usage=key is the key in the secret
 					key: string
 				}
-			}
+			})
 			// +usage=Specify the message that you want to sent, refer to [dingtalk messaging](https://developers.dingtalk.com/document/robots/custom-robot-access/title-72m-8ag-pqw)
 			message: {
 				// +usage=Specify the message content of dingtalk notification
-				text?: *null | {
+				text?: *null | close({
 					content: string
-				}
+				})
 				// +usage=msgType can be text, link, mardown, actionCard, feedCard
 				msgtype: *"text" | "link" | "markdown" | "actionCard" | "feedCard"
-				link?:   *null | {
+				link?:   *null | close({
 					text?:       string
 					title?:      string
 					messageUrl?: string
 					picUrl?:     string
-				}
-				markdown?: *null | {
+				})
+				markdown?: *null | close({
 					text:  string
 					title: string
-				}
-				at?: *null | {
+				})
+				at?: *null | close({
 					atMobiles?: *null | [...string]
 					isAtAll?:   bool
-				}
-				actionCard?: *null | {
+				})
+				actionCard?: *null | close({
 					text:           string
 					title:          string
 					hideAvatar:     string
 					btnOrientation: string
 					singleTitle:    string
 					singleURL:      string
-					btns:           *null | [...*null | {
+					btns:           *null | close([...*null | close({
 						title:     string
 						actionURL: string
-					}]
-				}
-				feedCard?: *null | {
-					links: *null | [...*null | {
+					})])
+				})
+				feedCard?: *null | close({
+					links: *null | close([...*null | close({
 						text?:       string
 						title?:      string
 						messageUrl?: string
 						picUrl?:     string
-					}]
-				}
+					})])
+				})
 			}
 		}
 		// +usage=Please fulfill its url and message if you want to send Slack messages
@@ -98,23 +98,23 @@ template: {
 			url: {
 				// +usage=the url address content in string
 				value: string
-			} | {
+			} | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
 					// +usage=key is the key in the secret
 					key: string
 				}
-			}
+			})
 			// +usage=Specify the message that you want to sent, refer to [slack messaging](https://api.slack.com/reference/messaging/payload)
 			message: {
 				// +usage=Specify the message text for slack notification
 				text:         string
-				blocks?:      *null | [...block]
-				attachments?: *null | {
+				blocks?:      *null | close([...block])
+				attachments?: *null | close({
 					blocks?: *null | [...block]
 					color?:  string
-				}
+				})
 				thread_ts?: string
 				// +usage=Specify the message text format in markdown for slack notification
 				mrkdwn?: *true | bool
@@ -132,14 +132,14 @@ template: {
 				password: {
 					// +usage=the password content in string
 					value: string
-				} | {
+				} | close({
 					secretRef: {
 						// +usage=name is the name of the secret
 						name: string
 						// +usage=key is the key in the secret
 						key: string
 					}
-				}
+				})
 				// +usage=Specify the host of your email
 				host: string
 				// +usage=Specify the port of the email host, default to 587

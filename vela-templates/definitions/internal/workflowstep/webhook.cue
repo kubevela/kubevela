@@ -67,14 +67,14 @@ template: {
 		// +usage=Specify the webhook url
 		url: {
 			value: string
-		} | {
+		} | close({
 			secretRef: {
 				// +usage=name is the name of the secret
 				name: string
 				// +usage=key is the key in the secret
 				key: string
 			}
-		}
+		})
 		// +usage=Specify the data you want to send
 		data?: {...}
 	}
