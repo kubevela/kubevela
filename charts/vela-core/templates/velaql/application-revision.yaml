@@ -1,0 +1,33 @@
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "application-revision-view"
+  namespace: {{ include "systemDefinitionNamespace" . }}
+data:
+  template: |
+    import (
+       "vela/op"
+    )
+
+    output: {
+      op.#Read & {
+        value: {
+          apiVersion: "core.oam.dev/v1beta1"
+            kind:       "ApplicationRevision"
+            metadata: {
+              name: parameter.name
+              namespace: parameter.namespace
+            }
+        }
+      }
+    }
+
+    parameter: {
+       // +usage=Specify the name of the object
+      name: string
+      // +usage=Specify the namespace of the object
+      namespace: *"default" | string
+    }
+
+    status: output.value
+
