@@ -72,6 +72,10 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Tear down K3d if exist
+        run: |
+          k3d cluster delete || true
+
       - name: Setup K3d
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
