@@ -88,8 +88,8 @@ func NewSystemInfoCommand(c common.Args) *cobra.Command {
 			}
 			if outputFormat != "" {
 				outputFormatOptions := map[string]struct{}{
-					"wide": struct{}{},
-					"yaml": struct{}{},
+					"wide": {},
+					"yaml": {},
 				}
 				if _, exist := outputFormatOptions[outputFormat]; !exist {
 					return errors.Errorf("Outputformat must in wide | yaml !")
