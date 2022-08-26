@@ -317,6 +317,17 @@ var _ = Describe("Application Normal tests", func() {
 		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
 	})
 
+	It("Test app with notification and custom if", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app12.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("check application status")
+		verifyWorkloadRunningExpected("comp-custom-if", 1, "crccheck/hello-world")
+	})
+
 	It("Test wait suspend", func() {
 		By("Apply wait suspend application")
 		var newApp v1beta1.Application
