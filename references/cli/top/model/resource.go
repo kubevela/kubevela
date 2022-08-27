@@ -16,10 +16,63 @@ limitations under the License.
 
 package model
 
+import (
+	"context"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
+)
+
 // ResourceList an abstract kinds of resource list which can convert it to data of view in the form of table
 type ResourceList interface {
 	// Header generate header of table in resource view
 	Header() []string
 	// Body generate body of table in resource view
 	Body() [][]string
+}
+
+func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]unstructured.Unstructured, error) {
+	app := new(v1beta1.Application)
+	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
+	if err := c.Get(context.Background(), appKey, app); err != nil {
+		return nil, err
+	}
+	collector := query.NewAppCollector(c, opt)
+	appResList, err := collector.ListApplicationResources(context.Background(), app, opt.WithTree)
+	if err != nil {
+		return nil, err
+	}
+	var resources = make([]unstructured.Unstructured, 0)
+	for _, res := range appResList {
+		if res.ResourceTree != nil {
+			resources = append(resources, sonLeafResource(*res, res.ResourceTree, opt.Filter.Kind, opt.Filter.APIVersion)...)
+		}
+		if (opt.Filter.Kind == "" && opt.Filter.APIVersion == "") || (res.Kind == opt.Filter.Kind && res.APIVersion == opt.Filter.APIVersion) {
+			var object unstructured.Unstructured
+			object.SetAPIVersion(opt.Filter.APIVersion)
+			object.SetKind(opt.Filter.Kind)
+			if err := c.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+				resources = append(resources, object)
+			}
+		}
+	}
+	return resources, nil
+}
+
+func sonLeafResource(res querytypes.AppliedResource, node *querytypes.ResourceTreeNode, kind string, apiVersion string) []unstructured.Unstructured {
+	objects := make([]unstructured.Unstructured, 0)
+	if node.LeafNodes != nil {
+		for i := 0; i < len(node.LeafNodes); i++ {
+			objects = append(objects, sonLeafResource(res, node.LeafNodes[i], kind, apiVersion)...)
+		}
+	}
+	if (kind == "" && apiVersion == "") || (node.Kind == kind && node.APIVersion == apiVersion) {
+		objects = append(objects, node.Object)
+	}
+	return objects
 }

@@ -51,4 +51,12 @@ const (
 	ObjectProgressingStatusColor = "[blue::]"
 	// ObjectUnKnownStatusColor is object UnKnown status text color
 	ObjectUnKnownStatusColor = "[gray::]"
+	// PodPendingPhaseColor is pod pending phase text color
+	PodPendingPhaseColor = "[yellow::]"
+	// PodRunningPhaseColor is pod running phase text color
+	PodRunningPhaseColor = "[green::]"
+	// PodSucceededPhase is pod succeeded phase text color
+	PodSucceededPhase = "[purple::]"
+	// PodFailedPhase is pod failed phase text color
+	PodFailedPhase = "[red::]"
 )

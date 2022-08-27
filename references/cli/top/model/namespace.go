@@ -18,13 +18,12 @@ package model
 
 import (
 	"context"
-	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
 
 // Namespace is namespace struct
@@ -48,7 +47,7 @@ func ListNamespaces(ctx context.Context, c client.Reader) *NamespaceList {
 		list.data = append(list.data, Namespace{
 			Name:   ns.Name,
 			Status: string(ns.Status.Phase),
-			Age:    timeFormat(time.Since(ns.CreationTimestamp.Time)),
+			Age:    utils.TimeFormat(time.Since(ns.CreationTimestamp.Time)),
 		})
 	}
 	return list
@@ -66,21 +65,4 @@ func (l *NamespaceList) Body() [][]string {
 		data = append(data, []string{ns.Name, ns.Status, ns.Age})
 	}
 	return data
-}
-
-// timeFormat format time data of `time.Duration` type to string type
-func timeFormat(t time.Duration) string {
-	str := t.String()
-	// remove "."
-	tmp := strings.Split(str, ".")
-	tmp[0] += "s"
-
-	tmp = strings.Split(tmp[0], "h")
-	// hour num
-	hour, err := strconv.Atoi(tmp[0])
-	if err != nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%dd%dh%2s", hour/24, hour%24, tmp[1])
 }

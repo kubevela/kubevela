@@ -25,14 +25,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -40,6 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -49,23 +48,8 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
-var createObject = func(name string, ns string, value string, kind string) *unstructured.Unstructured {
-	o := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"name":      name,
-				"namespace": ns,
-			},
-			"data": map[string]interface{}{
-				"key": value,
-			},
-		},
-	}
-	o.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(kind))
-	return o
-}
-
 var _ = BeforeSuite(func(done Done) {
+	// env init
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
@@ -75,19 +59,19 @@ var _ = BeforeSuite(func(done Done) {
 			"../../../../charts/vela-core/crds",
 		},
 	}
-
+	// env start
 	By("start kube test env")
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-
+	// client start
 	By("new kube client")
 	cfg.Timeout = time.Minute * 2
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
 	Expect(k8sClient).ToNot(BeNil())
-
+	// create app
 	name, namespace := "first-vela-app", "default"
 	testApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{
@@ -165,14 +149,97 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	err = k8sClient.Status().Update(context.TODO(), testApp)
 	Expect(err).Should(BeNil())
-
-	svc := createObject("service1", namespace, "x", "Service")
+	// create service
+	svc := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service1",
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{Port: 2002}},
+		},
+	}
 	svcRaw, err := json.Marshal(svc)
 	Expect(err).Should(Succeed())
-	dply := createObject("deploy1", namespace, "y", "Deployment")
+	Expect(k8sClient.Create(context.TODO(), svc)).Should(BeNil())
+	// create deploy
+	dply := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Deployment",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "deploy1",
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: namespace, Labels: map[string]string{"app": "test"}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{
+					{
+						Name:  "vela-core-1",
+						Image: "vela",
+					},
+				}},
+			},
+		},
+	}
 	dplyRaw, err := json.Marshal(dply)
 	Expect(err).Should(Succeed())
-
+	Expect(k8sClient.Create(context.TODO(), dply)).Should(BeNil())
+	//create replicaSet
+	var rsNum int32 = 2
+	rs := &appsv1.ReplicaSet{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ReplicaSet",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rs1",
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "test"},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: &rsNum,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: namespace, Labels: map[string]string{"app": "test"}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{
+					{
+						Name:  "vela-core-1",
+						Image: "vela",
+					},
+				}},
+			},
+		},
+	}
+	rsRaw, err := json.Marshal(rs)
+	Expect(err).Should(Succeed())
+	Expect(k8sClient.Create(context.TODO(), rs)).Should(BeNil())
+	// create pod
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod",
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "test"},
+		},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{
+			{
+				Name:  "vela-core-1",
+				Image: "vela",
+			},
+		}},
+	}
+	podRaw, err := json.Marshal(pod)
+	Expect(err).Should(Succeed())
+	Expect(k8sClient.Create(context.TODO(), pod)).Should(BeNil())
+	// create resourceTracker
 	rt := &v1beta1.ResourceTracker{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("%s-v1-%s", name, namespace),
@@ -193,11 +260,11 @@ var _ = BeforeSuite(func(done Done) {
 							APIVersion: "v1",
 							Kind:       "Service",
 							Namespace:  namespace,
-							Name:       "web",
+							Name:       "service1",
 						},
 					},
 					OAMObjectReference: common2.OAMObjectReference{
-						Component: "web",
+						Component: "service1",
 					},
 					Data: &runtime.RawExtension{Raw: svcRaw},
 				},
@@ -208,13 +275,43 @@ var _ = BeforeSuite(func(done Done) {
 							APIVersion: "apps/v1",
 							Kind:       "Deployment",
 							Namespace:  namespace,
-							Name:       "web",
+							Name:       "deploy1",
 						},
 					},
 					OAMObjectReference: common2.OAMObjectReference{
-						Component: "web",
+						Component: "deploy1",
 					},
 					Data: &runtime.RawExtension{Raw: dplyRaw},
+				},
+				{
+					ClusterObjectReference: common2.ClusterObjectReference{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							APIVersion: "apps/v1",
+							Kind:       "ReplicaSet",
+							Namespace:  namespace,
+							Name:       "rs1",
+						},
+					},
+					OAMObjectReference: common2.OAMObjectReference{
+						Component: "rs1",
+					},
+					Data: &runtime.RawExtension{Raw: rsRaw},
+				},
+				{
+					ClusterObjectReference: common2.ClusterObjectReference{
+						Cluster: "",
+						ObjectReference: corev1.ObjectReference{
+							APIVersion: "apps/v1",
+							Kind:       "Pod",
+							Namespace:  namespace,
+							Name:       "pod1",
+						},
+					},
+					OAMObjectReference: common2.OAMObjectReference{
+						Component: "pod1",
+					},
+					Data: &runtime.RawExtension{Raw: podRaw},
 				},
 			},
 			Type: v1beta1.ResourceTrackerTypeVersioned,
@@ -233,8 +330,6 @@ var _ = BeforeSuite(func(done Done) {
 	quantityLimitsMemory, _ := resource.ParseQuantity("10Mi")
 	quantityRequestsCPU, _ := resource.ParseQuantity("10m")
 	quantityRequestsMemory, _ := resource.ParseQuantity("10Mi")
-	//quantityUsageCPU, _ := resource.ParseQuantity("8m")
-	//quantityUsageMemory, _ := resource.ParseQuantity("20Mi")
 
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "vela-core", Namespace: "vela-system", Labels: map[string]string{"app.kubernetes.io/name": "vela-core"}},

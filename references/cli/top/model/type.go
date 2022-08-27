@@ -58,6 +58,8 @@ var (
 	CtxKeyCluster = "cluster"
 	// CtxKeyClusterNamespace request context key of cluster namespace name
 	CtxKeyClusterNamespace = "cluster"
+	// CtxKeyComponentName request context key of component name
+	CtxKeyComponentName = "componentName"
 )
 
 const (

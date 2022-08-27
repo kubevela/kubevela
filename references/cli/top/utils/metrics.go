@@ -17,12 +17,16 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"math"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 const (
@@ -99,6 +103,20 @@ func podRequests(spec v1.PodSpec) (*resource.Quantity, *resource.Quantity) {
 		}
 	}
 	return cpu, mem
+}
+
+// PodMetric return the pod metric
+func PodMetric(cfg *rest.Config, name, namespace string) (*v1beta1.PodMetrics, error) {
+	ctx := context.Background()
+	c, err := metrics.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	metric, err := c.MetricsV1beta1().PodMetricses(namespace).Get(ctx, name, apiv1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return metric, nil
 }
 
 // ToPercentage computes percentage as string otherwise n/aa.
