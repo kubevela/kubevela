@@ -156,7 +156,7 @@ var _ = Describe("HealthScope", func() {
 			if len(compSts1.Traits) != 1 {
 				return fmt.Errorf("expect 2 traits statuses, but got %d", len(compSts1.Traits))
 			}
-			Expect(compSts1.Traits[0].Message).Should(ContainSubstring("No loadBalancer found"))
+			Expect(compSts1.Traits[0].Message).Should(ContainSubstring("Visiting URL"))
 
 			return nil
 		}, time.Second*30, time.Millisecond*500).Should(Succeed())
