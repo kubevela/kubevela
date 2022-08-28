@@ -29,7 +29,11 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	apiregistrationV1beta "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregistration "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	"sigs.k8s.io/yaml"
@@ -44,6 +48,8 @@ const (
 	FlagSpecify = "specify"
 	// FlagOutputFormat specifies the output format. One of: (wide | yaml)
 	FlagOutputFormat = "output"
+	// APIServiceName is the name of APIService
+	APIServiceName = "v1alpha1.cluster.core.oam.dev"
 )
 
 // NewSystemCommand print system detail info
@@ -311,26 +317,18 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 		Short: "Diagnoses system problems.",
 		Long:  "Diagnoses system problems.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Diagnoses APIService of cluster-gateway
+			// Diagnose clusters' health
 			fmt.Println("------------------------------------------------------")
-			fmt.Println("Diagnosing APIService of cluster-gateway...")
+			fmt.Println("Diagnosing health of clusters...")
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			_, err = multicluster.GetClusterGatewayService(context.Background(), k8sClient)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
-			}
-			fmt.Println("Result: APIService of cluster-gateway is fine~")
-			fmt.Println("------------------------------------------------------")
-			// Diagnose clusters' health
-			fmt.Println("------------------------------------------------------")
-			fmt.Println("Diagnosing health of clusters...")
 			clusters, err := multicluster.ListVirtualClusters(context.Background(), k8sClient)
 			if err != nil {
 				return errors.Wrap(err, "fail to get registered cluster")
 			}
+			// Get kube config
 			config, err := c.GetConfig()
 			if err != nil {
 				return err
@@ -348,6 +346,35 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 			}
 			fmt.Println("Result: Clusters are fine~")
 			fmt.Println("------------------------------------------------------")
+			// Diagnoses the link of hub APIServer to cluster-gateway
+			fmt.Println("------------------------------------------------------")
+			fmt.Println("Diagnosing the link of hub APIServer to cluster-gateway...")
+			// Get clientset
+			clientset, err := apiregistration.NewForConfig(config)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			apiService, err := clientset.APIServices().Get(ctx, APIServiceName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			for _, condition := range apiService.Status.Conditions {
+				if condition.Type == "Available" {
+					if condition.Status != "True" {
+						cmd.Printf("APIService \"%s\" is not available! \nMessage: %s\n", APIServiceName, condition.Message)
+						return CheckAPIService(ctx, config, apiService)
+					}
+					cmd.Printf("APIService \"%s\" is available!\n", APIServiceName)
+				}
+			}
+			_, err = multicluster.GetClusterGatewayService(context.Background(), k8sClient)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
+			}
+			fmt.Println("Result: The link of hub APIServer to cluster-gateway is fine~")
+			fmt.Println("------------------------------------------------------")
 			// Todo: Diagnose others
 			return nil
 		},
@@ -356,4 +383,28 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// CheckAPIService checks the APIService
+func CheckAPIService(ctx context.Context, config *rest.Config, apiService *apiregistrationV1beta.APIService) error {
+	svcName := apiService.Spec.Service.Name
+	svcNamespace := apiService.Spec.Service.Namespace
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	svc, err := clientset.CoreV1().Services(svcNamespace).Get(ctx, svcName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	set := labels.Set(svc.Spec.Selector)
+	listOptions := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+	pods, err := clientset.CoreV1().Pods(svcNamespace).List(ctx, listOptions)
+	if err != nil {
+		return err
+	}
+	if len(pods.Items) == 0 {
+		return errors.Errorf("No available pods in %s namespace with label %s", svcNamespace, set.AsSelector().String())
+	}
+	return nil
 }
