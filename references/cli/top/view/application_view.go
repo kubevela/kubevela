@@ -107,7 +107,7 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
 		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
