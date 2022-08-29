@@ -13,12 +13,6 @@ spec:
       properties:
         image: {{ .Values.imageRegistry }}{{ .Values.test.app.repository }}:{{ .Values.test.app.tag }}
         port: 8000
-      traits:
-        - type: ingress
-          properties:
-            domain: testsvc.example.com
-            http:
-              "/": 8000
 ---
 apiVersion: v1
 kind: Pod
