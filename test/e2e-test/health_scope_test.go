@@ -18,7 +18,9 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime"
 	"strings"
 	"time"
 
@@ -156,9 +158,11 @@ var _ = Describe("HealthScope", func() {
 				return fmt.Errorf("expect healthy comp, but %v is unhealthy, msg: %q", compSts1.Name, compSts1.Message)
 			}
 			if len(compSts1.Traits) != 1 {
-				return fmt.Errorf("expect 2 traits statuses, but got %d", len(compSts1.Traits))
+				return fmt.Errorf("expect 1 trait statuses, but got %d", len(compSts1.Traits))
 			}
-			Expect(compSts1.Traits[0].Message).Should(ContainSubstring("Visiting URL"))
+			if !strings.Contains(compSts1.Traits[0].Message, "visit the cluster or load balancer in front of the cluster") {
+				return fmt.Errorf("trait message isn't right, now is %s", compSts1.Traits[0].Message)
+			}
 
 			return nil
 		}, time.Second*30, time.Millisecond*500).Should(Succeed())
@@ -215,6 +219,24 @@ func convertToLegacyIngressTrait(app *v1beta1.Application) {
 			for j := range app.Spec.Components[i].Traits {
 				if app.Spec.Components[i].Traits[j].Type == "gateway" {
 					app.Spec.Components[i].Traits[j].Type = "ingress"
+				}
+				props := app.Spec.Components[i].Traits[j].Properties
+				propMap, err := util.RawExtension2Map(props)
+				if err != nil {
+					return
+				}
+				newPropMap := map[string]interface{}{}
+				for k := range propMap {
+					if k != "class" {
+						newPropMap[k] = propMap[k]
+					}
+				}
+				ext, err := json.Marshal(newPropMap)
+				if err != nil {
+					return
+				}
+				app.Spec.Components[i].Traits[j].Properties = &runtime.RawExtension{
+					Raw: ext,
 				}
 			}
 		}

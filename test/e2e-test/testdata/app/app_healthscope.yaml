@@ -15,6 +15,7 @@ spec:
       traits:
         - type: gateway
           properties:
+            class: traefik
             domain: test.my.domain
             http:
               "/": 8080
@@ -29,6 +30,7 @@ spec:
       traits:
         - type: gateway
           properties:
+            class: traefik
             domain: test.my.domain
             http:
               "/": 8080

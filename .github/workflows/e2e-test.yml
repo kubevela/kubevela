@@ -88,8 +88,8 @@ jobs:
       - name: Run Make
         run: make
 
-      - name: Run Make Manager
-        run: make manager
+#      - name: Run Make Manager
+#        run: make manager
 
       - name: Prepare for e2e tests
         run: |
