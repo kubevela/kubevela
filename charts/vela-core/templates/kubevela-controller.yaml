@@ -220,6 +220,7 @@ spec:
             - "--feature-gates=LegacyComponentRevision={{- .Values.featureGates.enableLegacyComponentRevision | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=ZstdResourceTracker={{- .Values.featureGates.zstdResourceTracker | toString -}}"
+            - "--feature-gates=ApplyOnce={{- .Values.featureGates.applyOnce | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
             - "--authentication-with-user"

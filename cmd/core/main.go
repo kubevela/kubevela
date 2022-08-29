@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	flag "github.com/spf13/pflag"
@@ -47,6 +46,7 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/features"
 	_ "github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -78,7 +78,6 @@ func main() {
 	var healthAddr string
 	var disableCaps string
 	var storageDriver string
-	var applyOnceOnly string
 	var qps float64
 	var burst int
 	var pprofAddr string
@@ -86,6 +85,7 @@ func main() {
 	var leaseDuration time.Duration
 	var renewDeadline time.Duration
 	var retryPeriod time.Duration
+	var informerSyncPeriod time.Duration
 	var enableClusterGateway bool
 	var enableClusterMetrics bool
 	var clusterMetricsInterval time.Duration
@@ -111,12 +111,12 @@ func main() {
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.BoolVar(&controllerArgs.AutoGenWorkloadDefinition, "autogen-workload-definition", true, "Automatic generated workloadDefinition which componentDefinition refers to.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
-	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
-		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
 	flag.DurationVar(&commonconfig.ApplicationReSyncPeriod, "application-re-sync-period", 5*time.Minute,
 		"Re-sync period for application to re-sync, also known as the state-keep interval.")
+	flag.DurationVar(&informerSyncPeriod, "informer-sync-period", 10*time.Hour,
+		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
 	flag.DurationVar(&commonconfig.ReconcileTimeout, "reconcile-timeout", time.Minute*3,
 		"the timeout for controller reconcile")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
@@ -230,6 +230,10 @@ func main() {
 	}
 	ctrl.SetLogger(klogr.New())
 
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
+		commonconfig.ApplicationReSyncPeriod = informerSyncPeriod
+	}
+
 	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
@@ -244,6 +248,7 @@ func main() {
 		LeaseDuration:              &leaseDuration,
 		RenewDeadline:              &renewDeadline,
 		RetryPeriod:                &retryPeriod,
+		SyncPeriod:                 &informerSyncPeriod,
 		// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
 		// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
 		// of controller-runtime. Additionally, set this value will affect not only application
@@ -263,23 +268,6 @@ func main() {
 
 	if err := utils.CheckDisabledCapabilities(disableCaps); err != nil {
 		klog.ErrorS(err, "Unable to get enabled capabilities")
-		os.Exit(1)
-	}
-
-	switch strings.ToLower(applyOnceOnly) {
-	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
-		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
-		klog.Info("ApplyOnceOnly is disabled")
-	case "true", string(oamcontroller.ApplyOnceOnlyOn):
-		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOn
-		klog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
-	case string(oamcontroller.ApplyOnceOnlyForce):
-		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
-		klog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
-	default:
-		klog.ErrorS(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
-			"Unable to setup the vela core controller",
-			"apply-once-only", "on/off/force, by default it's off")
 		os.Exit(1)
 	}
 

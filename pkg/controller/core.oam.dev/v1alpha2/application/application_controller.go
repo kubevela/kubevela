@@ -286,6 +286,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
+		return
+	}
 	if err := handler.resourceKeeper.StateKeep(logCtx); err != nil {
 		logCtx.Error(err, "Failed to run prevent-configuration-drift")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))

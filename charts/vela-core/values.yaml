@@ -112,10 +112,12 @@ optimize:
 ##@param featureGates.enableLegacyComponentRevision if disabled, only component with rollout trait will create component revisions
 ##@param featureGates.gzipResourceTracker if enabled, resourceTracker will be compressed using gzip before being stored
 ##@param featureGates.zstdResourceTracker if enabled, resourceTracker will be compressed using zstd before being stored. It is much faster and more efficient than gzip. If both gzip and zstd are enabled, zstd will be used.
+##@param featureGates.applyOnce if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker
 featureGates:
   enableLegacyComponentRevision: false
   gzipResourceTracker: false
   zstdResourceTracker: false
+  applyOnce: false
 
 ## @section MultiCluster parameters
 
