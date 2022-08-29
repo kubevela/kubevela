@@ -80,6 +80,7 @@ var _ = Describe("HealthScope", func() {
 		var healthyAppName, unhealthyAppName string
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_healthscope.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
+		convertToLegacyIngressTrait(&newApp)
 		Eventually(func() error {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
@@ -101,6 +102,7 @@ var _ = Describe("HealthScope", func() {
 		newApp = v1beta1.Application{}
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_healthscope_unhealthy.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
+		convertToLegacyIngressTrait(&newApp)
 		Eventually(func() error {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
@@ -205,3 +207,16 @@ var _ = Describe("HealthScope", func() {
 		}, time.Second*30, time.Millisecond*500).Should(Succeed())
 	})
 })
+
+// convertToLegacyIngressTrait convert app's gateway trait to ingress
+func convertToLegacyIngressTrait(app *v1beta1.Application) {
+	if noNetworkingV1 {
+		for i := range app.Spec.Components {
+			for j := range app.Spec.Components[i].Traits {
+				if app.Spec.Components[i].Traits[j].Type == "gateway" {
+					app.Spec.Components[i].Traits[j].Type = "ingress"
+				}
+			}
+		}
+	}
+}

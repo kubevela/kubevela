@@ -9,10 +9,4 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 8000
-      traits:
-        - type: ingress
-          properties:
-            domain: testsvc.example.com
-            http:
-              "/": 8000
 ```
