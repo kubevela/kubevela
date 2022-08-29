@@ -19,6 +19,8 @@ package view
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/references/cli/top/component"
+
 	"github.com/rivo/tview"
 
 	"github.com/oam-dev/kubevela/references/cli/top/config"
@@ -27,7 +29,7 @@ import (
 
 // ResourceView is an abstract of resource view
 type ResourceView struct {
-	*Table
+	*component.Table
 	app *App
 }
 
@@ -61,7 +63,7 @@ var ResourceMap = map[string]ResourceViewer{
 // NewResourceView return a new resource view
 func NewResourceView(app *App) *ResourceView {
 	v := &ResourceView{
-		Table: NewTable(),
+		Table: component.NewTable(),
 		app:   app,
 	}
 	return v

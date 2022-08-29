@@ -49,6 +49,8 @@ func (c *Command) run(ctx context.Context, cmd string) {
 	switch {
 	case cmd == "?" || cmd == "h" || cmd == "help":
 		component = NewHelpView(c.app)
+	case cmd == "yaml":
+		component = NewYamlView(ctx, c.app)
 	default:
 		if resource, ok := ResourceMap[cmd]; ok {
 			component = resource.viewFunc(ctx, c.app)

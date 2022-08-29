@@ -48,9 +48,6 @@ func (v *ClusterView) Init() {
 	// set title of view
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-
-	resourceList := v.ListClusters()
-	v.ResourceView.Init(resourceList)
 	v.bindKeys()
 }
 
@@ -66,6 +63,17 @@ func (v *ClusterView) ListClusters() model.ResourceList {
 // Name return cluster view name
 func (v *ClusterView) Name() string {
 	return "Cluster"
+}
+
+// Start the cluster view
+func (v *ClusterView) Start() {
+	resourceList := v.ListClusters()
+	v.ResourceView.Init(resourceList)
+}
+
+// Stop the cluster view
+func (v *ClusterView) Stop() {
+	v.Table.Stop()
 }
 
 // Hint return key action menu hints of the cluster view

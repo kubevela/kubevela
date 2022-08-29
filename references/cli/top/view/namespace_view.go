@@ -46,10 +46,6 @@ func NewNamespaceView(ctx context.Context, app *App) model.Component {
 func (v *NamespaceView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-
-	resourceList := v.ListNamespaces()
-	v.ResourceView.Init(resourceList)
-
 	v.bindKeys()
 }
 
@@ -58,14 +54,25 @@ func (v *NamespaceView) ListNamespaces() model.ResourceList {
 	return model.ListNamespaces(v.ctx, v.app.client)
 }
 
-// Hint return key action menu hints of the k8s view
-func (v *NamespaceView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
-}
-
 // Name return k8s view name
 func (v *NamespaceView) Name() string {
 	return "Namespace"
+}
+
+// Start the managed namespace view
+func (v *NamespaceView) Start() {
+	resourceList := v.ListNamespaces()
+	v.ResourceView.Init(resourceList)
+}
+
+// Stop the managed namespace view
+func (v *NamespaceView) Stop() {
+	v.Table.Stop()
+}
+
+// Hint return key action menu hints of the k8s view
+func (v *NamespaceView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
 }
 
 func (v *NamespaceView) bindKeys() {

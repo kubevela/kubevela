@@ -49,11 +49,6 @@ func (v *PodView) Init() {
 	// set title of view
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-
-	resourceList := v.ListPods()
-	v.ResourceView.Init(resourceList)
-	v.ColorizePhaseText(len(resourceList.Body()))
-
 	v.bindKeys()
 }
 
@@ -90,6 +85,18 @@ func (v *PodView) Name() string {
 	return "Pod"
 }
 
+// Start the pod view
+func (v *PodView) Start() {
+	resourceList := v.ListPods()
+	v.ResourceView.Init(resourceList)
+	v.ColorizePhaseText(len(resourceList.Body()))
+}
+
+// Stop the pod view
+func (v *PodView) Stop() {
+	v.Table.Stop()
+}
+
 // Hint return key action menu hints of the pod view
 func (v *PodView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
@@ -98,7 +105,29 @@ func (v *PodView) Hint() []model.MenuHint {
 func (v *PodView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
+		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
+}
+
+func (v *PodView) yamlView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
+
+	gvr := model.GVR{
+		GV: "v1",
+		R: model.Resource{
+			Kind:      "Pod",
+			Name:      name,
+			Namespace: namespace,
+			//Cluster:   cluster,
+		},
+	}
+	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
+	v.app.command.run(ctx, "yaml")
+	return nil
 }

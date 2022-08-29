@@ -28,14 +28,14 @@ import (
 
 // HelpView is the view which display help tips about how to use app
 type HelpView struct {
-	*Table
+	*component.Table
 	app *App
 }
 
 // NewHelpView return a new help view
 func NewHelpView(app *App) *HelpView {
 	v := &HelpView{
-		Table: NewTable(),
+		Table: component.NewTable(),
 		app:   app,
 	}
 	return v
@@ -49,14 +49,14 @@ func (v *HelpView) Init() {
 	v.bindKeys()
 }
 
+// Name return help view name
+func (v *HelpView) Name() string {
+	return "Help"
+}
+
 func (v *HelpView) bindKeys() {
 	v.Actions().Add(model.KeyActions{
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 	})
-}
-
-// Name return help view name
-func (v *HelpView) Name() string {
-	return "Help"
 }
