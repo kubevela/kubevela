@@ -98,7 +98,7 @@ jobs:
           internal_ip=$(docker network inspect k3d-k3s-default|jq ".[0].Containers"| jq -r '.[]| select(.Name=="k3d-worker-server-0")|.IPv4Address' | cut -d/ -f1)
           k3d kubeconfig get worker > /tmp/worker.client.kubeconfig
           cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
-          sed -i "" -e  "s/host.docker.internal/$internal_ip/"  /tmp/worker.kubeconfig
+          sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
       - name: Load Image to kind cluster (Hub)
         run: make kind-load
