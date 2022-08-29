@@ -379,10 +379,6 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 					cmd.Printf("APIService \"%s\" is available!\n", APIServiceName)
 				}
 			}
-			_, err = multicluster.GetClusterGatewayService(context.Background(), k8sClient)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get cluster secret namespace, please ensure cluster gateway is correctly deployed")
-			}
 			fmt.Println("Result: The link of hub APIServer to cluster-gateway is fine~")
 			fmt.Println("------------------------------------------------------")
 			// Todo: Diagnose others
@@ -414,7 +410,19 @@ func CheckAPIService(ctx context.Context, config *rest.Config, apiService *apire
 		return err
 	}
 	if len(pods.Items) == 0 {
-		return errors.Errorf("No available pods in %s namespace with label %s", svcNamespace, set.AsSelector().String())
+		return errors.Errorf("No available pods in %s namespace with label %s.", svcNamespace, set.AsSelector().String())
+	}
+	for _, pod := range pods.Items {
+		for _, status := range pod.Status.ContainerStatuses {
+			if !status.Ready {
+				for _, condition := range pod.Status.Conditions {
+					if condition.Status != "True" {
+						return errors.Errorf("Pod %s is not ready. Condition \"%s\" status: %s.", pod.Name, condition.Type, condition.Status)
+					}
+				}
+				return errors.Errorf("Pod %s is not ready.", pod.Name)
+			}
+		}
 	}
 	return nil
 }
