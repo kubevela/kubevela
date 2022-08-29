@@ -128,27 +128,31 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
+      - name: Tear down K3d if exist
+        run: |
+          k3d cluster delete || true
+          k3d cluster delete worker || true
+
+      - name: Setup K3d (Hub)
+        uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: ${{ env.KIND_VERSION }}
-          skipClusterCreation: true
+          version: v1.22
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Kind Cluster (Worker)
-        run: |
-          kind delete cluster --name worker
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }} --name worker
-          kubectl version
-          kubectl cluster-info
-          kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
-          kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
+      - name: Setup K3d (Worker)
+        uses: nolar/setup-k3d-k3s@v1.0.8
+        with:
+          version: v1.22
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          k3d-name: worker
+          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
 
-      - name: Setup Kind Cluster (Hub)
+      - name: Kind Cluster (Worker)
         run: |
-          kind delete cluster
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
-          kubectl version
-          kubectl cluster-info
+          internal_ip=$(docker network inspect k3d-k3s-default|jq ".[0].Containers"| jq -r '.[]| select(.Name=="k3d-worker-server-0")|.IPv4Address' | cut -d/ -f1)
+          k3d kubeconfig get worker > /tmp/worker.client.kubeconfig
+          cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
+          sed -i "" -e  "s/host.docker.internal/$internal_ip/"  /tmp/worker.kubeconfig
 
       - name: Load Image to kind cluster
         run: make kind-load

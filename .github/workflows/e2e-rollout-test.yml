@@ -72,27 +72,21 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
-        with:
-          version: ${{ env.KIND_VERSION }}
-          skipClusterCreation: true
-
-      - name: Setup Kind Cluster
+      - name: Tear down K3d if exist
         run: |
-          kind delete cluster
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
-          kubectl version
-          kubectl cluster-info
+          k3d cluster delete || true
+
+      - name: Setup K3d
+        uses: nolar/setup-k3d-k3s@v1.0.8
+        with:
+          version: v1.22
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load Image to kind cluster
         run: make kind-load
 
       - name: Run Make
         run: make
-
-      - name: Run Make Manager
-        run: make manager
 
       - name: Prepare for e2e tests
         run: |
