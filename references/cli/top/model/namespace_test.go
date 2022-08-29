@@ -19,7 +19,6 @@ package model
 import (
 	"context"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -41,15 +40,6 @@ func TestNamespaceList_Body(t *testing.T) {
 	}
 	assert.Equal(t, len(nsList.Body()), 1)
 	assert.Equal(t, nsList.Body()[0], []string{AllNamespace, "*", "*"})
-}
-
-func TestTimeFormat(t *testing.T) {
-	t1, err1 := time.ParseDuration("1.5h")
-	assert.NoError(t, err1)
-	assert.Equal(t, timeFormat(t1), "0d1h30m0ss")
-	t2, err2 := time.ParseDuration("25h")
-	assert.NoError(t, err2)
-	assert.Equal(t, timeFormat(t2), "1d1h0m0ss")
 }
 
 var _ = Describe("test namespace", func() {

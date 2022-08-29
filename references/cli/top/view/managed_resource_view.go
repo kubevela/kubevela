@@ -111,6 +111,7 @@ func (v *ManagedResourceView) ColorizeStatusText(rowNum int) {
 func (v *ManagedResourceView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
+		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.podView, Visible: true, Shared: true},
 		component.KeyC:    model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
 		component.KeyN:    model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
@@ -130,4 +131,18 @@ func (v *ManagedResourceView) clusterNamespaceView(event *tcell.EventKey) *tcell
 	v.app.content.PopComponent()
 	v.app.command.run(v.ctx, "cns")
 	return event
+}
+
+func (v *ManagedResourceView) podView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace, cluster := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text, v.GetCell(row, 4).Text
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, cluster)
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, namespace)
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyComponentName, name)
+
+	v.app.command.run(v.ctx, "pod")
+	return nil
 }

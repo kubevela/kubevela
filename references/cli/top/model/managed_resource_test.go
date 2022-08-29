@@ -25,28 +25,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestK8SObjectList_Header(t *testing.T) {
+func TestManagedResource_Header(t *testing.T) {
 	list := ManagedResourceList{title: []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"}}
 	assert.Equal(t, len(list.Header()), 6)
 	assert.Equal(t, list.Header(), []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"})
 }
 
-func TestK8SObjectList_Body(t *testing.T) {
+func TestManagedResource_Body(t *testing.T) {
 	list := ManagedResourceList{data: []ManagedResource{{"", "", "", "", "", ""}}}
 	assert.Equal(t, len(list.Body()), 1)
 	assert.Equal(t, list.Body(), [][]string{{"", "", "", "", "", ""}})
 }
 
-var _ = Describe("test k8s object", func() {
+var _ = Describe("test managed resource", func() {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &CtxKeyAppName, "first-vela-app")
 	ctx = context.WithValue(ctx, &CtxKeyNamespace, "default")
 	ctx = context.WithValue(ctx, &CtxKeyCluster, "local")
 
-	It("list k8s object", func() {
+	It("list managed resource", func() {
 		list, err := ListManagedResource(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(list.Header())).To(Equal(6))
-		Expect(len(list.Body())).To(Equal(2))
+		Expect(len(list.Body())).To(Equal(4))
 	})
 })

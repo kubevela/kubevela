@@ -53,6 +53,9 @@ var ResourceMap = map[string]ResourceViewer{
 	"cns": {
 		viewFunc: NewClusterNamespaceView,
 	},
+	"pod": {
+		viewFunc: NewPodView,
+	},
 }
 
 // NewResourceView return a new resource view

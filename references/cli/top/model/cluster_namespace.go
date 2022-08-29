@@ -23,6 +23,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
 
 // NamespaceList is namespace list
@@ -58,7 +60,7 @@ func ListClusterNamespaces(ctx context.Context, c client.Client) (*NamespaceList
 		list.data = append(list.data, Namespace{
 			Name:   namespaceInfo.Name,
 			Status: string(namespaceInfo.Status.Phase),
-			Age:    timeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
+			Age:    utils.TimeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
 		})
 	}
 

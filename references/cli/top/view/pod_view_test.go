@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/rivo/tview"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-func TestManagedResourceView(t *testing.T) {
+func TestPodView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -47,48 +48,38 @@ func TestManagedResourceView(t *testing.T) {
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "")
+	ctx = context.WithValue(ctx, &model.CtxKeyClusterNamespace, "")
+	ctx = context.WithValue(ctx, &model.CtxKeyComponentName, "")
 
-	view := NewManagedResourceView(ctx, app)
-	resourceView, ok := (view).(*ManagedResourceView)
+	view, ok := NewPodView(ctx, app).(*PodView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
-		resourceView.Init()
-		assert.Equal(t, resourceView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
-		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
+		view.Init()
+		assert.Equal(t, view.Table.GetTitle(), "[ Pod ]")
+		assert.Equal(t, view.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {
 		testData := [][]string{
-			{"app", "ns", "", "", "", "Healthy"},
-			{"app", "ns", "", "", "", "UnHealthy"},
-			{"app", "ns", "", "", "", "Progressing"},
-			{"app", "ns", "", "", "", "UnKnown"}}
+			{"app", "ns", "1/1", "Running", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "1/1", "Pending", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "1/1", "Succeeded", "", "", "", "", "", "", "", "", ""},
+			{"app", "ns", "1/1", "Failed", "", "", "", "", "", "", "", "", ""},
+		}
 		for i := 0; i < len(testData); i++ {
 			for j := 0; j < len(testData[i]); j++ {
-				resourceView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
+				view.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
 			}
 		}
-		resourceView.ColorizeStatusText(4)
-		assert.Equal(t, resourceView.GetCell(1, 5).Text, "[green::]Healthy")
-		assert.Equal(t, resourceView.GetCell(2, 5).Text, "[red::]UnHealthy")
-		assert.Equal(t, resourceView.GetCell(3, 5).Text, "[blue::]Progressing")
-		assert.Equal(t, resourceView.GetCell(4, 5).Text, "[gray::]UnKnown")
+		view.ColorizePhaseText(5)
+		assert.Equal(t, view.GetCell(1, 3).Text, "[green::]Running")
+		assert.Equal(t, view.GetCell(2, 3).Text, "[yellow::]Pending")
+		assert.Equal(t, view.GetCell(3, 3).Text, "[purple::]Succeeded")
+		assert.Equal(t, view.GetCell(4, 3).Text, "[red::]Failed")
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(resourceView.Hint()), 5)
-	})
-
-	t.Run("select cluster", func(t *testing.T) {
-		assert.Empty(t, resourceView.clusterView(nil))
-	})
-
-	t.Run("select cluster namespace", func(t *testing.T) {
-		assert.Empty(t, resourceView.clusterNamespaceView(nil))
-	})
-
-	t.Run("pod view", func(t *testing.T) {
-		assert.Empty(t, resourceView.podView(nil))
+		assert.Equal(t, len(view.Hint()), 2)
 	})
 }
