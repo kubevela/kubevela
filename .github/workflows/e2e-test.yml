@@ -79,7 +79,7 @@ jobs:
       - name: Setup K3d
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.20
+          version: v1.22
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load Image to kind cluster
