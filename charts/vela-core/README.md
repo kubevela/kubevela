@@ -96,6 +96,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableLegacyComponentRevision`      | if disabled, only component with rollout trait will create component revisions                                                                                                       | `false` |
 | `featureGates.gzipResourceTracker`                | if enabled, resourceTracker will be compressed using gzip before being stored                                                                                                        | `false` |
 | `featureGates.zstdResourceTracker`                | if enabled, resourceTracker will be compressed using zstd before being stored. It is much faster and more efficient than gzip. If both gzip and zstd are enabled, zstd will be used. | `false` |
+| `featureGates.applyOnce`                          | if enabled, the apply-once feature will be applied to all applications, no state-keep and no resource data storage in ResourceTracker                                                | `false` |
 
 
 ### MultiCluster parameters

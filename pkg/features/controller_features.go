@@ -70,6 +70,11 @@ const (
 	// If dealing with smaller ResourceTrackers (10KB - 1MB), the performance
 	// penalties are minimal.
 	ZstdResourceTracker featuregate.Feature = "ZstdResourceTracker"
+
+	// ApplyOnce enable the apply-once feature for all applications
+	// If enabled, no StateKeep will be run, ResourceTracker will also disable the storage of all resource data, only
+	// metadata will be kept
+	ApplyOnce featuregate.Feature = "ApplyOnce"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -85,6 +90,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
 	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
+	ApplyOnce:                     {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
