@@ -89,7 +89,8 @@ jobs:
         run: |
           make vela-cli
           make e2e-cleanup
-          make e2e-setup
+          make e2e-setup-core
+          make setup-runtime-e2e-cluster
           helm test -n vela-system kubevela --timeout 5m
 
       - name: Run e2e tests

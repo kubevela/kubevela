@@ -91,7 +91,7 @@ jobs:
       - name: Prepare for e2e tests
         run: |
           make e2e-cleanup
-          make e2e-setup
+          make e2e-setup-core
           helm test -n vela-system kubevela --timeout 5m
 
       - name: Run api e2e tests
