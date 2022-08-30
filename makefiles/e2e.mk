@@ -5,12 +5,6 @@ e2e-setup-core-pre-hook:
 .PHONY: e2e-setup-core-post-hook
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
-#	helm upgrade --install                               \
-#	    --namespace vela-system                          \
-#	    --wait oam-rollout                               \
-#	    --set image.repository=vela-runtime-rollout-test \
-#	    --set image.tag=$(GIT_COMMIT)                    \
-#	    ./runtime/rollout/charts
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
@@ -60,6 +54,14 @@ e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-cor
 
 .PHONY: setup-runtime-e2e-cluster
 setup-runtime-e2e-cluster:
+	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
+	helm upgrade --install                               \
+	    --namespace vela-system                          \
+	    --wait oam-rollout                               \
+	    --set image.repository=vela-runtime-rollout-test \
+	    --set image.tag=$(GIT_COMMIT)                    \
+	    ./runtime/rollout/charts
+
 	helm upgrade --install                               \
 	    --create-namespace                               \
 	    --namespace vela-system                          \
