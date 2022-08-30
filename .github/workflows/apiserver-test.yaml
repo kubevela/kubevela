@@ -136,13 +136,13 @@ jobs:
       - name: Setup K3d (Hub)
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.18
+          version: v1.20
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup K3d (Worker)
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.18
+          version: v1.20
           github-token: ${{ secrets.GITHUB_TOKEN }}
           k3d-name: worker
           k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
