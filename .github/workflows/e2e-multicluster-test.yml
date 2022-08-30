@@ -105,9 +105,9 @@ jobs:
 
       - name: Cleanup for e2e tests
         run: |
+          make
           make e2e-cleanup
           make e2e-setup-core-auth
-          make
           make setup-runtime-e2e-cluster
 
       - name: Run e2e multicluster tests
