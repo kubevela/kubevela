@@ -5,6 +5,7 @@ e2e-setup-core-pre-hook:
 .PHONY: e2e-setup-core-post-hook
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
+	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true" --set daemon.socketLocation=/run/k3s/containerd/
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
