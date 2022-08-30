@@ -70,7 +70,10 @@ setup-runtime-e2e-cluster:
 	    --set image.repository=vela-runtime-rollout-test \
 	    --set image.tag=$(GIT_COMMIT)                    \
 	    --wait vela-rollout                              \
-	    ./runtime/rollout/charts
+	    ./runtime/rollout/charts ||						 \
+	echo "no worker cluster"					   		 \
+
+
 
 .PHONY: e2e-api-test
 e2e-api-test:
