@@ -54,7 +54,6 @@ e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-cor
 
 .PHONY: setup-runtime-e2e-cluster
 setup-runtime-e2e-cluster:
-	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
 	helm upgrade --install                               \
 	    --namespace vela-system                          \
 	    --wait oam-rollout                               \
@@ -62,6 +61,7 @@ setup-runtime-e2e-cluster:
 	    --set image.tag=$(GIT_COMMIT)                    \
 	    ./runtime/rollout/charts
 
+	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
 	helm upgrade --install                               \
 	    --create-namespace                               \
 	    --namespace vela-system                          \
