@@ -100,12 +100,12 @@ jobs:
           cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
-      - name: Load Image to kind cluster (Hub)
-        run: make kind-load
+      - name: Load Image to K3d Cluster (Hub)
+        run: make image-load
 
       - name: Cleanup for e2e tests
         run: |
-          make
+          make vela-cli
           make e2e-cleanup
           make e2e-setup-core-auth
           make setup-runtime-e2e-cluster

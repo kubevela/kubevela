@@ -82,20 +82,16 @@ jobs:
           version: v1.22
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load Image to kind cluster
-        run: make kind-load
+      - name: Load Image to K3d Cluster
+        run: make image-load
 
       - name: Run Make
         run: make
-
-#      - name: Run Make Manager
-#        run: make manager
 
       - name: Prepare for e2e tests
         run: |
           make e2e-cleanup
           make e2e-setup
-          helm lint ./charts/vela-core
           helm test -n vela-system kubevela --timeout 5m
 
       - name: Run api e2e tests
