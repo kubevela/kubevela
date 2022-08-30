@@ -49,6 +49,7 @@ func TestPageStack(t *testing.T) {
 		stack.StackPush(helpView)
 	})
 	t.Run("stack pop", func(t *testing.T) {
-		stack.StackPop(nil, nil)
+		helpView := NewHelpView(app)
+		stack.StackPop(helpView, helpView)
 	})
 }

@@ -55,7 +55,16 @@ func TestManagedResourceView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		resourceView.Init()
 		assert.Equal(t, resourceView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
+
+	})
+
+	t.Run("start", func(t *testing.T) {
+		resourceView.Start()
 		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		resourceView.Stop()
 	})
 
 	t.Run("colorize text", func(t *testing.T) {
@@ -77,7 +86,7 @@ func TestManagedResourceView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(resourceView.Hint()), 5)
+		assert.Equal(t, len(resourceView.Hint()), 6)
 	})
 
 	t.Run("select cluster", func(t *testing.T) {
@@ -89,6 +98,7 @@ func TestManagedResourceView(t *testing.T) {
 	})
 
 	t.Run("pod view", func(t *testing.T) {
+		resourceView.Table.Table = resourceView.Table.Select(1, 1)
 		assert.Empty(t, resourceView.podView(nil))
 	})
 }

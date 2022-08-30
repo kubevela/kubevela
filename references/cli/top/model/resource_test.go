@@ -39,24 +39,41 @@ var _ = Describe("test resource", func() {
 	ctx = context.WithValue(ctx, &CtxKeyClusterNamespace, "")
 	ctx = context.WithValue(ctx, &CtxKeyComponentName, "webservice-test")
 
-	opt := query.Option{
-		Name:      "first-vela-app",
-		Namespace: "default",
-		Filter: query.FilterOption{
-			Cluster:          "",
-			ClusterNamespace: "",
-			Components:       []string{"deploy1"},
-			APIVersion:       "v1",
-			Kind:             "Pod",
-		},
-		WithTree: true,
-	}
-
 	It("collect resource", func() {
+		opt := query.Option{
+			Name:      "first-vela-app",
+			Namespace: "default",
+			Filter: query.FilterOption{
+				Cluster:          "",
+				ClusterNamespace: "",
+				Components:       []string{"deploy1"},
+				APIVersion:       "v1",
+				Kind:             "Pod",
+			},
+			WithTree: true,
+		}
 		podList, err := collectResource(ctx, k8sClient, opt)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(podList)).To(Equal(1))
 	})
+
+	It("convert object to yaml", func() {
+		gvr := &GVR{
+			GV: "core.oam.dev/v1beta1",
+			R: Resource{
+				Kind:      "Application",
+				Name:      "first-vela-app",
+				Namespace: "default",
+			},
+		}
+		obj, err := GetResourceObject(k8sClient, gvr)
+		Expect(err).NotTo(HaveOccurred())
+		yaml, err := ToYaml(obj)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(yaml).NotTo(ContainSubstring("can't load"))
+		Expect(yaml).To(ContainSubstring("apiVersion: core.oam.dev/v1beta1"))
+	})
+
 })
 
 func TestSonLeafResource(t *testing.T) {

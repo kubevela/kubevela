@@ -60,6 +60,8 @@ var (
 	CtxKeyClusterNamespace = "cluster"
 	// CtxKeyComponentName request context key of component name
 	CtxKeyComponentName = "componentName"
+	// CtxKeyGVR request context key of GVR
+	CtxKeyGVR = "gvr"
 )
 
 const (

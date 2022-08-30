@@ -53,20 +53,28 @@ func TestClusterView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		clusterView.Init()
 		assert.Equal(t, clusterView.Table.GetTitle(), "[ Cluster ]")
-		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("hint", func(t *testing.T) {
 		assert.Equal(t, len(clusterView.Hint()), 3)
 	})
 
-	t.Run("k8sObjectView", func(t *testing.T) {
+	t.Run("start", func(t *testing.T) {
+		clusterView.Start()
+		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		clusterView.Stop()
+	})
+
+	t.Run("managedResourceView", func(t *testing.T) {
 		testData := []string{"local", "", "", "", ""}
 		for j := 0; j < 5; j++ {
 			clusterView.Table.SetCell(1, j, tview.NewTableCell(testData[j]))
 		}
 		assert.Equal(t, clusterView.GetCell(1, 0).Text, "local")
-		clusterView.Table.Table.Table = clusterView.Table.Select(1, 1)
+		clusterView.Table.Table = clusterView.Table.Select(1, 1)
 		assert.Empty(t, clusterView.managedResourceView(nil))
 	})
 }

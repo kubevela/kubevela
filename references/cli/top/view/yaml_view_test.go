@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivo/tview"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-func TestApplicationView(t *testing.T) {
+func TestYamlView(t *testing.T) {
 	testEnv := &envtest.Environment{
 		ControlPlaneStartTimeout: time.Minute * 3,
 		ControlPlaneStopTimeout:  time.Minute,
@@ -44,44 +43,29 @@ func TestApplicationView(t *testing.T) {
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
 	ctx := context.Background()
+	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	view := NewApplicationView(ctx, app)
-	appView, ok := (view).(*ApplicationView)
+	view := NewYamlView(ctx, app)
+	yamlView, ok := (view).(*YamlView)
 	assert.Equal(t, ok, true)
 
 	t.Run("init", func(t *testing.T) {
-		appView.Init()
-		assert.Equal(t, appView.Table.GetTitle(), "[ Application (all) ]")
-	})
-	t.Run("start", func(t *testing.T) {
-		appView.Start()
-		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
-	})
-	t.Run("stop", func(t *testing.T) {
-		appView.Stop()
-	})
-
-	t.Run("colorize text", func(t *testing.T) {
-		testData := [][]string{{"app", "ns", "running", ""}, {"app", "ns", "workflowSuspending", ""}, {"app", "ns", "workflowTerminated", ""}, {"app", "ns", "rendering", ""}}
-		for i := 0; i < len(testData); i++ {
-			for j := 0; j < 4; j++ {
-				appView.Table.SetCell(1+i, j, tview.NewTableCell(testData[i][j]))
-			}
-		}
-		appView.ColorizeStatusText(4)
-		assert.Equal(t, appView.GetCell(1, 2).Text, "[green::]running")
-		assert.Equal(t, appView.GetCell(2, 2).Text, "[yellow::]workflowSuspending")
-		assert.Equal(t, appView.GetCell(3, 2).Text, "[red::]workflowTerminated")
-		assert.Equal(t, appView.GetCell(4, 2).Text, "[blue::]rendering")
+		yamlView.Init()
+		assert.Equal(t, yamlView.GetTitle(), "[ Yaml ]")
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 5)
+		assert.Equal(t, len(yamlView.Hint()), 2)
 	})
 
-	t.Run("object view", func(t *testing.T) {
-		appView.Table.Table = appView.Table.Select(1, 1)
-		assert.Empty(t, appView.managedResourceView(nil))
+	t.Run("start", func(t *testing.T) {
+		yamlView.Start()
+		content := yamlView.TextView.GetText(true)
+		assert.NotEmpty(t, content)
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		yamlView.Stop()
 	})
 
 }

@@ -47,10 +47,6 @@ func NewClusterNamespaceView(ctx context.Context, app *App) model.Component {
 func (v *ClusterNamespaceView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-
-	resourceList := v.ListClusterNamespaces()
-	v.ResourceView.Init(resourceList)
-
 	v.bindKeys()
 }
 
@@ -66,6 +62,17 @@ func (v *ClusterNamespaceView) ListClusterNamespaces() model.ResourceList {
 // Hint return key action menu hints of the cluster namespace view
 func (v *ClusterNamespaceView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
+}
+
+// Start the cluster namespace view
+func (v *ClusterNamespaceView) Start() {
+	resourceList := v.ListClusterNamespaces()
+	v.ResourceView.Init(resourceList)
+}
+
+// Stop the cluster namespace view
+func (v *ClusterNamespaceView) Stop() {
+	v.Table.Stop()
 }
 
 // Name return cluster namespace view name

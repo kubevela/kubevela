@@ -49,11 +49,6 @@ func (v *ManagedResourceView) Init() {
 	// set title of view
 	title := fmt.Sprintf("[ %s ]", v.Title())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-
-	resourceList := v.ListManagedResources()
-	v.ResourceView.Init(resourceList)
-
-	v.ColorizeStatusText(len(resourceList.Body()))
 	v.bindKeys()
 }
 
@@ -82,6 +77,18 @@ func (v *ManagedResourceView) Title() string {
 // Name return managed resource view name
 func (v *ManagedResourceView) Name() string {
 	return "Managed Resource"
+}
+
+// Start the managed resource view
+func (v *ManagedResourceView) Start() {
+	resourceList := v.ListManagedResources()
+	v.ResourceView.Init(resourceList)
+	v.ColorizeStatusText(len(resourceList.Body()))
+}
+
+// Stop the managed resource view
+func (v *ManagedResourceView) Stop() {
+	v.Table.Stop()
 }
 
 // Hint return key action menu hints of the managed resource view
@@ -114,6 +121,7 @@ func (v *ManagedResourceView) bindKeys() {
 		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.podView, Visible: true, Shared: true},
 		component.KeyC:    model.KeyAction{Description: "Select Cluster", Action: v.clusterView, Visible: true, Shared: true},
 		component.KeyN:    model.KeyAction{Description: "Select ClusterNS", Action: v.clusterNamespaceView, Visible: true, Shared: true},
+		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
 	})
@@ -144,5 +152,27 @@ func (v *ManagedResourceView) podView(event *tcell.EventKey) *tcell.EventKey {
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyComponentName, name)
 
 	v.app.command.run(v.ctx, "pod")
+	return nil
+}
+
+func (v *ManagedResourceView) yamlView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
+	kind, api, cluster := v.GetCell(row, 2).Text, v.GetCell(row, 3).Text, v.GetCell(row, 4).Text
+
+	gvr := model.GVR{
+		GV: api,
+		R: model.Resource{
+			Kind:      kind,
+			Name:      name,
+			Namespace: namespace,
+			Cluster:   cluster,
+		},
+	}
+	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
+	v.app.command.run(ctx, "yaml")
 	return nil
 }

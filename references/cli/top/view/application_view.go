@@ -49,11 +49,6 @@ func (v *ApplicationView) Init() {
 	// set title of view
 	title := fmt.Sprintf("[ %s ]", v.Title())
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-	// init view
-	resourceList := v.ListApplications()
-	v.ResourceView.Init(resourceList)
-
-	v.ColorizeStatusText(len(resourceList.Body()))
 	v.bindKeys()
 }
 
@@ -99,6 +94,18 @@ func (v *ApplicationView) Name() string {
 	return "Application"
 }
 
+// Start the application view
+func (v *ApplicationView) Start() {
+	resourceList := v.ListApplications()
+	v.ResourceView.Init(resourceList)
+	v.ColorizeStatusText(len(resourceList.Body()))
+}
+
+// Stop the application view
+func (v *ApplicationView) Stop() {
+	v.Table.Stop()
+}
+
 // Hint return key action menu hints of the application view
 func (v *ApplicationView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
@@ -107,10 +114,11 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.managedResourceView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
 		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 	})
 }
 
@@ -131,4 +139,23 @@ func (v *ApplicationView) namespaceView(event *tcell.EventKey) *tcell.EventKey {
 	v.app.content.Clear()
 	v.app.command.run(v.ctx, "ns")
 	return event
+}
+
+func (v *ApplicationView) yamlView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
+	gvr := model.GVR{
+		GV: "core.oam.dev/v1beta1",
+		R: model.Resource{
+			Kind:      "Application",
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
+	v.app.command.run(ctx, "yaml")
+	return nil
 }

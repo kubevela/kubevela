@@ -17,13 +17,17 @@ limitations under the License.
 package model
 
 import (
+	"bytes"
 	"context"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/cli-runtime/pkg/printers"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
@@ -34,6 +38,20 @@ type ResourceList interface {
 	Header() []string
 	// Body generate body of table in resource view
 	Body() [][]string
+}
+
+// Resource info used by GVR
+type Resource struct {
+	Kind      string
+	Name      string
+	Namespace string
+	Cluster   string
+}
+
+// GVR is Group, Version, Resource
+type GVR struct {
+	GV string
+	R  Resource
 }
 
 func collectResource(ctx context.Context, c client.Client, opt query.Option) ([]unstructured.Unstructured, error) {
@@ -75,4 +93,34 @@ func sonLeafResource(res querytypes.AppliedResource, node *querytypes.ResourceTr
 		objects = append(objects, node.Object)
 	}
 	return objects
+}
+
+// GetResourceObject get the resource object refer to the GVR data
+func GetResourceObject(c client.Client, gvr *GVR) (runtime.Object, error) {
+	obj := new(unstructured.Unstructured)
+	obj.SetAPIVersion(gvr.GV)
+	obj.SetKind(gvr.R.Kind)
+	key := client.ObjectKey{
+		Name:      gvr.R.Name,
+		Namespace: gvr.R.Namespace,
+	}
+	ctx := multicluster.ContextWithClusterName(context.Background(), gvr.R.Cluster)
+	err := c.Get(ctx, key, obj)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+// ToYaml load the yaml text of object
+func ToYaml(o runtime.Object) (string, error) {
+	var (
+		buff bytes.Buffer
+		p    printers.YAMLPrinter
+	)
+	err := p.PrintObj(o, &buff)
+	if err != nil {
+		return "", err
+	}
+	return buff.String(), nil
 }
