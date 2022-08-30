@@ -17,9 +17,8 @@ env:
   # Common versions
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
-  KIND_VERSION: 'v0.7.0'
-  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
-  KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
+  K3D_IMAGE_VERSION: '[\"v1.20\"]'
+  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.22\"]'
 
 jobs:
 
@@ -46,9 +45,9 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "pushing tag: ${{ github.ref_name }}"
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSIONS }}"
           else
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSION }}"
           fi
 
   e2e-tests:
@@ -80,7 +79,7 @@ jobs:
       - name: Setup K3d
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.20
+          version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load image to k3d cluster
