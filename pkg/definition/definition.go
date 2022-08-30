@@ -237,7 +237,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	labels := map[string]string{}
 	for k, v := range def.GetLabels() {
 		if !strings.HasPrefix(k, UserPrefix) {
-			annotations[k] = v
+			labels[k] = v
 		}
 	}
 	spec, ok := def.Object["spec"].(map[string]interface{})
