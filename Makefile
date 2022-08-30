@@ -83,7 +83,7 @@ endif
 
 
 # load docker image to the k3d cluster
-image-load: image-load-runtime-cluster
+image-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	k3d image import $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 

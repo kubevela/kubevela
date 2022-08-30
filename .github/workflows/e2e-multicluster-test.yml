@@ -82,13 +82,13 @@ jobs:
       - name: Setup K3d (Hub)
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.22
+          version: v1.18
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup K3d (Worker)
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: v1.22
+          version: v1.18
           github-token: ${{ secrets.GITHUB_TOKEN }}
           k3d-name: worker
           k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
@@ -101,7 +101,7 @@ jobs:
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
       - name: Load Image to K3d Cluster (Hub)
-        run: make image-load
+        run: make image-load image-load-runtime-cluster
 
       - name: Cleanup for e2e tests
         run: |
