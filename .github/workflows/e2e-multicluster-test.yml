@@ -93,14 +93,14 @@ jobs:
           k3d-name: worker
           k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
 
-      - name: Kind Cluster (Worker)
+      - name: Generating internal worker kubeconfig
         run: |
           internal_ip=$(docker network inspect k3d-k3s-default|jq ".[0].Containers"| jq -r '.[]| select(.Name=="k3d-worker-server-0")|.IPv4Address' | cut -d/ -f1)
           k3d kubeconfig get worker > /tmp/worker.client.kubeconfig
           cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
-      - name: Load Image to K3d Cluster (Hub)
+      - name: Load image to k3d cluster (hub and worker)
         run: make image-load image-load-runtime-cluster
 
       - name: Cleanup for e2e tests

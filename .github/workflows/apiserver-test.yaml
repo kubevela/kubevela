@@ -154,7 +154,7 @@ jobs:
           cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
           sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
-      - name: Load Image to K3d Cluster
+      - name: Load image to k3d cluster
         run: make image-load
 
       - name: Cleanup for e2e tests

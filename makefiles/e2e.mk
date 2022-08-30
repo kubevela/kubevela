@@ -15,8 +15,8 @@ e2e-setup-core-post-hook:
 	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
 	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
+	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
-	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
 
 	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s

@@ -82,7 +82,7 @@ jobs:
           version: v1.20
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load Image to K3d Cluster
+      - name: Load image to k3d cluster
         run: make image-load
 
       - name: Run Make
