@@ -9,7 +9,7 @@
 template: {
 	parameter: {
 		// +usage=Specify the names of the clusters to select.
-		cluster?: [...string]
+		clusters?: [...string]
 		// +usage=Specify the label selector for clusters
 		clusterLabelSelector?: [string]: string
 		// +usage=Deprecated: Use clusterLabelSelector instead.
