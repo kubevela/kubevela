@@ -77,7 +77,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	holdAddons := []string{"addon-fluxcd", "addon-terraform"}
+	holdAddons := []string{"addon-terraform", "addon-fluxcd"}
 	Eventually(func(g Gomega) {
 		apps := &v1beta1.ApplicationList{}
 		g.Expect(k8sClient.List(context.Background(), apps)).Should(Succeed())
@@ -94,7 +94,7 @@ var _ = AfterSuite(func() {
 		apps := &v1beta1.ApplicationList{}
 		for _, addon := range holdAddons {
 			g.Expect(k8sClient.Delete(context.Background(), &v1beta1.Application{ObjectMeta: v1.ObjectMeta{Name: addon, Namespace: types.DefaultKubeVelaNS}})).Should(SatisfyAny(Succeed(), oamutil.NotFoundMatcher{}))
-			g.Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: addon, Namespace: types.DefaultKubeVelaNS}, app)).Should(Succeed(), oamutil.NotFoundMatcher{})
+			g.Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: addon, Namespace: types.DefaultKubeVelaNS}, app)).Should(SatisfyAny(Succeed(), oamutil.NotFoundMatcher{}))
 		}
 		err := k8sClient.List(context.Background(), apps)
 		g.Expect(err, nil)
