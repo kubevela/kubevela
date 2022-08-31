@@ -90,7 +90,7 @@ jobs:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           k3d-name: worker
-          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
+          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default --k3s-arg=--egress-selector-mode=disabled@server:0
 
       - name: Generating internal worker kubeconfig
         run: |
