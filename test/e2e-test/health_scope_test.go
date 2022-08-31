@@ -18,6 +18,7 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -80,6 +82,7 @@ var _ = Describe("HealthScope", func() {
 		var healthyAppName, unhealthyAppName string
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_healthscope.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
+		convertToLegacyIngressTrait(&newApp)
 		Eventually(func() error {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
@@ -101,6 +104,7 @@ var _ = Describe("HealthScope", func() {
 		newApp = v1beta1.Application{}
 		Expect(utilcommon.ReadYamlToObject("testdata/app/app_healthscope_unhealthy.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
+		convertToLegacyIngressTrait(&newApp)
 		Eventually(func() error {
 			return k8sClient.Create(ctx, newApp.DeepCopy())
 		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
@@ -154,9 +158,11 @@ var _ = Describe("HealthScope", func() {
 				return fmt.Errorf("expect healthy comp, but %v is unhealthy, msg: %q", compSts1.Name, compSts1.Message)
 			}
 			if len(compSts1.Traits) != 1 {
-				return fmt.Errorf("expect 2 traits statuses, but got %d", len(compSts1.Traits))
+				return fmt.Errorf("expect 1 trait statuses, but got %d", len(compSts1.Traits))
 			}
-			Expect(compSts1.Traits[0].Message).Should(ContainSubstring("No loadBalancer found"))
+			if !strings.Contains(compSts1.Traits[0].Message, "visit the cluster or load balancer in front of the cluster") {
+				return fmt.Errorf("trait message isn't right, now is %s", compSts1.Traits[0].Message)
+			}
 
 			return nil
 		}, time.Second*30, time.Millisecond*500).Should(Succeed())
@@ -205,3 +211,34 @@ var _ = Describe("HealthScope", func() {
 		}, time.Second*30, time.Millisecond*500).Should(Succeed())
 	})
 })
+
+// convertToLegacyIngressTrait convert app's gateway trait to ingress
+func convertToLegacyIngressTrait(app *v1beta1.Application) {
+	if noNetworkingV1 {
+		for i := range app.Spec.Components {
+			for j := range app.Spec.Components[i].Traits {
+				if app.Spec.Components[i].Traits[j].Type == "gateway" {
+					app.Spec.Components[i].Traits[j].Type = "ingress"
+				}
+				props := app.Spec.Components[i].Traits[j].Properties
+				propMap, err := util.RawExtension2Map(props)
+				if err != nil {
+					return
+				}
+				newPropMap := map[string]interface{}{}
+				for k := range propMap {
+					if k != "class" {
+						newPropMap[k] = propMap[k]
+					}
+				}
+				ext, err := json.Marshal(newPropMap)
+				if err != nil {
+					return
+				}
+				app.Spec.Components[i].Traits[j].Properties = &runtime.RawExtension{
+					Raw: ext,
+				}
+			}
+		}
+	}
+}

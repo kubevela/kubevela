@@ -17,9 +17,8 @@ env:
   # Common versions
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
-  KIND_VERSION: 'v0.7.0'
-  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
-  KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
+  K3D_IMAGE_VERSION: '[\"v1.20\"]'
+  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.22\"]'
 
 jobs:
 
@@ -46,9 +45,9 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "pushing tag: ${{ github.ref_name }}"
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSIONS }}"
           else
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSION }}"
           fi
 
   e2e-rollout-tests:
@@ -72,33 +71,26 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
-        with:
-          version: ${{ env.KIND_VERSION }}
-          skipClusterCreation: true
-
-      - name: Setup Kind Cluster
+      - name: Tear down K3d if exist
         run: |
-          kind delete cluster
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
-          kubectl version
-          kubectl cluster-info
+          k3d cluster delete || true
+          k3d cluster delete worker || true
 
-      - name: Load Image to kind cluster
-        run: make kind-load
+      - name: Setup K3d
+        uses: nolar/setup-k3d-k3s@v1.0.8
+        with:
+          version: ${{ matrix.k8s-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run Make
-        run: make
-
-      - name: Run Make Manager
-        run: make manager
+      - name: Load image to k3d cluster
+        run: make image-load image-load-runtime-cluster
 
       - name: Prepare for e2e tests
         run: |
+          make vela-cli
           make e2e-cleanup
-          make e2e-setup
-          helm lint ./charts/vela-core
+          make e2e-setup-core
+          make setup-runtime-e2e-cluster
           helm test -n vela-system kubevela --timeout 5m
 
       - name: Run e2e tests
