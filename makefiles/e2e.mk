@@ -5,16 +5,18 @@ e2e-setup-core-pre-hook:
 .PHONY: e2e-setup-core-post-hook
 e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
-	helm upgrade --install                               \
-	    --namespace vela-system                          \
-	    --wait oam-rollout                               \
-	    --set image.repository=vela-runtime-rollout-test \
-	    --set image.tag=$(GIT_COMMIT)                    \
-	    ./runtime/rollout/charts
+	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true" --set daemon.socketLocation=/run/k3s/containerd/
 	go run ./e2e/addon/mock &
 	sleep 15
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
 	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
+	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
+	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
+
+	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
 .PHONY: e2e-setup-core-wo-auth
 e2e-setup-core-wo-auth:
@@ -54,6 +56,14 @@ e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-cor
 .PHONY: setup-runtime-e2e-cluster
 setup-runtime-e2e-cluster:
 	helm upgrade --install                               \
+	    --namespace vela-system                          \
+	    --wait oam-rollout                               \
+	    --set image.repository=vela-runtime-rollout-test \
+	    --set image.tag=$(GIT_COMMIT)                    \
+	    ./runtime/rollout/charts
+
+	k3d cluster get $(RUNTIME_CLUSTER_NAME) && 			 \
+	helm upgrade --install                               \
 	    --create-namespace                               \
 	    --namespace vela-system                          \
 	    --kubeconfig=$(RUNTIME_CLUSTER_CONFIG)           \
@@ -61,41 +71,10 @@ setup-runtime-e2e-cluster:
 	    --set image.repository=vela-runtime-rollout-test \
 	    --set image.tag=$(GIT_COMMIT)                    \
 	    --wait vela-rollout                              \
-	    ./runtime/rollout/charts
+	    ./runtime/rollout/charts ||						 \
+	echo "no worker cluster"					   		 \
 
-.PHONY: e2e-setup
-e2e-setup:
-	helm install kruise https://github.com/openkruise/charts/releases/download/kruise-1.1.0/kruise-1.1.0.tgz --set featureGates="PreDownloadImageForInPlaceUpdate=true"
-	sh ./hack/e2e/modify_charts.sh
-	helm upgrade --install                    \
-	    --create-namespace                    \
-	    --namespace vela-system               \
-	    --set image.pullPolicy=IfNotPresent   \
-	    --set image.repository=vela-core-test \
-	    --set applicationRevisionLimit=5      \
-	    --set dependCheckWait=10s             \
-	    --set image.tag=$(GIT_COMMIT)         \
-	    --wait kubevela ./charts/vela-core
-	helm upgrade --install                               \
-	    --namespace vela-system                          \
-	    --wait oam-rollout                               \
-	    --set image.repository=vela-runtime-rollout-test \
-	    --set image.tag=$(GIT_COMMIT)                    \
-	    ./runtime/rollout/charts
 
-	go run ./e2e/addon/mock &
-	sleep 15
-	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
-	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
-	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
-	bin/vela addon enable ./e2e/addon/mock/testdata/rollout
-	ginkgo version
-	ginkgo -v -r e2e/setup
-
-	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
-	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
-	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
-	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
 .PHONY: e2e-api-test
 e2e-api-test:

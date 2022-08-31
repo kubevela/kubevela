@@ -21,8 +21,9 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - type: ingress
+        - type: gateway
           properties:
+            class: traefik
             domain: test.my.domain
             http:
               "/": 8080

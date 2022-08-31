@@ -82,17 +82,17 @@ endif
 
 
 
-# load docker image to the kind cluster
-kind-load: kind-load-runtime-cluster
+# load docker image to the k3d cluster
+image-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
-	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+	k3d image import $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
-kind-load-runtime-cluster:
+image-load-runtime-cluster:
 	/bin/sh hack/e2e/build_runtime_rollout.sh
 	docker build -t $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) -f runtime/rollout/e2e/Dockerfile.e2e runtime/rollout/e2e/
 	rm -rf runtime/rollout/e2e/tmp
-	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
-	kind load docker-image $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --name=$(RUNTIME_CLUSTER_NAME)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
+	k3d image import $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)  || { echo >&2 "kind not installed or error loading image: $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE)"; exit 1; }
+	k3d cluster get $(RUNTIME_CLUSTER_NAME) && k3d image import $(VELA_RUNTIME_ROLLOUT_TEST_IMAGE) --cluster=$(RUNTIME_CLUSTER_NAME) || echo "no worker cluster"
 
 # Run tests
 core-test:

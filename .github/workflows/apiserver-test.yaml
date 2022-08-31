@@ -19,9 +19,8 @@ env:
   # Common versions
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
-  KIND_VERSION: 'v0.7.0'
-  KIND_IMAGE_VERSION: '[\"v1.20.7\"]'
-  KIND_IMAGE_VERSIONS: '[\"v1.18.20\",\"v1.20.7\",\"v1.22.7\"]'
+  K3D_IMAGE_VERSION: '[\"v1.20\"]'
+  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.22\"]'
 
 jobs:
 
@@ -48,9 +47,9 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "pushing tag: ${{ github.ref_name }}"
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSIONS }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSIONS }}"
           else
-            echo "::set-output name=matrix::${{ env.KIND_IMAGE_VERSION }}"
+            echo "::set-output name=matrix::${{ env.K3D_IMAGE_VERSION }}"
           fi
 
   apiserver-unit-tests:
@@ -128,35 +127,39 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
+      - name: Tear down K3d if exist
+        run: |
+          k3d cluster delete || true
+          k3d cluster delete worker || true
+
+      - name: Setup K3d (Hub)
+        uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: ${{ env.KIND_VERSION }}
-          skipClusterCreation: true
+          version: ${{ matrix.k8s-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Kind Cluster (Worker)
+      - name: Setup K3d (Worker)
+        uses: nolar/setup-k3d-k3s@v1.0.8
+        with:
+          version: ${{ matrix.k8s-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          k3d-name: worker
+          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
+
+      - name: Kind Cluster (Worker)
         run: |
-          kind delete cluster --name worker
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }} --name worker
-          kubectl version
-          kubectl cluster-info
-          kind get kubeconfig --name worker --internal > /tmp/worker.kubeconfig
-          kind get kubeconfig --name worker > /tmp/worker.client.kubeconfig
+          internal_ip=$(docker network inspect k3d-k3s-default|jq ".[0].Containers"| jq -r '.[]| select(.Name=="k3d-worker-server-0")|.IPv4Address' | cut -d/ -f1)
+          k3d kubeconfig get worker > /tmp/worker.client.kubeconfig
+          cp /tmp/worker.client.kubeconfig /tmp/worker.kubeconfig
+          sed -i "s/0.0.0.0:[0-9]\+/$internal_ip:6443/"  /tmp/worker.kubeconfig
 
-      - name: Setup Kind Cluster (Hub)
-        run: |
-          kind delete cluster
-          kind create cluster --image kindest/node:${{ matrix.k8s-version }}
-          kubectl version
-          kubectl cluster-info
-
-      - name: Load Image to kind cluster
-        run: make kind-load
+      - name: Load image to k3d cluster
+        run: make image-load
 
       - name: Cleanup for e2e tests
         run: |
-          make e2e-cleanup
           make vela-cli
+          make e2e-cleanup
           make e2e-setup-core
           bin/vela addon enable fluxcd
           timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $? -eq 0 ] ; then break; else sleep 5; fi;done'

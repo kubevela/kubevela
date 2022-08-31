@@ -13,12 +13,6 @@ spec:
       properties:
         image: {{ .Values.imageRegistry }}{{ .Values.test.app.repository }}:{{ .Values.test.app.tag }}
         port: 8000
-      traits:
-        - type: ingress
-          properties:
-            domain: testsvc.example.com
-            http:
-              "/": 8000
 ---
 apiVersion: v1
 kind: Pod
@@ -51,14 +45,6 @@ spec:
           echo "waiting for deployment being available"
           kubectl -n {{ include "systemDefinitionNamespace" . }} wait --for=condition=available deployments helm-test-express-server --timeout 3m
           echo "deployment being available"
-
-          # wait for ingress being created
-          while ! [ `kubectl -n {{ include "systemDefinitionNamespace" . }} get ing helm-test-express-server | grep -v NAME | wc -l` = 1 ]; do
-            echo "waiting for ingress being created"
-            sleep 1
-          done
-
-
 
           echo "Application and its components are created"
   restartPolicy: Never
