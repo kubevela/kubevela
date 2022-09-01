@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestPod(t *testing.T) {
+func TestPodList_ToTableBody(t *testing.T) {
 	pod := Pod{
 		Name:      "",
 		Namespace: "",
@@ -44,10 +44,8 @@ func TestPod(t *testing.T) {
 		NodeName:  "",
 		Age:       "",
 	}
-	podList := &PodList{title: []string{"Name", "Namespace", "Ready", "Status", "CPU", "MEM", "%CPU/R", "%CPU/L", "%MEM/R", "%MEM/L", "IP", "Node", "Age"}, data: []Pod{pod}}
-	assert.Equal(t, len(podList.Header()), 13)
-	assert.Equal(t, podList.Header()[0], "Name")
-	assert.Equal(t, len(podList.Body()), 1)
+	podList := &PodList{pod}
+	assert.Equal(t, len(podList.ToTableBody()), 1)
 }
 
 var _ = Describe("test pod", func() {
@@ -61,7 +59,7 @@ var _ = Describe("test pod", func() {
 	It("list pods", func() {
 		podList, err := ListPods(ctx, cfg, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(podList.Body())).To(Equal(1))
+		Expect(len(podList.ToTableBody())).To(Equal(1))
 	})
 
 	It("load pod detail", func() {

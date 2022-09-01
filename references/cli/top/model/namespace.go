@@ -56,7 +56,7 @@ func ListNamespaces(ctx context.Context, c client.Client) (NamespaceList, error)
 // ToTableBody generate body of table in namespace view
 func (l NamespaceList) ToTableBody() [][]string {
 	data := make([][]string, len(l)+1)
-	data[0] = []string{AllNamespace, "*", "*"}
+	data[0] = []string{"all", "*", "*"}
 	for index, ns := range l {
 		data[index+1] = []string{ns.name, ns.status, ns.age}
 	}

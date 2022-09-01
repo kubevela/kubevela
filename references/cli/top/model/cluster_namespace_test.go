@@ -30,10 +30,8 @@ var _ = Describe("test cluster namespace", func() {
 	It("list cluster namespace", func() {
 		cnsList, err := ListClusterNamespaces(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(cnsList.Header())).To(Equal(3))
-		Expect(cnsList.Header()).To(Equal([]string{"Name", "Status", "Age"}))
-		Expect(len(cnsList.Body())).To(Equal(2))
-		Expect(cnsList.Body()[1][0]).To(Equal("default"))
+		Expect(len(cnsList.ToTableBody())).To(Equal(2))
+		Expect(cnsList.ToTableBody()[1]).To(Equal([]string{"default", "Active", ""}))
 	})
 	It("load cluster namespace detail info", func() {
 		ns, err := LoadNamespaceDetail(ctx, k8sClient, "default")

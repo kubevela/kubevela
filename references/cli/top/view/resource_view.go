@@ -18,8 +18,10 @@ package view
 
 import (
 	"context"
-	"github.com/oam-dev/kubevela/references/cli/top/component"
+
 	"github.com/rivo/tview"
+
+	"github.com/oam-dev/kubevela/references/cli/top/component"
 
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -72,6 +74,7 @@ func (v *ResourceView) Name() string {
 	return "Resource"
 }
 
+// BuildHeader render the header of table
 func (v *ResourceView) BuildHeader(header []string) {
 	for i := 0; i < len(header); i++ {
 		c := tview.NewTableCell(header[i])
@@ -81,6 +84,7 @@ func (v *ResourceView) BuildHeader(header []string) {
 	}
 }
 
+// BuildBody render the body of table
 func (v *ResourceView) BuildBody(body [][]string) {
 	rowNum := len(body)
 	for i := 0; i < rowNum; i++ {

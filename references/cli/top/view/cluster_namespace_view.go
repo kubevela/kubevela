@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	v1 "k8s.io/api/core/v1"
 
@@ -61,6 +62,7 @@ func (v *ClusterNamespaceView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
 }
 
+// InitView init a new cluster namespace view
 func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
 	if v.ResourceView == nil {
 		v.ResourceView = NewResourceView(app)

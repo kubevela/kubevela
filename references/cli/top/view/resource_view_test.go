@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResourceView(t *testing.T) {
+func TestResourceView_Name(t *testing.T) {
 	view := NewResourceView(nil)
 	assert.Equal(t, view.Name(), "Resource")
 }

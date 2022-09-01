@@ -43,28 +43,33 @@ func TestManagedResourceView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyCluster, "")
 
-	view := NewManagedResourceView(ctx, app)
-	resourceView, ok := (view).(*ManagedResourceView)
-	assert.Equal(t, ok, true)
+	resourceView := new(ManagedResourceView)
+
+	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, resourceView.ResourceView)
+		resourceView.InitView(ctx, app)
+		assert.NotEmpty(t, resourceView.ResourceView)
+	})
 
 	t.Run("init", func(t *testing.T) {
 		resourceView.Init()
 		assert.Equal(t, resourceView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
-
+		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("start", func(t *testing.T) {
 		resourceView.Start()
-		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {
 		resourceView.Stop()
+		assert.Equal(t, resourceView.GetCell(0, 0).Text, "")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {

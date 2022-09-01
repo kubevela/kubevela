@@ -19,6 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	v1 "k8s.io/api/core/v1"
 

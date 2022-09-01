@@ -34,15 +34,6 @@ type NamespaceView struct {
 	ctx context.Context
 }
 
-// NewNamespaceView return a new namespace view
-func NewNamespaceView(ctx context.Context, app *App) model.Component {
-	v := &NamespaceView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
-}
-
 // Init a namespace view
 func (v *NamespaceView) Init() {
 	v.ResourceView.Init()
@@ -71,6 +62,7 @@ func (v *NamespaceView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
 }
 
+// InitView init a new namespace view
 func (v *NamespaceView) InitView(ctx context.Context, app *App) {
 	if v.ResourceView == nil {
 		v.ResourceView = NewResourceView(app)

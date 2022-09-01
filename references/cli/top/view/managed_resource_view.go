@@ -19,7 +19,9 @@ package view
 import (
 	"context"
 	"fmt"
+
 	"github.com/gdamore/tcell/v2"
+
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"

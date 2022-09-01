@@ -43,16 +43,23 @@ func TestClusterView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	view := NewClusterView(ctx, app)
-	clusterView, ok := (view).(*ClusterView)
-	assert.Equal(t, ok, true)
+
+	clusterView := new(ClusterView)
+
+	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, clusterView.ResourceView)
+		clusterView.InitView(ctx, app)
+		assert.NotEmpty(t, clusterView.ResourceView)
+	})
 
 	t.Run("init", func(t *testing.T) {
 		clusterView.Init()
 		assert.Equal(t, clusterView.Table.GetTitle(), "[ Cluster ]")
+		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("hint", func(t *testing.T) {
@@ -61,14 +68,14 @@ func TestClusterView(t *testing.T) {
 
 	t.Run("start", func(t *testing.T) {
 		clusterView.Start()
-		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {
 		clusterView.Stop()
+		assert.Equal(t, clusterView.GetCell(0, 0).Text, "")
 	})
 
-	t.Run("managedResourceView", func(t *testing.T) {
+	t.Run("managed resource view", func(t *testing.T) {
 		testData := []string{"local", "", "", "", ""}
 		for j := 0; j < 5; j++ {
 			clusterView.Table.SetCell(1, j, tview.NewTableCell(testData[j]))
