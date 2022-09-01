@@ -19,8 +19,8 @@ env:
   # Common versions
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
-  K3D_IMAGE_VERSION: '[\"v1.20\"]'
-  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.22\"]'
+  K3D_IMAGE_VERSION: '[\"v1.20\",\"v1.23\"]'
+  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.23\"]'
 
 jobs:
 
@@ -110,6 +110,9 @@ jobs:
     strategy:
       matrix:
         k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      cancel-in-progress: true
 
     steps:
       - name: Set up Go
@@ -132,11 +135,21 @@ jobs:
           k3d cluster delete || true
           k3d cluster delete worker || true
 
+      - name: Calculate K3d args
+        run: |
+          EGRESS_ARG=""
+          if [[ "${{ matrix.k8s-version }}" == v1.23 ]]; then
+            EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
+          fi
+          echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
+
       - name: Setup K3d (Hub)
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          k3d-args: ${{ env.EGRESS_ARG }}
+
 
       - name: Setup K3d (Worker)
         uses: nolar/setup-k3d-k3s@v1.0.8
@@ -144,7 +157,8 @@ jobs:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           k3d-name: worker
-          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default
+          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default ${{ env.EGRESS_ARG }}
+
 
       - name: Kind Cluster (Worker)
         run: |
