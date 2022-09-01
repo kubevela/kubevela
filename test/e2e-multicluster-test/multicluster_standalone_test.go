@@ -44,9 +44,9 @@ import (
 
 var _ = Describe("Test multicluster standalone scenario", func() {
 	waitObject := func(ctx context.Context, un *unstructured.Unstructured) {
-		var obj client.Object
+		var obj unstructured.Unstructured
 		Eventually(func(g Gomega) error {
-			return k8sClient.Get(ctx, client.ObjectKeyFromObject(un), obj)
+			return k8sClient.Get(ctx, client.ObjectKeyFromObject(un), &obj)
 		}, 10*time.Second).Should(Succeed())
 	}
 	var namespace string
