@@ -111,7 +111,7 @@ jobs:
       matrix:
         k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
 
     steps:
@@ -157,7 +157,7 @@ jobs:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           k3d-name: worker
-          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default {${{ env.EGRESS_ARG }}}
+          k3d-args: --kubeconfig-update-default=false --network=k3d-k3s-default ${{ env.EGRESS_ARG }}
 
 
       - name: Kind Cluster (Worker)

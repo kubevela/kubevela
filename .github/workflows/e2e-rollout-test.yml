@@ -58,7 +58,7 @@ jobs:
       matrix:
         k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
       cancel-in-progress: true
 
 
