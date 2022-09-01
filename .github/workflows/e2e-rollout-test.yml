@@ -76,12 +76,19 @@ jobs:
           k3d cluster delete || true
           k3d cluster delete worker || true
 
+      - name: Calculate K3d args
+        run: |
+          EGRESS_ARG=""
+          if [[ "${{ matrix.k8s-version }}" == v1.23 ]]; then
+            EGRESS_ARG="--egress-selector-mode=disabled@server:0"
+          echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
+
       - name: Setup K3d
         uses: nolar/setup-k3d-k3s@v1.0.8
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-args: --k3s-arg --egress-selector-mode=disabled@server:0
+          k3d-args: --k3s-arg ${{ env.EGRESS_ARG }}
 
       - name: Load image to k3d cluster
         run: make image-load image-load-runtime-cluster
