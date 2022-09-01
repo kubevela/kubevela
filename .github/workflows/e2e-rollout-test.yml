@@ -81,6 +81,7 @@ jobs:
           EGRESS_ARG=""
           if [[ "${{ matrix.k8s-version }}" == v1.23 ]]; then
             EGRESS_ARG="--egress-selector-mode=disabled@server:0"
+          fi
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
 
       - name: Setup K3d
