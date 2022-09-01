@@ -18,7 +18,7 @@ env:
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
   K3D_IMAGE_VERSION: '[\"v1.20\",\"v1.23\"]'
-  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.22\"]'
+  K3D_IMAGE_VERSIONS: '[\"v1.20\",\"v1.23\"]'
 
 jobs:
 
@@ -57,6 +57,10 @@ jobs:
     strategy:
       matrix:
         k8s-version: ${{ fromJson(needs.set-k8s-matrix.outputs.matrix) }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
 
     steps:
       - name: Check out code into the Go module directory
