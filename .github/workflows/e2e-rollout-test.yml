@@ -80,7 +80,7 @@ jobs:
         run: |
           EGRESS_ARG=""
           if [[ "${{ matrix.k8s-version }}" == v1.23 ]]; then
-            EGRESS_ARG="--egress-selector-mode=disabled@server:0"
+            EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
           fi
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
 
@@ -89,7 +89,7 @@ jobs:
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          k3d-args: --k3s-arg ${{ env.EGRESS_ARG }}
+          k3d-args: ${{ env.EGRESS_ARG }}
 
       - name: Load image to k3d cluster
         run: make image-load image-load-runtime-cluster
