@@ -19,10 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"github.com/gdamore/tcell/v2"
-
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -34,30 +31,12 @@ type ClusterView struct {
 	ctx context.Context
 }
 
-// NewClusterView return a new cluster view
-func NewClusterView(ctx context.Context, app *App) model.Component {
-	v := &ClusterView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
-}
-
 // Init cluster view init
 func (v *ClusterView) Init() {
-	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Name())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.ResourceView.Init()
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
+	v.BuildHeader()
 	v.bindKeys()
-}
-
-// ListClusters list clusters where application deployed
-func (v *ClusterView) ListClusters() model.ResourceList {
-	list, err := model.ListClusters(v.ctx, v.app.client)
-	if err != nil {
-		log.Println(err)
-	}
-	return list
 }
 
 // Name return cluster view name
@@ -67,8 +46,7 @@ func (v *ClusterView) Name() string {
 
 // Start the cluster view
 func (v *ClusterView) Start() {
-	resourceList := v.ListClusters()
-	v.ResourceView.Init(resourceList)
+	v.Update()
 }
 
 // Stop the cluster view
@@ -79,6 +57,37 @@ func (v *ClusterView) Stop() {
 // Hint return key action menu hints of the cluster view
 func (v *ClusterView) Hint() []model.MenuHint {
 	return v.Actions().Hint()
+}
+
+// InitView init a new cluster view
+func (v *ClusterView) InitView(ctx context.Context, app *App) {
+	if v.ResourceView == nil {
+		v.ResourceView = NewResourceView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
+	}
+}
+
+// Update refresh the content of body of view
+func (v *ClusterView) Update() {
+	v.BuildBody()
+}
+
+// BuildHeader render the header of table
+func (v *ClusterView) BuildHeader() {
+	header := []string{"Name", "Alias", "Type", "EndPoint", "Labels"}
+	v.ResourceView.BuildHeader(header)
+}
+
+// BuildBody render the body of table
+func (v *ClusterView) BuildBody() {
+	clusterList, err := model.ListClusters(v.ctx, v.app.client)
+	if err != nil {
+		return
+	}
+	clusterInfos := clusterList.ToTableBody()
+	v.ResourceView.BuildBody(clusterInfos)
 }
 
 func (v *ClusterView) bindKeys() {
@@ -96,11 +105,11 @@ func (v *ClusterView) managedResourceView(event *tcell.EventKey) *tcell.EventKey
 	if row == 0 {
 		return event
 	}
-	v.app.content.PopComponent()
 	clusterName := v.GetCell(row, 0).Text
 	if clusterName == model.AllCluster {
 		clusterName = ""
 	}
+	v.app.content.PopComponent()
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyCluster, clusterName)
 	v.app.command.run(v.ctx, "resource")
 	return event

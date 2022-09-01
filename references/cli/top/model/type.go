@@ -65,6 +65,8 @@ var (
 )
 
 const (
+	// AllNamespace represent all namespaces
+	AllNamespace = "all"
 	// AllClusterNamespace represent all cluster namespace
 	AllClusterNamespace = "all"
 	// AllCluster represent all cluster

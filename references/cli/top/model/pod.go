@@ -49,14 +49,10 @@ type Pod struct {
 }
 
 // PodList is pod list
-type PodList struct {
-	title []string
-	data  []Pod
-}
+type PodList []Pod
 
 // ListPods return pod list of component
-func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (*PodList, error) {
-	list := &PodList{title: []string{"Name", "Namespace", "Ready", "Status", "CPU", "MEM", "%CPU/R", "%CPU/L", "%MEM/R", "%MEM/L", "IP", "Node", "Age"}, data: []Pod{}}
+func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (PodList, error) {
 	appName := ctx.Value(&CtxKeyAppName).(string)
 	appNamespace := ctx.Value(&CtxKeyNamespace).(string)
 	compCluster := ctx.Value(&CtxKeyCluster).(string)
@@ -76,16 +72,18 @@ func ListPods(ctx context.Context, cfg *rest.Config, c client.Client) (*PodList,
 		WithTree: true,
 	}
 	resource, err := collectResource(ctx, c, opt)
+
 	if err != nil {
-		return list, err
+		return PodList{}, err
 	}
-	for _, object := range resource {
+	list := make(PodList, len(resource))
+	for index, object := range resource {
 		pod := &v1.Pod{}
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(object.UnstructuredContent(), pod)
 		if err != nil {
 			continue
 		}
-		list.data = append(list.data, LoadPodDetail(cfg, pod))
+		list[index] = LoadPodDetail(cfg, pod)
 	}
 	return list, nil
 }
@@ -127,16 +125,11 @@ func readyContainerNum(pod *v1.Pod) string {
 	return fmt.Sprintf("%d/%d", ready, total)
 }
 
-// Header generate header of table in pod view
-func (l *PodList) Header() []string {
-	return l.title
-}
-
-// Body generate body of table in pod view
-func (l *PodList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, pod := range l.data {
-		data = append(data, []string{pod.Name, pod.Namespace, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age})
+// ToTableBody generate body of table in pod view
+func (l PodList) ToTableBody() [][]string {
+	data := make([][]string, len(l))
+	for index, pod := range l {
+		data[index] = []string{pod.Name, pod.Namespace, pod.Ready, pod.Status, pod.CPU, pod.Mem, pod.CPUR, pod.MemR, pod.CPUL, pod.MemL, pod.IP, pod.NodeName, pod.Age}
 	}
 	return data
 }

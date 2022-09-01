@@ -19,9 +19,8 @@ package view
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"github.com/gdamore/tcell/v2"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
@@ -34,40 +33,22 @@ type ClusterNamespaceView struct {
 	ctx context.Context
 }
 
-// NewClusterNamespaceView return a new cluster namespace view
-func NewClusterNamespaceView(ctx context.Context, app *App) model.Component {
-	v := &ClusterNamespaceView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
+// Name return cluster namespace view name
+func (v *ClusterNamespaceView) Name() string {
+	return "ClusterNamespace"
 }
 
 // Init the cluster namespace view
 func (v *ClusterNamespaceView) Init() {
-	title := fmt.Sprintf("[ %s ]", v.Name())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.ResourceView.Init()
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
+	v.BuildHeader()
 	v.bindKeys()
-}
-
-// ListClusterNamespaces return the namespace of application's resource
-func (v *ClusterNamespaceView) ListClusterNamespaces() model.ResourceList {
-	list, err := model.ListClusterNamespaces(v.ctx, v.app.client)
-	if err != nil {
-		log.Println(err)
-	}
-	return list
-}
-
-// Hint return key action menu hints of the cluster namespace view
-func (v *ClusterNamespaceView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
 }
 
 // Start the cluster namespace view
 func (v *ClusterNamespaceView) Start() {
-	resourceList := v.ListClusterNamespaces()
-	v.ResourceView.Init(resourceList)
+	v.Update()
 }
 
 // Stop the cluster namespace view
@@ -75,9 +56,55 @@ func (v *ClusterNamespaceView) Stop() {
 	v.Table.Stop()
 }
 
-// Name return cluster namespace view name
-func (v *ClusterNamespaceView) Name() string {
-	return "ClusterNamespace"
+// Hint return key action menu hints of the cluster namespace view
+func (v *ClusterNamespaceView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
+}
+
+func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
+	if v.ResourceView == nil {
+		v.ResourceView = NewResourceView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
+	}
+}
+
+// Update refresh the content of body of view
+func (v *ClusterNamespaceView) Update() {
+	v.BuildBody()
+}
+
+// BuildHeader render the header of table
+func (v *ClusterNamespaceView) BuildHeader() {
+	header := []string{"Name", "Status", "Age"}
+	v.ResourceView.BuildHeader(header)
+}
+
+// BuildBody render the body of table
+func (v *ClusterNamespaceView) BuildBody() {
+	cnList, err := model.ListClusterNamespaces(v.ctx, v.app.client)
+	if err != nil {
+		return
+	}
+	cnInfos := cnList.ToTableBody()
+	v.ResourceView.BuildBody(cnInfos)
+	rowNum := len(cnInfos)
+	v.ColorizeStatusText(rowNum)
+}
+
+// ColorizeStatusText colorize the status column text
+func (v *ClusterNamespaceView) ColorizeStatusText(rowNum int) {
+	for i := 0; i < rowNum; i++ {
+		status := v.Table.GetCell(i+1, 2).Text
+		switch v1.NamespacePhase(status) {
+		case v1.NamespaceActive:
+			status = config.NamespaceActiveStatusColor + status
+		case v1.NamespaceTerminating:
+			status = config.NamespaceTerminateStatusColor + status
+		}
+		v.Table.GetCell(i+1, 2).SetText(status)
+	}
 }
 
 func (v *ClusterNamespaceView) bindKeys() {
@@ -95,11 +122,12 @@ func (v *ClusterNamespaceView) managedResourceView(event *tcell.EventKey) *tcell
 	if row == 0 {
 		return event
 	}
-	v.app.content.PopComponent()
+
 	clusterNamespace := v.GetCell(row, 0).Text
 	if clusterNamespace == model.AllClusterNamespace {
 		clusterNamespace = ""
 	}
+	v.app.content.PopComponent()
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, clusterNamespace)
 	v.app.command.run(v.ctx, "resource")
 	return event

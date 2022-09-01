@@ -19,10 +19,7 @@ package view
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"github.com/gdamore/tcell/v2"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/references/cli/top/component"
 	"github.com/oam-dev/kubevela/references/cli/top/config"
@@ -35,36 +32,71 @@ type ApplicationView struct {
 	ctx context.Context
 }
 
-// NewApplicationView return a new application view
-func NewApplicationView(ctx context.Context, app *App) model.Component {
-	v := &ApplicationView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
+// Name return application view name
+func (v *ApplicationView) Name() string {
+	return "Application"
 }
 
 // Init the application view
 func (v *ApplicationView) Init() {
-	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Title())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.ResourceView.Init()
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title()))
+	v.BuildHeader()
 	v.bindKeys()
 }
 
-// ListApplications list all applications
-func (v *ApplicationView) ListApplications() model.ResourceList {
-	list, err := model.ListApplications(v.ctx, v.app.client)
-	if err != nil {
-		log.Println(err)
+// Start the application view
+func (v *ApplicationView) Start() {
+	v.Update()
+}
+
+// Stop the application view
+func (v *ApplicationView) Stop() {
+	v.Table.Stop()
+}
+
+// Hint return key action menu hints of the application view
+func (v *ApplicationView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
+}
+
+// InitView return a new application view
+func (v *ApplicationView) InitView(ctx context.Context, app *App) {
+	if v.ResourceView == nil {
+		v.ResourceView = NewResourceView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
 	}
-	return list
+}
+
+// Update refresh the content of body of view
+func (v *ApplicationView) Update() {
+	v.BuildBody()
+}
+
+// BuildHeader render the header of table
+func (v *ApplicationView) BuildHeader() {
+	header := []string{"Name", "Namespace", "Phase", "CreateTime"}
+	v.ResourceView.BuildHeader(header)
+}
+
+// BuildBody render the body of table
+func (v *ApplicationView) BuildBody() {
+	apps, err := model.ListApplications(v.ctx, v.app.client)
+	if err != nil {
+		return
+	}
+	appInfos := apps.ToTableBody()
+	v.ResourceView.BuildBody(appInfos)
+	rowNum := len(appInfos)
+	v.ColorizeStatusText(rowNum)
 }
 
 // ColorizeStatusText colorize the status column text
 func (v *ApplicationView) ColorizeStatusText(rowNum int) {
-	for i := 1; i < rowNum+1; i++ {
-		status := v.Table.GetCell(i, 2).Text
+	for i := 0; i < rowNum; i++ {
+		status := v.Table.GetCell(i+1, 2).Text
 		switch common.ApplicationPhase(status) {
 		case common.ApplicationRendering, common.ApplicationStarting:
 			status = config.ApplicationStartingAndRenderingPhaseColor + status
@@ -76,7 +108,7 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 			status = config.ApplicationRunningPhaseColor + status
 		default:
 		}
-		v.Table.GetCell(i, 2).SetText(status)
+		v.Table.GetCell(i+1, 2).SetText(status)
 	}
 }
 
@@ -87,28 +119,6 @@ func (v *ApplicationView) Title() string {
 		namespace = "all"
 	}
 	return fmt.Sprintf("Application"+" (%s)", namespace)
-}
-
-// Name return application view name
-func (v *ApplicationView) Name() string {
-	return "Application"
-}
-
-// Start the application view
-func (v *ApplicationView) Start() {
-	resourceList := v.ListApplications()
-	v.ResourceView.Init(resourceList)
-	v.ColorizeStatusText(len(resourceList.Body()))
-}
-
-// Stop the application view
-func (v *ApplicationView) Stop() {
-	v.Table.Stop()
-}
-
-// Hint return key action menu hints of the application view
-func (v *ApplicationView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
 }
 
 func (v *ApplicationView) bindKeys() {
@@ -127,6 +137,7 @@ func (v *ApplicationView) managedResourceView(event *tcell.EventKey) *tcell.Even
 	if row == 0 {
 		return event
 	}
+
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)

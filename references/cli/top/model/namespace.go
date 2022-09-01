@@ -28,41 +28,37 @@ import (
 
 // Namespace is namespace struct
 type Namespace struct {
-	Name   string
-	Status string
-	Age    string
+	name   string
+	status string
+	age    string
 }
 
-// AllNamespace is the key which represents all namespaces
-const AllNamespace = "all"
+// NamespaceList is namespace list
+type NamespaceList []Namespace
 
 // ListNamespaces return all namespaces
-func ListNamespaces(ctx context.Context, c client.Reader) *NamespaceList {
-	list := &NamespaceList{title: []string{"Name", "Status", "Age"}, data: []Namespace{{Name: AllNamespace, Status: "*", Age: "*"}}}
+func ListNamespaces(ctx context.Context, c client.Client) (NamespaceList, error) {
 	var nsList v1.NamespaceList
 	if err := c.List(ctx, &nsList); err != nil {
-		return list
+		return NamespaceList{}, err
 	}
-	for _, ns := range nsList.Items {
-		list.data = append(list.data, Namespace{
-			Name:   ns.Name,
-			Status: string(ns.Status.Phase),
-			Age:    utils.TimeFormat(time.Since(ns.CreationTimestamp.Time)),
-		})
+	nsInfoList := make(NamespaceList, len(nsList.Items))
+	for index, ns := range nsList.Items {
+		nsInfoList[index] = Namespace{
+			name:   ns.Name,
+			status: string(ns.Status.Phase),
+			age:    utils.TimeFormat(time.Since(ns.CreationTimestamp.Time)),
+		}
 	}
-	return list
+	return nsInfoList, nil
 }
 
-// Header generate header of table in namespace view
-func (l *NamespaceList) Header() []string {
-	return l.title
-}
-
-// Body generate body of table in namespace view
-func (l *NamespaceList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, ns := range l.data {
-		data = append(data, []string{ns.Name, ns.Status, ns.Age})
+// ToTableBody generate body of table in namespace view
+func (l NamespaceList) ToTableBody() [][]string {
+	data := make([][]string, len(l)+1)
+	data[0] = []string{AllNamespace, "*", "*"}
+	for index, ns := range l {
+		data[index+1] = []string{ns.name, ns.status, ns.age}
 	}
 	return data
 }
