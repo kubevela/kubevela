@@ -81,6 +81,7 @@ jobs:
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          k3d-args: --k3s-arg --egress-selector-mode=disabled@server:0
 
       - name: Load image to k3d cluster
         run: make image-load
