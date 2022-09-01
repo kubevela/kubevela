@@ -83,6 +83,7 @@ jobs:
         with:
           version: ${{ matrix.k8s-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          k3d-args: --k3s-arg --egress-selector-mode=disabled@server:0
 
       - name: Setup K3d (Worker)
         uses: nolar/setup-k3d-k3s@v1.0.8
