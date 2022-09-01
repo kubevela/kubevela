@@ -15,7 +15,6 @@ env:
   # Common versions
   GO_VERSION: '1.17'
   GOLANGCI_VERSION: 'v1.38'
-  KIND_VERSION: 'v0.7.0'
 
 jobs:
 
@@ -61,10 +60,11 @@ jobs:
         run: |
           sudo apt-get install -y golang-ginkgo-dev
 
-      - name: Setup Kind Cluster
-        uses: engineerd/setup-kind@v0.5.0
+      - name: Setup K3d
+        uses: nolar/setup-k3d-k3s@v1.0.8
         with:
-          version: ${{ env.KIND_VERSION }}
+          version: v1.20
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@v1.2

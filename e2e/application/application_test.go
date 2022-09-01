@@ -294,7 +294,7 @@ var VelaQLPodListContext = func(context string, velaQL string) bool {
 					gomega.Expect(v.Status.Phase).To(gomega.ContainSubstring("Running"))
 				}
 				if v.Status.NodeName != "" {
-					gomega.Expect(v.Status.NodeName).To(gomega.ContainSubstring("kind-control-plane"))
+					gomega.Expect(v.Status.NodeName).To(gomega.ContainSubstring("k3d-k3s-default-server-0"))
 				}
 				if v.Metadata.Namespace != "" {
 					gomega.Expect(v.Metadata.Namespace).To(gomega.ContainSubstring("default"))
