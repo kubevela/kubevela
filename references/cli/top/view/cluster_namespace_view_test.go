@@ -50,9 +50,9 @@ func TestClusterNamespaceView(t *testing.T) {
 	cnsView := new(ClusterNamespaceView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, cnsView.ResourceView)
+		assert.Empty(t, cnsView.CommonResourceView)
 		cnsView.InitView(ctx, app)
-		assert.NotEmpty(t, cnsView.ResourceView)
+		assert.NotEmpty(t, cnsView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

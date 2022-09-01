@@ -30,7 +30,7 @@ import (
 
 // ApplicationView is the application view, this view display info of application of KubeVela
 type ApplicationView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
@@ -41,7 +41,7 @@ func (v *ApplicationView) Name() string {
 
 // Init the application view
 func (v *ApplicationView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title()))
 	v.BuildHeader()
 	v.bindKeys()
@@ -64,8 +64,8 @@ func (v *ApplicationView) Hint() []model.MenuHint {
 
 // InitView return a new application view
 func (v *ApplicationView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -80,7 +80,7 @@ func (v *ApplicationView) Update() {
 // BuildHeader render the header of table
 func (v *ApplicationView) BuildHeader() {
 	header := []string{"Name", "Namespace", "Phase", "CreateTime"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -90,7 +90,7 @@ func (v *ApplicationView) BuildBody() {
 		return
 	}
 	appInfos := apps.ToTableBody()
-	v.ResourceView.BuildBody(appInfos)
+	v.CommonResourceView.BuildBody(appInfos)
 	rowNum := len(appInfos)
 	v.ColorizeStatusText(rowNum)
 }

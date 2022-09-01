@@ -55,9 +55,9 @@ func TestPodView(t *testing.T) {
 	podView := new(PodView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, podView.ResourceView)
+		assert.Empty(t, podView.CommonResourceView)
 		podView.InitView(ctx, app)
-		assert.NotEmpty(t, podView.ResourceView)
+		assert.NotEmpty(t, podView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

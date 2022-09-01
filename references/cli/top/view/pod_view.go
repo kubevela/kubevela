@@ -30,7 +30,7 @@ import (
 
 // PodView is the pod view, this view display info of pod belonging to component
 type PodView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
@@ -56,7 +56,7 @@ func (v *PodView) Hint() []model.MenuHint {
 
 // Init cluster view init
 func (v *PodView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name()))
 	v.BuildHeader()
 	v.bindKeys()
@@ -64,8 +64,8 @@ func (v *PodView) Init() {
 
 // InitView init a new pod view
 func (v *PodView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -80,7 +80,7 @@ func (v *PodView) Update() {
 // BuildHeader render the header of table
 func (v *PodView) BuildHeader() {
 	header := []string{"Name", "Namespace", "Ready", "Status", "CPU", "MEM", "%CPU/R", "%CPU/L", "%MEM/R", "%MEM/L", "IP", "Node", "Age"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -90,7 +90,7 @@ func (v *PodView) BuildBody() {
 		return
 	}
 	podInfos := podList.ToTableBody()
-	v.ResourceView.BuildBody(podInfos)
+	v.CommonResourceView.BuildBody(podInfos)
 	rowNum := len(podInfos)
 	v.ColorizePhaseText(rowNum)
 }

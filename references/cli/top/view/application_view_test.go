@@ -49,9 +49,9 @@ func TestApplicationView(t *testing.T) {
 	appView := new(ApplicationView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, appView.ResourceView)
+		assert.Empty(t, appView.CommonResourceView)
 		appView.InitView(ctx, app)
-		assert.NotEmpty(t, appView.ResourceView)
+		assert.NotEmpty(t, appView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

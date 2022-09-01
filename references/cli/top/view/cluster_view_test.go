@@ -51,9 +51,9 @@ func TestClusterView(t *testing.T) {
 	clusterView := new(ClusterView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, clusterView.ResourceView)
+		assert.Empty(t, clusterView.CommonResourceView)
 		clusterView.InitView(ctx, app)
-		assert.NotEmpty(t, clusterView.ResourceView)
+		assert.NotEmpty(t, clusterView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

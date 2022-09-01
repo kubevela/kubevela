@@ -51,9 +51,9 @@ func TestNamespaceView(t *testing.T) {
 	nsView := new(NamespaceView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, nsView.ResourceView)
+		assert.Empty(t, nsView.CommonResourceView)
 		nsView.InitView(ctx, app)
-		assert.NotEmpty(t, nsView.ResourceView)
+		assert.NotEmpty(t, nsView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

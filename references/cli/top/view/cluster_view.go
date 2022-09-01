@@ -29,13 +29,13 @@ import (
 
 // ClusterView is the cluster view, this view display info of cluster where selected application deployed
 type ClusterView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
 // Init cluster view init
 func (v *ClusterView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
 	v.BuildHeader()
 	v.bindKeys()
@@ -63,8 +63,8 @@ func (v *ClusterView) Hint() []model.MenuHint {
 
 // InitView init a new cluster view
 func (v *ClusterView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -79,7 +79,7 @@ func (v *ClusterView) Update() {
 // BuildHeader render the header of table
 func (v *ClusterView) BuildHeader() {
 	header := []string{"Name", "Alias", "Type", "EndPoint", "Labels"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -89,7 +89,7 @@ func (v *ClusterView) BuildBody() {
 		return
 	}
 	clusterInfos := clusterList.ToTableBody()
-	v.ResourceView.BuildBody(clusterInfos)
+	v.CommonResourceView.BuildBody(clusterInfos)
 }
 
 func (v *ClusterView) bindKeys() {

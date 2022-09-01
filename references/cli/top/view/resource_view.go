@@ -27,8 +27,8 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-// ResourceViewFactory product resource view
-type ResourceViewFactory interface {
+// ResourceView is the interface to abstract resource view
+type ResourceView interface {
 	model.Component
 	InitView(ctx context.Context, app *App)
 	Update()
@@ -37,7 +37,7 @@ type ResourceViewFactory interface {
 }
 
 // ResourceViewMap is a map from resource name to resource view
-var ResourceViewMap = map[string]ResourceViewFactory{
+var ResourceViewMap = map[string]ResourceView{
 	"app":      new(ApplicationView),
 	"cluster":  new(ClusterView),
 	"resource": new(ManagedResourceView),
@@ -46,36 +46,36 @@ var ResourceViewMap = map[string]ResourceViewFactory{
 	"pod":      new(PodView),
 }
 
-// ResourceView is an abstract of resource view
-type ResourceView struct {
+// CommonResourceView is an abstract of resource view
+type CommonResourceView struct {
 	*component.Table
 	app *App
 }
 
-// NewResourceView return a new resource view
-func NewResourceView(app *App) *ResourceView {
-	v := &ResourceView{
+// NewCommonView return a new common view
+func NewCommonView(app *App) *CommonResourceView {
+	v := &CommonResourceView{
 		Table: component.NewTable(),
 		app:   app,
 	}
 	return v
 }
 
-// Init the resource view
-func (v *ResourceView) Init() {
+// Init the common resource view
+func (v *CommonResourceView) Init() {
 	v.Table.Init()
 	v.SetBorder(true)
 	v.SetTitleColor(config.ResourceTableTitleColor)
 	v.SetSelectable(true, false)
 }
 
-// Name return the name of view
-func (v *ResourceView) Name() string {
+// Name return the name of common view
+func (v *CommonResourceView) Name() string {
 	return "Resource"
 }
 
 // BuildHeader render the header of table
-func (v *ResourceView) BuildHeader(header []string) {
+func (v *CommonResourceView) BuildHeader(header []string) {
 	for i := 0; i < len(header); i++ {
 		c := tview.NewTableCell(header[i])
 		c.SetTextColor(config.ResourceTableHeaderColor)
@@ -85,7 +85,7 @@ func (v *ResourceView) BuildHeader(header []string) {
 }
 
 // BuildBody render the body of table
-func (v *ResourceView) BuildBody(body [][]string) {
+func (v *CommonResourceView) BuildBody(body [][]string) {
 	rowNum := len(body)
 	for i := 0; i < rowNum; i++ {
 		columnNum := len(body[i])

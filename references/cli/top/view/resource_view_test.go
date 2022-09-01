@@ -23,6 +23,6 @@ import (
 )
 
 func TestResourceView_Name(t *testing.T) {
-	view := NewResourceView(nil)
+	view := NewCommonView(nil)
 	assert.Equal(t, view.Name(), "Resource")
 }

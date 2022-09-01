@@ -30,13 +30,13 @@ import (
 
 // NamespaceView is namespace view struct
 type NamespaceView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
 // Init a namespace view
 func (v *NamespaceView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
 	v.BuildHeader()
 	v.bindKeys()
@@ -64,8 +64,8 @@ func (v *NamespaceView) Hint() []model.MenuHint {
 
 // InitView init a new namespace view
 func (v *NamespaceView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -80,7 +80,7 @@ func (v *NamespaceView) Update() {
 // BuildHeader render the header of table
 func (v *NamespaceView) BuildHeader() {
 	header := []string{"Name", "Status", "Age"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -90,7 +90,7 @@ func (v *NamespaceView) BuildBody() {
 		return
 	}
 	nsInfos := nsList.ToTableBody()
-	v.ResourceView.BuildBody(nsInfos)
+	v.CommonResourceView.BuildBody(nsInfos)
 	rowNum := len(nsInfos)
 	v.ColorizeStatusText(rowNum)
 }

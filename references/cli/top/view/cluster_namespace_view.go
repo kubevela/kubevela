@@ -30,7 +30,7 @@ import (
 
 // ClusterNamespaceView is the cluster namespace, which display the namespace info of application's resource
 type ClusterNamespaceView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
@@ -41,7 +41,7 @@ func (v *ClusterNamespaceView) Name() string {
 
 // Init the cluster namespace view
 func (v *ClusterNamespaceView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
 	v.BuildHeader()
 	v.bindKeys()
@@ -64,8 +64,8 @@ func (v *ClusterNamespaceView) Hint() []model.MenuHint {
 
 // InitView init a new cluster namespace view
 func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -80,7 +80,7 @@ func (v *ClusterNamespaceView) Update() {
 // BuildHeader render the header of table
 func (v *ClusterNamespaceView) BuildHeader() {
 	header := []string{"Name", "Status", "Age"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -90,7 +90,7 @@ func (v *ClusterNamespaceView) BuildBody() {
 		return
 	}
 	cnInfos := cnList.ToTableBody()
-	v.ResourceView.BuildBody(cnInfos)
+	v.CommonResourceView.BuildBody(cnInfos)
 	rowNum := len(cnInfos)
 	v.ColorizeStatusText(rowNum)
 }

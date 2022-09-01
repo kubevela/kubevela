@@ -52,9 +52,9 @@ func TestManagedResourceView(t *testing.T) {
 	resourceView := new(ManagedResourceView)
 
 	t.Run("init view", func(t *testing.T) {
-		assert.Empty(t, resourceView.ResourceView)
+		assert.Empty(t, resourceView.CommonResourceView)
 		resourceView.InitView(ctx, app)
-		assert.NotEmpty(t, resourceView.ResourceView)
+		assert.NotEmpty(t, resourceView.CommonResourceView)
 	})
 
 	t.Run("init", func(t *testing.T) {

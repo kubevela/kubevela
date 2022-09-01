@@ -30,7 +30,7 @@ import (
 
 // ManagedResourceView is a view which displays info of application's managed resource including CRDs and k8s objects
 type ManagedResourceView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
@@ -41,7 +41,7 @@ func (v *ManagedResourceView) Name() string {
 
 // Init managed resource view
 func (v *ManagedResourceView) Init() {
-	v.ResourceView.Init()
+	v.CommonResourceView.Init()
 	// set title of view
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(config.ResourceTableTitleColor)
 	v.BuildHeader()
@@ -78,8 +78,8 @@ func (v *ManagedResourceView) Title() string {
 
 // InitView init a new managed resource view
 func (v *ManagedResourceView) InitView(ctx context.Context, app *App) {
-	if v.ResourceView == nil {
-		v.ResourceView = NewResourceView(app)
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
 		v.ctx = ctx
 	} else {
 		v.ctx = ctx
@@ -94,7 +94,7 @@ func (v *ManagedResourceView) Update() {
 // BuildHeader render the header of table
 func (v *ManagedResourceView) BuildHeader() {
 	header := []string{"Name", "Namespace", "Kind", "APIVersion", "Cluster", "Status"}
-	v.ResourceView.BuildHeader(header)
+	v.CommonResourceView.BuildHeader(header)
 }
 
 // BuildBody render the body of table
@@ -104,7 +104,7 @@ func (v *ManagedResourceView) BuildBody() {
 		return
 	}
 	resourceInfos := resourceList.ToTableBody()
-	v.ResourceView.BuildBody(resourceInfos)
+	v.CommonResourceView.BuildBody(resourceInfos)
 	rowNum := len(resourceInfos)
 	v.ColorizeStatusText(rowNum)
 }
