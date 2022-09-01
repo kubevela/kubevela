@@ -43,10 +43,9 @@ import (
 )
 
 var _ = Describe("Test multicluster standalone scenario", func() {
-	waitObject := func(ctx context.Context, un *unstructured.Unstructured) {
-		var obj unstructured.Unstructured
+	waitObject := func(ctx context.Context, un unstructured.Unstructured) {
 		Eventually(func(g Gomega) error {
-			return k8sClient.Get(ctx, client.ObjectKeyFromObject(un), &obj)
+			return k8sClient.Get(ctx, client.ObjectKeyFromObject(&un), &un)
 		}, 10*time.Second).Should(Succeed())
 	}
 	var namespace string
@@ -121,13 +120,13 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 		deploy := readFile("deployment.yaml")
 		Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
-		waitObject(hubCtx, deploy)
+		waitObject(hubCtx, *deploy)
 		workflow := readFile("workflow-suspend.yaml")
 		Expect(k8sClient.Create(hubCtx, workflow)).Should(Succeed())
-		waitObject(hubCtx, workflow)
+		waitObject(hubCtx, *workflow)
 		policy := readFile("policy-zero-replica.yaml")
 		Expect(k8sClient.Create(hubCtx, policy)).Should(Succeed())
-		waitObject(hubCtx, policy)
+		waitObject(hubCtx, *policy)
 		app := readFile("app-with-publish-version.yaml")
 		Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
