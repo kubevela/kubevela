@@ -116,7 +116,7 @@ func (option NamespaceFlagDisableEnvOption) ApplyToNamespaceFlagOptions(cfg *Nam
 // WithNamespaceFlag add namespace flag to the command, by default, it will also add env flag to the command
 func (builder *Builder) WithNamespaceFlag(options ...NamespaceFlagOption) *Builder {
 	cfg := newNamespaceFlagOptions(options...)
-	builder.cmd.Flags().StringP(flagNamespace, "n", "", cfg.usage)
+	builder.cmd.Flags().StringP(flagNamespace, "n", "default", cfg.usage)
 	if cfg.completion {
 		cmdutil.CheckErr(builder.cmd.RegisterFlagCompletionFunc(
 			flagNamespace,
