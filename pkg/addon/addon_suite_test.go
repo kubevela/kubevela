@@ -418,9 +418,12 @@ var _ = Describe("test override defs of addon", func() {
 		u := unstructured.Unstructured{Object: compUnstructured}
 		u.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
 		u.SetKind(v1beta1.ComponentDefinitionKind)
+		u.SetLabels(map[string]string{"testUpdateLabel": "test"})
 		c, err := checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
 		Expect(err).Should(BeNil())
 		Expect(len(c)).Should(BeEquivalentTo(1))
+		// guarantee checkConflictDefs won't change source definition
+		Expect(u.GetLabels()["testUpdateLabel"]).Should(BeEquivalentTo("test"))
 
 		u.SetName("rollout")
 		c, err = checkConflictDefs(ctx, k8sClient, []*unstructured.Unstructured{&u}, app.GetName())
