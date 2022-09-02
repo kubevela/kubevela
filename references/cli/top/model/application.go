@@ -34,38 +34,30 @@ type Application struct {
 }
 
 // ApplicationList is application resource list
-type ApplicationList struct {
-	title []string
-	data  []Application
-}
+type ApplicationList []Application
 
-// Header generate header of table in application view
-func (l *ApplicationList) Header() []string {
-	return l.title
-}
-
-// Body generate body of table in application view
-func (l *ApplicationList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, app := range l.data {
-		data = append(data, []string{app.name, app.namespace, app.phase, app.createTime})
+// ToTableBody generate body of table in application view
+func (l ApplicationList) ToTableBody() [][]string {
+	data := make([][]string, len(l))
+	for index, app := range l {
+		data[index] = []string{app.name, app.namespace, app.phase, app.createTime}
 	}
 	return data
 }
 
 // ListApplications list all apps in all namespaces
-func ListApplications(ctx context.Context, c client.Reader) (*ApplicationList, error) {
-	list := &ApplicationList{title: []string{"Name", "Namespace", "Phase", "CreateTime"}}
+func ListApplications(ctx context.Context, c client.Reader) (ApplicationList, error) {
 	apps := v1beta1.ApplicationList{}
 	namespace := ctx.Value(&CtxKeyNamespace).(string)
 
 	if err := c.List(ctx, &apps, client.InNamespace(namespace)); err != nil {
-		return list, err
+		return ApplicationList{}, err
 	}
-	for _, app := range apps.Items {
-		list.data = append(list.data, Application{app.Name, app.Namespace, string(app.Status.Phase), app.CreationTimestamp.String()})
+	appList := make(ApplicationList, len(apps.Items))
+	for index, app := range apps.Items {
+		appList[index] = Application{app.Name, app.Namespace, string(app.Status.Phase), app.CreationTimestamp.String()}
 	}
-	return list, nil
+	return appList, nil
 }
 
 // LoadApplication load the corresponding application according to name and namespace

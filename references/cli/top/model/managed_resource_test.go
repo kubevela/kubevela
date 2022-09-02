@@ -25,16 +25,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestManagedResource_Header(t *testing.T) {
-	list := ManagedResourceList{title: []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"}}
-	assert.Equal(t, len(list.Header()), 6)
-	assert.Equal(t, list.Header(), []string{"name", "namespace", "kind", "APIVersion", "cluster", "status"})
+func TestListManagedResource(t *testing.T) {
+	list := ManagedResourceList{{"", "", "", "", "", ""}}
+	assert.Equal(t, list.ToTableBody(), [][]string{{"", "", "", "", "", ""}})
 }
 
-func TestManagedResource_Body(t *testing.T) {
-	list := ManagedResourceList{data: []ManagedResource{{"", "", "", "", "", ""}}}
-	assert.Equal(t, len(list.Body()), 1)
-	assert.Equal(t, list.Body(), [][]string{{"", "", "", "", "", ""}})
+func TestManagedResourceList_FilterCluster(t *testing.T) {
+	list := ManagedResourceList{
+		{"", "", "", "", "1", ""},
+		{"", "", "", "", "2", ""},
+	}
+	list.FilterCluster("1")
+	assert.Equal(t, len(list), 1)
+}
+
+func TestManagedResourceList_FilterClusterNamespace(t *testing.T) {
+	list := ManagedResourceList{
+		{"", "1", "", "", "1", ""},
+		{"", "2", "", "", "2", ""},
+	}
+	list.FilterClusterNamespace("2")
+	assert.Equal(t, len(list), 1)
 }
 
 var _ = Describe("test managed resource", func() {
@@ -46,7 +57,6 @@ var _ = Describe("test managed resource", func() {
 	It("list managed resource", func() {
 		list, err := ListManagedResource(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(list.Header())).To(Equal(6))
-		Expect(len(list.Body())).To(Equal(4))
+		Expect(len(list.ToTableBody())).To(Equal(4))
 	})
 })

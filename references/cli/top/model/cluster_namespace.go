@@ -27,23 +27,13 @@ import (
 	"github.com/oam-dev/kubevela/references/cli/top/utils"
 )
 
-// NamespaceList is namespace list
-type NamespaceList struct {
-	title []string
-	data  []Namespace
-}
-
 // ListClusterNamespaces return namespace of application's resource
-func ListClusterNamespaces(ctx context.Context, c client.Client) (*NamespaceList, error) {
-	list := &NamespaceList{
-		title: []string{"Name", "Status", "Age"},
-		data:  []Namespace{{"all", "*", "*"}},
-	}
+func ListClusterNamespaces(ctx context.Context, c client.Client) (NamespaceList, error) {
 	name := ctx.Value(&CtxKeyAppName).(string)
 	ns := ctx.Value(&CtxKeyNamespace).(string)
 	app, err := LoadApplication(c, name, ns)
 	if err != nil {
-		return list, err
+		return NamespaceList{}, err
 	}
 	clusterNSSet := make(map[string]interface{})
 	for _, svc := range app.Status.AppliedResources {
@@ -51,20 +41,22 @@ func ListClusterNamespaces(ctx context.Context, c client.Client) (*NamespaceList
 			clusterNSSet[svc.Namespace] = struct{}{}
 		}
 	}
-
+	nsList := make(NamespaceList, len(clusterNSSet))
+	index := 0
 	for clusterNS := range clusterNSSet {
 		namespaceInfo, err := LoadNamespaceDetail(ctx, c, clusterNS)
 		if err != nil {
 			continue
 		}
-		list.data = append(list.data, Namespace{
-			Name:   namespaceInfo.Name,
-			Status: string(namespaceInfo.Status.Phase),
-			Age:    utils.TimeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
-		})
+		nsList[index] = Namespace{
+			name:   namespaceInfo.Name,
+			status: string(namespaceInfo.Status.Phase),
+			age:    utils.TimeFormat(time.Since(namespaceInfo.CreationTimestamp.Time)),
+		}
+		index++
 	}
 
-	return list, nil
+	return nsList, nil
 }
 
 // LoadNamespaceDetail query detail info of a namespace by name

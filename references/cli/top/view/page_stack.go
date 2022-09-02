@@ -48,6 +48,7 @@ func (ps *PageStack) StackPop(old, new model.Component) {
 	if new == nil {
 		return
 	}
+	new.Start()
 	ps.app.SetFocus(new)
 }
 

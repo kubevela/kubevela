@@ -25,15 +25,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestApplicationList_Header(t *testing.T) {
-	appList := &ApplicationList{title: []string{"Name", "Namespace", "Phase", "CreateTime"}}
-	assert.Equal(t, appList.Header(), []string{"Name", "Namespace", "Phase", "CreateTime"})
-}
-
-func TestApplicationList_Body(t *testing.T) {
-	appList := &ApplicationList{data: []Application{{"name", "namespace", "phase", "createTime"}}}
-	assert.Equal(t, len(appList.data), 1)
-	assert.Equal(t, appList.Body()[0], []string{"name", "namespace", "phase", "createTime"})
+func TestApplicationList_ToTableBody(t *testing.T) {
+	appList := &ApplicationList{{"Name", "Namespace", "Phase", "CreateTime"}}
+	assert.Equal(t, appList.ToTableBody(), [][]string{{"Name", "Namespace", "Phase", "CreateTime"}})
 }
 
 var _ = Describe("test Application", func() {
@@ -57,8 +51,7 @@ var _ = Describe("test Application", func() {
 	It("list applications", func() {
 		applicationsList, err := ListApplications(ctx, k8sClient)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(applicationsList.Header()).To(Equal([]string{"Name", "Namespace", "Phase", "CreateTime"}))
-		Expect(len(applicationsList.Body())).To(Equal(1))
+		Expect(len(applicationsList)).To(Equal(1))
 	})
 	It("load application info", func() {
 		application, err := LoadApplication(k8sClient, "first-vela-app", "default")

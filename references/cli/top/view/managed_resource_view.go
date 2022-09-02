@@ -19,7 +19,6 @@ package view
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -31,34 +30,37 @@ import (
 
 // ManagedResourceView is a view which displays info of application's managed resource including CRDs and k8s objects
 type ManagedResourceView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
-// NewManagedResourceView return a new managed resource view
-func NewManagedResourceView(ctx context.Context, app *App) model.Component {
-	v := &ManagedResourceView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
+// Name return managed resource view name
+func (v *ManagedResourceView) Name() string {
+	return "Managed Resource"
 }
 
 // Init managed resource view
 func (v *ManagedResourceView) Init() {
+	v.CommonResourceView.Init()
 	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Title())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(config.ResourceTableTitleColor)
+	v.BuildHeader()
 	v.bindKeys()
 }
 
-// ListManagedResources return managed resource of the aimed application
-func (v *ManagedResourceView) ListManagedResources() model.ResourceList {
-	list, err := model.ListManagedResource(v.ctx, v.app.client)
-	if err != nil {
-		log.Println(err)
-	}
-	return list
+// Start the managed resource view
+func (v *ManagedResourceView) Start() {
+	v.Update()
+}
+
+// Stop the managed resource view
+func (v *ManagedResourceView) Stop() {
+	v.Table.Stop()
+}
+
+// Hint return key action menu hints of the managed resource view
+func (v *ManagedResourceView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
 }
 
 // Title return the table title of managed resource view
@@ -74,26 +76,37 @@ func (v *ManagedResourceView) Title() string {
 	return fmt.Sprintf("Managed Resource"+" (%s/%s)", namespace, clusterNS)
 }
 
-// Name return managed resource view name
-func (v *ManagedResourceView) Name() string {
-	return "Managed Resource"
+// InitView init a new managed resource view
+func (v *ManagedResourceView) InitView(ctx context.Context, app *App) {
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
+	}
 }
 
-// Start the managed resource view
-func (v *ManagedResourceView) Start() {
-	resourceList := v.ListManagedResources()
-	v.ResourceView.Init(resourceList)
-	v.ColorizeStatusText(len(resourceList.Body()))
+// Update refresh the content of body of view
+func (v *ManagedResourceView) Update() {
+	v.BuildBody()
 }
 
-// Stop the managed resource view
-func (v *ManagedResourceView) Stop() {
-	v.Table.Stop()
+// BuildHeader render the header of table
+func (v *ManagedResourceView) BuildHeader() {
+	header := []string{"Name", "Namespace", "Kind", "APIVersion", "Cluster", "Status"}
+	v.CommonResourceView.BuildHeader(header)
 }
 
-// Hint return key action menu hints of the managed resource view
-func (v *ManagedResourceView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
+// BuildBody render the body of table
+func (v *ManagedResourceView) BuildBody() {
+	resourceList, err := model.ListManagedResource(v.ctx, v.app.client)
+	if err != nil {
+		return
+	}
+	resourceInfos := resourceList.ToTableBody()
+	v.CommonResourceView.BuildBody(resourceInfos)
+	rowNum := len(resourceInfos)
+	v.ColorizeStatusText(rowNum)
 }
 
 // ColorizeStatusText colorize the status column text

@@ -52,8 +52,9 @@ func (c *Command) run(ctx context.Context, cmd string) {
 	case cmd == "yaml":
 		component = NewYamlView(ctx, c.app)
 	default:
-		if resource, ok := ResourceMap[cmd]; ok {
-			component = resource.viewFunc(ctx, c.app)
+		if resourceView, ok := ResourceViewMap[cmd]; ok {
+			resourceView.InitView(ctx, c.app)
+			component = resourceView
 		} else {
 			return
 		}

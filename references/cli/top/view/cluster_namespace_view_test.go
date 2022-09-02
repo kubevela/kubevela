@@ -42,31 +42,39 @@ func TestClusterNamespaceView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	cnsView, ok := NewClusterNamespaceView(ctx, app).(*ClusterNamespaceView)
-	assert.Equal(t, ok, true)
+
+	cnsView := new(ClusterNamespaceView)
+
+	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, cnsView.CommonResourceView)
+		cnsView.InitView(ctx, app)
+		assert.NotEmpty(t, cnsView.CommonResourceView)
+	})
 
 	t.Run("init", func(t *testing.T) {
 		cnsView.Init()
 		assert.Equal(t, cnsView.GetTitle(), "[ ClusterNamespace ]")
+		assert.Equal(t, cnsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("start", func(t *testing.T) {
 		cnsView.Start()
-		assert.Equal(t, cnsView.GetCell(0, 0).Text, "Name")
-		assert.Equal(t, cnsView.GetCell(1, 0).Text, "all")
 	})
+
 	t.Run("stop", func(t *testing.T) {
 		cnsView.Stop()
+		assert.Equal(t, cnsView.GetCell(0, 0).Text, "")
 	})
 
 	t.Run("hint", func(t *testing.T) {
 		assert.Equal(t, len(cnsView.Hint()), 3)
 	})
 
-	t.Run("object view", func(t *testing.T) {
+	t.Run("managed resource view", func(t *testing.T) {
 		cnsView.Table.Table = cnsView.Table.Select(1, 1)
 		assert.Empty(t, cnsView.managedResourceView(nil))
 	})

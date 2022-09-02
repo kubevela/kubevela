@@ -19,90 +19,81 @@ package view
 import (
 	"context"
 
-	"github.com/oam-dev/kubevela/references/cli/top/component"
-
 	"github.com/rivo/tview"
+
+	"github.com/oam-dev/kubevela/references/cli/top/component"
 
 	"github.com/oam-dev/kubevela/references/cli/top/config"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
 )
 
-// ResourceView is an abstract of resource view
-type ResourceView struct {
+// ResourceView is the interface to abstract resource view
+type ResourceView interface {
+	model.Component
+	InitView(ctx context.Context, app *App)
+	Update()
+	BuildHeader()
+	BuildBody()
+}
+
+// ResourceViewMap is a map from resource name to resource view
+var ResourceViewMap = map[string]ResourceView{
+	"app":      new(ApplicationView),
+	"cluster":  new(ClusterView),
+	"resource": new(ManagedResourceView),
+	"ns":       new(NamespaceView),
+	"cns":      new(ClusterNamespaceView),
+	"pod":      new(PodView),
+}
+
+// CommonResourceView is an abstract of resource view
+type CommonResourceView struct {
 	*component.Table
 	app *App
 }
 
-// ResourceViewer is resource's renderer
-type ResourceViewer struct {
-	viewFunc func(context.Context, *App) model.Component
-}
-
-// ResourceMap is a map from resource name to resource's renderer
-var ResourceMap = map[string]ResourceViewer{
-	"app": {
-		viewFunc: NewApplicationView,
-	},
-	"cluster": {
-		viewFunc: NewClusterView,
-	},
-	"resource": {
-		viewFunc: NewManagedResourceView,
-	},
-	"ns": {
-		viewFunc: NewNamespaceView,
-	},
-	"cns": {
-		viewFunc: NewClusterNamespaceView,
-	},
-	"pod": {
-		viewFunc: NewPodView,
-	},
-}
-
-// NewResourceView return a new resource view
-func NewResourceView(app *App) *ResourceView {
-	v := &ResourceView{
+// NewCommonView return a new common view
+func NewCommonView(app *App) *CommonResourceView {
+	v := &CommonResourceView{
 		Table: component.NewTable(),
 		app:   app,
 	}
 	return v
 }
 
-// Init the resource view
-func (v *ResourceView) Init(list model.ResourceList) {
-	v.SetSelectable(true, false)
-	v.buildTable(list)
-}
-
-func (v *ResourceView) buildTable(list model.ResourceList) {
+// Init the common resource view
+func (v *CommonResourceView) Init() {
 	v.Table.Init()
-	v.buildTableHeader(list.Header())
-	v.buildTableBody(list.Body())
+	v.SetBorder(true)
+	v.SetTitleColor(config.ResourceTableTitleColor)
+	v.SetSelectable(true, false)
 }
 
-// buildTableHeader render the resource table header
-func (v *ResourceView) buildTableHeader(header []string) {
+// Name return the name of common view
+func (v *CommonResourceView) Name() string {
+	return "Resource"
+}
+
+// BuildHeader render the header of table
+func (v *CommonResourceView) BuildHeader(header []string) {
 	for i := 0; i < len(header); i++ {
-		c := tview.NewTableCell(header[i]).SetTextColor(config.ResourceTableHeaderColor)
+		c := tview.NewTableCell(header[i])
+		c.SetTextColor(config.ResourceTableHeaderColor)
 		c.SetExpansion(3)
 		v.SetCell(0, i, c)
 	}
 }
 
-// buildTableBody render the resource table body
-func (v *ResourceView) buildTableBody(body [][]string) {
-	for i := 0; i < len(body); i++ {
-		for j := 0; j < len(body[i]); j++ {
+// BuildBody render the body of table
+func (v *CommonResourceView) BuildBody(body [][]string) {
+	rowNum := len(body)
+	for i := 0; i < rowNum; i++ {
+		columnNum := len(body[i])
+		for j := 0; j < columnNum; j++ {
 			c := tview.NewTableCell(body[i][j])
 			c.SetTextColor(config.ResourceTableBodyColor)
 			c.SetExpansion(3)
 			v.SetCell(i+1, j, c)
 		}
 	}
-}
-
-// Name return the name of view
-func (v *ResourceView) Name() string {
-	return "Resource"
 }

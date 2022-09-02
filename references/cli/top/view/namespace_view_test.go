@@ -43,16 +43,23 @@ func TestNamespaceView(t *testing.T) {
 	assert.NoError(t, err)
 	app := NewApp(testClient, cfg, "")
 	assert.Equal(t, len(app.Components()), 4)
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyAppName, "")
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	view := NewNamespaceView(ctx, app)
-	nsView, ok := (view).(*NamespaceView)
-	assert.Equal(t, ok, true)
+
+	nsView := new(NamespaceView)
+
+	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, nsView.CommonResourceView)
+		nsView.InitView(ctx, app)
+		assert.NotEmpty(t, nsView.CommonResourceView)
+	})
 
 	t.Run("init", func(t *testing.T) {
 		nsView.Init()
 		assert.Equal(t, nsView.Table.GetTitle(), "[ Namespace ]")
+		assert.Equal(t, nsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("hint", func(t *testing.T) {
@@ -61,14 +68,14 @@ func TestNamespaceView(t *testing.T) {
 
 	t.Run("start", func(t *testing.T) {
 		nsView.Start()
-		assert.Equal(t, nsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {
 		nsView.Stop()
+		assert.Equal(t, nsView.GetCell(0, 0).Text, "")
 	})
 
-	t.Run("appView", func(t *testing.T) {
+	t.Run("app view", func(t *testing.T) {
 		testData := []string{"local", "", "", "", ""}
 		for j := 0; j < 5; j++ {
 			nsView.Table.SetCell(1, j, tview.NewTableCell(testData[j]))

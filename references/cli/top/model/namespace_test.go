@@ -25,30 +25,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNamespaceList_Header(t *testing.T) {
-	nsList := NamespaceList{
-		title: []string{"Name", "Status", "Age"},
-		data:  []Namespace{{Name: AllNamespace, Status: "*", Age: "*"}},
-	}
-	assert.Equal(t, nsList.Header(), []string{"Name", "Status", "Age"})
-}
-
 func TestNamespaceList_Body(t *testing.T) {
-	nsList := NamespaceList{
-		title: []string{"Name", "Status", "Age"},
-		data:  []Namespace{{Name: AllNamespace, Status: "*", Age: "*"}},
-	}
-	assert.Equal(t, len(nsList.Body()), 1)
-	assert.Equal(t, nsList.Body()[0], []string{AllNamespace, "*", "*"})
+	nsList := NamespaceList{}
+	assert.Equal(t, len(nsList.ToTableBody()), 1)
+	assert.Equal(t, nsList.ToTableBody()[0], []string{AllNamespace, "*", "*"})
 }
 
 var _ = Describe("test namespace", func() {
 	ctx := context.Background()
 	It("list namespace", func() {
-		nsList := ListNamespaces(ctx, k8sClient)
-		Expect(len(nsList.Header())).To(Equal(3))
-		Expect(nsList.Header()).To(Equal([]string{"Name", "Status", "Age"}))
-		Expect(len(nsList.Body())).To(Equal(6))
-		Expect(nsList.Body()[0]).To(Equal([]string{"all", "*", "*"}))
+		nsList, err := ListNamespaces(ctx, k8sClient)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(nsList.ToTableBody())).To(Equal(6))
+		Expect(nsList.ToTableBody()[0]).To(Equal([]string{"all", "*", "*"}))
 	})
 })

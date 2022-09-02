@@ -56,6 +56,7 @@ func (t *Table) Start() {
 
 // Stop table component
 func (t *Table) Stop() {
+	t.Clear()
 }
 
 // Hint return key action menu hints of the component

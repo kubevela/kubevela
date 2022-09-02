@@ -43,6 +43,10 @@ const (
 	ApplicationWorkflowTerminatedPhaseColor = "[red::]"
 	// ApplicationRunningPhaseColor application Running phase text color
 	ApplicationRunningPhaseColor = "[green::]"
+	// NamespaceActiveStatusColor is namespace active status text color
+	NamespaceActiveStatusColor = "[green::]"
+	// NamespaceTerminateStatusColor is namespace terminate status text color
+	NamespaceTerminateStatusColor = "[red::]"
 	// ObjectHealthyStatusColor is object Healthy status text color
 	ObjectHealthyStatusColor = "[green::]"
 	// ObjectUnhealthyStatusColor is object Unhealthy status text color

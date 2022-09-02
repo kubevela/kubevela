@@ -19,7 +19,6 @@ package view
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/gdamore/tcell/v2"
 	v1 "k8s.io/api/core/v1"
@@ -31,34 +30,69 @@ import (
 
 // PodView is the pod view, this view display info of pod belonging to component
 type PodView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
-// NewPodView return a new pod view
-func NewPodView(ctx context.Context, app *App) model.Component {
-	v := &PodView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
+// Name return pod view name
+func (v *PodView) Name() string {
+	return "Pod"
+}
+
+// Start the pod view
+func (v *PodView) Start() {
+	v.Update()
+}
+
+// Stop the pod view
+func (v *PodView) Stop() {
+	v.Table.Stop()
+}
+
+// Hint return key action menu hints of the pod view
+func (v *PodView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
 }
 
 // Init cluster view init
 func (v *PodView) Init() {
-	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Name())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
+	v.CommonResourceView.Init()
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name()))
+	v.BuildHeader()
 	v.bindKeys()
 }
 
-// ListPods list pods of component
-func (v *PodView) ListPods() model.ResourceList {
-	list, err := model.ListPods(v.ctx, v.app.config.RestConfig, v.app.client)
-	if err != nil {
-		log.Println(err)
+// InitView init a new pod view
+func (v *PodView) InitView(ctx context.Context, app *App) {
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
 	}
-	return list
+}
+
+// Update refresh the content of body of view
+func (v *PodView) Update() {
+	v.BuildBody()
+}
+
+// BuildHeader render the header of table
+func (v *PodView) BuildHeader() {
+	header := []string{"Name", "Namespace", "Ready", "Status", "CPU", "MEM", "%CPU/R", "%CPU/L", "%MEM/R", "%MEM/L", "IP", "Node", "Age"}
+	v.CommonResourceView.BuildHeader(header)
+}
+
+// BuildBody render the body of table
+func (v *PodView) BuildBody() {
+	podList, err := model.ListPods(v.ctx, v.app.config.RestConfig, v.app.client)
+	if err != nil {
+		return
+	}
+	podInfos := podList.ToTableBody()
+	v.CommonResourceView.BuildBody(podInfos)
+	rowNum := len(podInfos)
+	v.ColorizePhaseText(rowNum)
 }
 
 // ColorizePhaseText colorize the phase column text
@@ -78,28 +112,6 @@ func (v *PodView) ColorizePhaseText(rowNum int) {
 		}
 		v.Table.GetCell(i, 3).SetText(phase)
 	}
-}
-
-// Name return pod view name
-func (v *PodView) Name() string {
-	return "Pod"
-}
-
-// Start the pod view
-func (v *PodView) Start() {
-	resourceList := v.ListPods()
-	v.ResourceView.Init(resourceList)
-	v.ColorizePhaseText(len(resourceList.Body()))
-}
-
-// Stop the pod view
-func (v *PodView) Stop() {
-	v.Table.Stop()
-}
-
-// Hint return key action menu hints of the pod view
-func (v *PodView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
 }
 
 func (v *PodView) bindKeys() {
