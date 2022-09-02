@@ -63,4 +63,10 @@ const (
 	PodSucceededPhase = "[purple::]"
 	// PodFailedPhase is pod failed phase text color
 	PodFailedPhase = "[red::]"
+	// YamlKeyColor is the color of key in highlighted yaml
+	YamlKeyColor = "mediumturquoise"
+	// YamlColonColor is the color of colon in highlighted yaml
+	YamlColonColor = "white"
+	// YamlValueColor is the color of value in highlighted yaml
+	YamlValueColor = "orangered"
 )

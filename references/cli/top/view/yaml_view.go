@@ -19,6 +19,8 @@ package view
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -36,6 +38,17 @@ type YamlView struct {
 	ctx     context.Context
 }
 
+var (
+	keyValRX = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s(.+)\z`)
+	keyRX    = regexp.MustCompile(`\A(\s*)([\w|\-|\.|\/|\s]+):\s*\z`)
+)
+
+const (
+	yamlFullFmt  = "%s[key::b]%s[colon::-]: [val::]%s"
+	yamlKeyFmt   = "%s[key::b]%s[colon::-]:"
+	yamlValueFmt = "[val::]%s"
+)
+
 // NewYamlView return  a new yaml view
 func NewYamlView(ctx context.Context, app *App) model.Component {
 	v := &YamlView{
@@ -50,6 +63,8 @@ func NewYamlView(ctx context.Context, app *App) model.Component {
 // Init the yaml view
 func (v *YamlView) Init() {
 	title := fmt.Sprintf("[ %s ]", v.Name())
+	v.SetDynamicColors(true)
+	v.SetRegions(true)
 	v.SetBorder(true)
 	v.SetBorderAttributes(tcell.AttrItalic)
 	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
@@ -72,6 +87,7 @@ func (v *YamlView) Start() {
 			v.SetText(fmt.Sprintf("can't load the Yaml text of the resource!, because  %s", err))
 			return
 		}
+		yaml = HighlightText(yaml)
 		v.SetText(yaml)
 	} else {
 		v.SetText("can't load the Yaml text of the resource!")
@@ -90,6 +106,38 @@ func (v *YamlView) Name() string {
 // Hint return the menu hints of yaml view
 func (v *YamlView) Hint() []model.MenuHint {
 	return v.actions.Hint()
+}
+
+// HighlightText highlight the key, colon, value text of the yaml text
+func HighlightText(yaml string) string {
+	lines := strings.Split(tview.Escape(yaml), "\n")
+
+	fullFmt := strings.Replace(yamlFullFmt, "[key", "["+config.YamlKeyColor, 1)
+	fullFmt = strings.Replace(fullFmt, "[colon", "["+config.YamlColonColor, 1)
+	fullFmt = strings.Replace(fullFmt, "[val", "["+config.YamlValueColor, 1)
+
+	keyFmt := strings.Replace(yamlKeyFmt, "[key", "["+config.YamlKeyColor, 1)
+	keyFmt = strings.Replace(keyFmt, "[colon", "["+config.YamlColonColor, 1)
+
+	valFmt := strings.Replace(yamlValueFmt, "[val", "["+config.YamlValueColor, 1)
+
+	buff := make([]string, 0, len(lines))
+	for _, l := range lines {
+		res := keyValRX.FindStringSubmatch(l)
+		if len(res) == 4 {
+			buff = append(buff, fmt.Sprintf(fullFmt, res[1], res[2], res[3]))
+			continue
+		}
+		res = keyRX.FindStringSubmatch(l)
+		if len(res) == 3 {
+			buff = append(buff, fmt.Sprintf(keyFmt, res[1], res[2]))
+			continue
+		}
+
+		buff = append(buff, fmt.Sprintf(valFmt, l))
+	}
+
+	return strings.Join(buff, "\n")
 }
 
 func (v *YamlView) keyboard(event *tcell.EventKey) *tcell.EventKey {

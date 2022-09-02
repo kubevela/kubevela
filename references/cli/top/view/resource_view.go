@@ -53,11 +53,10 @@ type CommonResourceView struct {
 
 // NewCommonView return a new common view
 func NewCommonView(app *App) *CommonResourceView {
-	v := &CommonResourceView{
+	return &CommonResourceView{
 		Table: component.NewTable(),
 		app:   app,
 	}
-	return v
 }
 
 // Init the common resource view

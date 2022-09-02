@@ -66,7 +66,7 @@ func TestApplicationView(t *testing.T) {
 
 	t.Run("stop", func(t *testing.T) {
 		appView.Stop()
-		assert.Equal(t, appView.GetCell(0, 0).Text, "")
+		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {

@@ -69,7 +69,7 @@ func TestManagedResourceView(t *testing.T) {
 
 	t.Run("stop", func(t *testing.T) {
 		resourceView.Stop()
-		assert.Equal(t, resourceView.GetCell(0, 0).Text, "")
+		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {

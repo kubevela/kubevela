@@ -72,7 +72,7 @@ func TestNamespaceView(t *testing.T) {
 
 	t.Run("stop", func(t *testing.T) {
 		nsView.Stop()
-		assert.Equal(t, nsView.GetCell(0, 0).Text, "")
+		assert.Equal(t, nsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("app view", func(t *testing.T) {

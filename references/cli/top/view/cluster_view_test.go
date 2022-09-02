@@ -72,7 +72,7 @@ func TestClusterView(t *testing.T) {
 
 	t.Run("stop", func(t *testing.T) {
 		clusterView.Stop()
-		assert.Equal(t, clusterView.GetCell(0, 0).Text, "")
+		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("managed resource view", func(t *testing.T) {
