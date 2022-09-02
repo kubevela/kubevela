@@ -19,6 +19,8 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
@@ -55,7 +57,7 @@ type ApplicationRevisionSpec struct {
 	Policies map[string]v1alpha1.Policy `json:"policies,omitempty"`
 
 	// Workflow records the external workflow
-	Workflow *v1alpha1.Workflow `json:"workflow,omitempty"`
+	Workflow *workflowv1alpha1.Workflow `json:"workflow,omitempty"`
 
 	// ReferredObjects records the referred objects used in the ref-object typed components
 	// +kubebuilder:pruning:PreserveUnknownFields

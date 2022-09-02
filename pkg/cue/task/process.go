@@ -23,9 +23,10 @@ import (
 
 	"cuelang.org/go/cue"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/pkg/builtin"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 // Process processing the http task

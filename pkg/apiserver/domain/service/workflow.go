@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"helm.sh/helm/v3/pkg/time"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,7 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/repository"
@@ -43,7 +45,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // WorkflowService workflow manage api
@@ -368,6 +369,10 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
+		if app.Status.Workflow == nil {
+			continue
+		}
+
 		// there is a ":" in the default app revision
 		recordName := strings.Replace(app.Status.Workflow.AppRevision, ":", "-", 1)
 
@@ -379,7 +384,7 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
-		// try to sync the status from the controller revision
+		// try to sync the status from the application revision
 		var revision = &model.ApplicationRevision{AppPrimaryKey: record.AppPrimaryKey, Version: record.RevisionPrimaryKey}
 		if err := w.Store.Get(ctx, revision); err != nil {
 			if errors.Is(err, datastore.ErrRecordNotExist) {
@@ -414,10 +419,12 @@ func (w *workflowServiceImpl) SyncWorkflowRecord(ctx context.Context) error {
 			continue
 		}
 
-		appRevision.Spec.Application.Status.Workflow = appRevision.Status.Workflow
-		if !appRevision.Spec.Application.Status.Workflow.Finished {
-			appRevision.Spec.Application.Status.Workflow.Finished = true
-			appRevision.Spec.Application.Status.Workflow.Terminated = true
+		if appRevision.Status.Workflow != nil {
+			appRevision.Spec.Application.Status.Workflow = appRevision.Status.Workflow
+			if !appRevision.Spec.Application.Status.Workflow.Finished {
+				appRevision.Spec.Application.Status.Workflow.Finished = true
+				appRevision.Spec.Application.Status.Workflow.Terminated = true
+			}
 		}
 		if err := w.syncWorkflowStatus(ctx, record.AppPrimaryKey, &appRevision.Spec.Application, record.Name, revision.RevisionCRName); err != nil {
 			klog.ErrorS(err, "failed to sync workflow status", "oam app name", appName, "workflow name", record.WorkflowName, "record name", record.Name)
@@ -491,7 +498,7 @@ func (w *workflowServiceImpl) syncWorkflowStatus(ctx context.Context, appPrimary
 		}
 
 		record.Status = summaryStatus
-		stepStatus := make(map[string]*common.WorkflowStepStatus, len(status.Steps))
+		stepStatus := make(map[string]*workflowv1alpha1.WorkflowStepStatus, len(status.Steps))
 		for i, step := range status.Steps {
 			stepStatus[step.Name] = &status.Steps[i]
 		}
@@ -608,8 +615,8 @@ func resetRevisionsAndRecords(ctx context.Context, ds datastore.DataStore, appNa
 			record.Status = model.RevisionStatusTerminated
 			record.Finished = "true"
 			for i, step := range record.Steps {
-				if step.Phase == common.WorkflowStepPhaseRunning {
-					record.Steps[i].Phase = common.WorkflowStepPhaseStopped
+				if step.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
+					record.Steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseStopped
 				}
 			}
 			if err := ds.Put(ctx, record); err != nil {
@@ -666,12 +673,12 @@ func ResumeWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.App
 	app.Status.Workflow.Suspend = false
 	steps := app.Status.Workflow.Steps
 	for i, step := range steps {
-		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == common.WorkflowStepPhaseRunning {
-			steps[i].Phase = common.WorkflowStepPhaseSucceeded
+		if step.Type == wfTypes.WorkflowStepTypeSuspend && step.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
+			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
 		}
 		for j, sub := range step.SubStepsStatus {
-			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == common.WorkflowStepPhaseRunning {
-				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseSucceeded
+			if sub.Type == wfTypes.WorkflowStepTypeSuspend && sub.Phase == workflowv1alpha1.WorkflowStepPhaseRunning {
+				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
 			}
 		}
 	}
@@ -690,23 +697,23 @@ func TerminateWorkflow(ctx context.Context, kubecli client.Client, app *v1beta1.
 	steps := app.Status.Workflow.Steps
 	for i, step := range steps {
 		switch step.Phase {
-		case common.WorkflowStepPhaseFailed:
+		case workflowv1alpha1.WorkflowStepPhaseFailed:
 			if step.Reason != wfTypes.StatusReasonFailedAfterRetries && step.Reason != wfTypes.StatusReasonTimeout {
 				steps[i].Reason = wfTypes.StatusReasonTerminate
 			}
-		case common.WorkflowStepPhaseRunning:
-			steps[i].Phase = common.WorkflowStepPhaseFailed
+		case workflowv1alpha1.WorkflowStepPhaseRunning:
+			steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
 			steps[i].Reason = wfTypes.StatusReasonTerminate
 		default:
 		}
 		for j, sub := range step.SubStepsStatus {
 			switch sub.Phase {
-			case common.WorkflowStepPhaseFailed:
+			case workflowv1alpha1.WorkflowStepPhaseFailed:
 				if sub.Reason != wfTypes.StatusReasonFailedAfterRetries && sub.Reason != wfTypes.StatusReasonTimeout {
 					steps[i].SubStepsStatus[j].Phase = wfTypes.StatusReasonTerminate
 				}
-			case common.WorkflowStepPhaseRunning:
-				steps[i].SubStepsStatus[j].Phase = common.WorkflowStepPhaseFailed
+			case workflowv1alpha1.WorkflowStepPhaseRunning:
+				steps[i].SubStepsStatus[j].Phase = workflowv1alpha1.WorkflowStepPhaseFailed
 				steps[i].SubStepsStatus[j].Reason = wfTypes.StatusReasonTerminate
 			default:
 			}

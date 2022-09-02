@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 )
 
 func TestFillQueryResult(t *testing.T) {

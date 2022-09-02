@@ -290,7 +290,7 @@ func (in *ResourceTracker) ContainsManagedResource(rsc client.Object) bool {
 }
 
 // AddManagedResource add object to managed resources, if exists, update
-func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, skipGC bool, creator common.ResourceCreatorRole) (updated bool) {
+func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, skipGC bool, creator string) (updated bool) {
 	mr := newManagedResourceFromResource(rsc)
 	mr.SkipGC = skipGC
 	if !metaOnly {

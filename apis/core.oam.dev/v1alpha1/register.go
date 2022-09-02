@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
@@ -54,5 +56,5 @@ var (
 
 func init() {
 	SchemeBuilder.Register(&Policy{}, &PolicyList{})
-	SchemeBuilder.Register(&Workflow{}, &WorkflowList{})
+	SchemeBuilder.Register(&workflowv1alpha1.Workflow{}, &workflowv1alpha1.WorkflowList{})
 }

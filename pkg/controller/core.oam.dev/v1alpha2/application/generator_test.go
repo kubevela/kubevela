@@ -28,9 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -81,7 +83,7 @@ var _ = Describe("Test Application workflow generator", func() {
 						Name:       "myweb1",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Inputs: common.StepInputs{
+						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -96,7 +98,7 @@ var _ = Describe("Test Application workflow generator", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: common.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{
 								Name:      "message",
 								ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives",
@@ -116,7 +118,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -158,7 +160,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -278,7 +280,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
 		Expect(taskRunner[0].Name()).Should(BeEquivalentTo("myweb1"))
@@ -319,7 +321,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).NotTo(BeNil())
 	})
 
@@ -357,7 +359,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(err).Should(Succeed())
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
-		_, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
+		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af, appRev)
 		Expect(err).NotTo(BeNil())
 	})
 })

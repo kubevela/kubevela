@@ -19,7 +19,6 @@ package query
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -35,14 +34,15 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+	"github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 const (
@@ -56,9 +56,8 @@ const (
 )
 
 type provider struct {
-	cli        client.Client
-	cfg        *rest.Config
-	ctxFactory func() context.Context
+	cli client.Client
+	cfg *rest.Config
 }
 
 // Resource refer to an object with cluster info
@@ -92,7 +91,7 @@ type FilterOption struct {
 }
 
 // ListResourcesInApp lists CRs created by Application, this provider queries the object data.
-func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) ListResourcesInApp(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -102,7 +101,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 		return err
 	}
 	collector := NewAppCollector(h.cli, opt)
-	appResList, err := collector.CollectResourceFromApp(h.ctxFactory())
+	appResList, err := collector.CollectResourceFromApp(ctx)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -113,8 +112,7 @@ func (h *provider) ListResourcesInApp(ctx wfContext.Context, v *value.Value, act
 }
 
 // ListAppliedResources list applied resource from tracker, this provider only queries the metadata.
-func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	_ctx := h.ctxFactory()
+func (h *provider) ListAppliedResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -126,10 +124,10 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(_ctx, appKey, app); err != nil {
+	if err = h.cli.Get(ctx, appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(_ctx, app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -139,8 +137,7 @@ func (h *provider) ListAppliedResources(ctx wfContext.Context, v *value.Value, a
 	return fillQueryResult(v, appResList, "list")
 }
 
-func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act types.Action) error {
-	_ctx := h.ctxFactory()
+func (h *provider) CollectResources(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -152,10 +149,10 @@ func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act t
 	collector := NewAppCollector(h.cli, opt)
 	app := new(v1beta1.Application)
 	appKey := client.ObjectKey{Name: opt.Name, Namespace: opt.Namespace}
-	if err = h.cli.Get(h.ctxFactory(), appKey, app); err != nil {
+	if err = h.cli.Get(ctx, appKey, app); err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
-	appResList, err := collector.ListApplicationResources(_ctx, app, opt.WithTree)
+	appResList, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
 	if err != nil {
 		return v.FillObject(err.Error(), "err")
 	}
@@ -167,7 +164,7 @@ func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act t
 			var object unstructured.Unstructured
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
-			if err := h.cli.Get(h.ctxFactory(), apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
+			if err := h.cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, &object); err == nil {
 				resources = append(resources, buildResourceItem(*res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
@@ -182,7 +179,7 @@ func (h *provider) CollectResources(ctx wfContext.Context, v *value.Value, act t
 	return fillQueryResult(v, resources, "list")
 }
 
-func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) SearchEvents(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("value")
 	if err != nil {
 		return err
@@ -196,7 +193,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 		return err
 	}
 
-	listCtx := multicluster.ContextWithClusterName(h.ctxFactory(), cluster)
+	listCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	fieldSelector := getEventFieldSelector(obj)
 	eventList := corev1.EventList{}
 	listOpts := []client.ListOption{
@@ -211,7 +208,7 @@ func (h *provider) SearchEvents(ctx wfContext.Context, v *value.Value, act types
 	return fillQueryResult(v, eventList.Items, "list")
 }
 
-func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) CollectLogsInPod(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	cluster, err := v.GetString("cluster")
 	if err != nil {
 		return errors.Wrapf(err, "invalid cluster")
@@ -232,7 +229,7 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 	if err = val.UnmarshalTo(opts); err != nil {
 		return errors.Wrapf(err, "invalid log options content")
 	}
-	cliCtx := multicluster.ContextWithClusterName(h.ctxFactory(), cluster)
+	cliCtx := multicluster.ContextWithClusterName(ctx, cluster)
 	clientSet, err := kubernetes.NewForConfig(h.cfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create kubernetes client")
@@ -296,17 +293,13 @@ func (h *provider) CollectLogsInPod(ctx wfContext.Context, v *value.Value, act t
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers, cli client.Client, cfg *rest.Config, ctxFactory func() context.Context) {
+func Install(p types.Providers, cli client.Client, cfg *rest.Config) {
 	prd := &provider{
-		cli:        cli,
-		cfg:        cfg,
-		ctxFactory: ctxFactory,
-	}
-	if prd.ctxFactory == nil {
-		prd.ctxFactory = context.Background
+		cli: cli,
+		cfg: cfg,
 	}
 
-	p.Register(ProviderName, map[string]providers.Handler{
+	p.Register(ProviderName, map[string]types.Handler{
 		"listResourcesInApp":      prd.ListResourcesInApp,
 		"listAppliedResources":    prd.ListAppliedResources,
 		"collectResources":        prd.CollectResources,

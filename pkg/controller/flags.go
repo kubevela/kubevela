@@ -19,6 +19,8 @@ package controller
 import (
 	flag "github.com/spf13/pflag"
 
+	wfContext "github.com/kubevela/workflow/pkg/context"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
@@ -27,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 )
 
 // AddOptimizeFlags add flags

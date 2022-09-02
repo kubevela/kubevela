@@ -43,7 +43,10 @@ var _ = Describe("Kruise rollout test", func() {
 	It("Suspend workflow", func() {
 		checkApp := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
-		checkApp.Status.Workflow = &common.WorkflowStatus{Suspend: false, StartTime: metav1.Now()}
+		checkApp.Status.Workflow = &common.WorkflowStatus{
+			Suspend:   false,
+			StartTime: metav1.Now(),
+		}
 		Expect(k8sClient.Status().Update(ctx, &checkApp)).Should(BeNil())
 		operator := NewWorkflowOperator(k8sClient, nil)
 		checkApp = v1beta1.Application{}

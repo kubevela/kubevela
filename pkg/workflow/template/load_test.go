@@ -53,13 +53,13 @@ func TestLoad(t *testing.T) {
 	tdm := mock.NewMockDiscoveryMapper()
 	loader := NewWorkflowStepTemplateLoader(cli, tdm)
 
-	tmpl, err := loader.LoadTaskTemplate(context.Background(), "builtin-apply-component")
+	tmpl, err := loader.LoadTemplate(context.Background(), "builtin-apply-component")
 	assert.NilError(t, err)
 	expected, err := os.ReadFile("./static/builtin-apply-component.cue")
 	assert.NilError(t, err)
 	assert.Equal(t, tmpl, string(expected))
 
-	tmpl, err = loader.LoadTaskTemplate(context.Background(), "apply-oam-component")
+	tmpl, err = loader.LoadTemplate(context.Background(), "apply-oam-component")
 	assert.NilError(t, err)
 	assert.Equal(t, tmpl, `import (
 	"vela/op"

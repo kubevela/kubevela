@@ -22,19 +22,18 @@ import (
 	"strings"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // FromCRComponent concerts Application CR Component object into velaux data store component
@@ -86,7 +85,7 @@ func FromCRPolicy(appPrimaryKey string, policyCR v1beta1.AppPolicy, creator stri
 }
 
 // FromCRWorkflow converts Application CR Workflow section into velaux data store workflow
-func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []v1beta1.WorkflowStep, error) {
+func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string, app *v1beta1.Application) (model.Workflow, []workflowv1alpha1.WorkflowStep, error) {
 	var defaultWorkflow = true
 	dataWf := model.Workflow{
 		AppPrimaryKey: appPrimaryKey,
@@ -101,14 +100,14 @@ func FromCRWorkflow(ctx context.Context, cli client.Client, appPrimaryKey string
 	if app.Spec.Workflow == nil {
 		return dataWf, nil, nil
 	}
-	var steps []v1beta1.WorkflowStep
+	var steps []workflowv1alpha1.WorkflowStep
 	if app.Spec.Workflow.Ref != "" {
 		dataWf.Name = app.Spec.Workflow.Ref
-		wf := &v1alpha1.Workflow{}
+		wf := &workflowv1alpha1.Workflow{}
 		if err := cli.Get(ctx, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
 			return dataWf, nil, err
 		}
-		steps = step.ConvertSteps(wf.Steps)
+		steps = wf.Steps
 	} else {
 		steps = app.Spec.Workflow.Steps
 	}

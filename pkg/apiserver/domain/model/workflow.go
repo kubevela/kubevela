@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 )
 
 func init() {
@@ -51,15 +51,15 @@ type Workflow struct {
 // WorkflowStep defines how to execute a workflow step.
 type WorkflowStep struct {
 	// Name is the unique name of the workflow step.
-	Name        string             `json:"name"`
-	Alias       string             `json:"alias"`
-	Type        string             `json:"type"`
-	Description string             `json:"description"`
-	OrderIndex  int                `json:"orderIndex"`
-	Inputs      common.StepInputs  `json:"inputs,omitempty"`
-	Outputs     common.StepOutputs `json:"outputs,omitempty"`
-	DependsOn   []string           `json:"dependsOn"`
-	Properties  *JSONStruct        `json:"properties,omitempty"`
+	Name        string                       `json:"name"`
+	Alias       string                       `json:"alias"`
+	Type        string                       `json:"type"`
+	Description string                       `json:"description"`
+	OrderIndex  int                          `json:"orderIndex"`
+	Inputs      workflowv1alpha1.StepInputs  `json:"inputs,omitempty"`
+	Outputs     workflowv1alpha1.StepOutputs `json:"outputs,omitempty"`
+	DependsOn   []string                     `json:"dependsOn"`
+	Properties  *JSONStruct                  `json:"properties,omitempty"`
 }
 
 // TableName return custom table name
@@ -114,15 +114,15 @@ type WorkflowRecord struct {
 
 // WorkflowStepStatus is the workflow step status database model
 type WorkflowStepStatus struct {
-	ID               string                   `json:"id"`
-	Name             string                   `json:"name"`
-	Alias            string                   `json:"alias"`
-	Type             string                   `json:"type,omitempty"`
-	Phase            common.WorkflowStepPhase `json:"phase,omitempty"`
-	Message          string                   `json:"message,omitempty"`
-	Reason           string                   `json:"reason,omitempty"`
-	FirstExecuteTime time.Time                `json:"firstExecuteTime,omitempty"`
-	LastExecuteTime  time.Time                `json:"lastExecuteTime,omitempty"`
+	ID               string                             `json:"id"`
+	Name             string                             `json:"name"`
+	Alias            string                             `json:"alias"`
+	Type             string                             `json:"type,omitempty"`
+	Phase            workflowv1alpha1.WorkflowStepPhase `json:"phase,omitempty"`
+	Message          string                             `json:"message,omitempty"`
+	Reason           string                             `json:"reason,omitempty"`
+	FirstExecuteTime time.Time                          `json:"firstExecuteTime,omitempty"`
+	LastExecuteTime  time.Time                          `json:"lastExecuteTime,omitempty"`
 }
 
 // TableName return custom table name

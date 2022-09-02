@@ -17,7 +17,6 @@ limitations under the License.
 package resourcekeeper
 
 import (
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
@@ -34,7 +33,7 @@ func (option MetaOnlyOption) ApplyToDispatchConfig(cfg *dispatchConfig) { cfg.me
 
 // CreatorOption set the creator of the resource
 type CreatorOption struct {
-	Creator common.ResourceCreatorRole
+	Creator string
 }
 
 // ApplyToDispatchConfig apply change to dispatch config

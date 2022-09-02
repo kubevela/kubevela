@@ -79,7 +79,6 @@ spec:
                     component:
                       type: string
                     creator:
-                      description: ResourceCreatorRole defines the resource creator.
                       type: string
                     deleted:
                       description: Deleted marks the resource to be deleted
@@ -147,7 +146,6 @@ spec:
                     cluster:
                       type: string
                     creator:
-                      description: ResourceCreatorRole defines the resource creator.
                       type: string
                     fieldPath:
                       description: 'If referring to a piece of an object instead of

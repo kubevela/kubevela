@@ -25,9 +25,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	apiConfig "github.com/oam-dev/kubevela/pkg/apiserver/config"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"

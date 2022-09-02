@@ -19,33 +19,31 @@ package stdlib
 import (
 	"embed"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
-	"k8s.io/klog/v2"
+	"github.com/kubevela/workflow/pkg/stdlib"
 )
-
-func init() {
-	var err error
-	BuiltinImports, err = initBuiltinImports()
-	if err != nil {
-		klog.ErrorS(err, "Unable to init builtin imports")
-		os.Exit(1)
-	}
-}
 
 var (
 	//go:embed pkgs op.cue ql.cue
 	fs embed.FS
-	// BuiltinImports is the builtin imports for cue
-	BuiltinImports []*build.Instance
 )
 
-// GetPackages Get Stdlib packages
-func GetPackages() (map[string]string, error) {
+// SetupBuiltinImports set up builtin imports
+func SetupBuiltinImports() error {
+	builtinImports, err := initBuiltinImports()
+	if err != nil {
+		return err
+	}
+	stdlib.SetupGeneralImports(builtinImports)
+	return nil
+}
+
+// getPackages get stdlib packages
+func getPackages() (map[string]string, error) {
 	files, err := fs.ReadDir("pkgs")
 	if err != nil {
 		return nil, err
@@ -81,29 +79,9 @@ func GetPackages() (map[string]string, error) {
 	}, nil
 }
 
-// AddImportsFor install imports for build.Instance.
-func AddImportsFor(inst *build.Instance, tagTempl string) error {
-	inst.Imports = append(inst.Imports, BuiltinImports...)
-	if tagTempl != "" {
-		p := &build.Instance{
-			PkgName:    filepath.Base("vela/custom"),
-			ImportPath: "vela/custom",
-		}
-		file, err := parser.ParseFile("-", tagTempl, parser.ParseComments)
-		if err != nil {
-			return err
-		}
-		if err := p.AddSyntax(file); err != nil {
-			return err
-		}
-		inst.Imports = append(inst.Imports, p)
-	}
-	return nil
-}
-
 func initBuiltinImports() ([]*build.Instance, error) {
 	imports := make([]*build.Instance, 0)
-	pkgs, err := GetPackages()
+	pkgs, err := getPackages()
 	if err != nil {
 		return nil, err
 	}

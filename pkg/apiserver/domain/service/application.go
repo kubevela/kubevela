@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -938,13 +939,15 @@ func (c *applicationServiceImpl) renderOAMApplication(ctx context.Context, appMo
 	}
 	if workflow != nil {
 		app.Annotations[oam.AnnotationWorkflowName] = workflow.Name
-		var steps []v1beta1.WorkflowStep
+		var steps []workflowv1alpha1.WorkflowStep
 		for _, step := range workflow.Steps {
-			var workflowStep = v1beta1.WorkflowStep{
-				Name:    step.Name,
-				Type:    step.Type,
-				Inputs:  step.Inputs,
-				Outputs: step.Outputs,
+			var workflowStep = workflowv1alpha1.WorkflowStep{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:    step.Name,
+					Type:    step.Type,
+					Inputs:  step.Inputs,
+					Outputs: step.Outputs,
+				},
 			}
 			if step.Properties != nil {
 				workflowStep.Properties = step.Properties.RawExtension()

@@ -22,11 +22,8 @@ import (
 	"reflect"
 	"strings"
 
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -36,10 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var expectedExceptApp = &Appfile{
@@ -116,10 +116,12 @@ var expectedExceptApp = &Appfile{
 			},
 		},
 	},
-	WorkflowSteps: []v1beta1.WorkflowStep{
+	WorkflowSteps: []workflowv1alpha1.WorkflowStep{
 		{
-			Name: "suspend",
-			Type: "suspend",
+			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				Name: "suspend",
+				Type: "suspend",
+			},
 		},
 	},
 }
@@ -644,10 +646,12 @@ patch: spec: replicas: parameter.replicas
 					},
 				},
 			},
-			WorkflowSteps: []v1beta1.WorkflowStep{
+			WorkflowSteps: []workflowv1alpha1.WorkflowStep{
 				{
-					Name: "apply",
-					Type: "apply-application",
+					WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						Name: "apply",
+						Type: "apply-application",
+					},
 				},
 			},
 		}

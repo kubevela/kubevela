@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
@@ -123,11 +125,11 @@ type ApplicationComponent struct {
 	Type          string            `json:"type"`
 	Main          bool              `json:"main"`
 	// ExternalRevision specified the component revisionName
-	ExternalRevision string             `json:"externalRevision,omitempty"`
-	Properties       *JSONStruct        `json:"properties,omitempty"`
-	DependsOn        []string           `json:"dependsOn,omitempty"`
-	Inputs           common.StepInputs  `json:"inputs,omitempty"`
-	Outputs          common.StepOutputs `json:"outputs,omitempty"`
+	ExternalRevision string                       `json:"externalRevision,omitempty"`
+	Properties       *JSONStruct                  `json:"properties,omitempty"`
+	DependsOn        []string                     `json:"dependsOn,omitempty"`
+	Inputs           workflowv1alpha1.StepInputs  `json:"inputs,omitempty"`
+	Outputs          workflowv1alpha1.StepOutputs `json:"outputs,omitempty"`
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 	// scopes in ApplicationComponent defines the component-level scopes

@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -39,10 +41,12 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 		},
 		Type: "ex-type",
 	}).Build()
-	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
-		Name:       "deploy",
-		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["ex","internal"],"parallelism":10}`)},
+	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []workflowv1alpha1.WorkflowStep{{
+		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Name:       "deploy",
+			Type:       DeployWorkflowStep,
+			Properties: &runtime.RawExtension{Raw: []byte(`{"auto":false,"policies":["ex","internal"],"parallelism":10}`)},
+		},
 	}}, []v1beta1.AppPolicy{{
 		Name: "internal",
 		Type: "internal",
@@ -53,19 +57,23 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 	r.Equal("ex-type", policies[1].Type)
 
 	// Test policy not found
-	_, err = LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
-		Name:       "deploy",
-		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"]}`)},
+	_, err = LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []workflowv1alpha1.WorkflowStep{{
+		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Name:       "deploy",
+			Type:       DeployWorkflowStep,
+			Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"]}`)},
+		},
 	}}, []v1beta1.AppPolicy{})
 	r.NotNil(err)
 	r.Contains(err.Error(), "external policy non not found")
 
 	// Test invalid policy
-	_, err = LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []v1beta1.WorkflowStep{{
-		Name:       "deploy",
-		Type:       DeployWorkflowStep,
-		Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"],"unknown-field":"value"}`)},
+	_, err = LoadExternalPoliciesForWorkflow(context.Background(), cli, "demo", []workflowv1alpha1.WorkflowStep{{
+		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Name:       "deploy",
+			Type:       DeployWorkflowStep,
+			Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"],"unknown-field":"value"}`)},
+		},
 	}}, []v1beta1.AppPolicy{})
 	r.NotNil(err)
 	r.Contains(err.Error(), "invalid WorkflowStep deploy")

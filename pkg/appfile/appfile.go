@@ -37,6 +37,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/process"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -46,9 +50,7 @@ import (
 	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -175,13 +177,13 @@ type Appfile struct {
 
 	Policies        []v1beta1.AppPolicy
 	PolicyWorkloads []*Workload
-	WorkflowSteps   []v1beta1.WorkflowStep
 	Components      []common.ApplicationComponent
 	Artifacts       []*types.ComponentManifest
-	WorkflowMode    common.WorkflowMode
+	WorkflowSteps   []workflowv1alpha1.WorkflowStep
+	WorkflowMode    *workflowv1alpha1.WorkflowExecuteMode
 
 	ExternalPolicies map[string]*v1alpha1.Policy
-	ExternalWorkflow *v1alpha1.Workflow
+	ExternalWorkflow *workflowv1alpha1.Workflow
 	ReferredObjects  []*unstructured.Unstructured
 
 	parser *Parser
@@ -217,9 +219,9 @@ func (af *Appfile) generateUnstructured(workload *Workload) (*unstructured.Unstr
 	return un, nil
 }
 
-func generateUnstructuredFromCUEModule(wl *Workload, artifacts []*types.ComponentManifest, ctxData process.ContextData) (*unstructured.Unstructured, error) {
-	pCtx := process.NewContext(ctxData)
-	pCtx.PushData(model.ContextDataArtifacts, prepareArtifactsData(artifacts))
+func generateUnstructuredFromCUEModule(wl *Workload, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) (*unstructured.Unstructured, error) {
+	pCtx := velaprocess.NewContext(ctxData)
+	pCtx.PushData(velaprocess.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -270,7 +272,7 @@ func (af *Appfile) GenerateComponentManifests() ([]*types.ComponentManifest, err
 }
 
 // GenerateComponentManifest generate only one ComponentManifest
-func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*process.ContextData)) (*types.ComponentManifest, error) {
+func (af *Appfile) GenerateComponentManifest(wl *Workload, mutate func(*velaprocess.ContextData)) (*types.ComponentManifest, error) {
 	if af.Namespace == "" {
 		af.Namespace = corev1.NamespaceDefault
 	}
@@ -457,7 +459,7 @@ func (af *Appfile) setWorkloadRefToTrait(wlRef corev1.ObjectReference, trait *un
 }
 
 // PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(wl *Workload, ctxData process.ContextData) (process.Context, error) {
+func PrepareProcessContext(wl *Workload, ctxData velaprocess.ContextData) (process.Context, error) {
 	if wl.Ctx == nil {
 		wl.Ctx = NewBasicContext(ctxData, wl.Params)
 	}
@@ -468,15 +470,15 @@ func PrepareProcessContext(wl *Workload, ctxData process.ContextData) (process.C
 }
 
 // NewBasicContext prepares a basic DSL process Context
-func NewBasicContext(contextData process.ContextData, params map[string]interface{}) process.Context {
-	pCtx := process.NewContext(contextData)
+func NewBasicContext(contextData velaprocess.ContextData, params map[string]interface{}) process.Context {
+	pCtx := velaprocess.NewContext(contextData)
 	if params != nil {
 		pCtx.SetParameters(params)
 	}
 	return pCtx
 }
 
-func generateComponentFromCUEModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
+func generateComponentFromCUEModule(wl *Workload, ctxData velaprocess.ContextData) (*types.ComponentManifest, error) {
 	pCtx, err := PrepareProcessContext(wl, ctxData)
 	if err != nil {
 		return nil, err
@@ -490,7 +492,7 @@ func generateComponentFromTerraformModule(wl *Workload, appName, ns string) (*ty
 
 func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*types.ComponentManifest, error) {
 	var err error
-	pCtx.PushData(model.ContextComponentType, wl.Type)
+	pCtx.PushData(velaprocess.ContextComponentType, wl.Type)
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
@@ -553,7 +555,7 @@ func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", wl.Name, appName)
 		}
 	}
-	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
 	return workload, nil
 }
@@ -569,7 +571,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName str
 
 	_, assists := pCtx.Output()
 	compManifest.Traits = make([]*unstructured.Unstructured, len(assists))
-	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	for i, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
@@ -642,7 +644,7 @@ output: {
 	return templateStr, nil
 }
 
-func generateComponentFromKubeModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
+func generateComponentFromKubeModule(wl *Workload, ctxData velaprocess.ContextData) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -805,7 +807,7 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 	return nil
 }
 
-func generateComponentFromHelmModule(wl *Workload, ctxData process.ContextData) (*types.ComponentManifest, error) {
+func generateComponentFromHelmModule(wl *Workload, ctxData velaprocess.ContextData) (*types.ComponentManifest, error) {
 	templateStr, err := GenerateCUETemplate(wl)
 	if err != nil {
 		return nil, err
@@ -836,8 +838,8 @@ func generateComponentFromHelmModule(wl *Workload, ctxData process.ContextData) 
 }
 
 // GenerateContextDataFromAppFile generates process context data from app file
-func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) process.ContextData {
-	data := process.ContextData{
+func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess.ContextData {
+	data := velaprocess.ContextData{
 		Namespace:       appfile.Namespace,
 		AppName:         appfile.Name,
 		CompName:        wlName,
@@ -861,7 +863,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-			if wf, ok := obj.(*v1alpha1.Workflow); ok {
+			if wf, ok := obj.(*workflowv1alpha1.Workflow); ok {
 				if af.AppRevision != nil {
 					if af.ExternalWorkflow != nil && af.ExternalWorkflow.Name == key.Name && af.ExternalWorkflow.Namespace == key.Namespace {
 						af.ExternalWorkflow.DeepCopyInto(wf)
@@ -872,7 +874,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 				if err := cli.Get(ctx, key, obj); err != nil {
 					return err
 				}
-				af.ExternalWorkflow = obj.(*v1alpha1.Workflow)
+				af.ExternalWorkflow = obj.(*workflowv1alpha1.Workflow)
 				return nil
 			}
 			return cli.Get(ctx, key, obj)

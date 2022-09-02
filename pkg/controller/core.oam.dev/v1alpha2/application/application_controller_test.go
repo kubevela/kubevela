@@ -30,14 +30,9 @@ import (
 	"testing"
 	"time"
 
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	"k8s.io/utils/pointer"
-
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,9 +42,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
+
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/debug"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -63,8 +64,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow"
-	"github.com/oam-dev/kubevela/pkg/workflow/debug"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
@@ -600,7 +599,6 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      appwithNoTrait.Name,
 			Namespace: appwithNoTrait.Namespace,
 		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created")
 		checkApp := &v1beta1.Application{}
@@ -1368,7 +1366,6 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appRefertoWd.Namespace,
 		}
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
@@ -1417,7 +1414,6 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      appMix.Name,
 			Namespace: appMix.Namespace,
 		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
 		curApp := &v1beta1.Application{}
@@ -1646,7 +1642,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
@@ -1661,7 +1656,6 @@ var _ = Describe("Test Application Controller", func() {
 		appRevName := checkApp.Status.LatestRevision.Name
 		checkApp.Spec.Components[0].Traits[0].Properties = &runtime.RawExtension{Raw: []byte(`{"targetRevision":"myweb1-v3"}`)}
 		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -1857,11 +1851,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "apply",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component" : "myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "apply",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component" : "myweb1"}`)},
+							},
 						},
 					},
 				},
@@ -1923,20 +1919,15 @@ var _ = Describe("Test Application Controller", func() {
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-
 		checkApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first ten reconciles")
 		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		}
 
 		By("application should be suspended after failed max reconciles")
@@ -1944,7 +1935,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
@@ -1954,8 +1945,8 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 
 		By("test failed-after-retries with running steps")
 		compDef, err := yaml.YAMLToJSON([]byte(unhealthyComponentDefYaml))
@@ -1973,7 +1964,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 
@@ -1981,17 +1971,16 @@ var _ = Describe("Test Application Controller", func() {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-			Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
-			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+			Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseRunning))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		}
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseRunning))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 	})
 
@@ -2026,16 +2015,20 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name:       "failed-step",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "failed-step",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
+							},
 						},
 					},
 				},
@@ -2046,20 +2039,15 @@ var _ = Describe("Test Application Controller", func() {
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-
 		checkApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageInitializingWorkflow))
 
 		By("verify the first twenty reconciles")
 		for i := 0; i < wfTypes.MaxWorkflowStepErrorRetryTimes; i++ {
 			testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 			Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 			Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+			Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+			Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		}
 
 		By("application should be suspended after failed max reconciles")
@@ -2067,7 +2055,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowSuspending))
 		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(workflow.MessageSuspendFailedAfterRetries))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 		Expect(checkApp.Status.Workflow.Steps[1].Reason).Should(BeEquivalentTo(wfTypes.StatusReasonFailedAfterRetries))
 
 		By("resume the suspended application")
@@ -2077,8 +2065,8 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
-		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(string(common.WorkflowStateExecuting)))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseFailed))
+		Expect(checkApp.Status.Workflow.Message).Should(BeEquivalentTo(""))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseFailed))
 	})
 
 	It("application with mode in workflows", func() {
@@ -2122,20 +2110,24 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Mode: &v1beta1.WorkflowExecuteMode{
-						Steps:    common.WorkflowModeDAG,
-						SubSteps: common.WorkflowModeStep,
+					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+						Steps:    workflowv1alpha1.WorkflowModeDAG,
+						SubSteps: workflowv1alpha1.WorkflowModeStep,
 					},
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name: "myweb2",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb2-sub1",
 									Type:       "apply-component",
@@ -2178,11 +2170,10 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
-		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(common.WorkflowModeDAG))
+		Expect(checkApp.Status.Workflow.Mode).Should(BeEquivalentTo(fmt.Sprintf("%s-%s", workflowv1alpha1.WorkflowModeDAG, workflowv1alpha1.WorkflowModeStep)))
 	})
 
 	It("application with sub steps", func() {
@@ -2226,16 +2217,20 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name: "myweb2",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb2-sub1",
 									Type:       "apply-component",
@@ -2274,7 +2269,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(BeNil())
@@ -2283,15 +2277,12 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
 		expDeployment.Status.Replicas = 1
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -2334,30 +2325,34 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:    "myweb1",
-							Type:    "apply-component",
-							Timeout: "1s",
-							Outputs: common.StepOutputs{
-								{
-									Name:      "output",
-									ValueFrom: "context.name",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:    "myweb1",
+								Type:    "apply-component",
+								Timeout: "1s",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "output",
+										ValueFrom: "context.name",
+									},
 								},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
-							Name: "myweb2",
-							Inputs: common.StepInputs{
-								{
-									From:         "output",
-									ParameterKey: "",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "output",
+										ParameterKey: "",
+									},
 								},
+								If:         `inputs.output == "app-with-timeout-output"`,
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 							},
-							If:         `inputs.output == "app-with-timeout-output"`,
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					},
 				},
@@ -2366,7 +2361,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -2422,30 +2416,34 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "apply-component",
-							If:   "false",
-							Outputs: common.StepOutputs{
-								{
-									Name:      "output",
-									ValueFrom: "context.name",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "apply-component",
+								If:   "false",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "output",
+										ValueFrom: "context.name",
+									},
 								},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
-							Name: "myweb2",
-							Inputs: common.StepInputs{
-								{
-									From:         "output",
-									ParameterKey: "",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "output",
+										ParameterKey: "",
+									},
 								},
+								If:         `inputs.output == "app-with-timeout-output"`,
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 							},
-							If:         `inputs.output == "app-with-timeout-output"`,
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					},
 				},
@@ -2454,7 +2452,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -2470,8 +2467,8 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSkipped))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSkipped))
+		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSkipped))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSkipped))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 	})
 
@@ -2511,28 +2508,32 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "apply-component",
-							Outputs: common.StepOutputs{
-								{
-									Name:      "output",
-									ValueFrom: "context.name",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "apply-component",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "output",
+										ValueFrom: "context.name",
+									},
 								},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
-							Name: "myweb2",
-							Inputs: common.StepInputs{
-								{
-									From:         "invalid",
-									ParameterKey: "",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "invalid",
+										ParameterKey: "",
+									},
 								},
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 							},
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					},
 				},
@@ -2541,7 +2542,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -2560,8 +2560,8 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseSucceeded))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhasePending))
+		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseSucceeded))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhasePending))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 	})
 
@@ -2601,31 +2601,35 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Mode: &v1beta1.WorkflowExecuteMode{
-						Steps: common.WorkflowModeDAG,
+					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+						Steps: workflowv1alpha1.WorkflowModeDAG,
 					},
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "apply-component",
-							Outputs: common.StepOutputs{
-								{
-									Name:      "output",
-									ValueFrom: "context.name",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "apply-component",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "output",
+										ValueFrom: "context.name",
+									},
 								},
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
-							Name: "myweb2",
-							Inputs: common.StepInputs{
-								{
-									From:         "invalid",
-									ParameterKey: "",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb2",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "invalid",
+										ParameterKey: "",
+									},
 								},
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 							},
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					},
 				},
@@ -2634,7 +2638,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -2646,8 +2649,8 @@ var _ = Describe("Test Application Controller", func() {
 
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(common.WorkflowStepPhaseRunning))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(common.WorkflowStepPhasePending))
+		Expect(checkApp.Status.Workflow.Steps[0].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhaseRunning))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(BeEquivalentTo(workflowv1alpha1.WorkflowStepPhasePending))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunningWorkflow))
 	})
 
@@ -2692,22 +2695,28 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "failed-step",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "failed-step",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
+							},
 						},
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							If:         "always",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								If:         "always",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 					},
 				},
@@ -2716,7 +2725,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("verify the first ten reconciles")
@@ -2731,7 +2739,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
@@ -2740,7 +2747,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
@@ -2796,11 +2802,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1-sub1",
 									Type:       "apply-component",
@@ -2822,15 +2830,19 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							If:         "always",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								If:         "always",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 						{
-							Name:       "myweb3",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb3",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							},
 						},
 					},
 				},
@@ -2839,7 +2851,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("verify the first ten reconciles")
@@ -2856,7 +2867,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(util.NotFoundMatcher{})
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
@@ -2867,8 +2877,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, web3Key, expDeployment)).Should(util.NotFoundMatcher{})
@@ -2876,7 +2884,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		checkApp := &v1beta1.Application{}
@@ -2920,35 +2927,41 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:    "suspend",
-							Type:    "suspend",
-							Timeout: "1s",
-							Outputs: common.StepOutputs{
-								{
-									Name:      "suspend_output",
-									ValueFrom: "context.name",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:    "suspend",
+								Type:    "suspend",
+								Timeout: "1s",
+								Outputs: workflowv1alpha1.StepOutputs{
+									{
+										Name:      "suspend_output",
+										ValueFrom: "context.name",
+									},
 								},
 							},
 						},
 						{
-							Name: "myweb1",
-							Type: "apply-component",
-							Inputs: common.StepInputs{
-								{
-									From:         "suspend_output",
-									ParameterKey: "",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "apply-component",
+								Inputs: workflowv1alpha1.StepInputs{
+									{
+										From:         "suspend_output",
+										ParameterKey: "",
+									},
 								},
+								If:         `status.suspend.timeout && inputs.suspend_output == "app-with-if-expressions"`,
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
-							If:         `status.suspend.timeout && inputs.suspend_output == "app-with-if-expressions"`,
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 						},
 						{
-							Name:       "myweb2",
-							If:         "status.suspend.succeeded",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								If:         "status.suspend.succeeded",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 					},
 				},
@@ -2957,7 +2970,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -3034,11 +3046,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1_sub1",
 									Type:       "apply-component",
@@ -3050,7 +3064,7 @@ var _ = Describe("Test Application Controller", func() {
 									Name:       "myweb1_sub2",
 									Type:       "suspend",
 									Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1s"}`)},
-									Outputs: common.StepOutputs{
+									Outputs: workflowv1alpha1.StepOutputs{
 										{
 											Name:      "suspend_output",
 											ValueFrom: "context.name",
@@ -3061,7 +3075,7 @@ var _ = Describe("Test Application Controller", func() {
 									Name:      "myweb1_sub3",
 									Type:      "apply-component",
 									DependsOn: []string{"myweb1_sub1"},
-									Inputs: common.StepInputs{
+									Inputs: workflowv1alpha1.StepInputs{
 										{
 											From:         "suspend_output",
 											ParameterKey: "",
@@ -3073,15 +3087,19 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							If:         "status.myweb1.failed",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								If:         "status.myweb1.failed",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 						{
-							Name:       "myweb3",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb3",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							},
 						},
 					},
 				},
@@ -3090,7 +3108,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -3122,7 +3139,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, web2Key, expDeployment)).Should(util.NotFoundMatcher{})
@@ -3172,23 +3188,29 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "timeout-step",
-							Type:       "apply-component",
-							Timeout:    "1s",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "timeout-step",
+								Type:       "apply-component",
+								Timeout:    "1s",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							If:         "always",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								If:         "always",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 						{
-							Name:       "myweb3",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb3",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							},
 						},
 					},
 				},
@@ -3197,7 +3219,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		expDeployment := &v1.Deployment{}
@@ -3223,7 +3244,7 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
@@ -3264,22 +3285,28 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:    "timeout-step",
-							Type:    "suspend",
-							Timeout: "1s",
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:    "timeout-step",
+								Type:    "suspend",
+								Timeout: "1s",
+							},
 						},
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							If:         "always",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								If:         "always",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 					},
 				},
@@ -3288,7 +3315,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -3316,7 +3342,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
@@ -3367,11 +3393,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name: "myweb1",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "myweb1",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1-sub1",
 									Type:       "apply-component",
@@ -3394,15 +3422,19 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							Name:       "myweb3",
-							Type:       "apply-component",
-							If:         "always",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb3",
+								Type:       "apply-component",
+								If:         "always",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
+							},
 						},
 						{
-							Name:       "myweb4",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb4"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb4",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb4"}`)},
+							},
 						},
 					},
 				},
@@ -3411,7 +3443,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		expDeployment := &v1.Deployment{}
@@ -3455,7 +3486,7 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Workflow.Steps[0].Reason).Should(Equal(wfTypes.StatusReasonTimeout))
-		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(checkApp.Status.Workflow.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(checkApp.Status.Workflow.Steps[2].Reason).Should(Equal(wfTypes.StatusReasonSkip))
 		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationWorkflowTerminated))
 	})
@@ -3496,12 +3527,14 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:    "group1",
-							Type:    "step-group",
-							Timeout: "1s",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:    "group1",
+								Type:    "step-group",
+								Timeout: "1s",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name: "suspend",
 									Type: "suspend",
@@ -3509,10 +3542,12 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							Name: "group2",
-							If:   "always",
-							Type: "step-group",
-							SubSteps: []common.WorkflowSubStep{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "group2",
+								If:   "always",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
 								{
 									Name:    "sub-suspend",
 									Type:    "suspend",
@@ -3526,9 +3561,11 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							Name:       "myweb2",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb2",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
+							},
 						},
 					},
 				},
@@ -3537,7 +3574,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -3608,16 +3644,20 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []v1beta1.WorkflowStep{
+					Steps: []workflowv1alpha1.WorkflowStep{
 						{
-							Name:       "suspend",
-							Type:       "suspend",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1s"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "suspend",
+								Type:       "suspend",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1s"}`)},
+							},
 						},
 						{
-							Name:       "myweb1",
-							Type:       "apply-component",
-							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "myweb1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+							},
 						},
 					},
 				},
@@ -3626,7 +3666,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Create(context.Background(), app)).Should(BeNil())
 		appKey := types.NamespacedName{Namespace: ns.Name, Name: app.Name}
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
@@ -3645,7 +3684,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.Replicas = 1
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
@@ -3680,7 +3718,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb1",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
-						Inputs: common.StepInputs{
+						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -3699,7 +3737,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: common.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 							{Name: "sleepTime", ValueFrom: "\"100\""},
 						},
@@ -3729,14 +3767,12 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		expDeployment = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
 		expDeployment.Status.Replicas = 1
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 		Expect(expDeployment.Spec.Template.Spec.Containers[0].Command).Should(BeEquivalentTo([]string{"sleep", "100"}))
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -3813,7 +3849,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		expDeployment = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
@@ -3821,7 +3856,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -3858,7 +3892,7 @@ var _ = Describe("Test Application Controller", func() {
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
-						Inputs: common.StepInputs{
+						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -3873,7 +3907,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: common.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
@@ -3902,7 +3936,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		expDeployment = &v1.Deployment{}
 		Expect(k8sClient.Get(ctx, web1Key, expDeployment)).Should(BeNil())
@@ -3910,7 +3943,6 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
 
-		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		checkApp = &v1beta1.Application{}
@@ -4044,62 +4076,6 @@ var _ = Describe("Test Application Controller", func() {
 		}))
 	})
 
-	It("app record execution state with controllerRevision", func() {
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-app-trace",
-			},
-		}
-
-		app := appwithNoTrait.DeepCopy()
-		app.Name = "vela-test-app-trace"
-		app.SetNamespace(ns.Name)
-		app.Annotations = map[string]string{oam.AnnotationPublishVersion: "v134"}
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		checkApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
-		recorder := &v1.ControllerRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      fmt.Sprintf("record-%s-v134", app.Name),
-			Namespace: app.Namespace,
-		}, recorder)).Should(BeNil())
-
-		web := &v1.Deployment{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      "myweb2",
-			Namespace: app.Namespace,
-		}, web)).Should(BeNil())
-		web.Spec.Replicas = pointer.Int32(0)
-		Expect(k8sClient.Update(ctx, web)).Should(BeNil())
-
-		checkApp.Annotations[oam.AnnotationPublishVersion] = "v135"
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		checkApp = &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      fmt.Sprintf("record-%s-v135", app.Name),
-			Namespace: app.Namespace,
-		}, recorder)).Should(BeNil())
-
-		checkWeb := &v1.Deployment{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Name:      "myweb2",
-			Namespace: app.Namespace,
-		}, checkWeb)).Should(BeNil())
-		Expect(*(checkWeb.Spec.Replicas)).Should(BeEquivalentTo(int32(0)))
-	})
-
 	It("app apply resource in parallel", func() {
 		wfDef := &v1beta1.WorkflowStepDefinition{}
 		wfDefJson, _ := yaml.YAMLToJSON([]byte(applyInParallelWorkflowDefinitionYaml))
@@ -4115,10 +4091,12 @@ var _ = Describe("Test Application Controller", func() {
 		app.Name = "vela-test-app"
 		app.SetNamespace(ns.Name)
 		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []v1beta1.WorkflowStep{{
-				Name:       "apply-in-parallel",
-				Type:       "apply-test",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"parallelism": 20}`)},
+			Steps: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "apply-in-parallel",
+					Type:       "apply-test",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"parallelism": 20}`)},
+				},
 			}},
 		}
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
@@ -4453,11 +4431,40 @@ var _ = Describe("Test Application Controller", func() {
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"firstValue\"}]}")},
 					},
+					{
+						Name:       "myworker2",
+						Type:       "worker",
+						Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"env\":[{\"name\":\"firstKey\",\"value\":\"firstValue\"}]}")},
+					},
 				},
 				Policies: []v1beta1.AppPolicy{
 					{
 						Type: "debug",
 						Name: "debug",
+					},
+				},
+				Workflow: &v1beta1.Workflow{
+					Steps: []workflowv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name:       "step1",
+								Type:       "apply-component",
+								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myworker"}`)},
+							},
+						},
+						{
+							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								Name: "step2",
+								Type: "step-group",
+							},
+							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+								{
+									Name:       "step2-sub1",
+									Type:       "apply-component",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myworker2"}`)},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -4478,7 +4485,11 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check debug Config Map is created")
 		debugCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Name:      debug.GenerateContextName(app.Name, "step1"),
+			Namespace: "default",
+		}, debugCM)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      debug.GenerateContextName(app.Name, "step2-sub1"),
 			Namespace: "default",
 		}, debugCM)).Should(BeNil())
 
@@ -4487,7 +4498,7 @@ var _ = Describe("Test Application Controller", func() {
 		testutil.ReconcileOnce(reconciler, reconcile.Request{NamespacedName: appKey})
 		updatedCM := &corev1.ConfigMap{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      debug.GenerateContextName(app.Name, "myworker"),
+			Name:      debug.GenerateContextName(app.Name, "step1"),
 			Namespace: "default",
 		}, updatedCM)).Should(BeNil())
 
@@ -4722,7 +4733,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		curApp := &v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunningWorkflow))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowTerminated))
 		Expect(curApp.Status.Workflow.Steps[0].Message).Should(ContainSubstring("invalid cue task for evaluation: runtime error: invalid memory address or nil pointer dereference"))
 	})
 })

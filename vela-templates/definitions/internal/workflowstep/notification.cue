@@ -112,7 +112,7 @@ template: {
 				text:         string
 				blocks?:      *null | close([...block])
 				attachments?: *null | close({
-					blocks?: *null | [...block]
+					blocks?: *null | close([...block])
 					color?:  string
 				})
 				thread_ts?: string

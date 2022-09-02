@@ -19,16 +19,17 @@ package stdlib
 import (
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
-
-	"cuelang.org/go/cue"
 	"gotest.tools/assert"
+
+	"github.com/kubevela/workflow/pkg/stdlib"
 )
 
 func TestGetPackages(t *testing.T) {
-	pkgs, err := GetPackages()
+	pkgs, err := getPackages()
 	assert.NilError(t, err)
 	cuectx := cuecontext.New()
 	for path, content := range pkgs {
@@ -44,7 +45,7 @@ out: custom.context`)
 	builder := &build.Instance{}
 	err = builder.AddSyntax(file)
 	assert.NilError(t, err)
-	err = AddImportsFor(builder, "context: id: \"xxx\"")
+	err = stdlib.AddImportsFor(builder, "context: id: \"xxx\"")
 	assert.NilError(t, err)
 
 	inst := cuectx.BuildInstance(builder)

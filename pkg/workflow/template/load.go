@@ -25,6 +25,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/tasks/template"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -40,23 +43,20 @@ const (
 	templateDir = "static"
 )
 
-// Loader load task definition template.
-type Loader interface {
-	LoadTaskTemplate(ctx context.Context, name string) (string, error)
-}
-
 // WorkflowStepLoader load workflowStep task definition template.
 type WorkflowStepLoader struct {
 	loadCapabilityDefinition func(ctx context.Context, capName string) (*appfile.Template, error)
 }
 
-// LoadTaskTemplate gets the workflowStep definition.
-func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+// LoadTemplate gets the workflowStep definition.
+func (loader *WorkflowStepLoader) LoadTemplate(ctx context.Context, name string) (string, error) {
 	files, err := templateFS.ReadDir(templateDir)
 	if err != nil {
 		return "", err
 	}
-
+	if name == wfTypes.WorkflowStepTypeApplyComponent {
+		name = wfTypes.WorkflowStepTypeBuiltinApplyComponent
+	}
 	staticFilename := name + ".cue"
 	for _, file := range files {
 		if staticFilename == file.Name() {
@@ -79,7 +79,7 @@ func (loader *WorkflowStepLoader) LoadTaskTemplate(ctx context.Context, name str
 }
 
 // NewWorkflowStepTemplateLoader create a task template loader.
-func NewWorkflowStepTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) Loader {
+func NewWorkflowStepTemplateLoader(client client.Client, dm discoverymapper.DiscoveryMapper) template.Loader {
 	return &WorkflowStepLoader{
 		loadCapabilityDefinition: func(ctx context.Context, capName string) (*appfile.Template, error) {
 			return appfile.LoadTemplate(ctx, dm, client, capName, types.TypeWorkflowStep)
@@ -88,7 +88,7 @@ func NewWorkflowStepTemplateLoader(client client.Client, dm discoverymapper.Disc
 }
 
 // NewWorkflowStepTemplateRevisionLoader create a task template loader from ApplicationRevision.
-func NewWorkflowStepTemplateRevisionLoader(rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) Loader {
+func NewWorkflowStepTemplateRevisionLoader(rev *v1beta1.ApplicationRevision, dm discoverymapper.DiscoveryMapper) template.Loader {
 	return &WorkflowStepLoader{
 		loadCapabilityDefinition: func(ctx context.Context, capName string) (*appfile.Template, error) {
 			return appfile.LoadTemplateFromRevision(capName, types.TypeWorkflowStep, rev, dm)
@@ -102,8 +102,8 @@ type ViewLoader struct {
 	namespace string
 }
 
-// LoadTaskTemplate gets the workflowStep definition.
-func (loader *ViewLoader) LoadTaskTemplate(ctx context.Context, name string) (string, error) {
+// LoadTemplate gets the workflowStep definition.
+func (loader *ViewLoader) LoadTemplate(ctx context.Context, name string) (string, error) {
 	cm := new(corev1.ConfigMap)
 	cmKey := client.ObjectKey{Name: name, Namespace: loader.namespace}
 	if err := loader.client.Get(ctx, cmKey, cm); err != nil {
@@ -113,7 +113,7 @@ func (loader *ViewLoader) LoadTaskTemplate(ctx context.Context, name string) (st
 }
 
 // NewViewTemplateLoader create a view task template loader.
-func NewViewTemplateLoader(client client.Client, namespace string) Loader {
+func NewViewTemplateLoader(client client.Client, namespace string) template.Loader {
 	return &ViewLoader{
 		client:    client,
 		namespace: namespace,
@@ -124,7 +124,7 @@ func NewViewTemplateLoader(client client.Client, namespace string) Loader {
 type EchoLoader struct {
 }
 
-// LoadTaskTemplate gets the echo content exactly what it is .
-func (ll *EchoLoader) LoadTaskTemplate(_ context.Context, content string) (string, error) {
+// LoadTemplate gets the echo content exactly what it is .
+func (ll *EchoLoader) LoadTemplate(_ context.Context, content string) (string, error) {
 	return content, nil
 }

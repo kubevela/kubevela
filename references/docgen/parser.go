@@ -40,13 +40,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	pkgUtils "github.com/oam-dev/kubevela/pkg/utils"
@@ -398,7 +399,7 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 	if err != nil {
 		return nil, nil, err
 	}
-	parameters := swagger.Components.Schemas[model.ParameterFieldName].Value
+	parameters := swagger.Components.Schemas[velaprocess.ParameterFieldName].Value
 	WalkParameterSchema(parameters, Specification, 0)
 
 	var consoleRefs []ConsoleReference

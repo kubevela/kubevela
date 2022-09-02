@@ -35,15 +35,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+	"github.com/kubevela/workflow/pkg/providers"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	verrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 type AppResourcesList struct {
@@ -204,7 +206,7 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
 
-			prd := provider{cli: k8sClient, ctxFactory: context.Background}
+			prd := provider{cli: k8sClient}
 			opt := `app: {
 				name: "test"
 				namespace: "test"
@@ -216,7 +218,8 @@ var _ = Describe("Test Query Provider", func() {
 			}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, v, nil)).Should(BeNil())
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+			Expect(prd.ListResourcesInApp(logCtx, nil, v, nil)).Should(BeNil())
 
 			appResList := new(AppResourcesList)
 			Expect(v.UnmarshalTo(appResList)).Should(BeNil())
@@ -238,7 +241,7 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
 			newValue, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListResourcesInApp(nil, newValue, nil)).Should(BeNil())
+			Expect(prd.ListResourcesInApp(logCtx, nil, newValue, nil)).Should(BeNil())
 			newAppResList := new(AppResourcesList)
 			Expect(v.UnmarshalTo(newAppResList)).Should(BeNil())
 			Expect(len(newAppResList.List)).Should(Equal(2))
@@ -248,10 +251,11 @@ var _ = Describe("Test Query Provider", func() {
 
 		It("Test list resource with incomplete parameter", func() {
 			optWithoutApp := ""
-			prd := provider{cli: k8sClient, ctxFactory: context.Background}
+			prd := provider{cli: k8sClient}
 			newV, err := value.NewValue(optWithoutApp, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.ListResourcesInApp(nil, newV, nil)
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+			err = prd.ListResourcesInApp(logCtx, nil, newV, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 		})
@@ -329,7 +333,7 @@ var _ = Describe("Test Query Provider", func() {
 			}
 			err := k8sClient.Create(context.TODO(), rt)
 			Expect(err).Should(BeNil())
-			prd := provider{cli: k8sClient, ctxFactory: context.Background}
+			prd := provider{cli: k8sClient}
 			opt := `app: {
 				name: "test-applied"
 				namespace: "default"
@@ -339,7 +343,8 @@ var _ = Describe("Test Query Provider", func() {
 			}`
 			v, err := value.NewValue(opt, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListAppliedResources(nil, v, nil)).Should(BeNil())
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+			Expect(prd.ListAppliedResources(logCtx, nil, v, nil)).Should(BeNil())
 			type Res struct {
 				List []v1beta1.ManagedResource `json:"list"`
 			}
@@ -359,7 +364,7 @@ var _ = Describe("Test Query Provider", func() {
 			}`
 			valueWithVersion, err := value.NewValue(optWithVersion, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListAppliedResources(nil, valueWithVersion, nil)).Should(BeNil())
+			Expect(prd.ListAppliedResources(logCtx, nil, valueWithVersion, nil)).Should(BeNil())
 			var res2 Res
 			err = valueWithVersion.UnmarshalTo(&res2)
 			Expect(err).Should(BeNil())
@@ -376,7 +381,7 @@ var _ = Describe("Test Query Provider", func() {
 			}`
 			valueWithKind, err := value.NewValue(optWithKind, nil, "")
 			Expect(err).Should(BeNil())
-			Expect(prd.ListAppliedResources(nil, valueWithKind, nil)).Should(BeNil())
+			Expect(prd.ListAppliedResources(logCtx, nil, valueWithKind, nil)).Should(BeNil())
 			var res3 Res
 			err = valueWithKind.UnmarshalTo(&res3)
 			Expect(err).Should(BeNil())
@@ -388,17 +393,18 @@ var _ = Describe("Test Query Provider", func() {
 	Context("Test search event from k8s object", func() {
 		It("Test search event with incomplete parameter", func() {
 			emptyOpt := ""
-			prd := provider{cli: k8sClient, ctxFactory: context.Background}
+			prd := provider{cli: k8sClient}
 			v, err := value.NewValue(emptyOpt, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+			err = prd.SearchEvents(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			optWithoutCluster := `value: {}`
 			v, err = value.NewValue(optWithoutCluster, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			err = prd.SearchEvents(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
@@ -406,37 +412,38 @@ var _ = Describe("Test Query Provider", func() {
 cluster: "test"`
 			v, err = value.NewValue(optWithWrongValue, nil, "")
 			Expect(err).Should(BeNil())
-			err = prd.SearchEvents(nil, v, nil)
+			err = prd.SearchEvents(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
 	})
 
 	Context("Test CollectLogsInPod", func() {
 		It("Test CollectLogsInPod with specified container", func() {
-			prd := provider{cli: k8sClient, cfg: cfg, ctxFactory: context.Background}
+			prd := provider{cli: k8sClient, cfg: cfg}
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "default"},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{Name: "main", Image: "busybox"}},
 				}}
 			Expect(k8sClient.Create(ctx, pod)).Should(Succeed())
+			logCtx := monitorContext.NewTraceContext(ctx, "")
 
 			v, err := value.NewValue(``, nil, "")
 			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(nil, v, nil)
+			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"`, nil, "")
 			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(nil, v, nil)
+			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
 			v, err = value.NewValue(`cluster: "local"
 namespace: "default"`, nil, "")
 			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(nil, v, nil)
+			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
@@ -444,7 +451,7 @@ namespace: "default"`, nil, "")
 namespace: "default"
 pod: "hello-world"`, nil, "")
 			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(nil, v, nil)
+			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(verrors.IsCuePathNotFound(err)).Should(BeTrue())
 
@@ -455,7 +462,7 @@ options: {
   container: 1
 }`, nil, "")
 			Expect(err).Should(Succeed())
-			err = prd.CollectLogsInPod(nil, v, nil)
+			err = prd.CollectLogsInPod(logCtx, nil, v, nil)
 			Expect(err).ShouldNot(BeNil())
 			Expect(err.Error()).Should(ContainSubstring("invalid log options content"))
 
@@ -469,7 +476,7 @@ options: {
   tailLines: 50
 }`, nil, "")
 			Expect(err).Should(Succeed())
-			Expect(prd.CollectLogsInPod(nil, v, nil)).Should(Succeed())
+			Expect(prd.CollectLogsInPod(logCtx, nil, v, nil)).Should(Succeed())
 			_, err = v.GetString("outputs", "logs")
 			Expect(err).Should(Succeed())
 		})
@@ -477,7 +484,7 @@ options: {
 
 	It("Test install provider", func() {
 		p := providers.NewProviders()
-		Install(p, k8sClient, cfg, nil)
+		Install(p, k8sClient, cfg)
 		h, ok := p.GetHandler("query", "listResourcesInApp")
 		Expect(h).ShouldNot(BeNil())
 		Expect(ok).Should(Equal(true))
@@ -926,8 +933,11 @@ options: {
 		}`
 		v, err := value.NewValue(opt, nil, "")
 		Expect(err).Should(BeNil())
-		pr := &provider{cli: k8sClient, ctxFactory: context.Background}
-		err = pr.GeneratorServiceEndpoints(nil, v, nil)
+		pr := &provider{
+			cli: k8sClient,
+		}
+		logCtx := monitorContext.NewTraceContext(ctx, "")
+		err = pr.GeneratorServiceEndpoints(logCtx, nil, v, nil)
 		Expect(err).Should(BeNil())
 		gatewayIP := selectorNodeIP(ctx, "", k8sClient)
 		urls := []string{
