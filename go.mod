@@ -161,7 +161,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
 	github.com/aws/aws-sdk-go v1.43.16 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/cockroachdb/apd/v2 v2.0.1 // indirect
@@ -209,10 +209,10 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
@@ -338,7 +338,21 @@ replace (
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.2
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
 	go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/otel/exporters/otlp => go.opentelemetry.io/otel/exporters/otlp v0.20.0
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.20.0
 	go.opentelemetry.io/otel/sdk => go.opentelemetry.io/otel/sdk v0.20.0
+	go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v0.20.0
+	go.opentelemetry.io/proto/otlp => go.opentelemetry.io/proto/otlp v0.7.0
+	k8s.io/api => k8s.io/api v0.23.6
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.6
+	k8s.io/apimachinery => k8s.io/apimachinery v0.23.6
+	k8s.io/apiserver => k8s.io/apiserver v0.23.6
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.23.6
+	k8s.io/client-go => k8s.io/client-go v0.23.6
+	k8s.io/component-base => k8s.io/component-base v0.23.6
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
+	k8s.io/kubectl => k8s.io/kubectl v0.23.6
+	k8s.io/metrics => k8s.io/metrics v0.23.6
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.24
+//github.com/google/gnostic => github.com/googleapis/gnostic
 )
