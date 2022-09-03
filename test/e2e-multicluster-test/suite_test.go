@@ -18,6 +18,7 @@ package e2e_multicluster_test
 
 import (
 	"context"
+	"k8s.io/client-go/kubernetes"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ const (
 
 var (
 	k8sClient client.Client
+	k8sCli    kubernetes.Interface
 )
 
 func execCommand(args ...string) (string, error) {
@@ -69,6 +71,8 @@ var _ = BeforeSuite(func() {
 	config := config.GetConfigOrDie()
 	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err = client.New(config, options)
+	Expect(err).Should(Succeed())
+	k8sCli, err = kubernetes.NewForConfig(config)
 	Expect(err).Should(Succeed())
 
 	// join worker cluster
