@@ -58,7 +58,6 @@ func (v *PodView) Hint() []model.MenuHint {
 func (v *PodView) Init() {
 	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name()))
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -74,6 +73,7 @@ func (v *PodView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *PodView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

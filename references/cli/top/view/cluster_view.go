@@ -37,7 +37,6 @@ type ClusterView struct {
 func (v *ClusterView) Init() {
 	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -73,6 +72,7 @@ func (v *ClusterView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *ClusterView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

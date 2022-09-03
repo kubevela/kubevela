@@ -43,7 +43,6 @@ func (v *ApplicationView) Name() string {
 func (v *ApplicationView) Init() {
 	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title()))
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -74,6 +73,7 @@ func (v *ApplicationView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *ApplicationView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

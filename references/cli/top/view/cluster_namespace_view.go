@@ -43,7 +43,6 @@ func (v *ClusterNamespaceView) Name() string {
 func (v *ClusterNamespaceView) Init() {
 	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -74,6 +73,7 @@ func (v *ClusterNamespaceView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *ClusterNamespaceView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

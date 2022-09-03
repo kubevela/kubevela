@@ -62,15 +62,15 @@ func TestPodView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		podView.Init()
 		assert.Equal(t, podView.Table.GetTitle(), "[ Pod ]")
-		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
 	})
 	t.Run("start", func(t *testing.T) {
 		podView.Start()
+		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {
 		podView.Stop()
-		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
+		assert.Equal(t, podView.GetCell(0, 0).Text, "")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {
