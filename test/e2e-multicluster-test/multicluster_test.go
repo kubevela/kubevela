@@ -21,32 +21,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	v1 "k8s.io/api/authentication/v1"
 	"os"
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
@@ -177,22 +175,16 @@ var _ = Describe("Test multicluster scenario", func() {
 			}()
 			serviceAccount = &corev1.ServiceAccount{}
 			By("Generating a token for SA")
-			tr := &v1.TokenRequest{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      serviceAccountName,
-					Namespace: serviceAccountNamespace,
-				},
-			}
-			err := k8sClient.Create(workerCtx, tr, nil)
+			tr := &v1.TokenRequest{}
+			token, err := k8sCli.CoreV1().ServiceAccounts(serviceAccountNamespace).CreateToken(workerCtx, serviceAccountName, tr, metav1.CreateOptions{})
 			Expect(err).Should(BeNil())
-			token := tr.Status.Token
 			config, err := clientcmd.LoadFromFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			currentContext, ok := config.Contexts[config.CurrentContext]
 			Expect(ok).Should(BeTrue())
 			authInfo, ok := config.AuthInfos[currentContext.AuthInfo]
 			Expect(ok).Should(BeTrue())
-			authInfo.Token = string(token)
+			authInfo.Token = token.Status.Token
 			authInfo.ClientKeyData = nil
 			authInfo.ClientCertificateData = nil
 			kubeconfigFilePath := fmt.Sprintf("/tmp/worker.sa-%d.kubeconfig", key)
