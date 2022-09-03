@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	v1 "k8s.io/api/authentication/v1"
 	"os"
 	"strings"
 	"time"
@@ -151,11 +152,12 @@ var _ = Describe("Test multicluster scenario", func() {
 
 		It("Test generate service account kubeconfig", func() {
 			_, workerCtx := initializeContext()
-			// create service account kubeconfig in worker cluster
+			By("create service account kubeconfig in worker cluster")
 			key := time.Now().UnixNano()
 			serviceAccountName := fmt.Sprintf("test-service-account-%d", key)
+			serviceAccountNamespace := "kube-system"
 			serviceAccount := &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "kube-system", Name: serviceAccountName},
+				ObjectMeta: metav1.ObjectMeta{Namespace: serviceAccountNamespace, Name: serviceAccountName},
 			}
 			Expect(k8sClient.Create(workerCtx, serviceAccount)).Should(Succeed())
 			defer func() {
@@ -165,23 +167,25 @@ var _ = Describe("Test multicluster scenario", func() {
 			clusterRoleBindingName := fmt.Sprintf("test-cluster-role-binding-%d", key)
 			clusterRoleBinding := &rbacv1.ClusterRoleBinding{
 				ObjectMeta: metav1.ObjectMeta{Name: clusterRoleBindingName},
-				Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: "kube-system"}},
+				Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: serviceAccountNamespace}},
 				RoleRef:    rbacv1.RoleRef{Name: "cluster-admin", APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole"},
 			}
 			Expect(k8sClient.Create(workerCtx, clusterRoleBinding)).Should(Succeed())
 			defer func() {
-				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: "kube-system", Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
+				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: serviceAccountNamespace, Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
 				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
 			}()
 			serviceAccount = &corev1.ServiceAccount{}
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
-				g.Expect(len(serviceAccount.Secrets)).Should(Equal(1))
-			}, time.Second*30).Should(Succeed())
-			secret := &corev1.Secret{}
-			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
-			token, ok := secret.Data["token"]
-			Expect(ok).Should(BeTrue())
+			By("Generating a token for SA")
+			tr := &v1.TokenRequest{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serviceAccountName,
+					Namespace: serviceAccountNamespace,
+				},
+			}
+			err := k8sClient.Create(workerCtx, tr, nil)
+			Expect(err).Should(BeNil())
+			token := tr.Status.Token
 			config, err := clientcmd.LoadFromFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			currentContext, ok := config.Contexts[config.CurrentContext]
