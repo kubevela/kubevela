@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,9 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
+
+// DefaultExpireTime is default expire time for both X.509 and SA token apply
+const DefaultExpireTime = time.Hour * 24 * 365
 
 // KubeConfigGenerateOptions options for create KubeConfig
 type KubeConfigGenerateOptions struct {
@@ -64,6 +68,7 @@ type KubeConfigGenerateX509Options struct {
 type KubeConfigGenerateServiceAccountOptions struct {
 	ServiceAccountName      string
 	ServiceAccountNamespace string
+	ExpireTime              time.Duration
 }
 
 // KubeConfigWithUserGenerateOption option for setting user in KubeConfig
@@ -96,6 +101,7 @@ func (opt KubeConfigWithServiceAccountGenerateOption) ApplyToOptions(options *Ku
 	options.ServiceAccount = &KubeConfigGenerateServiceAccountOptions{
 		ServiceAccountName:      opt.Name,
 		ServiceAccountNamespace: opt.Namespace,
+		ExpireTime:              DefaultExpireTime,
 	}
 }
 
@@ -128,7 +134,7 @@ func newKubeConfigGenerateOptions(options ...KubeConfigGenerateOption) *KubeConf
 		X509: &KubeConfigGenerateX509Options{
 			User:           user.Anonymous,
 			Groups:         []string{KubeVelaClientGroup},
-			ExpireTime:     time.Hour * 24 * 365,
+			ExpireTime:     DefaultExpireTime,
 			PrivateKeyBits: 2048,
 		},
 		ServiceAccount: nil,
@@ -329,30 +335,53 @@ func generateX509KubeConfigV1Beta(ctx context.Context, cli kubernetes.Interface,
 }
 
 func generateServiceAccountKubeConfig(ctx context.Context, cli kubernetes.Interface, cfg *clientcmdapi.Config, writer io.Writer, opts *KubeConfigGenerateServiceAccountOptions) (*clientcmdapi.Config, error) {
+	var (
+		token string
+		CA    []byte
+	)
 	sa, err := cli.CoreV1().ServiceAccounts(opts.ServiceAccountNamespace).Get(ctx, opts.ServiceAccountName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	_, _ = fmt.Fprintf(writer, "ServiceAccount %s/%s found.\n", opts.ServiceAccountNamespace, opts.ServiceAccountName)
 	if len(sa.Secrets) == 0 {
-		return nil, errors.Errorf("no secret found in serviceaccount %s/%s", opts.ServiceAccountNamespace, opts.ServiceAccountName)
+		_, _ = fmt.Fprintf(writer, "ServiceAccount %s/%s has no secret. Requesting token", opts.ServiceAccountNamespace, opts.ServiceAccountName)
+		request := authenticationv1.TokenRequest{
+			Spec: authenticationv1.TokenRequestSpec{
+				Audiences:         []string{},
+				ExpirationSeconds: pointer.Int64(int64(opts.ExpireTime.Seconds())),
+			},
+		}
+		tokenRequest, err := cli.CoreV1().ServiceAccounts(opts.ServiceAccountNamespace).CreateToken(ctx, opts.ServiceAccountName, &request, metav1.CreateOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to request token")
+		}
+		token = tokenRequest.Status.Token
+		CAConfigMap, err := cli.CoreV1().ConfigMaps(sa.Namespace).Get(ctx, "kube-root-ca.crt", metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get root CA secret")
+		}
+		CA = []byte(CAConfigMap.Data["ca.crt"])
+	} else {
+		secretKey := sa.Secrets[0]
+		if secretKey.Namespace == "" {
+			secretKey.Namespace = sa.Namespace
+		}
+		secret, err := cli.CoreV1().Secrets(secretKey.Namespace).Get(ctx, secretKey.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		_, _ = fmt.Fprintf(writer, "ServiceAccount secret %s/%s found.\n", secretKey.Namespace, secret.Name)
+		if len(secret.Data["token"]) == 0 {
+			return nil, errors.Errorf("no token found in secret %s/%s", secret.Namespace, secret.Name)
+		}
+		_, _ = fmt.Fprintf(writer, "ServiceAccount token found.\n")
+		token = string(secret.Data["token"])
+		CA = secret.Data["ca.crt"]
 	}
-	secretKey := sa.Secrets[0]
-	if secretKey.Namespace == "" {
-		secretKey.Namespace = sa.Namespace
-	}
-	secret, err := cli.CoreV1().Secrets(secretKey.Namespace).Get(ctx, secretKey.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	_, _ = fmt.Fprintf(writer, "ServiceAccount secret %s/%s found.\n", secretKey.Namespace, secret.Name)
-	if len(secret.Data["token"]) == 0 {
-		return nil, errors.Errorf("no token found in secret %s/%s", secret.Namespace, secret.Name)
-	}
-	_, _ = fmt.Fprintf(writer, "ServiceAccount token found.\n")
 	return genKubeConfig(cfg, &clientcmdapi.AuthInfo{
-		Token: string(secret.Data["token"]),
-	}, secret.Data["ca.crt"])
+		Token: token,
+	}, CA)
 }
 
 // ReadIdentityFromKubeConfig extract identity from kubeconfig
