@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	wffeatures "github.com/kubevela/workflow/pkg/features"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -58,7 +59,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	stdv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -1883,7 +1883,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with dag workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendOnFailure, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "dag-failed-after-retries",
@@ -1985,7 +1985,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("application with step by step workflow failed after retries", func() {
-		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableSuspendOnFailure, true)()
+		defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, wffeatures.EnableSuspendOnFailure, true)()
 		ns := corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "step-by-step-failed-after-retries",
