@@ -153,7 +153,7 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 	}
 	cmd.Flags().StringVarP(&o.User, "user", "u", o.User, "The user of the generated kubeconfig. If set, an X509-based kubeconfig will be intended to create. It will be embedded as the Subject in the X509 certificate.")
 	cmd.Flags().StringSliceVarP(&o.Groups, "group", "g", o.Groups, "The groups of the generated kubeconfig. This flag only works when `--user` is set. It will be embedded as the Organization in the X509 certificate.")
-	cmd.Flags().StringVarP(&o.ServiceAccount, "serviceaccount", o.ServiceAccount, "", "The serviceaccount of the generated kubeconfig. If set, a kubeconfig will be generated based on the secret token of the serviceaccount. Cannot be set when `--user` presents.")
+	cmd.Flags().StringVarP(&o.ServiceAccount, "serviceaccount", "", o.ServiceAccount, "The serviceaccount of the generated kubeconfig. If set, a kubeconfig will be generated based on the secret token of the serviceaccount. Cannot be set when `--user` presents.")
 	cmdutil.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"serviceaccount", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if strings.TrimSpace(o.User) != "" {
