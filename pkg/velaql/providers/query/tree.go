@@ -820,7 +820,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rule.DefaultGenListOptionFunc, rule.DisableFilterByOwnerReference)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
-					klog.Errorf("error to list sub-resources: %s err: %v", resource.Kind, err)
+					klog.Warningf("not listing sub-resources: %s err: %v", resource.Kind, err)
 					continue
 				}
 				return nil, err
