@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -44,6 +45,7 @@ const (
 
 var (
 	k8sClient client.Client
+	k8sCli    kubernetes.Interface
 )
 
 func execCommand(args ...string) (string, error) {
@@ -69,6 +71,8 @@ var _ = BeforeSuite(func() {
 	config := config.GetConfigOrDie()
 	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
 	k8sClient, err = client.New(config, options)
+	Expect(err).Should(Succeed())
+	k8sCli, err = kubernetes.NewForConfig(config)
 	Expect(err).Should(Succeed())
 
 	// join worker cluster
