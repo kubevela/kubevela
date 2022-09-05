@@ -614,7 +614,7 @@ func svcAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, e
 // the logic of this func totaly copy from the source-code of kubernetes tableConvertor
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/pkg/printers/internalversion/printers.go#L740
 // The result is same with the output of kubectl.
-// nolint
+//nolint
 func podAdditionalInfo(obj unstructured.Unstructured) (map[string]interface{}, error) {
 	pod := v12.Pod{}
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &pod)
@@ -820,7 +820,7 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rule.DefaultGenListOptionFunc, rule.DisableFilterByOwnerReference)
 			if err != nil {
 				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
-					klog.Warningf("error to list sub-resources: %s err: %v", resource.Kind, err)
+					klog.Warningf("not listing sub-resources: %s err: %v", resource.Kind, err)
 					continue
 				}
 				return nil, err
