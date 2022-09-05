@@ -23,9 +23,10 @@ import (
 	"github.com/spf13/cobra"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
+	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -77,7 +78,7 @@ func NewWorkflowSuspendCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if err != nil {
 				return err
 			}
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(multiclusterpkg.NewTransportWrapper())
 			cli, err := c.GetClient()
 			if err != nil {
 				return err
@@ -115,7 +116,7 @@ func NewWorkflowResumeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.
 			if err != nil {
 				return err
 			}
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(multiclusterpkg.NewTransportWrapper())
 			cli, err := c.GetClient()
 			if err != nil {
 				return err
@@ -186,7 +187,7 @@ func NewWorkflowRestartCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra
 			if err != nil {
 				return err
 			}
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(multiclusterpkg.NewTransportWrapper())
 			cli, err := c.GetClient()
 			if err != nil {
 				return err
@@ -223,7 +224,7 @@ func NewWorkflowRollbackCommand(c common.Args, ioStream cmdutil.IOStreams) *cobr
 			if err != nil {
 				return err
 			}
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(multiclusterpkg.NewTransportWrapper())
 			cli, err := c.GetClient()
 			if err != nil {
 				return err

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	errors2 "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -35,22 +34,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
 
-	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
-type contextKey string
-
 const (
-	// ClusterContextKey is the name of cluster using in client http context
-	ClusterContextKey = contextKey("ClusterName")
 	// ClusterLocalName specifies the local cluster
-	ClusterLocalName = velatypes.ClusterLocalName
+	ClusterLocalName = multiclusterpkg.Local
 )
 
 var (
@@ -60,27 +56,18 @@ var (
 
 // ClusterNameInContext extract cluster name from context
 func ClusterNameInContext(ctx context.Context) string {
-	clusterName := ctx.Value(ClusterContextKey)
-	if clusterName != nil {
-		return clusterName.(string)
-	}
-	return ""
+	cluster, _ := multiclusterpkg.ClusterFrom(ctx)
+	return cluster
 }
 
 // ContextWithClusterName create context with multi-cluster by cluster name
 func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
-	return context.WithValue(ctx, ClusterContextKey, clusterName)
-}
-
-// IsInLocalCluster check if target cluster is local cluster
-func IsInLocalCluster(ctx context.Context) bool {
-	clusterName := ClusterNameInContext(ctx)
-	return clusterName == "" || clusterName == ClusterLocalName
+	return multiclusterpkg.WithCluster(ctx, clusterName)
 }
 
 // ContextInLocalCluster create context in local cluster
 func ContextInLocalCluster(ctx context.Context) context.Context {
-	return context.WithValue(ctx, ClusterContextKey, ClusterLocalName)
+	return multiclusterpkg.WithCluster(ctx, ClusterLocalName)
 }
 
 // ResourcesWithClusterName set cluster name for resources
@@ -154,7 +141,6 @@ func Initialize(restConfig *rest.Config, autoUpgrade bool) (client.Client, error
 	ClusterGatewaySecretNamespace = svc.Namespace
 	prismclusterv1alpha1.StorageNamespace = ClusterGatewaySecretNamespace
 	klog.Infof("find cluster gateway service %s/%s:%d", svc.Namespace, svc.Name, *svc.Port)
-	restConfig.Wrap(NewSecretModeMultiClusterRoundTripper)
 	if autoUpgrade {
 		if err = UpgradeExistingClusterSecret(context.Background(), c); err != nil {
 			// this error do not affect the running of current version

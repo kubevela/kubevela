@@ -37,6 +37,8 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/rand"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -44,7 +46,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -54,7 +55,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 	var namespace string
 
 	BeforeEach(func() {
-		namespace = "test-ns-" + utils.RandomString(4)
+		namespace = "test-ns-" + rand.RandomString(4)
 		Expect(testClient.Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).Should(Succeed())
 	})
 

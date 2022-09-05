@@ -32,9 +32,10 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	velaclient "github.com/kubevela/pkg/controller/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	velaclient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"

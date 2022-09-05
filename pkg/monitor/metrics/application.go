@@ -18,6 +18,8 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+
+	velametrics "github.com/kubevela/pkg/monitor/metrics"
 )
 
 var (
@@ -25,7 +27,7 @@ var (
 	CreateAppHandlerDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "create_app_handler_time_seconds",
 		Help:        "create appHandler duration distributions, this operate will list ResourceTrackers.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
@@ -33,7 +35,7 @@ var (
 	HandleFinalizersDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "handle_finalizers_time_seconds",
 		Help:        "handle finalizers duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller", "type"})
 
@@ -41,7 +43,7 @@ var (
 	ParseAppFileDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "parse_appFile_time_seconds",
 		Help:        "parse appFile duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
@@ -49,7 +51,7 @@ var (
 	PrepareCurrentAppRevisionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "prepare_current_appRevision_time_seconds",
 		Help:        "parse current appRevision duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
@@ -57,7 +59,7 @@ var (
 	ApplyAppRevisionDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "apply_appRevision_time_seconds",
 		Help:        "apply appRevision duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
@@ -65,7 +67,7 @@ var (
 	ApplyPoliciesDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "apply_policies",
 		Help:        "render and dispatch policy duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"controller"})
 
@@ -73,23 +75,15 @@ var (
 	GCResourceTrackersDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "gc_resourceTrackers_time_seconds",
 		Help:        "gc resourceTrackers duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})
-
-	// ClientRequestHistogram report the client request execution duration.
-	ClientRequestHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "client_request_time_seconds",
-		Help:        "client request duration distributions.",
-		Buckets:     histogramBuckets,
-		ConstLabels: prometheus.Labels{},
-	}, []string{"verb", "Kind", "apiVersion", "unstructured", "cluster"})
 
 	// ApplicationReconcileTimeHistogram report the reconciling time cost of application controller with state transition recorded
 	ApplicationReconcileTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "application_reconcile_time_seconds",
 		Help:        "application reconcile duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"begin_phase", "end_phase"})
 
@@ -97,7 +91,7 @@ var (
 	ApplyComponentTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "apply_component_time_seconds",
 		Help:        "apply component duration distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"stage"})
 
@@ -105,7 +99,7 @@ var (
 	WorkflowFinishedTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:        "workflow_finished_time_seconds",
 		Help:        "workflow finished time distributions.",
-		Buckets:     histogramBuckets,
+		Buckets:     velametrics.FineGrainedBuckets,
 		ConstLabels: prometheus.Labels{},
 	}, []string{"phase"})
 

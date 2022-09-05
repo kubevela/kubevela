@@ -31,6 +31,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 
@@ -42,7 +43,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/features"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"

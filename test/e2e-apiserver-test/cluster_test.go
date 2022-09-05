@@ -25,9 +25,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/kubevela/pkg/util/rand"
+
 	v1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -42,7 +43,7 @@ var _ = Describe("Test cluster rest api", func() {
 		var clusterName string
 
 		BeforeEach(func() {
-			clusterName = WorkerClusterName + "-" + util.RandomString(8)
+			clusterName = WorkerClusterName + "-" + rand.RandomString(8)
 			kubeconfigBytes, err := ioutil.ReadFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			resp := post("/clusters", v1.CreateClusterRequest{
@@ -112,7 +113,7 @@ var _ = Describe("Test cluster rest api", func() {
 		var clusterName string
 
 		BeforeEach(func() {
-			clusterName = WorkerClusterName + "-" + util.RandomString(8)
+			clusterName = WorkerClusterName + "-" + rand.RandomString(8)
 		})
 
 		AfterEach(func() {
