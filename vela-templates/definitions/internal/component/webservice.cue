@@ -351,6 +351,9 @@ template: {
 			if v.name == _|_ {
 				name: "port-" + strconv.FormatInt(v.port, 10)
 			}
+			if v.nodePort != _|_ && parameter.exposeType == "NodePort" {
+				nodePort: v.nodePort
+			}
 		},
 	]
 
@@ -401,6 +404,8 @@ template: {
 			protocol: *"TCP" | "UDP" | "SCTP"
 			// +usage=Specify if the port should be exposed
 			expose: *false | bool
+			// +usage=exposed node port. Only Valid when exposeType is NodePort
+			nodePort?: int
 		}]
 
 		// +ignore
