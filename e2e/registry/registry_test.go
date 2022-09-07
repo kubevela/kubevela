@@ -123,7 +123,7 @@ var _ = Describe("test registry and trait/comp command", func() {
 			cli := "vela trait --discover --url=oss://registry.kubevela.net"
 			output, err := e2e.Exec(cli)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("Showing trait definition from url"), ContainSubstring("oss://registry.kubevela.net"))
+			Expect(output).To(SatisfyAll(ContainSubstring("Showing trait definition from url"), ContainSubstring("oss://registry.kubevela.net")))
 		})
 
 	})

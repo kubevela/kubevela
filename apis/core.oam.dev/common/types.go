@@ -203,6 +203,8 @@ const (
 	ApplicationWorkflowSuspending ApplicationPhase = "workflowSuspending"
 	// ApplicationWorkflowTerminated means the app's workflow is terminated
 	ApplicationWorkflowTerminated ApplicationPhase = "workflowTerminated"
+	// ApplicationWorkflowFailed means the app's workflow is failed
+	ApplicationWorkflowFailed ApplicationPhase = "workflowFailed"
 	// ApplicationWorkflowFinished means the app's workflow is finished
 	ApplicationWorkflowFinished ApplicationPhase = "workflowFinished"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster

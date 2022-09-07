@@ -24,7 +24,6 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	wffeatures "github.com/kubevela/workflow/pkg/features"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -41,11 +40,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfContext "github.com/kubevela/workflow/pkg/context"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	"github.com/kubevela/workflow/pkg/executor"
-	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+	wffeatures "github.com/kubevela/workflow/pkg/features"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -238,6 +238,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
 		r.doWorkflowFinish(app, workflowState)
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, isUpdate)
+	case workflowv1alpha1.WorkflowStateFailed:
+		logCtx.Info("Workflow return state=Failed")
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
+		r.doWorkflowFinish(app, workflowState)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, isUpdate)
 	case workflowv1alpha1.WorkflowStateExecuting:
 		logCtx.Info("Workflow return state=Executing")
 		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, isUpdate)

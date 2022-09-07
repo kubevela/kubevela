@@ -29,7 +29,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/utils/strings/slices"
 
-	monitorContext "github.com/kubevela/workflow/pkg/monitor/context"
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
