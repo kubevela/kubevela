@@ -58,11 +58,11 @@ func TestClusterNamespaceView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		cnsView.Init()
 		assert.Equal(t, cnsView.GetTitle(), "[ ClusterNamespace ]")
-		assert.Equal(t, cnsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("start", func(t *testing.T) {
 		cnsView.Start()
+		assert.Equal(t, cnsView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/rivo/tview"
-
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,10 +62,10 @@ func TestPodView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		podView.Init()
 		assert.Equal(t, podView.Table.GetTitle(), "[ Pod ]")
-		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
 	})
 	t.Run("start", func(t *testing.T) {
 		podView.Start()
+		assert.Equal(t, podView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {

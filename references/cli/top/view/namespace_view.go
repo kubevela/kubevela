@@ -38,7 +38,6 @@ type NamespaceView struct {
 func (v *NamespaceView) Init() {
 	v.CommonResourceView.Init()
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Name())).SetTitleColor(config.ResourceTableTitleColor)
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -74,6 +73,7 @@ func (v *NamespaceView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *NamespaceView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

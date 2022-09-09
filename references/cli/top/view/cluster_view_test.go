@@ -59,7 +59,6 @@ func TestClusterView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		clusterView.Init()
 		assert.Equal(t, clusterView.Table.GetTitle(), "[ Cluster ]")
-		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("hint", func(t *testing.T) {
@@ -68,6 +67,7 @@ func TestClusterView(t *testing.T) {
 
 	t.Run("start", func(t *testing.T) {
 		clusterView.Start()
+		assert.Equal(t, clusterView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {

@@ -44,7 +44,6 @@ func (v *ManagedResourceView) Init() {
 	v.CommonResourceView.Init()
 	// set title of view
 	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title())).SetTitleColor(config.ResourceTableTitleColor)
-	v.BuildHeader()
 	v.bindKeys()
 }
 
@@ -88,6 +87,7 @@ func (v *ManagedResourceView) InitView(ctx context.Context, app *App) {
 
 // Update refresh the content of body of view
 func (v *ManagedResourceView) Update() {
+	v.BuildHeader()
 	v.BuildBody()
 }
 

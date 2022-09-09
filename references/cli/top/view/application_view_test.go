@@ -57,11 +57,11 @@ func TestApplicationView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		appView.Init()
 		assert.Equal(t, appView.Table.GetTitle(), "[ Application (all) ]")
-		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("start", func(t *testing.T) {
 		appView.Start()
+		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {

@@ -60,11 +60,11 @@ func TestManagedResourceView(t *testing.T) {
 	t.Run("init", func(t *testing.T) {
 		resourceView.Init()
 		assert.Equal(t, resourceView.Table.GetTitle(), "[ Managed Resource (all/all) ]")
-		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("start", func(t *testing.T) {
 		resourceView.Start()
+		assert.Equal(t, resourceView.GetCell(0, 0).Text, "Name")
 	})
 
 	t.Run("stop", func(t *testing.T) {
