@@ -29,9 +29,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -69,7 +70,7 @@ var _ = BeforeSuite(func() {
 	// initialize clients
 	options := client.Options{Scheme: common.Scheme}
 	config := config.GetConfigOrDie()
-	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	config.Wrap(multicluster.NewTransportWrapper())
 	k8sClient, err = client.New(config, options)
 	Expect(err).Should(Succeed())
 	k8sCli, err = kubernetes.NewForConfig(config)

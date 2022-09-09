@@ -19,11 +19,11 @@ package controller
 import (
 	flag "github.com/spf13/pflag"
 
+	velaclient "github.com/kubevela/pkg/controller/client"
 	wfContext "github.com/kubevela/workflow/pkg/context"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
@@ -34,7 +34,7 @@ import (
 // AddOptimizeFlags add flags
 func AddOptimizeFlags() {
 	// optimize client
-	flag.StringVar(&ctrlClient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
+	flag.StringVar(&velaclient.CachedGVKs, "optimize-cached-gvks", "", "Types of resources to be cached. For example, --optimize-cached-gvks=Deployment.v1.apps,Job.v1.batch . If you have dedicated resources to be managed in your system, you can turn it on to improve performance. NOTE: this optimization only works for single-cluster.")
 	flag.BoolVar(&resourcetracker.OptimizeListOp, "optimize-resource-tracker-list-op", true, "Optimize ResourceTracker List Op by adding index. This will increase the use of memory and accelerate the list operation of ResourceTracker. Default to enable it . If you want to reduce the memory use of KubeVela, you can switch it off.")
 
 	// optimize controller reconcile loop

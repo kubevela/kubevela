@@ -39,12 +39,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/util/rand"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
@@ -56,7 +57,7 @@ func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
 func initializeContextAndNamespace() (hubCtx context.Context, workerCtx context.Context, namespace string) {
 	hubCtx, workerCtx = initializeContext()
 	// initialize test namespace
-	namespace = "test-mc-" + utils.RandomString(4)
+	namespace = "test-mc-" + rand.RandomString(4)
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 	Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
 	Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())

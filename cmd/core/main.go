@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"time"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	flag "github.com/spf13/pflag"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -36,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
+	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/workflow/pkg/cue/packages"
 	_ "github.com/kubevela/workflow/pkg/features"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -43,7 +45,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/auth"
-	ctrlClient "github.com/oam-dev/kubevela/pkg/client"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -149,6 +150,7 @@ func main() {
 	flag.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	flag.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
 	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
+	pkgmulticluster.AddClusterGatewayClientFlags(flag.CommandLine)
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	// setup logging
@@ -256,7 +258,7 @@ func main() {
 		// of controller-runtime. Additionally, set this value will affect not only application
 		// controller but also all other controllers like definition controller. Therefore, for
 		// functionalities like state-keep, they should be invented in other ways.
-		NewClient: ctrlClient.DefaultNewControllerClient,
+		NewClient: velaclient.DefaultNewControllerClient,
 	})
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
