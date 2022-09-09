@@ -33,7 +33,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -437,7 +437,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	config.Wrap(multiclusterpkg.NewTransportWrapper())
+	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	cli, err := c.GetClient()
 	if err != nil {
 		return err

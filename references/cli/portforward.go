@@ -36,7 +36,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -234,7 +234,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	cf := genericclioptions.NewConfigFlags(true)
 	cf.Namespace = pointer.String(o.targetResource.namespace)
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
-		cfg.Wrap(multiclusterpkg.NewTransportWrapper(multiclusterpkg.ForCluster(o.targetResource.cluster)))
+		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(o.targetResource.cluster)))
 		return cfg
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
@@ -243,7 +243,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	if err != nil {
 		return err
 	}
-	config.Wrap(multiclusterpkg.NewTransportWrapper())
+	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	forwardClient, err := client.New(config, client.Options{Scheme: common.Scheme})
 	if err != nil {
 		return err

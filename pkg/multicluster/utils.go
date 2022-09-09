@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	clustercommon "github.com/oam-dev/cluster-gateway/pkg/common"
@@ -46,7 +46,7 @@ import (
 
 const (
 	// ClusterLocalName specifies the local cluster
-	ClusterLocalName = multiclusterpkg.Local
+	ClusterLocalName = pkgmulticluster.Local
 )
 
 var (
@@ -56,18 +56,18 @@ var (
 
 // ClusterNameInContext extract cluster name from context
 func ClusterNameInContext(ctx context.Context) string {
-	cluster, _ := multiclusterpkg.ClusterFrom(ctx)
+	cluster, _ := pkgmulticluster.ClusterFrom(ctx)
 	return cluster
 }
 
 // ContextWithClusterName create context with multi-cluster by cluster name
 func ContextWithClusterName(ctx context.Context, clusterName string) context.Context {
-	return multiclusterpkg.WithCluster(ctx, clusterName)
+	return pkgmulticluster.WithCluster(ctx, clusterName)
 }
 
 // ContextInLocalCluster create context in local cluster
 func ContextInLocalCluster(ctx context.Context) context.Context {
-	return multiclusterpkg.WithCluster(ctx, ClusterLocalName)
+	return pkgmulticluster.WithCluster(ctx, ClusterLocalName)
 }
 
 // ResourcesWithClusterName set cluster name for resources

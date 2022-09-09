@@ -28,7 +28,7 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -195,7 +195,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	var namespace = selectPod.Metadata.Namespace
 	cf.Namespace = &namespace
 	cf.WrapConfigFn = func(cfg *rest.Config) *rest.Config {
-		cfg.Wrap(multiclusterpkg.NewTransportWrapper(multiclusterpkg.ForCluster(selectPod.Cluster)))
+		cfg.Wrap(pkgmulticluster.NewTransportWrapper(pkgmulticluster.ForCluster(selectPod.Cluster)))
 		return cfg
 	}
 	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
@@ -206,7 +206,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	if err != nil {
 		return err
 	}
-	config.Wrap(multiclusterpkg.NewTransportWrapper())
+	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err

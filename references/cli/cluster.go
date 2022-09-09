@@ -29,7 +29,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
@@ -71,7 +71,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			config.Wrap(multiclusterpkg.NewTransportWrapper())
+			config.Wrap(pkgmulticluster.NewTransportWrapper())
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")

@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraforv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraforv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -267,7 +267,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 		traitOverrideNamespace := overrideNamespace
 		if tr.FullTemplate.TraitDefinition.Spec.ControlPlaneOnly {
 			traitOverrideNamespace = appRev.GetNamespace()
-			wl.Ctx.SetCtx(multiclusterpkg.WithCluster(wl.Ctx.GetCtx(), multiclusterpkg.Local))
+			wl.Ctx.SetCtx(pkgmulticluster.WithCluster(wl.Ctx.GetCtx(), pkgmulticluster.Local))
 		}
 		_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 		var traitStatus = common.ApplicationTraitStatus{
@@ -286,7 +286,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 			status.Message = traitStatus.Message
 		}
 		traitStatusList = append(traitStatusList, traitStatus)
-		wl.Ctx.SetCtx(multiclusterpkg.WithCluster(wl.Ctx.GetCtx(), status.Cluster))
+		wl.Ctx.SetCtx(pkgmulticluster.WithCluster(wl.Ctx.GetCtx(), status.Cluster))
 	}
 
 	status.Traits = traitStatusList

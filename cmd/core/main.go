@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"time"
 
-	multiclusterpkg "github.com/kubevela/pkg/multicluster"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	flag "github.com/spf13/pflag"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -150,7 +150,7 @@ func main() {
 	flag.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	flag.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow wait backoff time, default is 300")
 	flag.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
-	multiclusterpkg.AddClusterGatewayClientFlags(flag.CommandLine)
+	pkgmulticluster.AddClusterGatewayClientFlags(flag.CommandLine)
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flag.CommandLine)
 
 	// setup logging
