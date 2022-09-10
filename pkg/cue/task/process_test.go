@@ -24,12 +24,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/bmizerany/assert"
+
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 const TaskTemplate = `
@@ -66,7 +67,7 @@ func TestProcess(t *testing.T) {
 	defer s.Close()
 
 	taskTemplate := cuecontext.New().CompileString(TaskTemplate)
-	taskTemplate = taskTemplate.FillPath(value.FieldPath(model.ParameterFieldName), map[string]interface{}{
+	taskTemplate = taskTemplate.FillPath(value.FieldPath(process.ParameterFieldName), map[string]interface{}{
 		"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
 	})
 

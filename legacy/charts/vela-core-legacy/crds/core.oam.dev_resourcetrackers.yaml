@@ -56,6 +56,16 @@ spec:
               applicationGeneration:
                 format: int64
                 type: integer
+              compression:
+                description: ResourceTrackerCompression the compression for ResourceTracker
+                  ManagedResources
+                properties:
+                  data:
+                    type: string
+                  type:
+                    description: Type the compression type
+                    type: string
+                type: object
               managedResources:
                 items:
                   description: ManagedResource define the resource to be managed by
@@ -69,7 +79,6 @@ spec:
                     component:
                       type: string
                     creator:
-                      description: ResourceCreatorRole defines the resource creator.
                       type: string
                     deleted:
                       description: Deleted marks the resource to be deleted
@@ -137,7 +146,6 @@ spec:
                     cluster:
                       type: string
                     creator:
-                      description: ResourceCreatorRole defines the resource creator.
                       type: string
                     fieldPath:
                       description: 'If referring to a piece of an object instead of

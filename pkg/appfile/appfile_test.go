@@ -38,11 +38,13 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/workflow/pkg/cue/model"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -573,7 +575,7 @@ variable "password" {
 				"writeConnectionSecretToRef": map[string]interface{}{
 					"name": "db",
 				},
-				model.OutputSecretName: "db-conn",
+				process.OutputSecretName: "db-conn",
 			},
 		}
 
@@ -814,7 +816,7 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 
 		args := appArgs{
 			wl: &Workload{
-				Name: "sample-db",
+				Name: compName,
 				FullTemplate: &Template{
 					Terraform: &common.Terraform{
 						Configuration: `
@@ -891,7 +893,7 @@ variable "password" {
 			AppRevisionName: args.revision,
 		}, args.wl.Name)
 		pCtx := NewBasicContext(ctxData, args.wl.Params)
-		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
+		comp, err := evalWorkloadWithContext(pCtx, args.wl, ns, args.appName)
 		Expect(comp.StandardWorkload).ShouldNot(BeNil())
 		Expect(comp.Name).Should(Equal(""))
 		Expect(err).Should(BeNil())

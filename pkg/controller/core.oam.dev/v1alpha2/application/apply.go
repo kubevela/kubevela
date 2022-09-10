@@ -20,9 +20,6 @@ import (
 	"context"
 	"sync"
 
-	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
-	terraforv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
-	terraforv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,11 +27,16 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraforv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraforv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -82,7 +84,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application,
 }
 
 // Dispatch apply manifests into k8s.
-func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	manifests = multicluster.ResourcesWithClusterName(cluster, manifests...)
 	if err := h.resourceKeeper.Dispatch(ctx, manifests, nil); err != nil {
 		return err
@@ -110,7 +112,7 @@ func (h *AppHandler) Dispatch(ctx context.Context, cluster string, owner common.
 }
 
 // Delete delete manifests from k8s.
-func (h *AppHandler) Delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+func (h *AppHandler) Delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
 	manifests := multicluster.ResourcesWithClusterName(cluster, manifest)
 	if err := h.resourceKeeper.Delete(ctx, manifests); err != nil {
 		return err
@@ -265,7 +267,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 		traitOverrideNamespace := overrideNamespace
 		if tr.FullTemplate.TraitDefinition.Spec.ControlPlaneOnly {
 			traitOverrideNamespace = appRev.GetNamespace()
-			wl.Ctx.SetCtx(context.WithValue(wl.Ctx.GetCtx(), multicluster.ClusterContextKey, multicluster.ClusterLocalName))
+			wl.Ctx.SetCtx(pkgmulticluster.WithCluster(wl.Ctx.GetCtx(), pkgmulticluster.Local))
 		}
 		_accessor := util.NewApplicationResourceNamespaceAccessor(h.app.Namespace, traitOverrideNamespace)
 		var traitStatus = common.ApplicationTraitStatus{
@@ -284,7 +286,7 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, wl *appfile.Worklo
 			status.Message = traitStatus.Message
 		}
 		traitStatusList = append(traitStatusList, traitStatus)
-		wl.Ctx.SetCtx(context.WithValue(wl.Ctx.GetCtx(), multicluster.ClusterContextKey, status.Cluster))
+		wl.Ctx.SetCtx(pkgmulticluster.WithCluster(wl.Ctx.GetCtx(), status.Cluster))
 	}
 
 	status.Traits = traitStatusList

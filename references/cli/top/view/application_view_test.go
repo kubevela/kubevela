@@ -41,18 +41,32 @@ func TestApplicationView(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
-	assert.Equal(t, len(app.Components), 4)
+	app := NewApp(testClient, cfg, "")
+	assert.Equal(t, len(app.Components()), 4)
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, &model.CtxKeyNamespace, "")
-	view := NewApplicationView(ctx, app)
-	appView, ok := (view).(*ApplicationView)
-	assert.Equal(t, ok, true)
+	appView := new(ApplicationView)
+
+	t.Run("init view", func(t *testing.T) {
+		assert.Empty(t, appView.CommonResourceView)
+		appView.InitView(ctx, app)
+		assert.NotEmpty(t, appView.CommonResourceView)
+	})
 
 	t.Run("init", func(t *testing.T) {
 		appView.Init()
-		assert.Equal(t, appView.Table.GetTitle(), "[ Application ]")
+		assert.Equal(t, appView.Table.GetTitle(), "[ Application (all) ]")
+	})
+
+	t.Run("start", func(t *testing.T) {
+		appView.Start()
 		assert.Equal(t, appView.GetCell(0, 0).Text, "Name")
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		appView.Stop()
+		assert.Equal(t, appView.GetCell(0, 0).Text, "")
 	})
 
 	t.Run("colorize text", func(t *testing.T) {
@@ -70,12 +84,22 @@ func TestApplicationView(t *testing.T) {
 	})
 
 	t.Run("hint", func(t *testing.T) {
-		assert.Equal(t, len(appView.Hint()), 3)
+		assert.Equal(t, len(appView.Hint()), 5)
 	})
 
-	t.Run("cluster view", func(t *testing.T) {
-		appView.Table.Table.Table = appView.Table.Select(1, 1)
-		assert.Empty(t, appView.clusterView(nil))
+	t.Run("managed resource view", func(t *testing.T) {
+		appView.Table.Table = appView.Table.Select(1, 1)
+		assert.Empty(t, appView.managedResourceView(nil))
+	})
+
+	t.Run("namespace view", func(t *testing.T) {
+		appView.Table.Table = appView.Table.Select(1, 1)
+		assert.Empty(t, appView.namespaceView(nil))
+	})
+
+	t.Run("yaml view", func(t *testing.T) {
+		appView.Table.Table = appView.Table.Select(1, 1)
+		assert.Empty(t, appView.managedResourceView(nil))
 	})
 
 }

@@ -33,6 +33,7 @@ vendor/
 
 # Vscode files
 .vscode
+.history
 
 pkg/test/vela
 config/crd/bases

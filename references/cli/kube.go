@@ -39,10 +39,11 @@ import (
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -213,7 +214,7 @@ var (
 		Apply Kubernetes objects in clusters
 
 		Apply Kubernetes objects in multiple clusters. Use --clusters to specify which clusters to
-		apply. If -n/--namespace is used, the original object namespace will be overrode.
+		apply. If -n/--namespace is used, the original object namespace will be overridden.
 
 		You can use -f/--file to specify the object file/folder to apply. Multiple file inputs are allowed.
 		Directory input and web url input is supported as well.

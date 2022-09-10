@@ -39,6 +39,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -249,7 +251,7 @@ var _ = Describe("Test Application with GC options", func() {
 					return errors.New("app is not in running status")
 				}
 				return nil
-			}, 3*time.Second, 300*time.Second).Should(BeNil())
+			}, 3*time.Second, 300*time.Microsecond).Should(BeNil())
 			Expect(newApp.Status.LatestRevision.Revision).Should(Equal(int64(7)))
 
 			By("check the resourceTrackers number")
@@ -498,7 +500,7 @@ var _ = Describe("Test Application with GC options", func() {
 						Name:       "worker2",
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Inputs: common.StepInputs{
+						Inputs: workflowv1alpha1.StepInputs{
 							{
 								From:         "worker3-output",
 								ParameterKey: "test",
@@ -509,7 +511,7 @@ var _ = Describe("Test Application with GC options", func() {
 						Name:       "worker3",
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Outputs: common.StepOutputs{
+						Outputs: workflowv1alpha1.StepOutputs{
 							{
 								Name:      "worker3-output",
 								ValueFrom: "output.metadata.name",

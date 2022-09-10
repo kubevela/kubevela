@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -43,7 +45,11 @@ import (
 )
 
 var _ = Describe("Test multicluster standalone scenario", func() {
-
+	waitObject := func(ctx context.Context, un unstructured.Unstructured) {
+		Eventually(func(g Gomega) error {
+			return k8sClient.Get(ctx, client.ObjectKeyFromObject(&un), &un)
+		}, 10*time.Second).Should(Succeed())
+	}
 	var namespace string
 	var hubCtx context.Context
 	var workerCtx context.Context
@@ -116,10 +122,13 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 
 		deploy := readFile("deployment.yaml")
 		Expect(k8sClient.Create(hubCtx, deploy)).Should(Succeed())
+		waitObject(hubCtx, *deploy)
 		workflow := readFile("workflow-suspend.yaml")
 		Expect(k8sClient.Create(hubCtx, workflow)).Should(Succeed())
+		waitObject(hubCtx, *workflow)
 		policy := readFile("policy-zero-replica.yaml")
 		Expect(k8sClient.Create(hubCtx, policy)).Should(Succeed())
+		waitObject(hubCtx, *policy)
 		app := readFile("app-with-publish-version.yaml")
 		Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
@@ -139,7 +148,7 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			_app.Status.Workflow.Suspend = false
 			for i, step := range _app.Status.Workflow.Steps {
 				if step.Type == "suspend" {
-					_app.Status.Workflow.Steps[i].Phase = oamcomm.WorkflowStepPhaseSucceeded
+					_app.Status.Workflow.Steps[i].Phase = workflowv1alpha1.WorkflowStepPhaseSucceeded
 				}
 			}
 			g.Expect(k8sClient.Status().Update(hubCtx, _app)).Should(Succeed())
@@ -304,10 +313,12 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["%s"]}`, WorkerClusterName))},
 		})
 		newApp.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []v1beta1.WorkflowStep{{
-				Name:       "deploy",
-				Type:       "deploy",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["topology-deploy"],"parallelism":10}`)},
+			Steps: []workflowv1alpha1.WorkflowStep{{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       "deploy",
+					Type:       "deploy",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["topology-deploy"],"parallelism":10}`)},
+				},
 			}},
 		}
 		Expect(k8sClient.Create(context.Background(), newApp)).Should(Succeed())

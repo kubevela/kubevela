@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"gotest.tools/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -87,4 +89,147 @@ status: {}
 	str, err = formatApplicationString("jsonpath={.apiVersion}", app)
 	assert.NilError(t, err)
 	assert.Equal(t, str, "core.oam.dev/v1beta1")
+}
+
+func TestConvertApplicationRevisionTo(t *testing.T) {
+
+	type Exp struct {
+		out string
+		err string
+	}
+
+	cases := map[string]struct {
+		format string
+		apprev *v1beta1.ApplicationRevision
+		exp    Exp
+	}{
+		"no format":         {format: "", apprev: &v1beta1.ApplicationRevision{}, exp: Exp{out: "", err: "no format provided"}},
+		"no support format": {format: "jsonnet", apprev: &v1beta1.ApplicationRevision{}, exp: Exp{out: "", err: "jsonnet is not supported"}},
+		"yaml": {format: "yaml", apprev: &v1beta1.ApplicationRevision{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ApplicationRevision",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-apprev",
+				Namespace: "dev",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: v1beta1.Application{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-app",
+						Namespace: "dev",
+					},
+				},
+			},
+		}, exp: Exp{out: `apiVersion: core.oam.dev/v1beta1
+kind: ApplicationRevision
+metadata:
+  creationTimestamp: null
+  name: test-apprev
+  namespace: dev
+spec:
+  application:
+    metadata:
+      creationTimestamp: null
+      name: test-app
+      namespace: dev
+    spec:
+      components: null
+    status: {}
+status:
+  succeeded: false
+`, err: ""}},
+		"json": {format: "json", apprev: &v1beta1.ApplicationRevision{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ApplicationRevision",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-apprev",
+				Namespace: "dev",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: v1beta1.Application{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-app",
+						Namespace: "dev",
+					},
+				},
+			},
+		}, exp: Exp{out: `{
+  "kind": "ApplicationRevision",
+  "apiVersion": "core.oam.dev/v1beta1",
+  "metadata": {
+    "name": "test-apprev",
+    "namespace": "dev",
+    "creationTimestamp": null
+  },
+  "spec": {
+    "application": {
+      "metadata": {
+        "name": "test-app",
+        "namespace": "dev",
+        "creationTimestamp": null
+      },
+      "spec": {
+        "components": null
+      },
+      "status": {}
+    }
+  },
+  "status": {
+    "succeeded": false
+  }
+}`, err: ""}},
+		"jsonpath": {format: "jsonpath={.apiVersion}", apprev: &v1beta1.ApplicationRevision{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ApplicationRevision",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-apprev",
+				Namespace: "dev",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: v1beta1.Application{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-app",
+						Namespace: "dev",
+					},
+				},
+			},
+		}, exp: Exp{out: "core.oam.dev/v1beta1", err: ""}},
+		"jsonpath with error": {format: "jsonpath", apprev: &v1beta1.ApplicationRevision{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "ApplicationRevision",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-apprev",
+				Namespace: "dev1",
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				Application: v1beta1.Application{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-app",
+						Namespace: "dev1",
+					},
+				},
+			},
+		}, exp: Exp{out: "", err: "jsonpath template format specified but no template given"}},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			out, err := convertApplicationRevisionTo(tc.format, tc.apprev)
+			if err != nil {
+				assert.Equal(t, tc.exp.err, err.Error())
+			}
+			diff := cmp.Diff(tc.exp.out, out)
+			if diff != "" {
+				t.Fatalf(diff)
+			}
+		})
+	}
 }

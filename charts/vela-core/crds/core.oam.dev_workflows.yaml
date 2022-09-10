@@ -20,7 +20,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Workflow is the Schema for the policy API
+        description: Workflow is the Schema for the workflow API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -39,13 +39,15 @@ spec:
               description: WorkflowStep defines how to execute a workflow step.
               properties:
                 dependsOn:
+                  description: DependsOn is the dependency of the step
                   items:
                     type: string
                   type: array
                 if:
+                  description: If is the if condition of the step
                   type: string
                 inputs:
-                  description: StepInputs defines variable input of WorkflowStep
+                  description: Inputs is the inputs of the step
                   items:
                     properties:
                       from:
@@ -58,8 +60,7 @@ spec:
                     type: object
                   type: array
                 meta:
-                  description: WorkflowStepMeta contains the meta data of a workflow
-                    step
+                  description: Meta is the meta data of the workflow step.
                   properties:
                     alias:
                       type: string
@@ -68,7 +69,7 @@ spec:
                   description: Name is the unique name of the workflow step.
                   type: string
                 outputs:
-                  description: StepOutputs defines output variable of WorkflowStep
+                  description: Outputs is the outputs of the step
                   items:
                     properties:
                       name:
@@ -81,21 +82,23 @@ spec:
                     type: object
                   type: array
                 properties:
+                  description: Properties is the properties of the step
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
                 subSteps:
                   items:
-                    description: WorkflowSubStep defines how to execute a workflow
-                      subStep.
+                    description: WorkflowStepBase defines the workflow step base
                     properties:
                       dependsOn:
+                        description: DependsOn is the dependency of the step
                         items:
                           type: string
                         type: array
                       if:
+                        description: If is the if condition of the step
                         type: string
                       inputs:
-                        description: StepInputs defines variable input of WorkflowStep
+                        description: Inputs is the inputs of the step
                         items:
                           properties:
                             from:
@@ -108,8 +111,7 @@ spec:
                           type: object
                         type: array
                       meta:
-                        description: WorkflowStepMeta contains the meta data of a
-                          workflow step
+                        description: Meta is the meta data of the workflow step.
                         properties:
                           alias:
                             type: string
@@ -118,7 +120,7 @@ spec:
                         description: Name is the unique name of the workflow step.
                         type: string
                       outputs:
-                        description: StepOutputs defines output variable of WorkflowStep
+                        description: Outputs is the outputs of the step
                         items:
                           properties:
                             name:
@@ -131,11 +133,14 @@ spec:
                           type: object
                         type: array
                       properties:
+                        description: Properties is the properties of the step
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                       timeout:
+                        description: Timeout is the timeout of the step
                         type: string
                       type:
+                        description: Type is the type of the workflow step.
                         type: string
                     required:
                     - name
@@ -143,8 +148,10 @@ spec:
                     type: object
                   type: array
                 timeout:
+                  description: Timeout is the timeout of the step
                   type: string
                 type:
+                  description: Type is the type of the workflow step.
                   type: string
               required:
               - name
@@ -176,13 +183,15 @@ spec:
               description: WorkflowStep defines how to execute a workflow step.
               properties:
                 dependsOn:
+                  description: DependsOn is the dependency of the step
                   items:
                     type: string
                   type: array
                 if:
+                  description: If is the if condition of the step
                   type: string
                 inputs:
-                  description: StepInputs defines variable input of WorkflowStep
+                  description: Inputs is the inputs of the step
                   items:
                     properties:
                       from:
@@ -195,8 +204,7 @@ spec:
                     type: object
                   type: array
                 meta:
-                  description: WorkflowStepMeta contains the meta data of a workflow
-                    step
+                  description: Meta is the meta data of the workflow step.
                   properties:
                     alias:
                       type: string
@@ -205,7 +213,7 @@ spec:
                   description: Name is the unique name of the workflow step.
                   type: string
                 outputs:
-                  description: StepOutputs defines output variable of WorkflowStep
+                  description: Outputs is the outputs of the step
                   items:
                     properties:
                       name:
@@ -218,21 +226,23 @@ spec:
                     type: object
                   type: array
                 properties:
+                  description: Properties is the properties of the step
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
                 subSteps:
                   items:
-                    description: WorkflowSubStep defines how to execute a workflow
-                      subStep.
+                    description: WorkflowStepBase defines the workflow step base
                     properties:
                       dependsOn:
+                        description: DependsOn is the dependency of the step
                         items:
                           type: string
                         type: array
                       if:
+                        description: If is the if condition of the step
                         type: string
                       inputs:
-                        description: StepInputs defines variable input of WorkflowStep
+                        description: Inputs is the inputs of the step
                         items:
                           properties:
                             from:
@@ -245,8 +255,7 @@ spec:
                           type: object
                         type: array
                       meta:
-                        description: WorkflowStepMeta contains the meta data of a
-                          workflow step
+                        description: Meta is the meta data of the workflow step.
                         properties:
                           alias:
                             type: string
@@ -255,7 +264,7 @@ spec:
                         description: Name is the unique name of the workflow step.
                         type: string
                       outputs:
-                        description: StepOutputs defines output variable of WorkflowStep
+                        description: Outputs is the outputs of the step
                         items:
                           properties:
                             name:
@@ -268,11 +277,14 @@ spec:
                           type: object
                         type: array
                       properties:
+                        description: Properties is the properties of the step
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
                       timeout:
+                        description: Timeout is the timeout of the step
                         type: string
                       type:
+                        description: Type is the type of the workflow step.
                         type: string
                     required:
                     - name
@@ -280,8 +292,10 @@ spec:
                     type: object
                   type: array
                 timeout:
+                  description: Timeout is the timeout of the step
                   type: string
                 type:
+                  description: Type is the type of the workflow step.
                   type: string
               required:
               - name

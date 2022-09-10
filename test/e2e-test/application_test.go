@@ -122,15 +122,15 @@ var _ = Describe("Application Normal tests", func() {
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 	}
 
-	verifyApplicationWorkflowTerminated := func(ns, appName string) {
+	verifyApplicationPhase := func(ns, appName string, expected oamcomm.ApplicationPhase) {
 		var testApp v1beta1.Application
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
 			if err != nil {
 				return err
 			}
-			if testApp.Status.Phase != oamcomm.ApplicationWorkflowTerminated {
-				return fmt.Errorf("application status wants %s, actually %s", oamcomm.ApplicationWorkflowTerminated, testApp.Status.Phase)
+			if testApp.Status.Phase != expected {
+				return fmt.Errorf("application status wants %s, actually %s", expected, testApp.Status.Phase)
 			}
 			return nil
 		}, 120*time.Second, time.Second).Should(BeNil())
@@ -314,7 +314,18 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("check application status")
-		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
+		verifyApplicationPhase(newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
+	})
+
+	It("Test app with notification and custom if", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app12.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
+
+		By("check application status")
+		verifyWorkloadRunningExpected("comp-custom-if", 1, "crccheck/hello-world")
 	})
 
 	It("Test wait suspend", func() {
@@ -403,7 +414,7 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
+		verifyApplicationPhase(newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
 	})
 
 	It("Test app with non-existence ServiceAccount", func() {
@@ -431,6 +442,45 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
 
 		By("Checking an application status")
-		verifyApplicationWorkflowTerminated(newApp.Namespace, newApp.Name)
+		verifyApplicationPhase(newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
+	})
+
+	It("Test app with replication policy", func() {
+		By("Apply replica-webservice definition")
+		var compDef v1beta1.ComponentDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/replica-webservice.yaml", &compDef)).Should(BeNil())
+		Eventually(func() error {
+			return k8sClient.Create(ctx, compDef.DeepCopy())
+		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+
+		By("Creating an application")
+		applyApp("app_replication.yaml")
+
+		By("Checking the replication & application status")
+		verifyWorkloadRunningExpected("hello-rep-beijing", 1, "crccheck/hello-world")
+		verifyWorkloadRunningExpected("hello-rep-hangzhou", 1, "crccheck/hello-world")
+		By("Checking the origin component are not be dispatched")
+		var workload v1.Deployment
+		err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "hello-rep"}, &workload)
+		Expect(err).Should(SatisfyAny(&util.NotFoundMatcher{}))
+
+		By("Checking the component not replicated & application status")
+		verifyWorkloadRunningExpected("hello-no-rep", 1, "crccheck/hello-world")
+
+		var svc corev1.Service
+		By("Verify Service running as expected")
+		verifySeriveDispatched := func(svcName string) {
+			Eventually(
+				func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: svcName}, &svc)
+				},
+				time.Second*120, time.Millisecond*500).Should(BeNil())
+		}
+		verifySeriveDispatched("hello-rep-beijing")
+		verifySeriveDispatched("hello-rep-hangzhou")
+
+		By("Checking the services not replicated & application status")
+		verifyWorkloadRunningExpected("hello-no-rep", 1, "crccheck/hello-world")
+
 	})
 })

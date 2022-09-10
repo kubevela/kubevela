@@ -24,15 +24,17 @@ import (
 	"strings"
 	"time"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-	"github.com/oam-dev/terraform-controller/api/types"
-	"github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	v12 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/kubevela/pkg/util/rand"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/terraform-controller/api/types"
+	"github.com/oam-dev/terraform-controller/api/v1beta1"
 
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
@@ -197,7 +199,7 @@ func (c *clusterServiceImpl) ListKubeClusters(ctx context.Context, query string,
 }
 
 func joinClusterByKubeConfigString(ctx context.Context, k8sClient client.Client, clusterName string, kubeConfig string) (string, error) {
-	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%d.kubeconfig", utils.RandomString(8), time.Now().UnixNano())
+	tmpFileName := fmt.Sprintf("/tmp/cluster-secret-%s-%d.kubeconfig", rand.RandomString(8), time.Now().UnixNano())
 	if err := ioutil.WriteFile(tmpFileName, []byte(kubeConfig), 0600); err != nil {
 		return "", errors.Wrapf(err, "failed to write kubeconfig to temp file %s", tmpFileName)
 	}
@@ -329,7 +331,7 @@ func (c *clusterServiceImpl) ModifyKubeCluster(ctx context.Context, req apis.Cre
 		if newCluster.KubeConfig == "" && newCluster.KubeConfigSecret != "" {
 			return nil, bcode.ErrKubeConfigSecretNotSupport
 		}
-		newClusterTempName := newCluster.Name + "_tmp_" + utils.RandomString(8)
+		newClusterTempName := newCluster.Name + "_tmp_" + rand.RandomString(8)
 		newCluster.APIServerURL, err = joinClusterByKubeConfigString(ctx, c.K8sClient, newCluster.Name, newCluster.KubeConfig)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to join new cluster %s", newCluster.Name)

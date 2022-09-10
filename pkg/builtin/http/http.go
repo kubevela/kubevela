@@ -27,8 +27,9 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 func init() {

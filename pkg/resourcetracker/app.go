@@ -27,12 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/compression"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -88,6 +90,13 @@ func createResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.
 		}
 	} else {
 		rt.Spec.ApplicationGeneration = 0
+	}
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.GzipResourceTracker) {
+		rt.Spec.Compression.Type = compression.Gzip
+	}
+	// zstd compressor will have higher priority when both gzip and zstd are enabled.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ZstdResourceTracker) {
+		rt.Spec.Compression.Type = compression.Zstd
 	}
 	if err := cli.Create(ctx, rt); err != nil {
 		return nil, err
@@ -214,7 +223,7 @@ func RecordManifestsInResourceTracker(
 	manifests []*unstructured.Unstructured,
 	metaOnly bool,
 	skipGC bool,
-	creator common.ResourceCreatorRole) error {
+	creator string) error {
 	if len(manifests) != 0 {
 		updated := false
 		for _, manifest := range manifests {

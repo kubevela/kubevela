@@ -29,11 +29,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/kubevela/workflow/pkg/cue/model"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/kubevela/workflow/pkg/cue/process"
+
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -41,9 +43,9 @@ import (
 
 const (
 	// OutputFieldName is the name of the struct contains the CR data
-	OutputFieldName = model.OutputFieldName
+	OutputFieldName = velaprocess.OutputFieldName
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
-	OutputsFieldName = model.OutputsFieldName
+	OutputsFieldName = velaprocess.OutputsFieldName
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
 	// PatchOutputsFieldName is the name of the struct contains the patch of outputs CR data
@@ -94,17 +96,17 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := value.AddFile(bi, "-", renderTemplate(abstractTemplate)); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
-	var paramFile = model.ParameterFieldName + ": {}"
+	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", model.ParameterFieldName, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
-	if err := value.AddFile(bi, model.ParameterFieldName, paramFile); err != nil {
+	if err := value.AddFile(bi, velaprocess.ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
@@ -159,9 +161,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 }
 
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
-
-	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
+	baseLabels := GetBaseContextLabels(ctx)
+	var root = initRoot(baseLabels)
+	var commonLabels = GetCommonLabels(baseLabels)
 
 	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
@@ -296,7 +298,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			buff += fmt.Sprintf("%s: %s\n", model.ParameterFieldName, string(bt))
+			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
 	c, err := ctx.ExtendedContextFile()
@@ -390,15 +392,27 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
 	for k, v := range contextLabels {
 		switch k {
-		case model.ContextAppName:
+		case velaprocess.ContextAppName:
 			commonLabels[oam.LabelAppName] = v
-		case model.ContextName:
+		case velaprocess.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
-		case model.ContextAppRevision:
+		case velaprocess.ContextAppRevision:
 			commonLabels[oam.LabelAppRevision] = v
+		case velaprocess.ContextReplicaKey:
+			commonLabels[oam.LabelReplicaKey] = v
+
 		}
 	}
 	return commonLabels
+}
+
+// GetBaseContextLabels get base context labels
+func GetBaseContextLabels(ctx process.Context) map[string]string {
+	baseLabels := ctx.BaseContextLabels()
+	baseLabels[velaprocess.ContextAppName] = ctx.GetData(velaprocess.ContextAppName).(string)
+	baseLabels[velaprocess.ContextAppRevision] = ctx.GetData(velaprocess.ContextAppRevision).(string)
+
+	return baseLabels
 }
 
 func initRoot(contextLabels map[string]string) map[string]interface{} {
@@ -417,8 +431,9 @@ parameter: _
 }
 
 func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
-	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
+	baseLabels := GetBaseContextLabels(ctx)
+	var root = initRoot(baseLabels)
+	var commonLabels = GetCommonLabels(baseLabels)
 
 	_, assists := ctx.Output()
 	outputs := make(map[string]interface{})

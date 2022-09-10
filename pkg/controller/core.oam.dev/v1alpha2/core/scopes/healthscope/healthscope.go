@@ -36,13 +36,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/cue/process"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	af "github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/process"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -455,7 +456,7 @@ func CUEBasedHealthCheck(ctx context.Context, c client.Client, wlRef WorkloadRef
 			wlHealth.Diagnosis = configuration.Status.Apply.Message
 			okToCheckTrait = true
 		default:
-			pCtx = process.NewContext(af.GenerateContextDataFromAppFile(appfile, wl.Name))
+			pCtx = velaprocess.NewContext(af.GenerateContextDataFromAppFile(appfile, wl.Name))
 			pCtx.SetCtx(ctx)
 			if wl.CapabilityCategory != oamtypes.CUECategory {
 				templateStr, err := af.GenerateCUETemplate(wl)

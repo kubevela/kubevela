@@ -20,21 +20,22 @@ import (
 	"context"
 	"time"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	clustergatewaycommon "github.com/oam-dev/cluster-gateway/pkg/common"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/rand"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
+	clustergatewaycommon "github.com/oam-dev/cluster-gateway/pkg/common"
+
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/bcode"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	pkgutil "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var _ = Describe("Test cluster service function", func() {
@@ -46,7 +47,7 @@ var _ = Describe("Test cluster service function", func() {
 	)
 
 	BeforeEach(func() {
-		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "cluster-test-kubevela-" + pkgutil.RandomString(4)})
+		ds, err = NewDatastore(datastore.Config{Type: "kubeapi", Database: "cluster-test-kubevela-" + rand.RandomString(4)})
 		Expect(err).Should(Succeed())
 		cache = utils.NewMemoryCacheStore(context.Background())
 		ctx = context.Background()

@@ -24,13 +24,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
@@ -256,9 +256,9 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusComplete))
 		Expect(record.Steps[0].Alias).Should(Equal("step-alias-1"))
-		Expect(record.Steps[0].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(record.Steps[0].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 		Expect(record.Steps[1].Alias).Should(Equal("step-alias-2"))
-		Expect(record.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseSucceeded))
+		Expect(record.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseSucceeded))
 
 		By("check the application revision")
 		err = workflowService.Store.Get(ctx, revision)
@@ -540,10 +540,10 @@ var _ = Describe("Test workflow service functions", func() {
 			Finished:      "false",
 			Steps: []model.WorkflowStepStatus{
 				{
-					Phase: common.WorkflowStepPhaseSucceeded,
+					Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded,
 				},
 				{
-					Phase: common.WorkflowStepPhaseRunning,
+					Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
 				},
 			},
 		})
@@ -561,7 +561,7 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(err).Should(BeNil())
 		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
 		Expect(record.Finished).Should(Equal("true"))
-		Expect(record.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseStopped))
+		Expect(record.Steps[1].Phase).Should(Equal(workflowv1alpha1.WorkflowStepPhaseStopped))
 	})
 })
 

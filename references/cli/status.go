@@ -33,6 +33,9 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -411,11 +414,11 @@ func getHealthStatusColor(s bool) *color.Color {
 	return yellow
 }
 
-func getWfStepColor(phase commontypes.WorkflowStepPhase) *color.Color {
+func getWfStepColor(phase workflowv1alpha1.WorkflowStepPhase) *color.Color {
 	switch phase {
-	case commontypes.WorkflowStepPhaseSucceeded:
+	case workflowv1alpha1.WorkflowStepPhaseSucceeded:
 		return green
-	case commontypes.WorkflowStepPhaseFailed:
+	case workflowv1alpha1.WorkflowStepPhaseFailed:
 		return red
 	default:
 		return yellow
@@ -434,7 +437,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if err != nil {
 		return err
 	}
-	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	config.Wrap(pkgmulticluster.NewTransportWrapper())
 	cli, err := c.GetClient()
 	if err != nil {
 		return err

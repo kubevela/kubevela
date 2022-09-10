@@ -85,6 +85,7 @@
 
 	loadPolicies: oam.#LoadPolicies @step(1)
 	policy_:      string
+	envBindingPolicies: []
 	if inputs.policy == "" && loadPolicies.value != _|_ {
 		envBindingPolicies: [ for k, v in loadPolicies.value if v.type == "env-binding" {k}]
 		policy_: envBindingPolicies[0]
@@ -226,6 +227,16 @@
 	outputs: {
 		clusters: [...string]
 	}
+}
+
+#GetPlacementsFromTopologyPolicies: {
+	#provider: "multicluster"
+	#do:       "get-placements-from-topology-policies"
+	policies: [...string]
+	placements: [...{
+		cluster:   string
+		namespace: string
+	}]
 }
 
 #Deploy: {

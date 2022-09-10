@@ -33,8 +33,6 @@ const (
 	DeprecatedObjectLabelSelector featuregate.Feature = "DeprecatedObjectLabelSelector"
 	// LegacyResourceTrackerGC enable the gc of legacy resource tracker in managed clusters
 	LegacyResourceTrackerGC featuregate.Feature = "LegacyResourceTrackerGC"
-	// EnableSuspendOnFailure enable suspend on workflow failure
-	EnableSuspendOnFailure featuregate.Feature = "EnableSuspendOnFailure"
 	// LegacyComponentRevision if enabled, create component revision even no rollout trait attached
 	LegacyComponentRevision featuregate.Feature = "LegacyComponentRevision"
 	// LegacyResourceOwnerValidation if enabled, the resource dispatch will allow existing resource not to have owner
@@ -58,6 +56,23 @@ const (
 
 	// AuthenticateApplication enable the authentication for application
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
+	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
+	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
+	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
+	GzipResourceTracker featuregate.Feature = "GzipResourceTracker"
+	// ZstdResourceTracker enables the zstd compression for ResourceTracker.
+	// Refer to GzipResourceTracker for its use-cases. It is much faster and more
+	// efficient than gzip, about 2x faster and compresses to smaller size.
+	// If you are dealing with very large ResourceTrackers (1MB or so), it should
+	// have almost NO performance penalties compared to no compression at all.
+	// If dealing with smaller ResourceTrackers (10KB - 1MB), the performance
+	// penalties are minimal.
+	ZstdResourceTracker featuregate.Feature = "ZstdResourceTracker"
+
+	// ApplyOnce enable the apply-once feature for all applications
+	// If enabled, no StateKeep will be run, ResourceTracker will also disable the storage of all resource data, only
+	// metadata will be kept
+	ApplyOnce featuregate.Feature = "ApplyOnce"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -65,12 +80,14 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	LegacyObjectTypeIdentifier:    {Default: false, PreRelease: featuregate.Alpha},
 	DeprecatedObjectLabelSelector: {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceTrackerGC:       {Default: false, PreRelease: featuregate.Beta},
-	EnableSuspendOnFailure:        {Default: false, PreRelease: featuregate.Alpha},
 	LegacyComponentRevision:       {Default: false, PreRelease: featuregate.Alpha},
 	LegacyResourceOwnerValidation: {Default: false, PreRelease: featuregate.Alpha},
 	DisableReferObjectsFromURL:    {Default: false, PreRelease: featuregate.Alpha},
 	ApplyResourceByUpdate:         {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:       {Default: false, PreRelease: featuregate.Alpha},
+	GzipResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
+	ZstdResourceTracker:           {Default: false, PreRelease: featuregate.Alpha},
+	ApplyOnce:                     {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

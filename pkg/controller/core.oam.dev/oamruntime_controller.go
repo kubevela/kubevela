@@ -19,7 +19,8 @@ package core_oam_dev
 import (
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 

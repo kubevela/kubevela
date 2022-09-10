@@ -45,12 +45,13 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	commontype "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
@@ -122,9 +123,9 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	}
 	yamlStrings := regexp.MustCompile(`\n---[^\n]*\n`).Split(string(templateYAMLBytes), -1)
 	templateObject := map[string]interface{}{
-		model.OutputFieldName:    map[string]interface{}{},
-		model.OutputsFieldName:   map[string]interface{}{},
-		model.ParameterFieldName: map[string]interface{}{},
+		process.OutputFieldName:    map[string]interface{}{},
+		process.OutputsFieldName:   map[string]interface{}{},
+		process.ParameterFieldName: map[string]interface{}{},
 	}
 	for index, yamlString := range yamlStrings {
 		var yamlObject map[string]interface{}
@@ -132,13 +133,13 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 			return errors.Wrapf(err, "failed to unmarshal template yaml file")
 		}
 		if index == 0 {
-			templateObject[model.OutputFieldName] = yamlObject
+			templateObject[process.OutputFieldName] = yamlObject
 		} else {
 			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
 			if name == "" {
 				name = fmt.Sprintf("output-%d", index)
 			}
-			templateObject[model.OutputsFieldName].(map[string]interface{})[name] = yamlObject
+			templateObject[process.OutputsFieldName].(map[string]interface{})[name] = yamlObject
 		}
 	}
 	codec := gocodec.New(&cue.Runtime{}, &gocodec.Config{})
@@ -290,7 +291,7 @@ func NewDefinitionInitCommand(c common.Args) *cobra.Command {
 	cmd.Flags().StringP(FlagTemplateYAML, "f", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")
-	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure` are supported.")
+	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure`, `gcp`, `baidu`, `tencent`, `elastic`, `ucloud`, `vsphere` are supported.")
 	cmd.Flags().StringP(FlagGit, "", "", "Specify which git repository the configuration(HCL) is stored in. Valid when --provider/-p is set.")
 	cmd.Flags().StringP(FlagLocal, "", "", "Specify the local path of the configuration(HCL) file. Valid when --provider/-p is set.")
 	cmd.Flags().StringP(FlagPath, "", "", "Specify which path the configuration(HCL) is stored in the Git repository. Valid when --git is set.")
@@ -303,7 +304,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 	}
 
 	switch provider {
-	case "aws", "azure", "alibaba", "tencent", "gcp", "baidu", "elastic", "ucloud":
+	case "aws", "azure", "alibaba", "tencent", "gcp", "baidu", "elastic", "ucloud", "vsphere":
 		var terraform *commontype.Terraform
 
 		git, err := cmd.Flags().GetString(FlagGit)
@@ -379,7 +380,7 @@ func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, p
 		}
 		return out.String(), nil
 	default:
-		return "", errors.Errorf("Provider `%s` is not supported. Only `alibaba`, `aws`, `azure`, `gcp`, `baidu`, `tencent`, `elastic`, `ucloud` are supported.", provider)
+		return "", errors.Errorf("Provider `%s` is not supported. Only `alibaba`, `aws`, `azure`, `gcp`, `baidu`, `tencent`, `elastic`, `ucloud`, `vsphere` are supported.", provider)
 	}
 }
 

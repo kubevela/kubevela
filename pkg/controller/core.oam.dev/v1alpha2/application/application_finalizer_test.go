@@ -189,6 +189,7 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		By("delete app will delete resourceTracker")
 		// reconcile will delete resourceTracker and unset app's finalizer
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, ctrl.Request{NamespacedName: appKey})
 		checkApp = new(v1beta1.Application)
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(util.NotFoundMatcher{})
 		checkRt := new(v1beta1.ResourceTracker)

@@ -60,18 +60,19 @@ import (
 	"sigs.k8s.io/yaml"
 
 	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
+
+	"github.com/kubevela/workflow/pkg/cue/packages"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -247,7 +248,7 @@ func GetCUEParameterValue(cueStr string, pd *packages.PackageDiscover) (cue.Valu
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == model.ParameterFieldName {
+		if paraDef.Name == process.ParameterFieldName {
 			found = true
 			break
 		}
@@ -293,13 +294,13 @@ func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 	if fileNode, ok := node.(*ast.File); ok {
 		for _, decl := range fileNode.Decls {
 			if field, ok := decl.(*ast.Field); ok {
-				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+model.ParameterFieldName {
+				if label, ok := field.Label.(*ast.Ident); ok && label.Name == "#"+process.ParameterFieldName {
 					return decl.(*ast.Field).Value
 				}
 			}
 		}
 	}
-	paramVal := inst.LookupDef(model.ParameterFieldName)
+	paramVal := inst.LookupDef(process.ParameterFieldName)
 	return paramVal.Syntax(opts...)
 }
 
@@ -307,16 +308,16 @@ func extractParameterDefinitionNodeFromInstance(inst *cue.Instance) ast.Node {
 // nolint:staticcheck
 func RefineParameterInstance(inst *cue.Instance) (*cue.Instance, error) {
 	r := cue.Runtime{}
-	paramVal := inst.Lookup(model.ParameterFieldName)
+	paramVal := inst.Lookup(process.ParameterFieldName)
 	var paramOnlyStr string
 	switch k := paramVal.IncompleteKind(); k {
 	case cue.StructKind, cue.ListKind:
 		paramSyntax, _ := format.Node(paramVal.Value().Syntax(cue.Docs(true), cue.ResolveReferences(true)))
-		paramOnlyStr = fmt.Sprintf("#%s: %s\n", model.ParameterFieldName, string(paramSyntax))
+		paramOnlyStr = fmt.Sprintf("#%s: %s\n", process.ParameterFieldName, string(paramSyntax))
 	case cue.IntKind, cue.StringKind, cue.FloatKind, cue.BoolKind:
-		paramOnlyStr = fmt.Sprintf("#%s: %v", model.ParameterFieldName, paramVal)
+		paramOnlyStr = fmt.Sprintf("#%s: %v", process.ParameterFieldName, paramVal)
 	case cue.BottomKind:
-		paramOnlyStr = fmt.Sprintf("#%s: {}", model.ParameterFieldName)
+		paramOnlyStr = fmt.Sprintf("#%s: {}", process.ParameterFieldName)
 	default:
 		return nil, fmt.Errorf("unsupport parameter kind: %s", k.String())
 	}

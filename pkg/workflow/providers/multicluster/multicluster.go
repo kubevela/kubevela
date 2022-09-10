@@ -17,21 +17,21 @@ limitations under the License.
 package multicluster
 
 import (
-	"context"
-
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamProvider "github.com/oam-dev/kubevela/pkg/workflow/providers/oam"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 const (
@@ -50,7 +50,7 @@ type provider struct {
 
 // ReadPlacementDecisions
 // Deprecated
-func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) ReadPlacementDecisions(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func (p *provider) ReadPlacementDecisions(ctx wfContext.Context, v *value.Value,
 
 // MakePlacementDecisions
 // Deprecated
-func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) MakePlacementDecisions(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policy, err := v.GetString("inputs", "policyName")
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 	}
 	// check if target cluster exists
 	if clusterName != multicluster.ClusterLocalName {
-		if _, err := multicluster.GetVirtualCluster(context.Background(), p.Client, clusterName); err != nil {
+		if _, err := multicluster.GetVirtualCluster(ctx, p.Client, clusterName); err != nil {
 			return errors.Wrapf(err, "failed to get cluster %s for env %s", clusterName, env)
 		}
 	}
@@ -129,7 +129,7 @@ func (p *provider) MakePlacementDecisions(ctx wfContext.Context, v *value.Value,
 
 // PatchApplication
 // Deprecated
-func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) PatchApplication(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	env, err := v.GetString("inputs", "envName")
 	if err != nil {
 		return err
@@ -159,8 +159,8 @@ func (p *provider) PatchApplication(ctx wfContext.Context, v *value.Value, act w
 	return v.FillObject(newApp, "outputs")
 }
 
-func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
-	secrets, err := multicluster.ListExistingClusterSecrets(context.Background(), p.Client)
+func (p *provider) ListClusters(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	secrets, err := multicluster.ListExistingClusterSecrets(ctx, p.Client)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (p *provider) ListClusters(ctx wfContext.Context, v *value.Value, act wfTyp
 	return v.FillObject(clusters, "outputs", "clusters")
 }
 
-func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+func (p *provider) Deploy(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
 	policyNames, err := v.GetStringSlice("policies")
 	if err != nil {
 		return err
@@ -188,7 +188,7 @@ func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Act
 		return err
 	}
 	executor := NewDeployWorkflowStepExecutor(p.Client, p.af, p.apply, p.healthCheck, p.renderer, ignoreTerraformComponent)
-	healthy, reason, err := executor.Deploy(context.Background(), policyNames, int(parallelism))
+	healthy, reason, err := executor.Deploy(ctx, policyNames, int(parallelism))
 	if err != nil {
 		return err
 	}
@@ -198,14 +198,31 @@ func (p *provider) Deploy(ctx wfContext.Context, v *value.Value, act wfTypes.Act
 	return nil
 }
 
+func (p *provider) GetPlacementsFromTopologyPolicies(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act wfTypes.Action) error {
+	policyNames, err := v.GetStringSlice("policies")
+	if err != nil {
+		return err
+	}
+	policies, err := selectPolicies(p.af.Policies, policyNames)
+	if err != nil {
+		return err
+	}
+	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, p.Client, p.af.Namespace, policies, true)
+	if err != nil {
+		return err
+	}
+	return v.FillObject(placements, "placements")
+}
+
 // Install register handlers to provider discover.
-func Install(p providers.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer) {
+func Install(p wfTypes.Providers, c client.Client, app *v1beta1.Application, af *appfile.Appfile, apply oamProvider.ComponentApply, healthCheck oamProvider.ComponentHealthCheck, renderer oamProvider.WorkloadRenderer) {
 	prd := &provider{Client: c, app: app, af: af, apply: apply, healthCheck: healthCheck, renderer: renderer}
-	p.Register(ProviderName, map[string]providers.Handler{
-		"read-placement-decisions": prd.ReadPlacementDecisions,
-		"make-placement-decisions": prd.MakePlacementDecisions,
-		"patch-application":        prd.PatchApplication,
-		"list-clusters":            prd.ListClusters,
-		"deploy":                   prd.Deploy,
+	p.Register(ProviderName, map[string]wfTypes.Handler{
+		"read-placement-decisions":              prd.ReadPlacementDecisions,
+		"make-placement-decisions":              prd.MakePlacementDecisions,
+		"patch-application":                     prd.PatchApplication,
+		"list-clusters":                         prd.ListClusters,
+		"get-placements-from-topology-policies": prd.GetPlacementsFromTopologyPolicies,
+		"deploy":                                prd.Deploy,
 	})
 }

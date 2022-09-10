@@ -43,6 +43,10 @@ const (
 	ApplicationWorkflowTerminatedPhaseColor = "[red::]"
 	// ApplicationRunningPhaseColor application Running phase text color
 	ApplicationRunningPhaseColor = "[green::]"
+	// NamespaceActiveStatusColor is namespace active status text color
+	NamespaceActiveStatusColor = "[green::]"
+	// NamespaceTerminateStatusColor is namespace terminate status text color
+	NamespaceTerminateStatusColor = "[red::]"
 	// ObjectHealthyStatusColor is object Healthy status text color
 	ObjectHealthyStatusColor = "[green::]"
 	// ObjectUnhealthyStatusColor is object Unhealthy status text color
@@ -51,4 +55,18 @@ const (
 	ObjectProgressingStatusColor = "[blue::]"
 	// ObjectUnKnownStatusColor is object UnKnown status text color
 	ObjectUnKnownStatusColor = "[gray::]"
+	// PodPendingPhaseColor is pod pending phase text color
+	PodPendingPhaseColor = "[yellow::]"
+	// PodRunningPhaseColor is pod running phase text color
+	PodRunningPhaseColor = "[green::]"
+	// PodSucceededPhase is pod succeeded phase text color
+	PodSucceededPhase = "[purple::]"
+	// PodFailedPhase is pod failed phase text color
+	PodFailedPhase = "[red::]"
+	// YamlKeyColor is the color of key in highlighted yaml
+	YamlKeyColor = "mediumturquoise"
+	// YamlColonColor is the color of colon in highlighted yaml
+	YamlColonColor = "white"
+	// YamlValueColor is the color of value in highlighted yaml
+	YamlValueColor = "orangered"
 )

@@ -30,41 +30,75 @@ import (
 
 // ApplicationView is the application view, this view display info of application of KubeVela
 type ApplicationView struct {
-	*ResourceView
+	*CommonResourceView
 	ctx context.Context
 }
 
-// NewApplicationView return a new application view
-func NewApplicationView(ctx context.Context, app *App) model.Component {
-	v := &ApplicationView{
-		ResourceView: NewResourceView(app),
-		ctx:          ctx,
-	}
-	return v
+// Name return application view name
+func (v *ApplicationView) Name() string {
+	return "Application"
 }
 
 // Init the application view
 func (v *ApplicationView) Init() {
-	// set title of view
-	title := fmt.Sprintf("[ %s ]", v.Name())
-	v.SetTitle(title).SetTitleColor(config.ResourceTableTitleColor)
-	// init view
-	resourceList := v.ListApplications()
-	v.ResourceView.Init(resourceList)
-
-	v.ColorizeStatusText(len(resourceList.Body()))
+	v.CommonResourceView.Init()
+	v.SetTitle(fmt.Sprintf("[ %s ]", v.Title()))
 	v.bindKeys()
 }
 
-// ListApplications list all applications
-func (v *ApplicationView) ListApplications() model.ResourceList {
-	return model.ListApplications(v.ctx, v.app.client)
+// Start the application view
+func (v *ApplicationView) Start() {
+	v.Update()
+}
+
+// Stop the application view
+func (v *ApplicationView) Stop() {
+	v.Table.Stop()
+}
+
+// Hint return key action menu hints of the application view
+func (v *ApplicationView) Hint() []model.MenuHint {
+	return v.Actions().Hint()
+}
+
+// InitView return a new application view
+func (v *ApplicationView) InitView(ctx context.Context, app *App) {
+	if v.CommonResourceView == nil {
+		v.CommonResourceView = NewCommonView(app)
+		v.ctx = ctx
+	} else {
+		v.ctx = ctx
+	}
+}
+
+// Update refresh the content of body of view
+func (v *ApplicationView) Update() {
+	v.BuildHeader()
+	v.BuildBody()
+}
+
+// BuildHeader render the header of table
+func (v *ApplicationView) BuildHeader() {
+	header := []string{"Name", "Namespace", "Phase", "CreateTime"}
+	v.CommonResourceView.BuildHeader(header)
+}
+
+// BuildBody render the body of table
+func (v *ApplicationView) BuildBody() {
+	apps, err := model.ListApplications(v.ctx, v.app.client)
+	if err != nil {
+		return
+	}
+	appInfos := apps.ToTableBody()
+	v.CommonResourceView.BuildBody(appInfos)
+	rowNum := len(appInfos)
+	v.ColorizeStatusText(rowNum)
 }
 
 // ColorizeStatusText colorize the status column text
 func (v *ApplicationView) ColorizeStatusText(rowNum int) {
-	for i := 1; i < rowNum+1; i++ {
-		status := v.Table.GetCell(i, 2).Text
+	for i := 0; i < rowNum; i++ {
+		status := v.Table.GetCell(i+1, 2).Text
 		switch common.ApplicationPhase(status) {
 		case common.ApplicationRendering, common.ApplicationStarting:
 			status = config.ApplicationStartingAndRenderingPhaseColor + status
@@ -76,40 +110,65 @@ func (v *ApplicationView) ColorizeStatusText(rowNum int) {
 			status = config.ApplicationRunningPhaseColor + status
 		default:
 		}
-		v.Table.GetCell(i, 2).SetText(status)
+		v.Table.GetCell(i+1, 2).SetText(status)
 	}
 }
 
-// Name return application view name
-func (v *ApplicationView) Name() string {
-	return "Application"
-}
-
-// Hint return key action menu hints of the application view
-func (v *ApplicationView) Hint() []model.MenuHint {
-	return v.Actions().Hint()
+// Title return table title of application view
+func (v *ApplicationView) Title() string {
+	namespace := v.ctx.Value(&model.CtxKeyNamespace).(string)
+	if namespace == "" {
+		namespace = "all"
+	}
+	return fmt.Sprintf("Application"+" (%s)", namespace)
 }
 
 func (v *ApplicationView) bindKeys() {
 	v.Actions().Delete([]tcell.Key{tcell.KeyEnter})
 	v.Actions().Add(model.KeyActions{
-		tcell.KeyEnter:    model.KeyAction{Description: "Goto", Action: v.clusterView, Visible: true, Shared: true},
+		tcell.KeyEnter:    model.KeyAction{Description: "Enter", Action: v.managedResourceView, Visible: true, Shared: true},
+		component.KeyN:    model.KeyAction{Description: "Select Namespace", Action: v.namespaceView, Visible: true, Shared: true},
 		tcell.KeyESC:      model.KeyAction{Description: "Back", Action: v.app.Back, Visible: true, Shared: true},
 		component.KeyHelp: model.KeyAction{Description: "Help", Action: v.app.helpView, Visible: true, Shared: true},
+		component.KeyY:    model.KeyAction{Description: "Yaml", Action: v.yamlView, Visible: true, Shared: true},
 	})
 }
 
-// clusterView switch app main view to the cluster view
-func (v *ApplicationView) clusterView(event *tcell.EventKey) *tcell.EventKey {
+func (v *ApplicationView) managedResourceView(event *tcell.EventKey) *tcell.EventKey {
+	row, _ := v.GetSelection()
+	if row == 0 {
+		return event
+	}
+
+	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
+	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
+
+	v.app.command.run(v.ctx, "resource")
+	return event
+}
+
+func (v *ApplicationView) namespaceView(event *tcell.EventKey) *tcell.EventKey {
+	v.app.content.Clear()
+	v.app.command.run(v.ctx, "ns")
+	return event
+}
+
+func (v *ApplicationView) yamlView(event *tcell.EventKey) *tcell.EventKey {
 	row, _ := v.GetSelection()
 	if row == 0 {
 		return event
 	}
 	name, namespace := v.GetCell(row, 0).Text, v.GetCell(row, 1).Text
-
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyAppName, name)
-	v.ctx = context.WithValue(v.ctx, &model.CtxKeyNamespace, namespace)
-
-	v.app.command.run(v.ctx, "cluster")
-	return event
+	gvr := model.GVR{
+		GV: "core.oam.dev/v1beta1",
+		R: model.Resource{
+			Kind:      "Application",
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	ctx := context.WithValue(v.app.ctx, &model.CtxKeyGVR, &gvr)
+	v.app.command.run(ctx, "yaml")
+	return nil
 }

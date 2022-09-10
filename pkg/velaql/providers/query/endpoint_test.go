@@ -28,10 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
@@ -228,7 +230,8 @@ var _ = Describe("Test Query Provider", func() {
 			pr := &provider{
 				cli: k8sClient,
 			}
-			err = pr.GeneratorServiceEndpoints(nil, v, nil)
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+			err = pr.GeneratorServiceEndpoints(logCtx, nil, v, nil)
 			Expect(err).Should(BeNil())
 
 			urls := []string{

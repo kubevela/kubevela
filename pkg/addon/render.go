@@ -31,12 +31,13 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	cuemodel "github.com/oam-dev/kubevela/pkg/cue/model"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -65,7 +66,7 @@ func (a addonCueTemplateRender) formatContext() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	paramFile := fmt.Sprintf("%s: %s", cuemodel.ParameterFieldName, string(bt))
+	paramFile := fmt.Sprintf("%s: %s", process.ParameterFieldName, string(bt))
 
 	var contextFile = strings.Builder{}
 	// user custom parameter but be the first data and generated data should be appended at last

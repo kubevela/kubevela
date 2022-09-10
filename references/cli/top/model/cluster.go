@@ -20,9 +20,10 @@ import (
 	"context"
 	"strings"
 
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/cluster-gateway/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
 
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 )
@@ -37,35 +38,15 @@ type Cluster struct {
 }
 
 // ClusterList is cluster resource list
-type ClusterList struct {
-	title []string
-	data  []Cluster
-}
-
-// Header generate header of table in application view
-func (l *ClusterList) Header() []string {
-	return l.title
-}
-
-// Body generate body of table in application view
-func (l *ClusterList) Body() [][]string {
-	data := make([][]string, 0)
-	for _, cluster := range l.data {
-		data = append(data, []string{cluster.name, cluster.alias, cluster.clusterType, cluster.endpoint, cluster.labels})
-	}
-	return data
-}
+type ClusterList []Cluster
 
 // ListClusters list clusters where application deploys resource
-func ListClusters(ctx context.Context, c client.Client) *ClusterList {
-	list := &ClusterList{
-		title: []string{"Name", "Alias", "Type", "EndPoint", "Labels"},
-	}
+func ListClusters(ctx context.Context, c client.Client) (ClusterList, error) {
 	name := ctx.Value(&CtxKeyAppName).(string)
 	ns := ctx.Value(&CtxKeyNamespace).(string)
 	app, err := LoadApplication(c, name, ns)
 	if err != nil {
-		return list
+		return ClusterList{}, err
 	}
 	clusterSet := make(map[string]interface{})
 
@@ -78,8 +59,8 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 	}
 
 	clusters, _ := prismclusterv1alpha1.NewClusterClient(c).List(context.Background())
-
-	for _, cluster := range clusters.Items {
+	list := make(ClusterList, len(clusters.Items))
+	for index, cluster := range clusters.Items {
 		if _, ok := clusterSet[cluster.Name]; ok {
 			clusterInfo := Cluster{
 				name:        cluster.Name,
@@ -94,8 +75,18 @@ func ListClusters(ctx context.Context, c client.Client) *ClusterList {
 				}
 			}
 			clusterInfo.labels = strings.Join(labels, ",")
-			list.data = append(list.data, clusterInfo)
+			list[index] = clusterInfo
 		}
 	}
-	return list
+	return list, nil
+}
+
+// ToTableBody generate body of table in cluster view
+func (l ClusterList) ToTableBody() [][]string {
+	data := make([][]string, len(l)+1)
+	data[0] = []string{AllCluster, "*", "*", "*", "*"}
+	for index, cluster := range l {
+		data[index+1] = []string{cluster.name, cluster.alias, cluster.clusterType, cluster.endpoint, cluster.labels}
+	}
+	return data
 }

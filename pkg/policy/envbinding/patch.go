@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/utils"
 	errors2 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -115,23 +116,6 @@ func MergeComponent(base *common.ApplicationComponent, patch *v1alpha1.EnvCompon
 	return newComponent, nil
 }
 
-func filterComponents(components []string, selector []string) []string {
-	if selector != nil {
-		filter := map[string]bool{}
-		for _, compName := range selector {
-			filter[compName] = true
-		}
-		var _comps []string
-		for _, compName := range components {
-			if _, ok := filter[compName]; ok {
-				_comps = append(_comps, compName)
-			}
-		}
-		return _comps
-	}
-	return components
-}
-
 // PatchApplication patch base application with patch and selector
 func PatchApplication(base *v1beta1.Application, patch *v1alpha1.EnvPatch, selector *v1alpha1.EnvSelector) (*v1beta1.Application, error) {
 	newApp := base.DeepCopy()
@@ -207,7 +191,7 @@ func PatchComponents(baseComponents []common.ApplicationComponent, patchComponen
 	}
 
 	// if selector is enabled, filter
-	compOrders = filterComponents(compOrders, selector)
+	compOrders = utils.FilterComponents(compOrders, selector)
 
 	// fill in new application
 	newComponents := []common.ApplicationComponent{}

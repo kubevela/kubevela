@@ -52,8 +52,23 @@ type (
 var (
 	// CtxKeyAppName request context key of application name
 	CtxKeyAppName = "appName"
-	// CtxKeyCluster request context key of cluster name
-	CtxKeyCluster = "cluster"
 	// CtxKeyNamespace request context key of namespace name
 	CtxKeyNamespace = "appNs"
+	// CtxKeyCluster request context key of cluster name
+	CtxKeyCluster = "cluster"
+	// CtxKeyClusterNamespace request context key of cluster namespace name
+	CtxKeyClusterNamespace = "cluster"
+	// CtxKeyComponentName request context key of component name
+	CtxKeyComponentName = "componentName"
+	// CtxKeyGVR request context key of GVR
+	CtxKeyGVR = "gvr"
+)
+
+const (
+	// AllNamespace represent all namespaces
+	AllNamespace = "all"
+	// AllClusterNamespace represent all cluster namespace
+	AllClusterNamespace = "all"
+	// AllCluster represent all cluster
+	AllCluster = "all"
 )

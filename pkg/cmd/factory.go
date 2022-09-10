@@ -23,8 +23,9 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/multicluster"
+
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -96,7 +97,7 @@ func (f *defaultFactory) Config() *rest.Config {
 func NewDefaultFactory(cfg *rest.Config) Factory {
 	copiedCfg := *cfg
 	copiedCfg.RateLimiter = DefaultRateLimiter
-	copiedCfg.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	copiedCfg.Wrap(multicluster.NewTransportWrapper())
 	return &defaultFactory{cfg: &copiedCfg}
 }
 

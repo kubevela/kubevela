@@ -24,13 +24,15 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/fatih/color"
-	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
-	"github.com/oam-dev/cluster-gateway/pkg/config"
-	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	prismclusterv1alpha1 "github.com/kubevela/prism/pkg/apis/cluster/v1alpha1"
+	"github.com/oam-dev/cluster-gateway/pkg/config"
+	"github.com/oam-dev/cluster-gateway/pkg/generated/clientset/versioned"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -69,7 +71,7 @@ func ClusterCommandGroup(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+			config.Wrap(pkgmulticluster.NewTransportWrapper())
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")

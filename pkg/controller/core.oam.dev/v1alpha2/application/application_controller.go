@@ -41,16 +41,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/kubevela/workflow/pkg/executor"
+	wffeatures "github.com/kubevela/workflow/pkg/features"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/features"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -58,7 +64,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -110,7 +115,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	ctx, cancel := context.WithTimeout(ctx, common2.ReconcileTimeout)
 	defer cancel()
-
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
 	logCtx.Info("Start reconcile application")
 	defer logCtx.Commit("End reconcile application")
@@ -194,7 +198,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
-	steps, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
+	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile, handler.currentAppRev)
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -202,8 +206,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	app.Status.SetConditions(condition.ReadyCondition(common.RenderCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
-	wf := workflow.NewWorkflow(app, r.Client, appFile.WorkflowMode, appFile.Debug, handler.resourceKeeper)
-	workflowState, err := wf.ExecuteSteps(logCtx.Fork("workflow"), handler.currentAppRev, steps)
+
+	executor := executor.New(workflowInstance, r.Client)
+	authCtx := logCtx.Fork("execute application workflow")
+	defer authCtx.Commit("finish execute application workflow")
+	authCtx = auth.MonitorContextWithUserInfo(authCtx, app)
+	workflowState, err := executor.ExecuteRunners(authCtx, runners)
 	if err != nil {
 		logCtx.Error(err, "[handle workflow]")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
@@ -214,53 +222,50 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
+	isUpdate := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
+	workflowInstance.Status.Phase = workflowState
+	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	switch workflowState {
-	case common.WorkflowStateInitializing:
-		metrics.WorkflowInitializedCounter.WithLabelValues().Inc()
-		logCtx.Info("Workflow return state=Initializing")
-		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, false, app.Status.Workflow)
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationRendering, false, false)
-	case common.WorkflowStateSuspended:
+	case workflowv1alpha1.WorkflowStateSuspending:
 		logCtx.Info("Workflow return state=Suspend")
-		if duration := wf.GetSuspendBackoffWaitTime(); duration > 0 {
-			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
+		if duration := executor.GetSuspendBackoffWaitTime(); duration > 0 {
+			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
 			return r.result(err).requeue(duration).ret()
 		}
-		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableSuspendOnFailure) {
+		if !workflow.IsFailedAfterRetry(app) || !feature.DefaultMutableFeatureGate.Enabled(wffeatures.EnableSuspendOnFailure) {
 			r.stateKeep(logCtx, handler, app)
 		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, true)
-	case common.WorkflowStateTerminated:
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, isUpdate)
+	case workflowv1alpha1.WorkflowStateTerminated:
 		logCtx.Info("Workflow return state=Terminated")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
-		if err := r.doWorkflowFinish(app, wf, workflowState); err != nil {
-			return r.endWithNegativeCondition(ctx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
-		}
-		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, true)
-	case common.WorkflowStateExecuting:
+		r.doWorkflowFinish(app, workflowState)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowTerminated, false, isUpdate)
+	case workflowv1alpha1.WorkflowStateFailed:
+		logCtx.Info("Workflow return state=Failed")
+		handler.UpdateApplicationRevisionStatus(logCtx, handler.latestAppRev, false, app.Status.Workflow)
+		r.doWorkflowFinish(app, workflowState)
+		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, isUpdate)
+	case workflowv1alpha1.WorkflowStateExecuting:
 		logCtx.Info("Workflow return state=Executing")
-		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, true)
-		return r.result(err).requeue(wf.GetBackoffWaitTime()).ret()
-	case common.WorkflowStateSucceeded:
+		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, isUpdate)
+		return r.result(err).requeue(executor.GetBackoffWaitTime()).ret()
+	case workflowv1alpha1.WorkflowStateSucceeded:
 		logCtx.Info("Workflow return state=Succeeded")
 		handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, true, app.Status.Workflow)
-		if err := r.doWorkflowFinish(app, wf, workflowState); err != nil {
-			return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition(common.WorkflowCondition.String(), errors.WithMessage(err, "DoWorkflowFinish")), common.ApplicationRunningWorkflow)
-		}
+		r.doWorkflowFinish(app, workflowState)
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 		logCtx.Info("Application manifests has applied by workflow successfully")
 		if !EnableReconcileLoopReduction {
-			return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFinished, false, true)
+			if result, err := r.gcResourceTrackers(logCtx, handler, common.ApplicationRunning, false, isUpdate); err != nil {
+				return result, err
+			}
 		}
-	case common.WorkflowStateFinished:
-		logCtx.Info("Workflow state=Finished")
-		if status := app.Status.Workflow; status != nil && status.Terminated {
-			return r.result(nil).ret()
-		}
-	case common.WorkflowStateSkipping:
+	case workflowv1alpha1.WorkflowStateSkipped:
 		logCtx.Info("Skip this reconcile")
 		return ctrl.Result{}, nil
+	default:
 	}
 
 	var phase = common.ApplicationRunning
@@ -285,10 +290,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Reason:             condition.ReasonReconcileSuccess,
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return r.gcResourceTrackers(logCtx, handler, phase, true, true)
+	return r.gcResourceTrackers(logCtx, handler, phase, true, false)
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
+	if feature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
+		return
+	}
 	if err := handler.resourceKeeper.StateKeep(logCtx); err != nil {
 		logCtx.Error(err, "Failed to run prevent-configuration-drift")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedStateKeep, err))
@@ -296,7 +304,7 @@ func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandle
 	}
 }
 
-func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool, isPatch bool) (ctrl.Result, error) {
+func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *AppHandler, phase common.ApplicationPhase, gcOutdated bool, isUpdate bool) (ctrl.Result, error) {
 	subCtx := logCtx.Fork("gc_resourceTrackers", monitorContext.DurationMetric(func(v float64) {
 		metrics.GCResourceTrackersDurationHistogram.WithLabelValues("-").Observe(v)
 	}))
@@ -322,8 +330,8 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(r.patchStatus(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	if !isPatch {
-		return r.result(r.updateStatus(logCtx, handler.app, common.ApplicationRunningWorkflow)).ret()
+	if isUpdate {
+		return r.result(r.updateStatus(logCtx, handler.app, phase)).ret()
 	}
 	return r.result(r.patchStatus(logCtx, handler.app, phase)).ret()
 }
@@ -411,7 +419,7 @@ func (r *Reconciler) patchStatus(ctx context.Context, app *v1beta1.Application, 
 	updateObservedGeneration(app)
 	if err := r.Status().Patch(ctx, app, client.Merge); err != nil {
 		// set to -1 to re-run workflow if status is failed to patch
-		workflow.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
+		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
 		return err
 	}
 	return nil
@@ -430,20 +438,19 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 	}
 	if err := r.Status().Update(ctx, obj); err != nil {
 		// set to -1 to re-run workflow if status is failed to update
-		workflow.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
+		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
 		return err
 	}
 	return nil
 }
 
-func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, wf workflow.Workflow, state common.WorkflowState) error {
+func (r *Reconciler) doWorkflowFinish(app *v1beta1.Application, state workflowv1alpha1.WorkflowRunPhase) {
 	app.Status.Workflow.Finished = true
-	if err := wf.Trace(); err != nil {
-		return errors.WithMessage(err, "record workflow state")
-	}
+	app.Status.Workflow.EndTime = metav1.Now()
+	executor.StepStatusCache.Delete(fmt.Sprintf("%s-%s", app.Name, app.Namespace))
+	wfContext.CleanupMemoryStore(app.Name, app.Namespace)
 	t := time.Since(app.Status.Workflow.StartTime.Time).Seconds()
 	metrics.WorkflowFinishedTimeHistogram.WithLabelValues(string(state)).Observe(t)
-	return nil
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Workload) bool {
@@ -513,11 +520,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 
 				// filter managedFields changes
-				new.ManagedFields = old.ManagedFields
+				old.ManagedFields = nil
+				new.ManagedFields = nil
 
 				// if the generation is changed, return true to let the controller handle it
 				if old.Generation != new.Generation {
 					return true
+				}
+
+				// filter the events triggered by initial application status
+				if new.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && new.Status.Phase == common.ApplicationRunningWorkflow) {
+					return false
 				}
 
 				// ignore the changes in workflow status
@@ -527,15 +540,16 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					new.Status.Workflow.Steps = old.Status.Workflow.Steps
 					new.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
 					new.Status.Workflow.Message = old.Status.Workflow.Message
-
-					// appliedResources and Services will be changed during the execution of workflow
-					// once the resources is added, the managed fields will also be changed
-					new.Status.AppliedResources = old.Status.AppliedResources
-					new.Status.Services = old.Status.Services
-					// the resource version will be changed if the object is changed
-					// ignore this change and let reflect.DeepEqual to compare the rest of the object
-					new.ResourceVersion = old.ResourceVersion
+					new.Status.Workflow.EndTime = old.Status.Workflow.EndTime
 				}
+
+				// appliedResources and Services will be changed during the execution of workflow
+				// once the resources is added, the managed fields will also be changed
+				new.Status.AppliedResources = old.Status.AppliedResources
+				new.Status.Services = old.Status.Services
+				// the resource version will be changed if the object is changed
+				// ignore this change and let reflect.DeepEqual to compare the rest of the object
+				new.ResourceVersion = old.ResourceVersion
 				return !reflect.DeepEqual(old, new)
 			},
 			CreateFunc: func(e ctrlEvent.CreateEvent) bool {

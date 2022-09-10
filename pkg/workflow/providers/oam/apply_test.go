@@ -22,15 +22,14 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/mock"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers/mock"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 func TestParser(t *testing.T) {
@@ -41,10 +40,10 @@ func TestParser(t *testing.T) {
 	act := &mock.Action{}
 	v, err := value.NewValue("", nil, "")
 	r.NoError(err)
-	err = p.ApplyComponent(nil, v, act)
+	err = p.ApplyComponent(nil, nil, v, act)
 	r.Equal(err.Error(), "failed to lookup value: var(path=value) not exist")
 	v.FillObject(map[string]interface{}{}, "value")
-	err = p.ApplyComponent(nil, v, act)
+	err = p.ApplyComponent(nil, nil, v, act)
 	r.NoError(err)
 	output, err := v.LookupValue("output")
 	r.NoError(err)
@@ -87,7 +86,7 @@ metadata: {
 func TestRenderComponent(t *testing.T) {
 	r := require.New(t)
 	p := &provider{
-		render: func(comp common.ApplicationComponent, patcher *value.Value, clusterName string, overrideNamespace string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		render: func(comp common.ApplicationComponent, patcher *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			return &unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"apiVersion": "apps/v1",
@@ -111,7 +110,7 @@ func TestRenderComponent(t *testing.T) {
 	}
 	v, err := value.NewValue(`value: {}`, nil, "")
 	r.NoError(err)
-	err = p.RenderComponent(nil, v, nil)
+	err = p.RenderComponent(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)
@@ -154,7 +153,7 @@ func TestLoadComponent(t *testing.T) {
 	}
 	v, err := value.NewValue(``, nil, "")
 	r.NoError(err)
-	err = p.LoadComponent(nil, v, nil)
+	err = p.LoadComponent(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)
@@ -188,7 +187,7 @@ func TestLoadComponent(t *testing.T) {
 `
 	overrideValue, err := value.NewValue(overrideApp, nil, "")
 	r.NoError(err)
-	err = p.LoadComponent(nil, overrideValue, nil)
+	err = p.LoadComponent(nil, nil, overrideValue, nil)
 	r.NoError(err)
 	_, err = overrideValue.LookupValue("value", "c2")
 	r.NoError(err)
@@ -216,7 +215,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 	}
 	v, err := value.NewValue(``, nil, "")
 	r.NoError(err)
-	err = p.LoadComponentInOrder(nil, v, nil)
+	err = p.LoadComponentInOrder(nil, nil, v, nil)
 	r.NoError(err)
 	s, err := v.String()
 	r.NoError(err)
@@ -238,7 +237,7 @@ func TestLoadComponentInOrder(t *testing.T) {
 
 var testHealthy bool
 
-func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _ string, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+func simpleComponentApplyForTest(comp common.ApplicationComponent, _ *value.Value, _, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 	workload := new(unstructured.Unstructured)
 	workload.UnmarshalJSON([]byte(`{
   "apiVersion": "v1",

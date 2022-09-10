@@ -22,8 +22,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/providers"
 )
 
 func TestTimestamp(t *testing.T) {
@@ -74,7 +74,7 @@ layout: "Mon, 02 Jan 2006 15:04:05 MST"`,
 			v, err := value.NewValue(tc.from, nil, "")
 			r.NoError(err)
 			prd := &provider{}
-			err = prd.Timestamp(nil, v, nil)
+			err = prd.Timestamp(nil, nil, v, nil)
 			if tc.expectedErr != nil {
 				r.Equal(tc.expectedErr.Error(), err.Error())
 				return
@@ -134,7 +134,7 @@ layout: "Mon, 02 Jan 2006 15:04:05 MST"
 			v, err := value.NewValue(tc.from, nil, "")
 			r.NoError(err)
 			prd := &provider{}
-			err = prd.Date(nil, v, nil)
+			err = prd.Date(nil, nil, v, nil)
 			if tc.expectedErr != nil {
 				r.Equal(tc.expectedErr.Error(), err.Error())
 				return

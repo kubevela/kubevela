@@ -58,15 +58,6 @@ func ReconcileOnceAfterFinalizer(r reconcile.Reconciler, req reconcile.Request) 
 	if result, err := r.Reconcile(context.TODO(), req); err != nil {
 		return result, err
 	}
-	if result, err := r.Reconcile(context.TODO(), req); err != nil {
-		return result, err
-	}
-	if result, err := r.Reconcile(context.TODO(), req); err != nil {
-		return result, err
-	}
-	if result, err := r.Reconcile(context.TODO(), req); err != nil {
-		return result, err
-	}
 
 	return r.Reconcile(context.TODO(), req)
 }

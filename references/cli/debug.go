@@ -32,19 +32,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/kubevela/workflow/pkg/debug"
+	"github.com/kubevela/workflow/pkg/tasks/custom"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/dryrun"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/pkg/workflow/debug"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/custom"
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
@@ -118,13 +119,20 @@ func (d *debugOpts) debugApplication(ctx context.Context, c common.Args, app *v1
 		}
 
 		// debug workflow steps
-		rawValue, err := d.getDebugRawValue(ctx, cli, pd, app)
+		rawValue, data, err := d.getDebugRawValue(ctx, cli, pd, app)
 		if err != nil {
+			if data != "" {
+				ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+				ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+				return nil
+			}
 			return err
 		}
 
 		if err := d.handleCueSteps(rawValue, ioStreams); err != nil {
-			return err
+			ioStreams.Info(color.RedString("%s%s", emojiFail, err.Error()))
+			ioStreams.Info(color.GreenString("Original Data in Debug:\n"), data)
+			return nil
 		}
 	} else {
 		// dry run components
@@ -221,9 +229,9 @@ func (d *debugOpts) getDebugOptions(app *v1beta1.Application) (string, []string,
 		for _, step := range app.Status.Workflow.Steps {
 			stepName := step.Name
 			switch step.Phase {
-			case apicommon.WorkflowStepPhaseSucceeded:
+			case workflowv1alpha1.WorkflowStepPhaseSucceeded:
 				stepName = emojiSucceed + step.Name
-			case apicommon.WorkflowStepPhaseFailed:
+			case workflowv1alpha1.WorkflowStepPhaseFailed:
 				stepName = emojiFail + step.Name
 				errMap[step.Name] = step.Message
 			default:
@@ -252,20 +260,20 @@ func unwrapStepName(step string) string {
 	return step
 }
 
-func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, error) {
+func (d *debugOpts) getDebugRawValue(ctx context.Context, cli client.Client, pd *packages.PackageDiscover, app *v1beta1.Application) (*value.Value, string, error) {
 	debugCM := &corev1.ConfigMap{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: debug.GenerateContextName(app.Name, d.step), Namespace: app.Namespace}, debugCM); err != nil {
-		return nil, fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
+		return nil, "", fmt.Errorf("failed to get debug configmap, please make sure your application have the debug policy, you can add the debug policy by using `vela up -f <app.yaml> --debug`: %w", err)
 	}
 
 	if debugCM.Data == nil || debugCM.Data["debug"] == "" {
-		return nil, fmt.Errorf("debug configmap is empty")
+		return nil, "", fmt.Errorf("debug configmap is empty")
 	}
 	v, err := value.NewValue(debugCM.Data["debug"], pd, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse debug configmap: %w", err)
+		return nil, debugCM.Data["debug"], fmt.Errorf("failed to parse debug configmap: %w", err)
 	}
-	return v, nil
+	return v, debugCM.Data["debug"], nil
 }
 
 func (d *debugOpts) handleCueSteps(v *value.Value, ioStreams cmdutil.IOStreams) error {
@@ -298,7 +306,7 @@ func (d *debugOpts) separateBySteps(v *value.Value, ioStreams cmdutil.IOStreams)
 			if err != nil {
 				errInfo = "value is _|_"
 			}
-			return true, errors.New(errInfo + "(bottom kind)")
+			return true, errors.New(errInfo + "value is _|_ (bottom kind)")
 		}
 		fieldList = append(fieldList, fieldName)
 		fieldMap[fieldName] = in

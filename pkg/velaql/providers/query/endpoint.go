@@ -32,23 +32,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apis "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/apiserver/utils/log"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // GeneratorServiceEndpoints generator service endpoints is available for common component type,
 // such as webservice or helm
 // it can not support the cloud service component currently
-func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.Value, act types.Action) error {
-	ctx := context.Background()
-
+func (h *provider) GeneratorServiceEndpoints(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	val, err := v.LookupValue("app")
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (h *provider) GeneratorServiceEndpoints(wfctx wfContext.Context, v *value.V
 	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
 	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(h.cli, opt)
-	resources, err := collector.ListApplicationResources(app, opt.WithTree)
+	resources, err := collector.ListApplicationResources(ctx, app, opt.WithTree)
 	if err != nil {
 		return err
 	}

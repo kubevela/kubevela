@@ -42,7 +42,12 @@ func NewMenu() *Menu {
 
 // StackPop change itself when accept "pop" notify from app's main view
 func (m *Menu) StackPop(old, new model.Component) {
-	m.UpdateMenu(new.Hint())
+	if new == nil {
+		m.UpdateMenu([]model.MenuHint{})
+	} else {
+		m.UpdateMenu(new.Hint())
+	}
+
 }
 
 // StackPush change itself when accept "push" notify from app's main view

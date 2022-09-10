@@ -38,12 +38,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/model/sets"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 )
@@ -237,7 +238,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 	labels := map[string]string{}
 	for k, v := range def.GetLabels() {
 		if !strings.HasPrefix(k, UserPrefix) {
-			annotations[k] = v
+			labels[k] = v
 		}
 	}
 	spec, ok := def.Object["spec"].(map[string]interface{})

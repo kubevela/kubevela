@@ -28,10 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 var workflowSpec = v1beta1.ApplicationSpec{
@@ -41,10 +43,12 @@ var workflowSpec = v1beta1.ApplicationSpec{
 		Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 	}},
 	Workflow: &v1beta1.Workflow{
-		Steps: []v1beta1.WorkflowStep{{
-			Name:       "test-wf1",
-			Type:       "foowf",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"default"}`)},
+		Steps: []workflowv1alpha1.WorkflowStep{{
+			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				Name:       "test-wf1",
+				Type:       "foowf",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"default"}`)},
+			},
 		}},
 	},
 }
@@ -193,23 +197,21 @@ func TestWorkflowResume(t *testing.T) {
 				Status: common.AppStatus{
 					Workflow: &common.WorkflowStatus{
 						Suspend: true,
-						Steps: []common.WorkflowStepStatus{
+						Steps: []workflowv1alpha1.WorkflowStepStatus{
 							{
-								StepStatus: common.StepStatus{
+								StepStatus: workflowv1alpha1.StepStatus{
 									Type:  "suspend",
 									Phase: "running",
 								},
 							},
 							{
-								StepStatus: common.StepStatus{
+								StepStatus: workflowv1alpha1.StepStatus{
 									Type: "step-group",
 								},
-								SubStepsStatus: []common.WorkflowSubStepStatus{
+								SubStepsStatus: []workflowv1alpha1.StepStatus{
 									{
-										StepStatus: common.StepStatus{
-											Type:  "suspend",
-											Phase: "running",
-										},
+										Type:  "suspend",
+										Phase: "running",
 									},
 								},
 							},
@@ -261,11 +263,11 @@ func TestWorkflowResume(t *testing.T) {
 			r.Equal(false, wf.Status.Workflow.Suspend)
 			for _, step := range wf.Status.Workflow.Steps {
 				if step.Type == "suspend" {
-					r.Equal(step.Phase, common.WorkflowStepPhaseSucceeded)
+					r.Equal(step.Phase, workflowv1alpha1.WorkflowStepPhaseSucceeded)
 				}
 				for _, sub := range step.SubStepsStatus {
 					if sub.Type == "suspend" {
-						r.Equal(sub.Phase, common.WorkflowStepPhaseSucceeded)
+						r.Equal(sub.Phase, workflowv1alpha1.WorkflowStepPhaseSucceeded)
 					}
 				}
 			}
@@ -306,39 +308,35 @@ func TestWorkflowTerminate(t *testing.T) {
 				Status: common.AppStatus{
 					Workflow: &common.WorkflowStatus{
 						Terminated: false,
-						Steps: []common.WorkflowStepStatus{
+						Steps: []workflowv1alpha1.WorkflowStepStatus{
 							{
-								StepStatus: common.StepStatus{
+								StepStatus: workflowv1alpha1.StepStatus{
 									Name:  "1",
 									Type:  "suspend",
 									Phase: "succeeded",
 								},
 							},
 							{
-								StepStatus: common.StepStatus{
+								StepStatus: workflowv1alpha1.StepStatus{
 									Name:  "2",
 									Type:  "suspend",
 									Phase: "running",
 								},
 							},
 							{
-								StepStatus: common.StepStatus{
+								StepStatus: workflowv1alpha1.StepStatus{
 									Name:  "3",
 									Type:  "step-group",
 									Phase: "running",
 								},
-								SubStepsStatus: []common.WorkflowSubStepStatus{
+								SubStepsStatus: []workflowv1alpha1.StepStatus{
 									{
-										StepStatus: common.StepStatus{
-											Type:  "suspend",
-											Phase: "running",
-										},
+										Type:  "suspend",
+										Phase: "running",
 									},
 									{
-										StepStatus: common.StepStatus{
-											Type:  "suspend",
-											Phase: "succeeded",
-										},
+										Type:  "suspend",
+										Phase: "succeeded",
 									},
 								},
 							},
@@ -389,13 +387,13 @@ func TestWorkflowTerminate(t *testing.T) {
 			r.NoError(err)
 			r.Equal(true, wf.Status.Workflow.Terminated)
 			for _, step := range wf.Status.Workflow.Steps {
-				if step.Phase != common.WorkflowStepPhaseSucceeded {
-					r.Equal(step.Phase, common.WorkflowStepPhaseFailed)
+				if step.Phase != workflowv1alpha1.WorkflowStepPhaseSucceeded {
+					r.Equal(step.Phase, workflowv1alpha1.WorkflowStepPhaseFailed)
 					r.Equal(step.Reason, wfTypes.StatusReasonTerminate)
 				}
 				for _, sub := range step.SubStepsStatus {
-					if sub.Phase != common.WorkflowStepPhaseSucceeded {
-						r.Equal(sub.Phase, common.WorkflowStepPhaseFailed)
+					if sub.Phase != workflowv1alpha1.WorkflowStepPhaseSucceeded {
+						r.Equal(sub.Phase, workflowv1alpha1.WorkflowStepPhaseFailed)
 						r.Equal(sub.Reason, wfTypes.StatusReasonTerminate)
 					}
 				}

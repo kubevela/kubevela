@@ -24,6 +24,8 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -31,7 +33,7 @@ import (
 
 // LoadExternalPoliciesForWorkflow detects policies used in workflow steps which are not declared in internal policies
 // try to load them from external policy objects in the application's namespace
-func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, appNs string, steps []v1beta1.WorkflowStep, internalPolicies []v1beta1.AppPolicy) ([]v1beta1.AppPolicy, error) {
+func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, appNs string, steps []workflowv1alpha1.WorkflowStep, internalPolicies []v1beta1.AppPolicy) ([]v1beta1.AppPolicy, error) {
 	policies := internalPolicies
 	policyMap := map[string]struct{}{}
 	for _, policy := range policies {

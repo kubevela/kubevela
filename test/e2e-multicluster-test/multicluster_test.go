@@ -25,27 +25,27 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/util/rand"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
@@ -57,7 +57,7 @@ func initializeContext() (hubCtx context.Context, workerCtx context.Context) {
 func initializeContextAndNamespace() (hubCtx context.Context, workerCtx context.Context, namespace string) {
 	hubCtx, workerCtx = initializeContext()
 	// initialize test namespace
-	namespace = "test-mc-" + utils.RandomString(4)
+	namespace = "test-mc-" + rand.RandomString(4)
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 	Expect(k8sClient.Create(hubCtx, ns.DeepCopy())).Should(Succeed())
 	Expect(k8sClient.Create(workerCtx, ns.DeepCopy())).Should(Succeed())
@@ -151,11 +151,12 @@ var _ = Describe("Test multicluster scenario", func() {
 
 		It("Test generate service account kubeconfig", func() {
 			_, workerCtx := initializeContext()
-			// create service account kubeconfig in worker cluster
+			By("create service account kubeconfig in worker cluster")
 			key := time.Now().UnixNano()
 			serviceAccountName := fmt.Sprintf("test-service-account-%d", key)
+			serviceAccountNamespace := "kube-system"
 			serviceAccount := &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "kube-system", Name: serviceAccountName},
+				ObjectMeta: metav1.ObjectMeta{Namespace: serviceAccountNamespace, Name: serviceAccountName},
 			}
 			Expect(k8sClient.Create(workerCtx, serviceAccount)).Should(Succeed())
 			defer func() {
@@ -165,30 +166,26 @@ var _ = Describe("Test multicluster scenario", func() {
 			clusterRoleBindingName := fmt.Sprintf("test-cluster-role-binding-%d", key)
 			clusterRoleBinding := &rbacv1.ClusterRoleBinding{
 				ObjectMeta: metav1.ObjectMeta{Name: clusterRoleBindingName},
-				Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: "kube-system"}},
+				Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: serviceAccountName, Namespace: serviceAccountNamespace}},
 				RoleRef:    rbacv1.RoleRef{Name: "cluster-admin", APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole"},
 			}
 			Expect(k8sClient.Create(workerCtx, clusterRoleBinding)).Should(Succeed())
 			defer func() {
-				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: "kube-system", Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
+				Expect(k8sClient.Get(workerCtx, types.NamespacedName{Namespace: serviceAccountNamespace, Name: clusterRoleBindingName}, clusterRoleBinding)).Should(Succeed())
 				Expect(k8sClient.Delete(workerCtx, clusterRoleBinding)).Should(Succeed())
 			}()
 			serviceAccount = &corev1.ServiceAccount{}
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccountName, Namespace: "kube-system"}, serviceAccount)).Should(Succeed())
-				g.Expect(len(serviceAccount.Secrets)).Should(Equal(1))
-			}, time.Second*30).Should(Succeed())
-			secret := &corev1.Secret{}
-			Expect(k8sClient.Get(workerCtx, types.NamespacedName{Name: serviceAccount.Secrets[0].Name, Namespace: "kube-system"}, secret)).Should(Succeed())
-			token, ok := secret.Data["token"]
-			Expect(ok).Should(BeTrue())
+			By("Generating a token for SA")
+			tr := &v1.TokenRequest{}
+			token, err := k8sCli.CoreV1().ServiceAccounts(serviceAccountNamespace).CreateToken(workerCtx, serviceAccountName, tr, metav1.CreateOptions{})
+			Expect(err).Should(BeNil())
 			config, err := clientcmd.LoadFromFile(WorkerClusterKubeConfigPath)
 			Expect(err).Should(Succeed())
 			currentContext, ok := config.Contexts[config.CurrentContext]
 			Expect(ok).Should(BeTrue())
 			authInfo, ok := config.AuthInfos[currentContext.AuthInfo]
 			Expect(ok).Should(BeTrue())
-			authInfo.Token = string(token)
+			authInfo.Token = token.Status.Token
 			authInfo.ClientKeyData = nil
 			authInfo.ClientCertificateData = nil
 			kubeconfigFilePath := fmt.Sprintf("/tmp/worker.sa-%d.kubeconfig", key)
@@ -604,6 +601,48 @@ var _ = Describe("Test multicluster scenario", func() {
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "gc-policy-test"}, &corev1.ConfigMap{})).Should(Succeed())
 				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: testNamespace, Name: "another"}, &corev1.ConfigMap{})).Should(Satisfy(kerrors.IsNotFound))
 			})
+		})
+
+		It("Test Application with env in webservice and labels & storage trait", func() {
+			bs, err := ioutil.ReadFile("./testdata/app/app-with-env-labels-storage.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			deploy := &appsv1.Deployment{}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, types.NamespacedName{Namespace: namespace, Name: "test"}, deploy)).Should(Succeed())
+			}, 15*time.Second).Should(Succeed())
+			Expect(deploy.GetLabels()["key"]).Should(Equal("val"))
+			Expect(len(deploy.Spec.Template.Spec.Containers[0].Env)).Should(Equal(1))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Name).Should(Equal("testKey"))
+			Expect(deploy.Spec.Template.Spec.Containers[0].Env[0].Value).Should(Equal("testValue"))
+			Expect(len(deploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
+		})
+
+		It("Test application with collect-service-endpoint and export-data", func() {
+			By("create application")
+			bs, err := ioutil.ReadFile("./testdata/app/app-collect-service-endpoint-and-export.yaml")
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal(bs, app)).Should(Succeed())
+			app.SetNamespace(testNamespace)
+			Expect(k8sClient.Create(hubCtx, app)).Should(Succeed())
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
+			}, 20*time.Second).Should(Succeed())
+
+			By("test dispatched resource")
+			svc := &corev1.Service{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: "busybox"}, svc)).Should(Succeed())
+			host := "busybox." + testNamespace
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(hubCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
+			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
+			Expect(cm.Data["host"]).Should(Equal(host))
 		})
 	})
 })

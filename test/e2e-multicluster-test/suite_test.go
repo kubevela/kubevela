@@ -23,11 +23,17 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/apis/types"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/cli"
@@ -40,6 +46,7 @@ const (
 
 var (
 	k8sClient client.Client
+	k8sCli    kubernetes.Interface
 )
 
 func execCommand(args ...string) (string, error) {
@@ -63,8 +70,10 @@ var _ = BeforeSuite(func() {
 	// initialize clients
 	options := client.Options{Scheme: common.Scheme}
 	config := config.GetConfigOrDie()
-	config.Wrap(multicluster.NewSecretModeMultiClusterRoundTripper)
+	config.Wrap(multicluster.NewTransportWrapper())
 	k8sClient, err = client.New(config, options)
+	Expect(err).Should(Succeed())
+	k8sCli, err = kubernetes.NewForConfig(config)
 	Expect(err).Should(Succeed())
 
 	// join worker cluster
@@ -73,11 +82,24 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	holdAddons := []string{"addon-terraform", "addon-fluxcd"}
 	Eventually(func(g Gomega) {
 		apps := &v1beta1.ApplicationList{}
 		g.Expect(k8sClient.List(context.Background(), apps)).Should(Succeed())
 		for _, app := range apps.Items {
+			if slices.Contains(holdAddons, app.Name) {
+				continue
+			}
 			g.Expect(k8sClient.Delete(context.Background(), app.DeepCopy())).Should(Succeed())
+		}
+	}, 3*time.Minute).Should(Succeed())
+	Eventually(func(g Gomega) {
+		// Delete terraform and fluxcd in order
+		app := &v1beta1.Application{}
+		apps := &v1beta1.ApplicationList{}
+		for _, addon := range holdAddons {
+			g.Expect(k8sClient.Delete(context.Background(), &v1beta1.Application{ObjectMeta: v1.ObjectMeta{Name: addon, Namespace: types.DefaultKubeVelaNS}})).Should(SatisfyAny(Succeed(), oamutil.NotFoundMatcher{}))
+			g.Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: addon, Namespace: types.DefaultKubeVelaNS}, app)).Should(SatisfyAny(Succeed(), oamutil.NotFoundMatcher{}))
 		}
 		err := k8sClient.List(context.Background(), apps)
 		g.Expect(err, nil)

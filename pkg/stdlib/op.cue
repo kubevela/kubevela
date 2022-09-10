@@ -30,6 +30,8 @@ import (
 
 #Delete: kube.#Delete
 
+#GetPlacementsFromTopologyPolicies: multicluster.#GetPlacementsFromTopologyPolicies
+
 #Deploy: multicluster.#Deploy
 
 #ApplyApplication: #Steps & {
@@ -105,7 +107,7 @@ import (
 }
 
 #DingTalk: #Steps & {
-	message: dingDing.#DingMessage
+	message: {...}
 	dingUrl: string
 	do:      http.#Do & {
 		method: "POST"
@@ -118,7 +120,7 @@ import (
 }
 
 #Lark: #Steps & {
-	message: lark.#LarkMessage
+	message: {...}
 	larkUrl: string
 	do:      http.#Do & {
 		method: "POST"
@@ -131,7 +133,7 @@ import (
 }
 
 #Slack: #Steps & {
-	message:  slack.#SlackMessage
+	message: {...}
 	slackUrl: string
 	do:       http.#Do & {
 		method: "POST"

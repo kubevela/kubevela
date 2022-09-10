@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -29,23 +30,37 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+	"github.com/kubevela/workflow/pkg/executor"
+	"github.com/kubevela/workflow/pkg/generator"
+	"github.com/kubevela/workflow/pkg/providers"
+	"github.com/kubevela/workflow/pkg/providers/kube"
+	wfTypes "github.com/kubevela/workflow/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/stdlib"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks"
-	"github.com/oam-dev/kubevela/pkg/workflow/tasks/template"
-	wfTypes "github.com/oam-dev/kubevela/pkg/workflow/types"
+	"github.com/oam-dev/kubevela/pkg/velaql/providers/query"
+	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
+
+func init() {
+	if err := stdlib.SetupBuiltinImports(); err != nil {
+		klog.ErrorS(err, "Unable to set up builtin imports on package initialization")
+		os.Exit(1)
+	}
+}
 
 const (
 	qlNs = "vela-system"
@@ -58,7 +73,7 @@ const (
 type ViewHandler struct {
 	cli       client.Client
 	cfg       *rest.Config
-	viewTask  v1beta1.WorkflowStep
+	viewTask  workflowv1alpha1.WorkflowStep
 	dm        discoverymapper.DiscoveryMapper
 	pd        *packages.PackageDiscover
 	namespace string
@@ -83,26 +98,50 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		return nil, errors.Errorf("unmarhsal query template: %v", err)
 	}
 
-	handler.viewTask = v1beta1.WorkflowStep{
-		Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
-		Type:       qv.View,
-		Properties: oamutil.Object2RawExtension(qv.Parameter),
-		Outputs:    queryKey.Outputs,
+	handler.viewTask = workflowv1alpha1.WorkflowStep{
+		WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
+			Type:       qv.View,
+			Properties: oamutil.Object2RawExtension(qv.Parameter),
+			Outputs:    queryKey.Outputs,
+		},
 	}
 
-	pCtx := process.NewContext(process.ContextData{})
+	instance := &wfTypes.WorkflowInstance{
+		WorkflowMeta: wfTypes.WorkflowMeta{
+			Name: fmt.Sprintf("%s-%s", qv.View, qv.Export),
+		},
+		Steps: []workflowv1alpha1.WorkflowStep{
+			{
+				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Name:       fmt.Sprintf("%s-%s", qv.View, qv.Export),
+					Type:       qv.View,
+					Properties: oamutil.Object2RawExtension(qv.Parameter),
+					Outputs:    queryKey.Outputs,
+				},
+			},
+		},
+	}
+	executor.InitializeWorkflowInstance(instance)
+	handlerProviders := providers.NewProviders()
+	kube.Install(handlerProviders, handler.cli, nil, &kube.Handlers{
+		Apply:  handler.dispatch,
+		Delete: handler.delete,
+	})
+	query.Install(handlerProviders, handler.cli, nil)
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	if len(strings.Split(qv.View, "\n")) > 2 {
 		loader = &template.EchoLoader{}
 	}
-
-	taskDiscover := tasks.NewViewTaskDiscover(handler.pd, handler.cli, handler.cfg, handler.dispatch, handler.delete, handler.namespace, 3, pCtx, loader)
-	genTask, err := taskDiscover.GetTaskGenerator(ctx, handler.viewTask.Type)
-	if err != nil {
-		return nil, err
-	}
-
-	runner, err := genTask(handler.viewTask, &wfTypes.GeneratorOptions{ID: utils.RandomString(10)})
+	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("velaql")
+	runners, err := generator.GenerateRunners(logCtx, instance, wfTypes.StepGeneratorOptions{
+		Providers:       handlerProviders,
+		PackageDiscover: handler.pd,
+		ProcessCtx:      process.NewContext(process.ContextData{}),
+		TemplateLoader:  loader,
+		Client:          handler.cli,
+		LogLevel:        3,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -111,17 +150,19 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 	if err != nil {
 		return nil, errors.Errorf("new view context: %v", err)
 	}
-	status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
-	if err != nil {
-		return nil, errors.Errorf("run query view: %v", err)
-	}
-	if string(status.Phase) != ViewTaskPhaseSucceeded {
-		return nil, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
+	for _, runner := range runners {
+		status, _, err := runner.Run(viewCtx, &wfTypes.TaskRunOptions{})
+		if err != nil {
+			return nil, errors.Errorf("run query view: %v", err)
+		}
+		if string(status.Phase) != ViewTaskPhaseSucceeded {
+			return nil, errors.Errorf("failed to query the view %s %s", status.Message, status.Reason)
+		}
 	}
 	return viewCtx.GetVar(qv.Export)
 }
 
-func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifests ...*unstructured.Unstructured) error {
+func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner string, manifests ...*unstructured.Unstructured) error {
 	ctx = multicluster.ContextWithClusterName(ctx, cluster)
 	applicator := apply.NewAPIApplicator(handler.cli)
 	for _, manifest := range manifests {
@@ -132,7 +173,7 @@ func (handler *ViewHandler) dispatch(ctx context.Context, cluster string, owner 
 	return nil
 }
 
-func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner common.ResourceCreatorRole, manifest *unstructured.Unstructured) error {
+func (handler *ViewHandler) delete(ctx context.Context, cluster string, owner string, manifest *unstructured.Unstructured) error {
 	return handler.cli.Delete(ctx, manifest)
 }
 
@@ -235,7 +276,7 @@ func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName stri
 
 // QueryParameterKey query parameter key
 type QueryParameterKey struct {
-	Outputs common.StepOutputs `json:"outputs"`
+	Outputs workflowv1alpha1.StepOutputs `json:"outputs"`
 }
 
 // OutputsTemplate output template

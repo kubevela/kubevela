@@ -23,7 +23,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 

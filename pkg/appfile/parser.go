@@ -31,6 +31,10 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -38,9 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/features"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -49,7 +51,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
-	wftypes "github.com/oam-dev/kubevela/pkg/workflow/types"
 )
 
 // TemplateLoaderFn load template of a capability definition
@@ -297,7 +298,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	if len(appfile.RelatedWorkflowStepDefinitions) == 0 && len(appfile.WorkflowSteps) > 0 {
 		ctx := context.Background()
 		for _, workflowStep := range appfile.WorkflowSteps {
-			if wftypes.IsBuiltinWorkflowStepType(workflowStep.Type) {
+			if step.IsBuiltinWorkflowStepType(workflowStep.Type) {
 				continue
 			}
 			if _, found := appfile.RelatedWorkflowStepDefinitions[workflowStep.Type]; found {
@@ -419,6 +420,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		case v1alpha1.SharedResourcePolicyType:
 		case v1alpha1.EnvBindingPolicyType:
 		case v1alpha1.TopologyPolicyType:
+		case v1alpha1.ReplicationPolicyType:
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		case v1alpha1.OverridePolicyType:
@@ -446,13 +448,20 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	var err error
 	// parse workflow steps
-	af.WorkflowMode = common.WorkflowModeDAG
+	af.WorkflowMode = &workflowv1alpha1.WorkflowExecuteMode{
+		Steps:    workflowv1alpha1.WorkflowModeDAG,
+		SubSteps: workflowv1alpha1.WorkflowModeDAG,
+	}
 	if wfSpec := af.app.Spec.Workflow; wfSpec != nil && len(wfSpec.Steps) > 0 {
 		af.WorkflowSteps = wfSpec.Steps
-		if wfSpec.Mode != nil && wfSpec.Mode.Steps == common.WorkflowModeDAG {
-			af.WorkflowMode = common.WorkflowModeDAG
-		} else {
-			af.WorkflowMode = common.WorkflowModeStep
+		af.WorkflowMode.Steps = workflowv1alpha1.WorkflowModeStep
+		if wfSpec.Mode != nil {
+			if wfSpec.Mode.Steps != "" {
+				af.WorkflowMode.Steps = wfSpec.Mode.Steps
+			}
+			if wfSpec.Mode.SubSteps != "" {
+				af.WorkflowMode.SubSteps = wfSpec.Mode.SubSteps
+			}
 		}
 	}
 	af.WorkflowSteps, err = step.NewChainWorkflowStepGenerator(
@@ -492,7 +501,7 @@ func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
 }
 
 func (p *Parser) parseWorkflowStep(ctx context.Context, af *Appfile, workflowStepType string) error {
-	if wftypes.IsBuiltinWorkflowStepType(workflowStepType) {
+	if step.IsBuiltinWorkflowStepType(workflowStepType) {
 		return nil
 	}
 	if _, found := af.RelatedWorkflowStepDefinitions[workflowStepType]; found {
@@ -505,6 +514,7 @@ func (p *Parser) parseWorkflowStep(ctx context.Context, af *Appfile, workflowSte
 	af.RelatedWorkflowStepDefinitions[workflowStepType] = def
 	return nil
 }
+
 func (p *Parser) makeWorkload(ctx context.Context, name, typ string, capType types.CapType, props *runtime.RawExtension) (*Workload, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
 	if err != nil {

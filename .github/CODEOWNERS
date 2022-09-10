@@ -24,7 +24,7 @@ runtime/rollout                    @wangyikewxgm @wonderflow
 vela-templates/                     @Somefive @barnettZQG @wonderflow
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @chivalryq
 
 # Owner of vela APIServer
 pkg/apiserver/                     @barnettZQG @yangsoon @FogDong

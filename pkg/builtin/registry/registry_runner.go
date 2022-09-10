@@ -25,7 +25,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
 )
 
 // Meta provides context for running a task.

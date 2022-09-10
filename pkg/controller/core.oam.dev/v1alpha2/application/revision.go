@@ -36,6 +36,9 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -46,9 +49,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/cue/model"
+	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
-	monitorContext "github.com/oam-dev/kubevela/pkg/monitor/context"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -74,6 +76,8 @@ const (
 	ComponentNamespaceContextKey = contextKey("component-namespace")
 	// ComponentContextKey is the key in context that records the component
 	ComponentContextKey = contextKey("component")
+	// ReplicaKeyContextKey is the key in context that records the replica key
+	ReplicaKeyContextKey = contextKey("replica-key")
 )
 
 const rolloutTraitName = "rollout"
@@ -115,6 +119,15 @@ func contextWithComponentNamespace(ctx context.Context, ns string) context.Conte
 func componentNamespaceFromContext(ctx context.Context) string {
 	ns, _ := ctx.Value(ComponentNamespaceContextKey).(string)
 	return ns
+}
+
+func contextWithReplicaKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, ReplicaKeyContextKey, key)
+}
+
+func replicaKeyFromContext(ctx context.Context) string {
+	key, _ := ctx.Value(ReplicaKeyContextKey).(string)
+	return key
 }
 
 func (h *AppHandler) getComponentRevisionNamespace(ctx context.Context) string {
@@ -521,7 +534,7 @@ func deepEqualPolicy(old, new v1alpha1.Policy) bool {
 	return old.Type == new.Type && apiequality.Semantic.DeepEqual(old.Properties, new.Properties)
 }
 
-func deepEqualWorkflow(old, new v1alpha1.Workflow) bool {
+func deepEqualWorkflow(old, new workflowv1alpha1.Workflow) bool {
 	return apiequality.Semantic.DeepEqual(old.Steps, new.Steps)
 }
 
@@ -893,8 +906,8 @@ func gatherUsingAppRevision(h *AppHandler) map[string]bool {
 
 func replaceComponentRevisionContext(u *unstructured.Unstructured, compRevName string) error {
 	str := string(util.JSONMarshal(u))
-	if strings.Contains(str, model.ComponentRevisionPlaceHolder) {
-		newStr := strings.ReplaceAll(str, model.ComponentRevisionPlaceHolder, compRevName)
+	if strings.Contains(str, process.ComponentRevisionPlaceHolder) {
+		newStr := strings.ReplaceAll(str, process.ComponentRevisionPlaceHolder, compRevName)
 		if err := json.Unmarshal([]byte(newStr), u); err != nil {
 			return err
 		}

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
@@ -86,8 +88,14 @@ func ComponentDef(ctx context.Context, c common.Args, path, location *string, de
 		},
 		CustomDocHeader: CustomComponentHeaderEN,
 	}
-	ref.Remote = &docgen.FromCluster{Namespace: types.DefaultKubeVelaNS}
+	ref.Local = &docgen.FromLocal{Path: ComponentDefDir}
 
+	dm, err := c.GetDiscoveryMapper()
+	if err != nil {
+		klog.ErrorS(err, "failed to get discovery mapper")
+		return
+	}
+	ref.DiscoveryMapper = dm
 	if *path != "" {
 		ref.I18N = &docgen.En
 		if strings.Contains(*location, "zh") || strings.Contains(*location, "chinese") {

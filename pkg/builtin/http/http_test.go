@@ -31,9 +31,10 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/bmizerany/assert"
 
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
 )
 
 const (

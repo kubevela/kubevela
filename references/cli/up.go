@@ -268,7 +268,7 @@ var (
 		vela up example-app -n example-ns --publish-version beta --revision example-app-v2
 
 		# Deploy an application from stdin
-		cat <<EOF | vela up vela up -f -
+		cat <<EOF | vela up -f -
         ... <app.yaml here> ...
         EOF
 `))

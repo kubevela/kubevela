@@ -1,0 +1,35 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: test
+spec:
+  components:
+    - name: test
+      properties:
+        cmd:
+          - sleep
+          - -c
+          - "86400"
+        env:
+          - name: testKey
+            value: testValue
+        image: busybox
+        imagePullPolicy: IfNotPresent
+      traits:
+        - properties:
+            key: val
+          type: labels
+        - properties:
+            pvc:
+              - accessModes:
+                  - ReadWriteOnce
+                mountOnly: false
+                mountPath: /data
+                name: lvhyca
+                resources:
+                  requests:
+                    storage: 4096Mi
+                storageClassName: default
+                volumeMode: Filesystem
+          type: storage
+      type: webservice

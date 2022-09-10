@@ -19,8 +19,6 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // +kubebuilder:object:root=true
@@ -48,28 +46,4 @@ type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Policy `json:"items"`
-}
-
-// +kubebuilder:object:root=true
-
-// Workflow is the Schema for the policy API
-// +kubebuilder:storageversion
-// +kubebuilder:resource:categories={oam}
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type Workflow struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Steps []common.WorkflowStep `json:"steps,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-
-// WorkflowList contains a list of Workflow
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type WorkflowList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Workflow `json:"items"`
 }

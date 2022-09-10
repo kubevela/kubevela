@@ -38,8 +38,8 @@ func TestPageStack(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
-	assert.Equal(t, len(app.Components), 4)
+	app := NewApp(testClient, cfg, "")
+	assert.Equal(t, len(app.Components()), 4)
 
 	stack := NewPageStack(app)
 	stack.Init()
@@ -49,6 +49,7 @@ func TestPageStack(t *testing.T) {
 		stack.StackPush(helpView)
 	})
 	t.Run("stack pop", func(t *testing.T) {
-		stack.StackPop(nil, nil)
+		helpView := NewHelpView(app)
+		stack.StackPop(helpView, helpView)
 	})
 }

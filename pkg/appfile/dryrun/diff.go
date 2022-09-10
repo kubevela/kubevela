@@ -28,12 +28,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/packages"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/cue/packages"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -567,7 +569,7 @@ func marshalObject(o client.Object) ([]byte, error) {
 		obj.Status = common.AppStatus{}
 	case *v1alpha1.Policy:
 		obj.SetGroupVersionKind(v1alpha1.PolicyGroupVersionKind)
-	case *v1alpha1.Workflow:
+	case *workflowv1alpha1.Workflow:
 		obj.SetGroupVersionKind(v1alpha1.WorkflowGroupVersionKind)
 	}
 	o.SetLabels(clearedLabels(o.GetLabels()))

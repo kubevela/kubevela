@@ -32,10 +32,11 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kubevela/pkg/util/rand"
+
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -43,7 +44,7 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 	ctx := context.Background()
 	var namespace string
 	BeforeEach(func() {
-		namespace = "test-resource-policy-" + utils.RandomString(4)
+		namespace = "test-resource-policy-" + rand.RandomString(4)
 		Expect(k8sClient.Create(ctx, &v1.Namespace{ObjectMeta: v12.ObjectMeta{Name: namespace}})).Should(Succeed())
 	})
 

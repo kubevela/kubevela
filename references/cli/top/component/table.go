@@ -42,6 +42,7 @@ func (t *Table) Init() {
 	t.SetBorder(true)
 	t.SetBorderAttributes(tcell.AttrItalic)
 	t.SetBorderPadding(1, 1, 1, 1)
+	t.SetInputCapture(t.keyboard)
 }
 
 // Name return table's name
@@ -55,6 +56,7 @@ func (t *Table) Start() {
 
 // Stop table component
 func (t *Table) Stop() {
+	t.Clear()
 }
 
 // Hint return key action menu hints of the component
@@ -65,4 +67,15 @@ func (t *Table) Hint() []model.MenuHint {
 // Actions return actions
 func (t *Table) Actions() model.KeyActions {
 	return t.actions
+}
+
+func (t *Table) keyboard(event *tcell.EventKey) *tcell.EventKey {
+	key := event.Key()
+	if key == tcell.KeyUp || key == tcell.KeyDown {
+		return event
+	}
+	if a, ok := t.Actions()[tcell.Key(event.Rune())]; ok {
+		return a.Action(event)
+	}
+	return event
 }

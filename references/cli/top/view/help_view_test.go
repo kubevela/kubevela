@@ -38,8 +38,8 @@ func TestHelpView(t *testing.T) {
 	assert.NoError(t, err)
 	testClient, err := client.New(cfg, client.Options{Scheme: common.Scheme})
 	assert.NoError(t, err)
-	app := NewApp(testClient, cfg)
-	assert.Equal(t, len(app.Components), 4)
+	app := NewApp(testClient, cfg, "")
+	assert.Equal(t, len(app.Components()), 4)
 	helpView := NewHelpView(app)
 
 	t.Run("init", func(t *testing.T) {

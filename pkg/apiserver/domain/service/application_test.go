@@ -1004,8 +1004,8 @@ func createTestSuspendApp(ctx context.Context, appName, envName, revisionVersion
 		},
 		Status: common.AppStatus{
 			Workflow: &common.WorkflowStatus{
-				Suspend:     true,
 				AppRevision: recordName,
+				Suspend:     true,
 			},
 		},
 	}

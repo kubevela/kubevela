@@ -229,3 +229,59 @@ func AskToChooseOneService(services []types.ResourceItem, selectPort bool) (*typ
 	// it should never happen.
 	return nil, 0, errors.New("no service match for your choice")
 }
+
+func convertApplicationRevisionTo(format string, apprev *v1beta1.ApplicationRevision) (string, error) {
+	var ret string
+
+	if format == "" {
+		return "", fmt.Errorf("no format provided")
+	}
+
+	// No, we don't want managedFields, get rid of it.
+	apprev.ManagedFields = nil
+
+	switch format {
+	case "yaml":
+		b, err := yaml.Marshal(apprev)
+		if err != nil {
+			return "", err
+		}
+		ret = string(b)
+	case "json":
+		b, err := json.MarshalIndent(apprev, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		ret = string(b)
+	default:
+		// format is not any of json/yaml/jsonpath, not supported
+		if !strings.HasPrefix(format, "jsonpath") {
+			return "", fmt.Errorf("%s is not supported", format)
+		}
+
+		// format = jsonpath
+		s := strings.Split(format, "=")
+		if len(s) < 2 {
+			return "", fmt.Errorf("jsonpath template format specified but no template given")
+		}
+		path, err := get.RelaxedJSONPathExpression(s[1])
+		if err != nil {
+			return "", err
+		}
+
+		jp := jsonpath.New("").AllowMissingKeys(true)
+		err = jp.Parse(path)
+		if err != nil {
+			return "", err
+		}
+
+		buf := &bytes.Buffer{}
+		err = jp.Execute(buf, apprev)
+		if err != nil {
+			return "", err
+		}
+		ret = buf.String()
+	}
+
+	return ret, nil
+}

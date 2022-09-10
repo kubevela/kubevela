@@ -19,10 +19,10 @@ package time
 import (
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/cue/model/value"
-	wfContext "github.com/oam-dev/kubevela/pkg/workflow/context"
-	"github.com/oam-dev/kubevela/pkg/workflow/providers"
-	"github.com/oam-dev/kubevela/pkg/workflow/types"
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+	wfContext "github.com/kubevela/workflow/pkg/context"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	"github.com/kubevela/workflow/pkg/types"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 type provider struct {
 }
 
-func (h *provider) Timestamp(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Timestamp(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	date, err := v.GetString("date")
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (h *provider) Timestamp(ctx wfContext.Context, v *value.Value, act types.Ac
 	return v.FillObject(t.Unix(), "timestamp")
 }
 
-func (h *provider) Date(ctx wfContext.Context, v *value.Value, act types.Action) error {
+func (h *provider) Date(ctx monitorContext.Context, wfCtx wfContext.Context, v *value.Value, act types.Action) error {
 	timestamp, err := v.GetInt64("timestamp")
 	if err != nil {
 		return err
@@ -70,9 +70,9 @@ func (h *provider) Date(ctx wfContext.Context, v *value.Value, act types.Action)
 }
 
 // Install register handlers to provider discover.
-func Install(p providers.Providers) {
+func Install(p types.Providers) {
 	prd := &provider{}
-	p.Register(ProviderName, map[string]providers.Handler{
+	p.Register(ProviderName, map[string]types.Handler{
 		"timestamp": prd.Timestamp,
 		"date":      prd.Date,
 	})

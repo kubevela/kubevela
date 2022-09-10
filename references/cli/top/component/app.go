@@ -27,7 +27,7 @@ import (
 type App struct {
 	*tview.Application
 	actions    model.KeyActions
-	Components map[string]tview.Primitive
+	components map[string]tview.Primitive
 	Main       *Pages
 }
 
@@ -38,7 +38,7 @@ func NewApp() *App {
 		actions:     make(model.KeyActions),
 		Main:        NewPages(),
 	}
-	a.Components = map[string]tview.Primitive{
+	a.components = map[string]tview.Primitive{
 		"info":   NewInfo(),
 		"menu":   NewMenu(),
 		"logo":   NewLogo(),
@@ -78,22 +78,27 @@ func (a *App) QueueUpdateDraw(f func()) {
 	}()
 }
 
-// InfoBoard return system info component
-func (a *App) InfoBoard() *InfoBoard {
-	return a.Components["info"].(*InfoBoard)
+// Components return the application root components.
+func (a *App) Components() map[string]tview.Primitive {
+	return a.components
 }
 
 // Logo return logo component
 func (a *App) Logo() *Logo {
-	return a.Components["logo"].(*Logo)
+	return a.components["logo"].(*Logo)
 }
 
 // Menu return key action menu component
 func (a *App) Menu() *Menu {
-	return a.Components["menu"].(*Menu)
+	return a.components["menu"].(*Menu)
 }
 
 // Crumbs return the crumbs component
 func (a *App) Crumbs() *Crumbs {
-	return a.Components["crumbs"].(*Crumbs)
+	return a.components["crumbs"].(*Crumbs)
+}
+
+// InfoBoard return system info component
+func (a *App) InfoBoard() *InfoBoard {
+	return a.Components()["info"].(*InfoBoard)
 }
