@@ -186,4 +186,14 @@ var (
 			})
 		})
 	}
+
+	ShowCapabilityReferenceMarkdown = func(context string, capabilityName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should show capability reference in markdown", func() {
+				cli := fmt.Sprintf("vela show %s --format=markdown", capabilityName)
+				_, err := Exec(cli)
+				gomega.Expect(err).Should(gomega.BeNil())
+			})
+		})
+	}
 )
