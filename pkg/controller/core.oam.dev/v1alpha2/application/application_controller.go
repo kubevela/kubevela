@@ -25,6 +25,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,6 +84,8 @@ var (
 	EnableReconcileLoopReduction = false
 	// EnableResourceTrackerDeleteOnlyTrigger optimize ResourceTracker mutate event trigger by only receiving deleting events
 	EnableResourceTrackerDeleteOnlyTrigger = true
+	// LeaderElectionName determines the name of which the leader election configmap will be created.
+	LeaderElectionName string
 )
 
 // Reconciler reconciles an Application object
@@ -507,6 +510,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return filterManagedFieldChangesUpdate(e)
 				}
 
+				if !r.matchAppSharding(new) {
+					return false
+				}
+
 				// We think this event is triggered by resync
 				if reflect.DeepEqual(old, new) {
 					return true
@@ -546,10 +553,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return !reflect.DeepEqual(old, new)
 			},
 			CreateFunc: func(e ctrlEvent.CreateEvent) bool {
-				return true
+				return r.matchAppSharding(e.Object)
 			},
 			DeleteFunc: func(e ctrlEvent.DeleteEvent) bool {
-				return true
+				return r.matchAppSharding(e.Object)
 			},
 		}).
 		For(&v1beta1.Application{}).
@@ -566,6 +573,7 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		pd:       args.PackageDiscover,
 		options:  parseOptions(args),
 	}
+	LeaderElectionName = pflag.Lookup("leader-election-name").Value.String()
 	return reconciler.SetupWithManager(mgr)
 }
 
@@ -635,4 +643,8 @@ func (r *Reconciler) matchControllerRequirement(app *v1beta1.Application) bool {
 		return false
 	}
 	return true
+}
+
+func (r *Reconciler) matchAppSharding(object client.Object) bool {
+	return object.GetLabels()[oam.LabelAppSharding] == LeaderElectionName
 }

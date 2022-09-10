@@ -71,7 +71,7 @@ var (
 )
 
 func main() {
-	var metricsAddr, logFilePath, leaderElectionNamespace string
+	var metricsAddr, logFilePath, leaderElectionNamespace, leaderElectionName string
 	var enableLeaderElection, logDebug bool
 	var logFileMaxSize uint64
 	var certDir string
@@ -101,6 +101,8 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
 		"Determines the namespace in which the leader election configmap will be created.")
+	flag.StringVar(&leaderElectionName, "leader-election-name", "",
+		"Determines the name of which the leader election configmap will be created.")
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
 	flag.Uint64Var(&logFileMaxSize, "log-file-max-size", 1024, "Defines the maximum size a log file can grow to, Unit is megabytes.")
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
@@ -237,8 +239,12 @@ func main() {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
 		commonconfig.ApplicationReSyncPeriod = informerSyncPeriod
 	}
-
-	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
+	var leaderElectionID string
+	if leaderElectionName == "" {
+		leaderElectionID = util.GenerateLeaderElectionID(types.KubeVelaName+"-"+leaderElectionName, controllerArgs.IgnoreAppWithoutControllerRequirement)
+	} else {
+		leaderElectionID = util.GenerateLeaderElectionID(types.KubeVelaName, controllerArgs.IgnoreAppWithoutControllerRequirement)
+	}
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                     scheme,
 		MetricsBindAddress:         metricsAddr,

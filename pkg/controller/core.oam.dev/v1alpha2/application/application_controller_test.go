@@ -34,6 +34,7 @@ import (
 	wffeatures "github.com/kubevela/workflow/pkg/features"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/pflag"
 	v1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -4736,6 +4737,46 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationWorkflowFailed))
 		Expect(curApp.Status.Workflow.Steps[0].Message).Should(ContainSubstring("invalid cue task for evaluation: runtime error: invalid memory address or nil pointer dereference"))
 	})
+
+	It("test application with sharding", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-sharding",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		appWithApplyOnce.SetNamespace(ns.Name)
+		appWithApplyOnce.Spec.Policies = nil
+
+		var leaderElectionName string
+		pflag.StringVar(&leaderElectionName, "leader-election-name", "",
+			"Determines the name of which the leader election configmap will be created.")
+		pflag.Parse()
+
+		LeaderElectionName = pflag.Lookup("leader-election-name").Value.String()
+		app01WithDefault := appWithApplyOnce.DeepCopy()
+		app01WithDefault.SetName("app01-testing-default")
+		Expect(reconciler.matchAppSharding(app01WithDefault)).Should(BeTrue())
+
+		app02WithSharding := appWithApplyOnce.DeepCopy()
+		app02WithSharding.SetName("app02-testing-sharding-1")
+		metav1.SetMetaDataLabel(&app02WithSharding.ObjectMeta, oam.LabelAppSharding, "sharding-1")
+		Expect(reconciler.matchAppSharding(app02WithSharding)).Should(BeFalse())
+
+		app03WithSharding := appWithApplyOnce.DeepCopy()
+		app03WithSharding.SetName("app03-testing-sharding-2")
+		metav1.SetMetaDataLabel(&app03WithSharding.ObjectMeta, oam.LabelAppSharding, "sharding-2")
+		Expect(reconciler.matchAppSharding(app03WithSharding)).Should(BeFalse())
+
+		Expect(pflag.Set("leader-election-name", "sharding-1")).Should(BeNil())
+		LeaderElectionName = pflag.Lookup("leader-election-name").Value.String()
+		Expect(reconciler.matchAppSharding(app01WithDefault)).Should(BeFalse())
+		Expect(reconciler.matchAppSharding(app02WithSharding)).Should(BeTrue())
+		Expect(reconciler.matchAppSharding(app03WithSharding)).Should(BeFalse())
+		Expect(pflag.Set("leader-election-name", "")).Should(BeNil())
+
+	})
+
 })
 
 func installDefinition(ctx context.Context, defPath, name string) {
