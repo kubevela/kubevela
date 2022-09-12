@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"time"
@@ -47,11 +48,15 @@ type UnInstallArgs struct {
 	Namespace  string
 	Detail     bool
 	force      bool
+	cancel     bool
 }
 
 // NewUnInstallCommand creates `uninstall` command to uninstall vela core
 func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
-	unInstallArgs := &UnInstallArgs{Args: c, userInput: NewUserInput(), helmHelper: helm.NewHelper()}
+	unInstallArgs := &UnInstallArgs{Args: c, userInput: &UserInput{
+		Writer: ioStreams.Out,
+		Reader: bufio.NewReader(ioStreams.In),
+	}, helmHelper: helm.NewHelper()}
 	cmd := &cobra.Command{
 		Use:     "uninstall",
 		Short:   "Uninstalls KubeVela from a Kubernetes cluster",
@@ -59,8 +64,8 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 		Long:    "Uninstalls KubeVela from a Kubernetes cluster.",
 		Args:    cobra.ExactArgs(0),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			userConfirmation := unInstallArgs.userInput.AskBool("Would you like to uninstall KubeVela from this cluster?", &UserInputOptions{AssumeYes: assumeYes})
-			if !userConfirmation {
+			unInstallArgs.cancel = unInstallArgs.userInput.AskBool("Would you like to uninstall KubeVela from this cluster?", &UserInputOptions{AssumeYes: assumeYes})
+			if !unInstallArgs.cancel {
 				return nil
 			}
 			kubeClient, err := c.GetClient()
@@ -97,6 +102,9 @@ func NewUnInstallCommand(c common.Args, order string, ioStreams util.IOStreams) 
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !unInstallArgs.cancel {
+				return nil
+			}
 			ioStreams.Info("Starting to uninstall KubeVela")
 			restConfig, err := c.GetConfig()
 			if err != nil {
