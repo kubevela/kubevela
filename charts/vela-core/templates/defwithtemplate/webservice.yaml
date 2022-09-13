@@ -151,7 +151,12 @@ spec:
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
         	spec: {
-        		selector: matchLabels: "app.oam.dev/component": context.name
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        			if parameter.addRevisionLabel {
+        				"app.oam.dev/revision": context.revision
+        			}
+        		}
 
         		template: {
         			metadata: {
@@ -165,8 +170,13 @@ spec:
         					"app.oam.dev/name":      context.appName
         					"app.oam.dev/component": context.name
         				}
-        				if parameter.annotations != _|_ {
-        					annotations: parameter.annotations
+        				annotations: {
+        					if parameter.annotations != _|_ {
+        						parameter.annotations
+        					}
+        					if parameter.addDeployVersionAnnotation {
+        						"app.oam.dev/deployVersion": context.appAnnotations["app.oam.dev/deployVersion"]
+        					}
         				}
         			}
 
@@ -368,6 +378,9 @@ spec:
         	// +ignore
         	// +usage=If addRevisionLabel is true, the revision label will be added to the underlying pods
         	addRevisionLabel: *false | bool
+
+        	// +usage=If addDeployVersionAnnotation is true, the deploy version annotation will be added to the underlying pods
+        	addDeployVersionAnnotation: *false | bool
 
         	// +usage=Commands to run in the container
         	cmd?: [...string]
