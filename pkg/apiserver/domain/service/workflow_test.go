@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/apiserver/domain/model"
 	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore"
+	"github.com/oam-dev/kubevela/pkg/apiserver/infrastructure/datastore/mongodb"
 	apisv1 "github.com/oam-dev/kubevela/pkg/apiserver/interfaces/api/dto/v1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -562,6 +563,52 @@ var _ = Describe("Test workflow service functions", func() {
 		Expect(record.Status).Should(Equal(model.RevisionStatusTerminated))
 		Expect(record.Finished).Should(Equal("true"))
 		Expect(record.Steps[1].Phase).Should(Equal(common.WorkflowStepPhaseStopped))
+	})
+
+	It("Test deleting workflow", func() {
+		By("Test deleting the workflow from the mongo")
+		mongodbDriver, err := mongodb.New(context.TODO(), datastore.Config{
+			URL:      "mongodb://localhost:27017",
+			Database: "kubevela",
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(mongodbDriver).ToNot(BeNil())
+
+		Expect(mongodbDriver.BatchAdd(context.Background(), []datastore.Entity{
+			&model.Workflow{
+				Name:          "workflow-default",
+				AppPrimaryKey: "war-app",
+			},
+			&model.WorkflowRecord{
+				Name:               "workflow-default-20220809081934217",
+				WorkflowName:       "workflow-default",
+				AppPrimaryKey:      "war-app",
+				RevisionPrimaryKey: "20220809081934216",
+			},
+			&model.WorkflowRecord{
+				WorkflowName:       "workflow-default",
+				AppPrimaryKey:      "war-app",
+				Name:               "workflow-default-20220809082525833",
+				RevisionPrimaryKey: "20220809082525832",
+			},
+		})).ToNot(HaveOccurred())
+
+		var record = model.WorkflowRecord{
+			AppPrimaryKey: "war-app",
+			WorkflowName:  "workflow-default",
+		}
+		records, err := mongodbDriver.List(context.TODO(), &record, &datastore.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(records)).Should(Equal(2))
+
+		srv := workflowServiceImpl{
+			Store: mongodbDriver,
+		}
+		Expect(srv.DeleteWorkflowByApp(context.TODO(), &model.Application{Name: "app-test"})).ToNot(HaveOccurred())
+		list, err := mongodbDriver.List(context.TODO(), &model.WorkflowRecord{}, nil)
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Println(list)
+		Expect(len(list)).Should(Equal(0))
 	})
 })
 
