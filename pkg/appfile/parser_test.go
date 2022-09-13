@@ -434,28 +434,6 @@ var _ = Describe("Test appFile parser", func() {
 		expectCompManifest := &types.ComponentManifest{
 			Name:             "myweb",
 			StandardWorkload: expectWorkload,
-			Traits: []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"apiVersion": "core.oam.dev/v1alpha2",
-						"kind":       "ManualScalerTrait",
-						"metadata": map[string]interface{}{
-							"name":      "myweb-scaler-5c7695d6c7",
-							"namespace": "default",
-							"labels": map[string]interface{}{
-								"app.oam.dev/component":    "myweb",
-								"app.oam.dev/appRevision":  "test-v1",
-								"app.oam.dev/name":         "test",
-								"app.oam.dev/namespace":    "default",
-								"trait.oam.dev/type":       "scaler",
-								"trait.oam.dev/resource":   "scaler",
-								"app.oam.dev/resourceType": "TRAIT",
-							},
-						},
-						"spec": map[string]interface{}{"replicaCount": int64(10)},
-					},
-				},
-			},
 			Scopes: []*corev1.ObjectReference{
 				{
 					APIVersion: "core.oam.dev/v1alpha2",
