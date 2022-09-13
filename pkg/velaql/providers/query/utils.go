@@ -24,6 +24,7 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	querytypes "github.com/oam-dev/kubevela/pkg/velaql/providers/query/types"
 )
 
@@ -62,11 +63,21 @@ func buildResourceArray(res querytypes.AppliedResource, parent, node *querytypes
 
 func buildResourceItem(res querytypes.AppliedResource, workload querytypes.Workload, object unstructured.Unstructured) querytypes.ResourceItem {
 	return querytypes.ResourceItem{
-		Cluster:        res.Cluster,
-		Workload:       workload,
-		Component:      res.Component,
-		Object:         object,
-		PublishVersion: res.PublishVersion,
-		DeployVersion:  res.DeployVersion,
+		Cluster:   res.Cluster,
+		Workload:  workload,
+		Component: res.Component,
+		Object:    object,
+		PublishVersion: func() string {
+			if object.GetAnnotations()[oam.AnnotationPublishVersion] != "" {
+				return object.GetAnnotations()[oam.AnnotationPublishVersion]
+			}
+			return res.PublishVersion
+		}(),
+		DeployVersion: func() string {
+			if object.GetAnnotations()[oam.AnnotationDeployVersion] != "" {
+				return object.GetAnnotations()[oam.AnnotationDeployVersion]
+			}
+			return res.DeployVersion
+		}(),
 	}
 }

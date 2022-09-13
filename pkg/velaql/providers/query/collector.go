@@ -86,12 +86,20 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 		return nil, err
 	}
 	var managedResources []*types.AppliedResource
+	existResources := make(map[common.ClusterObjectReference]bool, len(app.Spec.Components))
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt != nil {
 			for _, managedResource := range rt.Spec.ManagedResources {
 				if isResourceInTargetCluster(c.opt.Filter, managedResource.ClusterObjectReference) &&
 					isResourceInTargetComponent(c.opt.Filter, managedResource.Component) &&
 					(queryTree || isResourceMatchKindAndVersion(c.opt.Filter, managedResource.Kind, managedResource.APIVersion)) {
+					if c.opt.WithTree {
+						// If we want to query the tree, we only need to query once for the same resource.
+						if _, exist := existResources[managedResource.ClusterObjectReference]; exist {
+							continue
+						}
+						existResources[managedResource.ClusterObjectReference] = true
+					}
 					managedResources = append(managedResources, &types.AppliedResource{
 						Cluster: func() string {
 							if managedResource.Cluster != "" {
