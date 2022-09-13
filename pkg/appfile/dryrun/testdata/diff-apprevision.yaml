@@ -28,9 +28,6 @@ spec:
             http:
               /: 80
           type: myingress
-        - properties:
-            replicas: 2
-          type: myscaler
         type: myworker
       - name: myweb-2
         properties:

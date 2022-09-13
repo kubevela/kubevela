@@ -20,9 +20,6 @@ spec:
             domain: "www.example.com"
             http:
               "/": 90 # change a trait
-        - type: myscaler 
-          properties:
-            replicas: 2
     - name: myweb-2
       type: myworker
       properties: # no change on component property

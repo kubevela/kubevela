@@ -19,10 +19,7 @@ spec:
           properties:
             domain: "www.example.com"
             http:
-              "/": 80 
-        - type: myscaler 
-          properties:
-            replicas: 2
+              "/": 80
     - name: myweb-2
       type: myworker
       properties: 

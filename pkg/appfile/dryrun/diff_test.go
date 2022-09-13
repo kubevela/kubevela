@@ -76,7 +76,6 @@ var _ = Describe("Test Live-Diff", func() {
 			ContainSubstring("Component (myweb-1) has been modified(*)"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/service) has been modified(*)"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/ingress) has been modified(*)"),
-			ContainSubstring("Component (myweb-1) / Trait (myscaler/scaler) has been removed(-)"),
 			ContainSubstring("Component (myweb-2) has no change"),
 			ContainSubstring("Component (myweb-2) / Trait (myingress/service) has been added(+)"),
 			ContainSubstring("Component (myweb-2) / Trait (myingress/ingress) has been added(+)"),
@@ -94,7 +93,6 @@ var _ = Describe("Test Live-Diff", func() {
 			ContainSubstring("Component (myweb-1) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/service) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/ingress) has no change"),
-			ContainSubstring("Component (myweb-1) / Trait (myscaler/scaler) has no change"),
 			ContainSubstring("Component (myweb-2) has no change"),
 		))
 		Expect(diffResultStr).ShouldNot(SatisfyAny(
@@ -112,7 +110,6 @@ var _ = Describe("Test Live-Diff", func() {
 			ContainSubstring("Component (myweb-1) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/service) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/ingress) has no change"),
-			ContainSubstring("Component (myweb-1) / Trait (myscaler/scaler) has no change"),
 			ContainSubstring("Component (myweb-2) has no change"),
 			ContainSubstring("Component (myweb-2) / Trait (myingress/service) has been added"),
 			ContainSubstring("Component (myweb-2) / Trait (myingress/ingress) has been added"),
@@ -133,7 +130,6 @@ var _ = Describe("Test Live-Diff", func() {
 			ContainSubstring("Component (myweb-1) has been modified"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/service) has been modified"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/ingress) has been modified"),
-			ContainSubstring("Component (myweb-1) / Trait (myscaler/scaler) has no change"),
 			ContainSubstring("Component (myweb-2) has no change"),
 		))
 		Expect(diffResultStr).ShouldNot(SatisfyAny(
@@ -150,7 +146,6 @@ var _ = Describe("Test Live-Diff", func() {
 			ContainSubstring("Component (myweb-1) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/service) has no change"),
 			ContainSubstring("Component (myweb-1) / Trait (myingress/ingress) has no change"),
-			ContainSubstring("Component (myweb-1) / Trait (myscaler/scaler) has been removed"),
 			ContainSubstring("Component (myweb-2) has been removed"),
 		))
 		Expect(diffResultStr).ShouldNot(SatisfyAny(
@@ -194,7 +189,6 @@ var _ = Describe("Test Live-Diff", func() {
 		}
 		Expect(runDiff()).Should(ContainSubstring("\"myworker\" not found"))
 		applyFile("td-myingress.yaml", "vela-system")
-		applyFile("td-myscaler.yaml", "vela-system")
 		applyFile("cd-myworker.yaml", "vela-system")
 		applyFile("wd-deploy.yaml", "vela-system")
 		applyFile("wd-ref-objects.yaml", "vela-system")

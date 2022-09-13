@@ -19,10 +19,7 @@ spec:
           properties:
             domain: "www.example.com"
             http:
-              "/": 80 
-        # - type: myscaler # remove a trait
-        #   properties:
-        #     replicas: 2
+              "/": 80
     # - name: myweb-2 # remove a component
     #   type: myworker
     #   properties:
