@@ -170,13 +170,6 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	if err != nil {
 		return err
 	}
-	ref := &docgen.MarkdownReference{
-		ParseReference: docgen.ParseReference{
-			Client: cli,
-			I18N:   &docgen.En,
-		},
-	}
-
 	config, err := c.GetConfig()
 	if err != nil {
 		return err
@@ -185,10 +178,18 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 	if err != nil {
 		return err
 	}
-	ref.DiscoveryMapper, err = c.GetDiscoveryMapper()
+	dm, err := c.GetDiscoveryMapper()
 	if err != nil {
 		return err
 	}
+	ref := &docgen.MarkdownReference{
+		ParseReference: docgen.ParseReference{
+			Client: cli,
+			I18N:   &docgen.En,
+		},
+		DiscoveryMapper: dm,
+	}
+
 	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, true, pd); err != nil {
 		return err
 	}
