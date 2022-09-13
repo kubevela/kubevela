@@ -406,6 +406,7 @@ var _ = Describe("Test velaQL rest api", func() {
 			Err  string `json:"err,omitempty"`
 		}{}
 		Expect(decodeResponseBody(queryRes, status)).Should(Succeed())
+		Expect(status.Logs).Should(Equal("hello-world\n"))
 	})
 
 	It("test appliedResource and application tree velaql", func() {

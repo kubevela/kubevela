@@ -214,15 +214,15 @@ func decodeResponseBody(resp *http.Response, dst interface{}) error {
 	if err != nil {
 		return err
 	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("response code is not 200: %d body: %s", resp.StatusCode, string(body))
+	}
 	if dst != nil {
 		err = json.Unmarshal(body, dst)
 		if err != nil {
 			return err
 		}
 		return nil
-	}
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("response code is not 200: %d body: %s", resp.StatusCode, string(body))
 	}
 	return nil
 }

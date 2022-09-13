@@ -128,7 +128,7 @@ func (handler *ViewHandler) QueryView(ctx context.Context, qv QueryView) (*value
 		Apply:  handler.dispatch,
 		Delete: handler.delete,
 	})
-	query.Install(handlerProviders, handler.cli, nil)
+	query.Install(handlerProviders, handler.cli, handler.cfg)
 	loader := template.NewViewTemplateLoader(handler.cli, handler.namespace)
 	if len(strings.Split(qv.View, "\n")) > 2 {
 		loader = &template.EchoLoader{}
