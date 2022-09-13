@@ -122,21 +122,20 @@ func (w *workflowServiceImpl) DeleteWorkflowByApp(ctx context.Context, app *mode
 	}
 	for i := range workflows {
 		workflow := workflows[i].(*model.Workflow)
-		var record = model.WorkflowRecord{
-			AppPrimaryKey: workflow.AppPrimaryKey,
-			WorkflowName:  workflow.Name,
-		}
-		records, err := w.Store.List(ctx, &record, &datastore.ListOptions{})
-		if err != nil {
-			log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
-		}
-		for _, record := range records {
-			if err := w.Store.Delete(ctx, record); err != nil {
-				log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
-			}
-		}
 		if err := w.Store.Delete(ctx, workflow); err != nil {
 			log.Logger.Errorf("delete workflow %s failure %s", workflow.PrimaryKey(), err.Error())
+		}
+	}
+	var record = model.WorkflowRecord{
+		AppPrimaryKey: workflow.AppPrimaryKey,
+	}
+	records, err := w.Store.List(ctx, &record, &datastore.ListOptions{})
+	if err != nil {
+		log.Logger.Errorf("list workflow %s record failure %s", workflow.PrimaryKey(), err.Error())
+	}
+	for _, record := range records {
+		if err := w.Store.Delete(ctx, record); err != nil {
+			log.Logger.Errorf("delete workflow record %s failure %s", record.PrimaryKey(), err.Error())
 		}
 	}
 	return nil

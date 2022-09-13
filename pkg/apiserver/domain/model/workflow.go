@@ -150,7 +150,7 @@ func (w *WorkflowRecord) Index() map[string]string {
 		index["namespace"] = w.Namespace
 	}
 	if w.WorkflowName != "" {
-		index["workflowPrimaryKey"] = w.WorkflowName
+		index["workflowName"] = w.WorkflowName
 	}
 	if w.AppPrimaryKey != "" {
 		index["appPrimaryKey"] = w.AppPrimaryKey
