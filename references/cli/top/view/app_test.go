@@ -48,9 +48,9 @@ func TestApp(t *testing.T) {
 		_, ok := app.HasAction(tcell.KeyESC)
 		assert.Equal(t, ok, true)
 		app.content.Stack.RemoveListener(app.Crumbs())
-		assert.NotEmpty(t, app.content.Stack.TopComponent())
+		assert.NotEmpty(t, app.content.Stack.TopView())
 		assert.Equal(t, app.content.Stack.Empty(), false)
-		assert.Equal(t, app.content.Stack.IsLastComponent(), true)
+		assert.Equal(t, app.content.Stack.IsLastView(), true)
 	})
 	t.Run("keyboard", func(t *testing.T) {
 		evt1 := tcell.NewEventKey(tcell.KeyEsc, '/', 0)
@@ -61,13 +61,13 @@ func TestApp(t *testing.T) {
 	})
 	t.Run("help view", func(t *testing.T) {
 		assert.Empty(t, app.helpView(nil))
-		assert.Equal(t, app.content.IsLastComponent(), false)
+		assert.Equal(t, app.content.IsLastView(), false)
 		assert.Empty(t, app.helpView(nil))
-		assert.Equal(t, app.content.IsLastComponent(), true)
+		assert.Equal(t, app.content.IsLastView(), true)
 	})
 	t.Run("back", func(t *testing.T) {
 		assert.Empty(t, app.helpView(nil))
 		app.Back(nil)
-		assert.Equal(t, app.content.IsLastComponent(), true)
+		assert.Equal(t, app.content.IsLastView(), true)
 	})
 }

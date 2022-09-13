@@ -48,10 +48,10 @@ func TestStack(t *testing.T) {
 	l := &mockListener{}
 	stack.AddListener(l)
 	c := &mockComponent{}
-	stack.PushComponent(c)
-	assert.Equal(t, stack.IsLastComponent(), true)
-	assert.Equal(t, stack.TopComponent(), c)
-	stack.PopComponent()
+	stack.PushView(c)
+	assert.Equal(t, stack.IsLastView(), true)
+	assert.Equal(t, stack.TopView(), c)
+	stack.PopView()
 	assert.Equal(t, stack.Empty(), true)
 	stack.RemoveListener(l)
 	assert.Equal(t, len(stack.listeners), 0)

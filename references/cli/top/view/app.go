@@ -142,7 +142,7 @@ func (a *App) Refresh() {
 // inject add a new component to the app's main view to refresh the content of the main view
 func (a *App) inject(c model.View) {
 	c.Init()
-	a.content.PushComponent(c)
+	a.content.PushView(c)
 }
 
 func (a *App) bindKeys() {
@@ -167,9 +167,9 @@ func (a *App) defaultView(event *tcell.EventKey) *tcell.EventKey {
 
 // helpView to display the view after pressing the Help key(?)
 func (a *App) helpView(_ *tcell.EventKey) *tcell.EventKey {
-	top := a.content.TopComponent()
+	top := a.content.TopView()
 	if top != nil && top.Name() == "Help" {
-		a.content.PopComponent()
+		a.content.PopView()
 		return nil
 	}
 	helpView := NewHelpView(a)
@@ -179,8 +179,8 @@ func (a *App) helpView(_ *tcell.EventKey) *tcell.EventKey {
 
 // Back to return before view corresponding to the ESC key
 func (a *App) Back(_ *tcell.EventKey) *tcell.EventKey {
-	if !a.content.IsLastComponent() {
-		a.content.PopComponent()
+	if !a.content.IsLastView() {
+		a.content.PopView()
 	}
 	return nil
 }

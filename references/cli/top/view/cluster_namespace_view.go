@@ -129,7 +129,7 @@ func (v *ClusterNamespaceView) managedResourceView(event *tcell.EventKey) *tcell
 	if clusterNamespace == model.AllClusterNamespace {
 		clusterNamespace = ""
 	}
-	v.app.content.PopComponent()
+	v.app.content.PopView()
 	v.ctx = context.WithValue(v.ctx, &model.CtxKeyClusterNamespace, clusterNamespace)
 	v.app.command.run(v.ctx, "resource")
 	return event

@@ -37,7 +37,7 @@ type ViewListener interface {
 type Stack struct {
 	views     []View
 	listeners []ViewListener
-	mx         sync.RWMutex
+	mx        sync.RWMutex
 }
 
 // NewStack return a new stack instance
@@ -67,21 +67,21 @@ func (s *Stack) RemoveListener(listener ViewListener) {
 	s.listeners = append(s.listeners[:aimIndex], s.listeners[aimIndex+1:]...)
 }
 
-// TopComponent return top component of stack
-func (s *Stack) TopComponent() View {
+// TopView return top view of stack
+func (s *Stack) TopView() View {
 	if s.Empty() {
 		return nil
 	}
 	return s.views[len(s.views)-1]
 }
 
-// IsLastComponent check whether stack only have one component now
-func (s *Stack) IsLastComponent() bool {
+// IsLastView check whether stack only have one view now
+func (s *Stack) IsLastView() bool {
 	return len(s.views) == 1
 }
 
-// PopComponent pop a component from stack
-func (s *Stack) PopComponent() {
+// PopView pop a view from stack
+func (s *Stack) PopView() {
 	if s.Empty() {
 		return
 	}
@@ -94,9 +94,9 @@ func (s *Stack) PopComponent() {
 	s.notifyListener(StackPop, removeComponent)
 }
 
-// PushComponent add a new component to stack
-func (s *Stack) PushComponent(component View) {
-	if top := s.TopComponent(); top != nil {
+// PushView add a new view to stack
+func (s *Stack) PushView(component View) {
+	if top := s.TopView(); top != nil {
 		top.Stop()
 	}
 
@@ -115,7 +115,7 @@ func (s *Stack) Empty() bool {
 // Clear out the stack
 func (s *Stack) Clear() {
 	for !s.Empty() {
-		s.PopComponent()
+		s.PopView()
 	}
 }
 
@@ -125,7 +125,7 @@ func (s *Stack) notifyListener(action int, component View) {
 		case stackPush:
 			listener.StackPush(component)
 		case StackPop:
-			listener.StackPop(component, s.TopComponent())
+			listener.StackPop(component, s.TopView())
 		}
 	}
 }
