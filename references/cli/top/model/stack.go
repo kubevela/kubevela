@@ -35,16 +35,16 @@ type ViewListener interface {
 
 // Stack is a stack to store components and notify listeners of main view of app
 type Stack struct {
-	components []View
-	listeners  []ViewListener
+	views     []View
+	listeners []ViewListener
 	mx         sync.RWMutex
 }
 
 // NewStack return a new stack instance
 func NewStack() *Stack {
 	return &Stack{
-		components: make([]View, 0),
-		listeners:  make([]ViewListener, 0),
+		views:     make([]View, 0),
+		listeners: make([]ViewListener, 0),
 	}
 }
 
@@ -72,12 +72,12 @@ func (s *Stack) TopComponent() View {
 	if s.Empty() {
 		return nil
 	}
-	return s.components[len(s.components)-1]
+	return s.views[len(s.views)-1]
 }
 
 // IsLastComponent check whether stack only have one component now
 func (s *Stack) IsLastComponent() bool {
-	return len(s.components) == 1
+	return len(s.views) == 1
 }
 
 // PopComponent pop a component from stack
@@ -87,8 +87,8 @@ func (s *Stack) PopComponent() {
 	}
 
 	s.mx.Lock()
-	removeComponent := s.components[len(s.components)-1]
-	s.components = s.components[:len(s.components)-1]
+	removeComponent := s.views[len(s.views)-1]
+	s.views = s.views[:len(s.views)-1]
 	s.mx.Unlock()
 
 	s.notifyListener(StackPop, removeComponent)
@@ -101,7 +101,7 @@ func (s *Stack) PushComponent(component View) {
 	}
 
 	s.mx.Lock()
-	s.components = append(s.components, component)
+	s.views = append(s.views, component)
 	s.mx.Unlock()
 
 	s.notifyListener(stackPush, component)
@@ -109,7 +109,7 @@ func (s *Stack) PushComponent(component View) {
 
 // Empty return whether stack is empty
 func (s *Stack) Empty() bool {
-	return len(s.components) == 0
+	return len(s.views) == 0
 }
 
 // Clear out the stack
