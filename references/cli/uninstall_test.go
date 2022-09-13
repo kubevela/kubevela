@@ -19,14 +19,20 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	pkgutils "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 var _ = Describe("Test Install Command", func() {
@@ -62,6 +68,17 @@ var _ = Describe("Test Install Command", func() {
 		}, 1*time.Minute, 5*time.Second).Should(BeNil())
 	})
 })
+
+func TestUninstall(t *testing.T) {
+	// Test answering NO when prompted. Should just exit.
+	cmd := NewUnInstallCommand(common.Args{}, "", pkgutils.IOStreams{
+		Out: os.Stdout,
+		In:  strings.NewReader("n\n"),
+	})
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	assert.Nil(t, err, "should just exit if answer is no")
+}
 
 var fluxcdYaml = `
 apiVersion: core.oam.dev/v1beta1
