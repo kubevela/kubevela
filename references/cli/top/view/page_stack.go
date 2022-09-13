@@ -43,7 +43,7 @@ func (ps *PageStack) Init() {
 }
 
 // StackPop change itself when accept "pop" notify from app's main view
-func (ps *PageStack) StackPop(old, new model.Component) {
+func (ps *PageStack) StackPop(old, new model.View) {
 	old.Stop()
 	if new == nil {
 		return
@@ -53,7 +53,7 @@ func (ps *PageStack) StackPop(old, new model.Component) {
 }
 
 // StackPush change itself when accept "pop" notify from app's main view
-func (ps *PageStack) StackPush(component model.Component) {
+func (ps *PageStack) StackPush(component model.View) {
 	component.Start()
 	ps.app.SetFocus(component)
 }

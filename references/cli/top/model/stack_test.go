@@ -25,8 +25,8 @@ import (
 
 type mockListener struct{}
 
-func (l *mockListener) StackPop(_ Component, _ Component) {}
-func (l *mockListener) StackPush(_ Component)             {}
+func (l *mockListener) StackPop(_ View, _ View) {}
+func (l *mockListener) StackPush(_ View)        {}
 
 type mockComponent struct {
 	tview.Primitive

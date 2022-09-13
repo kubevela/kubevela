@@ -41,7 +41,7 @@ func (c *Crumbs) init() {
 }
 
 // StackPop change itself when accept "pop" notify from app's main view
-func (c *Crumbs) StackPop(_, _ model.Component) {
+func (c *Crumbs) StackPop(_, _ model.View) {
 	num := c.GetItemCount()
 	if num >= 2 {
 		c.RemoveItem(c.GetItem(num - 1))
@@ -50,7 +50,7 @@ func (c *Crumbs) StackPop(_, _ model.Component) {
 }
 
 // StackPush change itself when accept "push" notify from app's main view
-func (c *Crumbs) StackPush(component model.Component) {
+func (c *Crumbs) StackPush(component model.View) {
 	name := component.Name()
 	t := tview.NewTextView()
 	t.SetBackgroundColor(config.CrumbsBackgroundColor)

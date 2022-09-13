@@ -25,36 +25,36 @@ const (
 	StackPop
 )
 
-// ResourceListener listen notify from the main view of app and render itself again
-type ResourceListener interface {
+// ViewListener listen notify from the main view of app and render itself again
+type ViewListener interface {
 	// StackPop pop old component and render component
-	StackPop(Component, Component)
+	StackPop(View, View)
 	// StackPush push a new component
-	StackPush(Component)
+	StackPush(View)
 }
 
 // Stack is a stack to store components and notify listeners of main view of app
 type Stack struct {
-	components []Component
-	listeners  []ResourceListener
+	components []View
+	listeners  []ViewListener
 	mx         sync.RWMutex
 }
 
 // NewStack return a new stack instance
 func NewStack() *Stack {
 	return &Stack{
-		components: make([]Component, 0),
-		listeners:  make([]ResourceListener, 0),
+		components: make([]View, 0),
+		listeners:  make([]ViewListener, 0),
 	}
 }
 
 // AddListener add a new resource listener
-func (s *Stack) AddListener(listener ResourceListener) {
+func (s *Stack) AddListener(listener ViewListener) {
 	s.listeners = append(s.listeners, listener)
 }
 
 // RemoveListener remove the aim resource listener
-func (s *Stack) RemoveListener(listener ResourceListener) {
+func (s *Stack) RemoveListener(listener ViewListener) {
 	aimIndex := -1
 	for index, item := range s.listeners {
 		if item == listener {
@@ -68,7 +68,7 @@ func (s *Stack) RemoveListener(listener ResourceListener) {
 }
 
 // TopComponent return top component of stack
-func (s *Stack) TopComponent() Component {
+func (s *Stack) TopComponent() View {
 	if s.Empty() {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (s *Stack) PopComponent() {
 }
 
 // PushComponent add a new component to stack
-func (s *Stack) PushComponent(component Component) {
+func (s *Stack) PushComponent(component View) {
 	if top := s.TopComponent(); top != nil {
 		top.Stop()
 	}
@@ -119,7 +119,7 @@ func (s *Stack) Clear() {
 	}
 }
 
-func (s *Stack) notifyListener(action int, component Component) {
+func (s *Stack) notifyListener(action int, component View) {
 	for _, listener := range s.listeners {
 		switch action {
 		case stackPush:
