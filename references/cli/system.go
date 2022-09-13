@@ -34,7 +34,6 @@ import (
 	"k8s.io/client-go/rest"
 	apiregistrationV1beta "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	apiregistration "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	"sigs.k8s.io/yaml"
 
@@ -50,6 +49,8 @@ const (
 	FlagOutputFormat = "output"
 	// APIServiceName is the name of APIService
 	APIServiceName = "v1alpha1.cluster.core.oam.dev"
+	// UnknownMetric represent that we can't compute the metric data
+	UnknownMetric = "N/A"
 )
 
 // NewSystemCommand print system detail info
@@ -225,23 +226,16 @@ func Map2Str(m map[string]string) string {
 
 // NormalFormatPrinter prints information in format of normal
 func NormalFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *metrics.Clientset) (*uitable.Table, error) {
-	podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
-		ctx,
-		metav1.ListOptions{},
-	)
-	if err != nil {
-		return nil, err
-	}
 	table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)")
-	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
+	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(ctx, deployments, mc)
 	for _, deploy := range deployments.Items {
 		table.AddRow(
 			deploy.Name,
 			deploy.Namespace,
 			fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
 			deploy.Spec.Template.Spec.Containers[0].Image,
-			fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
-			fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
+			cpuMetricMap[deploy.Name],
+			memMetricMap[deploy.Name],
 		)
 	}
 	return table, nil
@@ -249,24 +243,17 @@ func NormalFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc
 
 // WideFormatPrinter prints information in format of wide
 func WideFormatPrinter(ctx context.Context, deployments *v1.DeploymentList, mc *metrics.Clientset) (*uitable.Table, error) {
-	podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
-		ctx,
-		metav1.ListOptions{},
-	)
-	if err != nil {
-		return nil, err
-	}
 	table := newUITable().AddRow("NAME", "NAMESPACE", "READY PODS", "IMAGE", "CPU(cores)", "MEMORY(bytes)", "ARGS", "ENVS")
 	table.MaxColWidth = 100
-	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(deployments, podMetricsList)
+	cpuMetricMap, memMetricMap := ComputeMetricByDeploymentName(ctx, deployments, mc)
 	for _, deploy := range deployments.Items {
 		table.AddRow(
 			deploy.Name,
 			deploy.Namespace,
 			fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, deploy.Status.Replicas),
 			deploy.Spec.Template.Spec.Containers[0].Image,
-			fmt.Sprintf("%dm", cpuMetricMap[deploy.Name]),
-			fmt.Sprintf("%dMi", memMetricMap[deploy.Name]),
+			cpuMetricMap[deploy.Name],
+			memMetricMap[deploy.Name],
 			strings.Join(deploy.Spec.Template.Spec.Containers[0].Args, " "),
 			limitStringLength(GetEnvVariable(deploy.Spec.Template.Spec.Containers[0].Env), 180),
 		)
@@ -290,9 +277,21 @@ func YamlFormatPrinter(deployments *v1.DeploymentList) (string, error) {
 }
 
 // ComputeMetricByDeploymentName computes cpu and memory metric of deployment
-func ComputeMetricByDeploymentName(deployments *v1.DeploymentList, podMetricsList *v1beta1.PodMetricsList) (cpuMetricMap, memMetricMap map[string]int64) {
-	cpuMetricMap = make(map[string]int64)
-	memMetricMap = make(map[string]int64)
+func ComputeMetricByDeploymentName(ctx context.Context, deployments *v1.DeploymentList, mc *metrics.Clientset) (cpuMetricMap, memMetricMap map[string]string) {
+	cpuMetricMap = make(map[string]string)
+	memMetricMap = make(map[string]string)
+	podMetricsList, err := mc.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(
+		ctx,
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		for _, deploy := range deployments.Items {
+			cpuMetricMap[deploy.Name] = UnknownMetric
+			memMetricMap[deploy.Name] = UnknownMetric
+		}
+		return
+	}
+
 	for _, deploy := range deployments.Items {
 		cpuUsage, memUsage := int64(0), int64(0)
 		for _, pod := range podMetricsList.Items {
@@ -303,8 +302,8 @@ func ComputeMetricByDeploymentName(deployments *v1.DeploymentList, podMetricsLis
 				}
 			}
 		}
-		cpuMetricMap[deploy.Name] = cpuUsage
-		memMetricMap[deploy.Name] = memUsage
+		cpuMetricMap[deploy.Name] = fmt.Sprintf("%dm", cpuUsage)
+		memMetricMap[deploy.Name] = fmt.Sprintf("%dMi", memUsage)
 	}
 	return
 }
