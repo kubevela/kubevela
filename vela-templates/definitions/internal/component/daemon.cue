@@ -210,8 +210,13 @@ template: {
 						"app.oam.dev/name":      context.appName
 						"app.oam.dev/component": context.name
 					}
-					if parameter.annotations != _|_ {
-						annotations: parameter.annotations
+					annotations: {
+						if parameter.annotations != _|_ {
+							parameter.annotations
+						}
+						if parameter.addDeployVersionAnnotation {
+							"app.oam.dev/deployVersion": context.appAnnotations["app.oam.dev/deployVersion"]
+						}
 					}
 				}
 
@@ -537,6 +542,9 @@ template: {
 			ip: string
 			hostnames: [...string]
 		}]
+
+		// +usage=If addDeployVersionAnnotation is true, the deploy version annotation will be added to the underlying pods
+		addDeployVersionAnnotation: *false | bool
 	}
 
 	#HealthProbe: {

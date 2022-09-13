@@ -170,6 +170,14 @@ template: {
 						"app.oam.dev/name":      context.appName
 						"app.oam.dev/component": context.name
 					}
+					annotations: {
+						if parameter.annotations != _|_ {
+							parameter.annotations
+						}
+						if parameter.addDeployVersionAnnotation {
+							"app.oam.dev/deployVersion": context.appAnnotations["app.oam.dev/deployVersion"]
+						}
+					}
 				}
 
 				spec: {
@@ -399,6 +407,12 @@ template: {
 
 		// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
 		readinessProbe?: #HealthProbe
+
+		// +usage=Specify the annotations in the workload
+		annotations?: [string]: string
+
+		// +usage=If addDeployVersionAnnotation is true, the deploy version annotation will be added to the underlying pods
+		addDeployVersionAnnotation: *false | bool
 	}
 
 	#HealthProbe: {
