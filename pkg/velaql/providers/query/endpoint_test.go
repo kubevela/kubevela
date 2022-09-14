@@ -149,9 +149,25 @@ var _ = Describe("Test Query Provider", func() {
 					"type": corev1.ServiceTypeClusterIP,
 				},
 				{
+					"name": "load-balancer",
+					"ports": []corev1.ServicePort{
+						{Port: 8080, TargetPort: intstr.FromInt(8080), Name: "8080port", NodePort: 30020},
+					},
+					"type": corev1.ServiceTypeLoadBalancer,
+					"status": corev1.ServiceStatus{
+						LoadBalancer: corev1.LoadBalancerStatus{
+							Ingress: []corev1.LoadBalancerIngress{
+								{
+									IP: "2.2.2.2",
+								},
+							},
+						},
+					},
+				},
+				{
 					"name": "seldon-ambassador-2",
 					"ports": []corev1.ServicePort{
-						{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
+						{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port", NodePort: 30010},
 					},
 					"type": corev1.ServiceTypeLoadBalancer,
 					"status": corev1.ServiceStatus{
@@ -235,10 +251,11 @@ var _ = Describe("Test Query Provider", func() {
 			Expect(err).Should(BeNil())
 
 			urls := []string{
-				"http://1.1.1.1/seldon/default/sdep2",
+				"http://1.1.1.1:30010/seldon/default/sdep2",
 				"http://clusterip-2.default",
 				"clusterip-2.default:81",
-				"http://1.1.1.1",
+				"http://2.2.2.2:30020",
+				"http://1.1.1.1:30010",
 			}
 			endValue, err := v.Field("list")
 			Expect(err).Should(BeNil())

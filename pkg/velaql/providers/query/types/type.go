@@ -65,6 +65,9 @@ func (s *ServiceEndpoint) String() string {
 	if protocol == "tcp" {
 		return fmt.Sprintf("%s:%d%s", s.Endpoint.Host, s.Endpoint.Port, path)
 	}
+	if s.Endpoint.Port == 0 {
+		return fmt.Sprintf("%s://%s%s", protocol, s.Endpoint.Host, path)
+	}
 	return fmt.Sprintf("%s://%s:%d%s", protocol, s.Endpoint.Host, s.Endpoint.Port, path)
 }
 
