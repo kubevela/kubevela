@@ -656,8 +656,8 @@ options: {
 			{
 				"name": "loadbalancer",
 				"ports": []corev1.ServicePort{
-					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
-					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port"},
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port", NodePort: 30080},
+					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port", NodePort: 30081},
 				},
 				"type": corev1.ServiceTypeLoadBalancer,
 				"status": corev1.ServiceStatus{
@@ -687,7 +687,7 @@ options: {
 			{
 				"name": "seldon-ambassador",
 				"ports": []corev1.ServicePort{
-					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port", NodePort: 30010},
 				},
 				"type": corev1.ServiceTypeLoadBalancer,
 				"status": corev1.ServiceStatus{
@@ -937,13 +937,13 @@ options: {
 			"https://ingress.domain.path/test",
 			"https://ingress.domain.path/test2",
 			fmt.Sprintf("http://%s:30229", gatewayIP),
-			"http://10.10.10.10",
-			"http://text.example.com",
-			"10.10.10.10:81",
-			"text.example.com:81",
+			"http://10.10.10.10:30080",
+			"http://text.example.com:30080",
+			"10.10.10.10:30081",
+			"text.example.com:30081",
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
-			"http://1.1.1.1/seldon/default/sdep",
+			"http://1.1.1.1:30010/seldon/default/sdep",
 			"http://gateway.domain",
 			"http://gateway.domain/api",
 			"https://demo.kubevela.net",
