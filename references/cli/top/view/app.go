@@ -140,9 +140,9 @@ func (a *App) Refresh() {
 }
 
 // inject add a new component to the app's main view to refresh the content of the main view
-func (a *App) inject(c model.View) {
-	c.Init()
-	a.content.PushView(c)
+func (a *App) inject(v model.View) {
+	v.Init()
+	a.content.PushView(v)
 }
 
 func (a *App) bindKeys() {

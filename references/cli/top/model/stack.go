@@ -37,7 +37,7 @@ type ViewListener interface {
 type Stack struct {
 	views     []View
 	listeners []ViewListener
-	mx        sync.RWMutex
+	mutex     sync.RWMutex
 }
 
 // NewStack return a new stack instance
@@ -86,10 +86,10 @@ func (s *Stack) PopView() {
 		return
 	}
 
-	s.mx.Lock()
+	s.mutex.Lock()
 	removeComponent := s.views[len(s.views)-1]
 	s.views = s.views[:len(s.views)-1]
-	s.mx.Unlock()
+	s.mutex.Unlock()
 
 	s.notifyListener(StackPop, removeComponent)
 }
@@ -100,9 +100,9 @@ func (s *Stack) PushView(component View) {
 		top.Stop()
 	}
 
-	s.mx.Lock()
+	s.mutex.Lock()
 	s.views = append(s.views, component)
-	s.mx.Unlock()
+	s.mutex.Unlock()
 
 	s.notifyListener(stackPush, component)
 }
