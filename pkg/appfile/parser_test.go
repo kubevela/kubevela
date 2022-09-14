@@ -23,21 +23,16 @@ import (
 	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -93,27 +88,6 @@ var expectedExceptApp = &Appfile{
       	cmd?: [...string]
       }`,
 			},
-			Traits: []*Trait{
-				{
-					Name: "scaler",
-					Params: map[string]interface{}{
-						"replicas": float64(10),
-					},
-					Template: `
-      outputs:scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-				},
-			},
 		},
 	},
 	WorkflowSteps: []workflowv1alpha1.WorkflowStep{
@@ -126,34 +100,7 @@ var expectedExceptApp = &Appfile{
 	},
 }
 
-const traitDefinition = `
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }`
-
-const componenetDefinition = `
+const componentDefinition = `
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
@@ -247,10 +194,6 @@ spec:
         cmd:
         - sleep
         - "1000"
-      traits:
-        - type: scaler
-          properties:
-            replicas: 10
   workflow:
     steps:
     - name: "suspend"
@@ -286,7 +229,7 @@ spec:
 `
 
 var _ = Describe("Test application parser", func() {
-	It("Test we can parse an application to an appFile", func() {
+	It("Test parse an application", func() {
 		o := v1beta1.Application{}
 		err := yaml.Unmarshal([]byte(appfileYaml), &o)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -299,17 +242,11 @@ var _ = Describe("Test application parser", func() {
 				}
 				switch o := obj.(type) {
 				case *v1beta1.ComponentDefinition:
-					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
+					wd, err := util.UnMarshalStringToComponentDefinition(componentDefinition)
 					if err != nil {
 						return err
 					}
 					*o = *wd
-				case *v1beta1.TraitDefinition:
-					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *td
 				case *v1beta1.PolicyDefinition:
 					ppd, err := util.UnMarshalStringToPolicyDefinition(policyDefinition)
 					if err != nil {
@@ -368,202 +305,6 @@ func equal(af, dest *Appfile) bool {
 	}
 	return true
 }
-
-var _ = Describe("Test appFile parser", func() {
-	It("application without-trait will only create appfile with workload", func() {
-		// TestApp is test data
-		var TestApp = &Appfile{
-			AppRevisionName: "test-v1",
-			Name:            "test",
-			Namespace:       "default",
-			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
-				"scaler": {
-					Spec: v1beta1.TraitDefinitionSpec{},
-				},
-			},
-			Workloads: []*Workload{
-				{
-					Name: "myweb",
-					Type: "worker",
-					Params: map[string]interface{}{
-						"image": "busybox",
-						"cmd":   []interface{}{"sleep", "1000"},
-					},
-					Scopes: []Scope{
-						{Name: "test-scope", GVK: metav1.GroupVersionKind{
-							Group:   "core.oam.dev",
-							Version: "v1alpha2",
-							Kind:    "HealthScope",
-						}},
-					},
-					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
-					FullTemplate: &Template{
-						TemplateStr: `
-      output: {
-        apiVersion: "apps/v1"
-      	kind:       "Deployment"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": context.name
-      		}
-      
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": context.name
-      			}
-      
-      			spec: {
-      				containers: [{
-      					name:  context.name
-      					image: parameter.image
-      
-      					if parameter["cmd"] != _|_ {
-      						command: parameter.cmd
-      					}
-      				}]
-      			}
-      		}
-      
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
-      	}
-      }
-      
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
-      
-      	cmd?: [...string]
-      }`,
-					},
-					Traits: []*Trait{
-						{
-							Name: "scaler",
-							Params: map[string]interface{}{
-								"replicas": float64(10),
-							},
-							engine: definition.NewTraitAbstractEngine("scaler", pd),
-							Template: `
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-						},
-					},
-				},
-			},
-		}
-		cm := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{Name: "kubevela-test-myweb-myconfig", Namespace: "default"},
-			Data:       map[string]string{"c1": "v1", "c2": "v2"},
-		}
-		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		comps, err := TestApp.GenerateComponentManifests()
-		Expect(err).To(BeNil())
-
-		expectWorkload := &unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
-					"name":      "myweb",
-					"namespace": "default",
-					"labels": map[string]interface{}{
-						"workload.oam.dev/type":    "worker",
-						"app.oam.dev/component":    "myweb",
-						"app.oam.dev/appRevision":  "test-v1",
-						"app.oam.dev/name":         "test",
-						"app.oam.dev/namespace":    "default",
-						"app.oam.dev/resourceType": "WORKLOAD",
-					},
-				},
-				"spec": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"matchLabels": map[string]interface{}{
-							"app.oam.dev/component": "myweb"}},
-					"template": map[string]interface{}{
-						"metadata": map[string]interface{}{"labels": map[string]interface{}{"app.oam.dev/component": "myweb"}},
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
-									"command": []interface{}{"sleep", "1000"},
-									"image":   "busybox",
-									"name":    "myweb",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		expectCompManifest := &types.ComponentManifest{
-			Name:             "myweb",
-			StandardWorkload: expectWorkload,
-			Traits: []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"apiVersion": "core.oam.dev/v1alpha2",
-						"kind":       "ManualScalerTrait",
-						"metadata": map[string]interface{}{
-							"name":      "myweb-scaler-5c7695d6c7",
-							"namespace": "default",
-							"labels": map[string]interface{}{
-								"app.oam.dev/component":    "myweb",
-								"app.oam.dev/appRevision":  "test-v1",
-								"app.oam.dev/name":         "test",
-								"app.oam.dev/namespace":    "default",
-								"trait.oam.dev/type":       "scaler",
-								"trait.oam.dev/resource":   "scaler",
-								"app.oam.dev/resourceType": "TRAIT",
-							},
-						},
-						"spec": map[string]interface{}{"replicaCount": int64(10)},
-					},
-				},
-			},
-			Scopes: []*corev1.ObjectReference{
-				{
-					APIVersion: "core.oam.dev/v1alpha2",
-					Kind:       "HealthScope",
-					Name:       "test-scope",
-				},
-			},
-		}
-
-		// assertion util cannot compare slices embedded in map correctly while slice order is not required
-		// e.g., .containers[0].env in this case
-		// as a workaround, prepare two expected targets covering all possible slice order
-		// if any one is satisfied, the equal assertion pass
-		expectWorkloadOptional := expectWorkload.DeepCopy()
-		unstructured.SetNestedSlice(expectWorkloadOptional.Object, []interface{}{
-			map[string]interface{}{
-				"command": []interface{}{"sleep", "1000"},
-				"image":   "busybox",
-				"name":    "myweb",
-			},
-		}, "spec", "template", "spec", "containers")
-
-		By(" built components' length must be 1")
-		Expect(len(comps)).To(BeEquivalentTo(1))
-		comp := comps[0]
-		Expect(comp.Name).Should(Equal(expectCompManifest.Name))
-		Expect(cmp.Diff(comp.Traits, expectCompManifest.Traits)).Should(BeEmpty())
-		Expect(comp.Scopes).Should(Equal(expectCompManifest.Scopes))
-		Expect(cmp.Diff(comp.StandardWorkload, expectWorkloadOptional)).Should(BeEmpty())
-	})
-
-})
 
 var _ = Describe("Test application parser", func() {
 	var app v1beta1.Application
@@ -664,17 +405,11 @@ patch: spec: replicas: parameter.replicas
 				}
 				switch o := obj.(type) {
 				case *v1beta1.ComponentDefinition:
-					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
+					wd, err := util.UnMarshalStringToComponentDefinition(componentDefinition)
 					if err != nil {
 						return err
 					}
 					*o = *wd
-				case *v1beta1.TraitDefinition:
-					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
-					if err != nil {
-						return err
-					}
-					*o = *td
 				case *v1beta1.WorkflowStepDefinition:
 					*o = wsd
 				case *v1beta1.ApplicationRevision:

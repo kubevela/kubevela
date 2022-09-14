@@ -117,56 +117,6 @@ spec:
 		})
 	})
 
-	Context("When the definition is TraitDefinition", func() {
-		var traitDefinitionName = "scaler1"
-
-		It("Test CapabilityTraitDefinition", func() {
-			By("Apply TraitDefinition")
-			var validTraitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
-kind: TraitDefinition
-metadata:
-  namespace: ns-cap
-  annotations:
-    definition.oam.dev/description: "Configures replicas for your service."
-  name: scaler1
-spec:
-  appliesToWorkloads:
-    - deployments.apps
-  definitionRef:
-    name: manualscalertraits.core.oam.dev
-  workloadRefPath: spec.workloadRef
-  schematic:
-    cue:
-      template: |
-        outputs: scaler: {
-        	apiVersion: "core.oam.dev/v1alpha2"
-        	kind:       "ManualScalerTrait"
-        	spec: {
-        		replicaCount: parameter.replicas
-        	}
-        }
-        parameter: {
-        	//+short=r
-        	//+usage=Replicas of the workload
-        	replicas: *1 | int
-        }
-`
-
-			var traitDefinition v1beta1.TraitDefinition
-			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &traitDefinition)).Should(BeNil())
-			Expect(k8sClient.Create(ctx, &traitDefinition)).Should(Succeed())
-
-			def := &CapabilityTraitDefinition{Name: traitDefinitionName, TraitDefinition: *traitDefinition.DeepCopy()}
-
-			By("Test GetOpenAPISchema")
-			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
-			schema, err := def.GetOpenAPISchema(pd, traitDefinitionName)
-			Expect(err).Should(BeNil())
-			Expect(string(schema)).Should(Equal(expectedSchema))
-		})
-	})
-
 	Context("When the definition is CapabilityBaseDefinition", func() {
 
 		It("Test CapabilityTraitDefinition", func() {

@@ -84,19 +84,6 @@ var _ = Describe("Test Helm schematic appfile", func() {
 								"replicas": float64(10),
 							},
 							engine: definition.NewTraitAbstractEngine("scaler", pd),
-							Template: `
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
 						},
 					},
 					FullTemplate: &Template{
@@ -140,24 +127,6 @@ var _ = Describe("Test Helm schematic appfile", func() {
 							"app.oam.dev/name":        appName,
 							"app.oam.dev/appRevision": appName + "-v1",
 						}}}},
-			Traits: []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"apiVersion": "core.oam.dev/v1alpha2",
-						"kind":       "ManualScalerTrait",
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								"app.oam.dev/component":   compName,
-								"app.oam.dev/name":        appName,
-								"trait.oam.dev/type":      "scaler",
-								"trait.oam.dev/resource":  "scaler",
-								"app.oam.dev/appRevision": appName + "-v1",
-							},
-						},
-						"spec": map[string]interface{}{"replicaCount": int64(10)},
-					},
-				},
-			},
 			PackagedWorkloadResources: []*unstructured.Unstructured{
 				{
 					Object: map[string]interface{}{
@@ -258,19 +227,6 @@ spec:
 								"replicas": float64(10),
 							},
 							engine: definition.NewTraitAbstractEngine("scaler", pd),
-							Template: `
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
 						},
 					},
 					FullTemplate: &Template{
@@ -328,24 +284,6 @@ spec:
 		expectCompManifest := &oamtypes.ComponentManifest{
 			Name:             compName,
 			StandardWorkload: expectWorkload,
-			Traits: []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"apiVersion": "core.oam.dev/v1alpha2",
-						"kind":       "ManualScalerTrait",
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								"app.oam.dev/component":   compName,
-								"app.oam.dev/name":        appName,
-								"app.oam.dev/appRevision": appName + "-v1",
-								"trait.oam.dev/type":      "scaler",
-								"trait.oam.dev/resource":  "scaler",
-							},
-						},
-						"spec": map[string]interface{}{"replicaCount": int64(10)},
-					},
-				},
-			},
 		}
 		By("Verify expected Component")
 		diff := cmp.Diff(comps[0], expectCompManifest)

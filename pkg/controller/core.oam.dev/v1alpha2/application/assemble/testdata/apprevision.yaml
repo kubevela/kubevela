@@ -33,9 +33,6 @@ spec:
             http:
               /: 8000
           type: ingress
-        - properties:
-            replicas: 3
-          type: manualscaler
     status: {}
   componentDefinitions:
     webservice:
@@ -201,31 +198,4 @@ spec:
             }
           healthPolicy: |
             isHealth: len(context.outputs.service.spec.clusterIP) > 0
-      status: {}
-    manualscaler:
-      apiVersion: core.oam.dev/v1beta1
-      kind: TraitDefinition
-      metadata: {}
-      spec:
-        appliesToWorkloads:
-        - deployments.apps
-        definitionRef:
-          name: manualscalertraits.core.oam.dev
-        podDisruptive: true
-        schematic:
-          cue:
-            template: |
-              outputs: scaler: {
-                apiVersion: "core.oam.dev/v1alpha2"
-                kind:       "ManualScalerTrait"
-                spec: {
-                  replicaCount: parameter.replicas
-                }
-              }
-              parameter: {
-                //+short=r
-                //+usage=Replicas of the workload
-                replicas: *1 | int
-              }
-        workloadRefPath: spec.workloadRef
       status: {}

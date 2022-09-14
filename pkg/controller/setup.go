@@ -22,7 +22,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/rollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -33,7 +32,6 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 	switch disableCaps {
 	case common.DisableNoneCaps:
 		functions = []func(ctrl.Manager, controller.Args) error{
-			manualscalertrait.Setup,
 			healthscope.Setup,
 			rollout.Setup,
 		}
@@ -41,9 +39,6 @@ func Setup(mgr ctrl.Manager, disableCaps string, args controller.Args) error {
 	default:
 		disableCapsSet := utils.StoreInSet(disableCaps)
 
-		if !disableCapsSet.Contains(common.ManualScalerTraitControllerName) {
-			functions = append(functions, manualscalertrait.Setup)
-		}
 		if !disableCapsSet.Contains(common.HealthScopeControllerName) {
 			functions = append(functions, healthscope.Setup)
 		}

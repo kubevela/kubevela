@@ -20,9 +20,6 @@ spec:
             domain: "www.example.com"
             http:
               "/": 80
-        - type: myscaler
-          properties:
-            replicas: 2
     - name: livediff-demo
       type: ref-objects
       properties:

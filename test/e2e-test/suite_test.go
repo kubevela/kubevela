@@ -18,7 +18,6 @@ package controllers_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -31,17 +30,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	"github.com/pkg/errors"
-	networkv1 "k8s.io/api/networking/v1"
 	rbac "k8s.io/api/rbac/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	k8sutils "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
@@ -58,7 +53,6 @@ import (
 
 var k8sClient client.Client
 var scheme = runtime.NewScheme()
-var manualscalertrait v1alpha2.TraitDefinition
 var roleName = "oam-example-com"
 var roleBindingName = "oam-role-binding"
 
@@ -111,34 +105,6 @@ var _ = BeforeSuite(func(done Done) {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
-
-	detectAPIVersion()
-
-	// Create manual scaler trait definition
-	manualscalertrait = v1alpha2.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "manualscalertraits.core.oam.dev",
-			Namespace: "vela-system",
-			Labels:    map[string]string{"trait": "manualscalertrait"},
-		},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			WorkloadRefPath: "spec.workloadRef",
-			Reference: commontypes.DefinitionReference{
-				Name: "manualscalertraits.core.oam.dev",
-			},
-		},
-	}
-	// For some reason, traitDefinition is created as a Cluster scope object
-	Expect(k8sClient.Create(context.Background(), manualscalertrait.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	// Create manual scaler trait definition with spec.extension field
-	definitionExtension := DefinitionExtension{
-		Alias: "ManualScaler",
-	}
-	in := new(runtime.RawExtension)
-	in.Raw, _ = json.Marshal(definitionExtension)
-
-	By("Created extended manualscalertraits.core.oam.dev")
 
 	// create workload definition for 'deployments'
 	wdDeploy := v1alpha2.WorkloadDefinition{
@@ -228,21 +194,4 @@ func RequestReconcileNow(ctx context.Context, o client.Object) {
 // waiting a long time to GC namespace.
 func randomNamespaceName(basic string) string {
 	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
-}
-
-// detectAPIVersion helps detect legacy GVK
-func detectAPIVersion() {
-	err := k8sClient.Create(context.Background(), &networkv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-ingress",
-		},
-		Spec: networkv1.IngressSpec{
-			IngressClassName: k8sutils.StringPtr("nginx"),
-			Rules:            []networkv1.IngressRule{},
-		},
-	})
-	var noKindMatchErr = &meta.NoKindMatchError{}
-	if err != nil && errors.As(err, &noKindMatchErr) {
-		noNetworkingV1 = true
-	}
 }

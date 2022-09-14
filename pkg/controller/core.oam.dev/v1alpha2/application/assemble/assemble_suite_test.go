@@ -57,9 +57,6 @@ var _ = Describe("Test Assemble Options", func() {
 		            domain: localhost
 		            http:
 		              "/": 8000
-		        - type: manualscaler
-		          properties:
-		            replicas: 3
 		*/
 		Expect(err).Should(BeNil())
 		err = yaml.Unmarshal(b, appRev)
@@ -72,11 +69,11 @@ var _ = Describe("Test Assemble Options", func() {
 		By("Verify amount of result resources")
 		allResources, err := ao.AssembledManifests()
 		Expect(err).Should(BeNil())
-		Expect(len(allResources)).Should(Equal(4))
+		Expect(len(allResources)).Should(Equal(3))
 
 		By("Verify amount of result grouped resources")
 		Expect(len(workloads)).Should(Equal(1))
-		Expect(len(traits[compName])).Should(Equal(3))
+		Expect(len(traits[compName])).Should(Equal(2))
 
 		By("Verify workload metadata (name, namespace, labels, annotations, ownerRef)")
 		wl := workloads[compName]
@@ -115,18 +112,6 @@ var _ = Describe("Test Assemble Options", func() {
 			oam.TraitTypeLabel,
 			oam.LabelOAMResourceType))
 		Expect(len(wl.GetAnnotations())).Should(Equal(1))
-
-		By("Verify set workload reference to trait")
-		scaler := traits[compName][2]
-		wlRef, found, err := unstructured.NestedMap(scaler.Object, "spec", "workloadRef")
-		Expect(err).Should(BeNil())
-		Expect(found).Should(BeTrue())
-		wantWorkloadRef := map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-			"name":       compName,
-		}
-		Expect(wlRef).Should(Equal(wantWorkloadRef))
 
 		By("Verify referenced scopes")
 		scopes, err := ao.ReferencedScopes()

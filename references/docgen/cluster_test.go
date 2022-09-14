@@ -212,23 +212,24 @@ var _ = Describe("test GetCapabilityByName", func() {
 		Expect(k8sClient.Create(ctx, &cd4)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
-		data, _ = os.ReadFile("testdata/manualscalars.yaml")
-		yaml.Unmarshal(data, &td1)
-		yaml.Unmarshal(data, &td2)
 		data3, _ := os.ReadFile("testdata/svcTraitDef.yaml")
 		yaml.Unmarshal(data3, &td3)
-		td1.Namespace = ns
-		td1.Name = trait1
-		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		td2.Namespace = defaultNS
-		td2.Name = trait2
-		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
+		td3.DeepCopyInto(&td1)
+		td3.DeepCopyInto(&td2)
 		td3.Namespace = ns
 		td3.Name = trait3
 		Expect(k8sClient.Create(ctx, &td3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
+		td1.Name = trait1
+		td2.Name = trait2
+		td1.Namespace = ns
+		td1.Name = trait1
+		td1.SetResourceVersion("")
+		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		td2.Namespace = defaultNS
+		td2.Name = trait2
+		td2.SetResourceVersion("")
+		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	It("get capability", func() {
@@ -287,12 +288,8 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		defaultNS  string
 		cd1        corev1beta1.ComponentDefinition
 		cd2        corev1beta1.ComponentDefinition
-		td1        corev1beta1.TraitDefinition
-		td2        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
-		trait1     string
-		trait2     string
 	)
 	BeforeEach(func() {
 		c = common.Args{}
@@ -302,8 +299,6 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		defaultNS = types.DefaultKubeVelaNS
 		component1 = "cd1"
 		component2 = "cd2"
-		trait1 = "td1"
-		trait2 = "td2"
 
 		By("create namespace")
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -321,30 +316,18 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 		cd2.Name = component2
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		By("create TraitDefinition")
-		data, _ = os.ReadFile("testdata/manualscalars.yaml")
-		yaml.Unmarshal(data, &td1)
-		yaml.Unmarshal(data, &td2)
-		td1.Namespace = ns
-		td1.Name = trait1
-		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		td2.Namespace = defaultNS
-		td2.Name = trait2
-		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	})
 
 	It("get namespaced capabilities", func() {
 		Context("found all capabilities", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
-			Expect(len(capabilities)).Should(Equal(4))
+			Expect(len(capabilities)).Should(Equal(2))
 			Expect(err).Should(BeNil())
 		})
 
 		Context("found two capabilities with a bad namespace", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, "a-bad-ns", c, nil)
-			Expect(len(capabilities)).Should(Equal(2))
+			Expect(len(capabilities)).Should(Equal(1))
 			Expect(err).Should(BeNil())
 		})
 

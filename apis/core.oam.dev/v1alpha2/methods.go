@@ -24,26 +24,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 )
 
-// GetCondition of this ManualScalerTrait.
-func (tr *ManualScalerTrait) GetCondition(ct condition.ConditionType) condition.Condition {
-	return tr.Status.GetCondition(ct)
-}
-
-// SetConditions of this ManualScalerTrait.
-func (tr *ManualScalerTrait) SetConditions(c ...condition.Condition) {
-	tr.Status.SetConditions(c...)
-}
-
-// GetWorkloadReference of this ManualScalerTrait.
-func (tr *ManualScalerTrait) GetWorkloadReference() corev1.ObjectReference {
-	return tr.Spec.WorkloadReference
-}
-
-// SetWorkloadReference of this ManualScalerTrait.
-func (tr *ManualScalerTrait) SetWorkloadReference(r corev1.ObjectReference) {
-	tr.Spec.WorkloadReference = r
-}
-
 // GetCondition of this ApplicationConfiguration.
 func (ac *ApplicationConfiguration) GetCondition(ct condition.ConditionType) condition.Condition {
 	return ac.Status.GetCondition(ct)

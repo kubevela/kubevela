@@ -28,9 +28,6 @@ spec:
             http:
               /: 80
           type: myingress
-        - properties:
-            replicas: 2
-          type: myscaler
         type: myworker
       - name: myweb-2
         properties:
@@ -90,20 +87,6 @@ spec:
                       serviceName: myweb-1
                       servicePort: 80
                     path: /
-        - trait:
-            apiVersion: core.oam.dev/v1alpha2
-            kind: ManualScalerTrait
-            metadata:
-              labels:
-                app.oam.dev/appRevision: livediff-demo-v1
-                app.oam.dev/component: myweb-1
-                app.oam.dev/name: livediff-demo
-                trait.oam.dev/resource: scaler
-                trait.oam.dev/type: myscaler
-              name: myweb-1-myscaler-69ccc5855d
-              namespace: default
-            spec:
-              replicaCount: 2
       - componentName: myweb-2
         revisionName: myweb-2-v1
     status:
@@ -229,21 +212,4 @@ spec:
         parameter.domain\n\t\t\thttp: {\n\t\t\t\tpaths: [\n\t\t\t\t\tfor k, v in parameter.http
         {\n\t\t\t\t\t\tpath: k\n\t\t\t\t\t\tbackend: {\n\t\t\t\t\t\t\tserviceName:
         context.name\n\t\t\t\t\t\t\tservicePort: v\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t]\n\t\t\t}\n\t\t}]\n\t}\n}\n"
-      status: {}
-    myscaler:
-      apiVersion: core.oam.dev/v1beta1
-      kind: TraitDefinition
-      metadata: {}
-      spec:
-        appliesToWorkloads:
-        - deployments.apps
-        definitionRef:
-          name: manualscalertraits.core.oam.dev
-        schematic:
-          cue:
-            template: "outputs: scaler: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:
-              \      \"ManualScalerTrait\"\n\tspec: {\n\t\treplicaCount: parameter.replicas\n\t}\n}\nparameter:
-              {\n\t//+short=r\n\t//+usage=Replicas of the workload\n\treplicas: *1
-              | int\n}\n"
-        workloadRefPath: spec.workloadRef
       status: {}
