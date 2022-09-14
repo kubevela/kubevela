@@ -37,6 +37,7 @@ var _ = Describe("Workload", func() {
 
 var _ = Describe("Test vela show", func() {
 	e2e.ShowCapabilityReference("show webservice", "webservice")
+	e2e.ShowCapabilityReferenceMarkdown("show webservice markdown", "webservice")
 
 	env := "namespace-xxxfwrr23erfm"
 	e2e.EnvInitWithNamespaceOptionContext("env init", env, env)
