@@ -78,56 +78,6 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		Expect(k8sClient.DeleteAllOf(ctx, &appsv1.ControllerRevision{}, client.InNamespace(namespace)))
 	})
 
-	It("Test component have normal workload", func() {
-		appName := "app-1"
-		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
-		app := getApp(appName, namespace, "normal-worker")
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		By("Create a normal workload app")
-		checkApp := &v1beta1.Application{}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
-
-		rt := &v1beta1.ResourceTracker{}
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(Succeed())
-
-		By("add a cross namespace trait for application")
-		updateApp := checkApp.DeepCopy()
-		updateApp.Spec.Components[0].Traits = []common.ApplicationTrait{
-			{
-				Type:       "cross-scaler",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
-			},
-		}
-		Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		checkApp = new(v1beta1.Application)
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(BeNil())
-		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
-
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		checkApp = new(v1beta1.Application)
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(BeNil())
-		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
-		Expect(checkApp.Finalizers[0]).Should(BeEquivalentTo(resourceTrackerFinalizer))
-
-		By("update app to delete cross namespace trait")
-		checkApp = &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		updateApp = checkApp.DeepCopy()
-		updateApp.Spec.Components[0].Traits = nil
-		Expect(k8sClient.Update(ctx, updateApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		checkApp = new(v1beta1.Application)
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v3"), rt)).Should(Succeed())
-	})
-
 	It("Test error occurs in the middle of dispatching", func() {
 		appName := "bad-app"
 		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
@@ -217,45 +167,6 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-	})
-
-	It("Test cross namespace workload and trait, then update the app to delete trait ", func() {
-		appName := "app-4"
-		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
-		app := getApp(appName, namespace, "cross-worker")
-		app.Spec.Components[0].Traits = []common.ApplicationTrait{
-			{
-				Type:       "cross-scaler",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
-			},
-		}
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		By("Create a cross workload trait app")
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		checkApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
-		rt := &v1beta1.ResourceTracker{}
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v1"), rt)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		checkApp = new(v1beta1.Application)
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
-		Expect(checkApp.Finalizers[0]).Should(BeEquivalentTo(resourceTrackerFinalizer))
-		Expect(len(rt.Spec.ManagedResources)).Should(BeEquivalentTo(2))
-		By("Update the app, set type to normal-worker")
-		checkApp.Spec.Components[0].Traits = nil
-		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		rt = &v1beta1.ResourceTracker{}
-		checkApp = new(v1beta1.Application)
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(BeNil())
-		Expect(len(rt.Spec.ManagedResources)).Should(BeEquivalentTo(1))
-		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
-		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(util.NotFoundMatcher{})
 	})
 })
 

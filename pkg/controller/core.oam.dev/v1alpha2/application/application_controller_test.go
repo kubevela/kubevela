@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/httptest"
+	"path/filepath"
+	sysruntime "runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	testdef "github.com/kubevela/pkg/util/test/definition"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -38,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,25 +64,6 @@ import (
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times
 var _ = Describe("Test Application Controller", func() {
 	ctx := context.TODO()
-	appwithConfig := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-with-config",
-			Namespace: "app-with-config",
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Name:       "myweb1",
-					Type:       "worker",
-					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","config":"myconfig"}`)},
-				},
-			},
-		},
-	}
 	appwithNoTrait := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -116,31 +97,6 @@ var _ = Describe("Test Application Controller", func() {
 			Name:       "policy1",
 			Type:       "foopolicy",
 			Properties: &runtime.RawExtension{Raw: []byte(`{"test":"test"}`)},
-		},
-	}
-
-	appImportPkg := &v1beta1.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "app-import-pkg",
-		},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{
-				{
-					Name:       "myweb",
-					Type:       "worker-import",
-					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
-					Traits: []common.ApplicationTrait{
-						{
-							Type:       "ingress-import",
-							Properties: &runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
-						},
-					},
-				},
-			},
 		},
 	}
 
@@ -307,14 +263,14 @@ var _ = Describe("Test Application Controller", func() {
 					Name:       "app-controlplaneonly-component",
 					Type:       "worker",
 					Properties: &runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+					Traits: []common.ApplicationTrait{
+						{
+							Type:       "hubcpuscaler",
+							Properties: &runtime.RawExtension{Raw: []byte("{\"min\": 1,\"max\": 10,\"cpuPercent\": 60}")},
+						},
+					},
 				},
 			},
-		},
-	}
-	appWithControlPlaneOnly.Spec.Components[0].Traits = []common.ApplicationTrait{
-		{
-			Type:       "hubcpuscaler",
-			Properties: &runtime.RawExtension{Raw: []byte("{\"min\": 1,\"max\": 10,\"cpuPercent\": 60}")},
 		},
 	}
 
@@ -442,11 +398,6 @@ var _ = Describe("Test Application Controller", func() {
 	sd := &v1beta1.ScopeDefinition{}
 	sdDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
 
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "kubevela-app-with-config-myweb1-myconfig", Namespace: appwithConfig.Namespace},
-		Data:       map[string]string{"c1": "v1", "c2": "v2"},
-	}
-
 	BeforeEach(func() {
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -463,6 +414,17 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importTd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		_, file, _, _ := sysruntime.Caller(0)
+		for _, trait := range []string{"gateway", "storage", "env", "affinity", "scaler"} {
+			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../../../../charts/vela-core/templates/defwithtemplate/", trait+".yaml"), func(s string) string {
+				return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
+			})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		}
+		for _, def := range []string{"panic", "hubcpuscaler"} {
+			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../application/testdata/definitions/", def+".yaml"), nil)).
+				Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		}
 
 		Expect(json.Unmarshal(sdDefJson, sd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, sd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -580,501 +542,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
-	})
-
-	It("app-with-trait will create workload and trait", func() {
-
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-trait",
-			},
-		}
-		appWithTrait.SetNamespace(ns.Name)
-		expDeployment := getExpDeployment("myweb3", appWithTrait)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		app := appWithTrait.DeepCopy()
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Check AppRevision Created with the expected workload spec")
-		appRev := &v1beta1.ApplicationRevision{}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: app.Name + "-v1", Namespace: app.GetNamespace()}, appRev)
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		af, err := appParser.GenerateAppFileFromRevision(appRev)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-
-		Expect(comp.StandardWorkload).ShouldNot(BeNil())
-		gotDeploy := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
-		gotDeploy.Annotations = nil
-		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
-
-		Expect(len(comp.Traits) > 0).Should(BeTrue())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app-with-composedworkload-trait will create workload and trait", func() {
-		compName := "myweb-composed-3"
-		var appname = "app-with-composedworkload-trait"
-
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-composedworkload-trait",
-			},
-		}
-
-		appWithComposedWorkload := appwithNoTrait.DeepCopy()
-		appWithComposedWorkload.Spec.Components[0].Type = "webserver"
-		appWithComposedWorkload.SetName(appname)
-		appWithComposedWorkload.Spec.Components[0].Traits = []common.ApplicationTrait{
-			{
-				Type:       "scaler",
-				Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
-			},
-		}
-		appWithComposedWorkload.Spec.Components[0].Name = compName
-		appWithComposedWorkload.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		app := appWithComposedWorkload.DeepCopy()
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		expDeployment := getExpDeployment(compName, appWithComposedWorkload)
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Check AppRevision Created with the expected workload spec")
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-
-		Expect(comp.StandardWorkload).ShouldNot(BeNil())
-		gotDeploy := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotDeploy)).Should(Succeed())
-		gotDeploy.Annotations = nil
-		expDeployment.ObjectMeta.Labels["workload.oam.dev/type"] = "webserver"
-		expDeployment.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{ContainerPort: 80}}
-		Expect(cmp.Diff(gotDeploy, expDeployment)).Should(BeEmpty())
-
-		Expect(len(comp.Traits)).Should(BeEquivalentTo(2))
-		gotTrait := comp.Traits[0]
-		By("Check the first trait should be service")
-		expectServiceTrait := unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Service",
-			"metadata": map[string]interface{}{
-				"name":        "myweb-composed-3-auxiliaryworkload-6f9c9cd64c",
-				"namespace":   "vela-test-with-composedworkload-trait",
-				"annotations": map[string]interface{}{"oam.dev/kubevela-version": string("UNKNOWN")},
-				"labels": map[string]interface{}{
-					"trait.oam.dev/type":       "AuxiliaryWorkload",
-					"app.oam.dev/name":         "app-with-composedworkload-trait",
-					"app.oam.dev/namespace":    ns.Name,
-					"app.oam.dev/appRevision":  "app-with-composedworkload-trait-v1",
-					"app.oam.dev/component":    "myweb-composed-3",
-					"trait.oam.dev/resource":   "service",
-					"app.oam.dev/resourceType": "TRAIT",
-				},
-			},
-			"spec": map[string]interface{}{
-				"ports": []interface{}{
-					map[string]interface{}{"port": int64(80), "targetPort": int64(80)},
-				},
-				"selector": map[string]interface{}{
-					"app.oam.dev/component": compName,
-				},
-			},
-		}}
-		Expect(cmp.Diff(expectServiceTrait, *gotTrait)).Should(BeEmpty())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app-with-trait-and-scope will create workload, trait and scope", func() {
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-trait-scope",
-			},
-		}
-		appWithTraitAndScope.SetNamespace(ns.Name)
-		expDeployment := getExpDeployment("myweb4", appWithTraitAndScope)
-
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		app := appWithTraitAndScope.DeepCopy()
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		By("Check App scope status")
-		scopes := curApp.Status.Services[0].Scopes
-		Expect(len(scopes)).Should(BeEquivalentTo(1))
-		Expect(scopes[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1alpha2"))
-		Expect(scopes[0].Kind).Should(BeEquivalentTo("HealthScope"))
-		Expect(scopes[0].Name).Should(BeEquivalentTo("appWithTraitAndScope-default-health"))
-
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		By("Check AppRevision Created with the expected workload spec")
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-		Expect(len(comp.Traits) > 0).Should(BeTrue())
-
-		Expect(len(comp.Scopes) > 0).Should(BeTrue())
-		gotScope := comp.Scopes[0]
-		Expect(*gotScope).Should(BeEquivalentTo(corev1.ObjectReference{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "HealthScope",
-			Name:       "appWithTraitAndScope-default-health",
-		}))
-
-		Expect(comp.StandardWorkload).ShouldNot(BeNil())
-		gotD := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)).Should(Succeed())
-		gotD.Annotations = nil
-		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app with two components and update", func() {
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "app-with-two-comps",
-			},
-		}
-		appWithTwoComp.SetNamespace(ns.Name)
-		expDeployment := getExpDeployment("myweb5", appWithTwoComp)
-
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		app := appWithTwoComp.DeepCopy()
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		cm.SetNamespace(ns.Name)
-		cm.SetName("kubevela-app-with-two-comp-myweb6-myconfig")
-		Expect(k8sClient.Create(ctx, cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(BeZero())
-
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp1 := comps[0]
-		Expect(len(comp1.Traits) > 0).Should(BeTrue())
-
-		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
-		Expect(*comp1.Scopes[0]).Should(Equal(corev1.ObjectReference{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "HealthScope",
-			Name:       "app-with-two-comp-default-health",
-		}))
-		comp2 := comps[1]
-		Expect(len(comp1.Scopes) > 0).Should(BeTrue())
-		Expect(*comp2.Scopes[0]).Should(Equal(corev1.ObjectReference{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "HealthScope",
-			Name:       "app-with-two-comp-default-health",
-		}))
-
-		Expect(comp1.StandardWorkload).ShouldNot(BeNil())
-		gotD := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp1.StandardWorkload.Object, gotD)).Should(Succeed())
-		gotD.Annotations = nil
-		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
-
-		expDeployment6 := getExpDeployment("myweb6", app)
-		expDeployment6.Spec.Template.Spec.Containers[0].Image = "busybox2"
-		Expect(comp2.StandardWorkload).ShouldNot(BeNil())
-		gotD2 := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp2.StandardWorkload.Object, gotD2)).Should(Succeed())
-		gotD2.Annotations = nil
-		Expect(cmp.Diff(gotD2, expDeployment6)).Should(BeEmpty())
-
-		By("Update Application with new revision, component5 with new spec, rename component6 it should create new component ")
-
-		curApp.SetNamespace(app.Namespace)
-		curApp.Spec.Components[0] = common.ApplicationComponent{
-			Name:       "myweb5",
-			Type:       "worker",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3"}`)},
-			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
-		}
-		curApp.Spec.Components[1] = common.ApplicationComponent{
-			Name:       "myweb7",
-			Type:       "worker",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-			Scopes:     map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
-		}
-		Expect(k8sClient.Update(ctx, curApp)).Should(BeNil())
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App updated successfully")
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.ObservedGeneration).Should(Equal(curApp.Generation))
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		By("Check affiliated resource tracker is upgraded")
-		expectRTName = fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		af, err = appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err = af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp1 = comps[0]
-
-		expDeployment.Spec.Template.Spec.Containers[0].Image = "busybox3"
-		expDeployment.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
-		Expect(comp1.StandardWorkload).ShouldNot(BeNil())
-		gotD = &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp1.StandardWorkload.Object, gotD)).Should(Succeed())
-		gotD.Annotations = nil
-		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
-
-		expDeployment7 := getExpDeployment("myweb7", app)
-		expDeployment7.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
-		comp2 = comps[1]
-		Expect(comp2.StandardWorkload).ShouldNot(BeNil())
-		gotD3 := &v1.Deployment{}
-		Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(comp2.StandardWorkload.Object, gotD3)).Should(Succeed())
-		gotD3.Annotations = nil
-		Expect(cmp.Diff(gotD3, expDeployment7)).Should(BeEmpty())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app-with-trait will create workload and trait with http task", func() {
-		s := newMockHTTP()
-		defer s.Close()
-
-		By("change trait definition with http task")
-		ntd, otd := &v1beta1.TraitDefinition{}, &v1beta1.TraitDefinition{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
-		ntd.ResourceVersion = otd.ResourceVersion
-		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-trait-http",
-			},
-		}
-		appWithTrait.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		app := appWithTrait.DeepCopy()
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-		Expect(len(comp.Traits) > 0).Should(BeTrue())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
-	})
-
-	It("app with health policy for workload", func() {
-		By("change workload and trait definition with health policy")
-		ncd, ocd := &v1beta1.ComponentDefinition{}, &v1beta1.ComponentDefinition{}
-		cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefWithHealthYaml))
-		Expect(json.Unmarshal(cDDefJson, ncd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ncd.Name, Namespace: ncd.Namespace}, ocd)).Should(BeNil())
-		ncd.ResourceVersion = ocd.ResourceVersion
-		Expect(k8sClient.Update(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		ntd, otd := &v1beta1.TraitDefinition{}, &v1beta1.TraitDefinition{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
-		ntd.ResourceVersion = otd.ResourceVersion
-		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		compName := "myweb-health"
-		expDeployment := getExpDeployment(compName, appWithTrait)
-
-		By("create the new namespace")
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-health",
-			},
-		}
-		appWithTrait.SetNamespace(ns.Name)
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-
-		app := appWithTrait.DeepCopy()
-		app.Spec.Components[0].Name = compName
-		expDeployment.Name = app.Name
-		expDeployment.Namespace = ns.Name
-		expDeployment.Labels[oam.LabelAppName] = app.Name
-		expDeployment.Labels[oam.LabelAppComponent] = compName
-		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
-		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-
-		By("enrich the status of deployment and scaler trait")
-		expDeployment.Status.Replicas = 1
-		expDeployment.Status.ReadyReplicas = 1
-		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
-		got := &v1.Deployment{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		}, got)).Should(BeNil())
-
-		By("apply appfile")
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-
-		By("Check App running successfully")
-
-		checkApp := &v1beta1.Application{}
-		Eventually(func() string {
-			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: appKey})
-			if err != nil {
-				return err.Error()
-			}
-			err = k8sClient.Get(ctx, appKey, checkApp)
-			if err != nil {
-				return err.Error()
-			}
-			if checkApp.Status.Phase != common.ApplicationRunning {
-				fmt.Println(checkApp.Status.Conditions)
-			}
-			return string(checkApp.Status.Phase)
-		}, 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", checkApp.Status.LatestRevision.Name, checkApp.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
 	It("app with health policy and custom status for workload", func() {
@@ -1331,104 +798,6 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: curApp.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
-	})
-
-	PIt("app-import-pkg will create workload by imported kube package", func() {
-
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-app-import-pkg",
-			},
-		}
-		appImportPkg.SetNamespace(ns.Name)
-		expDeployment := getExpDeployment("myweb", appImportPkg)
-		expDeployment.Labels["workload.oam.dev/type"] = "worker-import"
-		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, appImportPkg.DeepCopy())).Should(BeNil())
-
-		appKey := client.ObjectKey{
-			Name:      appImportPkg.Name,
-			Namespace: appImportPkg.Namespace,
-		}
-		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Check Application Created with the correct revision")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-
-		By("Check AppRevision created as expected")
-		appRevision := &v1beta1.ApplicationRevision{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: curApp.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
-		}, appRevision)).Should(BeNil())
-
-		af, err := appParser.GenerateAppFileFromRevision(appRevision)
-		Expect(err).Should(BeNil())
-		comps, err := af.GenerateComponentManifests()
-		Expect(err).Should(BeNil())
-		Expect(len(comps) > 0).Should(BeTrue())
-		comp := comps[0]
-
-		gotSvc := &corev1.Service{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.Traits[0].Object, gotSvc)
-		Expect(cmp.Diff(gotSvc, &corev1.Service{
-			TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "myweb",
-				Namespace:   "vela-test-app-import-pkg",
-				Annotations: map[string]string{"oam.dev/kubevela-version": "UNKNOWN"},
-				Labels: map[string]string{
-					"app.oam.dev/component":    "myweb",
-					"app.oam.dev/name":         "app-import-pkg",
-					"app.oam.dev/namespace":    ns.Name,
-					"trait.oam.dev/resource":   "service",
-					"trait.oam.dev/type":       "ingress-import",
-					"app.oam.dev/appRevision":  "app-import-pkg-v1",
-					"app.oam.dev/resourceType": "TRAIT",
-				}},
-			Spec: corev1.ServiceSpec{
-				Ports:    []corev1.ServicePort{{Port: 80, TargetPort: intstr.FromInt(80)}},
-				Selector: map[string]string{"app.oam.dev/component": "myweb"},
-			}})).Should(BeEquivalentTo(""))
-		gotIngress := &v1beta12.Ingress{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.Traits[1].Object, gotIngress)
-		Expect(cmp.Diff(gotIngress, &v1beta12.Ingress{
-			TypeMeta: metav1.TypeMeta{Kind: "Ingress", APIVersion: "networking.k8s.io/v1beta1"},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "myweb",
-				Namespace:   "vela-test-app-import-pkg",
-				Annotations: map[string]string{"oam.dev/kubevela-version": "UNKNOWN"},
-				Labels: map[string]string{
-					"app.oam.dev/component":    "myweb",
-					"app.oam.dev/name":         "app-import-pkg",
-					"app.oam.dev/namespace":    ns.Name,
-					"trait.oam.dev/resource":   "ingress",
-					"app.oam.dev/resourceType": "TRAIT",
-					"trait.oam.dev/type":       "ingress-import",
-					"app.oam.dev/appRevision":  "app-import-pkg-v1",
-				}},
-			Spec: v1beta12.IngressSpec{Rules: []v1beta12.IngressRule{{Host: "abc.com",
-				IngressRuleValue: v1beta12.IngressRuleValue{HTTP: &v1beta12.HTTPIngressRuleValue{Paths: []v1beta12.HTTPIngressPath{{
-					Path:    "/",
-					Backend: v1beta12.IngressBackend{ServiceName: "myweb", ServicePort: intstr.FromInt(80)}}}}}}},
-			}})).Should(BeEquivalentTo(""))
-
-		By("Check affiliated resource tracker is created")
-		expectRTName := fmt.Sprintf("%s-%s", appRevision.GetName(), appRevision.GetNamespace())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: expectRTName}, &v1beta1.ResourceTracker{})
-		}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-		gotD := &v1.Deployment{}
-		runtime.DefaultUnstructuredConverter.FromUnstructured(comp.StandardWorkload.Object, gotD)
-		gotD.Annotations = nil
-		Expect(cmp.Diff(gotD, expDeployment)).Should(BeEmpty())
-
-		By("Delete Application, clean the resource")
-		Expect(k8sClient.Delete(ctx, appImportPkg)).Should(BeNil())
 	})
 
 	It("revision should exist in created workload render by context.appRevision", func() {
@@ -4457,7 +3826,6 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      app.Spec.Components[0].Name,
 		}, hpa)).Should(BeNil())
 
-		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, hpa)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -5477,25 +4845,3 @@ spec:
 
 `
 )
-
-func newMockHTTP() *httptest.Server {
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			fmt.Printf("Expected 'GET' request, got '%s'", r.Method)
-		}
-		if r.URL.EscapedPath() != "/api/v1/token" {
-			fmt.Printf("Expected request to '/person', got '%s'", r.URL.EscapedPath())
-		}
-		r.ParseForm()
-		token := r.Form.Get("val")
-		tokenBytes, _ := json.Marshal(map[string]interface{}{"token": token})
-
-		w.WriteHeader(http.StatusOK)
-		w.Write(tokenBytes)
-	}))
-	l, _ := net.Listen("tcp", "127.0.0.1:8090")
-	ts.Listener.Close()
-	ts.Listener = l
-	ts.Start()
-	return ts
-}

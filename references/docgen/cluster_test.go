@@ -155,6 +155,8 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd2        corev1beta1.ComponentDefinition
 		cd3        corev1beta1.ComponentDefinition
 		cd4        corev1beta1.ComponentDefinition
+		td1        corev1beta1.TraitDefinition
+		td2        corev1beta1.TraitDefinition
 		td3        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
@@ -213,10 +215,21 @@ var _ = Describe("test GetCapabilityByName", func() {
 		data3, _ := os.ReadFile("testdata/svcTraitDef.yaml")
 		yaml.Unmarshal(data3, &td3)
 
+		td3.DeepCopyInto(&td1)
+		td3.DeepCopyInto(&td2)
 		td3.Namespace = ns
 		td3.Name = trait3
 		Expect(k8sClient.Create(ctx, &td3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
+		td1.Name = trait1
+		td2.Name = trait2
+		td1.Namespace = ns
+		td1.Name = trait1
+		td1.SetResourceVersion("")
+		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		td2.Namespace = defaultNS
+		td2.Name = trait2
+		td2.SetResourceVersion("")
+		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	It("get capability", func() {
@@ -308,13 +321,13 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 	It("get namespaced capabilities", func() {
 		Context("found all capabilities", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
-			Expect(len(capabilities)).Should(Equal(4))
+			Expect(len(capabilities)).Should(Equal(2))
 			Expect(err).Should(BeNil())
 		})
 
 		Context("found two capabilities with a bad namespace", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, "a-bad-ns", c, nil)
-			Expect(len(capabilities)).Should(Equal(2))
+			Expect(len(capabilities)).Should(Equal(1))
 			Expect(err).Should(BeNil())
 		})
 
