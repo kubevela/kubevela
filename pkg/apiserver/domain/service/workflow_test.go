@@ -604,10 +604,13 @@ var _ = Describe("Test workflow service functions", func() {
 		srv := workflowServiceImpl{
 			Store: mongodbDriver,
 		}
-		Expect(srv.DeleteWorkflowByApp(context.TODO(), &model.Application{Name: "app-test"})).ToNot(HaveOccurred())
-		list, err := mongodbDriver.List(context.TODO(), &model.WorkflowRecord{}, nil)
+		Expect(srv.DeleteWorkflowByApp(context.TODO(), &model.Application{Name: "war-app"})).ToNot(HaveOccurred())
+		wc, err := mongodbDriver.Count(context.TODO(), &model.Workflow{AppPrimaryKey: "war-app"}, nil)
 		Expect(err).ToNot(HaveOccurred())
-		fmt.Println(list)
+		Expect(int(wc)).Should(Equal(0))
+
+		list, err := mongodbDriver.List(context.TODO(), &model.WorkflowRecord{AppPrimaryKey: "war-app"}, nil)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(len(list)).Should(Equal(0))
 	})
 })
