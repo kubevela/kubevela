@@ -19,6 +19,8 @@ package v1
 import (
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	registryv1 "github.com/google/go-containerregistry/pkg/v1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -50,6 +52,12 @@ var (
 	CtxKeyUser = "user"
 	// CtxKeyToken request context key of request token
 	CtxKeyToken = "token"
+	// CtxKeyPipeline request context key of pipeline
+	CtxKeyPipeline = "pipeline"
+	// CtxKeyPipelineContex request context key of pipeline context
+	CtxKeyPipelineContex = "pipeline-context"
+	// CtxKeyPipelineRun request context key of pipeline run
+	CtxKeyPipelineRun = "pipeline-run"
 )
 
 // AddonPhase defines the phase of an addon
@@ -1526,4 +1534,206 @@ type CreateConfigDistributionRequest struct {
 // ListConfigDistributionResponse is the response body for listing the distribution
 type ListConfigDistributionResponse struct {
 	Distributions []*config.Distribution `json:"distributions"`
+}
+
+/********************/
+/* Pipeline Structs */
+/********************/
+
+// PipelineMeta is metadata of pipeline
+type PipelineMeta struct {
+	Name        string `json:"name" validate:"checkname"`
+	Alias       string `json:"alias" validate:"checkalias" optional:"true"`
+	Project     string `json:"project"`
+	Description string `json:"description" optional:"true"`
+}
+
+// PipelineBase is the base info of pipeline
+type PipelineBase struct {
+	PipelineMeta `json:",inline"`
+	Spec         workflowv1alpha1.WorkflowSpec `json:"spec"`
+}
+
+// RunStatInfo is the pipeline run statistics info
+type RunStatInfo struct {
+	Total   int `json:"total"`
+	Success int `json:"success"`
+	Fail    int `json:"fail"`
+}
+
+// RunStat is the statistics of the pipeline in seven days
+type RunStat struct {
+	ActiveNum int           `json:"activeNum"`
+	Total     RunStatInfo   `json:"total"`
+	Week      []RunStatInfo `json:"week"`
+}
+
+// CreatePipelineRequest is the request body of creating pipeline
+type CreatePipelineRequest struct {
+	Name        string                        `json:"name" validate:"checkname"`
+	Project     string                        `json:"project"`
+	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
+	Description string                        `json:"description" optional:"true"`
+	Spec        workflowv1alpha1.WorkflowSpec `json:"spec"`
+}
+
+// PipelineMetaResponse is the response body contains PipelineMeta
+type PipelineMetaResponse struct {
+	PipelineMeta `json:",inline"`
+}
+
+// ListPipelineRequest is the request body of listing pipeline
+type ListPipelineRequest struct {
+	Projects []string `json:"projects"`
+	Query    string   `json:"query"`
+}
+
+// ListPipelineResponse is the response body of listing pipeline
+type ListPipelineResponse struct {
+	Total     int                `json:"total"`
+	Pipelines []PipelineListItem `json:"pipelines"`
+}
+
+// PipelineListItem is the item of pipeline list
+type PipelineListItem struct {
+	PipelineMeta `json:",inline"`
+	Info         PipelineInfo `json:"info"`
+}
+
+// UpdatePipelineRequest is the request body of updating pipeline
+type UpdatePipelineRequest struct {
+	Alias       string                        `json:"alias" validate:"checkalias" optional:"true"`
+	Description string                        `json:"description" optional:"true"`
+	Spec        workflowv1alpha1.WorkflowSpec `json:"spec" optional:"true"`
+}
+
+// GetPipelineRequest is the request body of getting pipeline
+type GetPipelineRequest struct {
+	Detailed bool `json:"detailed"`
+}
+
+// GetPipelineResponse is the response body of getting pipeline
+type GetPipelineResponse struct {
+	PipelineBase `json:",inline"`
+	PipelineInfo `json:"info"`
+}
+
+// PipelineInfo is the info of pipeline
+type PipelineInfo struct {
+	RelatedApps   []ApplicationBase                  `json:"relatedApps"`
+	LastRunStatus workflowv1alpha1.WorkflowRunStatus `json:"lastRunStatus"`
+	RunStat       RunStat                            `json:"runStat"`
+}
+
+/***********************/
+/* PipelineRun Structs */
+/***********************/
+
+// PipelineRunBriefing is the brief info of the pipeline run, contains run name and brief status
+type PipelineRunBriefing struct {
+	PipelineRunName string                            `json:"pipelineRunName"`
+	Finished        bool                              `json:"finished"`
+	Phase           workflowv1alpha1.WorkflowRunPhase `json:"phase"`
+	Message         string                            `json:"message"`
+	StartTime       metav1.Time                       `json:"startTime"`
+	EndTime         metav1.Time                       `json:"endTime"`
+	ContextName     string                            `json:"contextName"`
+	ContextValues   []model.Value                     `json:"contextValues"`
+}
+
+// PipelineRunMeta is the metadata of pipeline run
+type PipelineRunMeta struct {
+	PipelineName    string `json:"pipelineName"`
+	Project         string `json:"project"`
+	PipelineRunName string `json:"pipelineRunName"`
+}
+
+// PipelineRun is the info of pipeline run
+type PipelineRun struct {
+	PipelineRunBase `json:",inline"`
+	Status          workflowv1alpha1.WorkflowRunStatus `json:"status"`
+}
+
+// PipelineRunBase is the base info of pipeline run
+type PipelineRunBase struct {
+	PipelineRunMeta `json:",inline"`
+	// Record marks the run of the pipeline
+	Record      int64                            `json:"record"`
+	ContextName string                           `json:"contextName"`
+	Spec        workflowv1alpha1.WorkflowRunSpec `json:"spec"`
+}
+
+// RunPipelineRequest is the request body of running pipeline
+type RunPipelineRequest struct {
+	// Mode is the mode of the pipeline run. Available values are: "StepByStep", "DAG" for both `step` and `subStep`
+	Mode        workflowv1alpha1.WorkflowExecuteMode `json:"mode" optional:"true"`
+	ContextName string                               `json:"contextName"`
+}
+
+// ListPipelineRunResponse is the response body of listing pipeline run
+type ListPipelineRunResponse struct {
+	Total int64                 `json:"total"`
+	Runs  []PipelineRunBriefing `json:"runs"`
+}
+
+// GetPipelineRunLogResponse is the response body of getting pipeline run log
+type GetPipelineRunLogResponse struct {
+	Log []Log `json:"log"`
+}
+
+// GetPipelineRunOutputResponse is the response body of getting pipeline run output
+type GetPipelineRunOutputResponse struct {
+	Output []Output `json:"output"`
+}
+
+// StepBase is the base info of step
+type StepBase struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Phase string `json:"phase"`
+}
+
+// Log is the log of step
+type Log struct {
+	StepBase `json:",inline"`
+	Log      string `json:"log"`
+}
+
+// Output is the output of step
+type Output struct {
+	StepBase `json:",inline"`
+	Vars     map[string]string `json:"vars"`
+}
+
+/*******************/
+/* Context Structs */
+/*******************/
+
+// Context is an internal struct for the context
+type Context struct {
+	Name   string        `json:"name"`
+	Values []model.Value `json:"values"`
+}
+
+// CreateContextValuesRequest is the request body of creating context values
+type CreateContextValuesRequest struct {
+	Name   string        `json:"name"`
+	Values []model.Value `json:"values"`
+}
+
+// UpdateContextValuesRequest is the request body of updating context values
+type UpdateContextValuesRequest struct {
+	Values []model.Value `json:"values"`
+}
+
+// ContextNameResponse is the response body of getting context name
+type ContextNameResponse struct {
+	Name string `json:"name"`
+}
+
+// ListContextValueResponse is the response body of listing context values
+type ListContextValueResponse struct {
+	Total    int                      `json:"total"`
+	Contexts map[string][]model.Value `json:"contexts"`
 }
