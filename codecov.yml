@@ -9,3 +9,4 @@ coverage:
 ignore:
   - "**/zz_generated.deepcopy.go"
   - "references/"
+  - "apis/"
