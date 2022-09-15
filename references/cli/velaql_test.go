@@ -215,8 +215,8 @@ var _ = Describe("Test velaQL", func() {
 			{
 				"name": "loadbalancer",
 				"ports": []corev1.ServicePort{
-					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port"},
-					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port"},
+					{Port: 80, TargetPort: intstr.FromInt(80), Name: "80port", NodePort: 30180},
+					{Port: 81, TargetPort: intstr.FromInt(81), Name: "81port", NodePort: 30181},
 				},
 				"type": corev1.ServiceTypeLoadBalancer,
 				"status": corev1.ServiceStatus{
@@ -436,10 +436,10 @@ var _ = Describe("Test velaQL", func() {
 			"https://ingress.domain.path/test",
 			"https://ingress.domain.path/test2",
 			fmt.Sprintf("http://%s:30229", gatewayIP),
-			"http://10.10.10.10",
-			"http://text.example.com",
-			"10.10.10.10:81",
-			"text.example.com:81",
+			"http://10.10.10.10:30180",
+			"http://text.example.com:30180",
+			"10.10.10.10:30181",
+			"text.example.com:30181",
 			// helmRelease
 			fmt.Sprintf("http://%s:30002", gatewayIP),
 			"http://ingress.domain.helm",
