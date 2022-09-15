@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: noti
+  namespace: default
+spec:
+  components: []
+  workflow:
+    steps:
+    - name: notification
+      type: notification
+      properties:
+        slack:
+          url:
+            value: https://kubevela.io
+          message:
+            text: hello world

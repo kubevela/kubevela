@@ -1,6 +1,7 @@
 import (
 	"vela/op"
 	"encoding/base64"
+	"encoding/json"
 )
 
 "notification": {
@@ -15,10 +16,10 @@ template: {
 		// +usage=Please fulfill its url and message if you want to send Lark messages
 		lark?: {
 			// +usage=Specify the the lark url, you can either sepcify it in value or use secretRef
-			url: {
+			url: close({
 				// +usage=the url address content in string
 				value: string
-			} | close({
+			}) | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
@@ -37,10 +38,10 @@ template: {
 		// +usage=Please fulfill its url and message if you want to send DingTalk messages
 		dingding?: {
 			// +usage=Specify the the dingding url, you can either sepcify it in value or use secretRef
-			url: {
+			url: close({
 				// +usage=the url address content in string
 				value: string
-			} | close({
+			}) | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
@@ -95,10 +96,10 @@ template: {
 		// +usage=Please fulfill its url and message if you want to send Slack messages
 		slack?: {
 			// +usage=Specify the the slack url, you can either sepcify it in value or use secretRef
-			url: {
+			url: close({
 				// +usage=the url address content in string
 				value: string
-			} | close({
+			}) | close({
 				secretRef: {
 					// +usage=name is the name of the secret
 					name: string
@@ -129,10 +130,10 @@ template: {
 				// +usage=The alias is the email alias to show after sending the email
 				alias?: string
 				// +usage=Specify the password of the email, you can either sepcify it in value or use secretRef
-				password: {
+				password: close({
 					// +usage=the password content in string
 					value: string
-				} | close({
+				}) | close({
 					secretRef: {
 						// +usage=name is the name of the secret
 						name: string
@@ -238,8 +239,7 @@ template: {
 					}
 				}
 
-				decoded:     base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])
-				stringValue: op.#ConvertString & {bt: decoded}
+				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.dingding.url.secretRef.key])}
 				ding2:       op.#DingTalk & {
 					message: parameter.dingding.message
 					dingUrl: stringValue.str
@@ -268,8 +268,7 @@ template: {
 					}
 				}
 
-				decoded:     base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])
-				stringValue: op.#ConvertString & {bt: decoded}
+				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.lark.url.secretRef.key])}
 				lark2:       op.#Lark & {
 					message: parameter.lark.message
 					larkUrl: stringValue.str
@@ -298,8 +297,7 @@ template: {
 					}
 				}
 
-				decoded:     base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])
-				stringValue: op.#ConvertString & {bt: decoded}
+				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.slack.url.secretRef.key])}
 				slack2:      op.#Slack & {
 					message:  parameter.slack.message
 					slackUrl: stringValue.str
@@ -338,8 +336,7 @@ template: {
 					}
 				}
 
-				decoded:     base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])
-				stringValue: op.#ConvertString & {bt: decoded}
+				stringValue: op.#ConvertString & {bt: base64.Decode(null, read.value.data[parameter.email.from.password.secretRef.key])}
 				email2:      op.#SendEmail & {
 					from: {
 						address: parameter.email.from.address

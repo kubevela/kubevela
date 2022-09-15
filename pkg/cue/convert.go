@@ -34,6 +34,7 @@ import (
 var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
+// nolint:staticcheck
 func GetParameters(templateStr string, pd *packages.PackageDiscover) ([]types.Parameter, error) {
 	template, err := value.NewValue(templateStr+BaseTemplate, pd, "")
 	if err != nil {

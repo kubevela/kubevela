@@ -91,6 +91,7 @@ func NewWorkloadAbstractEngine(name string, pd *packages.PackageDiscover) Abstra
 }
 
 // Complete do workload definition's rendering
+// nolint:staticcheck
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := value.AddFile(bi, "-", renderTemplate(abstractTemplate)); err != nil {
@@ -288,7 +289,7 @@ func NewTraitAbstractEngine(name string, pd *packages.PackageDiscover) AbstractE
 }
 
 // Complete do trait definition's rendering
-// nolint:gocyclo
+// nolint:staticcheck,gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	buff := abstractTemplate + "\n"

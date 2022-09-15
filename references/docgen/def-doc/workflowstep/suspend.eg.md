@@ -16,9 +16,11 @@ spec:
   workflow:
     steps:
       - name: slack-message
-        type: webhook-notification
+        type: notification
         properties:
           slack:
+            url:
+              value: <your-slack-url>
             # the Slack webhook address, please refer to: https://api.slack.com/messaging/webhooks
             message:
               text: Ready to apply the application, ask the administrator to approve and resume the workflow.
@@ -27,5 +29,7 @@ spec:
         # properties:
         #   duration: "30s"
       - name: express-server
-        type: apply-application
+        type: apply-component
+        properties:
+          component: express-server
 ```
