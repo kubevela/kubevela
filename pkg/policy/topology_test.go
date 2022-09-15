@@ -145,6 +145,15 @@ func TestGetClusterLabelSelectorInTopology(t *testing.T) {
 			Outputs:             []v1alpha1.PlacementDecision{{Cluster: "cluster-a", Namespace: "override"}, {Cluster: "cluster-b", Namespace: "override"}},
 			AllowCrossNamespace: true,
 		},
+		"topology-no-clusters-and-cluster-label-selector": {
+			Inputs: []v1beta1.AppPolicy{{
+				Name:       "topology-policy",
+				Type:       "topology",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"override"}`)},
+			}},
+			Outputs:             []v1alpha1.PlacementDecision{{Cluster: "local", Namespace: "override"}},
+			AllowCrossNamespace: true,
+		},
 		"no-topology-policy": {
 			Inputs:  []v1beta1.AppPolicy{},
 			Outputs: []v1alpha1.PlacementDecision{{Cluster: "local", Namespace: ""}},
